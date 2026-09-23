@@ -12,7 +12,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use"],
+    "tags": ["reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -25,7 +25,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -51,8 +53,8 @@
     "max_tokens": 16384,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
-    "tags": ["tool-use", "reasoning"],
+    "no_training": "some",
+    "tags": ["tool-use", "structured-output", "reasoning"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -65,9 +67,20 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "knowledge": "2025-04",
     "pricing": {
       "input": "0.00000022",
@@ -88,7 +101,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use"],
+    "tags": ["reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -101,7 +114,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -128,7 +143,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use"],
+    "tags": ["reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -141,7 +156,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -263,8 +280,14 @@
     "max_tokens": 32768,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
-    "tags": ["vision", "reasoning", "tool-use", "file-input"],
+    "no_training": "some",
+    "tags": [
+      "vision",
+      "reasoning",
+      "tool-use",
+      "file-input",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -277,7 +300,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -306,8 +331,8 @@
     "max_tokens": 65536,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
-    "tags": ["tool-use", "implicit-caching"],
+    "no_training": "some",
+    "tags": ["tool-use", "structured-output", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -318,7 +343,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2025-04",
@@ -389,8 +416,8 @@
     "max_tokens": 8192,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
-    "tags": ["tool-use"],
+    "no_training": "some",
+    "tags": ["tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -401,7 +428,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2025-04",
@@ -424,7 +453,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["tool-use"],
+    "tags": ["tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -435,7 +464,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2025-09",
@@ -619,8 +650,8 @@
     "max_tokens": 32768,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
-    "tags": ["tool-use", "implicit-caching"],
+    "no_training": "some",
+    "tags": ["tool-use", "implicit-caching", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -631,9 +662,19 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+      }
+    ],
     "knowledge": "2025-04",
     "pricing": {
       "input": "0.0000012",
@@ -703,7 +744,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["tool-use", "implicit-caching"],
+    "tags": ["tool-use", "implicit-caching", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -714,7 +755,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2025-04",
@@ -785,7 +828,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use"],
+    "tags": ["reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -798,7 +841,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -875,8 +920,8 @@
     "max_tokens": 262114,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
-    "tags": ["tool-use"],
+    "no_training": "some",
+    "tags": ["tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -887,7 +932,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2025-04",
@@ -910,7 +957,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use"],
+    "tags": ["reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -923,7 +970,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -984,8 +1033,8 @@
     "max_tokens": 129024,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
-    "tags": ["tool-use", "vision", "implicit-caching"],
+    "no_training": "some",
+    "tags": ["tool-use", "vision", "implicit-caching", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -996,7 +1045,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2025-04",
@@ -1018,7 +1069,7 @@
     "max_tokens": 32768,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
+    "no_training": "some",
     "tags": ["vision", "reasoning", "tool-use", "file-input"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -1089,6 +1140,10 @@
         "type": "toggle"
       },
       {
+        "type": "effort",
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+      },
+      {
         "type": "budget_tokens",
         "min": 1,
         "max": 81920
@@ -1139,6 +1194,10 @@
     "reasoning_options": [
       {
         "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens",
@@ -1282,6 +1341,10 @@
         "type": "toggle"
       },
       {
+        "type": "effort",
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+      },
+      {
         "type": "budget_tokens",
         "min": 1,
         "max": 131072
@@ -1358,7 +1421,8 @@
       "implicit-caching",
       "file-input",
       "vision",
-      "explicit-caching"
+      "explicit-caching",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -1372,9 +1436,23 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+      },
+      {
+        "type": "budget_tokens"
+      }
+    ],
     "pricing": {
       "input": "0.00000003",
       "input_tiers": [
@@ -1459,7 +1537,13 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["implicit-caching", "reasoning", "tool-use", "explicit-caching"],
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "tool-use",
+      "explicit-caching",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -1472,12 +1556,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens",
@@ -1531,6 +1621,10 @@
     "reasoning_options": [
       {
         "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens",
@@ -1603,7 +1697,13 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "structured-output",
+      "vision"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -1616,7 +1716,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -1652,7 +1754,8 @@
       "implicit-caching",
       "video-input",
       "file-input",
-      "explicit-caching"
+      "explicit-caching",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -1666,7 +1769,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -1702,7 +1807,8 @@
       "implicit-caching",
       "file-input",
       "vision",
-      "explicit-caching"
+      "explicit-caching",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -1716,12 +1822,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["low", "medium", "xhigh"]
       },
       {
         "type": "budget_tokens"
@@ -1752,7 +1864,8 @@
       "tool-use",
       "implicit-caching",
       "vision",
-      "explicit-caching"
+      "explicit-caching",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -1766,10 +1879,15 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
+      {
+        "type": "toggle"
+      },
       {
         "type": "effort",
         "values": ["low", "medium", "xhigh"]
@@ -1805,7 +1923,8 @@
       "vision",
       "file-input",
       "implicit-caching",
-      "explicit-caching"
+      "explicit-caching",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -1819,9 +1938,25 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["low", "medium", "xhigh"]
+      },
+      {
+        "type": "budget_tokens",
+        "min": 0,
+        "max": 262144
+      }
+    ],
     "pricing": {
       "input": "0.000002",
       "output": "0.000006",
@@ -1866,6 +2001,12 @@
       "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.00000015",
       "output": "0.00000047",
@@ -2550,7 +2691,13 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["file-input", "reasoning", "tool-use", "vision"],
+    "tags": [
+      "file-input",
+      "reasoning",
+      "tool-use",
+      "vision",
+      "structured-output"
+    ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -2564,7 +2711,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -2608,7 +2757,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["file-input", "tool-use", "vision"],
+    "tags": ["file-input", "tool-use", "vision", "structured-output"],
     "regions": ["eu"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -2620,7 +2769,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2024-10",
@@ -2648,7 +2799,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["tool-use"],
+    "tags": ["tool-use", "structured-output"],
     "regions": ["eu"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -2660,7 +2811,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2024-10",
@@ -2688,7 +2841,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["file-input", "tool-use", "vision"],
+    "tags": ["file-input", "tool-use", "vision", "structured-output"],
     "regions": ["eu"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -2700,7 +2853,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2024-10",
@@ -2750,7 +2905,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["tool-use", "vision", "explicit-caching"],
+    "tags": ["tool-use", "vision", "explicit-caching", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -2761,7 +2916,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2023-08-31",
@@ -2790,7 +2947,8 @@
       "tool-use",
       "explicit-caching",
       "file-input",
-      "vision"
+      "vision",
+      "structured-output"
     ],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -2804,7 +2962,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -2813,7 +2973,10 @@
       },
       {
         "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
+      },
+      {
+        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-01-31",
@@ -2851,7 +3014,8 @@
       "tool-use",
       "explicit-caching",
       "file-input",
-      "vision"
+      "vision",
+      "structured-output"
     ],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -2866,7 +3030,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -2875,10 +3041,13 @@
       },
       {
         "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
+      },
+      {
+        "type": "budget_tokens"
       }
     ],
-    "knowledge": "2026-06-01",
+    "knowledge": "2026-06",
     "pricing": {
       "input": "0.00001",
       "output": "0.00005",
@@ -2914,7 +3083,8 @@
       "reasoning",
       "tool-use",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -2929,7 +3099,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -3000,6 +3172,15 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "budget_tokens",
+        "min": 1024
+      }
+    ],
     "knowledge": "2025-03-31",
     "pricing": {
       "input": "0.000015",
@@ -3028,7 +3209,8 @@
       "reasoning",
       "tool-use",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -3043,7 +3225,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -3051,8 +3235,11 @@
         "type": "toggle"
       },
       {
-        "type": "budget_tokens",
-        "min": 1024
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      },
+      {
+        "type": "budget_tokens"
       }
     ],
     "knowledge": "2025-05",
@@ -3098,7 +3285,8 @@
       "vision",
       "file-input",
       "explicit-caching",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -3113,7 +3301,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -3122,11 +3312,10 @@
       },
       {
         "type": "effort",
-        "values": ["low", "medium", "high"]
+        "values": ["none", "low", "medium", "high", "max"]
       },
       {
-        "type": "budget_tokens",
-        "min": 1024
+        "type": "budget_tokens"
       }
     ],
     "knowledge": "2025-05-31",
@@ -3178,7 +3367,8 @@
       "vision",
       "file-input",
       "explicit-caching",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -3193,7 +3383,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -3202,7 +3394,10 @@
       },
       {
         "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
+      },
+      {
+        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-01-31",
@@ -3254,7 +3449,8 @@
       "file-input",
       "explicit-caching",
       "web-search",
-      "fast"
+      "fast",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -3269,7 +3465,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -3278,7 +3476,10 @@
       },
       {
         "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
+      },
+      {
+        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-01",
@@ -3336,7 +3537,8 @@
       "file-input",
       "explicit-caching",
       "web-search",
-      "fast"
+      "fast",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -3351,7 +3553,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -3360,7 +3564,10 @@
       },
       {
         "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
+      },
+      {
+        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-01",
@@ -3400,7 +3607,8 @@
       "file-input",
       "explicit-caching",
       "web-search",
-      "fast"
+      "fast",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -3414,13 +3622,21 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "medium", "high", "xhigh", "max"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
+      },
+      {
+        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-05",
@@ -3478,7 +3694,8 @@
       "file-input",
       "explicit-caching",
       "web-search",
-      "fast"
+      "fast",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -3492,13 +3709,21 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "medium", "high", "xhigh", "max"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
+      },
+      {
+        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-05",
@@ -3536,7 +3761,8 @@
       "reasoning",
       "tool-use",
       "vision",
-      "explicit-caching"
+      "explicit-caching",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -3550,9 +3776,20 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "budget_tokens",
+        "min": 1024
+      }
+    ],
     "knowledge": "2025-03-31",
     "pricing": {
       "input": "0.000003",
@@ -3624,7 +3861,8 @@
       "reasoning",
       "tool-use",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -3639,10 +3877,15 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
+      {
+        "type": "toggle"
+      },
       {
         "type": "budget_tokens",
         "min": 1024
@@ -3822,7 +4065,8 @@
       "tool-use",
       "vision",
       "explicit-caching",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -3837,7 +4081,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -3846,11 +4092,10 @@
       },
       {
         "type": "effort",
-        "values": ["low", "medium", "high"]
+        "values": ["none", "low", "medium", "high", "max"]
       },
       {
-        "type": "budget_tokens",
-        "min": 1024
+        "type": "budget_tokens"
       }
     ],
     "knowledge": "2025-08-31",
@@ -3896,7 +4141,8 @@
       "explicit-caching",
       "file-input",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -3910,7 +4156,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -3919,7 +4167,10 @@
       },
       {
         "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh"]
+      },
+      {
+        "type": "budget_tokens"
       }
     ],
     "knowledge": "2026-01-31",
@@ -3958,7 +4209,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
-    "tags": ["reasoning", "tool-use"],
+    "tags": ["reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -3971,9 +4222,20 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.00000025",
       "output": "0.0000009"
@@ -4397,13 +4659,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "all",
-    "tags": [
-      "reasoning",
-      "structured-output",
-      "tool-use",
-      "video-input",
-      "vision"
-    ],
+    "tags": ["reasoning", "tool-use", "video-input", "vision"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "video"],
@@ -4416,11 +4672,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning",
-      "response_format",
-      "structured_outputs"
+      "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.0000005",
       "output": "0.0000025",
@@ -5133,7 +5396,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "all",
-    "tags": ["tool-use"],
+    "tags": ["tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -5144,10 +5407,12 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
-    "knowledge": "2024-10",
+    "knowledge": "2024-06-01",
     "pricing": {
       "input": "0.0000025",
       "output": "0.00001"
@@ -5271,6 +5536,15 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "knowledge": "2024-07",
     "pricing": {
       "input": "0.00000135",
@@ -5291,7 +5565,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["implicit-caching", "reasoning", "tool-use"],
+    "tags": ["implicit-caching", "reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -5304,12 +5578,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
       }
     ],
     "pricing": {
@@ -5331,8 +5611,8 @@
     "max_tokens": 65536,
     "type": "language",
     "zdr": "none",
-    "no_training": "all",
-    "tags": ["implicit-caching", "reasoning", "tool-use"],
+    "no_training": "none",
+    "tags": ["implicit-caching", "reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -5345,12 +5625,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
       }
     ],
     "knowledge": "2025-07",
@@ -5372,78 +5658,8 @@
     "max_tokens": 8000,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
-    "tags": ["tool-use", "implicit-caching"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "knowledge": "2024-07",
-    "pricing": {
-      "input": "0.00000062",
-      "output": "0.00000185",
-      "varies_by_provider": true
-    }
-  },
-  {
-    "id": "deepseek/deepseek-v3.2-thinking",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1764547200,
-    "owned_by": "deepseek",
-    "name": "DeepSeek V3.2 Thinking",
-    "description": "DeepSeek‑V3.2 from DeepSeek harmonizes high computational efficiency with superior reasoning and agent performance. It builds on three main techniques: DeepSeek Sparse Attention for long‑context efficiency, a scalable reinforcement learning framework, and a large‑scale agentic task synthesis pipeline. This model excels at long-context reasoning and agentic tasks, efficiently handling extended inputs while maintaining strong accuracy. Its sparse attention design enables it to process complex, multi-step workflows without excessive compute costs. Overall, DeepSeek‑V3.2 targets long‑context reasoning, tool‑using agents, and efficient deployment in production environments.",
-    "context_window": 128000,
-    "max_tokens": 8000,
-    "type": "language",
-    "zdr": "some",
-    "no_training": "all",
-    "tags": ["tool-use", "implicit-caching"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "knowledge": "2024-07",
-    "interleaved": true,
-    "pricing": {
-      "input": "0.00000062",
-      "output": "0.00000185",
-      "varies_by_provider": true
-    }
-  },
-  {
-    "id": "deepseek/deepseek-v4-flash",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1776902400,
-    "owned_by": "deepseek",
-    "name": "DeepSeek V4 Flash",
-    "description": "",
-    "context_window": 1000000,
-    "max_tokens": 384000,
-    "type": "language",
-    "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
-    "regions": ["us"],
+    "tags": ["tool-use", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -5465,7 +5681,101 @@
       },
       {
         "type": "effort",
-        "values": ["high", "xhigh"]
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
+    "knowledge": "2024-07",
+    "pricing": {
+      "input": "0.00000062",
+      "output": "0.00000185",
+      "varies_by_provider": true
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v3.2-thinking",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1764547200,
+    "owned_by": "deepseek",
+    "name": "DeepSeek V3.2 Thinking",
+    "description": "DeepSeek‑V3.2 from DeepSeek harmonizes high computational efficiency with superior reasoning and agent performance. It builds on three main techniques: DeepSeek Sparse Attention for long‑context efficiency, a scalable reinforcement learning framework, and a large‑scale agentic task synthesis pipeline. This model excels at long-context reasoning and agentic tasks, efficiently handling extended inputs while maintaining strong accuracy. Its sparse attention design enables it to process complex, multi-step workflows without excessive compute costs. Overall, DeepSeek‑V3.2 targets long‑context reasoning, tool‑using agents, and efficient deployment in production environments.",
+    "context_window": 128000,
+    "max_tokens": 8000,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "some",
+    "tags": ["tool-use", "implicit-caching"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
+    "knowledge": "2024-07",
+    "interleaved": true,
+    "pricing": {
+      "input": "0.00000062",
+      "output": "0.00000185",
+      "varies_by_provider": true
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v4-flash",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1776902400,
+    "owned_by": "deepseek",
+    "name": "DeepSeek V4 Flash",
+    "description": "",
+    "context_window": 1000000,
+    "max_tokens": 384000,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "some",
+    "tags": ["reasoning", "tool-use", "implicit-caching", "structured-output"],
+    "regions": ["us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
       }
     ],
     "knowledge": "2025-05",
@@ -5496,7 +5806,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "structured-output"],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -5510,9 +5820,20 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "knowledge": "2025-05",
     "pricing": {
       "input": "0.000000076",
@@ -5540,8 +5861,14 @@
     "max_tokens": 1048576,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "no_training": "some",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "vision",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -5554,7 +5881,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -5563,7 +5892,7 @@
       },
       {
         "type": "effort",
-        "values": ["high", "xhigh"]
+        "values": ["none", "low", "medium", "high"]
       }
     ],
     "deprecated_at": 1790294400000,
@@ -5587,7 +5916,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["implicit-caching", "reasoning", "tool-use"],
+    "tags": ["implicit-caching", "reasoning", "tool-use", "structured-output"],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -5601,7 +5930,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -5610,7 +5941,7 @@
       },
       {
         "type": "effort",
-        "values": ["high", "xhigh"]
+        "values": ["none", "high", "max"]
       }
     ],
     "knowledge": "2025-05",
@@ -5656,7 +5987,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "structured-output"],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -5670,7 +6001,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -5679,7 +6012,7 @@
       },
       {
         "type": "effort",
-        "values": ["high", "xhigh"]
+        "values": ["none", "high", "max"]
       }
     ],
     "pricing": {
@@ -5718,7 +6051,13 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "vision",
+      "structured-output"
+    ],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -5732,19 +6071,30 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "high", "max"]
+      }
+    ],
     "pricing": {
       "input": "0.0000003",
       "output": "0.0000012",
-      "input_cache_read": "0.00000003",
+      "input_cache_read": "0.000000007",
       "varies_by_provider": true,
       "regional": {
         "us": {
           "input": "0.0000003",
           "output": "0.0000012",
-          "input_cache_read": "0.00000003"
+          "input_cache_read": "0.000000007"
         }
       }
     }
@@ -5852,7 +6202,8 @@
       "tool-use",
       "vision",
       "web-search",
-      "implicit-caching"
+      "implicit-caching",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -5867,7 +6218,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -5875,9 +6228,11 @@
         "type": "toggle"
       },
       {
-        "type": "budget_tokens",
-        "min": 0,
-        "max": 24576
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      },
+      {
+        "type": "budget_tokens"
       }
     ],
     "knowledge": "2025-01",
@@ -5932,9 +6287,27 @@
       "input": ["text", "image"],
       "output": ["text", "image"]
     },
-    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "reasoning",
+      "include_reasoning"
+    ],
     "temperature": true,
-    "knowledge": "2025-01",
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      },
+      {
+        "type": "budget_tokens"
+      }
+    ],
+    "knowledge": "2025-06",
     "pricing": {
       "input": "0.0000003",
       "output": "0.0000025",
@@ -5985,7 +6358,8 @@
       "tool-use",
       "vision",
       "web-search",
-      "implicit-caching"
+      "implicit-caching",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -6000,7 +6374,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -6008,9 +6384,11 @@
         "type": "toggle"
       },
       {
-        "type": "budget_tokens",
-        "min": 512,
-        "max": 24576
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      },
+      {
+        "type": "budget_tokens"
       }
     ],
     "knowledge": "2025-01",
@@ -6064,7 +6442,8 @@
       "tool-use",
       "vision",
       "web-search",
-      "implicit-caching"
+      "implicit-caching",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -6079,14 +6458,21 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
-        "type": "budget_tokens",
-        "min": 128,
-        "max": 32768
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      },
+      {
+        "type": "budget_tokens"
       }
     ],
     "knowledge": "2025-01",
@@ -6250,7 +6636,8 @@
       "vision",
       "tool-use",
       "web-search",
-      "implicit-caching"
+      "implicit-caching",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -6264,13 +6651,15 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["minimal", "low", "medium", "high"]
+        "values": ["low", "high"]
       }
     ],
     "knowledge": "2025-03",
@@ -6339,14 +6728,34 @@
     "type": "language",
     "zdr": "some",
     "no_training": "all",
-    "tags": ["image-generation", "web-search", "implicit-caching", "vision"],
+    "tags": [
+      "image-generation",
+      "web-search",
+      "implicit-caching",
+      "vision",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
       "output": ["text", "image"]
     },
-    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high"]
+      }
+    ],
     "knowledge": "2025-01",
     "pricing": {
       "input": "0.000002",
@@ -6398,7 +6807,8 @@
       "implicit-caching",
       "reasoning",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -6410,13 +6820,15 @@
       "temperature",
       "stop",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["minimal", "high"]
+        "values": ["low", "high"]
       }
     ],
     "knowledge": "2025-01",
@@ -6468,7 +6880,8 @@
       "implicit-caching",
       "reasoning",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -6480,13 +6893,15 @@
       "temperature",
       "stop",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["minimal", "high"]
+        "values": ["low", "high"]
       }
     ],
     "knowledge": "2025-01",
@@ -6544,7 +6959,8 @@
       "implicit-caching",
       "file-input",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -6559,13 +6975,15 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["minimal", "low", "medium", "high"]
+        "values": ["low", "high"]
       }
     ],
     "knowledge": "2025-01",
@@ -6634,6 +7052,12 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high"]
+      }
+    ],
     "knowledge": "2025-01",
     "pricing": {
       "input": "0.00000025",
@@ -6672,7 +7096,8 @@
       "reasoning",
       "vision",
       "web-search",
-      "implicit-caching"
+      "implicit-caching",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -6686,13 +7111,15 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "medium", "high"]
+        "values": ["low", "high"]
       }
     ],
     "knowledge": "2025-01",
@@ -6779,7 +7206,8 @@
       "tool-use",
       "web-search",
       "implicit-caching",
-      "video-input"
+      "video-input",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -6794,13 +7222,15 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["minimal", "low", "medium", "high"]
+        "values": ["low", "high"]
       }
     ],
     "knowledge": "2025-01",
@@ -6856,7 +7286,8 @@
       "file-input",
       "vision",
       "web-search",
-      "video-input"
+      "video-input",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -6871,13 +7302,15 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["minimal", "low", "medium", "high"]
+        "values": ["low", "high"]
       }
     ],
     "knowledge": "2026-03",
@@ -6929,6 +7362,12 @@
       "input": ["audio"],
       "output": ["text"]
     },
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.000002",
       "output": "0.000012",
@@ -6952,6 +7391,12 @@
       "input": ["audio"],
       "output": ["text"]
     },
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.0000000001",
       "transcription_duration_cost_per_second": "0.00015"
@@ -6977,7 +7422,8 @@
       "vision",
       "implicit-caching",
       "web-search",
-      "video-input"
+      "video-input",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -6992,13 +7438,15 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["minimal", "low", "medium", "high"]
+        "values": ["low", "high"]
       }
     ],
     "knowledge": "2026-03",
@@ -7054,7 +7502,8 @@
       "tool-use",
       "web-search",
       "implicit-caching",
-      "video-input"
+      "video-input",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -7069,13 +7518,15 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "medium", "high"]
+        "values": ["low", "high"]
       }
     ],
     "knowledge": "2026-03",
@@ -7131,7 +7582,8 @@
       "tool-use",
       "web-search",
       "implicit-caching",
-      "video-input"
+      "video-input",
+      "structured-output"
     ],
     "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -7146,13 +7598,15 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "medium", "high"]
+        "values": ["low", "high"]
       }
     ],
     "pricing": {
@@ -7206,8 +7660,20 @@
       "input": ["text", "audio"],
       "output": ["text", "audio"]
     },
-    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "reasoning",
+      "include_reasoning"
+    ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.00000075",
       "output": "0.0000045",
@@ -7234,8 +7700,20 @@
       "input": ["text", "audio"],
       "output": ["text", "audio"]
     },
-    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "reasoning",
+      "include_reasoning"
+    ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.00000075",
       "output": "0.0000045",
@@ -7314,7 +7792,8 @@
       "reasoning",
       "vision",
       "video-generation",
-      "video-input"
+      "video-input",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -7326,9 +7805,20 @@
       "temperature",
       "stop",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.0000015",
       "output": "0.000009",
@@ -7353,6 +7843,7 @@
       "reasoning",
       "tool-use",
       "vision",
+      "structured-output",
       "implicit-caching"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -7367,7 +7858,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "pricing": {
@@ -7390,7 +7883,13 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["tool-use", "vision", "file-input", "reasoning"],
+    "tags": [
+      "tool-use",
+      "vision",
+      "file-input",
+      "reasoning",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -7403,7 +7902,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "pricing": {
@@ -7814,7 +8315,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use"],
+    "tags": ["reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -7827,13 +8328,15 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "effort",
-        "values": ["low", "medium", "high"]
+        "values": ["instant", "low", "medium", "high"]
       }
     ],
     "pricing": {
@@ -7855,7 +8358,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "all",
-    "tags": ["implicit-caching", "reasoning", "tool-use"],
+    "tags": ["implicit-caching", "reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -7868,9 +8371,17 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["instant", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.00000004",
       "output": "0.00000015",
@@ -7890,7 +8401,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "all",
-    "tags": ["tool-use"],
+    "tags": ["tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -7901,7 +8412,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "pricing": {
@@ -7921,7 +8434,7 @@
     "max_tokens": 32000,
     "type": "language",
     "zdr": "none",
-    "no_training": "all",
+    "no_training": "none",
     "tags": ["reasoning", "tool-use", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -7938,6 +8451,11 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
     "pricing": {
       "input": "0.000000021",
       "output": "0.000000063",
@@ -7956,8 +8474,14 @@
     "max_tokens": 32000,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
-    "tags": ["implicit-caching", "reasoning", "tool-use", "free"],
+    "no_training": "some",
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "tool-use",
+      "structured-output",
+      "free"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -7970,7 +8494,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -7996,7 +8522,7 @@
     "max_tokens": 32000,
     "type": "language",
     "zdr": "none",
-    "no_training": "all",
+    "no_training": "none",
     "tags": ["free", "reasoning", "tool-use"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -8035,7 +8561,7 @@
     "max_tokens": 32000,
     "type": "language",
     "zdr": "none",
-    "no_training": "all",
+    "no_training": "none",
     "tags": ["free", "reasoning", "tool-use"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -8052,6 +8578,15 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0",
       "output": "0"
@@ -8069,7 +8604,7 @@
     "max_tokens": 32000,
     "type": "language",
     "zdr": "none",
-    "no_training": "all",
+    "no_training": "none",
     "tags": ["free", "reasoning", "tool-use"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -8086,6 +8621,15 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0",
       "output": "0"
@@ -8103,7 +8647,7 @@
     "max_tokens": 32000,
     "type": "language",
     "zdr": "none",
-    "no_training": "all",
+    "no_training": "none",
     "tags": ["free", "reasoning", "tool-use", "video-input", "vision"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -8120,6 +8664,11 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
     "pricing": {
       "input": "0",
       "output": "0"
@@ -8137,7 +8686,7 @@
     "max_tokens": 32000,
     "type": "language",
     "zdr": "none",
-    "no_training": "all",
+    "no_training": "none",
     "tags": ["free", "reasoning", "tool-use", "video-input", "vision"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -8154,6 +8703,11 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      }
+    ],
     "pricing": {
       "input": "0",
       "output": "0"
@@ -8238,7 +8792,13 @@
     "type": "language",
     "zdr": "none",
     "no_training": "all",
-    "tags": ["file-input", "reasoning", "tool-use", "vision"],
+    "tags": [
+      "file-input",
+      "reasoning",
+      "tool-use",
+      "vision",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -8251,7 +8811,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -8770,7 +9332,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["tool-use"],
+    "tags": ["tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -8781,9 +9343,22 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "knowledge": "2023-12",
     "pricing": {
       "input": "0.00000072",
@@ -8803,8 +9378,8 @@
     "max_tokens": 8192,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
-    "tags": ["tool-use"],
+    "no_training": "some",
+    "tags": ["tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -8815,9 +9390,22 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "knowledge": "2023-12",
     "pricing": {
       "input": "0.00000022",
@@ -8849,9 +9437,20 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "knowledge": "2023-12",
     "pricing": {
       "input": "0.00000072",
@@ -8871,7 +9470,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["tool-use", "vision"],
+    "tags": ["tool-use", "vision", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -8882,9 +9481,22 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "knowledge": "2024-08",
     "pricing": {
       "input": "0.00000024",
@@ -8905,7 +9517,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["tool-use", "vision"],
+    "tags": ["tool-use", "vision", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -8916,9 +9528,22 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "knowledge": "2024-08",
     "pricing": {
       "input": "0.00000017",
@@ -8939,7 +9564,13 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["vision", "implicit-caching", "reasoning", "tool-use"],
+    "tags": [
+      "vision",
+      "implicit-caching",
+      "reasoning",
+      "tool-use",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -8952,13 +9583,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high"]
       }
     ],
     "knowledge": "2026-01-04",
@@ -8988,6 +9624,12 @@
       "input": ["text", "image"],
       "output": ["image"]
     },
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["minimal", "low", "medium", "high", "xhigh"]
+      }
+    ],
     "pricing": {
       "image": "0.01"
     }
@@ -9010,7 +9652,8 @@
       "tool-use",
       "implicit-caching",
       "file-input",
-      "vision"
+      "vision",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -9024,7 +9667,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -9057,7 +9702,8 @@
       "tool-use",
       "implicit-caching",
       "file-input",
-      "vision"
+      "vision",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -9071,9 +9717,17 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["minimal", "low", "medium", "high", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.00000125",
       "output": "0.00000425",
@@ -9098,7 +9752,8 @@
       "tool-use",
       "implicit-caching",
       "file-input",
-      "vision"
+      "vision",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -9112,9 +9767,17 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["minimal", "low", "medium", "high", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.0000001",
       "output": "0.0000002",
@@ -9138,7 +9801,8 @@
       "tool-use",
       "implicit-caching",
       "file-input",
-      "vision"
+      "vision",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -9152,9 +9816,17 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["minimal", "low", "medium", "high", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.00000125",
       "output": "0.00000425",
@@ -9178,7 +9850,8 @@
       "tool-use",
       "implicit-caching",
       "file-input",
-      "vision"
+      "vision",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -9192,9 +9865,17 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["minimal", "low", "medium", "high", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.0000001",
       "output": "0.0000002",
@@ -9220,6 +9901,11 @@
       "input": ["text", "image"],
       "output": ["video"]
     },
+    "reasoning_options": [
+      {
+        "type": "budget_tokens"
+      }
+    ],
     "video_capabilities": {
       "supported_operations": [
         "text-to-video",
@@ -9298,6 +9984,11 @@
       "input": ["text", "image"],
       "output": ["video"]
     },
+    "reasoning_options": [
+      {
+        "type": "budget_tokens"
+      }
+    ],
     "video_capabilities": {
       "supported_operations": [
         "text-to-video",
@@ -9350,8 +10041,8 @@
     "max_tokens": 205000,
     "type": "language",
     "zdr": "none",
-    "no_training": "some",
-    "tags": ["reasoning", "tool-use", "explicit-caching"],
+    "no_training": "none",
+    "tags": ["reasoning", "tool-use", "explicit-caching", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9364,9 +10055,16 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "budget_tokens"
+      }
+    ],
     "knowledge": "2024-10",
     "interleaved": true,
     "pricing": {
@@ -9389,7 +10087,13 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "explicit-caching"],
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "structured-output",
+      "implicit-caching",
+      "explicit-caching"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9402,9 +10106,16 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "budget_tokens"
+      }
+    ],
     "interleaved": true,
     "pricing": {
       "input": "0.0000003",
@@ -9427,7 +10138,13 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "explicit-caching"],
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "explicit-caching",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9440,9 +10157,16 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "budget_tokens"
+      }
+    ],
     "knowledge": "2024-10",
     "pricing": {
       "input": "0.0000003",
@@ -9464,7 +10188,13 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "explicit-caching"],
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "structured-output",
+      "implicit-caching",
+      "explicit-caching"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9477,9 +10207,16 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "budget_tokens"
+      }
+    ],
     "pricing": {
       "input": "0.0000003",
       "output": "0.0000012",
@@ -9505,8 +10242,14 @@
     "max_tokens": 131000,
     "type": "language",
     "zdr": "none",
-    "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "explicit-caching"],
+    "no_training": "none",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "explicit-caching",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9519,9 +10262,16 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "budget_tokens"
+      }
+    ],
     "pricing": {
       "input": "0.0000006",
       "output": "0.0000024",
@@ -9541,8 +10291,14 @@
     "max_tokens": 131000,
     "type": "language",
     "zdr": "none",
-    "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "explicit-caching"],
+    "no_training": "none",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "explicit-caching",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9555,9 +10311,16 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "budget_tokens"
+      }
+    ],
     "pricing": {
       "input": "0.0000003",
       "output": "0.0000012",
@@ -9585,7 +10348,13 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "explicit-caching"],
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "explicit-caching",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9598,9 +10367,16 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "budget_tokens"
+      }
+    ],
     "pricing": {
       "input": "0.0000006",
       "output": "0.0000024",
@@ -9626,6 +10402,7 @@
       "tool-use",
       "vision",
       "implicit-caching",
+      "structured-output",
       "file-input"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -9640,12 +10417,14 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
-        "type": "toggle"
+        "type": "budget_tokens"
       }
     ],
     "pricing": {
@@ -9668,7 +10447,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["tool-use"],
+    "tags": ["tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9679,7 +10458,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2024-10",
@@ -9725,7 +10506,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["file-input", "tool-use", "vision"],
+    "tags": ["file-input", "tool-use", "vision", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -9736,7 +10517,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2024-10",
@@ -9793,7 +10576,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["tool-use", "vision"],
+    "tags": ["tool-use", "vision", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -9804,7 +10587,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2024-10",
@@ -9849,7 +10634,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["tool-use", "vision"],
+    "tags": ["tool-use", "vision", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -9860,7 +10645,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2024-10",
@@ -9883,7 +10670,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use", "vision"],
+    "tags": ["reasoning", "tool-use", "vision", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -9896,7 +10683,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -9923,8 +10712,8 @@
     "max_tokens": 16000,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
-    "tags": ["tool-use"],
+    "no_training": "some",
+    "tags": ["tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9935,7 +10724,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2024-04",
@@ -9958,7 +10749,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["tool-use", "vision"],
+    "tags": ["tool-use", "vision", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -9969,7 +10760,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "knowledge": "2025-06",
@@ -9992,7 +10785,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
-    "tags": ["implicit-caching", "tool-use"],
+    "tags": ["implicit-caching", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -10003,7 +10796,9 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "pricing": {
@@ -10024,7 +10819,7 @@
     "max_tokens": 131072,
     "type": "language",
     "zdr": "none",
-    "no_training": "all",
+    "no_training": "none",
     "tags": ["tool-use"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -10057,7 +10852,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -10070,9 +10865,20 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "knowledge": "2024-08",
     "interleaved": true,
     "pricing": {
@@ -10093,8 +10899,14 @@
     "max_tokens": 256000,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
-    "tags": ["reasoning", "vision", "tool-use", "implicit-caching"],
+    "no_training": "some",
+    "tags": [
+      "reasoning",
+      "vision",
+      "tool-use",
+      "structured-output",
+      "implicit-caching"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -10107,7 +10919,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -10134,12 +10948,13 @@
     "max_tokens": 262000,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
+    "no_training": "some",
     "tags": [
       "implicit-caching",
       "reasoning",
       "tool-use",
       "vision",
+      "structured-output",
       "video-input"
     ],
     "regions": ["us"],
@@ -10155,7 +10970,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -10197,6 +11014,7 @@
       "implicit-caching",
       "file-input",
       "vision",
+      "structured-output",
       "video-input"
     ],
     "regions": ["us"],
@@ -10212,9 +11030,20 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "knowledge": "2025-01",
     "deprecated_at": 1790380800000,
     "pricing": {
@@ -10255,7 +11084,8 @@
       "vision",
       "file-input",
       "implicit-caching",
-      "video-input"
+      "video-input",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -10269,9 +11099,20 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "knowledge": "2025-01",
     "pricing": {
       "input": "0.0000019",
@@ -10299,6 +11140,7 @@
       "file-input",
       "vision",
       "structured-output",
+      "explicit-caching",
       "video-input"
     ],
     "regions": ["us"],
@@ -10320,8 +11162,11 @@
     "temperature": false,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "high", "max"]
+        "values": ["none", "low", "high", "max"]
       }
     ],
     "pricing": {
@@ -10361,7 +11206,8 @@
       "tool-use",
       "implicit-caching",
       "file-input",
-      "vision"
+      "vision",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -10374,13 +11220,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "high", "max"]
+        "values": ["none", "low", "medium", "high", "max"]
       }
     ],
     "pricing": {
@@ -10403,12 +11254,18 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
+    "tags": ["structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
       "output": ["text"]
     },
-    "supported_parameters": ["max_tokens", "stop"],
+    "supported_parameters": [
+      "max_tokens",
+      "stop",
+      "response_format",
+      "structured_outputs"
+    ],
     "temperature": false,
     "pricing": {
       "input": "0.0000008",
@@ -10428,12 +11285,18 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
+    "tags": ["structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
       "output": ["text"]
     },
-    "supported_parameters": ["max_tokens", "stop"],
+    "supported_parameters": [
+      "max_tokens",
+      "stop",
+      "response_format",
+      "structured_outputs"
+    ],
     "temperature": false,
     "pricing": {
       "input": "0.0000009",
@@ -10493,7 +11356,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use"],
+    "tags": ["reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -10506,12 +11369,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "high"]
       }
     ],
     "pricing": {
@@ -10532,7 +11401,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "structured-output", "implicit-caching"],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -10546,12 +11415,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
         "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "medium", "high"]
       }
     ],
     "pricing": {
@@ -10581,7 +11456,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -10594,7 +11469,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -10627,7 +11504,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["vision", "reasoning", "tool-use"],
+    "tags": ["vision", "reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -10640,7 +11517,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -10720,7 +11599,7 @@
       "tool_choice"
     ],
     "temperature": true,
-    "knowledge": "2021-09",
+    "knowledge": "2021-09-01",
     "pricing": {
       "input": "0.0000005",
       "output": "0.0000015"
@@ -10753,7 +11632,7 @@
       "tool_choice"
     ],
     "temperature": true,
-    "knowledge": "2023-12",
+    "knowledge": "2023-12-01",
     "pricing": {
       "input": "0.00001",
       "output": "0.00003"
@@ -10778,6 +11657,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -10790,10 +11670,12 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
-    "knowledge": "2024-04",
+    "knowledge": "2024-06-01",
     "pricing": {
       "input": "0.000002",
       "output": "0.000008",
@@ -10832,6 +11714,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -10844,10 +11727,12 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
-    "knowledge": "2024-04",
+    "knowledge": "2024-06-01",
     "pricing": {
       "input": "0.0000035",
       "output": "0.000014",
@@ -10874,6 +11759,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -10886,10 +11772,12 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
-    "knowledge": "2024-04",
+    "knowledge": "2024-06-01",
     "pricing": {
       "input": "0.0000004",
       "output": "0.0000016",
@@ -10928,6 +11816,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -10940,10 +11829,12 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
-    "knowledge": "2024-04",
+    "knowledge": "2024-06-01",
     "pricing": {
       "input": "0.0000007",
       "output": "0.0000028",
@@ -10970,6 +11861,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -10982,10 +11874,12 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
-    "knowledge": "2024-04",
+    "knowledge": "2024-06-01",
     "pricing": {
       "input": "0.0000001",
       "output": "0.0000004",
@@ -11025,6 +11919,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -11037,10 +11932,12 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
-    "knowledge": "2024-04",
+    "knowledge": "2024-06-01",
     "pricing": {
       "input": "0.0000002",
       "output": "0.0000008",
@@ -11067,6 +11964,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -11079,10 +11977,12 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
-    "knowledge": "2023-09",
+    "knowledge": "2023-10-01",
     "pricing": {
       "input": "0.0000025",
       "output": "0.00001",
@@ -11121,6 +12021,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -11133,10 +12034,12 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
-    "knowledge": "2023-09",
+    "knowledge": "2023-10-01",
     "pricing": {
       "input": "0.00000425",
       "output": "0.000017",
@@ -11163,6 +12066,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -11175,10 +12079,12 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
-    "knowledge": "2023-09",
+    "knowledge": "2023-10-01",
     "pricing": {
       "input": "0.00000015",
       "output": "0.0000006",
@@ -11217,6 +12123,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -11229,10 +12136,12 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
-    "knowledge": "2023-09",
+    "knowledge": "2023-10-01",
     "pricing": {
       "input": "0.00000025",
       "output": "0.000001",
@@ -11256,6 +12165,7 @@
       "input": ["audio"],
       "output": ["text"]
     },
+    "knowledge": "2024-06-01",
     "deprecated_at": 1803600000000,
     "pricing": {
       "input": "0.00000125",
@@ -11279,6 +12189,7 @@
       "input": ["audio"],
       "output": ["text"]
     },
+    "knowledge": "2024-06-01",
     "deprecated_at": 1803600000000,
     "pricing": {
       "input": "0.0000025",
@@ -11306,6 +12217,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -11319,7 +12231,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -11373,7 +12287,8 @@
       "reasoning",
       "tool-use",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -11386,7 +12301,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -11423,6 +12340,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -11436,7 +12354,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -11473,6 +12393,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -11486,7 +12407,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -11495,7 +12418,7 @@
         "values": ["minimal", "low", "medium", "high"]
       }
     ],
-    "knowledge": "2024-05-30",
+    "knowledge": "2024-05-31",
     "pricing": {
       "input": "0.00000025",
       "output": "0.000002",
@@ -11541,6 +12464,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -11554,7 +12478,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -11563,7 +12489,7 @@
         "values": ["minimal", "low", "medium", "high"]
       }
     ],
-    "knowledge": "2024-05-30",
+    "knowledge": "2024-05-31",
     "pricing": {
       "input": "0.00000045",
       "output": "0.0000036",
@@ -11590,7 +12516,8 @@
       "reasoning",
       "tool-use",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -11603,7 +12530,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -11612,7 +12541,7 @@
         "values": ["minimal", "low", "medium", "high"]
       }
     ],
-    "knowledge": "2024-05-30",
+    "knowledge": "2024-05-31",
     "pricing": {
       "input": "0.00000005",
       "output": "0.0000004",
@@ -11689,7 +12618,8 @@
       "reasoning",
       "tool-use",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -11703,13 +12633,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "medium", "high"]
+        "values": ["none", "low", "medium", "high"]
       }
     ],
     "knowledge": "2024-09-30",
@@ -11739,7 +12674,8 @@
       "reasoning",
       "tool-use",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -11753,13 +12689,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high"]
       }
     ],
     "knowledge": "2024-09-30",
@@ -11789,7 +12730,8 @@
       "reasoning",
       "tool-use",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -11803,13 +12745,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "medium", "high"]
+        "values": ["none", "low", "medium", "high"]
       }
     ],
     "knowledge": "2024-09-30",
@@ -11840,6 +12787,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -11854,16 +12802,21 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2024-09-30",
     "pricing": {
       "input": "0.00000125",
       "output": "0.00001",
@@ -11909,6 +12862,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -11923,16 +12877,21 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2024-09-30",
     "pricing": {
       "input": "0.0000025",
       "output": "0.00002",
@@ -11960,6 +12919,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -11975,16 +12935,21 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2025-08-31",
     "pricing": {
       "input": "0.00000175",
       "output": "0.000014",
@@ -12029,7 +12994,8 @@
       "reasoning",
       "tool-use",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -12043,13 +13009,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -12080,6 +13051,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -12095,13 +13067,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -12125,7 +13102,14 @@
     "type": "language",
     "zdr": "none",
     "no_training": "all",
-    "tags": ["tool-use", "vision", "reasoning", "file-input", "web-search"],
+    "tags": [
+      "tool-use",
+      "vision",
+      "reasoning",
+      "file-input",
+      "web-search",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -12138,7 +13122,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -12174,6 +13160,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -12189,13 +13176,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -12238,6 +13230,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -12253,13 +13246,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -12290,6 +13288,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -12306,13 +13305,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -12444,6 +13448,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -12460,13 +13465,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -12504,6 +13514,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -12520,13 +13531,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -12586,6 +13602,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -12602,13 +13619,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -12646,6 +13668,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "websocket-realtime"
     ],
     "regions": ["us"],
@@ -12661,13 +13684,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -12705,7 +13733,14 @@
     "type": "language",
     "zdr": "some",
     "no_training": "all",
-    "tags": ["file-input", "reasoning", "tool-use", "vision", "web-search"],
+    "tags": [
+      "file-input",
+      "reasoning",
+      "tool-use",
+      "vision",
+      "web-search",
+      "structured-output"
+    ],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -12719,13 +13754,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["medium", "high", "xhigh"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-08-31",
@@ -12816,6 +13856,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -12832,13 +13873,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-12-01",
@@ -12971,6 +14017,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -12986,13 +14033,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
       }
     ],
     "knowledge": "2025-12-01",
@@ -13029,7 +14081,8 @@
       "file-input",
       "web-search",
       "vision",
-      "websocket-realtime"
+      "websocket-realtime",
+      "structured-output"
     ],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -13044,7 +14097,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -13137,6 +14192,7 @@
       "implicit-caching",
       "web-search",
       "explicit-caching",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -13153,10 +14209,15 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
+      {
+        "type": "toggle"
+      },
       {
         "type": "effort",
         "values": ["none", "low", "medium", "high", "xhigh", "max"]
@@ -13410,6 +14471,7 @@
       "implicit-caching",
       "web-search",
       "explicit-caching",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -13425,10 +14487,15 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
+      {
+        "type": "toggle"
+      },
       {
         "type": "effort",
         "values": ["none", "low", "medium", "high", "xhigh", "max"]
@@ -13560,6 +14627,7 @@
       "vision",
       "web-search",
       "explicit-caching",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -13576,13 +14644,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh", "max"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       }
     ],
     "knowledge": "2026-02-16",
@@ -13836,6 +14909,7 @@
       "vision",
       "web-search",
       "explicit-caching",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -13851,13 +14925,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh", "max"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       }
     ],
     "knowledge": "2026-02-16",
@@ -13986,6 +15065,7 @@
       "vision",
       "implicit-caching",
       "explicit-caching",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -14002,13 +15082,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh", "max"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       }
     ],
     "knowledge": "2026-02-16",
@@ -14261,6 +15346,7 @@
       "vision",
       "implicit-caching",
       "explicit-caching",
+      "structured-output",
       "websocket-realtime",
       "fast"
     ],
@@ -14276,13 +15362,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh", "max"]
+        "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       }
     ],
     "knowledge": "2026-02-16",
@@ -14412,6 +15503,7 @@
       "web-search",
       "websocket-realtime",
       "explicit-caching",
+      "structured-output",
       "fast"
     ],
     "regions": ["us"],
@@ -14426,7 +15518,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -14676,6 +15770,7 @@
       "web-search",
       "websocket-realtime",
       "explicit-caching",
+      "structured-output",
       "fast"
     ],
     "regions": ["us"],
@@ -14690,7 +15785,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -14973,6 +16070,7 @@
     },
     "supported_parameters": ["max_tokens", "temperature", "stop"],
     "temperature": true,
+    "knowledge": "2025-07-31",
     "pricing": {
       "web_search": "10",
       "realtime_session_duration_cost_per_second": "0.0008334"
@@ -14989,9 +16087,9 @@
     "context_window": 131072,
     "max_tokens": 131072,
     "type": "language",
-    "zdr": "all",
+    "zdr": "some",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "structured-output", "implicit-caching"],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -15005,7 +16103,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -15014,7 +16114,7 @@
         "values": ["low", "medium", "high"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2024-06-01",
     "pricing": {
       "input": "0.0000001",
       "output": "0.0000005",
@@ -15039,8 +16139,8 @@
     "max_tokens": 8192,
     "type": "language",
     "zdr": "some",
-    "no_training": "all",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "no_training": "some",
+    "tags": ["reasoning", "tool-use", "structured-output", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -15053,7 +16153,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -15062,7 +16164,7 @@
         "values": ["low", "medium", "high"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2024-06-01",
     "pricing": {
       "input": "0.00000003",
       "output": "0.00000014",
@@ -15082,7 +16184,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use"],
+    "tags": ["reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -15095,7 +16197,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -15122,7 +16226,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "structured-output", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -15135,7 +16239,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -15171,6 +16277,7 @@
     },
     "supported_parameters": ["max_tokens", "temperature", "stop"],
     "temperature": true,
+    "knowledge": "2024-09-30",
     "pricing": {
       "input": "0.000004",
       "output": "0.000016",
@@ -15199,8 +16306,21 @@
       "input": ["text", "audio"],
       "output": ["text", "audio"]
     },
-    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "reasoning",
+      "include_reasoning"
+    ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["minimal", "low", "medium", "high", "xhigh"]
+      }
+    ],
+    "knowledge": "2024-09-30",
     "pricing": {
       "input": "0.000004",
       "output": "0.000024",
@@ -15272,6 +16392,7 @@
     },
     "supported_parameters": ["max_tokens", "temperature", "stop"],
     "temperature": true,
+    "knowledge": "2023-10-01",
     "pricing": {
       "input": "0.0000006",
       "output": "0.0000024",
@@ -15298,6 +16419,7 @@
       "input": ["audio"],
       "output": ["text"]
     },
+    "knowledge": "2024-09-30",
     "pricing": {
       "input": "0.0000000002",
       "transcription_duration_cost_per_second": "0.000284"
@@ -15321,7 +16443,8 @@
       "reasoning",
       "tool-use",
       "vision",
-      "implicit-caching"
+      "implicit-caching",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -15334,7 +16457,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -15343,7 +16468,7 @@
         "values": ["low", "medium", "high"]
       }
     ],
-    "knowledge": "2023-09",
+    "knowledge": "2023-10-01",
     "pricing": {
       "input": "0.000015",
       "output": "0.00006",
@@ -15370,7 +16495,8 @@
       "tool-use",
       "vision",
       "web-search",
-      "fast"
+      "fast",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -15383,7 +16509,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -15392,7 +16520,7 @@
         "values": ["low", "medium", "high"]
       }
     ],
-    "knowledge": "2024-05",
+    "knowledge": "2024-06-01",
     "pricing": {
       "input": "0.000002",
       "output": "0.000008",
@@ -15437,7 +16565,8 @@
       "tool-use",
       "vision",
       "web-search",
-      "fast"
+      "fast",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -15450,7 +16579,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -15459,7 +16590,7 @@
         "values": ["low", "medium", "high"]
       }
     ],
-    "knowledge": "2024-05",
+    "knowledge": "2024-06-01",
     "pricing": {
       "input": "0.0000035",
       "output": "0.000014",
@@ -15480,7 +16611,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "all",
-    "tags": ["implicit-caching", "reasoning", "tool-use"],
+    "tags": ["implicit-caching", "reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -15492,7 +16623,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -15501,7 +16634,7 @@
         "values": ["low", "medium", "high"]
       }
     ],
-    "knowledge": "2024-05",
+    "knowledge": "2023-10-01",
     "pricing": {
       "input": "0.0000011",
       "output": "0.0000044",
@@ -15521,7 +16654,14 @@
     "type": "language",
     "zdr": "none",
     "no_training": "all",
-    "tags": ["reasoning", "vision", "file-input", "tool-use", "web-search"],
+    "tags": [
+      "reasoning",
+      "vision",
+      "file-input",
+      "tool-use",
+      "web-search",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -15534,7 +16674,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -15543,7 +16685,7 @@
         "values": ["low", "medium", "high"]
       }
     ],
-    "knowledge": "2024-10",
+    "knowledge": "2024-06-01",
     "pricing": {
       "input": "0.00002",
       "output": "0.00008",
@@ -15570,6 +16712,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -15583,7 +16726,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -15592,7 +16737,7 @@
         "values": ["low", "medium", "high"]
       }
     ],
-    "knowledge": "2024-05",
+    "knowledge": "2024-06-01",
     "pricing": {
       "input": "0.0000011",
       "output": "0.0000044",
@@ -15637,6 +16782,7 @@
       "tool-use",
       "vision",
       "web-search",
+      "structured-output",
       "fast"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -15650,7 +16796,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": false,
     "reasoning_options": [
@@ -15659,7 +16807,7 @@
         "values": ["low", "medium", "high"]
       }
     ],
-    "knowledge": "2024-05",
+    "knowledge": "2024-06-01",
     "pricing": {
       "input": "0.000002",
       "output": "0.000008",
@@ -15854,13 +17002,19 @@
     "type": "language",
     "zdr": "none",
     "no_training": "all",
-    "tags": ["vision", "web-search"],
+    "tags": ["vision", "web-search", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
       "output": ["text"]
     },
-    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "response_format",
+      "structured_outputs"
+    ],
     "temperature": true,
     "knowledge": "2025-02",
     "pricing": {}
@@ -15878,13 +17032,19 @@
     "type": "language",
     "zdr": "none",
     "no_training": "all",
-    "tags": ["vision", "web-search"],
+    "tags": ["vision", "web-search", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
       "output": ["text"]
     },
-    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "response_format",
+      "structured_outputs"
+    ],
     "temperature": true,
     "knowledge": "2025-09",
     "pricing": {}
@@ -15902,7 +17062,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "all",
-    "tags": ["reasoning", "web-search", "vision"],
+    "tags": ["reasoning", "web-search", "vision", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -15913,7 +17073,9 @@
       "temperature",
       "stop",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -16092,6 +17254,12 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.000004",
       "output": "0.00002",
@@ -16134,6 +17302,12 @@
       "include_reasoning"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.000006",
       "output": "0.00003",
@@ -16410,6 +17584,12 @@
       "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["high", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.000002",
       "output": "0.000006",
@@ -16429,7 +17609,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "all",
-    "tags": ["vision", "tool-use", "reasoning"],
+    "tags": ["vision", "tool-use", "reasoning", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -16442,9 +17622,17 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["high", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.000005",
       "input_tiers": [
@@ -16521,6 +17709,12 @@
       "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["high", "xhigh"]
+      }
+    ],
     "pricing": {
       "input": "0.000005",
       "input_tiers": [
@@ -16599,6 +17793,15 @@
       "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.00000095",
       "output": "0.000004",
@@ -16618,7 +17821,13 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["tool-use", "file-input", "vision", "implicit-caching"],
+    "tags": [
+      "tool-use",
+      "file-input",
+      "vision",
+      "implicit-caching",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -16629,9 +17838,22 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.0000002",
       "output": "0.0000005",
@@ -16656,7 +17878,8 @@
       "file-input",
       "vision",
       "tool-use",
-      "implicit-caching"
+      "implicit-caching",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -16670,9 +17893,20 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.0000002",
       "output": "0.0000005",
@@ -16698,7 +17932,8 @@
       "implicit-caching",
       "vision",
       "file-input",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -16712,9 +17947,20 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -16787,7 +18033,8 @@
       "implicit-caching",
       "vision",
       "file-input",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -16801,9 +18048,20 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -16862,6 +18120,7 @@
       "implicit-caching",
       "file-input",
       "vision",
+      "structured-output",
       "web-search"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -16874,9 +18133,22 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -16949,7 +18221,8 @@
       "implicit-caching",
       "vision",
       "file-input",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -16961,9 +18234,22 @@
       "temperature",
       "stop",
       "tools",
-      "tool_choice"
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -17018,7 +18304,8 @@
       "implicit-caching",
       "vision",
       "file-input",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -17032,9 +18319,20 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -17108,7 +18406,8 @@
       "vision",
       "file-input",
       "implicit-caching",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -17122,9 +18421,20 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -17184,6 +18494,7 @@
       "implicit-caching",
       "file-input",
       "vision",
+      "structured-output",
       "web-search"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -17198,9 +18509,17 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.00000125",
       "input_tiers": [
@@ -17273,7 +18592,8 @@
       "implicit-caching",
       "file-input",
       "vision",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -17287,9 +18607,17 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.000002",
       "input_tiers": [
@@ -17356,7 +18684,13 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "vision",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -17369,9 +18703,18 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh"]
+      }
+    ],
+    "knowledge": "2026-02-01",
     "pricing": {
       "input": "0.000002",
       "input_tiers": [
@@ -17426,6 +18769,103 @@
     }
   },
   {
+    "id": "spacexai/grok-4.7",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1789948800,
+    "owned_by": "spacexai",
+    "name": "Grok 4.7",
+    "description": "Grok 4.7 is SpaceXAI’s advanced AI model for coding and professional knowledge work, built to tackle complex, multi-hour tasks with improved self-verification and long-context handling. It strengthens software engineering, document creation, and presentation workflows while maintaining Grok 4.6’s speed and pricing.",
+    "context_window": 500000,
+    "max_tokens": 500000,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "vision",
+      "structured-output"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh"]
+      }
+    ],
+    "knowledge": "2026-05",
+    "pricing": {
+      "input": "0.0000012",
+      "input_tiers": [
+        {
+          "cost": "0.0000012",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000024",
+          "min": 200001
+        }
+      ],
+      "output": "0.0000036",
+      "output_tiers": [
+        {
+          "cost": "0.0000036",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000072",
+          "min": 200001
+        }
+      ],
+      "input_cache_read": "0.0000003",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000003",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000006",
+          "min": 200001
+        }
+      ],
+      "web_search": "5",
+      "service_tiers": {
+        "priority": {
+          "input": "0.0000024",
+          "output": "0.0000072",
+          "input_cache_read": "0.0000006",
+          "long_context": {
+            "threshold": 200001,
+            "input": "0.0000048",
+            "output": "0.0000144",
+            "input_cache_read": "0.0000012"
+          }
+        }
+      }
+    }
+  },
+  {
     "id": "spacexai/grok-build-0.1",
     "object": "model",
     "created": 1755815280,
@@ -17443,7 +18883,8 @@
       "implicit-caching",
       "vision",
       "tool-use",
-      "web-search"
+      "web-search",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -17457,9 +18898,20 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.000001",
       "input_tiers": [
@@ -17532,6 +18984,15 @@
       "input": ["text"],
       "output": ["image"]
     },
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "image": "0.02"
     }
@@ -17555,6 +19016,15 @@
       "input": ["text"],
       "output": ["image"]
     },
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "image": "0.06",
       "image_dimension_quality_pricing": [
@@ -17592,6 +19062,15 @@
       "input": ["text"],
       "output": ["video"]
     },
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "video_capabilities": {
       "supported_operations": [
         "text-to-video",
@@ -17660,6 +19139,15 @@
       "input": ["text"],
       "output": ["video"]
     },
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "video_capabilities": {
       "supported_operations": [
         "image-to-video",
@@ -17725,6 +19213,15 @@
       "input": ["audio"],
       "output": ["text"]
     },
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0",
       "transcription_duration_cost_per_second": "0.000028"
@@ -17746,6 +19243,15 @@
       "input": ["text"],
       "output": ["audio"]
     },
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.000015",
       "speech_input_character_cost": "0.000015"
@@ -17769,8 +19275,23 @@
       "input": ["text", "audio"],
       "output": ["text", "audio"]
     },
-    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "reasoning",
+      "include_reasoning"
+    ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "realtime_client_message_cost": "0.004",
       "realtime_session_duration_cost_per_second": "0.000834"
@@ -17794,8 +19315,23 @@
       "input": ["text", "audio"],
       "output": ["text", "audio"]
     },
-    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "reasoning",
+      "include_reasoning"
+    ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "realtime_client_message_cost": "0.004",
       "realtime_session_duration_cost_per_second": "0.001334"
@@ -17856,7 +19392,13 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
-    "tags": ["implicit-caching", "reasoning", "tool-use", "vision"],
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "tool-use",
+      "vision",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -17869,7 +19411,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -17898,14 +19442,28 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
-    "tags": ["implicit-caching", "vision"],
+    "tags": ["implicit-caching", "vision", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
       "output": ["text"]
     },
-    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high"]
+      }
+    ],
     "pricing": {
       "input": "0.000001",
       "output": "0.0000027",
@@ -17950,12 +19508,19 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
+    "tags": ["structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
       "output": ["text"]
     },
-    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "response_format",
+      "structured_outputs"
+    ],
     "temperature": true,
     "pricing": {
       "input": "0.000000074",
@@ -17975,12 +19540,19 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
+    "tags": ["structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
       "output": ["text"]
     },
-    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "response_format",
+      "structured_outputs"
+    ],
     "temperature": true,
     "pricing": {
       "input": "0.000000074",
@@ -18000,7 +19572,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["implicit-caching", "reasoning", "tool-use"],
+    "tags": ["implicit-caching", "reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -18013,7 +19585,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -18083,7 +19657,13 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "vision", "file-input"],
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "vision",
+      "file-input",
+      "structured-output"
+    ],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -18097,7 +19677,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -18139,7 +19721,8 @@
       "tool-use",
       "vision",
       "file-input",
-      "implicit-caching"
+      "implicit-caching",
+      "structured-output"
     ],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -18154,7 +19737,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -18478,7 +20063,13 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "vision",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -18491,7 +20082,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -18520,7 +20113,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -18533,7 +20126,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -18550,6 +20145,168 @@
     }
   },
   {
+    "id": "xiaomi/mimo-v2.6-flash",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1789948800,
+    "owned_by": "xiaomi",
+    "name": "MiMo V2.6 Flash",
+    "description": "MiMo V2.6 Flash is Xiaomi's efficient multimodal reasoning model for coding, automation, and everyday agent workflows. It accepts text, images, audio, and video within a 1M-token context window, with up to 128K tokens of output. Deep thinking, tool calling, JSON mode, and prompt caching make it suitable for applications that need multimodal understanding at a lower token cost.",
+    "context_window": 1048576,
+    "max_tokens": 131072,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": [
+      "audio-input",
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "video-input",
+      "vision"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "audio", "image", "video"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "minimal", "low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.00000014",
+      "output": "0.00000028",
+      "input_cache_read": "0.0000000028"
+    }
+  },
+  {
+    "id": "xiaomi/mimo-v2.6-pro",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1789948800,
+    "owned_by": "xiaomi",
+    "name": "MiMo V2.6 Pro",
+    "description": "MiMo V2.6 Pro is Xiaomi's flagship multimodal reasoning model for complex software engineering, long-running agent tasks, and professional workflows. It supports text, image, audio, and video inputs with a 1M-token context window and up to 128K tokens of output. Deep thinking, tool calling, JSON mode, and prompt caching support applications that combine large inputs with multi-step reasoning.",
+    "context_window": 1048576,
+    "max_tokens": 131072,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": [
+      "audio-input",
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "video-input",
+      "vision"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "audio", "image", "video"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "minimal", "low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000000435",
+      "output": "0.00000087",
+      "input_cache_read": "0.0000000036"
+    }
+  },
+  {
+    "id": "xiaomi/mimo-v2.6-pro-ultraspeed",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1789948800,
+    "owned_by": "xiaomi",
+    "name": "MiMo V2.6 Pro UltraSpeed",
+    "description": "MiMo V2.6 Pro UltraSpeed is Xiaomi's accelerated inference offering for MiMo V2.6 Pro, designed for interactive agents and workflows where response latency matters. It combines multimodal understanding of text, images, audio, and video with a 1M-token context window and up to 128K tokens of output. It supports deep thinking, tool calling, JSON mode, and prompt caching.",
+    "context_window": 1048576,
+    "max_tokens": 131072,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": [
+      "audio-input",
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "video-input",
+      "vision"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "audio", "image", "video"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "minimal", "low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.00000435",
+      "output": "0.0000087",
+      "input_cache_read": "0.000000036"
+    }
+  },
+  {
     "id": "zai/glm-4.5",
     "object": "model",
     "created": 1755815280,
@@ -18562,7 +20319,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -18575,7 +20332,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -18604,7 +20363,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -18617,7 +20376,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -18644,8 +20405,14 @@
     "max_tokens": 16000,
     "type": "language",
     "zdr": "none",
-    "no_training": "some",
-    "tags": ["implicit-caching", "reasoning", "tool-use", "vision"],
+    "no_training": "none",
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "tool-use",
+      "vision",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -18658,7 +20425,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -18686,7 +20455,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["implicit-caching", "reasoning", "tool-use"],
+    "tags": ["implicit-caching", "reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -18699,7 +20468,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -18729,7 +20500,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "structured-output"],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -18743,7 +20514,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -18781,7 +20554,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "structured-output", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -18794,7 +20567,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -18863,7 +20638,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "structured-output", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -18876,7 +20651,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -18942,7 +20719,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["implicit-caching", "reasoning", "tool-use"],
+    "tags": ["implicit-caching", "reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -18955,7 +20732,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -18983,7 +20762,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "structured-output"],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -18997,7 +20776,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -19006,7 +20787,7 @@
       },
       {
         "type": "effort",
-        "values": ["high", "xhigh"]
+        "values": ["none", "high", "max"]
       }
     ],
     "pricing": {
@@ -19041,7 +20822,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "structured-output"],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -19055,7 +20836,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -19064,7 +20847,7 @@
       },
       {
         "type": "effort",
-        "values": ["high", "xhigh"]
+        "values": ["none", "low", "medium", "high"]
       }
     ],
     "deprecated_at": 1790294400000,
@@ -19095,7 +20878,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["implicit-caching", "reasoning", "tool-use"],
+    "tags": ["implicit-caching", "reasoning", "tool-use", "structured-output"],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -19109,7 +20892,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -19150,7 +20935,7 @@
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "structured-output"],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -19164,19 +20949,25 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
       {
+        "type": "toggle"
+      },
+      {
         "type": "effort",
-        "values": ["low", "high", "max"]
+        "values": ["none", "low", "medium", "high"]
       }
     ],
     "pricing": {
       "input": "0.0000021",
       "output": "0.0000066",
       "input_cache_read": "0.00000021",
+      "varies_by_provider": true,
       "regional": {
         "us": {
           "input": "0.0000021",
@@ -19199,7 +20990,13 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "vision",
+      "structured-output"
+    ],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -19213,7 +21010,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [
@@ -19249,7 +21048,13 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "vision",
+      "structured-output"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image"],
@@ -19262,9 +21067,17 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high", "max"]
+      }
+    ],
     "pricing": {
       "input": "0.00000037",
       "output": "0.00000125",
@@ -19289,7 +21102,8 @@
       "tool-use",
       "implicit-caching",
       "vision",
-      "file-input"
+      "file-input",
+      "structured-output"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -19303,7 +21117,9 @@
       "tools",
       "tool_choice",
       "reasoning",
-      "include_reasoning"
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
     ],
     "temperature": true,
     "reasoning_options": [

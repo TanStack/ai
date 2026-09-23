@@ -27,7 +27,6 @@ export {
   type GrokImageConfig,
 } from './adapters/image'
 export type {
-  GrokImageProviderOptions,
   GrokImagineImageProviderOptions,
   GrokImagineImage2ProviderOptions,
   GrokImageModelProviderOptionsByName,
