@@ -3182,6 +3182,12 @@ class TextEngine<
         role: 'tool',
         content,
         toolCallId: result.toolCallId,
+        ...(result.state === 'output-error' && {
+          error:
+            typeof result.result?.error === 'string'
+              ? result.result.error
+              : 'Tool execution failed',
+        }),
       }
 
       if (placeholderIdx >= 0) {
