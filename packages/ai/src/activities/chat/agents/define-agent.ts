@@ -2,6 +2,7 @@ import type { InterruptDefinition } from '../../../interrupt-definition'
 import type {
   AnyTool,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
   StreamChunk,
   UIMessage,
@@ -15,8 +16,18 @@ export interface SubagentRunContext {
   messages: Array<UIMessage | ModelMessage>
   abortSignal?: AbortSignal
   threadId: string
+  /** Run id for the child `chat()`. */
   runId: string
+  /**
+   * The run this child run continues. It is the parent chat run on the first
+   * run, and the interrupted parent run on a resume. Pass it to the child
+   * `chat()`.
+   */
   parentRunId: string
+  /** Answers to this child's interrupts. Pass it to the child `chat()`. */
+  resume?: Array<RunAgentResumeItem>
+  /** Stays the same when an interrupted child continues. */
+  subagentRunId: string
   parentSubagentRunId?: string
 }
 
@@ -71,6 +82,10 @@ export type SubagentChoiceOptions<TAgents extends ReadonlyArray<DefinedAgent>> =
  *     chat({
  *       adapter: openaiText('gpt-5.6'),
  *       messages: ctx.messages,
+ *       threadId: ctx.threadId,
+ *       runId: ctx.runId,
+ *       parentRunId: ctx.parentRunId,
+ *       resume: ctx.resume,
  *     }),
  * })
  * ```
@@ -85,6 +100,12 @@ export function defineAgent<
 >(agent: DefinedAgent<TName, TTools, TSchema, TInterrupts>) {
   if (agent.name.trim() === '') {
     throw new Error('defineAgent requires a non-empty name')
+  }
+  // A router returns 'main' to keep the turn on the parent.
+  if (agent.name.trim() === 'main') {
+    throw new Error(
+      "defineAgent cannot use the name 'main'. A router uses it for the parent.",
+    )
   }
   if (agent.description.trim() === '') {
     throw new Error('defineAgent requires a non-empty description')

@@ -349,9 +349,9 @@ seven stores, so declare every intentional omission — a chat adapter skips the
 generation half above, and adds e.g. `'metadata'` if it drops that too. `skip`
 never accepts `'locks'`, which is not a store.
 
-If your recipe leaves an optional `runs` method (`listByThread`,
-`listByParentRun`, or `listReclaimable`) unimplemented, declare it separately
-with `skipMethods`, for example `{ skipMethods: ['runs.listByThread'] }`. An
-omitted method that is not declared
-fails the suite instead of silently passing. `findActiveRun` is **not** in that
+If your recipe leaves `listByThread` or `listReclaimable` unimplemented,
+declare it separately with `skipMethods`, for example
+`{ skipMethods: ['runs.listByThread'] }`. An omitted method that is not declared
+fails the suite instead of silently passing. Subagent support is optional: when
+`listByParentRun` is absent, the subagent checks skip on their own. `findActiveRun` is **not** in that
 set — it is required, so there is nothing to declare.

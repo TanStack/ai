@@ -109,9 +109,15 @@ Save these three fields on the child run. `createOrResume` writes them on the fi
 - `subagentRunId`: the child run id.
 - `name`: the agent name.
 
-`reconstructChat` calls `listByParentRun`. It puts one card on the parent assistant message for each child.
+`reconstructChat` calls `listByParentRun`. It puts one card on the parent assistant message for each child. Each card gets the child's full transcript back: text, reasoning, tool calls, and tool results. Nested children come back as nested cards.
 
-If the store omits `listByParentRun`, declare `runs.listByParentRun` in `skipMethods`. A reload then shows the saved text. The cards stay absent.
+A child that waits for an approval comes back with `status: 'suspended'`, and its interrupt stays pending. The reloaded client can answer it, and the next run continues that child.
+
+A child that a tool call started sits on the message with that tool call. `reconstructChat` finds its parent run with `listByThread`, so implement that method too.
+
+Put `withPersistence` on the parent `chat()` only, not on a child `chat()`. The parent stores the child runs. A child with its own `withPersistence` stores the same child a second time, and its interrupt records conflict with the parent's.
+
+Subagent support is optional. If the store omits `listByParentRun`, a reload shows the saved text and the cards stay absent. The conformance suite skips the subagent checks with no `skipMethods` entry.
 
 The columns and the method are in the [store reference](./store-reference).
 

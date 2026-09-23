@@ -60,6 +60,7 @@ import type {
   SpecTokenUsage,
   TokenUsageLeftover,
 } from './utilities/ag-ui-usage'
+import type { SubagentWireInfo } from './utilities/subagent-wire'
 
 // Re-export ProviderTool so the type is reachable from `@tanstack/ai`'s root
 // entry via `export * from './types'` without forcing the subpath import.
@@ -259,12 +260,41 @@ export interface ContentPartUrlSource {
 }
 
 /**
+ * Source specification for a provider-issued file handle (Files API).
+ * Matches the AG-UI 1.0 `FileSource` arm.
+ */
+export interface ContentPartFileSource {
+  /**
+   * Indicates this references a provider-issued file handle.
+   */
+  type: 'file'
+  /**
+   * The handle, exactly as the provider issued it. Opaque: do not fetch it,
+   * parse it, or read a scheme out of it.
+   */
+  value: string
+  /**
+   * The provider that issued the handle (`'openai'`, `'anthropic'`, ...).
+   */
+  provider?: string
+  /**
+   * Optional MIME type hint for cases where the provider can't infer it.
+   */
+  mimeType?: string
+}
+
+/**
  * Source specification for multimodal content.
- * Discriminated union supporting both inline data (base64) and URL-based content.
+ * Discriminated union supporting inline data (base64), URL-based content, and
+ * provider-issued file handles.
  * - For 'data' sources: mimeType is required
  * - For 'url' sources: mimeType is optional
+ * - For 'file' sources: an opaque provider handle
  */
-export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
+export type ContentPartSource =
+  | ContentPartDataSource
+  | ContentPartUrlSource
+  | ContentPartFileSource
 
 /**
  * Image content part for multimodal messages.
@@ -510,6 +540,12 @@ export interface SubagentHandleData {
   status: SubagentStatus
   parentRunId?: string
   parentSubagentRunId?: string
+  /** The tool call that started this child, when the model started it. */
+  parentToolCallId?: string
+  /** Interrupts this child raised, while `status` is `'suspended'`. */
+  interruptIds?: Array<string>
+  /** The `metadata` of the child's `SUBAGENT_STARTED` event. */
+  metadata?: Record<string, unknown>
   messages: Array<UIMessage>
   error?: { message: string; code?: string }
 }
@@ -558,6 +594,8 @@ export interface TanStackMessageMetadata {
   model?: string
   /** Parent chat run that produced this assistant message. */
   runId?: string
+  /** Card data on a child wire message. See `uiMessagesToWire`. */
+  subagent?: SubagentWireInfo
   /** Thinking signature for a `role: 'reasoning'` fan-out message. */
   signature?: string
   /** Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignature). */

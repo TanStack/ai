@@ -1929,7 +1929,8 @@ export interface WithPersistenceOptions {
   snapshotStreaming?: boolean
   /**
    * Minimum milliseconds between streaming snapshots when `snapshotStreaming`
-   * is on. Defaults to 1000.
+   * is on. A streaming subagent child uses the same interval for its
+   * transcript writes. Defaults to 1000.
    */
   snapshotIntervalMs?: number
 }
@@ -1983,6 +1984,10 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
   const subagentRuns = createSubagentRunRecorder({
     messages: messageStore,
     runs,
+    intervalMs: snapshotIntervalMs,
+    ...(wantsInterrupts && persistence.stores.interrupts
+      ? { interrupts: persistence.stores.interrupts }
+      : {}),
   })
 
   return defineChatMiddleware({

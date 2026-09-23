@@ -123,8 +123,10 @@ export type UseChatOptions<
    * Agents from `defineAgent`. This types `messages` parts and `subagents`.
    * The hook does not call `run` and does not send the agents to the server.
    * Pass the same array you give to `chat({ subagents: { agents } })`.
+   * The record form from `ChatClientOptions` (used by `createChatHook`) is
+   * also accepted, so shared options objects type-check here too.
    */
-  subagents?: TSubagents
+  subagents?: TSubagents | ChatClientOptions['subagents']
 } & ClientContextOptionFromTools<TTools, TContext>
 
 /**

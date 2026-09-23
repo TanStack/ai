@@ -210,7 +210,11 @@ it('maps cache-write usage in both directions', () => {
       cacheWriteInputTokens: 5,
     },
   ])
-  expect(wire.leftover).toBeUndefined()
+  // Old readers only know the leftover field, so it stays there too.
+  expect(wire.leftover).toEqual({
+    promptTokensDetails: { cacheWriteTokens: 5 },
+  })
+  expect(fromSpecTokenUsage(wire.usage, wire.leftover)).toEqual(usage)
   expect(fromSpecTokenUsage(wire.usage)).toEqual(usage)
 })
 

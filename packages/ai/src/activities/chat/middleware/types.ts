@@ -5,6 +5,7 @@ import type {
 import type {
   AgentLoopState,
   EmitCustomEventOptions,
+  Interrupt,
   JSONSchema,
   ModelMessage,
   UIMessage,
@@ -587,6 +588,8 @@ export interface RoutedSubagentPersistence {
     threadId: string
     runId: string
     messages: ReadonlyArray<UIMessage | ModelMessage>
+    /** Answers this run gives to earlier child interrupts. */
+    resume?: ReadonlyArray<RunAgentResumeItem>
   }) => Promise<void>
   chunk: (input: {
     threadId: string
@@ -594,6 +597,12 @@ export interface RoutedSubagentPersistence {
     chunk: StreamChunk
   }) => Promise<void>
   finish: (input: { threadId: string; runId: string }) => Promise<void>
+  /** The run stopped because a child waits for outside input. */
+  suspend?: (input: {
+    threadId: string
+    runId: string
+    interrupts: ReadonlyArray<Interrupt>
+  }) => Promise<void>
   abort: (input: {
     threadId: string
     runId: string
