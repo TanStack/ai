@@ -1,5 +1,25 @@
-import type { SubagentProps } from '@tanstack/ai-react/ui'
+import type { SubagentPartsProps, SubagentProps } from '@tanstack/ai-react/ui'
 import type { BlogChatOptions } from '@/chat-ui'
+
+// Only the researcher card draws this tool. The other parts use the root
+// widgets from `chat-ui.tsx`.
+const researcherTools: SubagentPartsProps<BlogChatOptions>['toolsComponents'] =
+  {
+    lookupWikipedia: ({ part, result }) => (
+      <details className="mb-2 rounded border border-emerald-500/30 bg-emerald-500/5 p-2 text-xs text-emerald-300">
+        <summary className="cursor-pointer font-mono">
+          lookupWikipedia({part.arguments}) ({part.state})
+        </summary>
+        <pre className="mt-1 whitespace-pre-wrap text-gray-400">
+          {result === undefined
+            ? 'No result yet'
+            : typeof result.content === 'string'
+              ? result.content
+              : JSON.stringify(result.content)}
+        </pre>
+      </details>
+    ),
+  }
 
 function AgentHeader({
   name,
@@ -42,7 +62,7 @@ export function Researcher({
         <p className="text-xs text-red-400">{subagent.error.message}</p>
       ) : null}
       <div className="mt-2">
-        <Parts />
+        <Parts toolsComponents={researcherTools} />
       </div>
     </section>
   )

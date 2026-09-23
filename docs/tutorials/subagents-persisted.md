@@ -285,28 +285,39 @@ thinking: ({ part }) => (
 ),
 ```
 
-Then add `toolsComponents` next to `partsComponents`:
+The researcher card draws the tool call. In `src/components/subagent-card.tsx`, import the `SubagentPartsProps` type from `@tanstack/ai-react/ui`. Add the tool widget above the cards:
 
 ```tsx ignore
-toolsComponents: {
-  lookupWikipedia: ({ part, result }) => (
-    <details className="mb-2 rounded border border-emerald-500/30 bg-emerald-500/5 p-2 text-xs text-emerald-300">
-      <summary className="cursor-pointer font-mono">
-        lookupWikipedia({part.arguments}) ({part.state})
-      </summary>
-      <pre className="mt-1 whitespace-pre-wrap text-gray-400">
-        {result === undefined
-          ? 'No result yet'
-          : typeof result.content === 'string'
-            ? result.content
-            : JSON.stringify(result.content)}
-      </pre>
-    </details>
-  ),
-},
+const researcherTools: SubagentPartsProps<BlogChatOptions>['toolsComponents'] =
+  {
+    lookupWikipedia: ({ part, result }) => (
+      <details className="mb-2 rounded border border-emerald-500/30 bg-emerald-500/5 p-2 text-xs text-emerald-300">
+        <summary className="cursor-pointer font-mono">
+          lookupWikipedia({part.arguments}) ({part.state})
+        </summary>
+        <pre className="mt-1 whitespace-pre-wrap text-gray-400">
+          {result === undefined
+            ? 'No result yet'
+            : typeof result.content === 'string'
+              ? result.content
+              : JSON.stringify(result.content)}
+        </pre>
+      </details>
+    ),
+  }
 ```
 
-The kit renders a tool call only through the `toolsComponents` entry with the same name. A tool with no entry renders nothing. `result` is the matching tool result, so the result shows inside the same row.
+Pass it to the researcher card's `Parts`:
+
+```tsx ignore
+<Parts toolsComponents={researcherTools} />
+```
+
+- The kit renders a tool call only through a `toolsComponents` entry with the same name. A tool with no entry renders nothing.
+- This entry is on the researcher card, so only that card uses it. Its text and reasoning still use the root widgets.
+- `result` is the matching tool result, so the result shows inside the same row.
+
+To replace other widgets on one card, see [Style one child's parts](../chat/subagents#style-one-childs-parts).
 
 ## Try it
 
