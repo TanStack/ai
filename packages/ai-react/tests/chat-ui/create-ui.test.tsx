@@ -204,6 +204,97 @@ describe('createChatUI', () => {
     expect(markup).toContain('Notes from the child')
   })
 
+  it('lets a card override part and tool widgets for its subtree', () => {
+    const thinking = { type: 'thinking' as const, content: 'plan' }
+    const weather = {
+      type: 'tool-call' as const,
+      id: 'call-1',
+      name: 'getWeather' as const,
+      arguments: '{"city":"Rome"}',
+      input: { city: 'Rome' },
+      state: 'input-complete' as const,
+    }
+    const nested = {
+      id: 'sub-2',
+      name: 'writer',
+      status: 'running' as const,
+      messages: [
+        { id: 'grandchild', role: 'assistant' as const, parts: [thinking] },
+      ],
+    }
+    const handle = {
+      id: 'sub-1',
+      name: 'researcher',
+      status: 'running' as const,
+      messages: [
+        {
+          id: 'child-1',
+          role: 'assistant' as const,
+          parts: [
+            thinking,
+            weather,
+            { type: 'text' as const, content: 'child text' },
+            { type: 'subagent' as const, subagent: nested },
+          ],
+        },
+      ],
+    }
+    const cardParts = {
+      thinking: ({ part }: { part: { content: string } }) => (
+        <em>card:{part.content}</em>
+      ),
+    }
+    const cardTools = {
+      getWeather: ({ part }: { part: { arguments: string } }) => (
+        <b>card:{part.arguments}</b>
+      ),
+    }
+    const UI = makeUI({
+      partsComponents: {
+        text: ({ part }) => <p>root:{part.content}</p>,
+        thinking: ({ part }) => <i>root:{part.content}</i>,
+      },
+      subagentsComponents: {
+        researcher: ({ Parts }: SubagentProps<typeof chatOptions>) => (
+          <section>
+            <Parts partsComponents={cardParts} toolsComponents={cardTools} />
+          </section>
+        ),
+        writer: ({ Parts }: SubagentProps<typeof chatOptions>) => (
+          <aside>
+            <Parts />
+          </aside>
+        ),
+      },
+    })
+    const markup = renderToStaticMarkup(
+      <UI.Chat
+        chat={host({
+          messages: [
+            {
+              id: 'parent-1',
+              role: 'assistant',
+              parts: [
+                thinking,
+                weather,
+                { type: 'subagent', subagent: handle },
+              ],
+            },
+          ],
+        })}
+      />,
+    )
+    // The root message keeps the root widgets.
+    expect(markup).toContain('<i>root:plan</i>')
+    expect(markup).toContain('<strong>Rome</strong>')
+    // The card uses its overrides, and the root for keys it does not set.
+    expect(markup).toContain('<b>card:{&quot;city&quot;:&quot;Rome&quot;}</b>')
+    expect(markup).toContain('<p>root:child text</p>')
+    // A nested child inherits the card overrides.
+    expect(markup).toContain('<aside><em>card:plan</em></aside>')
+    expect(markup.match(/<em>card:plan<\/em>/g)).toHaveLength(2)
+  })
+
   it('renders the live subagent list through Subagents', () => {
     const handle = {
       id: 'sub-1',

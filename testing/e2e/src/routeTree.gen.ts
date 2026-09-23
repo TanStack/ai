@@ -14,6 +14,7 @@ import { Route as WebMcpToolsRouteImport } from './routes/web-mcp-tools'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as ToolFirstTextRouteImport } from './routes/tool-first-text'
 import { Route as TextFirstToolRouteImport } from './routes/text-first-tool'
+import { Route as SubagentsUiTestRouteImport } from './routes/subagents-ui-test'
 import { Route as SubagentsTestRouteImport } from './routes/subagents-test'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
@@ -135,6 +136,11 @@ const ToolFirstTextRoute = ToolFirstTextRouteImport.update({
 const TextFirstToolRoute = TextFirstToolRouteImport.update({
   id: '/text-first-tool',
   path: '/text-first-tool',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubagentsUiTestRoute = SubagentsUiTestRouteImport.update({
+  id: '/subagents-ui-test',
+  path: '/subagents-ui-test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SubagentsTestRoute = SubagentsTestRouteImport.update({
@@ -665,6 +671,7 @@ export interface FileRoutesByFullPath {
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/subagents-test': typeof SubagentsTestRoute
+  '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
@@ -769,6 +776,7 @@ export interface FileRoutesByTo {
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/subagents-test': typeof SubagentsTestRoute
+  '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
@@ -874,6 +882,7 @@ export interface FileRoutesById {
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/subagents-test': typeof SubagentsTestRoute
+  '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
@@ -980,6 +989,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/persistence-durability'
     | '/subagents-test'
+    | '/subagents-ui-test'
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
@@ -1084,6 +1094,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/persistence-durability'
     | '/subagents-test'
+    | '/subagents-ui-test'
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
@@ -1188,6 +1199,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/persistence-durability'
     | '/subagents-test'
+    | '/subagents-ui-test'
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
@@ -1293,6 +1305,7 @@ export interface RootRouteChildren {
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
   SubagentsTestRoute: typeof SubagentsTestRoute
+  SubagentsUiTestRoute: typeof SubagentsUiTestRoute
   TextFirstToolRoute: typeof TextFirstToolRoute
   ToolFirstTextRoute: typeof ToolFirstTextRoute
   ToolsTestRoute: typeof ToolsTestRoute
@@ -1405,6 +1418,13 @@ declare module '@tanstack/react-router' {
       path: '/text-first-tool'
       fullPath: '/text-first-tool'
       preLoaderRoute: typeof TextFirstToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subagents-ui-test': {
+      id: '/subagents-ui-test'
+      path: '/subagents-ui-test'
+      fullPath: '/subagents-ui-test'
+      preLoaderRoute: typeof SubagentsUiTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/subagents-test': {
@@ -2170,6 +2190,7 @@ const rootRouteChildren: RootRouteChildren = {
   MiddlewareTestRoute: MiddlewareTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
   SubagentsTestRoute: SubagentsTestRoute,
+  SubagentsUiTestRoute: SubagentsUiTestRoute,
   TextFirstToolRoute: TextFirstToolRoute,
   ToolFirstTextRoute: ToolFirstTextRoute,
   ToolsTestRoute: ToolsTestRoute,

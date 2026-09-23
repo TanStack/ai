@@ -70,6 +70,29 @@ test.describe('subagents', () => {
     await expect(page.getByTestId('card-cleaner')).toHaveCount(1)
   })
 
+  test('a card overrides the kit widgets for its own parts', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await page.goto(
+      `/subagents-ui-test?testId=${encodeURIComponent(testId)}&aimockPort=${aimockPort}`,
+    )
+    await run(page)
+
+    const card = page.getByTestId('card-researcher')
+    await expect(card.getByTestId('root-text')).toHaveText(
+      'Squids have three hearts.',
+    )
+    // The card's own thinking widget, not the root one.
+    await expect(card.getByTestId('card-thinking')).toHaveText(
+      'Look up the facts first.',
+    )
+    await expect(card.getByTestId('root-thinking')).toHaveCount(0)
+    // No card override for the tool, so the root widget renders it.
+    await expect(card.getByTestId('root-tool')).toContainText('lookupFacts:')
+  })
+
   test('without a router the model starts the child and reads its result', async ({
     page,
     testId,

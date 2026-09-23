@@ -15,6 +15,7 @@ export {
   type MessageProps,
   type PartProps,
   type QueueProps,
+  type SubagentPartsProps,
   type SubagentProps,
   type ToolProps,
 } from './chat-ui/create-ui'

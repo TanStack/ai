@@ -360,7 +360,7 @@ The nested `type: 'subagent'` part and `useChat().subagents[i]` are the same liv
 - approval state on the child's tool calls
 - nested children, as their own `subagent` parts
 
-`part.subagent.status` is `'running'`, `'finished'`, `'error'`, or `'suspended'`. Render the child messages with the same parts components as the parent.
+`part.subagent.status` is `'running'`, `'finished'`, `'error'`, or `'suspended'`. By default, the child messages use the same parts components as the parent. A card can replace them for its child. See [Style one child's parts](#style-one-childs-parts).
 
 Use `createChatHook` from `@tanstack/ai-react/ui` when you want the factory to draw the cards. Pass `options.subagents` as an object. Each key is an agent name. Register `subagentsComponents` for each key. Those components receive `SubagentProps` and `Parts`. Render `<Messages />`. The subagent card is a part of the assistant message. `<Subagents />` draws that same card for the live list. Pick one place for the card. If a started child has a name with no `subagentsComponents` entry, rendering that card throws.
 
@@ -472,5 +472,79 @@ export function ChatScreen() {
 ```
 
 `part.subagent` is the same object as `useChat().subagents[i]` for that id. `stop()` on either one aborts the current parent run.
+
+### Style one child's parts
+
+The researcher's reasoning and tool calls use the root widgets by default. To make them look different on the researcher card only, pass widgets to that card's `Parts`:
+
+```tsx
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { createChatHook, ThinkingPart } from '@tanstack/ai-react/ui'
+import type { SubagentPartsProps, SubagentProps } from '@tanstack/ai-react/ui'
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  subagents: { researcher: { description: 'Looks up facts' } },
+}
+
+type ResearcherWidgets = SubagentPartsProps<typeof chatOptions>
+
+const researcherParts: ResearcherWidgets['partsComponents'] = {
+  thinking: ({ part }) => (
+    <ThinkingPart content={part.content} className="research-notes" />
+  ),
+}
+
+const researcherTools: ResearcherWidgets['toolsComponents'] = {
+  lookupWikipedia: ({ part, result }) => (
+    <details>
+      <summary>
+        {part.name} ({part.state})
+      </summary>
+      {typeof result?.content === 'string' ? result.content : null}
+    </details>
+  ),
+}
+
+function Researcher({
+  Parts,
+}: SubagentProps<typeof chatOptions, 'researcher'>) {
+  return (
+    <section>
+      <Parts partsComponents={researcherParts} toolsComponents={researcherTools} />
+    </section>
+  )
+}
+
+export const { useAppChat } = createChatHook({
+  options: chatOptions,
+  components: {
+    layout: ({ Messages }) => (
+      <main>
+        <Messages />
+      </main>
+    ),
+    message: ({ Parts }) => (
+      <article>
+        <Parts />
+      </article>
+    ),
+  },
+  partsComponents: {
+    text: ({ part }) => <p>{part.content}</p>,
+    thinking: ({ part }) => <ThinkingPart content={part.content} />,
+    fallback: () => null,
+  },
+  subagentsComponents: { researcher: Researcher },
+})
+```
+
+- An entry on `Parts` replaces the root entry with the same key, for this card only.
+- A key that you do not set uses the root entry. Here, `text` still uses the root widget.
+- Children nested in this card get the same entries, unless their own card passes other ones.
+- `toolsComponents` is keyed by tool name. A tool call renders only through the entry with its name, so a tool with no entry at any level renders nothing.
+- The child's tools are not typed on the client, so `part.input` and `part.output` are not typed.
+
+Define these maps outside the component. A new object on each render makes every part in the card render again. An approval for a tool that only a card registers also shows in the root `<Interrupts />` list.
 
 See [Stream Events](./stream-events) for `SUBAGENT_*` and `subagentRunId`.
