@@ -3,7 +3,7 @@ import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { createChatHook } from '@tanstack/ai-react/ui'
 import type { SubagentPartsProps, SubagentProps } from '@tanstack/ai-react/ui'
 import { parseAimockPort } from '@/lib/devtools-test'
-import { SUBAGENT_PROMPTS } from '@/lib/subagents-test'
+import { SUBAGENT_PROMPTS, lookupFacts } from '@/lib/subagents-test'
 
 /**
  * The chat UI kit on the `route` scenario. The root registers `thinking`,
@@ -12,11 +12,12 @@ import { SUBAGENT_PROMPTS } from '@/lib/subagents-test'
  */
 const chatOptions = {
   connection: fetchServerSentEvents('/api/subagents-test'),
-  subagents: { researcher: { description: 'Looks up facts' } },
+  subagents: [{ name: 'researcher', tools: [lookupFacts] }] as const,
 }
 
 const researcherParts: SubagentPartsProps<
-  typeof chatOptions
+  typeof chatOptions,
+  'researcher'
 >['partsComponents'] = {
   thinking: ({ part }) => <p data-testid="card-thinking">{part.content}</p>,
 }
