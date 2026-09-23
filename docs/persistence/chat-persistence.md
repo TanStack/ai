@@ -99,6 +99,22 @@ a run id it may no longer know. The store resolves the thread's live run with
 [Id map](./id-map) covers how to choose a thread id and what both ids mean on the
 generation hooks. [How persistence works](./internals) has the rest.
 
+## Subagent cards on reload
+
+When the run store keeps the child link, a refresh shows each subagent as a card.
+
+Save these three fields on the child run. `createOrResume` writes them on the first insert:
+
+- `parentRunId`: the chat run that started the child.
+- `subagentRunId`: the child run id.
+- `name`: the agent name.
+
+`reconstructChat` calls `listByParentRun`. It puts one card on the parent assistant message for each child.
+
+If the store omits `listByParentRun`, declare `runs.listByParentRun` in `skipMethods`. A reload then shows the saved text. The cards stay absent.
+
+The columns and the method are in the [store reference](./store-reference). The full route is in [Persisted subagents](../tutorials/subagents-persisted).
+
 ## Keep every stored message
 
 `withPersistence` merges incoming `messages` into the stored thread by id.

@@ -333,6 +333,8 @@ function messageMetadata(
   const tanstack: TanStackMessageMetadata = {}
   if (previousTanstack?.model !== undefined)
     tanstack.model = previousTanstack.model
+  if (previousTanstack?.runId !== undefined)
+    tanstack.runId = previousTanstack.runId
   if (previousTanstack?.signature !== undefined)
     tanstack.signature = previousTanstack.signature
   const createdAt = coerceCreatedAt(msg.createdAt)

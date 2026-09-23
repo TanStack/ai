@@ -487,6 +487,7 @@ function assistantMetadata(
   const previous = tanstackMetadata(uiMessage)
   const tanstack: TanStackMessageMetadata = {}
   if (previous?.model !== undefined) tanstack.model = previous.model
+  if (previous?.runId !== undefined) tanstack.runId = previous.runId
   if (previous?.signature !== undefined) tanstack.signature = previous.signature
   if (fromParts.length > 0) tanstack.uiResources = fromParts
   const result = { ...current }

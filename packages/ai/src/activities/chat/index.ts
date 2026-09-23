@@ -4983,96 +4983,123 @@ async function* runRoutedSubagents(
   const threadId = options.threadId ?? `thread-${Date.now()}`
   const runId = options.runId ?? `run-${Date.now()}`
   const messages = options.messages ?? []
-  const pick = await bag.router({
-    messages,
-    agents: bag.agents,
-    abortSignal: options.abortController?.signal,
-  })
-  const plan = normalizeRouterPick(pick, bag.agents)
-  const onlyStep = plan.steps.length === 1 ? plan.steps[0] : undefined
-  if (onlyStep?.names.length === 1 && onlyStep.names[0] === 'main') {
-    yield* runChatEngine(
-      { ...options, threadId, runId, subagents: undefined },
-      engineRef,
-    )
-    return
-  }
-
-  yield {
-    type: EventType.RUN_STARTED,
-    threadId,
-    runId,
-    timestamp: Date.now(),
-  }
-
-  const stepTexts: Array<string> = []
-  let stepMessages = messages
-  let failed = false
-  for (const step of plan.steps) {
-    const stepChunks: Array<StreamChunk> = []
-    for await (const chunk of spawnNamedAgents(
-      step.names,
-      {
-        ...bag,
-        order: step.order ?? bag.order,
-      },
-      {
-        messages: stepMessages,
-        abortSignal: options.abortController?.signal,
-        threadId,
-        parentRunId: runId,
-      },
-    )) {
-      stepChunks.push(chunk)
-      yield chunk
+  const subagentPersistence = readRoutedSubagentPersistence(options.middleware)
+  await subagentPersistence?.start({ threadId, runId, messages })
+  try {
+    const pick = await bag.router({
+      messages,
+      agents: bag.agents,
+      abortSignal: options.abortController?.signal,
+    })
+    const plan = normalizeRouterPick(pick, bag.agents)
+    const onlyStep = plan.steps.length === 1 ? plan.steps[0] : undefined
+    if (onlyStep?.names.length === 1 && onlyStep.names[0] === 'main') {
+      yield* runChatEngine(
+        { ...options, threadId, runId, subagents: undefined },
+        engineRef,
+      )
+      return
     }
-    if (stepChunks.some((chunk) => chunk.type === 'SUBAGENT_ERROR')) {
-      failed = true
-      break
-    }
-    const text = collectNamedText(stepChunks, step.names)
-    if (text) {
-      stepTexts.push(text)
-      stepMessages = [...stepMessages, { role: 'assistant', content: text }]
-    }
-  }
 
-  const strategy = bag.strategy ?? 'exclusive'
-  if (strategy === 'handoff') {
-    const childText = stepTexts.join('\n\n')
-    yield* runChatEngine(
-      {
-        ...options,
-        threadId,
-        runId,
-        subagents: undefined,
-        messages: [
-          ...messages,
-          { role: 'assistant', content: childText || 'Subagent finished.' },
-        ],
-      },
-      engineRef,
-    )
-    return
-  }
-
-  if (failed) {
     yield {
-      type: EventType.RUN_ERROR,
+      type: EventType.RUN_STARTED,
       threadId,
       runId,
-      message: 'A subagent failed',
       timestamp: Date.now(),
     }
-    return
-  }
 
-  yield {
-    type: EventType.RUN_FINISHED,
-    threadId,
-    runId,
-    timestamp: Date.now(),
+    const stepTexts: Array<string> = []
+    let stepMessages = messages
+    let failed = false
+    for (const step of plan.steps) {
+      const stepChunks: Array<StreamChunk> = []
+      for await (const chunk of spawnNamedAgents(
+        step.names,
+        {
+          ...bag,
+          order: step.order ?? bag.order,
+        },
+        {
+          messages: stepMessages,
+          abortSignal: options.abortController?.signal,
+          threadId,
+          parentRunId: runId,
+        },
+      )) {
+        stepChunks.push(chunk)
+        await subagentPersistence?.chunk({ threadId, runId, chunk })
+        yield chunk
+      }
+      if (stepChunks.some((chunk) => chunk.type === 'SUBAGENT_ERROR')) {
+        failed = true
+        break
+      }
+      const text = collectNamedText(stepChunks, step.names)
+      if (text) {
+        stepTexts.push(text)
+        stepMessages = [...stepMessages, { role: 'assistant', content: text }]
+      }
+    }
+
+    const strategy = bag.strategy ?? 'exclusive'
+    if (strategy === 'handoff') {
+      const childText = stepTexts.join('\n\n')
+      yield* runChatEngine(
+        {
+          ...options,
+          threadId,
+          runId,
+          subagents: undefined,
+          messages: [
+            ...messages,
+            { role: 'assistant', content: childText || 'Subagent finished.' },
+          ],
+        },
+        engineRef,
+      )
+      return
+    }
+
+    if (failed) {
+      await subagentPersistence?.abort({
+        threadId,
+        runId,
+        error: new Error('A subagent failed'),
+      })
+      yield {
+        type: EventType.RUN_ERROR,
+        threadId,
+        runId,
+        message: 'A subagent failed',
+        timestamp: Date.now(),
+      }
+      return
+    }
+
+    await subagentPersistence?.finish({ threadId, runId })
+    yield {
+      type: EventType.RUN_FINISHED,
+      threadId,
+      runId,
+      timestamp: Date.now(),
+    }
+  } catch (error) {
+    await subagentPersistence?.abort({ threadId, runId, error })
+    throw error
   }
+}
+
+function readRoutedSubagentPersistence(
+  middleware:
+    | ReadonlyArray<{
+        routedSubagentPersistence?: ChatMiddleware['routedSubagentPersistence']
+      }>
+    | undefined,
+) {
+  for (const item of middleware ?? []) {
+    if (item.routedSubagentPersistence) return item.routedSubagentPersistence
+  }
+  return undefined
 }
 
 /**

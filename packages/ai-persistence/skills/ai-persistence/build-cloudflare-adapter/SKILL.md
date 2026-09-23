@@ -97,21 +97,25 @@ The invariants are the whole game, whichever route you take:
 | `runs`       | `update` on an unknown id is a silent no-op — never throws, never inserts                                                                                                                          |
 | `runs`       | `findActiveRun` (required) returns the latest `'running'` run for the thread, else null                                                                                                            |
 | `runs`       | `listByThread` (optional) returns every run for the thread `ORDER BY started_at ASC`                                                                                                               |
+| `runs`       | `listByParentRun` (optional) returns child runs for one `parent_run_id`, `ORDER BY started_at ASC`. `reconstructChat` uses it to put subagent cards back                                           |
 | `runs`       | `listReclaimable` (optional) returns runs where `status = 'running' AND detached_since IS NOT NULL AND detached_since <= now - ttlMs` (inclusive cutoff); it is a query, not automatic reclamation |
 | `interrupts` | `create` is insert-if-absent; never clobber a resolved interrupt back to pending                                                                                                                   |
 | `interrupts` | every `list*` ends `ORDER BY requested_at ASC`                                                                                                                                                     |
 | `metadata`   | reject nullish `set` with a clear `TypeError`; tell callers to use `delete`                                                                                                                        |
 
-On `runs`, `findActiveRun` is required; `listByThread` and `listReclaimable` are
-optional, so implement those two only if the app needs them. `withPersistence`
-calls **none** of the three — the consumers are `reconstruct.ts`
-(`findActiveRun`, for rejoin-by-thread) and `@tanstack/ai-sandbox`'s `reapDetachedRuns`
-(`listReclaimable`, without which the store cannot be reaped); nothing in the
-framework calls `listByThread`. Consumers of the two OPTIONAL methods
-feature-detect with `store.method?.(...)` and degrade to "not supported" when one
-is absent. The conformance testkit does not: either of those you leave out must
-be listed in `skipMethods` or the suite fails, so declare them and it reports the
-omission as a skip.
+On `runs`, `findActiveRun` is required. `listByThread`, `listByParentRun`, and
+`listReclaimable` are optional, so implement those only if the app needs them.
+`withPersistence` calls `createOrResume` and `update`. `reconstruct.ts` calls
+`findActiveRun` for rejoin-by-thread and `listByParentRun` to put subagent
+cards back. `@tanstack/ai-sandbox`'s `reapDetachedRuns` calls `listReclaimable`.
+Nothing in the framework calls `listByThread`. Consumers of the optional methods
+feature-detect with `store.method?.(...)` and degrade when one is absent. The
+conformance testkit does not: each optional method you leave out must be listed
+in `skipMethods` or the suite fails.
+
+`createOrResume` copies `parentRunId`, `subagentRunId`, and `name` on the first
+insert. A later call for the same `runId` leaves them unchanged. If the caller
+omits a field, omit it on the mapped record.
 
 `RunRecord.error` is a structured `RunError` (`{ message: string, code?: string }`),
 so the table gets two columns rather than one JSON blob: `error` for the
@@ -159,10 +163,14 @@ CREATE TABLE IF NOT EXISTS chat_runs (
   sandbox_key text,
   detached_since integer,
   cancel_requested integer,
-  driver_epoch integer
+  driver_epoch integer,
+  parent_run_id text,
+  subagent_run_id text,
+  name text
 );
 CREATE INDEX IF NOT EXISTS chat_runs_thread_status ON chat_runs (thread_id, status);
 CREATE INDEX IF NOT EXISTS chat_runs_thread_started ON chat_runs (thread_id, started_at);
+CREATE INDEX IF NOT EXISTS chat_runs_parent_started ON chat_runs (parent_run_id, started_at);
 -- Powers listReclaimable: status = 'running' AND detached_since <= cutoff.
 CREATE INDEX IF NOT EXISTS chat_runs_status_detached ON chat_runs (status, detached_since);
 CREATE TABLE IF NOT EXISTS chat_interrupts (
@@ -291,8 +299,8 @@ once you add the R2-backed set from
 `'locks'`, which is not a store.
 
 If your recipe leaves an optional `runs` method
-(`listByThread`/`listReclaimable`) unimplemented, declare it
-with `skipMethods`, e.g. `{ skipMethods: ['runs.listByThread'] }`. An
+(`listByThread`, `listByParentRun`, or `listReclaimable`) unimplemented, declare
+it with `skipMethods`, for example `{ skipMethods: ['runs.listByThread'] }`. An
 omitted method that is not declared fails the suite instead of silently
 passing.
 

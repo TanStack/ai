@@ -331,6 +331,9 @@ const REJOIN_REBUILD_TRIGGERS = new Set<string>([
   'TEXT_MESSAGE_CONTENT',
   'TOOL_CALL_START',
   'MESSAGES_SNAPSHOT',
+  // Drop the hydrated card before this chunk creates it again. A subagent
+  // turn may have no parent text, so the text triggers arrive too late.
+  'SUBAGENT_STARTED',
 ])
 
 function readSubagentRunId(chunk: StreamChunk) {
@@ -2695,6 +2698,7 @@ export class ChatClient<
    */
   stop(): void {
     // Invalidate deferred work from the stopped continuation.
+    // This aborts the local request. A durable server run keeps going.
     this.continuationGeneration++
     const hadLocalStream = this.abortController !== null
     this.cancelInFlightStream({ setReadyStatus: true })

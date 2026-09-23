@@ -1,5 +1,5 @@
 import { modelMessagesToUIMessages } from '@tanstack/ai'
-import type { ModelMessage, UIMessage } from '@tanstack/ai'
+import type { ModelMessage, SubagentPart, UIMessage } from '@tanstack/ai'
 import { validateReconstructChatStores } from './types'
 import type {
   AIPersistence,
@@ -171,8 +171,13 @@ export async function reconstructChat(
           before,
         })
       : windowFromMessagePage(stored, pageSize)
+  const messages = await attachSubagentCards(
+    transcript.messages,
+    persistence.stores.runs,
+    messageStore,
+  )
   const body: ReconstructedChat = {
-    messages: transcript.messages,
+    messages,
     activeRun: active ? { runId: active.runId } : null,
     interrupts: firstPending
       ? {
@@ -188,6 +193,89 @@ export async function reconstructChat(
       'cache-control': 'no-store',
     },
   })
+}
+
+function messageRunId(message: UIMessage) {
+  const metadata = message.metadata
+  if (!metadata || typeof metadata !== 'object') return
+  const tanstack = metadata.tanstack
+  if (!tanstack || typeof tanstack !== 'object') return
+  const runId = (tanstack as { runId?: unknown }).runId
+  return typeof runId === 'string' && runId !== '' ? runId : undefined
+}
+
+function modelText(messages: ReadonlyArray<ModelMessage>) {
+  const blocks: Array<string> = []
+  for (const message of messages) {
+    if (typeof message.content !== 'string') continue
+    const text = message.content.trim()
+    if (text !== '') blocks.push(text)
+  }
+  return blocks.join('\n\n')
+}
+
+async function attachSubagentCards(
+  messages: Array<UIMessage>,
+  runs: ChatTranscriptStores['runs'],
+  messageStore: MessageStore,
+) {
+  if (!runs?.listByParentRun) return messages
+  const next: Array<UIMessage> = []
+  for (const message of messages) {
+    if (message.role !== 'assistant') {
+      next.push(message)
+      continue
+    }
+    const runId = messageRunId(message)
+    if (!runId) {
+      next.push(message)
+      continue
+    }
+    const children = await runs.listByParentRun(runId)
+    if (children.length === 0) {
+      next.push(message)
+      continue
+    }
+    const cards: Array<SubagentPart> = []
+    for (const child of children) {
+      const subagentRunId = child.subagentRunId ?? child.runId
+      const stored = await messageStore.loadThread(child.threadId)
+      const text = modelText(stored)
+      const failed = child.status === 'failed' || child.status === 'aborted'
+      cards.push({
+        type: 'subagent',
+        subagent: {
+          id: subagentRunId,
+          name: child.name ?? 'subagent',
+          status: failed
+            ? 'error'
+            : child.status === 'running'
+              ? 'running'
+              : 'finished',
+          parentRunId: child.parentRunId,
+          messages:
+            text === ''
+              ? []
+              : [
+                  {
+                    id: `child-text:${subagentRunId}`,
+                    role: 'assistant',
+                    parts: [{ type: 'text', content: text }],
+                  },
+                ],
+          ...(failed && child.error ? { error: child.error } : {}),
+        },
+      })
+    }
+    next.push({
+      ...message,
+      parts: [
+        ...cards,
+        ...message.parts.filter((part) => part.type !== 'text'),
+      ],
+    })
+  }
+  return next
 }
 
 function parsePageSize(raw: string | null) {

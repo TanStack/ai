@@ -547,6 +547,8 @@ export type MessagePart<TData = unknown> =
 export interface TanStackMessageMetadata {
   createdAt?: string
   model?: string
+  /** Parent chat run that produced this assistant message. */
+  runId?: string
   /** Thinking signature for a `role: 'reasoning'` fan-out message. */
   signature?: string
   /** Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignature). */
