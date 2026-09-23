@@ -3,6 +3,7 @@ import type {
   ChatMiddlewareContext,
 } from '../activities/chat/middleware/types'
 import type { StreamChunk } from '../types'
+import type { AdapterYieldChunk } from '../utilities/adapter-yield-chunk'
 
 /**
  * A content guard rule — either a regex pattern with replacement, or a transform function.
@@ -146,7 +147,10 @@ function createDeltaStrategy(
       // `exactOptionalPropertyTypes` we can't assign `content: undefined`
       // against `content?: string`. The replacement event carries only the
       // filtered delta.
-      const { content: _strippedContent, ...rest } = chunk
+      const { content: _strippedContent, ...rest } = chunk as Extract<
+        AdapterYieldChunk,
+        { type: 'TEXT_MESSAGE_CONTENT' }
+      >
       void _strippedContent
       return {
         ...rest,

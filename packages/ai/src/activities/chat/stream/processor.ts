@@ -18,6 +18,7 @@
  *   adapter contract, single-shot flows, and expected UIMessage output.
  */
 import {
+  aguiContentToContentParts,
   aguiSnapshotMessageToUIMessage,
   coerceCreatedAt,
   generateMessageId,
@@ -999,6 +1000,7 @@ export class StreamProcessor {
   }
 
   private routeAttributedChunk(chunk: StreamChunk) {
+    if (!('subagentRunId' in chunk)) return false
     const subagentRunId = chunk.subagentRunId
     if (!subagentRunId) return false
     const found = this.findSubagentPart(subagentRunId)
@@ -1792,7 +1794,10 @@ export class StreamProcessor {
     // Step 1: Update the tool-call part's output field
     let output: unknown
     try {
-      output = JSON.parse(chunk.content)
+      output =
+        typeof chunk.content === 'string'
+          ? JSON.parse(chunk.content)
+          : chunk.content
     } catch {
       output = chunk.content
     }
@@ -1809,7 +1814,7 @@ export class StreamProcessor {
       this.messages,
       messageId,
       chunk.toolCallId,
-      chunk.content,
+      aguiContentToContentParts(chunk.content, false),
       resultState,
       resultState === 'error' ? this.extractToolResultError(output) : undefined,
     )

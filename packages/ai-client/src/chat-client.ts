@@ -1,4 +1,5 @@
 import {
+  EventType,
   StreamProcessor,
   convertSchemaToJsonSchema,
   generateMessageId,
@@ -3034,7 +3035,7 @@ export class ChatClient<
     const handle = this.subagentHandles.get(id)
     if (!handle || handle.status !== 'running') return
     this.processor.processChunk({
-      type: 'SUBAGENT_ERROR',
+      type: EventType.SUBAGENT_ERROR,
       subagentRunId: id,
       message: 'Stopped',
       timestamp: Date.now(),

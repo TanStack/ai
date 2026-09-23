@@ -11,6 +11,14 @@ function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value !== '' ? value : undefined
 }
 
+function chunkFields(chunk: object) {
+  const fields: Record<string, unknown> = {}
+  for (const key of Object.keys(chunk)) {
+    fields[key] = Reflect.get(chunk, key)
+  }
+  return fields
+}
+
 function encryptedValueExtras(chunk: AdapterYieldChunk): Array<StreamChunk> {
   const extras: Array<StreamChunk> = []
   const timestamp =
@@ -19,7 +27,7 @@ function encryptedValueExtras(chunk: AdapterYieldChunk): Array<StreamChunk> {
       : undefined
 
   if (typeof chunk.signature === 'string' && chunk.signature !== '') {
-    const source = chunk as Record<string, unknown>
+    const source = chunkFields(chunk)
     const toolCallId = stringField(source.toolCallId)
     const entityId =
       stringField(chunk.stepId) ??
@@ -62,7 +70,7 @@ export function normalizeStreamChunk(
   chunk: AdapterYieldChunk,
 ): Array<StreamChunk> {
   const specKeys = specKeysFor(chunk.type)
-  const source = chunk as Record<string, unknown>
+  const source = chunkFields(chunk)
   const specChunk: Record<string, unknown> & {
     metadata?: MetadataRecord | null
   } = {}

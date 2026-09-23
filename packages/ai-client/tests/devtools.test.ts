@@ -151,17 +151,12 @@ describe('ChatClient devtools bridge', () => {
     }
   }
 
-  function textContentChunk(args: {
-    messageId: string
-    delta: string
-    content: string
-  }) {
+  function textContentChunk(args: { messageId: string; delta: string }) {
     return {
       type: EventType.TEXT_MESSAGE_CONTENT,
       messageId: args.messageId,
       timestamp: Date.now(),
       delta: args.delta,
-      content: args.content,
     } satisfies StreamChunk
   }
 
@@ -1176,12 +1171,10 @@ describe('ChatClient devtools bridge', () => {
           textContentChunk({
             messageId: 'msg-text',
             delta: 'h',
-            content: 'h',
           }),
           textContentChunk({
             messageId: 'msg-text',
             delta: 'i',
-            content: 'hi',
           }),
           ...createToolCallChunks(
             [{ id: 'call-1', name: 'weather', arguments: '{"city":"Paris"}' }],
@@ -1231,7 +1224,6 @@ describe('ChatClient devtools bridge', () => {
           textContentChunk({
             messageId: 'msg-server',
             delta: 's',
-            content: 's',
           }),
           runFinishedChunk({
             threadId: 'server-thread',
@@ -1273,12 +1265,10 @@ describe('ChatClient devtools bridge', () => {
       textContentChunk({
         messageId: 'msg-structured',
         delta: '{"title":"Pasta"',
-        content: '{"title":"Pasta"',
       }),
       textContentChunk({
         messageId: 'msg-structured',
         delta: ',"servings":2}',
-        content: '{"title":"Pasta","servings":2}',
       }),
       {
         type: EventType.CUSTOM,
@@ -1393,7 +1383,6 @@ describe('ChatClient devtools bridge', () => {
       textContentChunk({
         messageId: 'msg-mem',
         delta: 'Your name is Jack',
-        content: 'Your name is Jack',
       }),
       runFinishedChunk({ threadId: 'thread-1', runId: 'run-mem' }),
     ]
@@ -1508,7 +1497,6 @@ describe('ChatClient devtools bridge', () => {
       textContentChunk({
         messageId: 'msg-cmp',
         delta: 'ok',
-        content: 'ok',
       }),
       runFinishedChunk({ threadId: 'thread-1', runId: 'run-cmp' }),
     ]
@@ -1597,7 +1585,6 @@ describe('ChatClient devtools bridge', () => {
       textContentChunk({
         messageId: 'msg-skills',
         delta: 'Ahoy',
-        content: 'Ahoy',
       }),
       runFinishedChunk({ threadId: 'thread-1', runId: 'run-skills' }),
     ]
@@ -1654,11 +1641,10 @@ describe('ChatClient devtools bridge', () => {
         name: 'structured-output.start',
         value: { messageId: 'msg-structured-batched' },
       },
-      ...Array.from(raw).map((character, index) =>
+      ...Array.from(raw).map((character) =>
         textContentChunk({
           messageId: 'msg-structured-batched',
           delta: character,
-          content: raw.slice(0, index + 1),
         }),
       ),
       {
@@ -1828,7 +1814,6 @@ describe('ChatClient devtools bridge', () => {
             textContentChunk({
               messageId: 'msg-structured-second',
               delta: '{"title":"Soup","servings":3}',
-              content: '{"title":"Soup","servings":3}',
             }),
             {
               type: EventType.CUSTOM,

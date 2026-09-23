@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { StreamProcessor } from '../src/activities/chat/stream/processor'
 import { ev } from './test-utils'
-import type { StreamChunk } from '../src/types'
+import { EventType, type StreamChunk } from '../src/types'
 
 function attributed(chunk: StreamChunk, subagentRunId: string) {
   return { ...chunk, subagentRunId }
@@ -12,7 +12,7 @@ describe('StreamProcessor subagent parts', () => {
     const processor = new StreamProcessor()
     processor.processChunk(ev.runStarted())
     processor.processChunk({
-      type: 'SUBAGENT_STARTED',
+      type: EventType.SUBAGENT_STARTED,
       subagentRunId: 'sub-1',
       name: 'researcher',
       description: 'Looks up facts',
@@ -24,7 +24,7 @@ describe('StreamProcessor subagent parts', () => {
     )
     processor.processChunk(attributed(ev.textEnd('child-msg'), 'sub-1'))
     processor.processChunk({
-      type: 'SUBAGENT_FINISHED',
+      type: EventType.SUBAGENT_FINISHED,
       subagentRunId: 'sub-1',
       timestamp: Date.now(),
     })
@@ -48,13 +48,13 @@ describe('StreamProcessor subagent parts', () => {
     const processor = new StreamProcessor()
     processor.processChunk(ev.runStarted())
     processor.processChunk({
-      type: 'SUBAGENT_STARTED',
+      type: EventType.SUBAGENT_STARTED,
       subagentRunId: 'sub-1',
       name: 'researcher',
       timestamp: Date.now(),
     })
     processor.processChunk({
-      type: 'SUBAGENT_ERROR',
+      type: EventType.SUBAGENT_ERROR,
       subagentRunId: 'sub-1',
       message: 'Stopped',
       timestamp: Date.now(),
@@ -64,7 +64,7 @@ describe('StreamProcessor subagent parts', () => {
       attributed(ev.textContent('late', 'late-msg'), 'sub-1'),
     )
     processor.processChunk({
-      type: 'SUBAGENT_FINISHED',
+      type: EventType.SUBAGENT_FINISHED,
       subagentRunId: 'sub-1',
       timestamp: Date.now(),
     })

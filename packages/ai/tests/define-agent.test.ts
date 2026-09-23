@@ -213,7 +213,12 @@ describe('chat({ subagents }) router spawn', () => {
     const started = chunks.find((chunk) => chunk.type === 'SUBAGENT_STARTED')
     const finished = chunks.find((chunk) => chunk.type === 'SUBAGENT_FINISHED')
     const text = chunks.find(
-      (chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.subagentRunId,
+      (
+        chunk,
+      ): chunk is Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }> =>
+        chunk.type === 'TEXT_MESSAGE_CONTENT' &&
+        'subagentRunId' in chunk &&
+        chunk.subagentRunId !== undefined,
     )
 
     expect(started).toMatchObject({

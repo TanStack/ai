@@ -2,9 +2,9 @@ import { EventType } from '../../../types'
 import type { StreamChunk, Tool } from '../../../types'
 import type { DefinedAgent, SubagentRunContext } from './define-agent'
 
-export const SUBAGENT_STARTED = 'SUBAGENT_STARTED'
-export const SUBAGENT_FINISHED = 'SUBAGENT_FINISHED'
-export const SUBAGENT_ERROR = 'SUBAGENT_ERROR'
+export const SUBAGENT_STARTED = EventType.SUBAGENT_STARTED
+export const SUBAGENT_FINISHED = EventType.SUBAGENT_FINISHED
+export const SUBAGENT_ERROR = EventType.SUBAGENT_ERROR
 
 const SUBAGENT_TOOL_FLAG = '__tanstackSubagent'
 

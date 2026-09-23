@@ -992,7 +992,9 @@ export function aguiSnapshotMessageToUIMessage(
         modelMessageToUIMessage(
           {
             role: 'tool',
-            content: message.content,
+            content: isContentPartArray(message.content)
+              ? message.content
+              : aguiContentToContentParts(message.content),
             toolCallId: message.toolCallId,
             ...('name' in message && typeof message.name === 'string'
               ? { name: message.name }
@@ -1116,22 +1118,38 @@ function snapshotStructuredOutput(
  * AG-UI user content is either a plain string or a multimodal array whose text
  * entries use `{ type: 'text', text }` (vs. TanStack's `{ type: 'text', content }`).
  * Text entries are rewritten to the TanStack shape; image/audio/video/document
- * entries already match `ContentPart` and pass through. `binary` entries have no
- * TanStack equivalent and are dropped.
+ * entries already match `ContentPart` and pass through.
  */
 function aguiUserContentToParts(
   content: Extract<AGUIMessage, { role: 'user' }>['content'],
 ): Array<MessagePart> {
-  if (typeof content === 'string') {
-    return content ? [{ type: 'text', content }] : []
-  }
+  const converted = aguiContentToContentParts(content)
+  return typeof converted === 'string'
+    ? converted
+      ? [{ type: 'text', content: converted }]
+      : []
+    : converted
+}
 
-  const parts: Array<MessagePart> = []
+/** Convert wire content parts. Provider file handles have no TanStack part. */
+export function aguiContentToContentParts(
+  content: Extract<AGUIMessage, { role: 'user' }>['content'],
+  warnOnFile = true,
+): string | Array<ContentPart> {
+  if (typeof content === 'string') return content
+  const parts: Array<ContentPart> = []
   for (const part of content) {
     if (part.type === 'text') {
-      parts.push({ type: 'text', content: part.text })
-    } else if (part.type !== 'binary') {
-      parts.push(part)
+      const { text, ...rest } = part
+      parts.push({ ...rest, content: text })
+    } else if (part.source.type === 'file') {
+      if (warnOnFile) {
+        console.warn(
+          'AG-UI file content was dropped: TanStack message converters do not support provider file handles.',
+        )
+      }
+    } else {
+      parts.push({ ...part, source: part.source })
     }
   }
   return parts

@@ -103,6 +103,7 @@ export type UseChatOptions<
   | 'onRunIdChange'
   | 'context'
   | 'devtools'
+  | 'subagents'
 > & {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions

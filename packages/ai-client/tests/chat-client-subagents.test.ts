@@ -27,7 +27,7 @@ function runFinished(): StreamChunk {
 
 function subagentStarted(): StreamChunk {
   return {
-    type: 'SUBAGENT_STARTED',
+    type: EventType.SUBAGENT_STARTED,
     subagentRunId: 'sub-1',
     name: 'researcher',
     timestamp: now(),
@@ -36,7 +36,7 @@ function subagentStarted(): StreamChunk {
 
 function subagentFinished(): StreamChunk {
   return {
-    type: 'SUBAGENT_FINISHED',
+    type: EventType.SUBAGENT_FINISHED,
     subagentRunId: 'sub-1',
     timestamp: now(),
   }
