@@ -150,6 +150,12 @@ import type {
 } from './runtime-context-types'
 import type { ChatMCPOptions } from './mcp/types'
 
+/** One entry of the per-iteration arrival order (see `turnParts`). */
+type TurnPart =
+  | { type: 'thinking'; index: number }
+  | { type: 'text'; content: string }
+  | { type: 'call'; id: string; providerExecuted: boolean }
+
 // ===========================
 // Activity Kind
 // ===========================
@@ -809,6 +815,15 @@ class TextEngine<
   private accumulatedContent = ''
   private accumulatedThinking: Array<{ content: string; signature?: string }> =
     []
+  /**
+   * Arrival order of this iteration's thinking steps, text and tool calls.
+   * A ModelMessage keeps `thinking` apart from `content`/`toolCalls`, so a
+   * provider turn that thinks between provider-executed tools would otherwise
+   * be recorded as "all thinking, then text, then tools" and the provider
+   * rejects the replay (signed thinking must keep its position). `null` once
+   * the order could no longer be tracked (callers fall back to one message).
+   */
+  private turnParts: Array<TurnPart> | null = []
   private currentThinkingContent = ''
   private currentThinkingSignature = ''
   private eventOptions?: Record<string, unknown> | undefined
@@ -1449,6 +1464,7 @@ class TextEngine<
     this.streamIdentityCaptured = false
     this.accumulatedContent = ''
     this.accumulatedThinking = []
+    this.turnParts = []
     this.currentThinkingContent = ''
     this.currentThinkingSignature = ''
 
@@ -1748,12 +1764,27 @@ class TextEngine<
     // Adapters still emit leftover cumulative `content` on RAW yields.
     // Alignment suppresses already-delivered deltas, so this snapshot is
     // what a takeover saves as the full assistant text.
+    const before = this.accumulatedContent
     if (typeof extra.content === 'string' && extra.content !== '') {
       this.accumulatedContent = extra.content
     } else {
       this.accumulatedContent += chunk.delta
     }
     this.middlewareCtx.accumulatedContent = this.accumulatedContent
+    if (!this.turnParts) return
+    if (!this.accumulatedContent.startsWith(before)) {
+      // A cumulative `content` snapshot rewrote earlier text; order unknown.
+      this.turnParts = null
+      return
+    }
+    const delta = this.accumulatedContent.slice(before.length)
+    if (delta === '') return
+    const last = this.turnParts[this.turnParts.length - 1]
+    if (last && last.type === 'text') {
+      last.content += delta
+    } else {
+      this.turnParts.push({ type: 'text', content: delta })
+    }
   }
 
   private captureStreamMessageIdentity(messageId: string): void {
@@ -1778,6 +1809,20 @@ class TextEngine<
       this.captureStreamMessageIdentity(chunk.parentMessageId)
     }
     this.toolCallManager.addToolCallStartEvent(chunk)
+    if (
+      this.turnParts &&
+      !this.turnParts.some(
+        (part) => part.type === 'call' && part.id === chunk.toolCallId,
+      )
+    ) {
+      this.turnParts.push({
+        type: 'call',
+        id: chunk.toolCallId,
+        providerExecuted: isProviderExecutedToolCall({
+          metadata: chunk.metadata,
+        }),
+      })
+    }
     const metadata = chunk.metadata
     const thoughtSignature =
       metadata != null &&
@@ -1884,8 +1929,38 @@ class TextEngine<
           signature: this.currentThinkingSignature,
         }),
       })
+      if (this.turnParts) {
+        const placeholder = [...this.turnParts]
+          .reverse()
+          .find(
+            (part): part is Extract<TurnPart, { type: 'thinking' }> =>
+              part.type === 'thinking' && part.index === -1,
+          )
+        const index = this.accumulatedThinking.length - 1
+        if (placeholder) {
+          placeholder.index = index
+        } else {
+          this.turnParts.push({ type: 'thinking', index })
+        }
+      }
       this.currentThinkingContent = ''
       this.currentThinkingSignature = ''
+    }
+  }
+
+  /**
+   * Record where the current thinking step sits among this turn's parts. A
+   * step is finalized only when the next step starts (or the turn ends), by
+   * which time later tool calls have already arrived, so the position has to
+   * be noted when the step's first content or signature shows up.
+   */
+  private noteThinkingStepPosition(): void {
+    if (
+      this.turnParts &&
+      this.currentThinkingContent === '' &&
+      this.currentThinkingSignature === ''
+    ) {
+      this.turnParts.push({ type: 'thinking', index: -1 })
     }
   }
 
@@ -1895,6 +1970,7 @@ class TextEngine<
 
   private handleStepFinishedEvent(chunk: AdapterYieldChunk): void {
     if (typeof chunk.signature === 'string' && chunk.signature !== '') {
+      this.noteThinkingStepPosition()
       this.currentThinkingSignature = chunk.signature
     }
   }
@@ -1902,6 +1978,7 @@ class TextEngine<
   private handleReasoningMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
   ): void {
+    this.noteThinkingStepPosition()
     this.currentThinkingContent += chunk.delta
   }
 
@@ -1922,6 +1999,7 @@ class TextEngine<
       }
       return
     }
+    this.noteThinkingStepPosition()
     this.currentThinkingSignature = chunk.encryptedValue
   }
 
@@ -2401,21 +2479,110 @@ class TextEngine<
     )
   }
 
+  /**
+   * Split this iteration into assistant ModelMessages that keep the provider's
+   * block order: a new segment starts at every thinking step that follows a
+   * provider-executed tool call (the rule buildAssistantMessages applies to
+   * UIMessages). Segments after the first get `${id}-segment-${n}` ids.
+   * Returns null when no split is needed or the order could not be tracked,
+   * so callers fall back to the single-message shape.
+   */
+  private buildOrderedAssistantSegments(
+    toolCalls: ReadonlyArray<ToolCall>,
+    id: string | undefined,
+    createdAt: Date | undefined,
+  ): Array<ModelMessage> | null {
+    const parts = this.turnParts
+    if (!parts) return null
+    const providerCallIds = new Set(
+      parts.flatMap((part) =>
+        part.type === 'call' && part.providerExecuted ? [part.id] : [],
+      ),
+    )
+    type Segment = {
+      thinking: Array<{ content: string; signature?: string }>
+      text: string
+      callIds: Array<string>
+    }
+    let current: Segment = { thinking: [], text: '', callIds: [] }
+    const segments: Array<Segment> = [current]
+    let split = false
+    for (const part of parts) {
+      if (part.type === 'thinking') {
+        const thinking = this.accumulatedThinking[part.index]
+        if (!thinking) return null
+        if (current.callIds.some((callId) => providerCallIds.has(callId))) {
+          current = { thinking: [thinking], text: '', callIds: [] }
+          segments.push(current)
+          split = true
+        } else {
+          current.thinking.push(thinking)
+        }
+      } else if (part.type === 'text') {
+        current.text += part.content
+      } else {
+        current.callIds.push(part.id)
+      }
+    }
+    if (!split) return null
+    if (
+      segments.map((segment) => segment.text).join('') !==
+      this.accumulatedContent
+    ) {
+      return null
+    }
+    if (
+      segments.reduce((n, segment) => n + segment.thinking.length, 0) !==
+      this.accumulatedThinking.length
+    ) {
+      return null
+    }
+    const placed = new Set(segments.flatMap((segment) => segment.callIds))
+    for (const toolCall of toolCalls) {
+      if (!placed.has(toolCall.id)) current.callIds.push(toolCall.id)
+    }
+    return segments.map((segment, index) => {
+      const segmentCalls = toolCalls.filter((toolCall) =>
+        segment.callIds.includes(toolCall.id),
+      )
+      return {
+        role: 'assistant',
+        content: segment.text || null,
+        ...(segmentCalls.length > 0 && { toolCalls: segmentCalls }),
+        id:
+          id === undefined
+            ? undefined
+            : index === 0
+              ? id
+              : `${id}-segment-${index}`,
+        createdAt,
+        ...(segment.thinking.length > 0 && { thinking: segment.thinking }),
+      }
+    })
+  }
+
   private addAssistantToolCallMessage(toolCalls: Array<ToolCall>): void {
     this.finalizeCurrentThinkingStep()
 
+    const segments = this.buildOrderedAssistantSegments(
+      toolCalls,
+      this.currentMessageId ?? undefined,
+      this.currentMessageCreatedAt ?? undefined,
+    )
     this.messages = [
       ...this.messages,
-      {
-        role: 'assistant',
-        content: this.accumulatedContent || null,
-        toolCalls,
-        id: this.currentMessageId ?? undefined,
-        createdAt: this.currentMessageCreatedAt ?? undefined,
-        ...(this.accumulatedThinking.length > 0 && {
-          thinking: this.accumulatedThinking,
-        }),
-      },
+      ...(segments ?? [
+        {
+          role: 'assistant' as const,
+          content: this.accumulatedContent || null,
+          toolCalls,
+          id: this.currentMessageId ?? undefined,
+          createdAt: this.currentMessageCreatedAt ?? undefined,
+          ...(this.accumulatedThinking.length > 0 && {
+            thinking: this.accumulatedThinking,
+          }),
+        },
+      ]),
     ]
     this.middlewareCtx.messages = this.messages
   }
@@ -2494,13 +2661,23 @@ class TextEngine<
         !currentTurnAlreadyRecorded &&
         (this.accumulatedContent !== '' || thinking)
       ) {
-        messages.push({
-          role: 'assistant',
-          content: this.accumulatedContent || null,
-          id: this.currentMessageId ?? this.createId('msg'),
-          createdAt: this.currentMessageCreatedAt ?? new Date(),
-          ...(thinking ? { thinking } : {}),
-        })
+        const id = this.currentMessageId ?? this.createId('msg')
+        const createdAt = this.currentMessageCreatedAt ?? new Date()
+        messages.push(
+          ...(this.buildOrderedAssistantSegments(
+            this.toolCallManager.getToolCalls(),
+            id,
+            createdAt,
+          ) ?? [
+            {
+              role: 'assistant',
+              content: this.accumulatedContent || null,
+              id,
+              createdAt,
+              ...(thinking ? { thinking } : {}),
+            },
+          ]),
+        )
       }
       if (structuredOutput) {
         messages.push({
@@ -3025,6 +3202,8 @@ class TextEngine<
     const approvalRequests: Array<ApprovalRequest> = []
     const clientRequests: Array<ClientToolRequest> = []
     for (const toolCall of toolCalls) {
+      // Provider-executed calls are complete; never surface them as client work.
+      if (isProviderExecutedToolCall(toolCall)) continue
       const tool = this.resolveExecutableTools([toolCall]).find(
         (candidate) => candidate.name === toolCall.function.name,
       ) as RuntimeToolWithApproval | undefined

@@ -18,6 +18,7 @@ import type {
 } from '../types'
 import type { MetadataRecord } from './merge-metadata'
 import { tanstackMetadata } from './merge-metadata'
+import { isProviderExecutedToolCall } from './provider-executed'
 import { normalizeToolResult } from './tool-result'
 import {
   coerceCreatedAt,
@@ -168,9 +169,45 @@ export function uiMessagesToWire(
       continue
     }
 
-    // assistant: emit reasoning fan-outs first, then anchor, then tool fan-outs
+    // assistant: reasoning fan-outs, then anchor, then tool fan-outs.
+    //
+    // Provider-executed tools (Anthropic web_search / web_fetch) run inside one
+    // provider response, and the provider signs every thinking block against
+    // the blocks before it. Emitting all reasoning first and a single anchor
+    // with the joined text and every tool call turns
+    // "thinking, tool, thinking, text, tool" into
+    // "thinking, thinking, text, tool, tool", and the provider rejects the next
+    // turn ("thinking blocks in the latest assistant message cannot be
+    // modified"). Split the message into ordered segments at each thinking
+    // part that follows a provider-executed tool call, the same rule
+    // buildAssistantMessages applies, so the wire keeps the signed order.
+    // Segments after the first get derived anchor ids; strict AG-UI consumers
+    // still see plain anchors.
+    type Segment = {
+      thinking: Array<Extract<MessagePart, { type: 'thinking' }>>
+      parts: Array<MessagePart>
+    }
+    let current: Segment = { thinking: [], parts: [] }
+    const segments: Array<Segment> = [current]
     for (const part of parts) {
       if (part.type === 'thinking') {
+        if (
+          current.parts.some(
+            (p) => p.type === 'tool-call' && isProviderExecutedToolCall(p),
+          )
+        ) {
+          current = { thinking: [part], parts: [] }
+          segments.push(current)
+        } else {
+          current.thinking.push(part)
+        }
+      } else {
+        current.parts.push(part)
+      }
+    }
+
+    segments.forEach((segment, index) => {
+      for (const part of segment.thinking) {
         const reasoning: WireReasoningMessage = {
           role: 'reasoning',
           id: uniqueWireId(deriveReasoningId(uiMessage.id, part), usedWireIds),
@@ -181,22 +218,29 @@ export function uiMessagesToWire(
         }
         wire.push(reasoning)
       }
-    }
 
-    const text = collectText(parts)
-    const toolCalls = collectToolCalls(parts)
-    wire.push(
-      toAnchor(
-        uiMessage,
-        'assistant',
-        {
-          ...(text !== '' && { content: text }),
-          ...(toolCalls && { toolCalls }),
-        },
-        parts,
-        includeSnapshotStructuredOutput,
-      ),
-    )
+      const text = collectText(segment.parts)
+      const toolCalls = collectToolCalls(segment.parts)
+      const anchorMessage: UIMessage =
+        index === 0
+          ? uiMessage
+          : {
+              ...uiMessage,
+              id: uniqueWireId(`${uiMessage.id}-segment-${index}`, usedWireIds),
+            }
+      wire.push(
+        toAnchor(
+          anchorMessage,
+          'assistant',
+          {
+            ...(text !== '' && { content: text }),
+            ...(toolCalls && { toolCalls }),
+          },
+          segment.parts,
+          includeSnapshotStructuredOutput,
+        ),
+      )
+    })
 
     const explicitToolResults = new Set(
       parts.flatMap((part) =>
