@@ -175,6 +175,11 @@ export function storedSubagentInfo(
 
 type ChildNote = {
   name: string
+  /** The thread and run that feed this note now. */
+  threadId: string
+  runId: string
+  /** Last transcript write, for the write interval. */
+  savedAt: number
   /** The run that started this child. A resume keeps it. */
   parentRunId: string
   parentSubagentRunId?: string
@@ -190,10 +195,16 @@ export function createSubagentRunRecorder(stores: {
   messages: MessageStore
   runs?: RunStore
   interrupts?: InterruptStore
+  /** Minimum milliseconds between writes while a child streams. */
+  intervalMs?: number
 }) {
+  // One recorder serves every run of a middleware instance. Notes leave the
+  // map when their child or their run ends.
   const children = new Map<string, ChildNote>()
-  // Resume entries this run answers. Committed once the run settles.
-  let answered: Array<RunAgentResumeItem> = []
+  const intervalMs = stores.intervalMs ?? 1000
+  // Resume entries each run answers. Committed once that run settles.
+  const answered = new Map<string, Array<RunAgentResumeItem>>()
+  const parentSavedAt = new Map<string, number>()
 
   async function loadMessages(threadId: string) {
     return stores.messages.loadThread(threadId)
@@ -215,6 +226,7 @@ export function createSubagentRunRecorder(stores: {
   async function saveChild(subagentRunId: string) {
     const note = children.get(subagentRunId)
     if (!note) return
+    note.savedAt = Date.now()
     const info: SubagentWireInfo = {
       name: note.name,
       status: note.status,
@@ -301,6 +313,8 @@ export function createSubagentRunRecorder(stores: {
     })
     const existing = children.get(id)
     if (existing) {
+      existing.threadId = input.threadId
+      existing.runId = input.runId
       existing.status = 'running'
       delete existing.interruptIds
       if (chunk.metadata !== undefined) existing.metadata = chunk.metadata
@@ -311,6 +325,9 @@ export function createSubagentRunRecorder(stores: {
       )
       children.set(id, {
         name: chunk.name,
+        threadId: input.threadId,
+        runId: input.runId,
+        savedAt: 0,
         parentRunId:
           record?.parentRunId ?? chunk.parentSubagentRunId ?? input.runId,
         ...(chunk.parentSubagentRunId !== undefined && {
@@ -345,6 +362,28 @@ export function createSubagentRunRecorder(stores: {
     const id = chunk.subagentRunId
     const note = children.get(id)
     if (!note) return
+    try {
+      await writeSettled(note, id, chunk)
+    } finally {
+      // A routed child stays until its run ends: the parent message reads its
+      // text. Nested children and children started by a tool call go now.
+      if (
+        note.parentSubagentRunId !== undefined ||
+        note.parentToolCallId !== undefined
+      ) {
+        children.delete(id)
+      }
+    }
+  }
+
+  async function writeSettled(
+    note: ChildNote,
+    id: string,
+    chunk: Extract<
+      StreamChunk,
+      { type: 'SUBAGENT_FINISHED' | 'SUBAGENT_ERROR' }
+    >,
+  ) {
     note.processor.finalizeStream()
     if (note.parentSubagentRunId !== undefined) {
       children.get(note.parentSubagentRunId)?.processor.processChunk(chunk)
@@ -376,9 +415,9 @@ export function createSubagentRunRecorder(stores: {
     })
   }
 
-  async function commitAnswers() {
-    const entries = answered
-    answered = []
+  async function commitAnswers(runId: string) {
+    const entries = answered.get(runId) ?? []
+    answered.delete(runId)
     for (const entry of entries) {
       if (entry.status === 'cancelled') {
         await stores.interrupts?.cancel(entry.interruptId)
@@ -388,11 +427,22 @@ export function createSubagentRunRecorder(stores: {
     }
   }
 
+  /** The notes a run fed. */
+  function notesOf(runId: string) {
+    return [...children].filter(([, note]) => note.runId === runId)
+  }
+
+  function forget(runId: string) {
+    for (const [id] of notesOf(runId)) children.delete(id)
+    parentSavedAt.delete(runId)
+  }
+
   async function settleOpenChildren(
+    runId: string,
     status: 'completed' | 'failed' | 'aborted',
     error?: { message: string },
   ) {
-    for (const [subagentRunId] of children) {
+    for (const [subagentRunId] of notesOf(runId)) {
       await saveChild(subagentRunId)
       const current = await stores.runs?.get(subagentRunId)
       if (current && current.status !== 'running') continue
@@ -404,9 +454,12 @@ export function createSubagentRunRecorder(stores: {
     }
   }
 
+  /** Write the parent messages of this thread's routed children. */
   async function saveParents(threadId: string) {
     const runIds = new Set(
-      [...children.values()].map((note) => note.parentRunId),
+      [...children.values()]
+        .filter((note) => note.threadId === threadId)
+        .map((note) => note.parentRunId),
     )
     for (const runId of runIds) await saveParent(threadId, runId)
   }
@@ -423,7 +476,7 @@ export function createSubagentRunRecorder(stores: {
         threadId: input.threadId,
         startedAt: Date.now(),
       })
-      answered = [...(input.resume ?? [])]
+      if (input.resume?.length) answered.set(input.runId, [...input.resume])
       const incoming = convertMessagesToModelMessages([...input.messages])
       const stored = await loadMessages(input.threadId)
       const merged = mergeStoredMessages(stored, incoming)
@@ -456,8 +509,18 @@ export function createSubagentRunRecorder(stores: {
       const notes = lineage(subagentRunId)
       if (notes.length === 0) return
       for (const note of notes) note.processor.processChunk(chunk)
-      await saveChild(subagentRunId)
-      if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+      // A streaming child writes at most once per interval. Its terminal
+      // event and the run's end always write.
+      const now = Date.now()
+      const note = notes[0]
+      if (note && now - note.savedAt >= intervalMs) {
+        await saveChild(subagentRunId)
+      }
+      if (
+        chunk.type === 'TEXT_MESSAGE_CONTENT' &&
+        now - (parentSavedAt.get(input.runId) ?? 0) >= intervalMs
+      ) {
+        parentSavedAt.set(input.runId, now)
         await saveParents(input.threadId)
       }
     },
@@ -467,8 +530,11 @@ export function createSubagentRunRecorder(stores: {
       runId: string
       interrupts: ReadonlyArray<Interrupt>
     }) {
-      await commitAnswers()
+      await commitAnswers(input.runId)
       await saveParents(input.threadId)
+      for (const [subagentRunId] of notesOf(input.runId)) {
+        await saveChild(subagentRunId)
+      }
       for (const interrupt of input.interrupts) {
         await stores.interrupts?.create({
           interruptId: interrupt.id,
@@ -479,16 +545,18 @@ export function createSubagentRunRecorder(stores: {
         })
       }
       await stores.runs?.update(input.runId, { status: 'interrupted' })
+      forget(input.runId)
     },
 
     async finish(input: { threadId: string; runId: string }) {
-      await commitAnswers()
+      await commitAnswers(input.runId)
       await saveParents(input.threadId)
-      await settleOpenChildren('completed')
+      await settleOpenChildren(input.runId, 'completed')
       await stores.runs?.update(input.runId, {
         status: 'completed',
         finishedAt: Date.now(),
       })
+      forget(input.runId)
     },
 
     async abort(input: { threadId: string; runId: string; error?: unknown }) {
@@ -497,6 +565,7 @@ export function createSubagentRunRecorder(stores: {
       const message =
         input.error instanceof Error ? input.error.message : 'Run failed'
       await settleOpenChildren(
+        input.runId,
         aborted ? 'aborted' : 'failed',
         aborted ? undefined : { message },
       )
@@ -506,6 +575,8 @@ export function createSubagentRunRecorder(stores: {
         finishedAt: Date.now(),
         ...(!aborted ? { error: { message } } : {}),
       })
+      answered.delete(input.runId)
+      forget(input.runId)
     },
   }
 }

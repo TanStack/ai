@@ -198,6 +198,20 @@ Apply with `wrangler d1 migrations apply <database-name>` (`--local` first, then
 `drizzle-kit generate` instead of hand-writing it — the SQL and the Drizzle
 table definitions must agree, so let one of them own the other.
 
+An existing `chat_runs` table does not get the three subagent columns from
+`CREATE TABLE IF NOT EXISTS`, and the `chat_runs_parent_started` index then
+fails. To add subagent support to an existing database, apply a separate
+migration first:
+
+```sql
+ALTER TABLE chat_runs ADD COLUMN parent_run_id text;
+ALTER TABLE chat_runs ADD COLUMN subagent_run_id text;
+ALTER TABLE chat_runs ADD COLUMN name text;
+CREATE INDEX IF NOT EXISTS chat_runs_parent_started ON chat_runs (parent_run_id, started_at);
+```
+
+A store without subagent support can skip the columns and the index.
+
 ## 6. Wire it into the chat route
 
 ```ts ignore

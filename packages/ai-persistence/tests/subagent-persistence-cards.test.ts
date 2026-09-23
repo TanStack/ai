@@ -8,6 +8,7 @@ import type {
   UIMessage,
 } from '@tanstack/ai'
 import { memoryPersistence, reconstructChat, withPersistence } from '../src'
+import { createSubagentRunRecorder } from '../src/subagent-runs'
 
 const t = 1
 
@@ -229,5 +230,60 @@ describe('persisted subagent cards', () => {
     expect(doneParts).toContainEqual(
       expect.objectContaining({ type: 'text', content: 'Deleted a' }),
     )
+  })
+})
+
+describe('subagent run recorder', () => {
+  it('keeps each thread child text in that thread', async () => {
+    const { stores } = memoryPersistence()
+    if (!stores.messages) throw new Error('memory store has messages')
+    // One recorder, as one withPersistence instance serves many requests.
+    const recorder = createSubagentRunRecorder({
+      messages: stores.messages,
+      ...(stores.runs ? { runs: stores.runs } : {}),
+      intervalMs: 0,
+    })
+    const runs = [
+      { threadId: 't1', runId: 'r1', text: 'first thread notes' },
+      { threadId: 't2', runId: 'r2', text: 'second thread notes' },
+    ]
+    for (const { threadId, runId } of runs) {
+      await recorder.start({
+        threadId,
+        runId,
+        messages: [{ id: `u-${runId}`, role: 'user', content: 'hi' }],
+      })
+      await recorder.chunk({
+        threadId,
+        runId,
+        chunk: {
+          type: EventType.SUBAGENT_STARTED,
+          subagentRunId: `s-${runId}`,
+          name: 'writer',
+          timestamp: t,
+        },
+      })
+    }
+    // Both runs stream at the same time.
+    for (const { threadId, runId, text } of runs) {
+      await recorder.chunk({
+        threadId,
+        runId,
+        chunk: {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: `m-${runId}`,
+          delta: text,
+          subagentRunId: `s-${runId}`,
+          timestamp: t,
+        },
+      })
+    }
+
+    const first = JSON.stringify(await stores.messages.loadThread('t1'))
+    const second = JSON.stringify(await stores.messages.loadThread('t2'))
+    expect(first).toContain('first thread notes')
+    expect(first).not.toContain('second thread notes')
+    expect(second).toContain('second thread notes')
+    expect(second).not.toContain('first thread notes')
   })
 })
