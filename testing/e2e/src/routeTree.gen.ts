@@ -28,6 +28,7 @@ import { Route as GenerationPersistenceServerRouteImport } from './routes/genera
 import { Route as GenerationPersistenceResumeRouteImport } from './routes/generation-persistence-resume'
 import { Route as ForeignInterruptRouteImport } from './routes/foreign-interrupt'
 import { Route as DevtoolsToolsRouteImport } from './routes/devtools-tools'
+import { Route as DevtoolsSubagentsRouteImport } from './routes/devtools-subagents'
 import { Route as DevtoolsStructuredRouteImport } from './routes/devtools-structured'
 import { Route as DevtoolsRouteBRouteImport } from './routes/devtools-route-b'
 import { Route as DevtoolsRouteARouteImport } from './routes/devtools-route-a'
@@ -208,6 +209,11 @@ const ForeignInterruptRoute = ForeignInterruptRouteImport.update({
 const DevtoolsToolsRoute = DevtoolsToolsRouteImport.update({
   id: '/devtools-tools',
   path: '/devtools-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevtoolsSubagentsRoute = DevtoolsSubagentsRouteImport.update({
+  id: '/devtools-subagents',
+  path: '/devtools-subagents',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DevtoolsStructuredRoute = DevtoolsStructuredRouteImport.update({
@@ -658,6 +664,7 @@ export interface FileRoutesByFullPath {
   '/devtools-route-a': typeof DevtoolsRouteARoute
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
+  '/devtools-subagents': typeof DevtoolsSubagentsRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
@@ -763,6 +770,7 @@ export interface FileRoutesByTo {
   '/devtools-route-a': typeof DevtoolsRouteARoute
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
+  '/devtools-subagents': typeof DevtoolsSubagentsRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
@@ -869,6 +877,7 @@ export interface FileRoutesById {
   '/devtools-route-a': typeof DevtoolsRouteARoute
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
+  '/devtools-subagents': typeof DevtoolsSubagentsRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
@@ -976,6 +985,7 @@ export interface FileRouteTypes {
     | '/devtools-route-a'
     | '/devtools-route-b'
     | '/devtools-structured'
+    | '/devtools-subagents'
     | '/devtools-tools'
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
@@ -1081,6 +1091,7 @@ export interface FileRouteTypes {
     | '/devtools-route-a'
     | '/devtools-route-b'
     | '/devtools-structured'
+    | '/devtools-subagents'
     | '/devtools-tools'
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
@@ -1186,6 +1197,7 @@ export interface FileRouteTypes {
     | '/devtools-route-a'
     | '/devtools-route-b'
     | '/devtools-structured'
+    | '/devtools-subagents'
     | '/devtools-tools'
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
@@ -1292,6 +1304,7 @@ export interface RootRouteChildren {
   DevtoolsRouteARoute: typeof DevtoolsRouteARoute
   DevtoolsRouteBRoute: typeof DevtoolsRouteBRoute
   DevtoolsStructuredRoute: typeof DevtoolsStructuredRoute
+  DevtoolsSubagentsRoute: typeof DevtoolsSubagentsRoute
   DevtoolsToolsRoute: typeof DevtoolsToolsRoute
   ForeignInterruptRoute: typeof ForeignInterruptRoute
   GenerationPersistenceResumeRoute: typeof GenerationPersistenceResumeRoute
@@ -1516,6 +1529,13 @@ declare module '@tanstack/react-router' {
       path: '/devtools-tools'
       fullPath: '/devtools-tools'
       preLoaderRoute: typeof DevtoolsToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devtools-subagents': {
+      id: '/devtools-subagents'
+      path: '/devtools-subagents'
+      fullPath: '/devtools-subagents'
+      preLoaderRoute: typeof DevtoolsSubagentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/devtools-structured': {
@@ -2177,6 +2197,7 @@ const rootRouteChildren: RootRouteChildren = {
   DevtoolsRouteARoute: DevtoolsRouteARoute,
   DevtoolsRouteBRoute: DevtoolsRouteBRoute,
   DevtoolsStructuredRoute: DevtoolsStructuredRoute,
+  DevtoolsSubagentsRoute: DevtoolsSubagentsRoute,
   DevtoolsToolsRoute: DevtoolsToolsRoute,
   ForeignInterruptRoute: ForeignInterruptRoute,
   GenerationPersistenceResumeRoute: GenerationPersistenceResumeRoute,
