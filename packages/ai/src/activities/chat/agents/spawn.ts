@@ -364,16 +364,26 @@ export function collectUsage(sink: SubagentSink, finished?: StreamChunk) {
   if (full) sink.total = sink.total ? addTokenUsage(sink.total, full) : full
 }
 
+/** A parent run's last chunk: it completed, or it failed. */
+type ParentTerminal = Extract<
+  StreamChunk,
+  { type: 'RUN_FINISHED' | 'RUN_ERROR' }
+>
+
 /**
- * Put the children's usage on a parent `RUN_FINISHED`. `usage[]` keeps one
- * entry per model call. `metadata.tanstack.usage` holds the summed cost and
- * the other TanStack fields, so `fromSpecTokenUsage` reads the full total.
- * Empties the sink, so the next parent terminal does not count it again.
+ * Put the children's usage on a parent terminal. `usage[]` keeps one entry per
+ * model call. `metadata.tanstack.usage` holds the summed cost and the other
+ * TanStack fields, so `fromSpecTokenUsage` reads the full total. Empties the
+ * sink, so the next parent terminal does not count it again.
+ *
+ * `RUN_ERROR` is accepted too: a turn that failed still spent whatever its
+ * children spent. Such a chunk carries no usage of its own, so `runUsage` and
+ * `fullUsage` return empty for it and the children's total stands alone.
  */
 export function withChildUsage(
-  chunk: Extract<StreamChunk, { type: 'RUN_FINISHED' }>,
+  chunk: ParentTerminal,
   sink: SubagentSink,
-): Extract<StreamChunk, { type: 'RUN_FINISHED' }> {
+): ParentTerminal {
   if (sink.usage.length === 0 && !sink.total) return chunk
   const own = fullUsage(chunk)
   const total =
@@ -382,7 +392,11 @@ export function withChildUsage(
   sink.total = undefined
   const leftover = total ? toSpecTokenUsage(total).leftover : undefined
   const next = { ...chunk, usage }
-  return leftover ? withTanstackMetadata(next, { usage: leftover }) : next
+  if (!leftover) return next
+  // `withTanstackMetadata` runs the value through `Omit`, which collapses this
+  // union and widens `type` back to `RUN_FINISHED | RUN_ERROR`. It only adds a
+  // metadata key, so the runtime shape is the input's: restore that type.
+  return withTanstackMetadata(next, { usage: leftover }) as ParentTerminal
 }
 
 export async function* spawnAgentStream(

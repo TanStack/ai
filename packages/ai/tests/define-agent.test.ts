@@ -6,6 +6,7 @@ import {
 import { subagentRoute } from '../src/activities/chat/agents/route'
 import { chat } from '../src/activities/chat'
 import { collectChunks, createMockAdapter, ev } from './test-utils'
+import { EventType } from '../src/types'
 import type { StreamChunk } from '../src/types'
 
 function parentAdapter() {
@@ -543,6 +544,113 @@ describe('chat({ subagents }) router spawn', () => {
     expect(new Set(threadIds)).toEqual(
       new Set(['parent-thread:alpha', 'parent-thread:beta']),
     )
+  })
+
+  it("puts the failing child's own message and code on RUN_ERROR", async () => {
+    const chunks = await collectChunks(
+      chat({
+        adapter: parentAdapter().adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        subagents: {
+          agents: [
+            defineAgent({
+              name: 'researcher',
+              description: 'Looks up facts',
+              run: async function* () {
+                yield ev.runStarted('child-run', 'child-thread')
+                yield {
+                  type: EventType.RUN_ERROR,
+                  threadId: 'child-thread',
+                  runId: 'child-run',
+                  message: 'provider returned 500',
+                  code: 'upstream_error',
+                  timestamp: Date.now(),
+                }
+              },
+            }),
+          ],
+          strategy: 'exclusive',
+          router: () => ['researcher'],
+        },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const error = chunks.find((chunk) => chunk.type === 'RUN_ERROR')
+    expect(error).toMatchObject({
+      message: 'provider returned 500',
+      code: 'upstream_error',
+    })
+  })
+
+  it("keeps a finished sibling's usage on the failed turn", async () => {
+    const chunks = await collectChunks(
+      chat({
+        adapter: parentAdapter().adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        subagents: {
+          agents: [
+            namedAgent('writer', async function* () {
+              yield ev.runStarted('writer-run', 'writer-thread')
+              yield ev.runFinished(
+                'stop',
+                'writer-run',
+                { promptTokens: 11, completionTokens: 7, totalTokens: 18 },
+                'writer-thread',
+              )
+            }),
+            namedAgent('researcher', async function* () {
+              throw new Error('lookup failed')
+            }),
+          ],
+          strategy: 'exclusive',
+          router: () => ({ names: ['writer', 'researcher'] }),
+        },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const error = chunks.find((chunk) => chunk.type === 'RUN_ERROR')
+    expect(error?.message).toBe('lookup failed')
+    // The turn failed, but the writer's tokens were really spent.
+    expect(error?.usage).toEqual([
+      expect.objectContaining({ inputTokens: 11, outputTokens: 7 }),
+    ])
+  })
+
+  it('settles the persistence record when the router is aborted', async () => {
+    const calls: Array<string> = []
+    const controller = new AbortController()
+
+    await collectChunks(
+      chat({
+        adapter: parentAdapter().adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        abortController: controller,
+        middleware: [
+          {
+            name: 'spy',
+            routedSubagentPersistence: {
+              start: async () => void calls.push('start'),
+              chunk: async () => {},
+              finish: async () => void calls.push('finish'),
+              abort: async () => void calls.push('abort'),
+            },
+          },
+        ],
+        subagents: {
+          agents: [namedAgent('writer')],
+          strategy: 'exclusive',
+          router: async () => {
+            // Stop lands while the router is still deciding.
+            controller.abort()
+            return ['writer']
+          },
+        },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    // A record that opened must close, or reconstructChat hands the client a
+    // run to tail that never emits.
+    expect(calls).toEqual(['start', 'abort'])
   })
 
   it('throws when sandbox inherit starts two children', async () => {

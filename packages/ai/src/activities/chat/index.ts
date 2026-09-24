@@ -5141,8 +5141,16 @@ async function* runRoutedSubagents(
         }),
         bag.agents,
       )
-    // The run was stopped while the router decided. Start nothing.
-    if (abortSignal?.aborted) return
+    // The run was stopped while the router decided. Start nothing. No
+    // RUN_STARTED went out, so the stream ends without a terminal, but the
+    // record start() opened still has to settle. Otherwise it stays `running`
+    // and reconstructChat hands the client a run to tail that never emits.
+    if (abortSignal?.aborted) {
+      const error = new Error('Aborted')
+      error.name = 'AbortError'
+      await subagentPersistence?.abort({ threadId, runId, error })
+      return
+    }
     const onlyStep = plan.steps.length === 1 ? plan.steps[0] : undefined
     if (onlyStep?.names.length === 1 && onlyStep.names[0] === 'main') {
       // Earlier children own answers in this resume. Commit them first.
@@ -5175,7 +5183,9 @@ async function* runRoutedSubagents(
     const sink = createSubagentSink()
     const stepTexts: Array<string> = []
     let stepMessages = turnMessages
-    let failed = false
+    let failure:
+      | Extract<StreamChunk, { type: EventType.SUBAGENT_ERROR }>
+      | undefined
     for (const step of plan.steps) {
       const entries: Array<SpawnEntry> = []
       const textByName = new Map<string, string>()
@@ -5221,10 +5231,10 @@ async function* runRoutedSubagents(
           yield tagged
         }
       }
-      if (stepChunks.some((chunk) => chunk.type === EventType.SUBAGENT_ERROR)) {
-        failed = true
-        break
-      }
+      failure = stepChunks.find(
+        (chunk) => chunk.type === EventType.SUBAGENT_ERROR,
+      )
+      if (failure) break
       if (sink.interrupts.length > 0) break
       for (const entry of entries) {
         const text = collectNamedText(stepChunks, [entry.name])
@@ -5260,19 +5270,26 @@ async function* runRoutedSubagents(
       return
     }
 
-    if (failed) {
+    if (failure) {
+      // Carry the child's own cause, not a generic label, and keep the usage
+      // the children already spent: the run failed, but the tokens were real.
+      const message = failure.message || 'A subagent failed'
       await subagentPersistence?.abort({
         threadId,
         runId,
-        error: new Error('A subagent failed'),
+        error: new Error(message),
       })
-      yield {
-        type: EventType.RUN_ERROR,
-        threadId,
-        runId,
-        message: 'A subagent failed',
-        timestamp: Date.now(),
-      }
+      yield withChildUsage(
+        {
+          type: EventType.RUN_ERROR,
+          threadId,
+          runId,
+          message,
+          ...(failure.code !== undefined ? { code: failure.code } : {}),
+          timestamp: Date.now(),
+        },
+        sink,
+      )
       return
     }
 
