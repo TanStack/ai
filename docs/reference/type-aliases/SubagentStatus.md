@@ -7,4 +7,4 @@ title: SubagentStatus
 type SubagentStatus = "running" | "finished" | "error" | "suspended";
 ```
 
-Defined in: [packages/ai/src/types.ts:477](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L477)
+Defined in: [packages/ai/src/types.ts:493](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L493)
