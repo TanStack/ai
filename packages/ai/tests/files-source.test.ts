@@ -317,6 +317,27 @@ describe('files activity dispatch', () => {
     ).resolves.toBeUndefined()
   })
 
+  it('getFile / deleteFile reject a handle from another provider at compile time', async () => {
+    const openai: FilesAdapter<'openai'> = {
+      kind: 'files',
+      name: 'openai',
+      upload: async () => ({ id: 'file-1', provider: 'openai' }),
+      get: async (id) => ({ id, provider: 'openai' }),
+      delete: async () => {},
+    }
+    const geminiHandle: FileHandle<'gemini'> = {
+      id: 'files/abc',
+      provider: 'gemini',
+    }
+    // @ts-expect-error a gemini handle is not an openai handle
+    await getFile({ adapter: openai, id: geminiHandle })
+    // @ts-expect-error a gemini handle is not an openai handle
+    await deleteFile({ adapter: openai, id: geminiHandle })
+    // The adapter's own handle and a raw id still type-check.
+    await getFile({ adapter: openai, id: { id: 'file-1', provider: 'openai' } })
+    await deleteFile({ adapter: openai, id: 'file-1' })
+  })
+
   it('getFile / deleteFile accept the handle itself and use its lifecycle id', async () => {
     // A Gemini-style handle: `uri` is the wire value, `id` the lifecycle name.
     const handle: FileHandle = {

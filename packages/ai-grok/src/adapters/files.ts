@@ -109,6 +109,13 @@ export class GrokFilesAdapter extends BaseFilesAdapter<'grok'> {
     }
   }
 
+  /**
+   * Fetch a stored file and its public URL.
+   *
+   * This mints the public URL (a POST), because `retrieve` does not report
+   * it. After {@link revokePublicUrl}, a `get()` gives the file a public URL
+   * again. Do not call it for a file whose URL you revoked.
+   */
   async get(id: string): Promise<FileHandle<'grok'>> {
     const file = await this.client.files.retrieve(id)
     // `retrieve` reports the stored object, not its public URL. Re-minting is
@@ -135,7 +142,8 @@ export class GrokFilesAdapter extends BaseFilesAdapter<'grok'> {
 
   /**
    * Revoke a file's public URL without deleting the file. The handle's `uri`
-   * stops resolving; the stored object and its `id` survive.
+   * stops resolving; the stored object and its `id` survive. A later
+   * {@link get} mints a public URL again.
    */
   async revokePublicUrl(id: string): Promise<void> {
     await this.client.post(`/files/${id}/public-url/revoke`, { body: {} })

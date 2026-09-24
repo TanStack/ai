@@ -110,6 +110,8 @@ xAI limits to know:
 
 To stop a URL resolving without deleting the file, call `revokePublicUrl(handle.id)` on the adapter. `deleteFile()` removes the file itself.
 
+`getFile()` mints the public URL to put it on the handle. After you revoke a URL, do not call `getFile()` for that file, or the file gets a public URL again.
+
 ## Referencing a handle in a message
 
 Use `fileSourceFromHandle(handle)` to turn a `FileHandle` into a `{ type: 'file' }` content source:
@@ -161,19 +163,18 @@ export async function askAboutPdf(pdfBase64: string, request: string) {
 
 ### Client: reuse a handle across requests
 
-Upload needs the provider key, so it happens on the server. The browser holds the handle it gets back and sends that handle with each turn.
-
-Send the handle in your own request body, not in the message content. The chat wire format carries `data` and `url` sources only, so a `{ type: 'file' }` source cannot cross it. Build the source on the server instead.
+Upload needs the provider key, so it happens on the server. The browser keeps the handle it gets back and puts it in the message on each turn.
 
 1. Store the handle the upload endpoint returned. Keep `{ id, provider, uri, mimeType }`.
-2. Put that handle in the request body, next to the messages.
-3. On the server, call `fileSourceFromHandle` and add the part to the message.
+2. Build the source with `fileSourceFromHandle(handle)` and put it in the message content.
+3. On the server, pass the messages to `chat()` as usual.
 
-In the browser, pass the handle through the `body` option:
+In the browser, import `fileSourceFromHandle` from `@tanstack/ai/client`. That entry does not load server code:
 
 ```tsx
 import { useChat } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
+import { fileSourceFromHandle } from '@tanstack/ai/client'
 import type { FileHandle } from '@tanstack/ai/client'
 
 // `handle` came from your upload endpoint and is stored client-side.
@@ -184,7 +185,14 @@ function AskAboutFile({ handle }: { handle: FileHandle }) {
 
   return (
     <button
-      onClick={() => sendMessage('Describe this', { body: { handle } })}
+      onClick={() =>
+        sendMessage({
+          content: [
+            { type: 'text', content: 'Describe this' },
+            { type: 'image', source: fileSourceFromHandle(handle) },
+          ],
+        })
+      }
       type="button"
     >
       Ask
@@ -193,24 +201,19 @@ function AskAboutFile({ handle }: { handle: FileHandle }) {
 }
 ```
 
-On the server, attach the file part before the run starts:
+On the server, the file part arrives in the messages. Use a text adapter from the provider that issued the handle:
 
 ```typescript
-import { chat, fileSourceFromHandle } from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import type { FileHandle, ModelMessage } from '@tanstack/ai'
+import type { ModelMessage } from '@tanstack/ai'
 
-export function runTurn(messages: Array<ModelMessage>, handle: FileHandle) {
-  const last = messages[messages.length - 1]
-  if (last?.role === 'user' && Array.isArray(last.content)) {
-    last.content.push({ type: 'image', source: fileSourceFromHandle(handle) })
-  }
-
-  return chat({ adapter: openaiText('gpt-5.5'), messages })
+export function runTurn(messages: Array<ModelMessage>) {
+  return chat({ adapter: openaiText('gpt-5.6'), messages })
 }
 ```
 
-> A `file` source sent through the chat wire throws with a clear error. It is never dropped and never sent as a URL. Support for handles in the wire format is tracked in [ag-ui#2639](https://github.com/ag-ui-protocol/ag-ui/issues/2639).
+> A handle from another provider throws before any request. For example, an OpenAI handle sent to a Gemini adapter fails in preflight. It is never dropped and never sent as a URL.
 
 ## Provider support
 

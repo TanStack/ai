@@ -502,18 +502,19 @@ Rules agents must respect:
   written before this feature), `chat()` / `generateImage()` /
   `generateVideo()` / `embed()` reject file sources in preflight, before any
   request is built — pass `data`/`url` sources there instead.
-- **Lifecycle:** `getFile()` / `deleteFile()` work for OpenAI, Anthropic, and
-  Gemini, and accept the handle itself (provider-literal typed — a foreign
-  handle is a compile error). fal storage is upload-only — those calls throw
-  for `falFiles()`.
+- **Lifecycle:** `getFile()` / `deleteFile()` work for OpenAI, Anthropic,
+  Gemini, and Grok, and accept the handle itself (provider-literal typed, so a
+  foreign handle is a compile error). fal storage is upload-only, so those
+  calls throw for `falFiles()`. `grokFiles().get()` mints the public URL again,
+  so do not call it after `revokePublicUrl()`.
 - **Some endpoints need raw bytes even on supporting providers:** OpenAI
   `images/edits` + Sora `input_reference`, Gemini Veo, and Chat Completions
   image inputs throw endpoint-specific errors for file sources.
-- **A file source cannot cross the chat wire.** The wire format carries `data`
-  and `url` sources only, so serializing one throws. A browser that holds a
-  handle sends it in its own request body; the server calls
-  `fileSourceFromHandle`. The `FileHandle` type is exported from the
-  browser-safe `@tanstack/ai/client` entry for clients that persist handles.
+- **A file source crosses the chat wire.** A browser that holds a handle puts
+  `fileSourceFromHandle(handle)` straight into the `sendMessage` content, and
+  the server passes the messages to `chat()` as usual. `fileSourceFromHandle`
+  and the `FileHandle` type are exported from the browser-safe
+  `@tanstack/ai/client` entry.
 
 See `docs/advanced/files-api.md` for the full guide.
 

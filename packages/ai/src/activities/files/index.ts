@@ -48,7 +48,9 @@ function toLifecycleId(id: string | FileHandle): string {
  */
 export async function getFile<TName extends string>(options: {
   adapter: FilesAdapter<TName> & { kind: typeof kind }
-  id: string | FileHandle<TName>
+  // `NoInfer` so `TName` comes from the adapter only. Otherwise a foreign
+  // handle widens it to a union and the call compiles.
+  id: string | FileHandle<NoInfer<TName>>
 }): Promise<FileHandle<TName>> {
   const { adapter } = options
   if (!adapter.get) {
@@ -69,7 +71,7 @@ export async function getFile<TName extends string>(options: {
  */
 export async function deleteFile<TName extends string>(options: {
   adapter: FilesAdapter<TName> & { kind: typeof kind }
-  id: string | FileHandle<TName>
+  id: string | FileHandle<NoInfer<TName>>
 }): Promise<void> {
   const { adapter } = options
   if (!adapter.delete) {

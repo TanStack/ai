@@ -1019,7 +1019,7 @@
           "label": "Files API",
           "to": "advanced/files-api",
           "addedAt": "2026-09-11",
-          "updatedAt": "2026-09-12"
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "Per-Model Type Safety",
