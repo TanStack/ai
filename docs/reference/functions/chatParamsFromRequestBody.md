@@ -9,11 +9,11 @@ function chatParamsFromRequestBody(body): Promise<{
   context: Context[];
   forwardedProps: Record<string, unknown>;
   messages: (
+     | UIMessage<unknown>
      | ModelMessage<
      | string
      | ContentPart<unknown, unknown, unknown, unknown, unknown>[]
-     | null>
-    | UIMessage<unknown>)[];
+    | null>)[];
   parentRunId?: string;
   resume?: RunAgentResumeItem[];
   runId: string;
@@ -48,11 +48,11 @@ schema library, so this package pulls in no validation runtime of its own.
   `context`: `Context`[];
   `forwardedProps`: `Record`\<`string`, `unknown`\>;
   `messages`: (
+     \| [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>
      \| [`ModelMessage`](../interfaces/ModelMessage.md)\<
      \| `string`
      \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`, `unknown`\>[]
-     \| `null`\>
-    \| [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>)[];
+    \| `null`\>)[];
   `parentRunId?`: `string`;
   `resume?`: [`RunAgentResumeItem`](../type-aliases/RunAgentResumeItem.md)[];
   `runId`: `string`;

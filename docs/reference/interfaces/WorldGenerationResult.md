@@ -3,7 +3,7 @@ id: WorldGenerationResult
 title: WorldGenerationResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2285](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2285)
+Defined in: [packages/ai/src/types.ts:2345](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2345)
 
 **`Experimental`**
 
@@ -21,7 +21,7 @@ session (set the prompt, start streaming, steer mid-run).
 expiresAt: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:2293](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2293)
+Defined in: [packages/ai/src/types.ts:2353](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2353)
 
 **`Experimental`**
 
@@ -35,7 +35,7 @@ Token expiry as milliseconds since epoch
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2287](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2287)
+Defined in: [packages/ai/src/types.ts:2347](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2347)
 
 **`Experimental`**
 
@@ -49,7 +49,7 @@ Unique identifier for this generation
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2289](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2289)
+Defined in: [packages/ai/src/types.ts:2349](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2349)
 
 **`Experimental`**
 
@@ -63,7 +63,7 @@ Model used for generation (provider connect slug)
 prompt: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2295](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2295)
+Defined in: [packages/ai/src/types.ts:2355](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2355)
 
 **`Experimental`**
 
@@ -77,7 +77,7 @@ Prompt the client should send when it starts the session
 optional sessionId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2299](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2299)
+Defined in: [packages/ai/src/types.ts:2359](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2359)
 
 **`Experimental`**
 
@@ -91,7 +91,7 @@ Provider session id, when the adapter created one
 status: "ready" | "waiting";
 ```
 
-Defined in: [packages/ai/src/types.ts:2297](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2297)
+Defined in: [packages/ai/src/types.ts:2357](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2357)
 
 **`Experimental`**
 
@@ -105,7 +105,7 @@ Session status after the server half finishes
 token: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2291](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2291)
+Defined in: [packages/ai/src/types.ts:2351](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2351)
 
 **`Experimental`**
 
@@ -119,7 +119,7 @@ Short-lived session token for the client connection
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2301](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2301)
+Defined in: [packages/ai/src/types.ts:2361](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2361)
 
 **`Experimental`**
 

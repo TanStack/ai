@@ -72,7 +72,7 @@ Content parts of the message
 ### role
 
 ```ts
-role: "user" | "assistant";
+role: "assistant" | "user";
 ```
 
 Defined in: [packages/ai/src/realtime/types.ts:166](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L166)

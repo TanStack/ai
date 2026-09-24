@@ -172,7 +172,7 @@ isFinal: boolean;
 #### role
 
 ```ts
-role: "user" | "assistant";
+role: "assistant" | "user";
 ```
 
 #### transcript

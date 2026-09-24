@@ -3,7 +3,7 @@ id: StructuredOutputCompleteEvent
 title: StructuredOutputCompleteEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1411](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1411)
+Defined in: [packages/ai/src/types.ts:1421](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1421)
 
 Final event of a streaming structured-output run. Carries the validated
 `object` (typed as `T` after the orchestrator runs Standard Schema parsing),
@@ -40,7 +40,9 @@ if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1390](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1390)
+Defined in: [packages/ai/src/types.ts:1400](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1400)
+
+Extra information attached to this event.
 
 #### Inherited from
 
@@ -54,7 +56,10 @@ Defined in: [packages/ai/src/types.ts:1390](https://github.com/TanStack/ai/blob/
 name: "structured-output.complete";
 ```
 
-Defined in: [packages/ai/src/types.ts:1414](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1414)
+Defined in: [packages/ai/src/types.ts:1424](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1424)
+
+What this custom event is. Required: without it a consumer cannot route
+the value.
 
 #### Overrides
 
@@ -70,7 +75,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1389](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1389)
+Defined in: [packages/ai/src/types.ts:1399](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1399)
 
 #### Inherited from
 
@@ -84,7 +89,9 @@ Defined in: [packages/ai/src/types.ts:1389](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1415](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1415)
+Defined in: [packages/ai/src/types.ts:1425](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1425)
+
+The payload. Any JSON value, and required.
 
 #### object
 

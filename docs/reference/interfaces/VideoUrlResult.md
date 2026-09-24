@@ -3,7 +3,7 @@ id: VideoUrlResult
 title: VideoUrlResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2226](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2226)
+Defined in: [packages/ai/src/types.ts:2286](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2286)
 
 **`Experimental`**
 
@@ -19,7 +19,7 @@ Result containing the URL to a generated video.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2240](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2240)
+Defined in: [packages/ai/src/types.ts:2300](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2300)
 
 **`Experimental`**
 
@@ -33,7 +33,7 @@ Persisted artifact references for generated assets, when available
 optional expiresAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:2232](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2232)
+Defined in: [packages/ai/src/types.ts:2292](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2292)
 
 **`Experimental`**
 
@@ -47,7 +47,7 @@ When the URL expires, if applicable
 jobId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2228](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2228)
+Defined in: [packages/ai/src/types.ts:2288](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2288)
 
 **`Experimental`**
 
@@ -61,7 +61,7 @@ Job identifier
 url: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2230](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2230)
+Defined in: [packages/ai/src/types.ts:2290](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2290)
 
 **`Experimental`**
 
@@ -75,7 +75,7 @@ URL to the generated video
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2238](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2238)
+Defined in: [packages/ai/src/types.ts:2298](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2298)
 
 **`Experimental`**
 

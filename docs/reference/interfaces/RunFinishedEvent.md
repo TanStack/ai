@@ -3,7 +3,7 @@ id: RunFinishedEvent
 title: RunFinishedEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1227](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1227)
+Defined in: [packages/ai/src/types.ts:1251](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1251)
 
 Emitted when a run completes successfully.
 
@@ -23,7 +23,7 @@ Spec `usage[]` is provider/model token counts. TanStack leftovers live in
 optional finishReason?: "length" | "stop" | "content_filter" | "tool_calls" | null;
 ```
 
-Defined in: [packages/ai/src/types.ts:1236](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1236)
+Defined in: [packages/ai/src/types.ts:1260](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1260)
 
 Restored on the client from `metadata.tanstack`.
 
@@ -35,7 +35,7 @@ Restored on the client from `metadata.tanstack`.
 optional metadata?: object & Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1237](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1237)
+Defined in: [packages/ai/src/types.ts:1261](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1261)
 
 #### Type Declaration
 
@@ -53,7 +53,7 @@ optional tanstack?: TanStackRunMetadata;
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1234](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1234)
+Defined in: [packages/ai/src/types.ts:1258](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1258)
 
 Restored on the client from `metadata.tanstack`.
 
@@ -65,16 +65,14 @@ Restored on the client from `metadata.tanstack`.
 type: RUN_FINISHED;
 ```
 
-Defined in: [packages/ai/src/types.ts:1231](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1231)
+Defined in: [packages/ai/src/types.ts:1255](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1255)
 
 ***
 
 ### usage?
 
 ```ts
-optional usage?: 
-  | TokenUsage<ProviderUsageDetails>
-  | SpecTokenUsage[];
+optional usage?: TokenUsage<ProviderUsageDetails> | TokenUsage[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1232](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1232)
+Defined in: [packages/ai/src/types.ts:1256](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1256)

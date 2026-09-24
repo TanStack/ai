@@ -93,7 +93,7 @@ Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:160](https
 description: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:740](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L740)
+Defined in: [packages/ai/src/types.ts:758](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L758)
 
 Clear description of what the tool does.
 
@@ -118,7 +118,7 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 optional execute?: ToolExecuteFunction<TInput, TOutput, TContext>;
 ```
 
-Defined in: [packages/ai/src/types.ts:820](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L820)
+Defined in: [packages/ai/src/types.ts:838](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L838)
 
 Optional function to execute when the model calls this tool.
 
@@ -216,7 +216,7 @@ type({
 optional lazy?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:826](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L826)
+Defined in: [packages/ai/src/types.ts:844](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L844)
 
 If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools).
 
@@ -232,7 +232,7 @@ If true, this tool is lazy and will only be sent to the LLM after being discover
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:829](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L829)
+Defined in: [packages/ai/src/types.ts:847](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L847)
 
 Additional metadata for adapters or custom extensions
 
@@ -248,7 +248,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [packages/ai/src/types.ts:730](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L730)
+Defined in: [packages/ai/src/types.ts:748](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L748)
 
 Unique name of the tool (used by the model to call it).
 
