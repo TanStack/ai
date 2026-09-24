@@ -347,18 +347,15 @@ function mapInputModalities(modalities: Array<string>): Array<InputModality> {
   return mapped
 }
 
-function convertPrice(priceStr: string | undefined): number {
-  const price = parseFloat(priceStr ?? '0')
-  if (isNaN(price)) return 0
-  const result = price * 1_000_000
-  return Math.round(result * 1e10) / 1e10
+/** Strips float noise: 0.09999999999999999 → 0.1. */
+function roundPrice(price: number | undefined): number {
+  return Math.round((price ?? 0) * 1e10) / 1e10
 }
 
 function anthropicOptionsType(model: SyncModel): string {
   return buildAnthropicProviderOptionsType({
     supportedParameters: model.supportedParameters,
     reasoningMandatory: false,
-    hasCachedPricing: convertPrice(model.pricing.input_cache_read) > 0,
   })
 }
 
@@ -422,9 +419,9 @@ function generateModelConstant(
 ): string {
   const constName = toModelConstName(model.nativeId)
 
-  const inputNormal = convertPrice(model.pricing.prompt)
-  const inputCached = convertPrice(model.pricing.input_cache_read)
-  const outputNormal = convertPrice(model.pricing.completion)
+  // ponytail: modelschemas has no cached-input price, so `cached` is never written.
+  const inputNormal = roundPrice(model.pricing.inputPerMillion)
+  const outputNormal = roundPrice(model.pricing.outputPerMillion)
 
   const inputModalities = mapInputModalities(model.inputModalities).filter(
     (m) => config.validInputModalities.includes(m),
@@ -460,9 +457,6 @@ function generateModelConstant(
     lines.push(`  pricing: {`)
     lines.push(`    input: {`)
     lines.push(`      normal: ${inputNormal},`)
-    if (inputCached > 0) {
-      lines.push(`      cached: ${inputCached},`)
-    }
     lines.push(`    },`)
     lines.push(`    output: {`)
     lines.push(`      normal: ${outputNormal},`)

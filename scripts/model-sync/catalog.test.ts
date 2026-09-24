@@ -24,9 +24,8 @@ function native(overrides: Partial<CatalogModel> = {}): CatalogModel {
     inputModalities: [],
     outputModalities: [],
     pricing: {
-      prompt: undefined,
-      completion: undefined,
-      input_cache_read: undefined,
+      inputPerMillion: undefined,
+      outputPerMillion: undefined,
     },
     capabilities: [],
     ...overrides,
@@ -45,7 +44,11 @@ describe('parseCatalogModels', () => {
           contextWindow: 400_000,
           maxOutput: 128_000,
           modalities: { input: ['text', 'image'], output: ['text'] },
-          pricing: { prompt: '0.00000125', completion: '0.00001' },
+          pricing: {
+            per: 'token',
+            inputPerMillion: 1.25,
+            outputPerMillion: 10,
+          },
           capabilities: ['tools', 'reasoning'],
           firstSeenAt: 1_754_425_777,
           deprecatedAt: null,
@@ -59,6 +62,7 @@ describe('parseCatalogModels', () => {
       contextWindow: 400_000,
       inputModalities: ['text', 'image'],
       capabilities: ['tools', 'reasoning'],
+      pricing: { inputPerMillion: 1.25, outputPerMillion: 10 },
     })
   })
 
@@ -125,7 +129,7 @@ describe('findOpenRouterEnrichment / toSyncModel', () => {
       maxOutput: 64_000,
       inputModalities: ['text', 'image'],
       outputModalities: ['text'],
-      pricing: { prompt: '0.000003', completion: '0.000015' },
+      pricing: { inputPerMillion: 3, outputPerMillion: 15 },
       capabilities: ['tools', 'temperature'],
     })
     const row = native({ rawId: 'claude-sonnet-4-5' })
@@ -135,7 +139,7 @@ describe('findOpenRouterEnrichment / toSyncModel', () => {
     expect(synced.nativeId).toBe('claude-sonnet-4-5')
     expect(synced.contextWindow).toBe(200_000)
     expect(synced.supportedParameters).toEqual(['tools', 'temperature'])
-    expect(synced.pricing.prompt).toBe('0.000003')
+    expect(synced.pricing.inputPerMillion).toBe(3)
   })
 
   it('keeps native capabilities and modalities; OpenRouter only fills empty pricing', () => {
@@ -145,7 +149,7 @@ describe('findOpenRouterEnrichment / toSyncModel', () => {
       contextWindow: 1_000_000,
       inputModalities: ['text', 'image', 'file'],
       outputModalities: ['text'],
-      pricing: { prompt: '0.000003', completion: '0.000015' },
+      pricing: { inputPerMillion: 3, outputPerMillion: 15 },
       capabilities: ['tools', 'temperature', 'include_reasoning', 'top_k'],
     })
     const row = native({
@@ -159,7 +163,7 @@ describe('findOpenRouterEnrichment / toSyncModel', () => {
     expect(synced.contextWindow).toBe(200_000)
     expect(synced.inputModalities).toEqual(['text', 'image'])
     expect(synced.supportedParameters).toEqual(['tools', 'temperature'])
-    expect(synced.pricing.prompt).toBe('0.000003')
+    expect(synced.pricing.inputPerMillion).toBe(3)
   })
 })
 

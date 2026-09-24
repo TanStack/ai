@@ -52,6 +52,30 @@ const DEEPSEEK_V4_PRO_GA_260813 = {
   },
 } as const satisfies ModelMeta
 
+const DEEPSEEK_V4_1_FLASH_260910 = {
+  name: 'deepseek-v4-1-flash-260910',
+  context_window: 1_048_576,
+  max_output_tokens: 393_216,
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: ['reasoning', 'tool_calling'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
+
+const GLM_5_3_FLASH_260828 = {
+  name: 'glm-5-3-flash-260828',
+  context_window: 1_048_576,
+  max_output_tokens: 131_072,
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: ['reasoning', 'tool_calling', 'structured_outputs'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
+
 export type BytePlusProviderToolKind = never
 
 /**
@@ -328,6 +352,8 @@ const GPT_OSS_120B_250805 = {
  * All supported BytePlus chat model identifiers.
  */
 export const BYTEPLUS_CHAT_MODELS = [
+  DEEPSEEK_V4_1_FLASH_260910.name,
+  GLM_5_3_FLASH_260828.name,
   DEEPSEEK_V4_FLASH_GA_260731.name,
   DEEPSEEK_V4_PRO_GA_260813.name,
   DOLA_SEED_2_1_TURBO.name,
@@ -478,6 +504,8 @@ export type BytePlusModelInputModalitiesByName = {
   [GPT_OSS_120B_250805.name]: typeof GPT_OSS_120B_250805.supports.input
   [DEEPSEEK_V4_FLASH_GA_260731.name]: typeof DEEPSEEK_V4_FLASH_GA_260731.supports.input
   [DEEPSEEK_V4_PRO_GA_260813.name]: typeof DEEPSEEK_V4_PRO_GA_260813.supports.input
+  [DEEPSEEK_V4_1_FLASH_260910.name]: typeof DEEPSEEK_V4_1_FLASH_260910.supports.input
+  [GLM_5_3_FLASH_260828.name]: typeof GLM_5_3_FLASH_260828.supports.input
 }
 
 /**

@@ -27,10 +27,10 @@ const NON_CHAT_MODEL_PREFIXES = [
   'tts-',
 ]
 
+/** USD per million tokens, as modelschemas reports it. */
 export interface CatalogPricing {
-  prompt: string | undefined
-  completion: string | undefined
-  input_cache_read: string | undefined
+  inputPerMillion: number | undefined
+  outputPerMillion: number | undefined
 }
 
 export interface CatalogModel {
@@ -97,21 +97,10 @@ function asSupportedParameters(value: unknown): Array<string> {
 }
 
 function asPricing(value: unknown): CatalogPricing {
-  if (!isRecord(value)) {
-    return {
-      prompt: undefined,
-      completion: undefined,
-      input_cache_read: undefined,
-    }
-  }
+  const record = isRecord(value) ? value : {}
   return {
-    prompt: typeof value.prompt === 'string' ? value.prompt : undefined,
-    completion:
-      typeof value.completion === 'string' ? value.completion : undefined,
-    input_cache_read:
-      typeof value.input_cache_read === 'string'
-        ? value.input_cache_read
-        : undefined,
+    inputPerMillion: asFiniteNumber(record.inputPerMillion) ?? undefined,
+    outputPerMillion: asFiniteNumber(record.outputPerMillion) ?? undefined,
   }
 }
 
@@ -194,7 +183,7 @@ function pickList(
 }
 
 function hasPricing(pricing: CatalogPricing): boolean {
-  return pricing.prompt != null || pricing.completion != null
+  return pricing.inputPerMillion != null || pricing.outputPerMillion != null
 }
 
 export function toSyncModel(
