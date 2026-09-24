@@ -182,6 +182,22 @@ function interruptBatchHasGeneric(interrupts: Array<Interrupt>): boolean {
 }
 
 /**
+ * The canonical arguments string for a `TOOL_CALL_END.input`, or `undefined`
+ * when JSON cannot carry it: `JSON.stringify` returns `undefined` (despite
+ * its declared type) for a top-level function or symbol and throws on BigInt
+ * and circular references.
+ */
+function serializeToolInput(input: unknown): string | undefined {
+  if (input === undefined) return undefined
+  try {
+    const serialized: unknown = JSON.stringify(input)
+    return typeof serialized === 'string' ? serialized : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * StreamProcessor - State machine for processing AI response streams
  *
  * Manages the full UIMessage[] conversation and emits events on changes.
@@ -1985,14 +2001,12 @@ export class StreamProcessor {
       // The parsed input replaces the accumulated arguments string, so
       // completeToolCall's strict parse surfaces the canonical value on the
       // ToolCallPart even when the streamed deltas carried a provider-side
-      // reshaping of it.
-      if (input !== undefined) {
-        try {
-          existingToolCall.arguments = JSON.stringify(input)
-        } catch {
-          // circular refs, BigInt, etc. — keep the streamed arguments rather
-          // than aborting stream processing
-        }
+      // reshaping of it. An input JSON cannot carry is not canonical: both
+      // `arguments` and `input` then stay with the streamed value, so the
+      // two never disagree.
+      const serializedInput = serializeToolInput(input)
+      if (serializedInput !== undefined) {
+        existingToolCall.arguments = serializedInput
       }
 
       const index = msgState.toolCallOrder.indexOf(chunk.toolCallId)
@@ -2001,7 +2015,7 @@ export class StreamProcessor {
       // Canonicalize on the parsed input: overrides the accumulated-args parse
       // that completeToolCall wrote (adapters may coerce values differently
       // between streamed args and the final structured input).
-      if (input !== undefined) {
+      if (serializedInput !== undefined) {
         existingToolCall.parsedArguments = input
         this.messages = updateToolCallPart(this.messages, messageId, {
           id: existingToolCall.id,

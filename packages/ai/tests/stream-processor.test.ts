@@ -1258,6 +1258,27 @@ describe('StreamProcessor', () => {
       expect(part?.arguments).toBe(WIRE_ARGS)
       expect(part?.input).toEqual(JSON.parse(WIRE_ARGS))
     })
+
+    // An input JSON cannot carry is not canonical: `arguments` and `input`
+    // both stay with the streamed value rather than disagreeing.
+    it.each([
+      ['throws on serialization', { task: 'list', count: 1n }],
+      ['serializes to undefined', () => 'list'],
+    ])(
+      'keeps the streamed arguments and input when TOOL_CALL_END.input %s',
+      (_case, input) => {
+        const { part, processor } = runToolCall(
+          chunk(EventType.TOOL_CALL_END, { toolCallId: 'tc-1', input }),
+        )
+
+        expect(part?.state).toBe('input-complete')
+        expect(part?.arguments).toBe(WIRE_ARGS)
+        expect(part?.input).toEqual(JSON.parse(WIRE_ARGS))
+        expect(
+          processor.getState().toolCalls.get('tc-1')?.parsedArguments,
+        ).toEqual(JSON.parse(WIRE_ARGS))
+      },
+    )
   })
 
   // ==========================================================================
