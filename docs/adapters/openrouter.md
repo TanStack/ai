@@ -315,7 +315,7 @@ export async function POST(request: Request) {
 }
 ```
 
-`models` is the fallback list: OpenRouter tries them in order when the primary model is unavailable. The rest of OpenRouter's routing surface is also exposed through `modelOptions` and forwarded to the request as-is — the option names are the camelCase ones from the OpenRouter SDK.
+`models` is the fallback list: OpenRouter tries them in order when the primary model is unavailable. The rest of OpenRouter's routing surface is also exposed through `modelOptions` and forwarded to the request as-is. The option names are the camelCase ones from the OpenRouter SDK.
 
 ### Provider preferences
 
@@ -336,13 +336,13 @@ const stream = chat({
 
 Provider slugs are the lowercase ids shown on OpenRouter's model pages (`"anthropic"`, `"openai"`, `"groq"`, …). Other fields on `provider`:
 
-- `only` / `ignore` — allow-list or deny-list of provider slugs, merged with your account-wide provider settings for this request.
-- `requireParameters` — only route to providers that support every parameter in the request. Without it, OpenRouter sends each provider only the parameters it supports and silently drops the rest, so a `responseFormat` or a sampling option can be ignored without an error.
-- `sort` — `"price"`, `"throughput"`, or `"latency"`, or an object with `by` and `partition`, applied when `order` is not set. Setting it disables load balancing.
-- `maxPrice` — the highest pricing you accept: `prompt` and `completion` in USD per million tokens, plus `request` (per-request pricing) and `image` (per image) where a provider offers them. Providers above the limit are skipped.
-- `quantizations` — restrict to providers serving the model at given quantization levels (e.g. `"fp8"`, `"int4"`).
-- `dataCollection` — `"deny"` to use only providers that do not collect user data.
-- `zdr` — `true` to restrict routing to zero-data-retention endpoints.
+- `only` / `ignore`: allow-list or deny-list of provider slugs, merged with your account-wide provider settings for this request.
+- `requireParameters`: only route to providers that support every parameter in the request. Without it, OpenRouter sends each provider only the parameters it supports and silently drops the rest, so a `responseFormat` or a sampling option can be ignored without an error.
+- `sort`: `"price"`, `"throughput"`, or `"latency"`, or an object with `by` and `partition`, applied when `order` is not set. Setting it disables load balancing.
+- `maxPrice`: the highest pricing you accept. It takes `prompt` and `completion` in USD per million tokens, plus `request` (per-request pricing) and `image` (per image) where a provider offers them. Providers above the limit are skipped.
+- `quantizations`: restrict to providers serving the model at given quantization levels (e.g. `"fp8"`, `"int4"`).
+- `dataCollection`: `"deny"` to use only providers that do not collect user data.
+- `zdr`: `true` to restrict routing to zero-data-retention endpoints.
 
 ### Model variants
 
@@ -350,10 +350,10 @@ Provider slugs are the lowercase ids shown on OpenRouter's model pages (`"anthro
 
 ```typescript
 const stream = chat({
-  adapter: openRouterText("deepseek/deepseek-v3.2"),
+  adapter: openRouterText("deepseek/deepseek-v4-pro"),
   messages,
   modelOptions: {
-    variant: "free", // requests deepseek/deepseek-v3.2:free
+    variant: "free", // requests deepseek/deepseek-v4-pro:free
   },
 });
 ```
@@ -366,7 +366,7 @@ Accepted values are `"free"`, `"nitro"`, `"online"`, `"exacto"`, `"extended"`, a
 
 ```typescript
 const stream = chat({
-  adapter: openRouterText("openai/gpt-5.5"),
+  adapter: openRouterText("openai/gpt-6-astra"),
   messages,
   modelOptions: {
     plugins: [{ id: "web", maxResults: 5 }],
@@ -382,7 +382,7 @@ Plugin ids include `web`, `file-parser`, `response-healing`, `moderation`, and `
 
 ```typescript
 const stream = chat({
-  adapter: openRouterText("anthropic/claude-sonnet-4.5"),
+  adapter: openRouterText("anthropic/claude-sonnet-5"),
   messages,
   modelOptions: {
     reasoning: { effort: "high" },
