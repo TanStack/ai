@@ -22,6 +22,8 @@ Generate an image from a prompt in [Generate Image](../tutorials/generate-image)
 
 Stream a typed table from `chat({ outputSchema })` in [Streaming Structured Table](../tutorials/streaming-structured-table).
 
+Add three named agents (researcher, SEO, and writer) to a blog-writing chat in [Subagents](../tutorials/subagents).
+
 ## Key Features
 
 - ✅ **Type-Safe** - Full TypeScript support with Zod schema inference

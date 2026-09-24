@@ -69,6 +69,16 @@
           "label": "Evaluate a ticket",
           "to": "tutorials/evaluate",
           "addedAt": "2026-09-18"
+        },
+        {
+          "label": "Subagents",
+          "to": "tutorials/subagents",
+          "addedAt": "2026-09-21"
+        },
+        {
+          "label": "Persisted subagents",
+          "to": "tutorials/subagents-persisted",
+          "addedAt": "2026-09-22"
         }
       ]
     },
@@ -95,6 +105,16 @@
           "label": "Evaluate",
           "to": "framework/react/examples/evaluate",
           "addedAt": "2026-09-18"
+        },
+        {
+          "label": "Subagents",
+          "to": "framework/react/examples/subagents",
+          "addedAt": "2026-09-21"
+        },
+        {
+          "label": "Persisted subagents",
+          "to": "framework/react/examples/subagents-persisted",
+          "addedAt": "2026-09-22"
         }
       ]
     },
@@ -128,7 +148,14 @@
         {
           "label": "Stream Events",
           "to": "chat/stream-events",
-          "addedAt": "2026-08-26"
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-09-23"
+        },
+        {
+          "label": "Subagents",
+          "to": "chat/subagents",
+          "addedAt": "2026-09-21",
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "Agentic Cycle",
@@ -216,7 +243,13 @@
         {
           "label": "WebMCP Tools",
           "to": "tools/webmcp",
-          "addedAt": "2026-09-02"
+          "addedAt": "2026-09-02",
+          "updatedAt": "2026-09-23"
+        },
+        {
+          "label": "Page WebMCP Tools in Chat",
+          "to": "tools/webmcp-page-tools",
+          "addedAt": "2026-09-23"
         },
         {
           "label": "Tool Approval Flow",
@@ -228,7 +261,7 @@
           "label": "Provider Tools",
           "to": "tools/provider-tools",
           "addedAt": "2026-04-21",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-09-22"
         },
         {
           "label": "Provider Skills",
@@ -538,7 +571,7 @@
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-26"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "Client Persistence",
@@ -561,7 +594,7 @@
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "Migrations",
@@ -590,7 +623,8 @@
         {
           "label": "Build a Chat Adapter",
           "to": "persistence/build-your-own-chat-adapter",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "Build a Generation Adapter",
@@ -608,7 +642,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-26"
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "How Persistence Works",
@@ -985,7 +1019,13 @@
           "label": "Multimodal Content",
           "to": "advanced/multimodal-content",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-08-07"
+        },
+        {
+          "label": "Files API",
+          "to": "advanced/files-api",
+          "addedAt": "2026-09-11",
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "Per-Model Type Safety",
@@ -1031,7 +1071,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-09-22"
         },
         {
           "label": "Anthropic",
@@ -1292,49 +1332,49 @@
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-preact",
           "to": "api/ai-preact",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-octane",
           "to": "api/ai-octane",
           "addedAt": "2026-08-21",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-remix",
           "to": "api/ai-remix",
           "addedAt": "2026-09-01",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         }
       ]
     },

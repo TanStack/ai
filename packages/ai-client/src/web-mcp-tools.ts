@@ -209,3 +209,184 @@ export async function registerWebMCPTools<
     throw error
   }
 }
+
+/** A tool that a page registered with WebMCP, as `getTools()` returns it. */
+export interface WebMCPPageTool {
+  name: string
+  title?: string
+  description: string
+  /** A JSON Schema object for the tool input. */
+  inputSchema?: object
+  /** The origin of the document that registered the tool. */
+  origin: string
+  annotations?: WebMCPToolAnnotations
+}
+
+interface WebMCPToolReader {
+  getTools: () => Promise<Array<WebMCPPageTool>>
+  executeTool: (
+    tool: WebMCPPageTool,
+    input: unknown,
+    options: { signal?: AbortSignal },
+  ) => Promise<string>
+  addEventListener: EventTarget['addEventListener']
+  removeEventListener: EventTarget['removeEventListener']
+}
+
+/** Options for {@link getWebMCPTools}. */
+export interface GetWebMCPToolsOptions {
+  /** Return `false` to skip a tool. */
+  filter?: (tool: WebMCPPageTool) => boolean
+}
+
+/** Options for {@link subscribeWebMCPTools}. */
+export interface SubscribeWebMCPToolsOptions extends GetWebMCPToolsOptions {
+  /** Stops the subscription when it aborts. */
+  signal: AbortSignal
+  /** Receives a failure from the WebMCP `getTools()` call. */
+  onError?: (error: unknown) => void
+}
+
+function isWebMCPToolReader(value: unknown): value is WebMCPToolReader {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    'getTools' in value &&
+    typeof value.getTools === 'function' &&
+    'executeTool' in value &&
+    typeof value.executeTool === 'function' &&
+    'addEventListener' in value &&
+    typeof value.addEventListener === 'function' &&
+    'removeEventListener' in value &&
+    typeof value.removeEventListener === 'function'
+  )
+}
+
+function getWebMCPToolReader() {
+  if (
+    typeof document === 'undefined' ||
+    (typeof isSecureContext !== 'undefined' && !isSecureContext) ||
+    !('modelContext' in document) ||
+    !isWebMCPToolReader(document.modelContext)
+  ) {
+    return undefined
+  }
+  return document.modelContext
+}
+
+function parseToolResult(result: string): unknown {
+  try {
+    return JSON.parse(result)
+  } catch {
+    return result
+  }
+}
+
+async function readWebMCPTools(
+  reader: WebMCPToolReader,
+  options: GetWebMCPToolsOptions | undefined,
+): Promise<Array<AnyClientTool>> {
+  const pageTools = await reader.getTools()
+  const names = new Set<string>()
+  return pageTools
+    .filter((tool) => options?.filter?.(tool) ?? true)
+    .map((tool) => {
+      if (names.has(tool.name)) {
+        throw new Error(
+          `Duplicate WebMCP tool name "${tool.name}". Use a filter or register tools with unique names.`,
+        )
+      }
+      names.add(tool.name)
+      return {
+        __toolSide: 'client' as const,
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema ?? { type: 'object' },
+        async execute(input: unknown, context?: { abortSignal?: AbortSignal }) {
+          const result = await reader.executeTool(
+            tool,
+            input,
+            context?.abortSignal ? { signal: context.abortSignal } : {},
+          )
+          return parseToolResult(result)
+        },
+      }
+    })
+}
+
+/**
+ * Reads the WebMCP tools on the page and returns them as client tools.
+ *
+ * Pass the result to a chat as `tools`. Each tool runs through the WebMCP
+ * `executeTool()` call. Unsupported browsers and server environments return
+ * an empty array.
+ *
+ * @param options - A filter that skips tools.
+ *
+ * @example
+ * ```ts
+ * const tools = await getWebMCPTools({
+ *   filter: (tool) => tool.origin === location.origin,
+ * })
+ * ```
+ */
+export async function getWebMCPTools(
+  options?: GetWebMCPToolsOptions,
+): Promise<Array<AnyClientTool>> {
+  const reader = getWebMCPToolReader()
+  return reader ? readWebMCPTools(reader, options) : []
+}
+
+/**
+ * Calls `listener` with the page WebMCP tools now and after each
+ * `toolchange` event, until `options.signal` aborts.
+ *
+ * Unsupported browsers and server environments call `listener` once with an
+ * empty array. When a read fails, `options.onError` gets the error and the
+ * listener keeps the last list.
+ *
+ * @param listener - Receives the current client tools.
+ * @param options - The subscription signal, a filter, and an error callback.
+ *
+ * @example
+ * ```ts
+ * const controller = new AbortController()
+ * subscribeWebMCPTools((tools) => client.updateOptions({ tools }), {
+ *   signal: controller.signal,
+ * })
+ * ```
+ */
+export function subscribeWebMCPTools(
+  listener: (tools: Array<AnyClientTool>) => void,
+  options: SubscribeWebMCPToolsOptions,
+): void {
+  if (options.signal.aborted) return
+  const reader = getWebMCPToolReader()
+  if (!reader) {
+    listener([])
+    return
+  }
+
+  let latestRead = 0
+  const refresh = () => {
+    const read = ++latestRead
+    const isCurrent = () => read === latestRead && !options.signal.aborted
+    readWebMCPTools(reader, options).then(
+      (tools) => {
+        if (isCurrent()) listener(tools)
+      },
+      (error: unknown) => {
+        if (isCurrent()) options.onError?.(error)
+      },
+    )
+  }
+
+  // Remove the listener by hand: Zone.js breaks the `signal` listener option.
+  reader.addEventListener('toolchange', refresh)
+  options.signal.addEventListener(
+    'abort',
+    () => reader.removeEventListener('toolchange', refresh),
+    { once: true },
+  )
+  refresh()
+}

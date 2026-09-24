@@ -6,6 +6,7 @@ import { createChatHookContexts } from '../../src/chat-ui/create-ui-contexts'
 import type {
   ChatUIFactoryConfig,
   ChatUIHost,
+  SubagentProps,
 } from '../../src/chat-ui/create-ui'
 import {
   chatOptions,
@@ -67,6 +68,7 @@ function makeUI(patch?: {
   input?: Config['components']['input']
   queue?: Config['components']['queue']
   partsComponents?: Config['partsComponents']
+  subagentsComponents?: Config['subagentsComponents']
   toolsComponents?: Config['toolsComponents']
   interruptsComponents?: {
     tools?: Config['interruptsComponents']['tools']
@@ -100,6 +102,9 @@ function makeUI(patch?: {
         ...patch?.interruptsComponents?.generic,
       },
     },
+    ...(patch?.subagentsComponents
+      ? { subagentsComponents: patch.subagentsComponents }
+      : {}),
   })
 }
 
@@ -151,6 +156,191 @@ describe('createChatUI', () => {
     renderToStaticMarkup(<UI.Chat chat={chat} />)
     expect(warn).toHaveBeenCalledTimes(1)
     warn.mockRestore()
+  })
+
+  it('renders nested subagent text through Parts', () => {
+    const handle = {
+      id: 'sub-1',
+      name: 'researcher',
+      status: 'running' as const,
+      messages: [
+        {
+          id: 'child-1',
+          role: 'assistant' as const,
+          parts: [{ type: 'text' as const, content: 'Notes from the child' }],
+        },
+      ],
+    }
+    const UI = makeUI({
+      partsComponents: {
+        text: ({ part }) => <p>{part.content}</p>,
+      },
+      subagentsComponents: {
+        researcher: ({
+          subagent,
+          Parts,
+        }: SubagentProps<typeof chatOptions>) => (
+          <section>
+            <strong>{subagent.name}</strong>
+            <Parts />
+          </section>
+        ),
+      },
+    })
+    const markup = renderToStaticMarkup(
+      <UI.Chat
+        chat={host({
+          messages: [
+            {
+              id: 'parent-1',
+              role: 'assistant',
+              parts: [{ type: 'subagent', subagent: handle }],
+            },
+          ],
+        })}
+      />,
+    )
+    expect(markup).toContain('researcher')
+    expect(markup).toContain('Notes from the child')
+  })
+
+  it('lets a card override part and tool widgets for its subtree', () => {
+    const thinking = { type: 'thinking' as const, content: 'plan' }
+    const weather = {
+      type: 'tool-call' as const,
+      id: 'call-1',
+      name: 'getWeather' as const,
+      arguments: '{"city":"Rome"}',
+      input: { city: 'Rome' },
+      state: 'input-complete' as const,
+    }
+    const nested = {
+      id: 'sub-2',
+      name: 'writer',
+      status: 'running' as const,
+      messages: [
+        { id: 'grandchild', role: 'assistant' as const, parts: [thinking] },
+      ],
+    }
+    const handle = {
+      id: 'sub-1',
+      name: 'researcher',
+      status: 'running' as const,
+      messages: [
+        {
+          id: 'child-1',
+          role: 'assistant' as const,
+          parts: [
+            thinking,
+            weather,
+            { type: 'text' as const, content: 'child text' },
+            { type: 'subagent' as const, subagent: nested },
+          ],
+        },
+      ],
+    }
+    const cardParts = {
+      thinking: ({ part }: { part: { content: string } }) => (
+        <em>card:{part.content}</em>
+      ),
+    }
+    const cardTools = {
+      getWeather: ({ part }: { part: { arguments: string } }) => (
+        <b>card:{part.arguments}</b>
+      ),
+    }
+    const UI = makeUI({
+      partsComponents: {
+        text: ({ part }) => <p>root:{part.content}</p>,
+        thinking: ({ part }) => <i>root:{part.content}</i>,
+      },
+      subagentsComponents: {
+        researcher: ({ Parts }: SubagentProps<typeof chatOptions>) => (
+          <section>
+            <Parts partsComponents={cardParts} toolsComponents={cardTools} />
+          </section>
+        ),
+        writer: ({ Parts }: SubagentProps<typeof chatOptions>) => (
+          <aside>
+            <Parts />
+          </aside>
+        ),
+      },
+    })
+    const markup = renderToStaticMarkup(
+      <UI.Chat
+        chat={host({
+          messages: [
+            {
+              id: 'parent-1',
+              role: 'assistant',
+              parts: [
+                thinking,
+                weather,
+                { type: 'subagent', subagent: handle },
+              ],
+            },
+          ],
+        })}
+      />,
+    )
+    // The root message keeps the root widgets.
+    expect(markup).toContain('<i>root:plan</i>')
+    expect(markup).toContain('<strong>Rome</strong>')
+    // The card uses its overrides, and the root for keys it does not set.
+    expect(markup).toContain('<b>card:{&quot;city&quot;:&quot;Rome&quot;}</b>')
+    expect(markup).toContain('<p>root:child text</p>')
+    // A nested child inherits the card overrides.
+    expect(markup).toContain('<aside><em>card:plan</em></aside>')
+    expect(markup.match(/<em>card:plan<\/em>/g)).toHaveLength(2)
+  })
+
+  it('renders the live subagent list through Subagents', () => {
+    const handle = {
+      id: 'sub-1',
+      name: 'writer',
+      status: 'running' as const,
+      messages: [],
+    }
+    const UI = makeUI({
+      layout: ({ Subagents }) => <Subagents />,
+      subagentsComponents: {
+        writer: ({ subagent }: SubagentProps<typeof chatOptions>) => (
+          <p>
+            {subagent.name}:{subagent.status}
+          </p>
+        ),
+      },
+    })
+    const markup = renderToStaticMarkup(
+      <UI.Chat chat={host({ subagents: [handle] })} />,
+    )
+    expect(markup).toContain('writer:running')
+  })
+
+  it('throws when a subagent name has no component', () => {
+    const handle = {
+      id: 'sub-1',
+      name: 'researcher',
+      status: 'running' as const,
+      messages: [],
+    }
+    const UI = makeUI()
+    expect(() =>
+      renderToStaticMarkup(
+        <UI.Chat
+          chat={host({
+            messages: [
+              {
+                id: 'parent-1',
+                role: 'assistant',
+                parts: [{ type: 'subagent', subagent: handle }],
+              },
+            ],
+          })}
+        />,
+      ),
+    ).toThrow('Missing subagentsComponents.researcher')
   })
 
   it('keeps unmatched tool results and suppresses matched ones', () => {

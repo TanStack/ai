@@ -3,11 +3,24 @@ id: TTSResult
 title: TTSResult
 ---
 
-Defined in: [packages/ai/src/types.ts:2387](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2387)
+Defined in: [packages/ai/src/types.ts:2535](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2535)
 
 Result of text-to-speech generation.
 
 ## Properties
+
+### alignment?
+
+```ts
+optional alignment?: TTSAlignment;
+```
+
+Defined in: [packages/ai/src/types.ts:2550](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2550)
+
+Character- or word-level timings, present when `timestamps: true` was
+requested. Use this rather than `duration` to find where *speech* ends.
+
+***
 
 ### artifacts?
 
@@ -15,7 +28,7 @@ Result of text-to-speech generation.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2403](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2403)
+Defined in: [packages/ai/src/types.ts:2561](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2561)
 
 Persisted artifact references for generated assets, when available
 
@@ -27,7 +40,7 @@ Persisted artifact references for generated assets, when available
 audio: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2393](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2393)
+Defined in: [packages/ai/src/types.ts:2541](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2541)
 
 Base64-encoded audio data
 
@@ -39,7 +52,7 @@ Base64-encoded audio data
 optional contentType?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2399](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2399)
+Defined in: [packages/ai/src/types.ts:2557](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2557)
 
 Content type of the audio (e.g., 'audio/mp3')
 
@@ -51,9 +64,9 @@ Content type of the audio (e.g., 'audio/mp3')
 optional duration?: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:2397](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2397)
+Defined in: [packages/ai/src/types.ts:2545](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2545)
 
-Duration of the audio in seconds, if available
+Duration of the audio file in seconds, if available
 
 ***
 
@@ -63,7 +76,7 @@ Duration of the audio in seconds, if available
 format: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2395](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2395)
+Defined in: [packages/ai/src/types.ts:2543](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2543)
 
 Audio format of the generated audio
 
@@ -75,7 +88,7 @@ Audio format of the generated audio
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2389](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2389)
+Defined in: [packages/ai/src/types.ts:2537](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2537)
 
 Unique identifier for the generation
 
@@ -87,9 +100,22 @@ Unique identifier for the generation
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2391](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2391)
+Defined in: [packages/ai/src/types.ts:2539](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2539)
 
 Model used for generation
+
+***
+
+### segments?
+
+```ts
+optional segments?: TTSSegment[];
+```
+
+Defined in: [packages/ai/src/types.ts:2555](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2555)
+
+Per-turn (or per-utterance) spans of the audio, present when
+`timestamps: true` was requested and the provider reports segmentation.
 
 ***
 
@@ -99,6 +125,6 @@ Model used for generation
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2401](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2401)
+Defined in: [packages/ai/src/types.ts:2559](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2559)
 
 Token usage information (if provided by the adapter)

@@ -3,8 +3,16 @@ export { injectChat } from './inject-chat'
 export { injectByok } from './inject-byok'
 
 // WebMCP Tools
-export { injectWebMCPTools } from './inject-web-mcp-tools'
-export type { InjectWebMCPToolsOptions } from './inject-web-mcp-tools'
+export {
+  injectPageWebMCPTools,
+  injectRegisterWebMCPTools,
+  injectWebMCPTools,
+} from './inject-web-mcp-tools'
+export type {
+  InjectPageWebMCPToolsOptions,
+  InjectRegisterWebMCPToolsOptions,
+  InjectWebMCPToolsOptions,
+} from './inject-web-mcp-tools'
 
 // Generation
 export { injectGeneration } from './inject-generation'
@@ -114,6 +122,11 @@ export {
   PartialJSONParser,
   defaultJSONParser,
   registerWebMCPTools,
+  getWebMCPTools,
+  subscribeWebMCPTools,
+  type GetWebMCPToolsOptions,
+  type SubscribeWebMCPToolsOptions,
+  type WebMCPPageTool,
   clientTools,
   createMcpAppBridge,
   type McpAppBridge,

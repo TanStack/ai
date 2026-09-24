@@ -1,8 +1,26 @@
+import type { TokenUsage } from '@tanstack/ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { createOpenRouterText } from '../src/adapters/text'
 import type { Mock } from 'vitest'
 import type { AdapterYieldChunk } from '@tanstack/ai'
+
+/** `chat()` restores a TokenUsage object on RUN_FINISHED. */
+function tokenUsageOf(chunk: unknown): TokenUsage | undefined {
+  if (typeof chunk !== 'object' || chunk === null || !('usage' in chunk)) {
+    return undefined
+  }
+  const usage = chunk.usage
+  if (
+    typeof usage !== 'object' ||
+    usage === null ||
+    Array.isArray(usage) ||
+    !('promptTokens' in usage)
+  ) {
+    return undefined
+  }
+  return usage as TokenUsage
+}
 
 let mockSend: Mock
 
@@ -153,7 +171,7 @@ describe('OpenRouter usage extraction', () => {
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     if (doneChunk?.type === 'RUN_FINISHED') {
-      expect(doneChunk.usage?.promptTokensDetails).toEqual({
+      expect(tokenUsageOf(doneChunk)?.promptTokensDetails).toEqual({
         cachedTokens: 25,
       })
     }
@@ -209,7 +227,7 @@ describe('OpenRouter usage extraction', () => {
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     if (doneChunk?.type === 'RUN_FINISHED') {
-      expect(doneChunk.usage?.completionTokensDetails).toEqual({
+      expect(tokenUsageOf(doneChunk)?.completionTokensDetails).toEqual({
         reasoningTokens: 30,
       })
     }
@@ -267,7 +285,7 @@ describe('OpenRouter usage extraction', () => {
     expect(doneChunk).toBeDefined()
     // Prediction tokens are OpenRouter-specific, so they go in providerUsageDetails
     if (doneChunk?.type === 'RUN_FINISHED') {
-      expect(doneChunk.usage?.providerUsageDetails).toEqual({
+      expect(tokenUsageOf(doneChunk)?.providerUsageDetails).toEqual({
         acceptedPredictionTokens: 20,
         rejectedPredictionTokens: 5,
       })

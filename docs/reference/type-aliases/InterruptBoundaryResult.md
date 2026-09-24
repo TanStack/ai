@@ -11,7 +11,7 @@ type InterruptBoundaryResult<TDefinitions> =
 };
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:168](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L168)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:171](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L171)
 
 ## Type Parameters
 

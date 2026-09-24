@@ -2413,6 +2413,13 @@ describe('OpenRouter SDK constructor wiring', () => {
       'https://custom.example.com/api/v1',
     )
   })
+
+  it('keeps retryCodes out of the SDK constructor config', () => {
+    void createOpenRouterText('openai/gpt-4o-mini', 'test-key', {
+      retryCodes: ['429'],
+    })
+    expect(lastOpenRouterConfig).not.toHaveProperty('retryCodes')
+  })
 })
 
 describe('OpenRouter stream_options conversion', () => {
@@ -2508,6 +2515,103 @@ describe('OpenRouter stream_options conversion', () => {
     // only for OpenRouter while other providers preserve them.
     const [, options] = mockSend.mock.calls[0]!
     expect(options.headers).toEqual(headers)
+  })
+
+  // The SDK only reads `retryCodes` per call (default `['5XX']`), so a
+  // configured `retryCodes` must reach every `chat.send` call site or 429s
+  // are never retried.
+  it('forwards configured retryCodes to the SDK call on chatStream', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'hi' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key', {
+      retryCodes: ['429', '5XX'],
+    })
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [, options] = mockSend.mock.calls[0]!
+    expect(options.retryCodes).toEqual(['429', '5XX'])
+  })
+
+  it('forwards configured retryCodes to the SDK call on structuredOutput', async () => {
+    setupMockSdkClient([], {
+      choices: [{ message: { content: '{"ok":true}' } }],
+    })
+    const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key', {
+      retryCodes: ['429', '5XX'],
+    })
+
+    await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'hi' }],
+        logger: testLogger,
+      },
+      outputSchema: { type: 'object' },
+    })
+
+    const [, options] = mockSend.mock.calls[0]!
+    expect(options.retryCodes).toEqual(['429', '5XX'])
+  })
+
+  it('forwards configured retryCodes to the SDK call on structuredOutputStream', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: '{"ok":true}' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key', {
+      retryCodes: ['429', '5XX'],
+    })
+
+    for await (const _ of adapter.structuredOutputStream({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'hi' }],
+        logger: testLogger,
+      },
+      outputSchema: { type: 'object' },
+    })) {
+      // consume
+    }
+
+    const [, options] = mockSend.mock.calls[0]!
+    expect(options.retryCodes).toEqual(['429', '5XX'])
+  })
+
+  it('omits retryCodes from the SDK call when not configured', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'hi' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [, options] = mockSend.mock.calls[0]!
+    expect(options).not.toHaveProperty('retryCodes')
   })
 
   it('maps RequestAbortedError from the SDK to RUN_ERROR with code: aborted', async () => {

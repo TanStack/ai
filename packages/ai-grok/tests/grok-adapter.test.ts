@@ -106,6 +106,7 @@ describe('Grok adapters', () => {
 
   it('exposes only the supported xAI Responses chat models', () => {
     expect(GROK_CHAT_MODELS).toEqual([
+      'grok-4.7',
       'grok-4.5',
       'grok-4.6',
       'grok-build-0.1',
@@ -427,18 +428,18 @@ describe('Grok adapters', () => {
 
   describe('Image adapter', () => {
     it('creates an image adapter with explicit API key', () => {
-      const adapter = createGrokImage('grok-2-image-1212', 'test-api-key')
+      const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('image')
       expect(adapter.name).toBe('grok')
-      expect(adapter.model).toBe('grok-2-image-1212')
+      expect(adapter.model).toBe('grok-imagine-image')
     })
 
     it('creates an image adapter from environment variable', () => {
       vi.stubEnv('XAI_API_KEY', 'env-api-key')
 
-      const adapter = grokImage('grok-2-image-1212')
+      const adapter = grokImage('grok-imagine-image')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('image')
@@ -447,8 +448,43 @@ describe('Grok adapters', () => {
     it('throws if XAI_API_KEY is not set when using grokImage', () => {
       vi.stubEnv('XAI_API_KEY', '')
 
-      expect(() => grokImage('grok-2-image-1212')).toThrow(
+      expect(() => grokImage('grok-imagine-image')).toThrow(
         'XAI_API_KEY is required',
+      )
+    })
+
+    it('rejects grok-2-image-1212 before calling the API', async () => {
+      const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
+      const mockGenerate = vi.fn()
+      ;(adapter as any).client = { images: { generate: mockGenerate } }
+
+      await expect(
+        adapter.generateImages({
+          // The id is no longer in the model union.
+          model: 'grok-2-image-1212' as 'grok-imagine-image',
+          prompt: 'a red circle',
+          logger: testLogger,
+        }),
+      ).rejects.toThrow('Unknown image model: grok-2-image-1212')
+      expect(mockGenerate).not.toHaveBeenCalled()
+    })
+
+    it('sends an Imagine prompt longer than 4000 characters', async () => {
+      const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
+      const mockGenerate = vi.fn().mockResolvedValue({
+        data: [{ url: 'https://example.com/out.png' }],
+      })
+      ;(adapter as any).client = { images: { generate: mockGenerate } }
+      const prompt = 'a'.repeat(4001)
+
+      await adapter.generateImages({
+        model: 'grok-imagine-image',
+        prompt,
+        logger: testLogger,
+      })
+
+      expect(mockGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({ model: 'grok-imagine-image', prompt }),
       )
     })
 

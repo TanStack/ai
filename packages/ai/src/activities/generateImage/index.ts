@@ -24,6 +24,7 @@ import {
   raceWithAbort,
 } from '../../utilities/activity-abort'
 import { resolveMediaPrompt } from '../../utilities/media-prompt'
+import { assertPromptFileSourceSupport } from '../../utilities/content-source'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware/types'
@@ -248,6 +249,9 @@ export function generateImage<
 >(
   options: ImageActivityOptions<TAdapter, TStream>,
 ): ImageActivityResult<TStream> {
+  // Fail closed before middleware start and before `stream: true` emits
+  // RUN_STARTED, so an unsupported file source never opens a run.
+  assertPromptFileSourceSupport(options.adapter, options.prompt)
   if (options.stream) {
     return streamGenerationResult(
       // Only `runId` is taken from the resolved wire identity. `threadId` stays
