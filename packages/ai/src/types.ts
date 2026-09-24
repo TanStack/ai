@@ -1130,6 +1130,12 @@ export interface TextOptions<
    * Surfaced for observability/middleware; not consumed by the LLM call.
    */
   parentRunId?: string
+  /**
+   * AG-UI subagent run id when this chat runs as a child of another run.
+   * A child `chat()` passes `ctx.subagentRunId`. Middleware reads it as
+   * `ctx.subagentRunId`. Absent on a top-level run.
+   */
+  subagentRunId?: string
 
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: unknown

@@ -35,12 +35,13 @@ const researcher = defineAgent({
       threadId: ctx.threadId,
       runId: ctx.runId,
       parentRunId: ctx.parentRunId,
+      subagentRunId: ctx.subagentRunId,
       resume: ctx.resume,
     }),
 })
 ```
 
-Pass all four `ctx` fields to the child `chat()`. A child that stops for an approval needs `parentRunId` and `resume` to continue. See [Interrupts in a child](#interrupts-in-a-child).
+Pass every `ctx` field to the child `chat()`. A child that stops for an approval needs `parentRunId` and `resume` to continue. See [Interrupts in a child](#interrupts-in-a-child).
 
 ## Route, or let the model pick
 
@@ -200,6 +201,7 @@ const cleaner = defineAgent({
       threadId: ctx.threadId,
       runId: ctx.runId,
       parentRunId: ctx.parentRunId,
+      subagentRunId: ctx.subagentRunId,
       resume: ctx.resume,
       tools: [deleteFile.server(({ path }: { path: string }) => ({ deleted: path }))],
     }),
@@ -313,6 +315,7 @@ const coder = defineAgent({
       threadId: ctx.threadId,
       runId: ctx.runId,
       parentRunId: ctx.parentRunId,
+      subagentRunId: ctx.subagentRunId,
       resume: ctx.resume,
       middleware: [withSandbox(repoSandbox)],
     }),

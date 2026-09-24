@@ -125,6 +125,7 @@ describe('ChatClient subagent interrupts', () => {
           threadId: ctx.threadId,
           runId: ctx.runId,
           parentRunId: ctx.parentRunId,
+          subagentRunId: ctx.subagentRunId,
           resume: ctx.resume,
           tools: [deleteFile.server(execute)],
         }),

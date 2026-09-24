@@ -543,6 +543,8 @@ export interface TextActivityOptions<
   runId?: TextOptions['runId']
   /** Parent run ID for AG-UI protocol nested run correlation. */
   parentRunId?: TextOptions['parentRunId']
+  /** Subagent run id when this chat runs as a child. See `defineAgent`. */
+  subagentRunId?: TextOptions['subagentRunId']
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: TextOptions['state']
   /**
@@ -892,6 +894,7 @@ class TextEngine<
   private readonly threadId: string
   private readonly runIdOverride?: string
   private readonly parentRunIdOverride?: string
+  private readonly subagentRunIdOverride?: string
 
   // Middleware support
   private readonly middlewareRunner: MiddlewareRunner<
@@ -1022,6 +1025,7 @@ class TextEngine<
       this.createId('thread')
     this.runIdOverride = config.params.runId
     this.parentRunIdOverride = config.params.parentRunId
+    this.subagentRunIdOverride = config.params.subagentRunId
 
     // Initialize middleware — devtools first. Spec stripping for the AG-UI
     // wire happens in toServerSentEventsStream, so in-process chat()
@@ -1040,6 +1044,7 @@ class TextEngine<
       streamId: this.streamId,
       runId: this.runIdOverride ?? this.requestId,
       parentRunId: this.parentRunIdOverride,
+      subagentRunId: this.subagentRunIdOverride,
       threadId: this.threadId,
       // Legacy alias kept on the ctx so middleware that reads
       // `ctx.conversationId` keeps working. Always equals `threadId`.

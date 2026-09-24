@@ -194,6 +194,11 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   /** Interrupted or parent run correlated with this continuation. */
   parentRunId?: string
   /**
+   * Set when this run is a subagent. The id on the child's `SUBAGENT_STARTED`
+   * and on every chunk it streams. Absent on a top-level run.
+   */
+  subagentRunId?: string
+  /**
    * AG-UI thread identifier — a stable per-conversation ID used to
    * correlate client and server devtools events. Resolves to the
    * caller-provided `threadId` (or legacy `conversationId`), or an

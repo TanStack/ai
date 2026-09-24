@@ -49,6 +49,7 @@ function subagentsFor(
           threadId: ctx.threadId,
           runId: ctx.runId,
           parentRunId: ctx.parentRunId,
+          subagentRunId: ctx.subagentRunId,
           resume: ctx.resume,
           tools,
           ...(modelOptions ? { modelOptions } : {}),

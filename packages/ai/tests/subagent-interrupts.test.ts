@@ -63,6 +63,7 @@ function cleanerAgent({ needsApproval = true } = {}) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         parentRunId: ctx.parentRunId,
+        subagentRunId: ctx.subagentRunId,
         resume: ctx.resume,
         tools: [{ ...serverTool('deleteFile', execute), needsApproval }],
       })
@@ -258,6 +259,52 @@ describe('subagent interrupts', () => {
       ),
     ).rejects.toThrow(/parentRunId/)
     expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('puts subagentRunId on the child middleware context', async () => {
+    const seen: Array<string | undefined> = []
+    const child = defineAgent({
+      name: 'noter',
+      description: 'Notes its own id',
+      run: (ctx) =>
+        chat({
+          adapter: createMockAdapter({
+            iterations: [[ev.runStarted('n1'), ev.runFinished('stop', 'n1')]],
+          }).adapter,
+          messages: ctx.messages,
+          threadId: ctx.threadId,
+          runId: ctx.runId,
+          parentRunId: ctx.parentRunId,
+          subagentRunId: ctx.subagentRunId,
+          middleware: [
+            {
+              name: 'note',
+              onStart: (mctx) => {
+                seen.push(mctx.subagentRunId)
+              },
+            },
+          ],
+        }),
+    })
+    const parent = createMockAdapter({ iterations: [] }).adapter
+    const chunks = await collectChunks(
+      chat({
+        adapter: parent,
+        threadId: 't',
+        runId: 'run-1',
+        messages: [user],
+        subagents: { agents: [child], router: () => 'noter' },
+      }) as AsyncIterable<StreamChunk>,
+    )
+    const started = chunks.find(
+      (chunk) => chunk.type === EventType.SUBAGENT_STARTED,
+    )
+    const id =
+      started?.type === EventType.SUBAGENT_STARTED
+        ? started.subagentRunId
+        : undefined
+    expect(id).toBeDefined()
+    expect(seen).toEqual([id])
   })
 
   it('adds every model call of a child to the parent usage', async () => {
