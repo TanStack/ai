@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { chat } from '../src/activities/chat'
-import { convertMessagesToModelMessages } from '../src/activities/chat/messages'
+import {
+  convertMessagesToModelMessages,
+  modelMessagesToUIMessages,
+} from '../src/activities/chat/messages'
+import { StreamProcessor } from '../src/activities/chat/stream/processor'
 import { uiMessagesToWire } from '../src/utilities/ag-ui-wire'
 import {
   chunk,
@@ -183,6 +187,80 @@ describe('provider-executed tools interleaved with signed thinking', () => {
       ])
       expect(wire.filter((message) => message.role === 'assistant')).toEqual([
         expect.objectContaining({ id: 'm1', content: 'Hello' }),
+      ])
+    })
+  })
+
+  describe('reading segments back', () => {
+    it('folds segment anchors into one message on a MESSAGES_SNAPSHOT', () => {
+      const uiMessage: UIMessage = {
+        id: 'm1',
+        role: 'assistant',
+        parts: [
+          { type: 'thinking', content: 'plan', signature: 'sig-a' },
+          {
+            type: 'tool-call',
+            id: 'srvtoolu_1',
+            name: 'web_search',
+            arguments: '{"query":"one"}',
+            state: 'input-complete',
+            metadata: providerToolMetadata('one'),
+          },
+          { type: 'thinking', content: 'refine', signature: 'sig-b' },
+          { type: 'text', content: 'Done.' },
+        ],
+      }
+      const processor = new StreamProcessor({})
+      processor.processChunk(
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: uiMessagesToWire([uiMessage]),
+        }),
+      )
+
+      const messages = processor.getMessages()
+      expect(messages.map((message) => message.id)).toEqual(['m1'])
+      expect(messages[0]!.parts.map((part) => part.type)).toEqual([
+        'thinking',
+        'tool-call',
+        'thinking',
+        'text',
+      ])
+    })
+
+    it('folds segment messages into one message in modelMessagesToUIMessages', () => {
+      const messages = modelMessagesToUIMessages([
+        { role: 'user', content: 'research' },
+        {
+          role: 'assistant',
+          id: 'm1',
+          content: null,
+          thinking: [{ content: 'plan', signature: 'sig-a' }],
+          toolCalls: [
+            {
+              id: 'srvtoolu_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{}' },
+              metadata: providerToolMetadata('one'),
+            },
+          ],
+        },
+        {
+          role: 'assistant',
+          id: 'm1-segment-1',
+          content: 'Done.',
+          thinking: [{ content: 'refine', signature: 'sig-b' }],
+        },
+      ])
+
+      expect(messages.map((message) => message.id)).toEqual([
+        expect.any(String),
+        'm1',
+      ])
+      expect(messages[1]!.parts.map((part) => part.type)).toEqual([
+        'thinking',
+        'tool-call',
+        'thinking',
+        'text',
       ])
     })
   })

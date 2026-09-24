@@ -25,7 +25,10 @@ import {
   uiMessageToModelMessages,
 } from '../messages.js'
 import { runErrorEventToError } from '../../../utilities/errors'
-import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
+import {
+  isAssistantSegmentOf,
+  isProviderExecutedToolCall,
+} from '../../../utilities/provider-executed'
 import {
   mergeMetadata,
   tanstackMetadata,
@@ -1518,20 +1521,30 @@ export class StreamProcessor {
         pending.push(msg)
         continue
       }
+      let next = msg
       if (
         msg.role === 'assistant' &&
         pending.length > 0 &&
         !isToolResultOnly(msg)
       ) {
-        out.push({
+        next = {
           ...msg,
           parts: [...pending.flatMap(thinkingParts), ...msg.parts],
-        })
+        }
         pending = []
+      } else {
+        flushPending()
+      }
+      const prev = out.at(-1)
+      if (
+        prev?.role === 'assistant' &&
+        next.role === 'assistant' &&
+        isAssistantSegmentOf(next.id, prev.id)
+      ) {
+        out[out.length - 1] = { ...prev, parts: [...prev.parts, ...next.parts] }
         continue
       }
-      flushPending()
-      out.push(msg)
+      out.push(next)
     }
     flushPending()
     return out
