@@ -42,4 +42,4 @@ const world = await generateWorld({
 // world.url is the Marble viewer URL. world.assets is optional splat/mesh links.
 ```
 
-Set `WORLDLABS_API_KEY`, or use `createWorldLabsWorld(model, apiKey)`. See the [World Labs adapter docs](https://tanstack.com/ai/latest/docs/adapters/worldlabs).
+Set `WORLDLABS_API_KEY`, or pass `apiKey` in the adapter config. See the [World Labs adapter docs](https://tanstack.com/ai/latest/docs/adapters/worldlabs).

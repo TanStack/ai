@@ -31,10 +31,7 @@ import {
   createReactorWorld,
   isReactorWorldModel,
 } from '@tanstack/ai-reactor'
-import {
-  createWorldLabsWorld,
-  isWorldLabsWorldModel,
-} from '@tanstack/ai-worldlabs'
+import { worldlabsWorld, isWorldLabsWorldModel } from '@tanstack/ai-worldlabs'
 import { pickSplatUrl } from '@/lib/marble-splat'
 import {
   byteplusByok,
@@ -214,8 +211,8 @@ function reactorW(model: Parameters<typeof createReactorWorld>[0]) {
   return createReactorWorld(model, requireByok(reactorByok))
 }
 
-function worldlabsW(model: Parameters<typeof createWorldLabsWorld>[0]) {
-  return createWorldLabsWorld(model, requireByok(worldlabsByok))
+function worldlabsW(model: Parameters<typeof worldlabsWorld>[0]) {
+  return worldlabsWorld(model, { apiKey: requireByok(worldlabsByok) })
 }
 
 function isWorldResolution(value: string): value is WorldResolution {

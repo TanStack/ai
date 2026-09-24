@@ -207,13 +207,14 @@ export class WorldLabsWorldAdapter<
 }
 
 /**
- * Create a World Labs world adapter. Reads `WORLDLABS_API_KEY`.
+ * Create a World Labs world adapter. Reads `WORLDLABS_API_KEY` when `apiKey`
+ * is omitted.
  */
 export function worldlabsWorld<TModel extends WorldLabsWorldModel>(
   model: TModel,
-  config?: Omit<WorldLabsClientConfig, 'apiKey'>,
+  config?: WorldLabsClientConfig,
 ): WorldLabsWorldAdapter<TModel> {
-  const apiKey = getWorldLabsApiKeyFromEnv()
+  const apiKey = config?.apiKey ?? getWorldLabsApiKeyFromEnv()
   return createWorldLabsWorld(model, apiKey, config)
 }
 

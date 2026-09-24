@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateWorld } from '@tanstack/ai'
 import { reactorWorld } from '@tanstack/ai-reactor'
-import { createWorldLabsWorld } from '@tanstack/ai-worldlabs'
+import { worldlabsWorld } from '@tanstack/ai-worldlabs'
 
 const EXPIRES_AT = 1_800_000_000
 const WORLD_ID = 'world-e2e'
@@ -81,7 +81,8 @@ export const Route = createFileRoute('/api/world')({
         try {
           if (body.provider === 'worldlabs') {
             const result = await generateWorld({
-              adapter: createWorldLabsWorld('marble-1.1', 'wlt_e2e', {
+              adapter: worldlabsWorld('marble-1.1', {
+                apiKey: 'wlt_e2e',
                 fetch: worldLabsFetch(fail),
               }),
               prompt,

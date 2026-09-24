@@ -65,7 +65,8 @@ function generateMarble(
   } = {},
 ) {
   return generateWorld({
-    adapter: createWorldLabsWorld('marble-1.1', 'wlt_test', {
+    adapter: worldlabsWorld('marble-1.1', {
+      apiKey: 'wlt_test',
       fetch: fetchImpl,
     }),
     prompt: options.prompt ?? 'a forest',
@@ -208,7 +209,8 @@ describe('World Labs world adapter', () => {
   it('throws when generate returns an error status', async () => {
     await expect(
       generateWorld({
-        adapter: createWorldLabsWorld('marble-1.0', 'wlt_test', {
+        adapter: worldlabsWorld('marble-1.0', {
+          apiKey: 'wlt_test',
           fetch: vi.fn(async () => jsonResponse({ detail: 'no credits' }, 402)),
         }),
         prompt: 'a forest',
