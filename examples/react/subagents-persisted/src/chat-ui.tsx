@@ -74,7 +74,9 @@ export const { useAppChat, useChatContext } = createChatHook({
         className="mb-2 rounded border border-gray-700 bg-gray-800/60 p-2 text-xs text-gray-400"
       />
     ),
-    fallback: () => null,
+    fallback: ({ part }) => (
+      <p className="text-xs text-gray-400">{part.type}</p>
+    ),
   },
   subagentsComponents: {
     researcher: Researcher,

@@ -91,6 +91,24 @@ Open http://localhost:3100. Paste an OpenRouter key. Ask for research, SEO title
 
 ---
 
+### Persisted subagents
+
+The blog desk from the subagents example, with a saved chat. A refresh keeps the messages and the cards. A refresh during a run continues that run.
+
+**Path:** `examples/react/subagents-persisted`
+
+**Getting Started:**
+
+```bash
+pnpm --filter subagents-persisted dev
+```
+
+Open http://localhost:3105. Paste an OpenRouter key. Send a prompt. Then refresh the page.
+
+📖 [Full Documentation](react/subagents-persisted/README.md)
+
+---
+
 ### Evaluate
 
 A slim TanStack Start app. Paste a support ticket. Jev answers queue, urgency, and refund.

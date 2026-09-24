@@ -37,7 +37,9 @@ This example has no login, so every visitor shares the `blog-desk` thread. In a 
 
 In `src/chat-ui.tsx`, replace `chatOptions` with this object.
 
-Leave the layout, the message component, the input, the text part, and the three cards as they are.
+Keep the message component, the input, and the text part. Step 5 replaces the researcher card.
+
+In the layout, set the heading to `Saved blog desk`. Under that heading, add two sentences. A refresh keeps this chat. A refresh during a run continues the stream.
 
 ```tsx ignore
 import { fetchServerSentEvents } from '@tanstack/ai-react'
@@ -162,8 +164,8 @@ The message store holds the transcript for `blog-desk`. `saveThread` replaces th
 The run store holds one row per run.
 
 - The parent row uses the chat `runId` and the thread id `blog-desk`.
-- A child row uses the child run id as `runId`. `subagentRunId` is that same id. `parentRunId` is the chat run. `name` is `researcher`, `writer`, or `seo`.
-- The child thread id is `subagent:` plus the child run id. `findActiveRun('blog-desk')` then returns the parent run.
+- A child row stores the card id from `SUBAGENT_STARTED` as `runId` and as `subagentRunId`. `parentRunId` is the chat run. `name` is `researcher`, `writer`, or `seo`.
+- The child thread id is `subagent:` plus that card id. `findActiveRun('blog-desk')` returns the parent run. `ctx.runId` in the child `chat()` is the parent run id, a colon, and the card id. `ctx.threadId` is the parent thread id, a colon, and the agent name.
 - The middleware saves the child transcript on the child thread: text, reasoning, tool calls, and tool results.
 - The parent assistant message id is `assistant:` plus the parent run id. `metadata.tanstack.runId` is that same id. The saved text is `researcher:` and the notes, then `seo:` and the notes.
 
@@ -248,11 +250,17 @@ const lookupWikipediaTool = lookupWikipedia.server(async (input) => {
     typeof input.title === 'string'
       ? input.title
       : ''
+  if (title.length === 0) {
+    throw new Error('lookupWikipedia needs a page title')
+  }
   const response = await fetch(
     `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
     { headers: { 'user-agent': 'tanstack-ai-subagents-persisted-example' } },
   )
-  if (!response.ok) return { title, found: false }
+  if (response.status === 404) return { title, found: false }
+  if (!response.ok) {
+    throw new Error(`Wikipedia returned ${response.status} for ${title}`)
+  }
   const page: unknown = await response.json()
   const extract =
     typeof page === 'object' &&
@@ -261,6 +269,7 @@ const lookupWikipediaTool = lookupWikipedia.server(async (input) => {
     typeof page.extract === 'string'
       ? page.extract
       : ''
+  if (extract.length === 0) return { title, found: false }
   return {
     title,
     found: true,
@@ -270,7 +279,9 @@ const lookupWikipediaTool = lookupWikipedia.server(async (input) => {
 })
 ```
 
-In the researcher `chat()` call, add the tool and the reasoning option. Tell the model to use the tool:
+A 404, or a page with no summary, returns `{ found: false }`. Any other HTTP status throws, so the card shows the error.
+
+In the researcher `chat()` call, add the tool and the reasoning option. Keep `subagentRunId: ctx.subagentRunId` on each child `chat()`. Tell the model to use the tool:
 
 ```ts ignore
 modelOptions: { reasoning: { effort: 'medium' } },
@@ -315,10 +326,29 @@ const researcherTools: SubagentPartsProps<
 }
 ```
 
-Pass it to the researcher card's `Parts`:
+Replace the researcher card with this function. The notes stay open, so the tool row is visible:
 
 ```tsx ignore
-<Parts toolsComponents={researcherTools} />
+export function Researcher({
+  subagent,
+  Parts,
+}: SubagentProps<BlogChatOptions, 'researcher'>) {
+  return (
+    <section className="mt-3 rounded-lg border border-orange-500/30 bg-gray-900/80 p-3 text-gray-100">
+      <AgentHeader
+        name={subagent.name}
+        status={subagent.status}
+        onStop={subagent.stop}
+      />
+      {subagent.error ? (
+        <p className="text-xs text-red-400">{subagent.error.message}</p>
+      ) : null}
+      <div className="mt-2">
+        <Parts toolsComponents={researcherTools} />
+      </div>
+    </section>
+  )
+}
 ```
 
 - The keys come from the researcher's `tools`. A tool name that the researcher does not have is a type error.

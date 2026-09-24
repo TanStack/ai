@@ -6,7 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   resolve: { tsconfigPaths: true },
-  server: { port: 3100 },
+  server: { port: 3105 },
   plugins: [
     // Sends server devtools events to the panel, so steps show there.
     devtools(),

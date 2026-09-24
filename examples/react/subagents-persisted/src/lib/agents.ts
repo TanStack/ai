@@ -10,11 +10,17 @@ const lookupWikipediaTool = lookupWikipedia.server(async (input) => {
     typeof input.title === 'string'
       ? input.title
       : ''
+  if (title.length === 0) {
+    throw new Error('lookupWikipedia needs a page title')
+  }
   const response = await fetch(
     `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
     { headers: { 'user-agent': 'tanstack-ai-subagents-persisted-example' } },
   )
-  if (!response.ok) return { title, found: false }
+  if (response.status === 404) return { title, found: false }
+  if (!response.ok) {
+    throw new Error(`Wikipedia returned ${response.status} for ${title}`)
+  }
   const page: unknown = await response.json()
   const extract =
     typeof page === 'object' &&
@@ -23,6 +29,7 @@ const lookupWikipediaTool = lookupWikipedia.server(async (input) => {
     typeof page.extract === 'string'
       ? page.extract
       : ''
+  if (extract.length === 0) return { title, found: false }
   return {
     title,
     found: true,
@@ -60,6 +67,7 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         parentRunId: ctx.parentRunId,
+        subagentRunId: ctx.subagentRunId,
         resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
@@ -77,6 +85,7 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         parentRunId: ctx.parentRunId,
+        subagentRunId: ctx.subagentRunId,
         resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
@@ -94,6 +103,7 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         parentRunId: ctx.parentRunId,
+        subagentRunId: ctx.subagentRunId,
         resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [

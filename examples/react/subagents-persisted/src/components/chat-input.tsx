@@ -13,9 +13,7 @@ export function ChatInput() {
         <div className="mb-3 flex items-center justify-center">
           <button
             type="button"
-            onClick={() => {
-              chat.stop()
-            }}
+            onClick={chat.stop}
             className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
           >
             Stop
@@ -31,10 +29,10 @@ export function ChatInput() {
           const text = field.value.trim()
           if (!text) return
           field.value = ''
-          void chat.sendMessage(text)
+          void chat.sendMessage(text).catch(() => undefined)
         }}
       >
-        <div className="flex items-end gap-2 pr-16 sm:pr-0">
+        <div className="flex items-end gap-2">
           <textarea
             name="message"
             rows={1}
