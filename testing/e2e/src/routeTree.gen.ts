@@ -105,6 +105,7 @@ import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.b
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
+import { Route as ApiAnthropicThinkingOrderWireRouteImport } from './routes/api.anthropic-thinking-order-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
 import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
@@ -614,6 +615,12 @@ const ApiArktypeToolWireRoute = ApiArktypeToolWireRouteImport.update({
   path: '/api/arktype-tool-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnthropicThinkingOrderWireRoute =
+  ApiAnthropicThinkingOrderWireRouteImport.update({
+    id: '/api/anthropic-thinking-order-wire',
+    path: '/api/anthropic-thinking-order-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicStructuredUsageRoute =
   ApiAnthropicStructuredUsageRouteImport.update({
     id: '/api/anthropic-structured-usage',
@@ -702,6 +709,7 @@ export interface FileRoutesByFullPath {
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
+  '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/byok-chat': typeof ApiByokChatRoute
@@ -810,6 +818,7 @@ export interface FileRoutesByTo {
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
+  '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/byok-chat': typeof ApiByokChatRoute
@@ -919,6 +928,7 @@ export interface FileRoutesById {
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
+  '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/byok-chat': typeof ApiByokChatRoute
@@ -1029,6 +1039,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-structured-usage'
+    | '/api/anthropic-thinking-order-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/byok-chat'
@@ -1137,6 +1148,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-structured-usage'
+    | '/api/anthropic-thinking-order-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/byok-chat'
@@ -1245,6 +1257,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-structured-usage'
+    | '/api/anthropic-thinking-order-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/byok-chat'
@@ -1354,6 +1367,7 @@ export interface RootRouteChildren {
   ApiAnthropicOpus5CombinedWireRoute: typeof ApiAnthropicOpus5CombinedWireRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
   ApiAnthropicStructuredUsageRoute: typeof ApiAnthropicStructuredUsageRoute
+  ApiAnthropicThinkingOrderWireRoute: typeof ApiAnthropicThinkingOrderWireRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiByokChatRoute: typeof ApiByokChatRoute
@@ -2097,6 +2111,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiArktypeToolWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/anthropic-thinking-order-wire': {
+      id: '/api/anthropic-thinking-order-wire'
+      path: '/api/anthropic-thinking-order-wire'
+      fullPath: '/api/anthropic-thinking-order-wire'
+      preLoaderRoute: typeof ApiAnthropicThinkingOrderWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/anthropic-structured-usage': {
       id: '/api/anthropic-structured-usage'
       path: '/api/anthropic-structured-usage'
@@ -2263,6 +2284,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAnthropicOpus5CombinedWireRoute: ApiAnthropicOpus5CombinedWireRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
   ApiAnthropicStructuredUsageRoute: ApiAnthropicStructuredUsageRoute,
+  ApiAnthropicThinkingOrderWireRoute: ApiAnthropicThinkingOrderWireRoute,
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiByokChatRoute: ApiByokChatRoute,
