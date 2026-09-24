@@ -102,12 +102,16 @@ application.
 
 ```typescript
 import { getProviderExecutedMetadata } from '@tanstack/ai'
+import type { UIMessage } from '@tanstack/ai'
 
-const metadata = getProviderExecutedMetadata(toolCall)
-const sources = metadata?.sources ?? []
-
-for (const source of sources) {
-  console.log(source.title ?? source.url, source.url)
+function logSources(message: UIMessage) {
+  for (const part of message.parts) {
+    if (part.type !== 'tool-call') continue
+    const sources = getProviderExecutedMetadata(part)?.sources ?? []
+    for (const source of sources) {
+      console.log(source.title ?? source.url, source.url)
+    }
+  }
 }
 ```
 
