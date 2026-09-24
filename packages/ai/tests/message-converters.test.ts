@@ -1032,6 +1032,26 @@ describe('Message Converters', () => {
       })
     })
 
+    // A persisted or client-sent value is untrusted: only 'cancelled' and
+    // 'denied' may turn a result into an error or set `outcome`.
+    it.each([null, 'foo', 42])(
+      'ignores an invalid persisted toolResultOutcome (%s)',
+      (value) => {
+        const modelMessage: ModelMessage = {
+          role: 'tool',
+          content: '{"ok":true}',
+          toolCallId: 'tool-1',
+          metadata: { tanstack: { toolResultOutcome: value } },
+        }
+
+        const part = modelMessageToUIMessage(modelMessage).parts.find(
+          (p) => p.type === 'tool-result',
+        )
+        expect(part).toMatchObject({ state: 'complete' })
+        expect(part).not.toHaveProperty('outcome')
+      },
+    )
+
     it('does not infer a tool result outcome from arbitrary content', () => {
       const modelMessage: ModelMessage = {
         role: 'tool',
