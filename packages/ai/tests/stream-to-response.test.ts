@@ -260,10 +260,8 @@ describe('toServerSentEventsStream', () => {
       yield {
         type: EventType.TEXT_MESSAGE_CONTENT,
         messageId: 'msg-1',
-        model: 'test',
         timestamp: Date.now(),
         delta: 'Test',
-        content: 'Test',
       }
       throw new Error('Stream error')
     }

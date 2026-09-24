@@ -27,7 +27,7 @@ function runFinished(): StreamChunk {
 
 function subagentStarted(): StreamChunk {
   return {
-    type: 'SUBAGENT_STARTED',
+    type: EventType.SUBAGENT_STARTED,
     subagentRunId: 'sub-1',
     name: 'researcher',
     timestamp: now(),
@@ -36,7 +36,7 @@ function subagentStarted(): StreamChunk {
 
 function subagentFinished(): StreamChunk {
   return {
-    type: 'SUBAGENT_FINISHED',
+    type: EventType.SUBAGENT_FINISHED,
     subagentRunId: 'sub-1',
     timestamp: now(),
   }
@@ -190,5 +190,39 @@ describe('ChatClient subagents', () => {
     expect(handle?.messages[0]?.parts).toEqual([
       { type: 'text', content: 'partial' },
     ])
+  })
+})
+
+describe('ChatClient subagent handles for restored messages', () => {
+  it('gives restored cards a handle, and drops it after clear()', () => {
+    const client = new ChatClient({
+      connection: createMockConnectionAdapter({ chunks: [] }),
+      initialMessages: [
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'subagent',
+              subagent: {
+                id: 'sub-restored',
+                name: 'researcher',
+                status: 'finished',
+                messages: [],
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    const [handle] = client.getSubagents()
+    expect(handle).toMatchObject({ id: 'sub-restored', name: 'researcher' })
+    expect(typeof handle?.stop).toBe('function')
+    const part = client.getMessages()[0]?.parts[0]
+    expect(part?.type === 'subagent' ? part.subagent : undefined).toBe(handle)
+
+    client.clear()
+    expect(client.getSubagents()).toEqual([])
   })
 })

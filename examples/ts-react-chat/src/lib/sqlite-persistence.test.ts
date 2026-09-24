@@ -22,8 +22,8 @@ import { sqlitePersistence, sqliteSandboxSnapshots } from './sqlite-persistence'
 // omission to be declared: `listByThread` (this example never renders a
 // thread's past runs). Declaring it is what makes vitest report that case as
 // SKIPPED; leaving it undeclared fails the suite, so a missing method can never
-// read as a pass. `findActiveRun` and `listReclaimable` ARE implemented, so they
-// stay under test.
+// read as a pass. `findActiveRun`, `listReclaimable`, and `listByParentRun` ARE
+// implemented, so they stay under test.
 //
 // (Locks are not a store and the suite does not cover them: this backend has no
 // distributed lock primitive, which is a separate `withLocks` concern.)

@@ -1,4 +1,5 @@
 import {
+  EventType,
   StreamProcessor,
   convertSchemaToJsonSchema,
   generateMessageId,
@@ -331,6 +332,9 @@ const REJOIN_REBUILD_TRIGGERS = new Set<string>([
   'TEXT_MESSAGE_CONTENT',
   'TOOL_CALL_START',
   'MESSAGES_SNAPSHOT',
+  // Drop the hydrated card before this chunk creates it again. A subagent
+  // turn may have no parent text, so the text triggers arrive too late.
+  'SUBAGENT_STARTED',
 ])
 
 function readSubagentRunId(chunk: StreamChunk) {
@@ -342,6 +346,19 @@ function readSubagentRunId(chunk: StreamChunk) {
 
 // Cap parent-chain walks so a cyclic replayed parentRunId cannot loop.
 const MAX_RUN_LINEAGE_DEPTH = 64
+
+/** A deep copy of plain data. Dates stay Dates. Functions are dropped. */
+function copyForDevtools<T>(value: T): T
+function copyForDevtools(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(copyForDevtools)
+  if (value instanceof Date) return new Date(value.getTime())
+  if (value === null || typeof value !== 'object') return value
+  const out: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item !== 'function') out[key] = copyForDevtools(item)
+  }
+  return out
+}
 
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
@@ -680,8 +697,14 @@ export class ChatClient<
       ...(initialMessages ? { initialMessages } : {}),
       events: {
         onMessagesChange: (messages) => {
+          // Restored or replaced messages bring their own cards. Give each one
+          // its live handle before anyone reads the messages.
+          this.syncSubagentHandles()
           this.persistor?.notifyMessagesChanged(messages)
           this.callbacksRef.current.onMessagesChange(messages)
+          // A child's chunks fire no other devtools event, so the panel would
+          // see the child only when the parent run ends.
+          this.queueDevtoolsSnapshot()
         },
         onStreamStart: () => {
           this.setStatus('streaming')
@@ -897,6 +920,8 @@ export class ChatClient<
         },
       },
     })
+    // `initialMessages` do not fire a change event. Give their cards handles.
+    this.syncSubagentHandles()
 
     this.persistor?.hydrateAsync(persistedState)
 
@@ -1703,7 +1728,9 @@ export class ChatClient<
 
   private getDevtoolsSnapshot(): AIDevtoolsChatSnapshot {
     return {
-      messages: this.processor.getMessages(),
+      // The devtools store keeps the objects it gets, and a subagent handle
+      // changes in place. A copy lets the panel see each new status and part.
+      messages: copyForDevtools(this.processor.getMessages()),
       status: this.status,
       isLoading: this.isLoading,
       isSubscribed: this.isSubscribed,
@@ -2695,6 +2722,7 @@ export class ChatClient<
    */
   stop(): void {
     // Invalidate deferred work from the stopped continuation.
+    // This aborts the local request. A durable server run keeps going.
     this.continuationGeneration++
     const hadLocalStream = this.abortController !== null
     this.cancelInFlightStream({ setReadyStatus: true })
@@ -2995,21 +3023,44 @@ export class ChatClient<
     return [...this.subagentHandles.values()]
   }
 
+  private devtoolsSnapshotQueued = false
+
+  /** One devtools snapshot per microtask, however many chunks arrive. */
+  private queueDevtoolsSnapshot(): void {
+    if (this.devtoolsSnapshotQueued) return
+    this.devtoolsSnapshotQueued = true
+    queueMicrotask(() => {
+      this.devtoolsSnapshotQueued = false
+      this.devtoolsBridge.emitSnapshot()
+    })
+  }
+
   private syncSubagentHandles(): void {
     const messages = this.processor.getMessages()
+    const present = new Set<string>()
+    for (const message of messages) {
+      for (const part of message.parts) {
+        if (part.type === 'subagent') present.add(part.subagent.id)
+      }
+    }
+    // A card that left the messages (clear, reload) loses its handle.
+    for (const id of this.subagentHandles.keys()) {
+      if (!present.has(id)) this.subagentHandles.delete(id)
+    }
     for (const message of messages) {
       for (const part of message.parts) {
         if (part.type !== 'subagent') continue
         const id = part.subagent.id
         const existing = this.subagentHandles.get(id)
         if (existing) {
-          existing.name = part.subagent.name
-          existing.description = part.subagent.description
-          existing.status = part.subagent.status
-          existing.parentRunId = part.subagent.parentRunId
-          existing.parentSubagentRunId = part.subagent.parentSubagentRunId
-          existing.messages = part.subagent.messages
-          existing.error = part.subagent.error
+          if (part.subagent === existing) continue
+          // Keep the same live object, with exactly the card's fields. The
+          // wire reads this object, so a field the card dropped goes too.
+          const { stop } = existing
+          for (const key of Object.keys(existing)) {
+            Reflect.deleteProperty(existing, key)
+          }
+          Object.assign(existing, part.subagent, { stop })
           part.subagent = existing
           continue
         }
@@ -3030,7 +3081,7 @@ export class ChatClient<
     const handle = this.subagentHandles.get(id)
     if (!handle || handle.status !== 'running') return
     this.processor.processChunk({
-      type: 'SUBAGENT_ERROR',
+      type: EventType.SUBAGENT_ERROR,
       subagentRunId: id,
       message: 'Stopped',
       timestamp: Date.now(),

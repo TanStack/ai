@@ -39,6 +39,35 @@ export const chatOptions = {
   outputSchema: answerSchema,
 }
 
+const lookupFacts = toolDefinition({
+  name: 'lookupFacts',
+  description: 'Look up facts',
+  inputSchema: z.object({ topic: z.string() }),
+  outputSchema: z.object({ facts: z.array(z.string()) }),
+})
+
+const deleteDraft = toolDefinition({
+  name: 'deleteDraft',
+  description: 'Delete a draft',
+  needsApproval: true,
+  inputSchema: z.object({ id: z.string() }),
+})
+
+const pickTone = defineInterrupt({
+  id: 'pickTone',
+  payloadSchema: z.object({ options: z.array(z.string()) }),
+  responseSchema: z.string(),
+})
+
+/** `chatOptions` plus two child agents, each with its own tools. */
+export const subagentChatOptions = {
+  ...chatOptions,
+  subagents: [
+    { name: 'researcher', tools: [lookupFacts] },
+    { name: 'writer', tools: [deleteDraft], interrupts: [pickTone] },
+  ] as const,
+}
+
 function noop(): void {
   return
 }

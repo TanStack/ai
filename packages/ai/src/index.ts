@@ -512,6 +512,7 @@ export { generationParamsFromBody, generationParamsFromRequest } from './client'
 
 // AG-UI wire serialization (used internally by @tanstack/ai-client)
 export { uiMessagesToWire } from './utilities/ag-ui-wire'
+export type { SubagentWireInfo } from './utilities/subagent-wire'
 export { mergeMetadata, withTanstackMetadata } from './utilities/merge-metadata'
 export { fromSpecTokenUsage, toSpecTokenUsage } from './utilities/ag-ui-usage'
 export type { SpecTokenUsage } from './utilities/ag-ui-usage'

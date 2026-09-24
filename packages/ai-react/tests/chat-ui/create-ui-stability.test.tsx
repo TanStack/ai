@@ -153,12 +153,19 @@ it('does not re-render Subagents rows when only nested messages change', () => {
       ),
     },
     subagentsComponents: {
-      writer: () => {
+      writer: ({ Parts }: SubagentProps<typeof chatOptions>) => {
         listRenders += 1
-        return <span>row</span>
+        return (
+          <section>
+            <Parts />
+          </section>
+        )
       },
     },
-    partsComponents: { fallback: ({ part }) => <span>{part.type}</span> },
+    partsComponents: {
+      text: ({ part }) => <span>{part.content}</span>,
+      fallback: ({ part }) => <span>{part.type}</span>,
+    },
     toolsComponents: {
       getWeather: () => null,
       purchaseItem: () => null,
@@ -168,7 +175,10 @@ it('does not re-render Subagents rows when only nested messages change', () => {
     },
   })
 
-  const { rerender } = render(<UI.Chat chat={host({ subagents: [handle] })} />)
+  const { rerender, getByText } = render(
+    <UI.Chat chat={host({ subagents: [handle] })} />,
+  )
+  getByText('Draft')
   const first = listRenders
   rerender(
     <UI.Chat
@@ -189,4 +199,6 @@ it('does not re-render Subagents rows when only nested messages change', () => {
     />,
   )
   expect(listRenders).toBe(first)
+  // The row did not render again, but the child text still updated.
+  getByText('Draft v2')
 })

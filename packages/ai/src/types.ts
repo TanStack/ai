@@ -19,12 +19,16 @@ import type {
   UsageCostBreakdown,
 } from '@tanstack/ai-event-client'
 import type {
+  ActivityDeltaEvent as AGUIActivityDeltaEvent,
+  ActivitySnapshotEvent as AGUIActivitySnapshotEvent,
   BaseEvent as AGUIBaseEvent,
   CustomEvent as AGUICustomEvent,
   Interrupt as AGUIInterrupt,
   MessagesSnapshotEvent as AGUIMessagesSnapshotEvent,
   ReasoningEncryptedValueEvent as AGUIReasoningEncryptedValueEvent,
   ReasoningEndEvent as AGUIReasoningEndEvent,
+  RawEvent as AGUIRawEvent,
+  ReasoningMessageChunkEvent as AGUIReasoningMessageChunkEvent,
   ReasoningMessageContentEvent as AGUIReasoningMessageContentEvent,
   ReasoningMessageEndEvent as AGUIReasoningMessageEndEvent,
   ReasoningMessageStartEvent as AGUIReasoningMessageStartEvent,
@@ -38,10 +42,15 @@ import type {
   StateSnapshotEvent as AGUIStateSnapshotEvent,
   StepFinishedEvent as AGUIStepFinishedEvent,
   StepStartedEvent as AGUIStepStartedEvent,
+  SubagentErrorEvent as AGUISubagentErrorEvent,
+  SubagentFinishedEvent as AGUISubagentFinishedEvent,
+  SubagentStartedEvent as AGUISubagentStartedEvent,
+  TextMessageChunkEvent as AGUITextMessageChunkEvent,
   TextMessageContentEvent as AGUITextMessageContentEvent,
   TextMessageEndEvent as AGUITextMessageEndEvent,
   TextMessageStartEvent as AGUITextMessageStartEvent,
   ToolCallArgsEvent as AGUIToolCallArgsEvent,
+  ToolCallChunkEvent as AGUIToolCallChunkEvent,
   ToolCallEndEvent as AGUIToolCallEndEvent,
   ToolCallResultEvent as AGUIToolCallResultEvent,
   ToolCallStartEvent as AGUIToolCallStartEvent,
@@ -51,6 +60,7 @@ import type {
   SpecTokenUsage,
   TokenUsageLeftover,
 } from './utilities/ag-ui-usage'
+import type { SubagentWireInfo } from './utilities/subagent-wire'
 
 // Re-export ProviderTool so the type is reachable from `@tanstack/ai`'s root
 // entry via `export * from './types'` without forcing the subpath import.
@@ -250,12 +260,41 @@ export interface ContentPartUrlSource {
 }
 
 /**
+ * Source specification for a provider-issued file handle (Files API).
+ * Matches the AG-UI 1.0 `FileSource` arm.
+ */
+export interface ContentPartFileSource {
+  /**
+   * Indicates this references a provider-issued file handle.
+   */
+  type: 'file'
+  /**
+   * The handle, exactly as the provider issued it. Opaque: do not fetch it,
+   * parse it, or read a scheme out of it.
+   */
+  value: string
+  /**
+   * The provider that issued the handle (`'openai'`, `'anthropic'`, ...).
+   */
+  provider?: string
+  /**
+   * Optional MIME type hint for cases where the provider can't infer it.
+   */
+  mimeType?: string
+}
+
+/**
  * Source specification for multimodal content.
- * Discriminated union supporting both inline data (base64) and URL-based content.
+ * Discriminated union supporting inline data (base64), URL-based content, and
+ * provider-issued file handles.
  * - For 'data' sources: mimeType is required
  * - For 'url' sources: mimeType is optional
+ * - For 'file' sources: an opaque provider handle
  */
-export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
+export type ContentPartSource =
+  | ContentPartDataSource
+  | ContentPartUrlSource
+  | ContentPartFileSource
 
 /**
  * Image content part for multimodal messages.
@@ -501,6 +540,12 @@ export interface SubagentHandleData {
   status: SubagentStatus
   parentRunId?: string
   parentSubagentRunId?: string
+  /** The tool call that started this child, when the model started it. */
+  parentToolCallId?: string
+  /** Interrupts this child raised, while `status` is `'suspended'`. */
+  interruptIds?: Array<string>
+  /** The `metadata` of the child's `SUBAGENT_STARTED` event. */
+  metadata?: Record<string, unknown>
   messages: Array<UIMessage>
   error?: { message: string; code?: string }
 }
@@ -547,6 +592,10 @@ export type MessagePart<TData = unknown> =
 export interface TanStackMessageMetadata {
   createdAt?: string
   model?: string
+  /** Parent chat run that produced this assistant message. */
+  runId?: string
+  /** Card data on a child wire message. See `uiMessagesToWire`. */
+  subagent?: SubagentWireInfo
   /** Thinking signature for a `role: 'reasoning'` fan-out message. */
   signature?: string
   /** Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignature). */
@@ -1304,15 +1353,12 @@ export interface TextMessageEndEvent extends AGUITextMessageEndEvent {}
 /**
  * Emitted when a tool call starts.
  *
- * @ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
- *
- * Field shapes are taken from AG-UI via `Pick` (not `extends`) so Zod
- * `.passthrough()` index signatures do not pollute the StreamChunk
- * discriminated union — required for {@link KnownCustomEvent} narrowing.
+ * @ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`,
+ * `subagentRunId?`
  */
-export interface ToolCallStartEvent extends Pick<
+export interface ToolCallStartEvent extends Omit<
   AGUIToolCallStartEvent,
-  'toolCallId' | 'toolCallName' | 'parentMessageId' | 'timestamp' | 'rawEvent'
+  'type'
 > {
   type: 'TOOL_CALL_START'
   /** Alias of `toolCallName`. Kept so existing stream readers still compile. */
@@ -1331,14 +1377,9 @@ export interface ToolCallArgsEvent extends AGUIToolCallArgsEvent {}
 /**
  * Emitted when a tool call completes.
  *
- * @ag-ui/core provides: `toolCallId`
- *
- * Same `Pick` (not `extends`) rationale as {@link ToolCallStartEvent}.
+ * @ag-ui/core provides: `toolCallId`, `subagentRunId?`
  */
-export interface ToolCallEndEvent extends Pick<
-  AGUIToolCallEndEvent,
-  'toolCallId' | 'timestamp' | 'rawEvent'
-> {
+export interface ToolCallEndEvent extends Omit<AGUIToolCallEndEvent, 'type'> {
   type: 'TOOL_CALL_END'
   /** Parsed tool arguments when the adapter already parsed them. */
   input?: unknown
@@ -1396,15 +1437,9 @@ export interface StateDeltaEvent extends AGUIStateDeltaEvent {}
 /**
  * Custom event for extensibility.
  *
- * @ag-ui/core provides: `name`, `value`
- *
- * Uses `Pick` (not `extends`) so the Zod passthrough index signature does not
- * erase discriminant property access on {@link KnownCustomEvent} unions.
+ * @ag-ui/core provides: `name`, `value`, `subagentRunId?`
  */
-export interface CustomEvent extends Pick<
-  AGUICustomEvent,
-  'name' | 'value' | 'timestamp' | 'rawEvent'
-> {
+export interface CustomEvent extends Omit<AGUICustomEvent, 'type'> {
   type: 'CUSTOM'
   metadata?: Record<string, any>
 }
@@ -1690,6 +1725,24 @@ export interface ReasoningEndEvent extends AGUIReasoningEndEvent {}
  */
 export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValueEvent {}
 
+/** AG-UI 1.0 ActivitySnapshotEvent shape. */
+export interface ActivitySnapshotEvent extends AGUIActivitySnapshotEvent {}
+
+/** AG-UI 1.0 ActivityDeltaEvent shape. */
+export interface ActivityDeltaEvent extends AGUIActivityDeltaEvent {}
+
+/** AG-UI 1.0 RawEvent shape. */
+export interface RawEvent extends AGUIRawEvent {}
+
+/** AG-UI 1.0 TextMessageChunkEvent shape. */
+export interface TextMessageChunkEvent extends AGUITextMessageChunkEvent {}
+
+/** AG-UI 1.0 ToolCallChunkEvent shape. */
+export interface ToolCallChunkEvent extends AGUIToolCallChunkEvent {}
+
+/** AG-UI 1.0 ReasoningMessageChunkEvent shape. */
+export interface ReasoningMessageChunkEvent extends AGUIReasoningMessageChunkEvent {}
+
 // ============================================================================
 // AG-UI Event Union
 // ============================================================================
@@ -1698,6 +1751,12 @@ export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValu
  * Union of all AG-UI events.
  */
 export type AGUIEvent =
+  | ActivitySnapshotEvent
+  | ActivityDeltaEvent
+  | RawEvent
+  | TextMessageChunkEvent
+  | ToolCallChunkEvent
+  | ReasoningMessageChunkEvent
   | RunStartedEvent
   | RunFinishedEvent
   | RunErrorEvent
@@ -1724,37 +1783,34 @@ export type AGUIEvent =
   | SubagentFinishedEvent
   | SubagentErrorEvent
 
-export interface SubagentStartedEvent {
-  type: 'SUBAGENT_STARTED'
-  subagentRunId: string
-  name: string
-  description?: string
-  parentSubagentRunId?: string
-  timestamp?: number
-  metadata?: Record<string, any>
-}
+/**
+ * A child agent started. The later chunks for that child carry the same
+ * `subagentRunId`.
+ *
+ * @ag-ui/core provides: `subagentRunId`, `name`, `description?`,
+ * `parentSubagentRunId?`, `parentToolCallId?`, `parentMessageId?`
+ */
+export interface SubagentStartedEvent extends AGUISubagentStartedEvent {}
 
-export interface SubagentFinishedEvent {
-  type: 'SUBAGENT_FINISHED'
-  subagentRunId: string
-  timestamp?: number
-  metadata?: Record<string, any>
-}
+/**
+ * A child agent's segment of this run ended.
+ *
+ * @ag-ui/core provides: `subagentRunId`, `result?`, `outcome?`
+ */
+export interface SubagentFinishedEvent extends AGUISubagentFinishedEvent {}
 
-export interface SubagentErrorEvent {
-  type: 'SUBAGENT_ERROR'
-  subagentRunId: string
-  message: string
-  code?: string
-  timestamp?: number
-  metadata?: Record<string, any>
-}
+/**
+ * A child agent failed. The parent run can continue.
+ *
+ * @ag-ui/core provides: `subagentRunId`, `message`, `code?`
+ */
+export interface SubagentErrorEvent extends AGUISubagentErrorEvent {}
 
 /**
  * Chunk returned by the SDK during streaming chat completions.
  * Uses the AG-UI protocol event format.
  */
-export type StreamChunk = AGUIEvent & { subagentRunId?: string }
+export type StreamChunk = AGUIEvent
 
 /**
  * Discriminated union of the orchestrator-tagged `CUSTOM` events. Each variant

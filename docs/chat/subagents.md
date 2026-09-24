@@ -12,7 +12,7 @@ keywords:
   - AG-UI
 ---
 
-You want a specialist to handle some turns (research, writing, a sandbox harness) while the parent chat stays one conversation. `chat({ subagents })` starts that child, tags its events with `subagentRunId`, and the client stores the work in a `type: 'subagent'` part.
+You want a specialist to handle some turns (research, writing, a sandbox harness) while the parent chat stays one conversation. `chat({ subagents })` lets the parent start a child. A router can still keep the turn on the parent, and without a router the model can skip the child tool. When a child starts, the stream tags its events with `subagentRunId`, and the client stores the work in a `type: 'subagent'` part.
 
 ## Define a child
 
@@ -34,9 +34,13 @@ const researcher = defineAgent({
       messages: ctx.messages,
       threadId: ctx.threadId,
       runId: ctx.runId,
+      parentRunId: ctx.parentRunId,
+      resume: ctx.resume,
     }),
 })
 ```
+
+Pass all four `ctx` fields to the child `chat()`. A child that stops for an approval needs `parentRunId` and `resume` to continue. See [Interrupts in a child](#interrupts-in-a-child).
 
 ## Route, or let the model pick
 
@@ -147,12 +151,121 @@ const stream = chat({
 })
 ```
 
-**Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card.
+**Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card. The child's events stream while the tool runs, and the child's text becomes the tool result. The child reads the conversation as it is at that tool call.
 
 ## Strategy
 
 - `exclusive` (default): the chosen child owns the turn. Main does not answer after it.
 - `handoff`: the child streams first. Then main runs with the new child text in the messages.
+
+The parent `RUN_FINISHED.usage` includes the token usage of every child.
+
+## Interrupts in a child
+
+Some child work needs a person first, for example deleting a file. Give that child tool `needsApproval: true`. The child stops, and the parent run ends with the child's interrupt. The client answers it like any other interrupt. The next run continues the same child.
+
+1. Share one tool definition between the server and the client:
+
+```typescript title="tools.ts"
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+export const deleteFile = toolDefinition({
+  name: 'deleteFile',
+  description: 'Delete a file',
+  needsApproval: true,
+  inputSchema: z.object({ path: z.string() }),
+})
+```
+
+2. Give the child the server tool. Pass the resume fields from the request to the parent `chat()`:
+
+```typescript title="route.ts"
+import {
+  chat,
+  chatParamsFromRequest,
+  defineAgent,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { deleteFile } from './tools'
+
+const cleaner = defineAgent({
+  name: 'cleaner',
+  description: 'Deletes old files',
+  run: (ctx) =>
+    chat({
+      adapter: openaiText('gpt-5.6'),
+      messages: ctx.messages,
+      threadId: ctx.threadId,
+      runId: ctx.runId,
+      parentRunId: ctx.parentRunId,
+      resume: ctx.resume,
+      tools: [deleteFile.server(({ path }: { path: string }) => ({ deleted: path }))],
+    }),
+})
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+  const stream = chat({
+    adapter: openaiText('gpt-5.6'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
+    ...(params.resume ? { resume: params.resume } : {}),
+    subagents: { agents: [cleaner], router: () => 'cleaner' },
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+3. Register the same definition on the client, and answer the interrupt:
+
+```tsx title="cleanup-panel.tsx"
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { deleteFile } from './tools'
+
+export function CleanupPanel() {
+  const chat = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    tools: [deleteFile.client()],
+  })
+
+  return (
+    <section>
+      <button onClick={() => chat.sendMessage('Clean up old files')}>
+        Clean up
+      </button>
+      {chat.interrupts.map((interrupt) =>
+        interrupt.kind === 'tool-approval' ? (
+          <button key={interrupt.id} onClick={() => interrupt.resolveInterrupt(true)}>
+            Approve delete
+          </button>
+        ) : null,
+      )}
+    </section>
+  )
+}
+```
+
+The resume uses the plan that the router picked in the first run. It does not call the router again. While the child waits, its card has `status: 'suspended'` and `interruptIds`. After you approve, the card shows the tool result and the child's reply. Client tools in a child work the same way.
+
+The same flow works without a router. The child's tool call stays open until the resume, then the parent model reads the child's result.
+
+## Persistence
+
+Put `withPersistence` on the parent `chat()` only. The parent stores each child:
+
+- the child run, linked to the parent run
+- the full child transcript
+- the child's pending interrupts
+- the card status
+
+A reload then shows every card, and a resume continues a waiting child. See [Subagent cards on reload](../persistence/chat-persistence#subagent-cards-on-reload).
+
+Do not add `withPersistence` to a child `chat()` too. The child does not know that it runs as a subagent, so it stores the same child again under its own run and thread ids. Its interrupt records then conflict with the parent's records, and a reload can lose the pending approval.
 
 ## Sandbox
 
@@ -199,6 +312,8 @@ const coder = defineAgent({
       messages: ctx.messages,
       threadId: ctx.threadId,
       runId: ctx.runId,
+      parentRunId: ctx.parentRunId,
+      resume: ctx.resume,
       middleware: [withSandbox(repoSandbox)],
     }),
 })
@@ -236,21 +351,71 @@ See [Sandboxes](../sandbox/overview) for `withSandbox` and `lifecycle.reuse`.
 
 ## Client
 
-The nested `type: 'subagent'` part and `useChat().subagents[i]` are the same live object. Call `stop()` on either one. The client sets that child to error and aborts the current parent run. Later events for that id are ignored.
+The nested `type: 'subagent'` part and `useChat().subagents[i]` are the same live object. Call `stop()` on either one. The client sets that child to error and aborts the current parent run. Later events for that id, and for its nested children, are ignored.
 
-Use `createChatHook` from `@tanstack/ai-react/ui`. Pass `options.subagents` as an object. Each key is an agent name. Register `subagentsComponents` for each key. Those components receive `SubagentProps` and `Parts`. Render `<Messages />`. The subagent card is a part of the assistant message. `<Subagents />` draws that same card for the live list. Pick one place for the card. The factory throws if a name is missing.
+`part.subagent.messages` holds everything the child did:
+
+- text and reasoning
+- tool calls and tool results
+- approval state on the child's tool calls
+- nested children, as their own `subagent` parts
+
+`part.subagent.status` is `'running'`, `'finished'`, `'error'`, or `'suspended'`. By default, the child messages use the same parts components as the parent. A card can replace them for its child. See [Style one child's parts](#style-one-childs-parts).
+
+Use `createChatHook` from `@tanstack/ai-react/ui` when you want the factory to draw the cards. Pass the agents you give to `chat()` as `options.subagents`. The client reads each agent's `name`, `tools`, `interrupts`, and `outputSchema` for types. It does not call `run`. Register `subagentsComponents` for each agent name. Those components receive `SubagentProps` and `Parts`. Render `<Messages />`. The subagent card is a part of the assistant message. `<Subagents />` draws that same card for the live list. Pick one place for the card. If a started child has a name with no `subagentsComponents` entry, rendering that card throws.
+
+When you render the parts yourself, pass the same agents to `useChat`. The hook uses them for types only. It does not call `run`.
 
 ```tsx
+import { defineAgent } from '@tanstack/ai'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+const researcher = defineAgent({
+  name: 'researcher',
+  description: 'Looks up facts',
+  run: async function* () {},
+})
+const writer = defineAgent({
+  name: 'writer',
+  description: 'Drafts posts',
+  run: async function* () {},
+})
+
+function Desk() {
+  const chat = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    subagents: [researcher, writer],
+  })
+  const part = chat.messages[0]?.parts[0]
+  if (part?.type === 'subagent' && part.subagent.name === 'researcher') {
+    return part.subagent.status
+  }
+  return null
+}
+```
+
+`part.subagent.name` is `'researcher' | 'writer'`. After you check the name, that child's `messages` use the tools and output schema from that agent.
+
+```tsx
+import { defineAgent } from '@tanstack/ai'
 import { fetchServerSentEvents } from '@tanstack/ai-react'
 import { createChatHook } from '@tanstack/ai-react/ui'
 import type { LayoutProps, SubagentProps } from '@tanstack/ai-react/ui'
 
+const researcher = defineAgent({
+  name: 'researcher',
+  description: 'Looks up facts',
+  run: async function* () {},
+})
+const writer = defineAgent({
+  name: 'writer',
+  description: 'Drafts posts',
+  run: async function* () {},
+})
+
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
-  subagents: {
-    researcher: { description: 'Looks up facts' },
-    writer: { description: 'Drafts posts' },
-  },
+  subagents: [researcher, writer],
 }
 
 function SubagentCard({
@@ -271,7 +436,7 @@ function SubagentCard({
   )
 }
 
-const { useAppChat } = createChatHook({
+const { useAppChat, useChatContext } = createChatHook({
   options: chatOptions,
   components: {
     layout: ({ Messages, Input }: LayoutProps<typeof chatOptions>) => (
@@ -281,7 +446,23 @@ const { useAppChat } = createChatHook({
       </main>
     ),
     message: ({ Parts }) => <article><Parts /></article>,
-    input: () => null,
+    input: function Input() {
+      const chat = useChatContext()
+      return (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            const field = event.currentTarget.elements.namedItem('message')
+            if (!(field instanceof HTMLInputElement)) return
+            void chat.sendMessage(field.value)
+            field.value = ''
+          }}
+        >
+          <input name="message" />
+          <button type="submit">Send</button>
+        </form>
+      )
+    },
   },
   partsComponents: {
     text: ({ part }) => <p>{part.content}</p>,
@@ -300,5 +481,100 @@ export function ChatScreen() {
 ```
 
 `part.subagent` is the same object as `useChat().subagents[i]` for that id. `stop()` on either one aborts the current parent run.
+
+When `run` imports server code, do not import the agent into the browser. Declare the agent once in a shared file, with its `name`, `description`, and tool definitions from `toolDefinition`. The server passes `defineAgent({ ...researcher, run })` to `chat()`. The client passes the declaration.
+
+### Style one child's parts
+
+The researcher's reasoning and tool calls use the root widgets by default. To make them look different on the researcher card only, pass widgets to that card's `Parts`:
+
+```tsx
+import { toolDefinition } from '@tanstack/ai'
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { createChatHook, ThinkingPart } from '@tanstack/ai-react/ui'
+import type { SubagentPartsProps, SubagentProps } from '@tanstack/ai-react/ui'
+import { z } from 'zod'
+
+const lookupWikipedia = toolDefinition({
+  name: 'lookupWikipedia',
+  description: 'Get the Wikipedia summary of one topic',
+  inputSchema: z.object({ title: z.string() }),
+  outputSchema: z.object({ extract: z.string() }),
+})
+
+// Shared with the server, which passes defineAgent({ ...researcher, run }).
+const researcher = {
+  name: 'researcher',
+  description: 'Looks up facts',
+  tools: [lookupWikipedia],
+} as const
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  subagents: [researcher],
+}
+
+type ResearcherWidgets = SubagentPartsProps<typeof chatOptions, 'researcher'>
+
+const researcherParts: ResearcherWidgets['partsComponents'] = {
+  thinking: ({ part }) => (
+    <ThinkingPart content={part.content} className="research-notes" />
+  ),
+}
+
+const researcherTools: ResearcherWidgets['toolsComponents'] = {
+  lookupWikipedia: ({ part }) => (
+    <details>
+      <summary>
+        {part.input?.title} ({part.state})
+      </summary>
+      {part.output?.extract}
+    </details>
+  ),
+}
+
+function Researcher({
+  Parts,
+}: SubagentProps<typeof chatOptions, 'researcher'>) {
+  return (
+    <section>
+      <Parts partsComponents={researcherParts} toolsComponents={researcherTools} />
+    </section>
+  )
+}
+
+export const { useAppChat } = createChatHook({
+  options: chatOptions,
+  components: {
+    layout: ({ Messages }) => (
+      <main>
+        <Messages />
+      </main>
+    ),
+    message: ({ Parts }) => (
+      <article>
+        <Parts />
+      </article>
+    ),
+  },
+  partsComponents: {
+    text: ({ part }) => <p>{part.content}</p>,
+    thinking: ({ part }) => <ThinkingPart content={part.content} />,
+    fallback: () => null,
+  },
+  subagentsComponents: { researcher: Researcher },
+})
+```
+
+- An entry on `Parts` replaces the root entry with the same key, for this card and for the children nested in it.
+- A key that you do not set uses the root entry. Here, `text` still uses the root widget.
+- `toolsComponents` keys and props come from the agent's `tools`. `part.input` and `part.output` are typed, and a tool name that the agent does not have is a type error. A tool call with no entry at any level renders nothing.
+- An approval for a child tool arrives as `interrupt` on that tool widget, typed from the tool. The root `interruptsComponents` also accepts the child's approval tools and the ids in the agent's `interrupts`.
+
+Define these maps outside the component. A new object on each render makes every part in the card render again. An approval for a tool that only a card registers also shows in the root `<Interrupts />` list.
+
+In the AI devtools, the Conversation tab shows each child as a card with its name and status. The card holds the child's steps, drawn the same way as the parent's steps. A new step starts after each tool result. The User view on the right shows the child's text and tool outputs.
+
+When the server events reach the devtools (the `devtools()` plugin from `@tanstack/devtools-vite`), the child's steps are its real server iterations, with the model, the system prompts, and the token usage. Without the plugin, the steps come from the messages in the browser.
 
 See [Stream Events](./stream-events) for `SUBAGENT_*` and `subagentRunId`.
