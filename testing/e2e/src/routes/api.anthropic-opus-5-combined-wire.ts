@@ -6,10 +6,23 @@ import { z } from 'zod'
 
 const DUMMY_KEY = 'sk-ant-e2e-test-dummy-key'
 
+/** Models the spec drives through this route. Both must take the combined path. */
+const WIRE_MODELS = ['claude-opus-5', 'claude-opus-5-5'] as const
+type WireModel = (typeof WIRE_MODELS)[number]
+
+/** Reads `model` from the request body. Defaults to `claude-opus-5`. */
+async function readModel(request: Request): Promise<WireModel> {
+  const body: unknown = await request.json().catch(() => null)
+  const model =
+    body && typeof body === 'object' && 'model' in body ? body.model : null
+  return WIRE_MODELS.find((known) => known === model) ?? 'claude-opus-5'
+}
+
 /**
- * Wire-format verification for `claude-opus-5` structured output with tools.
+ * Wire-format verification for `claude-opus-5` and `claude-opus-5-5`
+ * structured output with tools. POST `{ model }` to pick one.
  *
- * `claude-opus-5` is in `ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS`, so
+ * Both models are in `ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS`, so
  * `supportsCombinedToolsAndSchema()` is true and the engine forwards the
  * schema into the single streaming Messages call instead of adding a
  * forced-tool-use finalization round-trip. The companion spec asserts the
@@ -20,8 +33,8 @@ const DUMMY_KEY = 'sk-ant-e2e-test-dummy-key'
  * 3. It also carries the `web_search` server tool, so the schema and the
  *    provider tool travel together.
  *
- * Passing `webSearchTool()` to a `claude-opus-5` adapter is the other half of
- * the check: it only compiles when the model's `supports.tools` list is
+ * Passing `webSearchTool()` to these adapters is the other half of
+ * the check: it only compiles when each model's `supports.tools` list is
  * populated, so this route stops type-checking if that list regresses to `[]`.
  *
  * A custom `fetch` captures every outgoing request and answers with a
@@ -32,6 +45,7 @@ const DUMMY_KEY = 'sk-ant-e2e-test-dummy-key'
 
 /** Minimal Anthropic Messages stream whose text is the structured payload. */
 function makeSyntheticAnthropicStream(
+  model: WireModel,
   payload: string,
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
@@ -43,7 +57,7 @@ function makeSyntheticAnthropicStream(
         type: 'message',
         role: 'assistant',
         content: [],
-        model: 'claude-opus-5',
+        model,
         stop_reason: null,
         stop_sequence: null,
         usage: { input_tokens: 5, output_tokens: 0 },
@@ -85,7 +99,8 @@ function makeSyntheticAnthropicStream(
 export const Route = createFileRoute('/api/anthropic-opus-5-combined-wire')({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        const model = await readModel(request)
         const capturedRequests: Array<{
           url: string
           body: Record<string, unknown> | null
@@ -111,6 +126,7 @@ export const Route = createFileRoute('/api/anthropic-opus-5-combined-wire')({
 
           return new Response(
             makeSyntheticAnthropicStream(
+              model,
               '{"recommendation":"Fender Stratocaster","price":1299}',
             ),
             {
@@ -123,7 +139,7 @@ export const Route = createFileRoute('/api/anthropic-opus-5-combined-wire')({
           )
         }
 
-        const adapter = createAnthropicChat('claude-opus-5', DUMMY_KEY, {
+        const adapter = createAnthropicChat(model, DUMMY_KEY, {
           fetch: capturingFetch,
         })
 
