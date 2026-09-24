@@ -16,21 +16,17 @@ import {
 } from '@tanstack/ai-sandbox/testkit'
 import { sqlitePersistence, sqliteSandboxSnapshots } from './sqlite-persistence'
 
-// All seven stores are provided — the four chat state stores plus
-// `generationRuns` + `artifacts` + `blobs` — so no STORE is skipped. One
-// OPTIONAL `runs` method is genuinely missing here, and the suite requires the
-// omission to be declared: `listByThread` (this example never renders a
-// thread's past runs). Declaring it is what makes vitest report that case as
-// SKIPPED; leaving it undeclared fails the suite, so a missing method can never
-// read as a pass. `findActiveRun` and `listReclaimable` ARE implemented, so they
-// stay under test.
+// All seven stores are provided, the four chat state stores plus
+// `generationRuns` + `artifacts` + `blobs`, so no STORE is skipped. Every
+// `runs` method is implemented too, including the optional `listByThread`,
+// `listByParentRun`, and `listReclaimable`, so nothing is declared in
+// `skipMethods` and every case stays under test. (`reconstructChat` needs
+// `listByThread` to put back the cards of children that a tool call started.)
 //
 // (Locks are not a store and the suite does not cover them: this backend has no
 // distributed lock primitive, which is a separate `withLocks` concern.)
-runPersistenceConformance(
-  'ts-react-chat example (node:sqlite)',
-  () => sqlitePersistence({ url: ':memory:', migrate: true }),
-  { skipMethods: ['runs.listByThread'] },
+runPersistenceConformance('ts-react-chat example (node:sqlite)', () =>
+  sqlitePersistence({ url: ':memory:', migrate: true }),
 )
 
 runSandboxCheckpointStoreConformance(

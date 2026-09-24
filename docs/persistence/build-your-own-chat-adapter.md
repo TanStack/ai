@@ -37,8 +37,13 @@ CREATE TABLE IF NOT EXISTS runs (
   sandbox_key text,
   detached_since integer,
   cancel_requested integer,
-  driver_epoch integer
+  driver_epoch integer,
+  parent_run_id text,
+  subagent_run_id text,
+  name text
 );
+CREATE INDEX IF NOT EXISTS runs_parent_started
+  ON runs (parent_run_id, started_at);
 CREATE TABLE IF NOT EXISTS interrupts (
   interrupt_id text PRIMARY KEY NOT NULL,
   run_id text NOT NULL,
@@ -181,13 +186,22 @@ function mapRun(row: Record<string, unknown>): RunRecord {
     ...(row.driver_epoch != null
       ? { driverEpoch: Number(row.driver_epoch) }
       : {}),
+    ...(typeof row.parent_run_id === 'string'
+      ? { parentRunId: row.parent_run_id }
+      : {}),
+    ...(typeof row.subagent_run_id === 'string'
+      ? { subagentRunId: row.subagent_run_id }
+      : {}),
+    ...(typeof row.name === 'string' ? { name: row.name } : {}),
   }
 }
 
 function createRunStore(db: DatabaseSync) {
   const select = db.prepare('SELECT * FROM runs WHERE run_id = ?')
   const insert = db.prepare(
-    `INSERT INTO runs (run_id, thread_id, status, started_at) VALUES (?, ?, ?, ?)
+    `INSERT INTO runs (
+       run_id, thread_id, status, started_at, parent_run_id, subagent_run_id, name
+     ) VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(run_id) DO NOTHING`,
   )
   const active = db.prepare(
@@ -196,6 +210,9 @@ function createRunStore(db: DatabaseSync) {
   )
   const byThread = db.prepare(
     'SELECT * FROM runs WHERE thread_id = ? ORDER BY started_at ASC',
+  )
+  const byParent = db.prepare(
+    'SELECT * FROM runs WHERE parent_run_id = ? ORDER BY started_at ASC',
   )
   const reclaimable = db.prepare(
     `SELECT * FROM runs WHERE status = 'running' AND detached_since IS NOT NULL
@@ -206,12 +223,27 @@ function createRunStore(db: DatabaseSync) {
       const existing = select.get(input.runId)
       if (existing) return mapRun(existing)
       const status: RunStatus = input.status ?? 'running'
-      insert.run(input.runId, input.threadId, status, input.startedAt)
+      insert.run(
+        input.runId,
+        input.threadId,
+        status,
+        input.startedAt,
+        input.parentRunId ?? null,
+        input.subagentRunId ?? null,
+        input.name ?? null,
+      )
       return {
         runId: input.runId,
         threadId: input.threadId,
         status,
         startedAt: input.startedAt,
+        ...(input.parentRunId !== undefined
+          ? { parentRunId: input.parentRunId }
+          : {}),
+        ...(input.subagentRunId !== undefined
+          ? { subagentRunId: input.subagentRunId }
+          : {}),
+        ...(input.name !== undefined ? { name: input.name } : {}),
       }
     },
     async update(runId, patch) {
@@ -288,6 +320,11 @@ function createRunStore(db: DatabaseSync) {
     async listByThread(threadId) {
       return byThread.all(threadId).map(mapRun)
     },
+    // Child runs for one parent, oldest first. reconstructChat uses this list
+    // to put the subagent cards back. Optional, like listByThread.
+    async listByParentRun(parentRunId) {
+      return byParent.all(parentRunId).map(mapRun)
+    },
     // Runs the reaper sweeps: still `running`, and detached since before
     // `now - ttlMs`. `withSandbox`'s detach path sets `detachedSince` for you,
     // and `reapDetachedRuns` from `@tanstack/ai-sandbox` consumes this list;
@@ -314,6 +351,14 @@ builder does with `undefined` (Drizzle's `.set()`, for instance, drops such
 columns). Get it wrong and nothing throws: the run simply looks detached
 forever. Index `runs(status, detached_since)` if you plan to sweep on
 `listReclaimable`.
+
+A subagent child run stores `parentRunId`, `subagentRunId`, and `name`.
+The first `createOrResume` writes them. A second call for the same `runId`
+returns the stored row. `listByParentRun` returns the children of that parent,
+oldest first. `reconstructChat` uses that list to rebuild the cards. Index
+`runs(parent_run_id, started_at)` for that query. Subagent support is optional.
+A store without `listByParentRun` does not need these three fields, and the
+conformance suite skips the subagent checks with no `skipMethods` entry.
 
 ## 4. Interrupts: insert-if-absent, ordered listings
 

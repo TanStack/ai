@@ -5,8 +5,10 @@ import type {
 import type {
   AgentLoopState,
   EmitCustomEventOptions,
+  Interrupt,
   JSONSchema,
   ModelMessage,
+  UIMessage,
   RunAgentResumeItem,
   StreamChunk,
   TokenUsage,
@@ -191,6 +193,11 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   runId: string
   /** Interrupted or parent run correlated with this continuation. */
   parentRunId?: string
+  /**
+   * Set when this run is a subagent. The id on the child's `SUBAGENT_STARTED`
+   * and on every chunk it streams. Absent on a top-level run.
+   */
+  subagentRunId?: string
   /**
    * AG-UI thread identifier — a stable per-conversation ID used to
    * correlate client and server devtools events. Resolves to the
@@ -544,6 +551,40 @@ export interface ErrorInfo {
   duration: number
 }
 
+/**
+ * Saves subagent runs while a router owns the turn.
+ * `withPersistence` sets this. `chat()` calls it. Apps do not.
+ */
+export interface RoutedSubagentPersistence {
+  start: (input: {
+    threadId: string
+    runId: string
+    messages: ReadonlyArray<UIMessage | ModelMessage>
+    /**
+     * The run's resume entries: answers to earlier child interrupts, plus any
+     * the parent answers itself.
+     */
+    resume?: ReadonlyArray<RunAgentResumeItem>
+  }) => Promise<void>
+  chunk: (input: {
+    threadId: string
+    runId: string
+    chunk: StreamChunk
+  }) => Promise<void>
+  finish: (input: { threadId: string; runId: string }) => Promise<void>
+  /** The run stopped because a child waits for outside input. */
+  suspend?: (input: {
+    threadId: string
+    runId: string
+    interrupts: ReadonlyArray<Interrupt>
+  }) => Promise<void>
+  abort: (input: {
+    threadId: string
+    runId: string
+    error?: unknown
+  }) => Promise<void>
+}
+
 // ===========================
 // Middleware Interface
 // ===========================
@@ -583,6 +624,12 @@ export interface ChatMiddleware<
 > {
   /** Optional name for debugging and identification */
   name?: string
+
+  /**
+   * Present when this middleware stores subagent runs.
+   * The router calls it. An app does not set it.
+   */
+  routedSubagentPersistence?: RoutedSubagentPersistence
 
   /**
    * Called at a lifecycle boundary. Return interrupt requests to pause the run.
