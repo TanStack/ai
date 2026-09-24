@@ -470,7 +470,7 @@ export function updateThinkingPart(
     let adopted: ThinkingPart | undefined
     if (thinkingPartIndex < 0) {
       thinkingPartIndex = parts.findIndex(
-        (p) => p.type === 'thinking' && !p.stepId,
+        (p) => p.type === 'thinking' && p.stepId === undefined,
       )
       const candidate = parts[thinkingPartIndex]
       if (candidate?.type === 'thinking') adopted = candidate
