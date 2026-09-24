@@ -43,7 +43,11 @@ import { withDurabilityBatchHint } from '../../utilities/durability-batch'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
 import { restorePublicUsage } from '../../utilities/restore-inbound-chunk'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
-import { normalizeToolResult } from '../../utilities/tool-result'
+import {
+  normalizeToolResult,
+  parseToolOutput,
+  toolResultErrorText,
+} from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
@@ -3255,10 +3259,7 @@ class TextEngine<
         content,
         toolCallId: result.toolCallId,
         ...(result.state === 'output-error' && {
-          error:
-            typeof result.result?.error === 'string'
-              ? result.result.error
-              : 'Tool execution failed',
+          error: toolResultErrorText(parseToolOutput(wireContent)),
         }),
       }
 

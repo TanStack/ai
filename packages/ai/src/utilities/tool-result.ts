@@ -46,6 +46,33 @@ export function isContentPartArray(
 }
 
 /**
+ * Error text for a failed tool result: `output.error` when it is a string,
+ * else the output itself when it is a string, else a generic message.
+ * `StreamProcessor` and `chat()` history share it, so a reload shows the
+ * same text as the live stream.
+ */
+export function toolResultErrorText(output: unknown): string {
+  if (
+    output &&
+    typeof output === 'object' &&
+    'error' in output &&
+    typeof output.error === 'string'
+  ) {
+    return output.error
+  }
+  return typeof output === 'string' ? output : 'Tool execution failed'
+}
+
+/** Parse tool result content as JSON. Plain text stays a string. */
+export function parseToolOutput(content: string): unknown {
+  try {
+    return JSON.parse(content)
+  } catch {
+    return content
+  }
+}
+
+/**
  * Normalize a tool's return value for transport:
  * - string            → unchanged
  * - ContentPart array → unchanged (multimodal, passed through to the adapter)

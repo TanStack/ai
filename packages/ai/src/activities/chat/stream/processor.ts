@@ -32,7 +32,10 @@ import {
 } from '../../../utilities/merge-metadata'
 import { getChunkRunId } from '../../../utilities/chunk-ids'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
-import { normalizeToolResult } from '../../../utilities/tool-result'
+import {
+  normalizeToolResult,
+  toolResultErrorText,
+} from '../../../utilities/tool-result'
 import { defaultJSONParser } from './json-parser'
 import {
   appendStructuredOutputDelta,
@@ -1705,9 +1708,7 @@ export class StreamProcessor {
             }
           }
           const errorText =
-            result.state === 'error'
-              ? this.extractToolResultError(output)
-              : undefined
+            result.state === 'error' ? toolResultErrorText(output) : undefined
           next = {
             ...next,
             output: errorText ? { error: errorText } : output,
@@ -2001,18 +2002,6 @@ export class StreamProcessor {
     }
   }
 
-  private extractToolResultError(output: unknown): string {
-    if (
-      output &&
-      typeof output === 'object' &&
-      'error' in output &&
-      typeof output.error === 'string'
-    ) {
-      return output.error
-    }
-    return typeof output === 'string' ? output : 'Tool execution failed'
-  }
-
   /**
    * Handle TOOL_CALL_RESULT event (AG-UI spec).
    *
@@ -2069,7 +2058,7 @@ export class StreamProcessor {
       chunk.toolCallId,
       aguiContentToContentParts(chunk.content),
       resultState,
-      resultState === 'error' ? this.extractToolResultError(output) : undefined,
+      resultState === 'error' ? toolResultErrorText(output) : undefined,
     )
     this.emitMessagesChange()
   }
