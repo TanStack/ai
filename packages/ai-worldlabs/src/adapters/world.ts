@@ -3,7 +3,10 @@ import {
   generateWorldMarbleV1WorldsGeneratePost,
   getOperationMarbleV1OperationsOperationIdGet,
 } from '../generated/sdk.gen'
-import { createWorldLabsClient } from '../utils/client'
+import {
+  createWorldLabsClient,
+  getWorldLabsApiKeyFromEnv,
+} from '../utils/client'
 import type {
   WorldGenerationAssets,
   WorldGenerationOptions,
@@ -204,14 +207,14 @@ export class WorldLabsWorldAdapter<
 }
 
 /**
- * Create a World Labs world adapter. Reads `WORLDLABS_API_KEY` when `apiKey`
- * is omitted.
+ * Create a World Labs world adapter. Reads `WORLDLABS_API_KEY`.
  */
 export function worldlabsWorld<TModel extends WorldLabsWorldModel>(
   model: TModel,
-  config?: WorldLabsClientConfig,
+  config?: Omit<WorldLabsClientConfig, 'apiKey'>,
 ): WorldLabsWorldAdapter<TModel> {
-  return new WorldLabsWorldAdapter(model, config ?? {})
+  const apiKey = getWorldLabsApiKeyFromEnv()
+  return createWorldLabsWorld(model, apiKey, config)
 }
 
 /**
