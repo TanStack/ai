@@ -12,6 +12,7 @@ type ChatHookOverrides<
   TSchema extends SchemaInput | undefined,
   TContext,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+  TSubagents extends ReadonlyArray<{ name: string }> | undefined,
 > = {
   threadId?: string
   live?: boolean
@@ -21,7 +22,8 @@ type ChatHookOverrides<
     TTools,
     TSchema,
     TContext,
-    TInterrupts
+    TInterrupts,
+    TSubagents
   >['initialMessages']
 }
 
@@ -53,9 +55,17 @@ export function createChatHook<
   const TInterrupts extends ReadonlyArray<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
->(options: UseChatOptions<TTools, TSchema, TContext, TInterrupts>) {
+  const TSubagents extends ReadonlyArray<{ name: string }> | undefined =
+    undefined,
+>(options: UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>) {
   function useChat(
-    overrides?: ChatHookOverrides<TTools, TSchema, TContext, TInterrupts>,
+    overrides?: ChatHookOverrides<
+      TTools,
+      TSchema,
+      TContext,
+      TInterrupts,
+      TSubagents
+    >,
   ) {
     if (!overrides) {
       return useUnboundChat(options)

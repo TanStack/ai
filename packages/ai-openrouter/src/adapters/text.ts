@@ -49,7 +49,14 @@ import type {
   OpenRouterMessageMetadataByModality,
 } from '../message-types'
 
-export interface OpenRouterConfig extends SDKOptions {}
+export interface OpenRouterConfig extends SDKOptions {
+  /**
+   * HTTP status codes the SDK retries using `retryConfig`, e.g.
+   * `['429', '5XX']`. The SDK only accepts this per call (default `['5XX']`),
+   * so the adapter forwards it to every `chat.send`.
+   */
+  retryCodes?: Array<string>
+}
 export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
 
 export type OpenRouterTextModelOptions = ExternalTextProviderOptions
@@ -128,10 +135,13 @@ export class OpenRouterTextAdapter<
   readonly name = 'openrouter' as const
 
   protected orClient: OpenRouter
+  private readonly retryCodes: Array<string> | undefined
 
   constructor(config: OpenRouterConfig, model: TModel) {
     super({}, model)
-    this.orClient = new OpenRouter(config)
+    const { retryCodes, ...sdkOptions } = config
+    this.orClient = new OpenRouter(sdkOptions)
+    this.retryCodes = retryCodes
   }
 
   async *chatStream(
@@ -171,6 +181,7 @@ export class OpenRouterTextAdapter<
         {
           ...(reqOptions.signal != null && { signal: reqOptions.signal }),
           ...(reqOptions.headers && { headers: reqOptions.headers }),
+          ...(this.retryCodes && { retryCodes: this.retryCodes }),
         },
       )
 
@@ -263,6 +274,7 @@ export class OpenRouterTextAdapter<
         {
           ...(reqOptions.signal != null && { signal: reqOptions.signal }),
           ...(reqOptions.headers && { headers: reqOptions.headers }),
+          ...(this.retryCodes && { retryCodes: this.retryCodes }),
         },
       )
 
@@ -424,6 +436,7 @@ export class OpenRouterTextAdapter<
         {
           ...(reqOptions.signal != null && { signal: reqOptions.signal }),
           ...(reqOptions.headers && { headers: reqOptions.headers }),
+          ...(this.retryCodes && { retryCodes: this.retryCodes }),
         },
       )
 
@@ -1524,14 +1537,14 @@ function extractReasoningText(chunk: ChatStreamChunk): string {
 export function createOpenRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
   apiKey: string,
-  config?: Omit<SDKOptions, 'apiKey'>,
+  config?: Omit<OpenRouterConfig, 'apiKey'>,
 ): OpenRouterTextAdapter<TModel, ResolveToolCapabilities<TModel>> {
   return new OpenRouterTextAdapter({ apiKey, ...config }, model)
 }
 
 export function openRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
-  config?: Omit<SDKOptions, 'apiKey'>,
+  config?: Omit<OpenRouterConfig, 'apiKey'>,
 ): OpenRouterTextAdapter<TModel, ResolveToolCapabilities<TModel>> {
   const apiKey = getOpenRouterApiKeyFromEnv()
   return createOpenRouterText(model, apiKey, config)

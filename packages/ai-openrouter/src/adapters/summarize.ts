@@ -4,7 +4,6 @@ import { OpenRouterTextAdapter } from './text'
 import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
 import type { OpenRouterConfig } from './text'
 import type { OPENROUTER_CHAT_MODELS } from '../model-meta'
-import type { SDKOptions } from '@openrouter/sdk'
 
 export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
 
@@ -35,7 +34,7 @@ export interface OpenRouterSummarizeConfig extends OpenRouterConfig {
 export function createOpenRouterSummarize<TModel extends OpenRouterTextModels>(
   model: TModel,
   apiKey: string,
-  config?: Omit<SDKOptions, 'apiKey'>,
+  config?: Omit<OpenRouterConfig, 'apiKey'>,
 ): ChatStreamSummarizeAdapter<
   TModel,
   InferTextProviderOptions<OpenRouterTextAdapter<TModel>>
@@ -73,7 +72,7 @@ export function createOpenRouterSummarize<TModel extends OpenRouterTextModels>(
  */
 export function openRouterSummarize<TModel extends OpenRouterTextModels>(
   model: TModel,
-  config?: Omit<SDKOptions, 'apiKey'>,
+  config?: Omit<OpenRouterConfig, 'apiKey'>,
 ): ChatStreamSummarizeAdapter<
   TModel,
   InferTextProviderOptions<OpenRouterTextAdapter<TModel>>

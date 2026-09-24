@@ -1,5 +1,16 @@
 # @tanstack/ai-sandbox
 
+## 0.5.13
+
+### Patch Changes
+
+- [#1438](https://github.com/TanStack/ai/pull/1438) [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0) - The memory sandbox run store keeps `parentRunId`, `subagentRunId`, and `name` on a run record and adds `listByParentRun`, so `reconstructChat` can rebuild subagent cards from it.
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+  - @tanstack/ai-persistence@0.6.5
+  - @tanstack/ai-skills@0.1.8
+
 ## 0.5.12
 
 ### Patch Changes
