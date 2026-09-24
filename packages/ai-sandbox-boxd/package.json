@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-boxd",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "boxd sandbox provider for TanStack AI — run harness adapters inside isolated boxd KVM microVMs through the uniform SandboxHandle.",
   "author": "",
   "license": "MIT",

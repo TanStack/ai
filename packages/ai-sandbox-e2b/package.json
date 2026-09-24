@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-e2b",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "E2B sandbox provider for TanStack AI — run harness adapters inside isolated E2B cloud sandboxes through the uniform SandboxHandle.",
   "author": "",
   "license": "MIT",

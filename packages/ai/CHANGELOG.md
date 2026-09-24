@@ -1,5 +1,29 @@
 # @tanstack/ai
 
+## 0.61.0
+
+### Minor Changes
+
+- [#1381](https://github.com/TanStack/ai/pull/1381) [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b) - Add `@tanstack/ai-worldlabs` with `worldlabsWorld()` for Marble world generation through `generateWorld()`. World Labs jobs return a viewer URL and splat/mesh assets. `WorldGenerationResult` now has optional `url`, `worldId`, `operationId`, and `assets` so job adapters can omit a live-session token.
+
+### Patch Changes
+
+- [#1469](https://github.com/TanStack/ai/pull/1469) [`54d39d3`](https://github.com/TanStack/ai/commit/54d39d30704bbdbdccea756af31530cc6713fc2e) - Keep Anthropic's signed thinking order when a provider-executed tool (web_search / web_fetch) runs inside the same response as thinking, and stop provider-executed calls from being classified as client tool interrupts.
+  - `uiMessagesToWire` now splits an assistant message into ordered segments at every thinking part that follows a provider-executed tool call (the rule `buildAssistantMessages` already applies), instead of emitting all `reasoning` messages first and one anchor with the joined text and every tool call. Later anchors get `${id}-segment-${n}` ids.
+  - The run loop records the iteration's thinking, text and tool calls in arrival order and writes one assistant `ModelMessage` per segment, so the interrupt `MESSAGES_SNAPSHOT` and the server-side continuation history keep the order too.
+  - `getBoundaryActionableToolRequests` and `executeToolCalls` skip provider-executed calls, so a run that mixes web search with a client tool no longer parks on "Client tool web_search is ready to run" interrupts.
+  - A `MESSAGES_SNAPSHOT` and `modelMessagesToUIMessages` fold `${id}-segment-${n}` messages back into their parent, so the UI still shows one assistant message per response.
+
+  Without this, the turn after such a response fails with Anthropic's `thinking or redacted_thinking blocks in the latest assistant message cannot be modified`.
+
+- [#1428](https://github.com/TanStack/ai/pull/1428) [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb) - Forward summarize maxLength through OpenAI-compatible adapters using the token-limit key for their API, regardless of the summarize wrapper name. Keep explicit caller limits unchanged.
+
+- [#1471](https://github.com/TanStack/ai/pull/1471) [`74b5823`](https://github.com/TanStack/ai/commit/74b582305471eaf37a3b68595e60ed1a6f42d914) - Keep a failed tool call's error on the tool message `chat()` adds to its message history. Persisted threads now restore the call with `state: 'error'` instead of `'complete'`.
+
+- [#1366](https://github.com/TanStack/ai/pull/1366) [`abb0169`](https://github.com/TanStack/ai/commit/abb0169bf96c38f59791450ce060d089a7fcd26e) - Stop a mid-stream resume from duplicating the reasoning block. A hydrated message has no `stepId` on its thinking part — the stored form has nowhere to keep one — so the reasoning replayed on rejoin, which is keyed by `stepId`, matched nothing and was appended, leaving the turn as thinking, text, thinking. `updateThinkingPart` now falls back to the first thinking part that has no `stepId` and adopts it, carrying its signature over so the provider's encrypted reasoning is not lost. Parts that already belong to another step are never adopted, so separate reasoning steps still get separate parts.
+
+- [#1427](https://github.com/TanStack/ai/pull/1427) [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088) - Structured output now reports a response that was cut off at the output cap (`finish_reason: "length"`) as a truncation error instead of a JSON parse error or a "no content" / "missing structured result" error. This covers `chat({ outputSchema })` in native combined mode (error code `max_tokens`), `structuredOutputStream()` in `openai-base` and `ai-openrouter` (`RUN_ERROR` with code `max_tokens`), and their non-stream `structuredOutput()`. A truncated document used to read as a schema failure; the error now says the token limit was reached.
+
 ## 0.60.0
 
 ### Minor Changes

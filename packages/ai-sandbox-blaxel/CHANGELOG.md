@@ -1,5 +1,18 @@
 # @tanstack/ai-sandbox-blaxel
 
+## 0.3.0
+
+### Minor Changes
+
+- [#1358](https://github.com/TanStack/ai/pull/1358) [`a31109f`](https://github.com/TanStack/ai/commit/a31109f4573360c71525513ba7bf2e13fb44c00c) - Use SDK-resolved CLI or client credentials when no API key is supplied. Add lstat metadata without following symlinks and advertise process termination after live conformance validation, with bounded remote reaper completion.
+
+### Patch Changes
+
+- [#1356](https://github.com/TanStack/ai/pull/1356) [`63f5f49`](https://github.com/TanStack/ai/commit/63f5f49cd64ec722cdd0f05b560594be8b59d02b) - Preserve concurrent stdout and stderr when Blaxel log delivery splits records or inserts keepalives. Wait for log attachment before starting the command.
+
+- Updated dependencies []:
+  - @tanstack/ai-sandbox@0.5.15
+
 ## 0.2.0
 
 ### Minor Changes
