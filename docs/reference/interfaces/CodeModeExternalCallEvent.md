@@ -3,7 +3,7 @@ id: CodeModeExternalCallEvent
 title: CodeModeExternalCallEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1499](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1499)
+Defined in: [packages/ai/src/types.ts:1521](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1521)
 
 Custom event for extensibility.
 
@@ -24,7 +24,7 @@ erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCu
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1368](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1368)
+Defined in: [packages/ai/src/types.ts:1390](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1390)
 
 #### Inherited from
 
@@ -38,7 +38,7 @@ Defined in: [packages/ai/src/types.ts:1368](https://github.com/TanStack/ai/blob/
 name: "code_mode:external_call";
 ```
 
-Defined in: [packages/ai/src/types.ts:1500](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1500)
+Defined in: [packages/ai/src/types.ts:1522](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1522)
 
 #### Overrides
 
@@ -54,7 +54,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1367](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1367)
+Defined in: [packages/ai/src/types.ts:1389](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1389)
 
 #### Inherited from
 
@@ -68,7 +68,7 @@ Defined in: [packages/ai/src/types.ts:1367](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1501](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1501)
+Defined in: [packages/ai/src/types.ts:1523](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1523)
 
 #### args
 

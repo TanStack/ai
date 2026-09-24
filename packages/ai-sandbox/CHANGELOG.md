@@ -1,5 +1,36 @@
 # @tanstack/ai-sandbox
 
+## 0.5.13
+
+### Patch Changes
+
+- [#1438](https://github.com/TanStack/ai/pull/1438) [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0) - The memory sandbox run store keeps `parentRunId`, `subagentRunId`, and `name` on a run record and adds `listByParentRun`, so `reconstructChat` can rebuild subagent cards from it.
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+  - @tanstack/ai-persistence@0.6.5
+  - @tanstack/ai-skills@0.1.8
+
+## 0.5.12
+
+### Patch Changes
+
+- [#1355](https://github.com/TanStack/ai/pull/1355) [`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db) - Flush CUSTOM events through the durability layer as soon as they are emitted, so progress events such as `compaction:started` reach the client at emit time. High-volume events (`process.stdout`, `process.stderr`, `sandbox.file`, `sandbox.file.diff`) still batch. Pass `{ batch: true }` on `emitCustomEvent` to opt an event into the batch.
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+  - @tanstack/ai-persistence@0.6.4
+  - @tanstack/ai-skills@0.1.7
+
+## 0.5.11
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+  - @tanstack/ai-persistence@0.6.2
+  - @tanstack/ai-skills@0.1.6
+
 ## 0.5.10
 
 ### Patch Changes

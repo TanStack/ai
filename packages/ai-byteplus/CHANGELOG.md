@@ -1,5 +1,31 @@
 # @tanstack/ai-byteplus
 
+## 0.4.3
+
+### Patch Changes
+
+- [#1438](https://github.com/TanStack/ai/pull/1438) [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0) - The BytePlus image and video adapters throw on an AG-UI `{ type: 'file' }` source. Pass a `data` or `url` source. Before this, a file handle was sent as a data URL.
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+  - @tanstack/openai-base@0.10.16
+
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+  - @tanstack/openai-base@0.10.15
+
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+  - @tanstack/openai-base@0.10.14
+
 ## 0.4.0
 
 ### Minor Changes

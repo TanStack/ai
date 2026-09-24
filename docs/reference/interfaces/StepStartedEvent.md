@@ -3,7 +3,7 @@ id: StepStartedEvent
 title: StepStartedEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1319](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1319)
+Defined in: [packages/ai/src/types.ts:1341](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1341)
 
 Emitted when a thinking/reasoning step starts.
 

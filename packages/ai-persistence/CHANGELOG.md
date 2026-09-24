@@ -1,5 +1,39 @@
 # @tanstack/ai-persistence
 
+## 0.6.5
+
+### Patch Changes
+
+- [#1438](https://github.com/TanStack/ai/pull/1438) [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0) - A subagent run record stores `parentRunId`, `subagentRunId`, and `name`. Each child keeps its full transcript: text, reasoning, tool calls, and tool results. `reconstructChat` uses `listByParentRun` to put each child card back, with nested children and a child that waits for an approval. A later message keeps that link, so the next agent still sees the child text.
+
+  Subagent support in a store is optional. `runPersistenceConformance` checks the three link fields and `listByParentRun` only when the store has `listByParentRun`. A store without it passes with no change and no `skipMethods` entry.
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+
+## 0.6.4
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+
+## 0.6.3
+
+### Patch Changes
+
+- [#1434](https://github.com/TanStack/ai/pull/1434) [`dd1f8e2`](https://github.com/TanStack/ai/commit/dd1f8e2431f2f4fd7804ff74cea90e21cb2bd2b7) - Add a package README: install, `withPersistence` on the server, `persistence: true` on the client, `reconstructChat` for reloads mid-answer, the smallest custom adapter, the `testkit` conformance suite, and links to the docs.
+
+- Updated dependencies [[`8bcfb88`](https://github.com/TanStack/ai/commit/8bcfb883bf7447c84cc0148bf838e9324dc5f1d3)]:
+  - @tanstack/ai-utils@0.4.1
+
+## 0.6.2
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+
 ## 0.6.1
 
 ### Patch Changes

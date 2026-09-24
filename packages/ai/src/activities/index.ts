@@ -40,6 +40,21 @@ export {
 } from './chat/index'
 
 export {
+  defineAgent,
+  type DefinedAgent,
+  type SubagentChoiceOptions,
+  type SubagentRunContext,
+} from './chat/agents/define-agent'
+export { subagentRoute, type SubagentRouteOptions } from './chat/agents/route'
+export type {
+  SubagentOrder,
+  SubagentRouterPick,
+  SubagentRouterPlan,
+  SubagentStep,
+  SubagentStepsPlan,
+} from './chat/agents/spawn'
+
+export {
   BaseTextAdapter,
   type AnyTextAdapter,
   type TextAdapter,

@@ -3,7 +3,7 @@ id: WorldGenerationOptions
 title: WorldGenerationOptions
 ---
 
-Defined in: [packages/ai/src/types.ts:2230](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2230)
+Defined in: [packages/ai/src/types.ts:2252](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2252)
 
 **`Experimental`**
 
@@ -25,7 +25,7 @@ Options for world generation (live, prompt-steerable sessions).
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: [packages/ai/src/types.ts:2253](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2253)
+Defined in: [packages/ai/src/types.ts:2275](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2275)
 
 **`Experimental`**
 
@@ -41,7 +41,7 @@ supported. Request-specific — never store on a global client config.
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:2247](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2247)
+Defined in: [packages/ai/src/types.ts:2269](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2269)
 
 **`Experimental`**
 
@@ -57,7 +57,7 @@ catch blocks.
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2234](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2234)
+Defined in: [packages/ai/src/types.ts:2256](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2256)
 
 **`Experimental`**
 
@@ -71,7 +71,7 @@ The model to use for world generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:2241](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2241)
+Defined in: [packages/ai/src/types.ts:2263](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2263)
 
 **`Experimental`**
 
@@ -86,7 +86,7 @@ Provider mint options. Reactor resolution/seed/audio are browser
 prompt: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2236](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2236)
+Defined in: [packages/ai/src/types.ts:2258](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2258)
 
 **`Experimental`**
 

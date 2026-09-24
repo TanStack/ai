@@ -28,7 +28,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import type { AddressInfo } from 'node:net'
-import type { AnyTool } from '@tanstack/ai'
+import type { AnyTool, EmitCustomEventOptions } from '@tanstack/ai'
 
 /**
  * Name of the bridged MCP server. The agent sees tools as
@@ -72,7 +72,11 @@ export interface ToolBridgeCoreOptions {
    * `emitCustomEvent` never reaches a bridged tool. The harness adapter supplies
    * one that injects a CUSTOM chunk into its live output stream.
    */
-  emitCustomEvent?: (eventName: string, value: Record<string, unknown>) => void
+  emitCustomEvent?: (
+    eventName: string,
+    value: Record<string, unknown>,
+    options?: EmitCustomEventOptions,
+  ) => void
   /**
    * Optional permission-prompt tool (e.g. for Claude Code's
    * `--permission-prompt-tool`). When set, the bridge exposes an extra MCP tool

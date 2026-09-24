@@ -1,5 +1,54 @@
 # @tanstack/ai-openrouter
 
+## 0.19.18
+
+### Patch Changes
+
+- [#1474](https://github.com/TanStack/ai/pull/1474) [`a810da6`](https://github.com/TanStack/ai/commit/a810da6479ddd8d21425b46e8f57bd5e541587e4) - Add a `retryCodes` option to the OpenRouter text and summarize adapters. The adapter passes it to every chat request, so `retryCodes: ['429', '5XX']` together with `retryConfig` now retries rate limits. Before, the SDK retried only 5XX errors, because it reads `retryCodes` only per request.
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+
+## 0.19.17
+
+### Patch Changes
+
+- [#1451](https://github.com/TanStack/ai/pull/1451) [`07b69ba`](https://github.com/TanStack/ai/commit/07b69babc7d131dbe8f7616a0f1528090bb4e92d) - Update model metadata from OpenRouter API
+
+## 0.19.16
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+
+## 0.19.15
+
+### Patch Changes
+
+- [#1421](https://github.com/TanStack/ai/pull/1421) [`e5ee030`](https://github.com/TanStack/ai/commit/e5ee0300d66ca8ac6c2b9b23937a070c8a58d767) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`8bcfb88`](https://github.com/TanStack/ai/commit/8bcfb883bf7447c84cc0148bf838e9324dc5f1d3)]:
+  - @tanstack/ai-utils@0.4.1
+
+## 0.19.14
+
+### Patch Changes
+
+- [#1419](https://github.com/TanStack/ai/pull/1419) [`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329) - Add decide() and TypeSafe Jev evaluate adapters.
+
+  Callers await one decide({ adapter, state, questions }) call.
+  Questions use choice(), score(), and boolean(). Answers sit on the result (value, probability, confidence). Usage sits on result.meta.
+
+  Jev transports:
+  - @tanstack/ai-typesafe (typesafeDecider)
+  - @tanstack/ai-openrouter (openRouterDecider)
+  - @tanstack/ai-vercel-gateway (vercelGatewayDecider)
+  - @tanstack/ai-cloudflare (cloudflareDecider)
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+
 ## 0.19.13
 
 ### Patch Changes

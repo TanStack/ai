@@ -1,5 +1,46 @@
 # @tanstack/ai-anthropic
 
+## 0.18.13
+
+### Patch Changes
+
+- [#1423](https://github.com/TanStack/ai/pull/1423) [`7d8858a`](https://github.com/TanStack/ai/commit/7d8858addf16f163949f60bc242901a9308334d3) - Restore the provider tool list and combined tools-and-schema support for `claude-opus-5` and `claude-fable-5-1`.
+
+  Both models were inserted by the model sync with `supports.tools: []`, which the sync writes for every new Anthropic model. The curated list is filled in by hand afterwards, and that step was missed for these two. `ResolveToolCapabilities` reads the generated tool-capabilities map, so a caller on either model could not pass `webSearchTool`, `webFetchTool`, `codeExecutionTool`, `computerUseTool`, `bashTool`, `textEditorTool`, or `memoryTool` without a type error, while the same call type-checked on `claude-opus-4-1`.
+
+  The two models were also missing from `ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS`, so `supportsCombinedToolsAndSchema()` returned `false` and structured output alongside tools fell back to the forced-tool-use workaround kept for pre-4.5 models instead of `output_config.format`.
+
+  `claude-opus-5` also did not declare `AnthropicOutputConfigOptions` in its provider-options type. The adapter merges `output_config.format` over any caller-supplied `output_config`, so a caller on this model could not tune `output_config.effort` alongside the schema. Opus 4.7, Opus 4.8, Sonnet 5, Fable 5 and Fable 5.1 all declare it.
+
+  `claude-opus-5-fast` keeps an empty tool list: it is absent from the supported-model lists for code execution, computer use, and structured outputs. The per-model type-safety suite now asserts that it is the only registered model without provider tools, so the next model inserted with an empty list fails the suite instead of shipping.
+
+## 0.18.12
+
+### Patch Changes
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+
+## 0.18.11
+
+### Patch Changes
+
+- [#1443](https://github.com/TanStack/ai/pull/1443) [`77c4607`](https://github.com/TanStack/ai/commit/77c4607f23a194319c72eb2b3c7034c91c129ad2) - Add a package README: setup, chat, tools, thinking, prompt caching, summarization, provider tools, Claude on Vertex AI, and links to the docs.
+
+## 0.18.10
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+
+## 0.18.9
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+
 ## 0.18.8
 
 ### Patch Changes

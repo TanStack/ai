@@ -59,6 +59,37 @@ const adapter = createOpenRouterText(
 );
 ```
 
+### Retry rate limits
+
+A busy upstream provider can reply with HTTP 429. The adapter retries only 5XX errors by default. Add `"429"` to `retryCodes` to retry rate limits too:
+
+```typescript
+import { createOpenRouterText } from "@tanstack/ai-openrouter";
+
+const adapter = createOpenRouterText(
+  "openai/gpt-5",
+  process.env.OPENROUTER_API_KEY!,
+  {
+    retryConfig: {
+      strategy: "backoff",
+      backoff: {
+        initialInterval: 500,
+        maxInterval: 60000,
+        exponent: 1.5,
+        maxElapsedTime: 120000,
+      },
+      retryConnectionErrors: true,
+    },
+    retryCodes: ["429", "5XX"],
+  },
+);
+```
+
+- `retryCodes`: the HTTP status codes to retry. `"5XX"` matches every 5xx code.
+- `retryConfig`: how long to wait between tries. When the response has a `Retry-After` header, the SDK waits that long.
+
+Now a 429 waits, then retries, and the chat continues with the next response.
+
 ## Available Models
 
 OpenRouter provides access to 300+ models from various providers. Models use the format `provider/model-name`:

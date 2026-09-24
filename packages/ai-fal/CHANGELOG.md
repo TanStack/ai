@@ -1,5 +1,32 @@
 # @tanstack/ai-fal
 
+## 0.14.6
+
+### Patch Changes
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+
+## 0.14.5
+
+### Patch Changes
+
+- [#1442](https://github.com/TanStack/ai/pull/1442) [`e47e221`](https://github.com/TanStack/ai/commit/e47e22132a6d10e6841ab09fd1c461ddc7c5005f) - Add a package README: setup, one example per activity (image, video, speech, transcription, audio, live video), the adapter-to-activity table, and links to the docs.
+
+## 0.14.4
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+
+## 0.14.3
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+
 ## 0.14.2
 
 ### Patch Changes

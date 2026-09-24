@@ -1,5 +1,34 @@
 # @tanstack/ai-gemini
 
+## 0.32.1
+
+### Patch Changes
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+
+## 0.32.0
+
+### Minor Changes
+
+- [#1449](https://github.com/TanStack/ai/pull/1449) [`fe4e13b`](https://github.com/TanStack/ai/commit/fe4e13b72b54f82f19353a3f1254daa000dbb70b) - Add `gemini-3.8-live` and `gemini-3.8-live-extended-thinking` to `GeminiRealtimeModel`. The realtime adapter now defaults to `gemini-3.8-live`; pass `model: 'gemini-3.1-flash-live-preview'` to keep the legacy preview model.
+
+## 0.31.2
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+
+## 0.31.1
+
+### Patch Changes
+
+- [#1198](https://github.com/TanStack/ai/pull/1198) [`418142b`](https://github.com/TanStack/ai/commit/418142ba482003863265e0db4d596af29f233852) - Fix `mergeConsecutiveSameRoleMessages` deduplicating `functionResponse` parts by `name` instead of `id`. Two parallel calls to the same tool in one turn share a `name` but have distinct ids, so the second response was silently dropped, leaving Gemini with fewer response parts than call parts on the next request (`400 INVALID_ARGUMENT: ... number of function response parts is equal to the number of function call parts`). Deduping by `id` still collapses a genuine duplicate tool result while preserving both responses for same-tool parallel calls.
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+
 ## 0.31.0
 
 ### Minor Changes

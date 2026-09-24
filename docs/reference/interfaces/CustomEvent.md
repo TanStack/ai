@@ -3,7 +3,7 @@ id: CustomEvent
 title: CustomEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1363](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1363)
+Defined in: [packages/ai/src/types.ts:1385](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1385)
 
 Custom event for extensibility.
 
@@ -45,7 +45,7 @@ erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCu
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1368](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1368)
+Defined in: [packages/ai/src/types.ts:1390](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1390)
 
 ***
 
@@ -55,4 +55,4 @@ Defined in: [packages/ai/src/types.ts:1368](https://github.com/TanStack/ai/blob/
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1367](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1367)
+Defined in: [packages/ai/src/types.ts:1389](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1389)

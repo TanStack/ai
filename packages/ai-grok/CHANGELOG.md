@@ -1,5 +1,39 @@
 # @tanstack/ai-grok
 
+## 0.19.1
+
+### Patch Changes
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+  - @tanstack/openai-base@0.10.16
+
+## 0.19.0
+
+### Minor Changes
+
+- [#1458](https://github.com/TanStack/ai/pull/1458) [`17efeb6`](https://github.com/TanStack/ai/commit/17efeb6593e39552d13ce34413a9aca109085cf5) - Stop rejecting Grok image prompts longer than 4000 characters. Remove `grok-2-image-1212`. xAI retired that model on 2026-02-24, and the image API returns 404 for it. Use `grok-imagine-image`, `grok-imagine-image-2.0`, or `grok-imagine-image-quality`.
+
+### Patch Changes
+
+- [#1451](https://github.com/TanStack/ai/pull/1451) [`07b69ba`](https://github.com/TanStack/ai/commit/07b69babc7d131dbe8f7616a0f1528090bb4e92d) - Update model metadata from OpenRouter API
+
+## 0.18.10
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+  - @tanstack/openai-base@0.10.15
+
+## 0.18.9
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+  - @tanstack/openai-base@0.10.14
+
 ## 0.18.8
 
 ### Patch Changes

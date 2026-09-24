@@ -3,7 +3,7 @@ id: AudioGenerationOptions
 title: AudioGenerationOptions
 ---
 
-Defined in: [packages/ai/src/types.ts:2065](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2065)
+Defined in: [packages/ai/src/types.ts:2087](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2087)
 
 Options for audio generation (music, sound effects, etc.).
 These are the common options supported across providers.
@@ -22,7 +22,7 @@ These are the common options supported across providers.
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: [packages/ai/src/types.ts:2087](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2087)
+Defined in: [packages/ai/src/types.ts:2109](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2109)
 
 Effective abort signal composed by the activity from caller `abortSignal`
 and/or `timeout`. Adapters should forward this to the provider SDK when
@@ -36,7 +36,7 @@ supported. Request-specific — never store on a global client config.
 optional duration?: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:2073](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2073)
+Defined in: [packages/ai/src/types.ts:2095](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2095)
 
 Desired duration in seconds
 
@@ -48,7 +48,7 @@ Desired duration in seconds
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:2081](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2081)
+Defined in: [packages/ai/src/types.ts:2103](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2103)
 
 Internal logger threaded from the generateAudio() entry point. Adapters
 must call logger.request() before the SDK call and logger.errors() in
@@ -62,7 +62,7 @@ catch blocks.
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2069](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2069)
+Defined in: [packages/ai/src/types.ts:2091](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2091)
 
 The model to use for audio generation
 
@@ -74,7 +74,7 @@ The model to use for audio generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:2075](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2075)
+Defined in: [packages/ai/src/types.ts:2097](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2097)
 
 Model-specific options for audio generation
 
@@ -86,6 +86,6 @@ Model-specific options for audio generation
 prompt: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2071](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2071)
+Defined in: [packages/ai/src/types.ts:2093](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2093)
 
 Text description of the desired audio

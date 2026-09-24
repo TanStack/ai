@@ -3,7 +3,7 @@ id: CodeModeSnippetErrorEvent
 title: CodeModeSnippetErrorEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1524](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1524)
+Defined in: [packages/ai/src/types.ts:1546](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1546)
 
 Custom event for extensibility.
 
@@ -24,7 +24,7 @@ erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCu
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1368](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1368)
+Defined in: [packages/ai/src/types.ts:1390](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1390)
 
 #### Inherited from
 
@@ -38,7 +38,7 @@ Defined in: [packages/ai/src/types.ts:1368](https://github.com/TanStack/ai/blob/
 name: "code_mode:snippet_error";
 ```
 
-Defined in: [packages/ai/src/types.ts:1525](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1525)
+Defined in: [packages/ai/src/types.ts:1547](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1547)
 
 #### Overrides
 
@@ -54,7 +54,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1367](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1367)
+Defined in: [packages/ai/src/types.ts:1389](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1389)
 
 #### Inherited from
 
@@ -68,7 +68,7 @@ Defined in: [packages/ai/src/types.ts:1367](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1526](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1526)
+Defined in: [packages/ai/src/types.ts:1548](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1548)
 
 #### duration
 
