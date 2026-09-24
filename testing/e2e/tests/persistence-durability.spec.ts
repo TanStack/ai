@@ -258,4 +258,31 @@ test.describe('server persistence', () => {
       totalTokens: 25,
     })
   })
+
+  test('restores a failed server tool call as failed', async ({ request }) => {
+    const threadId = `tool-error-${crypto.randomUUID()}`
+    const run = await request.post(
+      '/api/persistence-durability?scenario=tool-error',
+      { data: { threadId, runId: crypto.randomUUID() } },
+    )
+    expect(run.ok()).toBe(true)
+
+    const hydration = await request.get(
+      `/api/persistence-durability?scenario=tool-error&threadId=${threadId}`,
+    )
+    expect(hydration.ok()).toBe(true)
+    const body = (await hydration.json()) as {
+      messages: Array<{ parts: Array<Record<string, unknown>> }>
+    }
+    const parts = body.messages.flatMap((message) => message.parts)
+
+    expect(parts).toContainEqual(
+      expect.objectContaining({
+        type: 'tool-result',
+        toolCallId: 'call-status',
+        state: 'error',
+        error: 'Status service unavailable',
+      }),
+    )
+  })
 })

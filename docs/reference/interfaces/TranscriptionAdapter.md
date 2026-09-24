@@ -3,8 +3,6 @@ id: TranscriptionAdapter
 title: TranscriptionAdapter
 ---
 
-# Interface: TranscriptionAdapter\<TModel, TProviderOptions\>
-
 Defined in: [packages/ai/src/activities/generateTranscription/adapter.ts:24](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateTranscription/adapter.ts#L24)
 
 Transcription adapter interface with pre-resolved generics.

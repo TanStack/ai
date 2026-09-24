@@ -7,6 +7,7 @@ import {
   wrapGenericInterruptContinuation,
 } from '../src/generic-interrupt-continuation'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
+import { modelMessagesToUIMessages } from '../src/activities/chat/messages'
 import { DISCOVERY_TOOL_NAME } from '../src/activities/chat/tools/lazy-tool-manager'
 import { EventType } from '../src/types'
 import {
@@ -546,6 +547,82 @@ describe('chat()', () => {
           expect(open.has(c.toolCallId)).toBe(true)
         }
       }
+    })
+
+    // #1470: a failed tool must rebuild from history as failed, with the
+    // same error text the live stream shows.
+    async function failedToolHistory(end: StreamChunk, tool: Tool) {
+      let saved: ReadonlyArray<ModelMessage> = []
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', tool.name),
+            ev.toolArgs('call_1', '{}'),
+            end,
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Done.'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+      await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Check it' }],
+          tools: [tool],
+          middleware: [
+            defineChatMiddleware({
+              name: 'capture-message-history',
+              onFinish(ctx) {
+                saved = ctx.messages
+              },
+            }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      return modelMessagesToUIMessages([...saved]).flatMap((m) => m.parts)
+    }
+
+    it('should keep a thrown tool error in message history', async () => {
+      const parts = await failedToolHistory(
+        ev.toolEnd('call_1'),
+        serverTool('checkStatus', () => {
+          throw new Error('Status service unavailable')
+        }),
+      )
+      expect(parts).toContainEqual(
+        expect.objectContaining({
+          type: 'tool-result',
+          toolCallId: 'call_1',
+          state: 'error',
+          error: 'Status service unavailable',
+        }),
+      )
+    })
+
+    it('should keep an adapter-emitted tool error text in message history', async () => {
+      const parts = await failedToolHistory(
+        chunk(EventType.TOOL_CALL_END, {
+          toolCallId: 'call_1',
+          state: 'output-error',
+          result: '{"error":"Rate limited"}',
+        }),
+        serverTool('checkStatus', () => ({ ok: true })),
+      )
+      expect(parts).toContainEqual(
+        expect.objectContaining({
+          type: 'tool-result',
+          toolCallId: 'call_1',
+          state: 'error',
+          error: 'Rate limited',
+        }),
+      )
     })
   })
 
@@ -3018,6 +3095,32 @@ describe('chat()', () => {
   // Error handling
   // ==========================================================================
   describe('error handling', () => {
+    it('fails closed on a file source before the adapter call', async () => {
+      const { adapter, calls } = createMockAdapter({
+        iterations: [[ev.runStarted(), ev.runFinished('stop')]],
+      })
+
+      await expect(
+        collectChunks(
+          chat({
+            adapter,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'document',
+                    source: { type: 'file', value: 'file-abc' },
+                  },
+                ],
+              },
+            ],
+          }) as AsyncIterable<StreamChunk>,
+        ),
+      ).rejects.toThrow("{ type: 'file' }")
+      expect(calls).toHaveLength(0)
+    })
+
     it('should yield RUN_ERROR and stop the loop', async () => {
       const { adapter } = createMockAdapter({
         iterations: [

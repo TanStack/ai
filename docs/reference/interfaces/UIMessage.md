@@ -3,9 +3,7 @@ id: UIMessage
 title: UIMessage
 ---
 
-# Interface: UIMessage\<TData\>
-
-Defined in: [packages/ai/src/types.ts:576](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L576)
+Defined in: [packages/ai/src/types.ts:594](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L594)
 
 UIMessage - Domain-specific message format optimized for building chat UIs
 Contains parts that can be text, tool calls, or tool results. Generic over
@@ -27,7 +25,7 @@ consumer side without manual casts.
 optional createdAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:580](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L580)
+Defined in: [packages/ai/src/types.ts:598](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L598)
 
 ***
 
@@ -37,7 +35,7 @@ Defined in: [packages/ai/src/types.ts:580](https://github.com/TanStack/ai/blob/m
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:577](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L577)
+Defined in: [packages/ai/src/types.ts:595](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L595)
 
 ***
 
@@ -47,7 +45,7 @@ Defined in: [packages/ai/src/types.ts:577](https://github.com/TanStack/ai/blob/m
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:587](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L587)
+Defined in: [packages/ai/src/types.ts:605](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L605)
 
 Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
 User keys stay at the top.
@@ -60,7 +58,7 @@ User keys stay at the top.
 optional name?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:582](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L582)
+Defined in: [packages/ai/src/types.ts:600](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L600)
 
 Optional AG-UI sender name. Converters preserve it across wire and persist.
 
@@ -72,14 +70,14 @@ Optional AG-UI sender name. Converters preserve it across wire and persist.
 parts: MessagePart<TData>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:579](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L579)
+Defined in: [packages/ai/src/types.ts:597](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L597)
 
 ***
 
 ### role
 
 ```ts
-role: "user" | "assistant" | "system";
+role: "assistant" | "user" | "system";
 ```
 
-Defined in: [packages/ai/src/types.ts:578](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L578)
+Defined in: [packages/ai/src/types.ts:596](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L596)

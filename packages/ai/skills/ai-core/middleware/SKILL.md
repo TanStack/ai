@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 
 Every hook receives a `ChatMiddlewareContext` as its first argument, which provides
 `requestId`, `streamId`, `phase`, `iteration`, `chunkIndex`, `model`, `provider`,
-`signal`, `abort()`, `defer()`, and more.
+`signal`, `abort()`, `defer()`, and more. `parentRunId` names the run this one continues. `subagentRunId` is set only inside a subagent and names its card.
 
 | Hook                       | When                                                                                                     | Second Argument                                     |
 | -------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
@@ -609,9 +609,12 @@ driver, or nothing fences a dead host's writes.
 a bare string: `message` is the provider's prose, `code` is the stable,
 machine-branchable classification a consumer switches on. Only
 `createOrResume`, `update`, `get`, and `findActiveRun` are required on a
-`RunStore`; `listByThread` and `listReclaimable` are optional, so a backend can
-leave either out and callers feature-detect
-(`store.listReclaimable?.(opts)`). Shape your own store with
+`RunStore`. `listByThread`, `listByParentRun`, and `listReclaimable` are
+optional, so a backend can leave any of them out and callers feature-detect
+(`store.listReclaimable?.(opts)`). A subagent child run also stores
+`parentRunId`, `subagentRunId`, and `name`. `createOrResume` writes them on
+the first insert and leaves them unchanged on resume. `reconstructChat` calls
+`listByParentRun` to put the child cards back. Shape your own store with
 `defineRunStore` for autocomplete without a separate `: RunStore` annotation,
 matching `defineLock`; `defineRunStore<const T extends RunStore>(store: T): T`
 returns the argument's own type, so an optional method your store implements

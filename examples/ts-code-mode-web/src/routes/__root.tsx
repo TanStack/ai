@@ -28,6 +28,18 @@ export const Route = createRootRoute({
         rel: 'stylesheet',
         href: appCss,
       },
+      {
+        rel: 'icon',
+        type: 'image/svg+xml',
+        href: 'https://tanstack.com/favicon-light.svg',
+        media: '(prefers-color-scheme: light)',
+      },
+      {
+        rel: 'icon',
+        type: 'image/svg+xml',
+        href: 'https://tanstack.com/favicon-dark.svg',
+        media: '(prefers-color-scheme: dark)',
+      },
     ],
   }),
   notFoundComponent: NotFound,

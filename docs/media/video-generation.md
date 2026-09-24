@@ -23,8 +23,6 @@ keywords:
   - image-to-video
 ---
 
-# Video Generation (Experimental)
-
 > **⚠️ EXPERIMENTAL FEATURE WARNING**
 >
 > Video generation is an **experimental feature** that is subject to significant changes. Please read the caveats below carefully before using this feature.

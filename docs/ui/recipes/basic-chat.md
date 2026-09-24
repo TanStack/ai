@@ -12,6 +12,8 @@ keywords:
 
 Start here. This chat has no tools, no interrupts, and no styling.
 
+For a Start app with BYOK, open [Basic Chat](../../tutorials/basic-chat).
+
 You need three components: a `layout`, a `message`, and a `text` part. Leave the rest out.
 
 ## Server
@@ -104,4 +106,5 @@ Render `<ChatScreen />`. Type a message. The reply streams into the page.
 
 - One tool that renders as raw JSON? See [format a tool](./format-a-tool).
 - Need the user to approve something? See [tool approval](./tool-approval).
+- Want markdown with colored fences? See [Highlight markdown code](../markdown).
 - Using Solid, Vue, or Svelte? The same shape applies. See [Solid](../solid), [Vue](../vue), or [Svelte](../svelte).

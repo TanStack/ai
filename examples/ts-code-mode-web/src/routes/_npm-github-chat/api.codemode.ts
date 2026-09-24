@@ -101,10 +101,9 @@ export const Route = createFileRoute('/_npm-github-chat/api/codemode')({
             async function* instrumentedStream(): AsyncGenerator<StreamChunk> {
               yield {
                 type: 'CUSTOM',
-                model: adapter.model,
                 timestamp: Date.now(),
                 name: 'code_mode:llm_call',
-                data: {
+                value: {
                   count: llmCallCount,
                   contextBytes,
                   totalContextBytes,
@@ -137,20 +136,18 @@ export const Route = createFileRoute('/_npm-github-chat/api/codemode')({
             (async function* (): AsyncGenerator<StreamChunk> {
               yield {
                 type: 'CUSTOM',
-                model: adapter.model,
                 timestamp: requestStartTimeMs,
                 name: 'code_mode:chat_start',
-                data: { startTimeMs: requestStartTimeMs },
+                value: { startTimeMs: requestStartTimeMs },
               } as StreamChunk
               for await (const chunk of stream) {
                 if (chunk.type === 'RUN_FINISHED') {
                   const endTimeMs = Date.now()
                   yield {
                     type: 'CUSTOM',
-                    model: adapter.model,
                     timestamp: endTimeMs,
                     name: 'code_mode:chat_end',
-                    data: {
+                    value: {
                       endTimeMs,
                       durationMs: endTimeMs - requestStartTimeMs,
                     },

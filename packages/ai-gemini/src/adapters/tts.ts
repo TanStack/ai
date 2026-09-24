@@ -7,7 +7,7 @@ import {
 import { GEMINI_TTS_VOICES } from '../model-meta'
 import { buildGeminiUsage } from '../usage'
 import type { GEMINI_TTS_MODELS, GeminiTTSVoice } from '../model-meta'
-import type { TTSOptions, TTSResult } from '@tanstack/ai'
+import type { TTSCapabilities, TTSOptions, TTSResult } from '@tanstack/ai'
 import type { GoogleGenAI, SpeechConfig } from '@google/genai'
 import type { GeminiClientConfig } from '../utils/client'
 
@@ -122,6 +122,11 @@ export class GeminiTTSAdapter<
 > extends BaseTTSAdapter<TModel, GeminiTTSProviderOptions> {
   readonly name = 'gemini' as const
 
+  /**
+   * Gemini multi-speaker TTS tops out at 2 voices, and reports no timings.
+   */
+  override readonly capabilities: TTSCapabilities = { maxSpeakers: 2 }
+
   private readonly client: GoogleGenAI
 
   constructor(config: GeminiTTSConfig, model: TModel) {
@@ -138,7 +143,7 @@ export class GeminiTTSAdapter<
   async generateSpeech(
     options: TTSOptions<GeminiTTSProviderOptions>,
   ): Promise<TTSResult> {
-    const { model, text, modelOptions, voice, logger } = options
+    const { model, modelOptions, voice, logger, turns } = options
 
     logger.request(`activity=generateSpeech provider=gemini model=${model}`, {
       provider: 'gemini',
@@ -146,8 +151,24 @@ export class GeminiTTSAdapter<
     })
 
     const speechConfig: SpeechConfig = {}
+    // Gemini has no turn structure on the wire: speakers are named in the
+    // prompt and mapped to voices in the config. `turns` carries voice names,
+    // so the voice name doubles as the speaker label.
+    const text = turns
+      ? turns.map((turn) => `${turn.voice}: ${turn.text}`).join('\n')
+      : options.text
 
-    if (modelOptions?.multiSpeakerVoiceConfig) {
+    if (turns) {
+      const voiceNames = [...new Set(turns.map((turn) => turn.voice))].map(
+        toGeminiVoice,
+      )
+      speechConfig.multiSpeakerVoiceConfig = {
+        speakerVoiceConfigs: voiceNames.map((voiceName) => ({
+          speaker: voiceName,
+          voiceConfig: { prebuiltVoiceConfig: { voiceName } },
+        })),
+      }
+    } else if (modelOptions?.multiSpeakerVoiceConfig) {
       // Validate multi-speaker config: 1 or 2 speakers allowed.
       const speakerConfigs =
         modelOptions.multiSpeakerVoiceConfig.speakerVoiceConfigs
@@ -168,15 +189,8 @@ export class GeminiTTSAdapter<
       // modelOptions.voiceConfig is supplied its values win — but we still
       // fall back to `voice` / 'Kore' if the supplied voiceConfig is missing
       // prebuiltVoiceConfig.voiceName.
-      if (
-        voice !== undefined &&
-        !(GEMINI_TTS_VOICES as ReadonlyArray<string>).includes(voice)
-      ) {
-        throw new Error(
-          `Invalid Gemini TTS voice "${voice}". Valid voices are: ${GEMINI_TTS_VOICES.join(', ')}.`,
-        )
-      }
-      const defaultVoiceName = (voice as GeminiTTSVoice | undefined) ?? 'Kore'
+      const defaultVoiceName =
+        voice !== undefined ? toGeminiVoice(voice) : 'Kore'
       const supplied = modelOptions?.voiceConfig
       const resolvedVoiceName =
         supplied?.prebuiltVoiceConfig?.voiceName ?? defaultVoiceName
@@ -280,6 +294,17 @@ export class GeminiTTSAdapter<
       throw error
     }
   }
+}
+
+/** Narrow a caller-supplied voice string to a known Gemini voice, or throw. */
+function toGeminiVoice(voice: string): GeminiTTSVoice {
+  const match = GEMINI_TTS_VOICES.find((known) => known === voice)
+  if (!match) {
+    throw new Error(
+      `Invalid Gemini TTS voice "${voice}". Valid voices are: ${GEMINI_TTS_VOICES.join(', ')}.`,
+    )
+  }
+  return match
 }
 
 function parsePcmMimeType(

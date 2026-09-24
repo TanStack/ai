@@ -10,8 +10,9 @@ const CONTENT_PART_TYPES = new Set([
 
 /**
  * Structural check for a single `ContentPart`. A text part must carry a string
- * `content`; every other modality must carry a `source` with `type` of
- * `'url' | 'data'` and a string `value`.
+ * `content`. Every other part carries a source with a string `value`; a file
+ * source's `value` is a non-empty opaque handle, and its optional `provider`
+ * is a string.
  */
 export function isContentPart(value: unknown): value is ContentPart {
   if (typeof value !== 'object' || value === null) return false
@@ -26,6 +27,14 @@ export function isContentPart(value: unknown): value is ContentPart {
   if (typeof source !== 'object' || source === null) return false
   const src = source as Record<string, unknown>
   if (typeof src.value !== 'string') return false
+  // `file` sources carry an opaque handle in `value`; `provider`, when set,
+  // names the issuer.
+  if (src.type === 'file') {
+    return (
+      src.value.length > 0 &&
+      (src.provider === undefined || typeof src.provider === 'string')
+    )
+  }
   // `data` sources require a mimeType (matches ContentPartDataSource); `url`
   // sources don't. Requiring it here keeps the runtime guard consistent with
   // the type and avoids emitting `data:undefined;base64,...` downstream.
@@ -43,6 +52,33 @@ export function isContentPartArray(
   value: unknown,
 ): value is Array<ContentPart> {
   return Array.isArray(value) && value.length > 0 && value.every(isContentPart)
+}
+
+/**
+ * Error text for a failed tool result: `output.error` when it is a string,
+ * else the output itself when it is a string, else a generic message.
+ * `StreamProcessor` and `chat()` history share it, so a reload shows the
+ * same text as the live stream.
+ */
+export function toolResultErrorText(output: unknown): string {
+  if (
+    output &&
+    typeof output === 'object' &&
+    'error' in output &&
+    typeof output.error === 'string'
+  ) {
+    return output.error
+  }
+  return typeof output === 'string' ? output : 'Tool execution failed'
+}
+
+/** Parse tool result content as JSON. Plain text stays a string. */
+export function parseToolOutput(content: string): unknown {
+  try {
+    return JSON.parse(content)
+  } catch {
+    return content
+  }
 }
 
 /**

@@ -174,6 +174,8 @@ export interface MiddlewareEvent {
 export interface Iteration {
   /** The requestId this iteration belongs to (unique per chat() call) */
   requestId?: string
+  /** The chat run. A subagent run is `<parentRunId>:<subagentRunId>`. */
+  runId?: string
   index: number
   messageId: string
   startedAt: number
@@ -2816,6 +2818,7 @@ export const AIProvider: ParentComponent = (props) => {
 
         const newIteration: Iteration = {
           requestId,
+          ...(e.payload.runId ? { runId: e.payload.runId } : {}),
           index: iteration,
           messageId,
           startedAt: e.payload.timestamp,
@@ -3418,6 +3421,39 @@ export const AIProvider: ParentComponent = (props) => {
         })
       }),
     )
+
+    // Voice creation shares the speech bucket — same family. Like the other
+    // activity buckets beside it, this is recorded state: nothing renders
+    // `speechEvents` yet.
+    for (const voiceEvent of [
+      'voice:request:started',
+      'voice:request:completed',
+      'voice:request:error',
+      'voice:usage',
+    ] as const) {
+      cleanupFns.push(
+        aiEventClient.on(voiceEvent, (e) => {
+          const { requestId, clientId, timestamp } = e.payload
+
+          let conversationId = clientId
+          if (!conversationId || !state.conversations[conversationId]) {
+            conversationId = `voice-${requestId}`
+            getOrCreateConversation(
+              conversationId,
+              'server',
+              `Voice (${requestId.substring(0, 8)})`,
+            )
+          }
+
+          addActivityEvent(conversationId, 'speechEvents', {
+            id: requestId,
+            name: voiceEvent,
+            timestamp,
+            payload: e.payload,
+          })
+        }),
+      )
+    }
 
     cleanupFns.push(
       aiEventClient.on('transcription:request:started', (e) => {

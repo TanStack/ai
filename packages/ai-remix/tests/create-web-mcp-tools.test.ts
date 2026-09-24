@@ -1,8 +1,12 @@
 import { toolDefinition } from '@tanstack/ai/client'
 import type { Handle } from 'remix/ui'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { createWebMCPTools } from '../src/index'
-import type { CreateWebMCPToolsOptions } from '../src/index'
+import {
+  createPageWebMCPTools,
+  createRegisterWebMCPTools,
+  createWebMCPTools,
+} from '../src/index'
+import type { CreateRegisterWebMCPToolsOptions } from '../src/index'
 
 interface RegisteredWebMCPTool {
   name: string
@@ -67,12 +71,12 @@ afterEach(() => {
   Reflect.deleteProperty(document, 'modelContext')
 })
 
-describe('createWebMCPTools (Remix)', () => {
+describe('createRegisterWebMCPTools (Remix)', () => {
   it('uses the component Handle signal for cleanup', async () => {
     const modelContext = installModelContext()
     const { handle, abort } = createFakeHandle()
 
-    createWebMCPTools(handle, [statusTool])
+    createRegisterWebMCPTools(handle, [statusTool])
     await vi.waitFor(() => expect(modelContext.tools.has('status')).toBe(true))
 
     abort()
@@ -84,7 +88,7 @@ describe('createWebMCPTools (Remix)', () => {
     const { handle } = createFakeHandle()
     const onError = vi.fn()
 
-    createWebMCPTools(handle, [statusTool], { onError })
+    createRegisterWebMCPTools(handle, [statusTool], { onError })
 
     await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce())
     expect(onError).toHaveBeenCalledWith(
@@ -97,7 +101,7 @@ describe('createWebMCPTools (Remix)', () => {
     const { handle, abort } = createFakeHandle()
     const onError = vi.fn()
 
-    createWebMCPTools(handle, [statusTool], { onError })
+    createRegisterWebMCPTools(handle, [statusTool], { onError })
     await vi.waitFor(() =>
       expect(modelContext.registerTool).toHaveBeenCalledOnce(),
     )
@@ -116,7 +120,7 @@ describe('createWebMCPTools (Remix)', () => {
       return context.context.tenantId
     })
     const tools = [contextual] as const
-    const options: CreateWebMCPToolsOptions<typeof tools> = {
+    const options: CreateRegisterWebMCPToolsOptions<typeof tools> = {
       context: { tenantId: 'tenant-1' },
       toolOptions: { contextual: { title: 'Tenant status' } },
     }
@@ -125,9 +129,9 @@ describe('createWebMCPTools (Remix)', () => {
 
     const checkTypes = (handle: Pick<Handle, 'signal'>) => {
       // @ts-expect-error contextual tools require context
-      createWebMCPTools(handle, tools)
-      createWebMCPTools(handle, tools, options)
-      createWebMCPTools(handle, tools, {
+      createRegisterWebMCPTools(handle, tools)
+      createRegisterWebMCPTools(handle, tools, options)
+      createRegisterWebMCPTools(handle, tools, {
         context: { tenantId: 'tenant-1' },
         toolOptions: {
           // @ts-expect-error tool options only accept inferred tool names
@@ -136,5 +140,59 @@ describe('createWebMCPTools (Remix)', () => {
       })
     }
     void checkTypes
+  })
+})
+
+describe('createWebMCPTools (Remix)', () => {
+  it('is a deprecated alias of createRegisterWebMCPTools', () => {
+    expect(createWebMCPTools).toBe(createRegisterWebMCPTools)
+  })
+})
+
+function installPageTools(names: Array<string>) {
+  const target = new EventTarget()
+  const modelContext = {
+    names,
+    getTools: async () =>
+      modelContext.names.map((name) => ({
+        name,
+        description: `Run ${name}`,
+        origin: 'https://example.com',
+      })),
+    executeTool: async () => '"done"',
+    addEventListener: target.addEventListener.bind(target),
+    removeEventListener: target.removeEventListener.bind(target),
+    change(nextNames: Array<string>) {
+      modelContext.names = nextNames
+      target.dispatchEvent(new Event('toolchange'))
+    },
+  }
+  Object.defineProperty(document, 'modelContext', {
+    configurable: true,
+    value: modelContext,
+  })
+  return modelContext
+}
+
+describe('createPageWebMCPTools (Remix)', () => {
+  it('returns filtered page tools and calls handle.update on toolchange', async () => {
+    const modelContext = installPageTools(['first', 'blocked'])
+    const controller = new AbortController()
+    const update = vi.fn(async () => controller.signal)
+    const page = createPageWebMCPTools(
+      { signal: controller.signal, update },
+      { filter: (tool) => tool.name !== 'blocked' },
+    )
+
+    expect(page.tools).toEqual([])
+    await vi.waitFor(() =>
+      expect(page.tools.map((tool) => tool.name)).toEqual(['first']),
+    )
+    modelContext.change(['first', 'second'])
+    await vi.waitFor(() => expect(page.tools).toHaveLength(2))
+    expect(update).toHaveBeenCalledTimes(2)
+    await expect(page.tools[0]?.execute?.({})).resolves.toBe('done')
+
+    controller.abort()
   })
 })

@@ -3,13 +3,11 @@ id: toHttpResponse
 title: toHttpResponse
 ---
 
-# Function: toHttpResponse()
-
 ```ts
 function toHttpResponse<TOffset>(stream, init?): Response;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1118](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1118)
+Defined in: [packages/ai/src/stream-to-response.ts:1128](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1128)
 
 Convert a StreamChunk async iterable to a Response in HTTP stream format (newline-delimited JSON)
 

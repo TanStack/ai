@@ -16,6 +16,7 @@ import type {
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
 import type { InterruptStore } from '../src/types'
+import { threadMessages } from './persistence-fixtures'
 
 function mockAdapter(iterations: Array<Array<AdapterYieldChunk>>) {
   const calls: Array<unknown> = []
@@ -292,7 +293,9 @@ describe('interrupt persistence', () => {
       ],
     )
 
-    const thread = await persistence.stores.messages!.loadThread('t1')
+    const thread = threadMessages(
+      await persistence.stores.messages!.loadThread('t1'),
+    )
     const toolTurn = thread.find(
       (message) =>
         message.role === 'assistant' &&

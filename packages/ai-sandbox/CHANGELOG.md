@@ -1,5 +1,73 @@
 # @tanstack/ai-sandbox
 
+## 0.5.14
+
+### Patch Changes
+
+- Updated dependencies [[`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd)]:
+  - @tanstack/ai@0.60.0
+  - @tanstack/ai-persistence@0.6.6
+  - @tanstack/ai-skills@0.1.9
+
+## 0.5.13
+
+### Patch Changes
+
+- [#1438](https://github.com/TanStack/ai/pull/1438) [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0) - The memory sandbox run store keeps `parentRunId`, `subagentRunId`, and `name` on a run record and adds `listByParentRun`, so `reconstructChat` can rebuild subagent cards from it.
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+  - @tanstack/ai-persistence@0.6.5
+  - @tanstack/ai-skills@0.1.8
+
+## 0.5.12
+
+### Patch Changes
+
+- [#1355](https://github.com/TanStack/ai/pull/1355) [`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db) - Flush CUSTOM events through the durability layer as soon as they are emitted, so progress events such as `compaction:started` reach the client at emit time. High-volume events (`process.stdout`, `process.stderr`, `sandbox.file`, `sandbox.file.diff`) still batch. Pass `{ batch: true }` on `emitCustomEvent` to opt an event into the batch.
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+  - @tanstack/ai-persistence@0.6.4
+  - @tanstack/ai-skills@0.1.7
+
+## 0.5.11
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+  - @tanstack/ai-persistence@0.6.2
+  - @tanstack/ai-skills@0.1.6
+
+## 0.5.10
+
+### Patch Changes
+
+- Updated dependencies [[`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9), [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6)]:
+  - @tanstack/ai@0.56.0
+  - @tanstack/ai-persistence@0.6.1
+  - @tanstack/ai-skills@0.1.5
+
+## 0.5.9
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+  - @tanstack/ai-persistence@0.6.0
+  - @tanstack/ai-skills@0.1.4
+
+## 0.5.8
+
+### Patch Changes
+
+- [#1334](https://github.com/TanStack/ai/pull/1334) [`75d94cf`](https://github.com/TanStack/ai/commit/75d94cf8babc22d19a6120b68f073d4e48cd69d4) - Reject host-tool bridge startup with the original Node.js error when its HTTP listener cannot start.
+
+- Updated dependencies [[`db017f6`](https://github.com/TanStack/ai/commit/db017f662e8b2c9c7301c8510047568ff87f3ee6)]:
+  - @tanstack/ai@0.54.1
+  - @tanstack/ai-persistence@0.5.7
+
 ## 0.5.7
 
 ### Patch Changes

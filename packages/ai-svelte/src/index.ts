@@ -1,8 +1,16 @@
 export { createChat } from './create-chat.svelte'
 export { createChatHook } from './create-chat-hook'
 export { createByok } from './create-byok.svelte'
-export { createWebMCPTools } from './create-web-mcp-tools.svelte'
-export type { CreateWebMCPToolsOptions } from './create-web-mcp-tools.svelte'
+export {
+  createPageWebMCPTools,
+  createRegisterWebMCPTools,
+  createWebMCPTools,
+} from './create-web-mcp-tools.svelte'
+export type {
+  CreatePageWebMCPToolsOptions,
+  CreateRegisterWebMCPToolsOptions,
+  CreateWebMCPToolsOptions,
+} from './create-web-mcp-tools.svelte'
 export type {
   CreateChatOptions,
   CreateChatReturn,
@@ -68,6 +76,47 @@ export type {
 
 // Re-export from ai-client for convenience
 export {
+  AudioRecorder,
+  ChatClient,
+  InterruptManager,
+  RealtimeClient,
+  GenerationClient,
+  VideoGenerationClient,
+  GENERATION_EVENTS,
+  reconstructImageResult,
+  reconstructAudioResult,
+  reconstructSpeechResult,
+  reconstructTranscriptionResult,
+  reconstructSummarizeResult,
+  UnsupportedResponseStreamError,
+  createAIDevtoolsGenerationPreview,
+  StreamTruncatedError,
+  DurableStreamIncompleteError,
+  StreamReconnectLimitError,
+  uiMessageToModelMessages,
+  modelMessageToUIMessage,
+  modelMessagesToUIMessages,
+  convertMessagesToModelMessages,
+  normalizeToUIMessage,
+  generateMessageId,
+  StreamProcessor,
+  ImmediateStrategy,
+  PunctuationStrategy,
+  BatchStrategy,
+  WordBoundaryStrategy,
+  CompositeStrategy,
+  parsePartialJSON,
+  PartialJSONParser,
+  defaultJSONParser,
+  registerWebMCPTools,
+  getWebMCPTools,
+  subscribeWebMCPTools,
+  type GetWebMCPToolsOptions,
+  type SubscribeWebMCPToolsOptions,
+  type WebMCPPageTool,
+  createMcpAppBridge,
+  type McpAppBridge,
+  type CreateMcpAppBridgeOptions,
   fetchServerSentEvents,
   localStoragePersistence,
   sessionStoragePersistence,

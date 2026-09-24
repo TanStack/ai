@@ -3,8 +3,6 @@ id: genericInterruptContinuationFromDescriptor
 title: genericInterruptContinuationFromDescriptor
 ---
 
-# Function: genericInterruptContinuationFromDescriptor()
-
 ```ts
 function genericInterruptContinuationFromDescriptor(interrupt): 
   | GenericInterruptContinuation
