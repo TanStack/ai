@@ -21,8 +21,14 @@ import type {
 import type {
   ActivityDeltaEvent as AGUIActivityDeltaEvent,
   ActivitySnapshotEvent as AGUIActivitySnapshotEvent,
+  AudioPart as AGUIAudioPart,
   BaseEvent as AGUIBaseEvent,
+  ContentPart as AGUIContentPart,
   CustomEvent as AGUICustomEvent,
+  DataSource as AGUIDataSource,
+  DocumentPart as AGUIDocumentPart,
+  FileSource as AGUIFileSource,
+  ImagePart as AGUIImagePart,
   Interrupt as AGUIInterrupt,
   MessagesSnapshotEvent as AGUIMessagesSnapshotEvent,
   ReasoningEncryptedValueEvent as AGUIReasoningEncryptedValueEvent,
@@ -44,16 +50,22 @@ import type {
   StepStartedEvent as AGUIStepStartedEvent,
   SubagentErrorEvent as AGUISubagentErrorEvent,
   SubagentFinishedEvent as AGUISubagentFinishedEvent,
+  SubagentFinishedSuspendedOutcome as AGUISubagentFinishedSuspendedOutcome,
+  SubagentInfo as AGUISubagentInfo,
+  SubagentRunId as AGUISubagentRunId,
   SubagentStartedEvent as AGUISubagentStartedEvent,
   TextMessageChunkEvent as AGUITextMessageChunkEvent,
   TextMessageContentEvent as AGUITextMessageContentEvent,
   TextMessageEndEvent as AGUITextMessageEndEvent,
   TextMessageStartEvent as AGUITextMessageStartEvent,
+  ToolCall as AGUIToolCall,
   ToolCallArgsEvent as AGUIToolCallArgsEvent,
   ToolCallChunkEvent as AGUIToolCallChunkEvent,
   ToolCallEndEvent as AGUIToolCallEndEvent,
   ToolCallResultEvent as AGUIToolCallResultEvent,
   ToolCallStartEvent as AGUIToolCallStartEvent,
+  UrlSource as AGUIUrlSource,
+  VideoPart as AGUIVideoPart,
   EventType,
 } from '@ag-ui/core'
 import type {
@@ -173,13 +185,11 @@ export type InferSchemaType<T> =
       ? TInput
       : unknown
 
-export interface ToolCall<TMetadata = unknown> {
-  id: string
-  type: 'function'
-  function: {
-    name: string
-    arguments: string // JSON string
-  }
+/** AG-UI `ToolCall` with typed metadata. `function.arguments` is a JSON string. */
+export interface ToolCall<TMetadata = unknown> extends Omit<
+  AGUIToolCall,
+  'metadata'
+> {
   /** Provider-specific metadata to carry through the tool call lifecycle.
    * Typed per-adapter via `TToolCallMetadata`. For example,
    * `@tanstack/ai-gemini` sets this to `{ thoughtSignature?: string }`. */
@@ -211,85 +221,30 @@ export interface ProviderExecutedToolMetadata {
 // ============================================================================
 
 /**
- * Supported input modality types for multimodal content.
- * - 'text': Plain text content
- * - 'image': Image content (base64 or URL)
- * - 'audio': Audio content (base64 or URL)
- * - 'video': Video content (base64 or URL)
- * - 'document': Document content like PDFs (base64 or URL)
+ * Supported input modality types for multimodal content: the `type` of each
+ * AG-UI `ContentPart` (text, image, audio, video, document).
  */
-export type Modality = 'text' | 'image' | 'audio' | 'video' | 'document'
+export type Modality = AGUIContentPart['type']
 
 /**
- * Source specification for inline data content (base64).
- * Requires a mimeType to ensure providers receive proper content type information.
+ * Inline base64 content. AG-UI `DataSource`: `mimeType` is required.
  */
-export interface ContentPartDataSource {
-  /**
-   * Indicates this is inline data content.
-   */
-  type: 'data'
-  /**
-   * The base64-encoded content value.
-   */
-  value: string
-  /**
-   * The MIME type of the content (e.g., 'image/png', 'audio/wav').
-   * Required for data sources to ensure proper handling by providers.
-   */
-  mimeType: string
-}
+export interface ContentPartDataSource extends AGUIDataSource {}
 
 /**
- * Source specification for URL-based content.
- * mimeType is optional as it can often be inferred from the URL or response headers.
+ * URL-referenced content. AG-UI `UrlSource`: `mimeType` is optional.
  */
-export interface ContentPartUrlSource {
-  /**
-   * Indicates this is URL-referenced content.
-   */
-  type: 'url'
-  /**
-   * HTTP(S) URL or data URI pointing to the content.
-   */
-  value: string
-  /**
-   * Optional MIME type hint for cases where providers can't infer it from the URL.
-   */
-  mimeType?: string
-}
+export interface ContentPartUrlSource extends AGUIUrlSource {}
 
 /**
- * Source specification for a provider-issued file handle (Files API).
- * Matches the AG-UI 1.0 `FileSource` arm.
+ * A provider-issued file handle (Files API). AG-UI `FileSource`: the handle
+ * is opaque, do not fetch or parse it.
  */
-export interface ContentPartFileSource {
-  /**
-   * Indicates this references a provider-issued file handle.
-   */
-  type: 'file'
-  /**
-   * The handle, exactly as the provider issued it. Opaque: do not fetch it,
-   * parse it, or read a scheme out of it.
-   */
-  value: string
-  /**
-   * The provider that issued the handle (`'openai'`, `'anthropic'`, ...).
-   */
-  provider?: string
-  /**
-   * Optional MIME type hint for cases where the provider can't infer it.
-   */
-  mimeType?: string
-}
+export interface ContentPartFileSource extends AGUIFileSource {}
 
 /**
- * Source specification for multimodal content.
- * Discriminated union supporting inline data (base64), URL-based content, and
- * provider-issued file handles.
- * - For 'data' sources: mimeType is required
- * - For 'url' sources: mimeType is optional
- * - For 'file' sources: an opaque provider handle
+ * Where a media part's bytes come from: inline data, a URL, or a provider
+ * file handle. Same members as AG-UI `PartSource`.
  */
 export type ContentPartSource =
   | ContentPartDataSource
@@ -297,49 +252,37 @@ export type ContentPartSource =
   | ContentPartFileSource
 
 /**
- * Image content part for multimodal messages.
+ * Image content part for multimodal messages. AG-UI `ImagePart` with typed metadata.
  * @template TMetadata - Provider-specific metadata type (e.g., OpenAI's detail level)
  */
-export interface ImagePart<TMetadata = unknown> {
-  type: 'image'
-  /** Source of the image content */
-  source: ContentPartSource
+export interface ImagePart<TMetadata = unknown> extends AGUIImagePart {
   /** Provider-specific metadata (e.g., OpenAI's detail: 'auto' | 'low' | 'high') */
   metadata?: TMetadata
 }
 
 /**
- * Audio content part for multimodal messages.
+ * Audio content part for multimodal messages. AG-UI `AudioPart` with typed metadata.
  * @template TMetadata - Provider-specific metadata type
  */
-export interface AudioPart<TMetadata = unknown> {
-  type: 'audio'
-  /** Source of the audio content */
-  source: ContentPartSource
+export interface AudioPart<TMetadata = unknown> extends AGUIAudioPart {
   /** Provider-specific metadata (e.g., format, sample rate) */
   metadata?: TMetadata
 }
 
 /**
- * Video content part for multimodal messages.
+ * Video content part for multimodal messages. AG-UI `VideoPart` with typed metadata.
  * @template TMetadata - Provider-specific metadata type
  */
-export interface VideoPart<TMetadata = unknown> {
-  type: 'video'
-  /** Source of the video content */
-  source: ContentPartSource
+export interface VideoPart<TMetadata = unknown> extends AGUIVideoPart {
   /** Provider-specific metadata (e.g., duration, resolution) */
   metadata?: TMetadata
 }
 
 /**
- * Document content part for multimodal messages (e.g., PDFs).
+ * Document content part for multimodal messages (e.g., PDFs). AG-UI `DocumentPart` with typed metadata.
  * @template TMetadata - Provider-specific metadata type (e.g., Anthropic's media_type)
  */
-export interface DocumentPart<TMetadata = unknown> {
-  type: 'document'
-  /** Source of the document content */
-  source: ContentPartSource
+export interface DocumentPart<TMetadata = unknown> extends AGUIDocumentPart {
   /** Provider-specific metadata (e.g., media_type for PDFs) */
   metadata?: TMetadata
 }
@@ -533,21 +476,27 @@ export interface StructuredOutputPart<TData = unknown> {
 
 export type SubagentStatus = 'running' | 'finished' | 'error' | 'suspended'
 
-export interface SubagentHandleData {
-  id: string
-  name: string
-  description?: string
+/**
+ * One child invocation as the client sees it. AG-UI `SubagentInfo` names the
+ * child; the other AG-UI fields come from its `SUBAGENT_STARTED`,
+ * `SUBAGENT_FINISHED` and `SUBAGENT_ERROR` events. `id`, `status`,
+ * `parentRunId` and `messages` are client state that the spec does not model.
+ */
+export interface SubagentHandleData
+  extends
+    AGUISubagentInfo,
+    Pick<
+      AGUISubagentStartedEvent,
+      'parentSubagentRunId' | 'parentToolCallId' | 'metadata'
+    > {
+  id: AGUISubagentRunId
   status: SubagentStatus
+  /** The parent chat run that started this child. */
   parentRunId?: string
-  parentSubagentRunId?: string
-  /** The tool call that started this child, when the model started it. */
-  parentToolCallId?: string
   /** Interrupts this child raised, while `status` is `'suspended'`. */
-  interruptIds?: Array<string>
-  /** The `metadata` of the child's `SUBAGENT_STARTED` event. */
-  metadata?: Record<string, unknown>
+  interruptIds?: AGUISubagentFinishedSuspendedOutcome['interruptIds']
   messages: Array<UIMessage>
-  error?: { message: string; code?: string }
+  error?: Pick<AGUISubagentErrorEvent, 'message' | 'code'>
 }
 
 export interface SubagentPart {

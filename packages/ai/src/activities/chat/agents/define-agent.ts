@@ -1,3 +1,4 @@
+import type { SubagentInfo as AGUISubagentInfo } from '@ag-ui/core'
 import type { InterruptDefinition } from '../../../interrupt-definition'
 import type {
   AnyTool,
@@ -48,8 +49,9 @@ export interface DefinedAgent<
   TSchema extends SchemaInput | undefined = SchemaInput | undefined,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     ReadonlyArray<InterruptDefinition<any, any, any, any>>,
-> {
+> extends AGUISubagentInfo {
   name: TName
+  /** Required here: the router and the synthetic tool both read it. */
   description: string
   run: (
     ctx: SubagentRunContext,

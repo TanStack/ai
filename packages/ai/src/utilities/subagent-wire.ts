@@ -1,18 +1,22 @@
+import type { SubagentInfo as AGUISubagentInfo } from '@ag-ui/core'
 import type { SubagentHandleData } from '../types'
 
 /**
  * Card data that travels on each child wire message, in
  * `metadata.tanstack.subagent`. The messages carry the AG-UI `subagentRunId`.
  */
-export interface SubagentWireInfo {
-  name: string
-  description?: string
-  status: SubagentHandleData['status']
-  error?: SubagentHandleData['error']
-  interruptIds?: Array<string>
-  parentSubagentRunId?: string
-  parentToolCallId?: string
-  metadata?: Record<string, unknown>
+export interface SubagentWireInfo
+  extends
+    AGUISubagentInfo,
+    Pick<
+      SubagentHandleData,
+      | 'status'
+      | 'error'
+      | 'interruptIds'
+      | 'parentSubagentRunId'
+      | 'parentToolCallId'
+      | 'metadata'
+    > {
   /** The child has no messages yet. This wire message only holds the card. */
   placeholder?: true
 }

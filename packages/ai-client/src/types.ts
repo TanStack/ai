@@ -22,6 +22,8 @@ import type {
   SchemaInput,
   StreamChunk,
   StructuredOutputPart,
+  SubagentHandleData,
+  SubagentStatus,
   UIResourcePart,
   VideoPart,
 } from '@tanstack/ai/client'
@@ -622,23 +624,9 @@ export interface ThinkingPart {
   content: string
 }
 
-export type SubagentStatus = 'running' | 'finished' | 'error' | 'suspended'
+export type { SubagentStatus }
 
-export interface SubagentHandle {
-  id: string
-  name: string
-  description?: string
-  status: SubagentStatus
-  parentRunId?: string
-  parentSubagentRunId?: string
-  /** The tool call that started this child, when the model started it. */
-  parentToolCallId?: string
-  /** Interrupts this child raised, while `status` is `'suspended'`. */
-  interruptIds?: Array<string>
-  /** The `metadata` of the child's `SUBAGENT_STARTED` event. */
-  metadata?: Record<string, unknown>
-  messages: Array<UIMessage>
-  error?: { message: string; code?: string }
+export interface SubagentHandle extends SubagentHandleData {
   /** Bound by ChatClient after the first SUBAGENT_STARTED for this id. */
   stop?: () => void
 }
