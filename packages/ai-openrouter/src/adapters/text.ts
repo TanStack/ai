@@ -384,6 +384,7 @@ export class OpenRouterTextAdapter<
     let hasClosedReasoning = false
     let stepId: string | undefined
     let lastModel: string | undefined
+    let finishReason: string | null | undefined
     let lastUsage: ChatStreamChunk['usage'] | undefined
 
     const closeReasoningLifecycle = function* (this: {
@@ -518,6 +519,7 @@ export class OpenRouterTextAdapter<
 
         const choice = chunk.choices[0]
         if (!choice) continue
+        if (choice.finishReason) finishReason = choice.finishReason
 
         const deltaContent = choice.delta.content
         if (deltaContent) {
@@ -556,6 +558,22 @@ export class OpenRouterTextAdapter<
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
         }
+      }
+
+      // Same truncation check as `structuredOutput()`: report the token limit
+      // before the empty-content and parse errors (issue #1426).
+      if (finishReason === 'length') {
+        const message = `${this.name}.structuredOutputStream: the response was cut off because the maximum token limit was reached (finish_reason=length); raise maxCompletionTokens`
+        yield {
+          type: EventType.RUN_ERROR,
+          runId: aguiState.runId,
+          model: lastModel || chatOptions.model,
+          timestamp: Date.now(),
+          message,
+          code: 'max_tokens',
+          error: { message, code: 'max_tokens' },
+        }
+        return
       }
 
       if (accumulatedContent.length === 0) {
