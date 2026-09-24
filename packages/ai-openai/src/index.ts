@@ -87,6 +87,14 @@ export {
 } from './adapters/embedding'
 export type { OpenAIEmbeddingProviderOptions } from './embedding/embedding-provider-options'
 
+// Files adapter - upload media to the OpenAI Files API and reference by file_id
+export {
+  OpenAIFilesAdapter,
+  createOpenaiFiles,
+  openaiFiles,
+  type OpenAIFilesConfig,
+} from './adapters/files'
+
 // ============================================================================
 // Type Exports
 // ============================================================================

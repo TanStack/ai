@@ -3,8 +3,6 @@ id: BatchStrategy
 title: BatchStrategy
 ---
 
-# Class: BatchStrategy
-
 Defined in: [packages/ai/src/activities/chat/stream/strategies.ts:34](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/strategies.ts#L34)
 
 Batch Strategy - emit every N chunks

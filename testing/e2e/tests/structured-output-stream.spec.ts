@@ -103,5 +103,31 @@ for (const provider of providersFor('structured-output-stream')) {
         0,
       )
     })
+
+    test('invalid JSON does not emit structured-output.complete', async ({
+      page,
+      testId,
+      aimockPort,
+    }) => {
+      test.skip(
+        provider !== 'gemini',
+        'Pins the Gemini native parse-error path added with structuredOutputStream',
+      )
+      await page.goto(
+        featureUrl(provider, 'structured-output-stream', testId, aimockPort),
+      )
+
+      await sendMessage(
+        page,
+        '[structured-stream-invalid] recommend a guitar as json',
+      )
+
+      await expect(page.getByTestId('loading-indicator')).not.toBeVisible({
+        timeout: 15_000,
+      })
+      await expect(page.getByTestId('structured-output-complete')).toHaveCount(
+        0,
+      )
+    })
   })
 }

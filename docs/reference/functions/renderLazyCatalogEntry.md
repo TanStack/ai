@@ -3,8 +3,6 @@ id: renderLazyCatalogEntry
 title: renderLazyCatalogEntry
 ---
 
-# Function: renderLazyCatalogEntry()
-
 ```ts
 function renderLazyCatalogEntry(
    name, 

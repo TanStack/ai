@@ -3,8 +3,6 @@ id: MemoryStreamOptions
 title: MemoryStreamOptions
 ---
 
-# Interface: MemoryStreamOptions
-
 Defined in: [packages/ai/src/stream-durability.ts:242](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-durability.ts#L242)
 
 Options for the in-process delivery-durability backend.

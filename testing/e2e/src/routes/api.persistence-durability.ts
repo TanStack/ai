@@ -54,6 +54,8 @@ import type {
  *   and the structured-output message from `reconstructChat`.
  * - `usage` — runs two provider calls through server persistence and returns
  *   their stored cumulative usage.
+ * - `tool-error` — runs a server tool that throws through `withPersistence`,
+ *   then hydrates the failed tool call from `reconstructChat`.
  *
  * Exempt from the aimock policy: this route never reaches an LLM provider's HTTP
  * layer, so there is nothing to mock.
@@ -150,6 +152,74 @@ const harnessOutputAdapter: AnyTextAdapter = {
   combinedStructuredOutputSource: () => 'event',
   chatStream: ({ threadId, runId }: { threadId: string; runId: string }) =>
     harnessOutputRun(threadId, runId),
+} as unknown as AnyTextAdapter
+
+const toolErrorPersistence = memoryPersistence()
+const failingTool = toolDefinition({
+  name: 'check_status',
+  description: 'Check the service status',
+  inputSchema: z.object({}),
+}).server(() => {
+  throw new Error('Status service unavailable')
+})
+
+function toolErrorRun(
+  threadId: string,
+  runId: string,
+  messages: ReadonlyArray<{ role: string }>,
+): AsyncIterable<StreamChunk> {
+  if (messages.some((message) => message.role === 'tool')) {
+    return textRun(threadId, runId)
+  }
+  return (async function* () {
+    yield {
+      type: 'RUN_STARTED',
+      threadId,
+      runId,
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TOOL_CALL_START',
+      toolCallId: 'call-status',
+      toolCallName: 'check_status',
+      toolName: 'check_status',
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TOOL_CALL_ARGS',
+      toolCallId: 'call-status',
+      delta: '{}',
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TOOL_CALL_END',
+      toolCallId: 'call-status',
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'RUN_FINISHED',
+      threadId,
+      runId,
+      finishReason: 'tool_calls',
+      timestamp: Date.now(),
+    } as StreamChunk
+  })()
+}
+
+const toolErrorAdapter: AnyTextAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  chatStream: ({
+    threadId,
+    runId,
+    messages,
+  }: {
+    threadId: string
+    runId: string
+    messages: ReadonlyArray<{ role: string }>
+  }) => toolErrorRun(threadId, runId, messages),
 } as unknown as AnyTextAdapter
 
 const confirmSchema = {
@@ -305,7 +375,8 @@ function scenarioOf(
   | 'server-interrupt'
   | 'structured-output'
   | 'harness-output'
-  | 'usage' {
+  | 'usage'
+  | 'tool-error' {
   try {
     const value = new URL(request.url).searchParams.get('scenario')
     if (value === 'interrupt') return 'interrupt'
@@ -313,6 +384,7 @@ function scenarioOf(
     if (value === 'structured-output') return 'structured-output'
     if (value === 'harness-output') return 'harness-output'
     if (value === 'usage') return 'usage'
+    if (value === 'tool-error') return 'tool-error'
     return 'text'
   } catch {
     return 'text'
@@ -394,6 +466,18 @@ export const Route = createFileRoute('/api/persistence-durability')({
           for await (const _ of stream) void _
           return Response.json({ runId, threadId })
         }
+        if (scenario === 'tool-error') {
+          const stream = chat({
+            adapter: toolErrorAdapter,
+            messages: [{ role: 'user', content: 'Is the service up?' }],
+            tools: [failingTool],
+            threadId,
+            runId,
+            middleware: [withPersistence(toolErrorPersistence)],
+          })
+          for await (const _ of stream) void _
+          return Response.json({ runId, threadId })
+        }
         if (scenario === 'usage') {
           const run = await cumulativeUsage(threadId, runId)
           return Response.json({ runId, threadId, usage: run?.usage })
@@ -424,6 +508,11 @@ export const Route = createFileRoute('/api/persistence-durability')({
         }
         if (scenarioOf(request) === 'harness-output') {
           return reconstructChat(harnessOutputPersistence, request, {
+            authorize: (threadId) => threadId.length > 0,
+          })
+        }
+        if (scenarioOf(request) === 'tool-error') {
+          return reconstructChat(toolErrorPersistence, request, {
             authorize: (threadId) => threadId.length > 0,
           })
         }

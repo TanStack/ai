@@ -3,8 +3,6 @@ id: mergeAgentTools
 title: mergeAgentTools
 ---
 
-# Function: mergeAgentTools()
-
 ## Call Signature
 
 ```ts

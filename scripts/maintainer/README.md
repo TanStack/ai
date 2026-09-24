@@ -4,7 +4,7 @@ Automation that keeps on top of open PRs, issues, and discussions:
 
 - **Sweep** (`.github/workflows/maintainer-sweep.yml`, every 3h): assigns each
   eligible open PR/issue to a maintainer (drafts and suspected drive-by PRs
-  are skipped, and routing stops when everyone is at their assignment cap),
+  and bot items are skipped), requests the assigned PR maintainer’s review,
   posts a one-time ack comment with a deterministic pre-review checklist, asks
   for a reproduction on bug reports that lack one, and reconciles
   `waiting-on: *` / `ready-to-merge` / `merge-conflicts` / `needs-repro` /
@@ -12,7 +12,7 @@ Automation that keeps on top of open PRs, issues, and discussions:
 - **Scorecard** (`.github/workflows/maintainer-scorecard.yml`, daily): posts a
   to-do digest to Discord — SLA breaches, ready-to-merge PRs, per-maintainer
   queues (including which items got fresh contributor replies), new/flagged/
-  stale items, unanswered discussions, and response-time stats.
+  stale items, unanswered discussions, response-time stats, and review velocity.
 
 Both are **stateless and API-only**: every metric (first-response time, 7-day
 deltas, SLA clocks) is recomputed from GitHub timelines each run, idempotency
@@ -21,18 +21,58 @@ and PR code is never checked out or executed (no `pull_request_target`).
 
 ## Configuration — `.github/maintainers.json`
 
-| Field                              | Meaning                                                                                                                                                                                                           |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `maintainers[].github`             | GitHub login; the roster defines who counts as "a maintainer responded".                                                                                                                                          |
-| `maintainers[].discord`            | Discord user id (snowflake) for digest @-mentions; `null` → plain bold name.                                                                                                                                      |
-| `maintainers[].areas`              | Optional file globs (`**`, `*`, `?`) giving this maintainer routing priority for matching PRs (issues match package names in title/body). Omitted/empty (the default) → assignment is pure least-loaded rotation. |
-| `maintainers[].maxOpenAssignments` | Routing skips a maintainer at this many open assignments.                                                                                                                                                         |
-| `sla.firstResponseHours`           | Deadline for the first human response on a new item (default 24h).                                                                                                                                                |
-| `sla.followUpResponseHours`        | Deadline for answering a follow-up message (default 48h).                                                                                                                                                         |
-| `sla.staleAuthorDays`              | Author silence before an item is a nudge/close candidate (default 14d).                                                                                                                                           |
-| `spam.*`                           | Drive-by/bounty heuristic: account younger than `maxAccountAgeDays` **and** diff ≤ `maxChangedLines` **and** no linked issue → flagged for human judgment, never auto-acked.                                      |
-| `botAllowlist`                     | Logins always treated as bots (excluded from human metrics and acks).                                                                                                                                             |
-| `maxCommentsPerRun`                | Safety cap on comments per sweep; overflow defers to the next run.                                                                                                                                                |
+| Field                              | Meaning                                                                                                                                                                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `maintainers[].github`             | GitHub login; the roster defines who counts as "a maintainer responded".                                                                                                                                                             |
+| `maintainers[].discord`            | Discord user id (snowflake) for digest @-mentions; `null` → plain bold name.                                                                                                                                                         |
+| `maintainers[].areas`              | Optional file globs (`**`, `*`, `?`) giving this maintainer routing priority for matching PRs (issues match package names in title/body). Among equally loaded maintainers, merged-PR history also supplies file/package experience. |
+| `maintainers[].maxOpenAssignments` | Legacy field, ignored by routing. Open-assignment counts never block assignment.                                                                                                                                                     |
+| `sla.firstResponseHours`           | Deadline for the first human response on a new item (default 24h).                                                                                                                                                                   |
+| `sla.followUpResponseHours`        | Deadline for answering a follow-up message (default 48h).                                                                                                                                                                            |
+| `sla.staleAuthorDays`              | Author silence before an item is a nudge/close candidate (default 14d).                                                                                                                                                              |
+| `spam.*`                           | Drive-by/bounty heuristic: account younger than `maxAccountAgeDays` **and** diff ≤ `maxChangedLines` **and** no linked issue → flagged for human judgment, never auto-acked.                                                         |
+| `botAllowlist`                     | Logins always treated as bots (excluded from human metrics and acks).                                                                                                                                                                |
+| `maxCommentsPerRun`                | Safety cap on comments per sweep; overflow defers to the next run.                                                                                                                                                                   |
+
+## Assignment order
+
+1. Route unassigned core-owned PRs first. Read `.github/CODEOWNERS` from the
+   default branch through GitHub, including last-match and ownerless exceptions.
+   Assign these PRs to `AlemTuzlak`, regardless of load. If Alem authored the PR,
+   choose another maintainer with the fewest assigned PRs.
+2. Route other unassigned PRs to the least-loaded maintainer who is not the
+   author. Break load ties with configured areas and matching files or packages
+   from PRs merged in the last 14 days (authored or reviewed by the maintainer).
+   Remaining ties use a deterministic rotation based on the item number.
+3. Route unassigned issues with a separate issue count. Package names in the
+   title/body break load ties using configured areas.
+
+Every eligible item gets an assignee when the roster has someone other than
+its author. The old assignment caps no longer apply. Existing assignments stay
+in place. Core approval and author exclusions can prevent a perfectly even
+split; later assignments fill the smaller queues first.
+
+The sweep requests reviews from PR assignees unless they authored the PR,
+already have a pending request, or have submitted a review. This also repairs a
+run that assigned a PR but failed before requesting review. It does not keep
+re-requesting completed reviews. Dry-run output includes review requests.
+
+## Review velocity
+
+Each maintainer's digest queue includes:
+
+- **Reviews/7d:** submitted reviews in the last seven days across open PRs and
+  PRs closed in the 14-day lookback. Repeat reviews count as separate completed
+  reviews; comments, pending reviews, bots, and self-reviews do not count.
+- **Median first review:** hours from the earliest assignment or review request
+  to that maintainer's first submitted review on a PR. The first review must
+  fall in the last seven days. Repeated requests do not reset the clock.
+- **Sample count:** PRs with both timestamps. Reviews without a preceding
+  assignment/request count toward throughput, but have no latency sample.
+
+PR files, review requests, and review timelines are paginated, so a core-owned
+path or first review beyond the first page is included. Assignment/request
+activity does not count as a conversation reply or reset SLA clocks.
 
 ## Secrets
 

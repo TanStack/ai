@@ -3,13 +3,11 @@ id: DetachableRunCapability
 title: DetachableRunCapability
 ---
 
-# Variable: DetachableRunCapability
-
 ```ts
 const DetachableRunCapability: Capability<true, "detachable-run">;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:290](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L290)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:322](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L322)
 
 Whether the current run can be DETACHED rather than destroyed when its client
 disconnects — `true` only when some middleware has both a [RunStore](../interfaces/RunStore.md) and

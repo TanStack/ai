@@ -4,6 +4,7 @@ import { buildScorecardEmbeds, chunkEmbeds } from './discord'
 import { computeScorecard, formatDuration, percentile } from './metrics'
 import {
   NOW,
+  review,
   comment,
   config,
   daysAgo,
@@ -16,6 +17,7 @@ import type { RepoSnapshot } from './types'
 
 function snapshotFixture(): RepoSnapshot {
   return {
+    codeowners: '',
     owner: 'TanStack',
     repo: 'ai',
     takenAt: NOW.toISOString(),
@@ -171,7 +173,7 @@ describe('computeScorecard', () => {
     expect(scorecard.stats.pendingChangesets).toBe(3)
   })
 
-  it('marks PRs unassignable only when routing simulation finds everyone at cap', () => {
+  it('does not mark PRs unassignable when the old caps are reached', () => {
     // Generous caps: everything unassigned routes somewhere.
     expect(scorecard.unassignable).toHaveLength(0)
 
@@ -183,7 +185,7 @@ describe('computeScorecard', () => {
       })),
     }
     const capped = computeScorecard(snapshot, triage, tinyCaps, NOW, 3)
-    expect(capped.unassignable.length).toBeGreaterThan(0)
+    expect(capped.unassignable).toHaveLength(0)
   })
 })
 
@@ -255,4 +257,70 @@ describe('discord rendering', () => {
     }
     expect(chunks.flat()).toHaveLength(13)
   })
+})
+
+it('computes per-maintainer velocity from submitted reviews and request recipients, not actors', () => {
+  const snapshot = snapshotFixture()
+  const assigned = {
+    kind: 'assigned' as const,
+    actor: 'github-actions[bot]',
+    subject: 'TOM',
+    isBot: true,
+    at: hoursAgo(72),
+  }
+  snapshot.prs = [
+    makePR({
+      timeline: [
+        assigned,
+        { ...assigned, kind: 'review-requested', at: hoursAgo(70) },
+        review('tom', hoursAgo(48), 'CHANGES_REQUESTED'),
+        review('tom', hoursAgo(24), 'APPROVED'),
+        review('tom', hoursAgo(1), 'PENDING'),
+        review('tom', hoursAgo(-1), 'APPROVED'),
+        { ...review('tom', hoursAgo(1), 'COMMENTED'), isBot: true },
+        comment('alem', hoursAgo(1), 'not a review'),
+      ],
+    }),
+    makePR({
+      number: 101,
+      author: 'TOM',
+      timeline: [assigned, review('tom', hoursAgo(1), 'APPROVED')],
+    }),
+  ]
+  snapshot.recentlyClosed = [
+    {
+      ...snapshot.recentlyClosed[0]!,
+      timeline: [
+        { ...assigned, kind: 'review-requested', at: hoursAgo(20) },
+        review('tom', hoursAgo(8), 'COMMENTED'),
+        review('alem', hoursAgo(6), 'APPROVED'), // counts throughput, no invented latency
+        review('jack', daysAgo(8), 'APPROVED'),
+      ],
+    },
+  ]
+  const card = computeScorecard(
+    snapshot,
+    classifyAll(snapshot, config, NOW),
+    config,
+    NOW,
+    0,
+  )
+  expect(card.perMaintainer[0]).toMatchObject({
+    reviewsCompleted7d: 3,
+    medianTimeToFirstReviewHours: 12,
+    reviewLatencySampleSize: 2,
+  })
+  expect(card.perMaintainer[1]).toMatchObject({
+    reviewsCompleted7d: 1,
+    medianTimeToFirstReviewHours: null,
+    reviewLatencySampleSize: 0,
+  })
+  expect(card.perMaintainer[2]).toMatchObject({
+    reviewsCompleted7d: 0,
+    medianTimeToFirstReviewHours: null,
+  })
+  const queue = buildScorecardEmbeds(card, config.repo)[2]!.description
+  expect(queue).toContain('3 reviews/7d')
+  expect(queue).toContain('median first review 12h (n=2)')
+  expect(queue).toContain('no timed first reviews')
 })

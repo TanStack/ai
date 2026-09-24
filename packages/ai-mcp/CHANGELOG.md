@@ -1,5 +1,55 @@
 # @tanstack/ai-mcp
 
+## 0.4.5
+
+### Patch Changes
+
+- Updated dependencies [[`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd)]:
+  - @tanstack/ai@0.60.0
+
+## 0.4.4
+
+### Patch Changes
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+
+## 0.4.3
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [[`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9), [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6)]:
+  - @tanstack/ai@0.56.0
+
+## 0.4.0
+
+### Minor Changes
+
+- [#940](https://github.com/TanStack/ai/pull/940) [`c5e4cd0`](https://github.com/TanStack/ai/commit/c5e4cd03dcf313d026c3a6fed263e0a70d9342a4) - Support MCP tools that require task-based execution. Task-required tools are now discovered and execute through the MCP SDK's experimental task stream, while optional task tools continue to use ordinary tool calls.
+
+  Task execution is gated on the server declaring the tasks capability for `tools/call` — a server that lists a task-required tool without it is skipped by auto-discovery (binding one explicitly throws `MCPTaskRequiredToolError`). Aborting a run now sends a best-effort `tasks/cancel` for an in-flight task, and `MCPClient.callTool` accepts an optional `{ signal }`. Tool discovery follows `tools/list` pagination, is refreshed on `tools/list_changed`, and a direct `callTool` no longer hard-depends on `tools/list` (a failing listing falls back to a plain call) nor changes output-schema validation behavior.
+
+## 0.3.11
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+
 ## 0.3.10
 
 ### Patch Changes

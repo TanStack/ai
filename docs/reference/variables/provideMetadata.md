@@ -3,8 +3,6 @@ id: provideMetadata
 title: provideMetadata
 ---
 
-# Variable: provideMetadata
-
 ```ts
 provideMetadata: CapabilityProvider<MetadataStore>;
 ```

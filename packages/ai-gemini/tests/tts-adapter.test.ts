@@ -328,4 +328,85 @@ describe('Gemini TTS Adapter', () => {
     expect(result.format).toBe('ogg')
     expect(result.contentType).toBe('audio/ogg;codec=opus')
   })
+
+  describe('dialogue turns', () => {
+    function audioResponse() {
+      mockGenerateContent.mockResolvedValueOnce({
+        candidates: [
+          {
+            content: {
+              parts: [{ inlineData: { mimeType: 'audio/wav', data: 'B' } }],
+            },
+          },
+        ],
+      })
+    }
+
+    it('builds the speaker config and the labelled prompt from turns', async () => {
+      audioResponse()
+      const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'key')
+
+      await generateSpeech({
+        adapter,
+        turns: [
+          { text: 'hello', voice: 'Puck' },
+          { text: 'hi', voice: 'Kore' },
+          { text: 'bye', voice: 'Puck' },
+        ],
+      })
+
+      const args = mockGenerateContent.mock.calls[0]![0]
+      // Gemini names speakers in the prompt, so the voice name doubles as the
+      // speaker label rather than the caller inventing one.
+      expect(args.contents[0].parts[0].text).toBe(
+        'Puck: hello\nKore: hi\nPuck: bye',
+      )
+      expect(
+        args.config.speechConfig.multiSpeakerVoiceConfig.speakerVoiceConfigs,
+      ).toEqual([
+        {
+          speaker: 'Puck',
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
+        },
+        {
+          speaker: 'Kore',
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+        },
+      ])
+      expect(args.config.speechConfig.voiceConfig).toBeUndefined()
+    })
+
+    it('rejects a turn whose voice is not a Gemini voice', async () => {
+      const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'key')
+
+      await expect(
+        generateSpeech({
+          adapter,
+          turns: [{ text: 'hello', voice: 'Alice' }],
+        }),
+      ).rejects.toThrow(/Invalid Gemini TTS voice "Alice"/)
+      expect(mockGenerateContent).not.toHaveBeenCalled()
+    })
+
+    it('rejects a third speaker before the request leaves the process', async () => {
+      const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'key')
+
+      await expect(
+        generateSpeech({
+          adapter,
+          turns: [
+            { text: 'a', voice: 'Puck' },
+            { text: 'b', voice: 'Kore' },
+            { text: 'c', voice: 'Zephyr' },
+          ],
+        }),
+      ).rejects.toThrow(/at most 2 distinct voices per request; received 3/)
+      expect(mockGenerateContent).not.toHaveBeenCalled()
+    })
+
+    it('declares two speakers and no timestamps', () => {
+      const adapter = createGeminiSpeech('gemini-2.5-flash-preview-tts', 'key')
+      expect(adapter.capabilities).toEqual({ maxSpeakers: 2 })
+    })
+  })
 })

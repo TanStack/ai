@@ -59,6 +59,7 @@ export function deriveResponseState(
     isRosterMaintainer(e.actor, config)
 
   const isContributorActivity = (e: TimelineEvent) =>
+    (e.kind === 'comment' || e.kind === 'review' || e.kind === 'commit') &&
     !e.isBot &&
     (e.actor === author ||
       e.actor === null ||
