@@ -212,8 +212,11 @@ export function computeAnthropicBetas(
 
   // The MCP connector needs its beta header as well (same shape as #1074);
   // an empty array is a typed "unset" — do not enable the beta.
+  // ponytail: 2025-04-04 matches the `mcp_servers` shape we type
+  // (`tool_configuration` on each server). 2025-11-20 needs an `mcp_toolset`
+  // in `tools` for every server, which this adapter does not send yet.
   if (modelOptions?.mcp_servers && modelOptions.mcp_servers.length > 0) {
-    betas.add('mcp-client-2025-11-20')
+    betas.add('mcp-client-2025-04-04')
   }
 
   // Code-execution beta is version-aware: select from the FIRST code_execution

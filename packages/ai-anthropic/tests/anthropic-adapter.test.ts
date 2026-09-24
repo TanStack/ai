@@ -573,7 +573,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
     expect(payload.mcp_servers).toEqual(mcpServers)
-    expect(payload.betas).toEqual(['mcp-client-2025-11-20'])
+    expect(payload.betas).toEqual(['mcp-client-2025-04-04'])
   })
 
   it('does not attach the mcp-client beta for an empty mcp_servers array', async () => {
