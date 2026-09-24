@@ -108,7 +108,10 @@ CREATE TABLE IF NOT EXISTS runs (
   sandbox_key text,
   detached_since integer,
   cancel_requested integer,
-  driver_epoch integer
+  driver_epoch integer,
+  parent_run_id text,
+  subagent_run_id text,
+  name text
 );
 CREATE TABLE IF NOT EXISTS interrupts (
   interrupt_id text PRIMARY KEY NOT NULL,
@@ -249,6 +252,9 @@ const RUNS_ADDED_COLUMNS: ReadonlyArray<{ name: string; type: string }> = [
   { name: 'detached_since', type: 'integer' },
   { name: 'cancel_requested', type: 'integer' },
   { name: 'driver_epoch', type: 'integer' },
+  { name: 'parent_run_id', type: 'text' },
+  { name: 'subagent_run_id', type: 'text' },
+  { name: 'name', type: 'text' },
 ]
 
 /** `PRAGMA table_info` row, narrowed to the one field this uses. */
@@ -281,6 +287,12 @@ function addMissingColumns(db: DatabaseSync): void {
     if (existing.has(column.name)) continue
     db.exec(`ALTER TABLE runs ADD COLUMN ${column.name} ${column.type}`)
   }
+  // After the columns exist. SCHEMA_SQL runs first, and an old runs table
+  // does not have parent_run_id yet, so the index cannot live there.
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS runs_parent_started
+       ON runs (parent_run_id, started_at)`,
+  )
 }
 
 // Row shapes as SQLite hands them back (JSON columns are still text here).
@@ -300,6 +312,9 @@ interface RunRow {
   detached_since: number | null
   cancel_requested: number | null
   driver_epoch: number | null
+  parent_run_id: string | null
+  subagent_run_id: string | null
+  name: string | null
 }
 interface InterruptRow {
   interrupt_id: string
@@ -432,18 +447,31 @@ function mapRun(row: RunRow): RunRecord {
       ? { cancelRequested: row.cancel_requested !== 0 }
       : {}),
     ...(row.driver_epoch != null ? { driverEpoch: row.driver_epoch } : {}),
+    ...(row.parent_run_id != null ? { parentRunId: row.parent_run_id } : {}),
+    ...(row.subagent_run_id != null
+      ? { subagentRunId: row.subagent_run_id }
+      : {}),
+    ...(row.name != null ? { name: row.name } : {}),
   }
 }
 
 function createRunStore(db: DatabaseSync) {
   const selectStmt = db.prepare('SELECT * FROM runs WHERE run_id = ?')
   const insertStmt = db.prepare(
-    `INSERT INTO runs (run_id, thread_id, status, started_at) VALUES (?, ?, ?, ?)
+    `INSERT INTO runs (
+       run_id, thread_id, status, started_at, parent_run_id, subagent_run_id, name
+     ) VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(run_id) DO NOTHING`,
   )
   const activeStmt = db.prepare(
     `SELECT * FROM runs WHERE thread_id = ? AND status = 'running'
      ORDER BY started_at DESC LIMIT 1`,
+  )
+  const byParentStmt = db.prepare(
+    `SELECT * FROM runs WHERE parent_run_id = ? ORDER BY started_at ASC`,
+  )
+  const byThreadStmt = db.prepare(
+    `SELECT * FROM runs WHERE thread_id = ? ORDER BY started_at ASC`,
   )
   // Reclaim candidates: ALL THREE of status === 'running', detachedSince set,
   // and detachedSince <= now - ttlMs (inclusive cutoff — a run detached at
@@ -469,7 +497,15 @@ function createRunStore(db: DatabaseSync) {
       const existing = selectStmt.get(input.runId) as RunRow | undefined
       if (existing) return Promise.resolve(mapRun(existing))
       const status: RunStatus = input.status ?? 'running'
-      insertStmt.run(input.runId, input.threadId, status, input.startedAt)
+      insertStmt.run(
+        input.runId,
+        input.threadId,
+        status,
+        input.startedAt,
+        input.parentRunId ?? null,
+        input.subagentRunId ?? null,
+        input.name ?? null,
+      )
       const created = selectStmt.get(input.runId) as RunRow | undefined
       return Promise.resolve(
         created
@@ -556,6 +592,18 @@ function createRunStore(db: DatabaseSync) {
     findActiveRun(threadId) {
       const row = activeStmt.get(threadId) as RunRow | undefined
       return Promise.resolve(row ? mapRun(row) : null)
+    },
+    listByParentRun(parentRunId) {
+      // node:sqlite types `.all()` as a string record. That type does not
+      // overlap `RunRow`, so the unknown step is required.
+      const rows = byParentStmt.all(
+        parentRunId,
+      ) as Array<unknown> as Array<RunRow>
+      return Promise.resolve(rows.map(mapRun))
+    },
+    listByThread(threadId) {
+      const rows = byThreadStmt.all(threadId) as Array<unknown> as Array<RunRow>
+      return Promise.resolve(rows.map(mapRun))
     },
     // Reclaim candidates for a sandbox reaper to sweep. Not thread-scoped —
     // callers filter the result themselves when they need a subset.

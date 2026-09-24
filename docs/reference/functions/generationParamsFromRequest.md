@@ -7,7 +7,7 @@ title: generationParamsFromRequest
 function generationParamsFromRequest<TKind>(kind, request): Promise<GenerationParams<TKind>>;
 ```
 
-Defined in: [packages/ai/src/client.ts:182](https://github.com/TanStack/ai/blob/main/packages/ai/src/client.ts#L182)
+Defined in: [packages/ai/src/client.ts:209](https://github.com/TanStack/ai/blob/main/packages/ai/src/client.ts#L209)
 
 ## Type Parameters
 

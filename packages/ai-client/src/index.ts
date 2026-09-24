@@ -34,6 +34,13 @@ export type {
   ThinkingPart,
   ActivityPart,
   StructuredOutputPart,
+  SubagentPart,
+  SubagentPartOf,
+  SubagentHandle,
+  SubagentHandleOf,
+  SubagentHandles,
+  SubagentClientAgent,
+  SubagentStatus,
   // Client configuration types
   ChatClientPersistence,
   ChatPersistedState,

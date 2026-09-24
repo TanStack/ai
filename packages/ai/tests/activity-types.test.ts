@@ -22,7 +22,9 @@ describe('AG-UI activity type surface', () => {
     expectTypeOf<Delta>().toEqualTypeOf<ActivityDeltaEvent>()
     expectTypeOf<Delta['messageId']>().toEqualTypeOf<string>()
     expectTypeOf<Delta['activityType']>().toEqualTypeOf<string>()
-    expectTypeOf<Delta['patch']>().toEqualTypeOf<any[]>()
+    expectTypeOf<Delta['patch']>().toMatchTypeOf<
+      Array<{ op: string; path: string }>
+    >()
   })
 
   it('UIMessage can hold a frontend-only activity part', () => {

@@ -46,6 +46,7 @@ describe('selectChatUI', () => {
     expect(partTypeToKey('structured-output')).toBe('structuredOutput')
     expect(partTypeToKey('ui-resource')).toBe('uiResource')
     expect(partTypeToKey('activity')).toBe('activity')
+    expect(partTypeToKey('subagent')).toBe('subagent')
   })
 
   it('exposes activity parts on activity messages', () => {

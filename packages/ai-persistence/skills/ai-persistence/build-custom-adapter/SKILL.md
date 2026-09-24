@@ -43,12 +43,12 @@ complete worked `node:sqlite` walkthrough is
 Four logical records. Whatever the engine, keep these keys — the store methods
 look records up by exactly these:
 
-| Record    | Key                | Fields                                                                                                                                    |
-| --------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| thread    | `threadId`         | `messages` (array, full transcript)                                                                                                       |
-| run       | `runId`            | `threadId`, `status`, `startedAt`, `finishedAt?`, `error?`, `usage?`, `sandboxKey?`, `detachedSince?`, `cancelRequested?`, `driverEpoch?` |
-| interrupt | `interruptId`      | `runId`, `threadId`, `status`, `requestedAt`, `resolvedAt?`, `payload`, `response?`                                                       |
-| metadata  | `(namespace, key)` | `value`                                                                                                                                   |
+| Record    | Key                | Fields                                                                                                                                                                               |
+| --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| thread    | `threadId`         | `messages` (array, full transcript)                                                                                                                                                  |
+| run       | `runId`            | `threadId`, `status`, `startedAt`, `finishedAt?`, `error?`, `usage?`, `parentRunId?`, `subagentRunId?`, `name?`, `sandboxKey?`, `detachedSince?`, `cancelRequested?`, `driverEpoch?` |
+| interrupt | `interruptId`      | `runId`, `threadId`, `status`, `requestedAt`, `resolvedAt?`, `payload`, `response?`                                                                                                  |
+| metadata  | `(namespace, key)` | `value`                                                                                                                                                                              |
 
 - Timestamps are **epoch milliseconds** (`number`) in records. Store them
   however the engine prefers and convert in the mapper.
@@ -57,8 +57,8 @@ look records up by exactly these:
   conformance suite checks it.
 - Index `runs(threadId, status)`, `runs(threadId, startedAt)`, and
   `interrupts(threadId, requestedAt)` for the listing paths. If the backend
-  implements `listReclaimable`, also index `runs(status, detachedSince)`; that
-  is the query it runs.
+  implements `listReclaimable`, also index `runs(status, detachedSince)`. If it
+  implements `listByParentRun`, also index `runs(parentRunId, startedAt)`.
 - `run.error` is a structured `RunError` (`{ message: string, code?: string }`),
   not a bare string. `message` is the provider's prose; `code` is the stable,
   machine-branchable classification an operator filters and groups by. In a
@@ -105,8 +105,12 @@ history. They are engine-independent:
    automatic reclamation: `reapDetachedRuns` from `@tanstack/ai-sandbox` is the
    sweep that consumes it, and the application schedules that sweep. A store
    without this method cannot be reaped. `runs.findActiveRun` is required;
-   `runs.listByThread` / `runs.listReclaimable` are optional: implement only
-   what the app needs and leave the rest off the object.
+   `runs.listByThread`, `runs.listByParentRun`, and `runs.listReclaimable` are
+   optional: implement only what the app needs and leave the rest off the object.
+   `listByParentRun` returns the child runs for one `parentRunId`, oldest
+   `startedAt` first. `reconstructChat` uses that list to put subagent cards
+   back. `createOrResume` copies `parentRunId`, `subagentRunId`, and `name` on
+   the first insert and leaves them unchanged on resume.
 
 Row mappers omit absent optionals
 (`...(row.sandbox_key != null ? { sandboxKey: row.sandbox_key } : {})`) so
@@ -165,21 +169,44 @@ function createRunStore(db: Pool): RunStore {
   return {
     get,
     // Idempotent: an existing runId is returned untouched.
-    async createOrResume({ runId, threadId, startedAt, status }) {
+    async createOrResume(input) {
+      const { runId, threadId, startedAt, status } = input
       const existing = await get(runId)
       if (existing) return existing
 
       await db.query(
-        `INSERT INTO chat_runs (run_id, thread_id, status, started_at)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO chat_runs (
+           run_id, thread_id, status, started_at,
+           parent_run_id, subagent_run_id, name
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (run_id) DO NOTHING`,
-        [runId, threadId, status ?? 'running', startedAt],
+        [
+          runId,
+          threadId,
+          status ?? 'running',
+          startedAt,
+          input.parentRunId ?? null,
+          input.subagentRunId ?? null,
+          input.name ?? null,
+        ],
       )
       // Re-read: a concurrent createOrResume may have won the race, and that
       // row is the authoritative one.
       const stored = await get(runId)
       return (
-        stored ?? { runId, threadId, status: status ?? 'running', startedAt }
+        stored ?? {
+          runId,
+          threadId,
+          status: status ?? 'running',
+          startedAt,
+          ...(input.parentRunId !== undefined
+            ? { parentRunId: input.parentRunId }
+            : {}),
+          ...(input.subagentRunId !== undefined
+            ? { subagentRunId: input.subagentRunId }
+            : {}),
+          ...(input.name !== undefined ? { name: input.name } : {}),
+        }
       )
     },
     // ... update (no-op on unknown id; sandboxKey/detachedSince/
@@ -191,8 +218,9 @@ function createRunStore(db: Pool): RunStore {
     // error = patch.error.message and error_code = patch.error.code ?? null,
     // together in the same call),
     // findActiveRun (latest 'running', required), listByThread (ascending
-    // by startedAt, optional), listReclaimable (status = 'running' AND
-    // detachedSince <= now - ttlMs, inclusive cutoff, optional)
+    // by startedAt, optional), listByParentRun (children of parentRunId,
+    // ascending by startedAt, optional), listReclaimable (status = 'running'
+    // AND detachedSince <= now - ttlMs, inclusive cutoff, optional)
   }
 }
 
@@ -321,8 +349,9 @@ seven stores, so declare every intentional omission — a chat adapter skips the
 generation half above, and adds e.g. `'metadata'` if it drops that too. `skip`
 never accepts `'locks'`, which is not a store.
 
-If your recipe leaves an optional `runs` method (`listByThread`/
-`listReclaimable`) unimplemented, declare it separately with `skipMethods`, e.g.
+If your recipe leaves `listByThread` or `listReclaimable` unimplemented,
+declare it separately with `skipMethods`, for example
 `{ skipMethods: ['runs.listByThread'] }`. An omitted method that is not declared
-fails the suite instead of silently passing. `findActiveRun` is **not** in that
+fails the suite instead of silently passing. Subagent support is optional: when
+`listByParentRun` is absent, the subagent checks skip on their own. `findActiveRun` is **not** in that
 set — it is required, so there is nothing to declare.

@@ -1,5 +1,33 @@
 # @tanstack/ai-openai
 
+## 0.23.2
+
+### Patch Changes
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+  - @tanstack/openai-base@0.10.16
+
+## 0.23.1
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+  - @tanstack/openai-base@0.10.15
+
+## 0.23.0
+
+### Minor Changes
+
+- [#1373](https://github.com/TanStack/ai/pull/1373) [`bffdd18`](https://github.com/TanStack/ai/commit/bffdd186afee12d3bbd71986e9cc2793c8aeded6) - The default realtime model for `openaiRealtimeToken()` and `openaiRealtime()` is now `gpt-realtime-2.1`, the latest snapshot in `OpenAIRealtimeModel`. Pass `model` explicitly to pin an older snapshot (`gpt-realtime`, `gpt-realtime-mini`, `gpt-realtime-1.5`, `gpt-realtime-2`, or `gpt-realtime-2.1-mini`).
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+  - @tanstack/openai-base@0.10.14
+
 ## 0.22.9
 
 ### Patch Changes

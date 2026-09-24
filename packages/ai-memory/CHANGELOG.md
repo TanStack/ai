@@ -1,5 +1,29 @@
 # @tanstack/ai-memory
 
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+
+## 0.2.2
+
+### Patch Changes
+
+- [#1417](https://github.com/TanStack/ai/pull/1417) [`e8619e6`](https://github.com/TanStack/ai/commit/e8619e6abc61c8b5bba8f0a896692d496aa38811) - Add a package README: install, `memoryMiddleware` wiring, the five adapters and their subpaths, semantic scoring, the `testkit` contract suite, and links to the docs.
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+  - @tanstack/ai-event-client@0.12.0
+
 ## 0.2.1
 
 ### Patch Changes

@@ -3018,6 +3018,32 @@ describe('chat()', () => {
   // Error handling
   // ==========================================================================
   describe('error handling', () => {
+    it('fails closed on a file source before the adapter call', async () => {
+      const { adapter, calls } = createMockAdapter({
+        iterations: [[ev.runStarted(), ev.runFinished('stop')]],
+      })
+
+      await expect(
+        collectChunks(
+          chat({
+            adapter,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'document',
+                    source: { type: 'file', value: 'file-abc' },
+                  },
+                ],
+              },
+            ],
+          }) as AsyncIterable<StreamChunk>,
+        ),
+      ).rejects.toThrow("{ type: 'file' }")
+      expect(calls).toHaveLength(0)
+    })
+
     it('should yield RUN_ERROR and stop the loop', async () => {
       const { adapter } = createMockAdapter({
         iterations: [

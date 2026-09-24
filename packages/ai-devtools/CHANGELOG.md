@@ -1,5 +1,61 @@
 # @tanstack/ai-devtools-core
 
+## 0.5.18
+
+### Patch Changes
+
+- [#1438](https://github.com/TanStack/ai/pull/1438) [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0) - Add first-class subagents. `chat({ subagents })` starts named child agents (router spawn, or a synthetic tool when there is no router). The stream emits AG-UI `SUBAGENT_*` events with `subagentRunId`. The client stores nested `type: 'subagent'` parts. `useChat().subagents` and `part.subagent` are the same live handle, including `stop()`.
+
+  In the React chat UI kit, pass the same agents to `options.subagents` that you pass to `chat()`. A subagent card can style its own child's parts: `<Parts partsComponents={...} toolsComponents={...} />`. Each entry replaces the root entry of the same key for that card and its nested children. Keys you do not set use the root widgets. The card's tool names, tool `input` and `output`, and approvals are typed from that agent's `tools`. The root `interruptsComponents` also accepts the children's approval tools and `interrupts`.
+
+  Pass the same `defineAgent` list to `useChat({ subagents })` when you are not using the chat UI factory. `part.subagent.name` narrows to those names, and that child's message parts use the agent's tools.
+
+  A child card keeps all of the child's work: text, reasoning, tool calls, tool results, approvals, and nested children. A child can stop for an approval or a client tool. Its `SUBAGENT_FINISHED` has `outcome: { type: 'suspended' }`, and the parent run ends with that interrupt. The resume continues the same child. Pass `parentRunId: ctx.parentRunId` and `resume: ctx.resume` to the child `chat()`.
+
+  The AI devtools Conversation tab shows each subagent as a card of steps, drawn like the parent's steps. The steps are the child's server iterations when server events reach the devtools, else they come from the browser messages. The User view shows the child's text and tool outputs. Nested children show the same way. The child's card updates while it streams, and a later turn keeps the earlier turns.
+
+  Child token usage is added to the parent `RUN_FINISHED.usage[]`. Child messages travel on the AG-UI wire as their own messages, tagged with `subagentRunId`.
+
+  `@tanstack/ai` now depends on `@ag-ui/core` 1.0.0. Subagent events come from that package.
+
+  AG-UI `{ type: 'file' }` content sources now cross the wire as `ContentPartFileSource`. No adapter reads them yet, so `chat()` throws before it calls the adapter.
+
+  `RUN_FINISHED.usage[]` now carries `cacheWriteInputTokens`. `metadata.tanstack.usage` still carries `promptTokensDetails.cacheWriteTokens`, so older readers see the same usage as before.
+
+  `chat({ subagentRunId })` puts that id on the middleware context as `ctx.subagentRunId`. A child `chat()` passes `subagentRunId: ctx.subagentRunId`, so a middleware inside the child knows it runs as a subagent and which card it belongs to. The field is absent on a top-level run.
+
+  `fromSpecTokenUsage` adds every entry of `RUN_FINISHED.usage[]`. Before, it read only the first entry. A run with more than one usage entry now reports the total.
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+
+## 0.5.17
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+
+## 0.5.16
+
+### Patch Changes
+
+- [#1390](https://github.com/TanStack/ai/pull/1390) [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7) - Add a `generateVoice()` activity for creating a voice, and refresh the ElevenLabs model lists.
+
+  **`generateVoice()`** creates a reusable voice and returns voice ids that `generateSpeech({ voice })` accepts. Providers create voices two ways, and the activity covers both: design one from a text `prompt`, or derive one from `referenceAudio`. Pass a `name` to keep the voice in the provider's library, and read `saved` on each returned voice to see what happened. Every returned voice also carries `status`, which is `'ready'` on every adapter today. Comes with `VoiceAdapter` / `BaseVoiceAdapter` for adapter authors, the `voice:request:*` and `voice:usage` devtools events, and a `voice_generation` OpenTelemetry operation name. See [Voice Creation](https://tanstack.com/ai/latest/docs/media/voice-creation).
+
+  **`listVoices()`** reads an account voice catalog back, for when you did not store the id `generateVoice()` returned. It filters by `origin` (`premade`, `generated`, `cloned`, `professional`). `listVoices` is an optional method on `TTSAdapter` rather than `VoiceAdapter`, because `voice` is a `generateSpeech()` option and that is where the id gets used. Only providers with a per-account catalog implement it; where the voice list is fixed the package publishes it directly (`GeminiTTSVoices` from `@tanstack/ai-gemini`, the `OpenAITTSVoice` union from `@tanstack/ai-openai`), which beats a network call, and calling `listVoices()` on such an adapter throws and points at those exports. `elevenlabsSpeech` implements it against `GET /v1/voices`.
+
+  **`elevenlabsVoiceDesign()`** implements voice creation on `eleven_ttv_v3` and `eleven_multilingual_ttv_v2`. ElevenLabs' design-then-create two-step is hidden inside the adapter. Only `eleven_ttv_v3` accepts `referenceAudio`, and it is a design reference rather than a straight clone: a `prompt` is still required, and `modelOptions.promptStrength` balances the description against the recording.
+
+  **ElevenLabs models.** `@elevenlabs/elevenlabs-js` moves to `^2.68.0` and `@elevenlabs/client` to `^1.25.0`. The bump is what makes the new music and transcription ids type-check: 2.44 pinned the music request to `modelId?: 'music_v1'` and typed speech-to-text as a two-member `'scribe_v2' | 'scribe_v1'` union. Adds `eleven_v3_conversational` (TTS), `scribe_v2_medical` (Scribe), and `music_v2_5` and `music_v2` (music). `eleven_turbo_v2`, `eleven_turbo_v2_5`, `eleven_monolingual_v1`, `scribe_v1`, and `music_v1` are still accepted and are commented as deprecated in `model-meta.ts`. `ELEVENLABS_AUDIO_MODELS` is now pinned to the SDK's own `MusicModelId | SfxModelId` with `satisfies`, so an id the SDK drops fails the build instead of the request.
+
+  **Breaking:** `eleven_text_to_sound_v1` is removed from `ELEVENLABS_AUDIO_MODELS`. ElevenLabs dropped it from the catalog and from the SDK's `SfxModelId`, so the adapter can no longer send it. Use `eleven_text_to_sound_v2`.
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+  - @tanstack/ai-event-client@0.12.0
+
 ## 0.5.15
 
 ### Patch Changes

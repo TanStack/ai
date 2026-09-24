@@ -3,7 +3,7 @@ id: ToolCallArgsEvent
 title: ToolCallArgsEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1288](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1288)
+Defined in: [packages/ai/src/types.ts:1310](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1310)
 
 Emitted when tool call arguments are streaming.
 

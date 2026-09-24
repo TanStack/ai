@@ -52,7 +52,7 @@ export function geminiRealtime(
  */
 async function createWebSocketConnection(
   token: RealtimeToken,
-  model: GeminiRealtimeModel = 'gemini-3.1-flash-live-preview',
+  model: GeminiRealtimeModel = 'gemini-3.8-live',
   tools?: ReadonlyArray<AnyClientTool>,
 ): Promise<RealtimeConnection> {
   const { emit, on: realtimeEventEmitterOn } = createRealtimeEventEmitter()

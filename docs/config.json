@@ -13,7 +13,7 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-17"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Quick Start",
@@ -64,6 +64,21 @@
           "label": "Streaming Structured Table",
           "to": "tutorials/streaming-structured-table",
           "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Evaluate a ticket",
+          "to": "tutorials/evaluate",
+          "addedAt": "2026-09-18"
+        },
+        {
+          "label": "Subagents",
+          "to": "tutorials/subagents",
+          "addedAt": "2026-09-21"
+        },
+        {
+          "label": "Persisted subagents",
+          "to": "tutorials/subagents-persisted",
+          "addedAt": "2026-09-22"
         }
       ]
     },
@@ -85,6 +100,21 @@
           "label": "Streaming Structured Table",
           "to": "framework/react/examples/streaming-structured-table",
           "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Evaluate",
+          "to": "framework/react/examples/evaluate",
+          "addedAt": "2026-09-18"
+        },
+        {
+          "label": "Subagents",
+          "to": "framework/react/examples/subagents",
+          "addedAt": "2026-09-21"
+        },
+        {
+          "label": "Persisted subagents",
+          "to": "framework/react/examples/subagents-persisted",
+          "addedAt": "2026-09-22"
         }
       ]
     },
@@ -118,7 +148,14 @@
         {
           "label": "Stream Events",
           "to": "chat/stream-events",
-          "addedAt": "2026-08-26"
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-09-23"
+        },
+        {
+          "label": "Subagents",
+          "to": "chat/subagents",
+          "addedAt": "2026-09-21",
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "Agentic Cycle",
@@ -265,7 +302,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Compaction",
@@ -528,7 +565,7 @@
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-26"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "Client Persistence",
@@ -551,7 +588,7 @@
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "Migrations",
@@ -580,7 +617,8 @@
         {
           "label": "Build a Chat Adapter",
           "to": "persistence/build-your-own-chat-adapter",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "Build a Generation Adapter",
@@ -598,7 +636,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-26"
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "How Persistence Works",
@@ -706,6 +744,17 @@
           "to": "rerank/rerank",
           "addedAt": "2026-06-25",
           "updatedAt": "2026-08-19"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Evaluate",
+      "children": [
+        {
+          "label": "Evaluate",
+          "to": "evaluate/evaluate",
+          "addedAt": "2026-09-18"
         }
       ],
       "tab": "guides"
@@ -1061,6 +1110,11 @@
           "updatedAt": "2026-09-03"
         },
         {
+          "label": "TypeSafe",
+          "to": "adapters/typesafe",
+          "addedAt": "2026-09-18"
+        },
+        {
           "label": "ElevenLabs",
           "to": "adapters/elevenlabs",
           "addedAt": "2026-04-15",
@@ -1082,7 +1136,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Perplexity Search",
@@ -1093,7 +1147,7 @@
           "label": "Vercel AI Gateway",
           "to": "adapters/vercel-gateway",
           "addedAt": "2026-08-12",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Lovable AI Gateway",
@@ -1115,7 +1169,8 @@
         {
           "label": "Cloudflare",
           "to": "adapters/cloudflare",
-          "addedAt": "2026-09-03"
+          "addedAt": "2026-09-03",
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Claude Code",
@@ -1247,7 +1302,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "@tanstack/ai-client",

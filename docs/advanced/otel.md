@@ -235,7 +235,7 @@ const result = await generateImage({
 })
 ```
 
-The same `otel` value can be passed to `chat()` and to any media activity — its shared lifecycle hooks (`onStart` / `onUsage` / `onFinish` / `onAbort` / `onError`) are authored against the activity-agnostic `GenerationMiddlewareContext`, so the one instance works everywhere.
+You can pass the same `otel` value to `chat()`, `decide()`, and any media activity. Its shared lifecycle hooks (`onStart` / `onUsage` / `onFinish` / `onAbort` / `onError`) are authored against the activity-agnostic `GenerationMiddlewareContext`, so the one instance works everywhere.
 
 Each media call produces one `CLIENT` span tagged with the activity's `gen_ai.operation.name`:
 
@@ -249,6 +249,7 @@ Each media call produces one `CLIENT` span tagged with the activity's `gen_ai.op
 | `generateWorld` | `world_generation` |
 | `generateLiveVideo` | `live_video_generation` |
 | `summarize` | `summarize` |
+| `decide` | `evaluate` |
 
 The span carries `gen_ai.system` and `gen_ai.request.model` at start and, on finish, the same `gen_ai.usage.*` / `tanstack.ai.usage.*` attributes documented above — including the `tanstack.ai.usage.billed_quantity` / `tanstack.ai.usage.billed_unit` pair for unit-billed media. When a `Meter` is supplied it records the `gen_ai.client.operation.duration` histogram, tagged per activity. For streaming video the span covers the full create → poll → complete lifecycle. Non-streaming video is two calls, so the submit itself emits no span — the run opens once the provider accepts the job, and the `getVideoJobStatus()` poll that observes a terminal state ends it. If a streaming video consumer abandons the stream before completion, the span is ended via `onAbort` (status `ERROR`, `tanstack.ai.completion.reason = cancelled`) rather than leaked.
 
