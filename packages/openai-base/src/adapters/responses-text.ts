@@ -1684,11 +1684,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // be silently dropped from the AG-UI stream while `hasFunctionCalls`
           // below still routes the run's finishReason to 'tool_calls' —
           // leaving consumers waiting for tool results they never saw start.
-          for (const item of chunk.response.output) {
+          for (const [outputIndex, item] of chunk.response.output.entries()) {
             if (item.type !== 'function_call' || !item.id) continue
             const metadata = toolCallMetadata.get(item.id) ?? {
               callId: item.call_id || item.id,
-              index: 0,
+              index: outputIndex,
               name: item.name || '',
               started: false,
             }
@@ -1761,7 +1761,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           }
 
           const shellOutputs = hostedShellCallIds(chunk.response.output)
-          for (const item of chunk.response.output) {
+          for (const [outputIndex, item] of chunk.response.output.entries()) {
             if (
               isRecord(item) &&
               item.type === 'shell_call' &&
@@ -1770,7 +1770,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             ) {
               continue
             }
-            yield* userToolChunks(item, 0, true)
+            yield* userToolChunks(item, outputIndex, true)
           }
 
           yield* closeReasoning()

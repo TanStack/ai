@@ -115,10 +115,6 @@ function applyPatchOperation(
  * `bareShell` is true only once the full response is known. A shell call
  * with no environment waits for that pass, so a hosted call that later
  * carries `shell_call_output` is not asked of the app.
- *
- * ponytail: command text is taken from the finished item. Stream
- * `response.shell_call_command.delta` events when a UI must show the
- * command before the item completes.
  */
 export function readUserExecutedCall(
   item: unknown,

@@ -3939,6 +3939,116 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       })
       expect(mockResponsesCreate).toHaveBeenCalledOnce()
     })
+
+    async function pausedCallIds(
+      output: Array<Record<string, unknown>>,
+      tools: Array<Tool> = [applyPatchTool(), shellTool(), localShellTool()],
+    ) {
+      setupMockResponsesClient(completedResponse(output))
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'edit the file' }],
+        tools,
+      })) {
+        chunks.push(chunk)
+      }
+      const finished = chunks.find((chunk) => chunk.type === 'RUN_FINISHED')
+      if (
+        finished?.type !== 'RUN_FINISHED' ||
+        finished.outcome?.type !== 'interrupt'
+      ) {
+        return []
+      }
+      return finished.outcome.interrupts.flatMap((interrupt) =>
+        interrupt.toolCallId ? [interrupt.toolCallId] : [],
+      )
+    }
+
+    it('pauses chat() for an apply_patch call and a bare shell call', async () => {
+      const ids = await pausedCallIds([
+        {
+          type: 'apply_patch_call',
+          id: 'apc_pair',
+          call_id: 'call_patch',
+          status: 'completed',
+          operation: { type: 'delete_file', path: 'old.ts' },
+        },
+        {
+          type: 'shell_call',
+          id: 'sh_pair',
+          call_id: 'call_shell',
+          status: 'completed',
+          action: {
+            commands: ['printf hello'],
+            max_output_length: null,
+            timeout_ms: null,
+          },
+        },
+      ])
+
+      expect(ids).toEqual(['call_patch', 'call_shell'])
+      expect(mockResponsesCreate).toHaveBeenCalledOnce()
+    })
+
+    it('pauses chat() for every bare shell call in one response', async () => {
+      const ids = await pausedCallIds([
+        {
+          type: 'shell_call',
+          id: 'sh_a',
+          call_id: 'call_a',
+          status: 'completed',
+          action: {
+            commands: ['printf a'],
+            max_output_length: null,
+            timeout_ms: null,
+          },
+        },
+        {
+          type: 'shell_call',
+          id: 'sh_b',
+          call_id: 'call_b',
+          status: 'completed',
+          action: {
+            commands: ['printf b'],
+            max_output_length: null,
+            timeout_ms: null,
+          },
+        },
+      ])
+
+      expect(ids).toEqual(['call_a', 'call_b'])
+      expect(mockResponsesCreate).toHaveBeenCalledOnce()
+    })
+
+    it('pauses chat() for a bare shell call and a function call', async () => {
+      const ids = await pausedCallIds(
+        [
+          {
+            type: 'shell_call',
+            id: 'sh_first',
+            call_id: 'call_shell',
+            status: 'completed',
+            action: {
+              commands: ['printf hello'],
+              max_output_length: null,
+              timeout_ms: null,
+            },
+          },
+          {
+            type: 'function_call',
+            id: 'fc_weather',
+            call_id: 'call_weather',
+            name: 'lookup_weather',
+            arguments: '{}',
+          },
+        ],
+        [shellTool(), weatherTool],
+      )
+
+      expect(ids).toEqual(['call_weather', 'call_shell'])
+      expect(mockResponsesCreate).toHaveBeenCalledOnce()
+    })
   })
 
   describe('subclassing', () => {
