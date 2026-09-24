@@ -1,5 +1,14 @@
 # @tanstack/ai-openrouter
 
+## 0.19.18
+
+### Patch Changes
+
+- [#1474](https://github.com/TanStack/ai/pull/1474) [`a810da6`](https://github.com/TanStack/ai/commit/a810da6479ddd8d21425b46e8f57bd5e541587e4) - Add a `retryCodes` option to the OpenRouter text and summarize adapters. The adapter passes it to every chat request, so `retryCodes: ['429', '5XX']` together with `retryConfig` now retries rate limits. Before, the SDK retried only 5XX errors, because it reads `retryCodes` only per request.
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+
 ## 0.19.17
 
 ### Patch Changes
