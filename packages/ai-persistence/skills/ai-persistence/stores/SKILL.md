@@ -120,12 +120,12 @@ four-method `RunStore` is a fully valid backend.
 `withPersistence` calls `createOrResume` and `update`. The query methods have
 other consumers. Each missing optional method disables one feature:
 
-| method            | consumer                                                  | absent means                                             |
-| ----------------- | --------------------------------------------------------- | -------------------------------------------------------- |
-| `findActiveRun`   | `reconstruct.ts` (`stores.runs?.findActiveRun(threadId)`) | required. A `null` stub hides a live run                 |
-| `listReclaimable` | `reapDetachedRuns` in `@tanstack/ai-sandbox`              | the store cannot be reaped at all                        |
+| method            | consumer                                                  | absent means                                               |
+| ----------------- | --------------------------------------------------------- | ---------------------------------------------------------- |
+| `findActiveRun`   | `reconstruct.ts` (`stores.runs?.findActiveRun(threadId)`) | required. A `null` stub hides a live run                   |
+| `listReclaimable` | `reapDetachedRuns` in `@tanstack/ai-sandbox`              | the store cannot be reaped at all                          |
 | `listByThread`    | `reconstructChat`, when the transcript has tool calls     | the cards of children that a tool call started stay absent |
-| `listByParentRun` | `reconstructChat`                                         | a reload shows the saved text, and the cards stay absent |
+| `listByParentRun` | `reconstructChat`                                         | a reload shows the saved text, and the cards stay absent   |
 
 Consumers of the optional methods feature-detect with `store.method?.(...)`
 and degrade rather than throwing. `findActiveRun` is required, so nothing
