@@ -80,12 +80,17 @@ export const chatRuns = sqliteTable(
     detachedSince: integer('detached_since'),
     cancelRequested: integer('cancel_requested', { mode: 'boolean' }),
     driverEpoch: integer('driver_epoch'),
+    parentRunId: text('parent_run_id'),
+    subagentRunId: text('subagent_run_id'),
+    name: text('name'),
   },
   (table) => [
     // Powers listReclaimable: status = 'running' AND detachedSince <= cutoff.
     index('chat_runs_status_detached').on(table.status, table.detachedSince),
     // Powers listByThread and findActiveRun.
     index('chat_runs_thread_started').on(table.threadId, table.startedAt),
+    // Powers listByParentRun: children of one parent, oldest startedAt first.
+    index('chat_runs_parent_started').on(table.parentRunId, table.startedAt),
   ],
 )
 
@@ -135,7 +140,8 @@ behind.
 `boolean()` for `cancelRequested`, and `varchar(..., { length: 255 })` for the
 primary-key columns. The store bodies below are identical across all three,
 only `onConflictDoUpdate` becomes `onDuplicateKeyUpdate` on MySQL, and the
-`(status, detachedSince)` / `(threadId, startedAt)` indexes carry over as is.
+`(status, detachedSince)`, `(threadId, startedAt)`, and
+`(parentRunId, startedAt)` indexes carry over as is.
 
 ## 3. Write `src/lib/chat-persistence.ts`
 
@@ -190,6 +196,9 @@ function mapRun(row: typeof chatRuns.$inferSelect): RunRecord {
       ? { cancelRequested: row.cancelRequested }
       : {}),
     ...(row.driverEpoch != null ? { driverEpoch: row.driverEpoch } : {}),
+    ...(row.parentRunId != null ? { parentRunId: row.parentRunId } : {}),
+    ...(row.subagentRunId != null ? { subagentRunId: row.subagentRunId } : {}),
+    ...(row.name != null ? { name: row.name } : {}),
   }
 }
 
@@ -247,20 +256,45 @@ function createRunStore(db: Db): RunStore {
     get,
     // Idempotent: an existing runId is returned untouched so resume and
     // double-submit are safe.
-    async createOrResume({ runId, threadId, startedAt, status }) {
+    async createOrResume(input) {
+      const { runId, threadId, startedAt, status } = input
       const existing = await get(runId)
       if (existing) return existing
 
       await db
         .insert(chatRuns)
-        .values({ runId, threadId, status: status ?? 'running', startedAt })
+        .values({
+          runId,
+          threadId,
+          status: status ?? 'running',
+          startedAt,
+          ...(input.parentRunId !== undefined
+            ? { parentRunId: input.parentRunId }
+            : {}),
+          ...(input.subagentRunId !== undefined
+            ? { subagentRunId: input.subagentRunId }
+            : {}),
+          ...(input.name !== undefined ? { name: input.name } : {}),
+        })
         .onConflictDoNothing({ target: chatRuns.runId })
 
       // Re-read rather than trusting the insert: a concurrent createOrResume
       // may have won the race, and that row is the authoritative one.
       const stored = await get(runId)
       return (
-        stored ?? { runId, threadId, status: status ?? 'running', startedAt }
+        stored ?? {
+          runId,
+          threadId,
+          status: status ?? 'running',
+          startedAt,
+          ...(input.parentRunId !== undefined
+            ? { parentRunId: input.parentRunId }
+            : {}),
+          ...(input.subagentRunId !== undefined
+            ? { subagentRunId: input.subagentRunId }
+            : {}),
+          ...(input.name !== undefined ? { name: input.name } : {}),
+        }
       )
     },
     // Patching an unknown runId is a no-op: never throws, never inserts.
@@ -311,6 +345,16 @@ function createRunStore(db: Db): RunStore {
         .select()
         .from(chatRuns)
         .where(eq(chatRuns.threadId, threadId))
+        .orderBy(asc(chatRuns.startedAt))
+      return rows.map(mapRun)
+    },
+    // Optional. Child runs for one parent, oldest startedAt first.
+    // reconstructChat uses this list to put subagent cards back.
+    async listByParentRun(parentRunId) {
+      const rows = await db
+        .select()
+        .from(chatRuns)
+        .where(eq(chatRuns.parentRunId, parentRunId))
         .orderBy(asc(chatRuns.startedAt))
       return rows.map(mapRun)
     },
@@ -531,11 +575,12 @@ seven stores, so a chat adapter declares the generation half it omits; drop the
 `skip` once you add those tables. `skip` never accepts `'locks'`, which is not a
 store.
 
-If your recipe leaves an optional `runs` method
-(`listByThread`/`listReclaimable`) unimplemented, declare it
-with `skipMethods`, e.g. `{ skipMethods: ['runs.listByThread'] }`. An
-omitted method that is not declared fails the suite instead of silently
-passing.
+If your recipe leaves `listByThread` or `listReclaimable` unimplemented,
+declare it with `skipMethods`, for example
+`{ skipMethods: ['runs.listByThread'] }`. An omitted method that is not declared
+fails the suite instead of silently passing. Subagent support is optional: when
+`listByParentRun` is absent, the subagent checks skip on their own and need no
+entry.
 
 ## Only if you are publishing this as a package
 

@@ -45,6 +45,7 @@ describe('selectChatUI', () => {
     expect(partTypeToKey('tool-result')).toBe('toolResult')
     expect(partTypeToKey('structured-output')).toBe('structuredOutput')
     expect(partTypeToKey('ui-resource')).toBe('uiResource')
+    expect(partTypeToKey('subagent')).toBe('subagent')
   })
 
   it('keeps unmatched tool-result parts', () => {

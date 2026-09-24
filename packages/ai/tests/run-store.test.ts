@@ -214,6 +214,54 @@ describe('InMemoryRunStore', () => {
     expect(listed.map((r) => r.runId)).toEqual(['b', 'a'])
   })
 
+  it('keeps subagent link fields and lists children by parent', async () => {
+    const store = new InMemoryRunStore()
+    const parent = await store.createOrResume({
+      runId: 'parent',
+      threadId: 'desk',
+      startedAt: 1,
+    })
+    expect(parent.parentRunId).toBeUndefined()
+    expect(parent.subagentRunId).toBeUndefined()
+    expect(parent.name).toBeUndefined()
+
+    await store.createOrResume({
+      runId: 'child-b',
+      threadId: 'subagent:child-b',
+      startedAt: 20,
+      parentRunId: 'parent',
+      subagentRunId: 'sub-b',
+      name: 'seo',
+    })
+    await store.createOrResume({
+      runId: 'child-a',
+      threadId: 'subagent:child-a',
+      startedAt: 10,
+      parentRunId: 'parent',
+      subagentRunId: 'sub-a',
+      name: 'researcher',
+    })
+    const resumed = await store.createOrResume({
+      runId: 'child-a',
+      threadId: 'other',
+      startedAt: 99,
+      parentRunId: 'other-parent',
+      subagentRunId: 'other-sub',
+      name: 'writer',
+    })
+    expect(resumed).toMatchObject({
+      threadId: 'subagent:child-a',
+      startedAt: 10,
+      parentRunId: 'parent',
+      subagentRunId: 'sub-a',
+      name: 'researcher',
+    })
+
+    const listed = await store.listByParentRun('parent')
+    expect(listed.map((run) => run.runId)).toEqual(['child-a', 'child-b'])
+    expect(await store.listByParentRun('missing')).toEqual([])
+  })
+
   // `listReclaimable` must surface only runs where ALL THREE hold:
   // `status === 'running'`, `detachedSince` is set, and
   // `detachedSince <= now - ttlMs` (INCLUSIVE cutoff). Each fixture below pins

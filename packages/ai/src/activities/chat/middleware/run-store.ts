@@ -112,8 +112,25 @@ export interface RunRecord {
    * reuse this record by faking `threadId = requestId`; they need a separate
    * job store. `withGenerationPersistence` currently does exactly that and
    * labels itself a stopgap — do not copy it.
+   *
+   * A subagent child record stores `subagent:<subagentRunId>` here, the key of
+   * its own transcript, so `findActiveRun` and `listByThread` on the
+   * conversation never return children. Use `listByParentRun`.
    */
   threadId: string
+  /**
+   * Parent chat run that started this child, when this record is a subagent.
+   * Absent on the parent run itself.
+   */
+  parentRunId?: string
+  /**
+   * The child's AG-UI subagentRunId, the id on its `SUBAGENT_*` chunks and on
+   * every chunk it streams. On a child record this equals `runId`. Absent on
+   * the parent run.
+   */
+  subagentRunId?: string
+  /** Agent name (`researcher`, `writer`) when this record is a subagent. */
+  name?: string
   status: RunStatus
   startedAt: number
   finishedAt?: number
@@ -172,9 +189,10 @@ export interface RunRecord {
  * instead of failing at build time. It was optional for exactly one release
  * cycle and cost precisely that.
  *
- * OPTIONAL: `listByThread`, `listReclaimable`. Each serves one higher-level
- * feature (thread history, reclaim reaping) and callers feature-detect them,
- * degrading gracefully when a backend omits them.
+ * OPTIONAL: `listByThread`, `listByParentRun`, `listReclaimable`. Each serves
+ * one higher-level feature (thread history, subagent card reload, reclaim
+ * reaping) and callers feature-detect them, degrading when a backend omits
+ * them.
  */
 export interface RunStore {
   /**
@@ -182,12 +200,17 @@ export interface RunStore {
    * already present.
    *
    * INVARIANT (idempotency): an existing record is returned **unchanged** and
-   * the passed `threadId`/`startedAt`/`status` are ignored. This is what makes
-   * resuming a run safe. `status` defaults to `'running'` on first creation.
+   * the passed `threadId`, `startedAt`, `status`, `parentRunId`,
+   * `subagentRunId`, and `name` are ignored. This is what makes resuming a
+   * run safe. `status` defaults to `'running'` on first creation. The three
+   * link fields are copied only on the first insert.
    */
   createOrResume: (
     input: Pick<RunRecord, 'runId' | 'threadId' | 'startedAt'> & {
       status?: RunStatus
+      parentRunId?: string
+      subagentRunId?: string
+      name?: string
     },
   ) => Promise<RunRecord>
   /**
@@ -215,10 +238,19 @@ export interface RunStore {
   /** Current record, or null when unknown. */
   get: (runId: string) => Promise<RunRecord | null>
   /**
-   * Every run in a conversation, ascending by `startedAt`. OPTIONAL: only
-   * needed to render a thread's past agent activity. Consumers feature-detect.
+   * Every run in a conversation, ascending by `startedAt`. OPTIONAL.
+   * `reconstructChat` calls it to find the parent runs of children that a
+   * tool call started. Without it those cards stay absent on reload.
+   * Consumers feature-detect.
    */
   listByThread?: (threadId: string) => Promise<Array<RunRecord>>
+  /**
+   * Child runs started by `parentRunId`, ascending by `startedAt`.
+   * OPTIONAL. `reconstructChat` uses this to put subagent cards back
+   * on the parent assistant message. A store that omits it reloads the
+   * text and not the cards.
+   */
+  listByParentRun?: (parentRunId: string) => Promise<Array<RunRecord>>
   /**
    * Runs that may be reclaimed: ALL THREE of `status === 'running'`,
    * `detachedSince` is set, and `detachedSince <= now - ttlMs`. The cutoff is
@@ -341,6 +373,9 @@ export class InMemoryRunStore implements RunStore {
   createOrResume(
     input: Pick<RunRecord, 'runId' | 'threadId' | 'startedAt'> & {
       status?: RunStatus
+      parentRunId?: string
+      subagentRunId?: string
+      name?: string
     },
   ): Promise<RunRecord> {
     const existing = this.runs.get(input.runId)
@@ -350,6 +385,13 @@ export class InMemoryRunStore implements RunStore {
       threadId: input.threadId,
       status: input.status ?? 'running',
       startedAt: input.startedAt,
+      ...(input.parentRunId !== undefined
+        ? { parentRunId: input.parentRunId }
+        : {}),
+      ...(input.subagentRunId !== undefined
+        ? { subagentRunId: input.subagentRunId }
+        : {}),
+      ...(input.name !== undefined ? { name: input.name } : {}),
     }
     this.runs.set(record.runId, record)
     return Promise.resolve(record)
@@ -383,6 +425,13 @@ export class InMemoryRunStore implements RunStore {
   listByThread(threadId: string): Promise<Array<RunRecord>> {
     const matching = [...this.runs.values()]
       .filter((run) => run.threadId === threadId)
+      .sort((a, b) => a.startedAt - b.startedAt)
+    return Promise.resolve(matching)
+  }
+
+  listByParentRun(parentRunId: string): Promise<Array<RunRecord>> {
+    const matching = [...this.runs.values()]
+      .filter((run) => run.parentRunId === parentRunId)
       .sort((a, b) => a.startedAt - b.startedAt)
     return Promise.resolve(matching)
   }
