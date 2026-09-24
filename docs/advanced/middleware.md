@@ -692,7 +692,7 @@ Every hook receives a `ChatMiddlewareContext` as its first argument. It provides
 | `chunkIndex` | `number` | Running count of chunks yielded |
 | `signal` | `AbortSignal \| undefined` | External abort signal |
 | `abort(reason?)` | `function` | Abort the run from within middleware |
-| `emitCustomEvent(name, value)` | `function` | Push a `CUSTOM` chunk onto the chat stream now. The engine yields it while the current hook is still running, including during `onConfig`. |
+| `emitCustomEvent(name, value, options?)` | `function` | Push a `CUSTOM` chunk onto the chat stream now. The engine yields it while the current hook is still running, including during `onConfig`. Durability flushes it immediately. Pass `{ batch: true }` to keep it in the durability batch. |
 | `context` | `TContext` | User-provided runtime context value |
 | `defer(promise)` | `function` | Register a non-blocking side-effect |
 
@@ -999,7 +999,7 @@ const progress: ChatMiddleware = {
 };
 ```
 
-The engine yields each `CUSTOM` chunk as soon as you call `emitCustomEvent`. If `RUN_STARTED` is not on the wire yet, the engine sends it first. Read these events on the client the same way as tool `emitCustomEvent` calls. See [Custom Events](../protocol/custom-events).
+The engine yields each `CUSTOM` chunk as soon as you call `emitCustomEvent`. If `RUN_STARTED` is not on the wire yet, the engine sends it first. Durability then flushes the event so the client can render a live indicator. Read these events on the client the same way as tool `emitCustomEvent` calls. See [Custom Events](../protocol/custom-events).
 
 ### Rate Limiting
 

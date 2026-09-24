@@ -170,6 +170,11 @@ runPersistenceConformance('chat-only adapter', () => chatOnlyPersistence(), {
 })
 ```
 
+The optional run methods are `listByThread`, `listByParentRun`, and
+`listReclaimable`. Add an omitted `listByThread` or `listReclaimable` to
+`skipMethods`. An omitted `listByParentRun` needs no entry: the subagent checks
+skip on their own.
+
 Anything absent and undeclared fails with a message naming exactly what to add, so a
 half-wired adapter cannot report a pass. When this is green, your adapter is a drop-in
 for `withPersistence`, and with the generation stores for

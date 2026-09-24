@@ -1,8 +1,15 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { renderHook } from '@solidjs/testing-library'
 import { toolDefinition } from '@tanstack/ai/client'
-import { useWebMCPTools } from '../src/index'
-import type { UseWebMCPToolsOptions } from '../src/index'
+import { ChatClient } from '@tanstack/ai-client'
+import {
+  useChat,
+  usePageWebMCPTools,
+  useRegisterWebMCPTools,
+  useWebMCPTools,
+} from '../src/index'
+import { createMockConnectionAdapter } from './test-utils'
+import type { UseRegisterWebMCPToolsOptions } from '../src/index'
 
 interface RegisteredWebMCPTool {
   name: string
@@ -66,10 +73,10 @@ afterEach(() => {
   Reflect.deleteProperty(document, 'modelContext')
 })
 
-describe('useWebMCPTools (Solid)', () => {
+describe('useRegisterWebMCPTools (Solid)', () => {
   it('registers tools and removes them when the owner is cleaned up', async () => {
     const modelContext = installModelContext()
-    const { cleanup } = renderHook(() => useWebMCPTools([statusTool]))
+    const { cleanup } = renderHook(() => useRegisterWebMCPTools([statusTool]))
 
     await vi.waitFor(() => expect(modelContext.tools.has('status')).toBe(true))
     cleanup()
@@ -81,7 +88,7 @@ describe('useWebMCPTools (Solid)', () => {
     installModelContext({ failOn: 'status' })
     const onError = vi.fn()
     const { cleanup } = renderHook(() =>
-      useWebMCPTools([statusTool], { onError }),
+      useRegisterWebMCPTools([statusTool], { onError }),
     )
 
     await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce())
@@ -95,7 +102,7 @@ describe('useWebMCPTools (Solid)', () => {
     const modelContext = installModelContext({ pendingRegistration: true })
     const onError = vi.fn()
     const { cleanup } = renderHook(() =>
-      useWebMCPTools([statusTool], { onError }),
+      useRegisterWebMCPTools([statusTool], { onError }),
     )
 
     expect(modelContext.pendingTools.has('status')).toBe(true)
@@ -114,7 +121,7 @@ describe('useWebMCPTools (Solid)', () => {
       return context.context.tenantId
     })
     const tools = [contextual] as const
-    const options: UseWebMCPToolsOptions<typeof tools> = {
+    const options: UseRegisterWebMCPToolsOptions<typeof tools> = {
       context: { tenantId: 'tenant-1' },
       toolOptions: { contextual: { title: 'Tenant status' } },
     }
@@ -123,9 +130,9 @@ describe('useWebMCPTools (Solid)', () => {
 
     const checkTypes = () => {
       // @ts-expect-error contextual tools require context
-      useWebMCPTools(tools)
-      useWebMCPTools(tools, options)
-      useWebMCPTools(tools, {
+      useRegisterWebMCPTools(tools)
+      useRegisterWebMCPTools(tools, options)
+      useRegisterWebMCPTools(tools, {
         context: { tenantId: 'tenant-1' },
         toolOptions: {
           // @ts-expect-error tool options only accept inferred tool names
@@ -134,5 +141,67 @@ describe('useWebMCPTools (Solid)', () => {
       })
     }
     void checkTypes
+  })
+})
+
+describe('useWebMCPTools (Solid)', () => {
+  it('is a deprecated alias of useRegisterWebMCPTools', () => {
+    expect(useWebMCPTools).toBe(useRegisterWebMCPTools)
+  })
+})
+
+function installPageTools(names: Array<string>) {
+  const target = new EventTarget()
+  const modelContext = {
+    names,
+    getTools: async () =>
+      modelContext.names.map((name) => ({
+        name,
+        description: `Run ${name}`,
+        origin: 'https://example.com',
+      })),
+    executeTool: async () => '"done"',
+    addEventListener: target.addEventListener.bind(target),
+    removeEventListener: target.removeEventListener.bind(target),
+    change(nextNames: Array<string>) {
+      modelContext.names = nextNames
+      target.dispatchEvent(new Event('toolchange'))
+    },
+  }
+  Object.defineProperty(document, 'modelContext', {
+    configurable: true,
+    value: modelContext,
+  })
+  return modelContext
+}
+
+describe('usePageWebMCPTools (Solid)', () => {
+  it('returns filtered page tools, updates on toolchange, and syncs useChat', async () => {
+    const modelContext = installPageTools(['first', 'blocked'])
+    const updateOptions = vi.spyOn(ChatClient.prototype, 'updateOptions')
+    const { result, cleanup } = renderHook(() => {
+      const pageTools = usePageWebMCPTools({
+        filter: (tool) => tool.name !== 'blocked',
+      })
+      const chat = useChat({
+        connection: createMockConnectionAdapter(),
+        get tools() {
+          return pageTools()
+        },
+      })
+      return { pageTools, chat }
+    })
+
+    expect(result.pageTools()).toEqual([])
+    await vi.waitFor(() =>
+      expect(result.pageTools().map((tool) => tool.name)).toEqual(['first']),
+    )
+    modelContext.change(['first', 'second'])
+    await vi.waitFor(() => expect(result.pageTools()).toHaveLength(2))
+    expect(updateOptions).toHaveBeenCalledWith({ tools: result.pageTools() })
+    await expect(result.pageTools()[0]?.execute?.({})).resolves.toBe('done')
+
+    cleanup()
+    updateOptions.mockRestore()
   })
 })

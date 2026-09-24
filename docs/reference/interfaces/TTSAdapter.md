@@ -3,7 +3,7 @@ id: TTSAdapter
 title: TTSAdapter
 ---
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:24](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L24)
+Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:46](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L46)
 
 TTS adapter interface with pre-resolved generics.
 
@@ -32,7 +32,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:38](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L38)
+Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:65](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L65)
 
 **`Internal`**
 
@@ -46,13 +46,26 @@ providerOptions: TProviderOptions;
 
 ***
 
+### capabilities?
+
+```ts
+readonly optional capabilities?: TTSCapabilities;
+```
+
+Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L60)
+
+Optional static capability declaration. Absent means "single voice, no
+timestamps" — the contract every adapter had before dialogue existed.
+
+***
+
 ### generateSpeech
 
 ```ts
 generateSpeech: (options) => Promise<TTSResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L45)
+Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:72](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L72)
 
 Generate speech from text
 
@@ -74,9 +87,38 @@ Generate speech from text
 readonly kind: "tts";
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:29](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L29)
+Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:51](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L51)
 
 Discriminator for adapter kind - used to determine API shape
+
+***
+
+### listVoices?
+
+```ts
+optional listVoices?: (options?) => Promise<ListVoicesResult>;
+```
+
+Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:84](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L84)
+
+List the voices this account can use.
+
+Optional, because only some providers have a catalog worth querying at
+runtime. A provider whose voices are a fixed list known at build time
+publishes that list from its own package instead (`GeminiTTSVoices`, or
+the `OpenAITTSVoice` union), which is strictly better than a network
+call. Implement this only when the catalog is per-account and can change,
+which is the case wherever `generateVoice()` can add to it.
+
+#### Parameters
+
+##### options?
+
+[`ListVoicesOptions`](ListVoicesOptions.md)
+
+#### Returns
+
+`Promise`\<[`ListVoicesResult`](ListVoicesResult.md)\>
 
 ***
 
@@ -86,7 +128,7 @@ Discriminator for adapter kind - used to determine API shape
 readonly model: TModel;
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:33](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L33)
+Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:55](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L55)
 
 The model this adapter is configured for
 
@@ -98,6 +140,6 @@ The model this adapter is configured for
 readonly name: string;
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:31](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L31)
+Defined in: [packages/ai/src/activities/generateSpeech/adapter.ts:53](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/adapter.ts#L53)
 
 Adapter name identifier

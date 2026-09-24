@@ -6,8 +6,11 @@ export {
   selectMessageUI,
 } from './ui/selectors'
 export type {
+  ChatUIApprovalToolName,
+  ChatUIApprovalToolsOf,
   ChatUIData,
   ChatUIHasNamedInterrupts,
+  ChatUIHasNamedSubagents,
   ChatUIHasNamedTools,
   ChatUIInterrupt,
   ChatUIInterruptName,
@@ -28,6 +31,10 @@ export type {
   ChatUISelectedResultPart,
   ChatUISelectedToolPart,
   ChatUISelection,
+  ChatUISubagentName,
+  ChatUISubagentOf,
+  ChatUISubagentOptions,
+  ChatUISubagentsOf,
   ChatUIStructuredPart,
   ChatUIToolApproval,
   ChatUIToolName,

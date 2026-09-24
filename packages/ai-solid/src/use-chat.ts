@@ -5,6 +5,7 @@ import {
   createUniqueId,
   onCleanup,
   onMount,
+  untrack,
 } from 'solid-js'
 
 import { ChatClient } from '@tanstack/ai-client'
@@ -159,7 +160,9 @@ export function useChat<
       onError: (err) => {
         options.onError?.(err)
       },
-      tools: options.tools,
+      // Untracked: a tools change must not rebuild the client. The effect
+      // below syncs it instead.
+      tools: untrack(() => options.tools),
       ...(options.interrupts !== undefined && {
         interrupts: options.interrupts,
       }),
@@ -233,6 +236,13 @@ export function useChat<
       context: options.context,
       ...(options.queue !== undefined && { queue: options.queue }),
     })
+  })
+
+  // Sync tools, so a getter such as `get tools() { return pageTools() }`
+  // updates the client.
+  createEffect(() => {
+    const tools = options.tools
+    if (tools !== undefined) client().updateOptions({ tools })
   })
 
   // Apply initial live mode immediately on hook creation.
