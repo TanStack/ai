@@ -32,7 +32,10 @@ function scriptedAdapter(scripts: Array<Array<StreamChunk>>): AnyTextAdapter {
 }
 
 /** A child that thinks, asks approval to delete a file, then reports. */
-function cleaner(execute: (input: unknown) => unknown) {
+function cleaner(
+  execute: (input: unknown) => unknown,
+  { needsApproval = true } = {},
+) {
   const model = scriptedAdapter([
     [
       { type: EventType.RUN_STARTED, runId: 'c1', threadId: 'c', timestamp: t },
@@ -106,12 +109,13 @@ function cleaner(execute: (input: unknown) => unknown) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         parentRunId: ctx.parentRunId,
+        subagentRunId: ctx.subagentRunId,
         resume: ctx.resume,
         tools: [
           {
             name: 'deleteFile',
             description: 'Delete a file',
-            needsApproval: true,
+            needsApproval,
             execute,
           },
         ],
@@ -230,6 +234,157 @@ describe('persisted subagent cards', () => {
     expect(doneParts).toContainEqual(
       expect.objectContaining({ type: 'text', content: 'Deleted a' }),
     )
+  })
+  it('commits a child answer when the parent hands off to main', async () => {
+    const persistence = memoryPersistence()
+    const execute = vi.fn().mockReturnValue({ deleted: true })
+    const agent = cleaner(execute)
+    const main = scriptedAdapter([
+      [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-2',
+          threadId: 'desk',
+          timestamp: t,
+        },
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'm1',
+          role: 'assistant',
+          timestamp: t,
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'm1',
+          delta: 'All clean.',
+          timestamp: t,
+        },
+        { type: EventType.TEXT_MESSAGE_END, messageId: 'm1', timestamp: t },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-2',
+          threadId: 'desk',
+          timestamp: t,
+        },
+      ],
+    ])
+    const run = (input: {
+      runId: string
+      parentRunId?: string
+      messages: Array<UIMessage | ModelMessage>
+      resume?: Array<{
+        interruptId: string
+        status: 'resolved'
+        payload: unknown
+      }>
+    }) =>
+      collect(
+        chat({
+          adapter: main,
+          threadId: 'desk',
+          ...input,
+          middleware: [withPersistence(persistence)],
+          subagents: {
+            agents: [agent],
+            router: () => 'cleaner',
+            strategy: 'handoff',
+          },
+        }),
+      )
+
+    await run({
+      runId: 'run-1',
+      messages: [{ id: 'u1', role: 'user', content: 'Clean up' }],
+    })
+    const suspended = await loadDesk(persistence)
+    expect(suspended.interrupts?.pending).toEqual([
+      expect.objectContaining({ id: 'approval_call_c' }),
+    ])
+
+    const second = await run({
+      runId: 'run-2',
+      parentRunId: 'run-1',
+      messages: JSON.parse(
+        JSON.stringify(uiMessagesToWire(suspended.messages)),
+      ),
+      resume: [
+        { interruptId: 'approval_call_c', status: 'resolved', payload: true },
+      ],
+    })
+    expect(second.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+      false,
+    )
+    expect(execute).toHaveBeenCalledWith({ path: 'a' }, expect.anything())
+
+    // The approval is resolved and main's reply is stored once.
+    // ponytail: the reloaded card is not rebuilt on this path. Main's
+    // persistence merge drops the interrupted run's host row. Open question.
+    const finished = await loadDesk(persistence)
+    expect(finished.interrupts).toBeNull()
+    const texts = finished.messages
+      .flatMap((message) => message.parts)
+      .flatMap((part) => (part.type === 'text' ? [part.content] : []))
+    expect(texts.filter((text) => text.includes('All clean.'))).toHaveLength(1)
+  })
+  it('keeps the card across a reload when the parent hands off to main', async () => {
+    const persistence = memoryPersistence()
+    const execute = vi.fn().mockReturnValue({ deleted: true })
+    const agent = cleaner(execute, { needsApproval: false })
+    const main = scriptedAdapter([
+      [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'desk',
+          timestamp: t,
+        },
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'm1',
+          role: 'assistant',
+          timestamp: t,
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'm1',
+          delta: 'All clean.',
+          timestamp: t,
+        },
+        { type: EventType.TEXT_MESSAGE_END, messageId: 'm1', timestamp: t },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'desk',
+          timestamp: t,
+        },
+      ],
+    ])
+    const chunks = await collect(
+      chat({
+        adapter: main,
+        threadId: 'desk',
+        runId: 'run-1',
+        messages: [{ id: 'u1', role: 'user', content: 'Clean up' }],
+        middleware: [withPersistence(persistence)],
+        subagents: {
+          agents: [agent],
+          router: () => 'cleaner',
+          strategy: 'handoff',
+        },
+      }),
+    )
+    expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+      false,
+    )
+    expect(execute).toHaveBeenCalledWith({ path: 'a' }, expect.anything())
+
+    const desk = await loadDesk(persistence)
+    expect(desk.interrupts).toBeNull()
+    expect(cardOf(desk.messages).subagent.status).toBe('finished')
+    const texts = desk.messages
+      .flatMap((message) => message.parts)
+      .flatMap((part) => (part.type === 'text' ? [part.content] : []))
+    expect(texts.filter((text) => text.includes('All clean.'))).toHaveLength(1)
   })
 })
 

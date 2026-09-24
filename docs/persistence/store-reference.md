@@ -188,7 +188,8 @@ Consumers feature-detect each one. After you declare an omission of
 skips that method. Implement the ones
 your app needs:
 
-- Skip `listByThread` and you cannot render a thread's past runs.
+- Skip `listByThread` and a reload loses the cards of children that a tool call
+  started. `reconstructChat` calls it to find their parent runs.
 - Skip `listByParentRun` and a reload shows the saved child text. The subagent
   cards stay absent. `reconstructChat` calls this method to build the cards.
   The conformance suite skips the subagent checks when this method is absent,
@@ -249,8 +250,7 @@ the caller omits a field, omit that field on the stored record. Do not write
 The reference implementation, `MemoryRunStore` in
 `packages/ai-persistence/src/memory.ts`, implements all seven run methods. The
 `examples/ts-react-chat` SQLite adapter (`src/lib/sqlite-persistence.ts`)
-implements the four required methods plus `listReclaimable` and
-`listByParentRun`. It declares `runs.listByThread` as skipped.
+implements all seven run methods.
 
 ## InterruptStore
 

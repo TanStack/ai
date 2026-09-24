@@ -179,8 +179,8 @@ interface BaseUseChatReturn<
   messages: Array<UIMessage<TTools, TData, TSubagents>>
 
   /**
-   * Live child-agent invocations. Each entry is the same object as
-   * `messages.parts[n].subagent`, including `stop()`.
+   * Live child-agent invocations, nested cards included. Each entry is the
+   * same object as the matching `part.subagent`, including `stop()`.
    * When `subagents` is supplied, `name` is one of those agent names.
    */
   subagents: Array<SubagentHandles<TSubagents>>

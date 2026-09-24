@@ -334,6 +334,8 @@ export type {
   ContentPart,
   ContentPartDataSource,
   ContentPartFileSource,
+  SubagentHandleData,
+  SubagentStatus,
   ContentPartSource,
   ContentPartUrlSource,
   CustomEvent,

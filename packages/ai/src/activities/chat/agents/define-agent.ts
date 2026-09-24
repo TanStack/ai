@@ -1,3 +1,4 @@
+import type { SubagentInfo as AGUISubagentInfo } from '@ag-ui/core'
 import type { InterruptDefinition } from '../../../interrupt-definition'
 import type {
   AnyTool,
@@ -26,7 +27,11 @@ export interface SubagentRunContext {
   parentRunId: string
   /** Answers to this child's interrupts. Pass it to the child `chat()`. */
   resume?: Array<RunAgentResumeItem>
-  /** Stays the same when an interrupted child continues. */
+  /**
+   * The child's AG-UI run id. Stays the same when an interrupted child
+   * continues. Pass it to the child `chat()` so its middleware sees
+   * `ctx.subagentRunId`.
+   */
   subagentRunId: string
   parentSubagentRunId?: string
 }
@@ -48,8 +53,9 @@ export interface DefinedAgent<
   TSchema extends SchemaInput | undefined = SchemaInput | undefined,
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     ReadonlyArray<InterruptDefinition<any, any, any, any>>,
-> {
+> extends AGUISubagentInfo {
   name: TName
+  /** Required here: the router and the synthetic tool both read it. */
   description: string
   run: (
     ctx: SubagentRunContext,
@@ -85,6 +91,7 @@ export type SubagentChoiceOptions<TAgents extends ReadonlyArray<DefinedAgent>> =
  *       threadId: ctx.threadId,
  *       runId: ctx.runId,
  *       parentRunId: ctx.parentRunId,
+ *       subagentRunId: ctx.subagentRunId,
  *       resume: ctx.resume,
  *     }),
  * })

@@ -123,6 +123,10 @@
           }
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero"
     }
   },
   {
@@ -190,6 +194,11 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "image-generation": "zero"
     }
   },
   {
@@ -316,6 +325,10 @@
           }
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero"
     }
   },
   {
@@ -360,6 +373,10 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "speech": "zero"
     }
   },
   {
@@ -405,6 +422,10 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "speech": "zero"
     }
   },
   {
@@ -581,6 +602,10 @@
           }
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero"
     }
   },
   {
@@ -628,6 +653,10 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "speech": "zero"
     }
   },
   {
@@ -754,6 +783,11 @@
           }
         }
       }
+    },
+    "data_retention": "provider_retained",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "interactions": "provider_retained"
     }
   },
   {
@@ -831,6 +865,11 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "image-generation": "zero"
     }
   },
   {
@@ -906,6 +945,11 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "image-generation": "zero"
     }
   },
   {
@@ -1032,6 +1076,11 @@
           }
         }
       }
+    },
+    "data_retention": "provider_retained",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "interactions": "provider_retained"
     }
   },
   {
@@ -1106,6 +1155,10 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "image-generation": "zero"
     }
   },
   {
@@ -1153,6 +1206,10 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "speech": "zero"
     }
   },
   {
@@ -1329,6 +1386,11 @@
           }
         }
       }
+    },
+    "data_retention": "provider_retained",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "interactions": "provider_retained"
     }
   },
   {
@@ -1455,6 +1517,10 @@
           }
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero"
     }
   },
   {
@@ -1510,6 +1576,10 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "transcription": "zero"
     }
   },
   {
@@ -1636,6 +1706,11 @@
           }
         }
       }
+    },
+    "data_retention": "provider_retained",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "interactions": "provider_retained"
     }
   },
   {
@@ -1762,6 +1837,11 @@
           }
         }
       }
+    },
+    "data_retention": "provider_retained",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "interactions": "provider_retained"
     }
   },
   {
@@ -1887,6 +1967,11 @@
           }
         }
       }
+    },
+    "data_retention": "provider_retained",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "interactions": "provider_retained"
     }
   },
   {
@@ -1922,6 +2007,10 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "embeddings": "zero"
     }
   },
   {
@@ -1986,6 +2075,10 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "embeddings": "zero"
     }
   },
   {
@@ -2054,6 +2147,10 @@
           "cost_per_second": "0.0000175"
         }
       }
+    },
+    "data_retention": "provider_retained",
+    "data_retention_by_surface": {
+      "videos": "provider_retained"
     }
   },
   {
@@ -2092,6 +2189,10 @@
           "cost_per_second": "0.4"
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "videos": "zero"
     }
   },
   {
@@ -2128,6 +2229,10 @@
           "cost_per_second": "0.1"
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "videos": "zero"
     }
   },
   {
@@ -2161,6 +2266,10 @@
           "cost_per_second": "0.05"
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "videos": "zero"
     }
   },
   {
@@ -2217,6 +2326,11 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "responses": "zero"
     }
   },
   {
@@ -2270,6 +2384,10 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "transcription": "zero"
     }
   },
   {
@@ -2314,6 +2432,10 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "speech": "zero"
     }
   },
   {
@@ -2369,6 +2491,10 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "transcription": "zero"
     }
   },
   {
@@ -2461,6 +2587,11 @@
           }
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "responses": "zero"
     }
   },
   {
@@ -2553,6 +2684,11 @@
           }
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "responses": "zero"
     }
   },
   {
@@ -2610,6 +2746,11 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "responses": "zero"
     }
   },
   {
@@ -2702,6 +2843,11 @@
           }
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "responses": "zero"
     }
   },
   {
@@ -2809,6 +2955,11 @@
           }
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "responses": "zero"
     }
   },
   {
@@ -2901,6 +3052,11 @@
           }
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "responses": "zero"
     }
   },
   {
@@ -2958,6 +3114,11 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "responses": "zero"
     }
   },
   {
@@ -3030,6 +3191,10 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "responses": "zero"
     }
   },
   {
@@ -3139,6 +3304,11 @@
           }
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "responses": "zero"
     }
   },
   {
@@ -3211,6 +3381,10 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "responses": "zero"
     }
   },
   {
@@ -3318,6 +3492,11 @@
           }
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "responses": "zero"
     }
   },
   {
@@ -3427,6 +3606,11 @@
           }
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "responses": "zero"
     }
   },
   {
@@ -3534,6 +3718,11 @@
           }
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "responses": "zero"
     }
   },
   {
@@ -3684,6 +3873,11 @@
           }
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "chat-completions": "zero",
+      "responses": "zero"
     }
   },
   {
@@ -3737,6 +3931,11 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "image-edit": "zero",
+      "image-generation": "zero"
     }
   },
   {
@@ -3792,6 +3991,11 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "image-edit": "zero",
+      "image-generation": "zero"
     }
   },
   {
@@ -3828,6 +4032,10 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "embeddings": "zero"
     }
   },
   {
@@ -3862,6 +4070,10 @@
           ]
         }
       }
+    },
+    "data_retention": "zero",
+    "data_retention_by_surface": {
+      "embeddings": "zero"
     }
   }
 ]

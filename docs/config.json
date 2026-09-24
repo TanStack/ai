@@ -110,11 +110,6 @@
           "label": "Subagents",
           "to": "framework/react/examples/subagents",
           "addedAt": "2026-09-21"
-        },
-        {
-          "label": "Persisted subagents",
-          "to": "framework/react/examples/subagents-persisted",
-          "addedAt": "2026-09-22"
         }
       ]
     },
@@ -155,7 +150,7 @@
           "label": "Subagents",
           "to": "chat/subagents",
           "addedAt": "2026-09-21",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "Agentic Cycle",
@@ -636,7 +631,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "How Persistence Works",
@@ -1283,7 +1278,7 @@
           "updatedAt": "2026-08-21"
         },
         {
-          "label": "Sampling \u00e2\u2020\u2019 modelOptions",
+          "label": "Sampling â†’ modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
         },

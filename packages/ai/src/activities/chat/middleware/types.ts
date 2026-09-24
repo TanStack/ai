@@ -194,6 +194,11 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   /** Interrupted or parent run correlated with this continuation. */
   parentRunId?: string
   /**
+   * Set when this run is a subagent. The id on the child's `SUBAGENT_STARTED`
+   * and on every chunk it streams. Absent on a top-level run.
+   */
+  subagentRunId?: string
+  /**
    * AG-UI thread identifier — a stable per-conversation ID used to
    * correlate client and server devtools events. Resolves to the
    * caller-provided `threadId` (or legacy `conversationId`), or an
@@ -546,6 +551,40 @@ export interface ErrorInfo {
   duration: number
 }
 
+/**
+ * Saves subagent runs while a router owns the turn.
+ * `withPersistence` sets this. `chat()` calls it. Apps do not.
+ */
+export interface RoutedSubagentPersistence {
+  start: (input: {
+    threadId: string
+    runId: string
+    messages: ReadonlyArray<UIMessage | ModelMessage>
+    /**
+     * The run's resume entries: answers to earlier child interrupts, plus any
+     * the parent answers itself.
+     */
+    resume?: ReadonlyArray<RunAgentResumeItem>
+  }) => Promise<void>
+  chunk: (input: {
+    threadId: string
+    runId: string
+    chunk: StreamChunk
+  }) => Promise<void>
+  finish: (input: { threadId: string; runId: string }) => Promise<void>
+  /** The run stopped because a child waits for outside input. */
+  suspend?: (input: {
+    threadId: string
+    runId: string
+    interrupts: ReadonlyArray<Interrupt>
+  }) => Promise<void>
+  abort: (input: {
+    threadId: string
+    runId: string
+    error?: unknown
+  }) => Promise<void>
+}
+
 // ===========================
 // Middleware Interface
 // ===========================
@@ -579,37 +618,6 @@ export interface ErrorInfo {
  * }
  * ```
  */
-/**
- * Saves subagent runs while a router owns the turn.
- * `withPersistence` sets this. `chat()` calls it. Apps do not.
- */
-export interface RoutedSubagentPersistence {
-  start: (input: {
-    threadId: string
-    runId: string
-    messages: ReadonlyArray<UIMessage | ModelMessage>
-    /** Answers this run gives to earlier child interrupts. */
-    resume?: ReadonlyArray<RunAgentResumeItem>
-  }) => Promise<void>
-  chunk: (input: {
-    threadId: string
-    runId: string
-    chunk: StreamChunk
-  }) => Promise<void>
-  finish: (input: { threadId: string; runId: string }) => Promise<void>
-  /** The run stopped because a child waits for outside input. */
-  suspend?: (input: {
-    threadId: string
-    runId: string
-    interrupts: ReadonlyArray<Interrupt>
-  }) => Promise<void>
-  abort: (input: {
-    threadId: string
-    runId: string
-    error?: unknown
-  }) => Promise<void>
-}
-
 export interface ChatMiddleware<
   TContext = unknown,
   TInterruptDefinitions extends AnyInterruptDefinition = never,

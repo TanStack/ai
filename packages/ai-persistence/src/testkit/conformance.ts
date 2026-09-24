@@ -19,7 +19,9 @@
  * a SKIPPED case, never as a pass. Silent gaps are not allowed: a case that did
  * not run must never be indistinguishable from one that did. A chat-only
  * adapter therefore passes `skip: ['generationRuns', 'artifacts', 'blobs']`,
- * and a generation-only one skips the four state stores.
+ * and a generation-only one skips the four state stores. `listByParentRun` is
+ * the exception. Subagent support is opt-in, its cases skip on their own, and
+ * a `'runs.listByParentRun'` entry is accepted but has no effect.
  *
  * NOT COVERED HERE: the four durable-run fields on `RunRecord` (`sandboxKey`,
  * `detachedSince`, `cancelRequested`, `driverEpoch`). They exist for durable
@@ -108,6 +110,9 @@ export interface PersistenceConformanceOptions {
    * OPTIONAL store methods this backend intentionally does not implement, as
    * `'runs.listByThread'` and friends. A method that is absent and NOT listed
    * here fails the suite; a listed one is reported as a skipped case.
+   * `listByParentRun` is the exception. Subagent support is opt-in, its cases
+   * skip on their own, and a `'runs.listByParentRun'` entry is accepted but
+   * has no effect.
    */
   skipMethods?: Array<PersistenceConformanceMethodKey>
 }

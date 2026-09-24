@@ -232,8 +232,13 @@ function openAgentStream(
   const subagentRunId = resume?.subagentRunId ?? createSubagentId()
   // The parent binds child interrupts to its own run (see rebindInterrupts),
   // so the resumed child continues from the interrupted parent run id.
+  if (resume !== undefined && ctx.interruptedRunId === undefined) {
+    throw new Error(
+      `Subagent "${entry.name}" has interrupt answers, but the run has no parentRunId. Pass the interrupted run id as parentRunId.`,
+    )
+  }
   const resumed =
-    resume !== undefined && ctx.interruptedRunId !== undefined
+    resume !== undefined
       ? {
           messages: [...ctx.messages, ...resume.messages],
           parentRunId: ctx.interruptedRunId,
@@ -335,7 +340,8 @@ function attributeChunk(
   if ('subagentRunId' in chunk && typeof chunk.subagentRunId === 'string') {
     return chunk
   }
-  // Run-scoped events never get here (spawnAgentStream drops them).
+  // RUN_* and MESSAGES_SNAPSHOT never get here (spawnAgentStream drops them).
+  // Everything else is tagged.
   return { ...chunk, subagentRunId } as StreamChunk
 }
 
@@ -358,16 +364,26 @@ export function collectUsage(sink: SubagentSink, finished?: StreamChunk) {
   if (full) sink.total = sink.total ? addTokenUsage(sink.total, full) : full
 }
 
+/** A parent run's last chunk: it completed, or it failed. */
+type ParentTerminal = Extract<
+  StreamChunk,
+  { type: 'RUN_FINISHED' | 'RUN_ERROR' }
+>
+
 /**
- * Put the children's usage on a parent `RUN_FINISHED`. `usage[]` keeps one
- * entry per model call. `metadata.tanstack.usage` holds the summed cost and
- * the other TanStack fields, so `fromSpecTokenUsage` reads the full total.
- * Empties the sink, so the next parent terminal does not count it again.
+ * Put the children's usage on a parent terminal. `usage[]` keeps one entry per
+ * model call. `metadata.tanstack.usage` holds the summed cost and the other
+ * TanStack fields, so `fromSpecTokenUsage` reads the full total. Empties the
+ * sink, so the next parent terminal does not count it again.
+ *
+ * `RUN_ERROR` is accepted too: a turn that failed still spent whatever its
+ * children spent. Such a chunk carries no usage of its own, so `runUsage` and
+ * `fullUsage` return empty for it and the children's total stands alone.
  */
 export function withChildUsage(
-  chunk: Extract<StreamChunk, { type: 'RUN_FINISHED' }>,
+  chunk: ParentTerminal,
   sink: SubagentSink,
-): Extract<StreamChunk, { type: 'RUN_FINISHED' }> {
+): ParentTerminal {
   if (sink.usage.length === 0 && !sink.total) return chunk
   const own = fullUsage(chunk)
   const total =
@@ -376,7 +392,11 @@ export function withChildUsage(
   sink.total = undefined
   const leftover = total ? toSpecTokenUsage(total).leftover : undefined
   const next = { ...chunk, usage }
-  return leftover ? withTanstackMetadata(next, { usage: leftover }) : next
+  if (!leftover) return next
+  // `withTanstackMetadata` runs the value through `Omit`, which collapses this
+  // union and widens `type` back to `RUN_FINISHED | RUN_ERROR`. It only adds a
+  // metadata key, so the runtime shape is the input's: restore that type.
+  return withTanstackMetadata(next, { usage: leftover }) as ParentTerminal
 }
 
 export async function* spawnAgentStream(
@@ -427,6 +447,8 @@ export async function* spawnAgentStream(
         continue
       }
       if (chunk.type === EventType.RUN_FINISHED) {
+        // The engine yields one RUN_FINISHED per model call. Add each one.
+        if (sink) collectUsage(sink, chunk)
         finished = chunk
         continue
       }
@@ -452,7 +474,6 @@ export async function* spawnAgentStream(
       yield stoppedEvent(id)
       return
     }
-    if (sink) collectUsage(sink, finished)
     if (outcome?.type === 'interrupt') {
       const interrupts = outcome.interrupts.map((interrupt) =>
         interrupt.subagentRunId
@@ -634,8 +655,9 @@ export function collectNamedText(
 }
 
 /**
- * The parent conversation at the tool call that starts a child, without that
- * open tool call. Kept text on the calling message stays.
+ * The parent conversation up to the message that carries this tool call, with
+ * that message's tool calls removed. Its string text stays; array content is
+ * dropped.
  */
 function messagesBeforeCall(
   messages: ReadonlyArray<ModelMessage>,

@@ -37,12 +37,13 @@ const researcher = defineAgent({
       threadId: ctx.threadId,
       runId: ctx.runId,
       parentRunId: ctx.parentRunId,
+      subagentRunId: ctx.subagentRunId,
       resume: ctx.resume,
     }),
 })
 ```
 
-Pass all four `ctx` fields to the child `chat()`. A child that stops for an approval needs `parentRunId` and `resume` to continue. See [Interrupts in a child](#interrupts-in-a-child).
+Pass every `ctx` field to the child `chat()`. A child that stops for an approval needs `parentRunId` and `resume` to continue. See [Interrupts in a child](#interrupts-in-a-child).
 
 ## Route, or let the model pick
 
@@ -202,6 +203,7 @@ const cleaner = defineAgent({
       threadId: ctx.threadId,
       runId: ctx.runId,
       parentRunId: ctx.parentRunId,
+      subagentRunId: ctx.subagentRunId,
       resume: ctx.resume,
       tools: [deleteFile.server(({ path }: { path: string }) => ({ deleted: path }))],
     }),
@@ -255,6 +257,14 @@ export function CleanupPanel() {
 The resume uses the plan that the router picked in the first run. It does not call the router again. While the child waits, its card has `status: 'suspended'` and `interruptIds`. After you approve, the card shows the tool result and the child's reply. Client tools in a child work the same way.
 
 The same flow works without a router. The child's tool call stays open until the resume, then the parent model reads the child's result.
+
+## Middleware
+
+A child is its own `chat()` call. Put the child's middleware in that call. The parent's middleware list does not reach the child.
+
+Inside a child, the middleware context has `subagentRunId`. Use it to tell a child run from a top-level run, and to link a child trace to its card.
+
+On a routed turn where a child runs and main does not, the parent's middleware does not run. Only `withPersistence` records that turn. A turn where main runs, including a handoff, runs the parent's middleware as usual.
 
 ## Persistence
 
@@ -315,6 +325,7 @@ const coder = defineAgent({
       threadId: ctx.threadId,
       runId: ctx.runId,
       parentRunId: ctx.parentRunId,
+      subagentRunId: ctx.subagentRunId,
       resume: ctx.resume,
       middleware: [withSandbox(repoSandbox)],
     }),

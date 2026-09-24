@@ -38,6 +38,7 @@ import {
   tanstackMetadata,
   withTanstackMetadata,
 } from '../../utilities/merge-metadata'
+import { subagentHostMessageId } from '../../utilities/subagent-wire'
 import { withDurabilityBatchHint } from '../../utilities/durability-batch'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
 import { restorePublicUsage } from '../../utilities/restore-inbound-chunk'
@@ -542,6 +543,8 @@ export interface TextActivityOptions<
   runId?: TextOptions['runId']
   /** Parent run ID for AG-UI protocol nested run correlation. */
   parentRunId?: TextOptions['parentRunId']
+  /** Subagent run id when this chat runs as a child. See `defineAgent`. */
+  subagentRunId?: TextOptions['subagentRunId']
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: TextOptions['state']
   /**
@@ -891,6 +894,7 @@ class TextEngine<
   private readonly threadId: string
   private readonly runIdOverride?: string
   private readonly parentRunIdOverride?: string
+  private readonly subagentRunIdOverride?: string
 
   // Middleware support
   private readonly middlewareRunner: MiddlewareRunner<
@@ -1021,6 +1025,7 @@ class TextEngine<
       this.createId('thread')
     this.runIdOverride = config.params.runId
     this.parentRunIdOverride = config.params.parentRunId
+    this.subagentRunIdOverride = config.params.subagentRunId
 
     // Initialize middleware — devtools first. Spec stripping for the AG-UI
     // wire happens in toServerSentEventsStream, so in-process chat()
@@ -1039,6 +1044,7 @@ class TextEngine<
       streamId: this.streamId,
       runId: this.runIdOverride ?? this.requestId,
       parentRunId: this.parentRunIdOverride,
+      subagentRunId: this.subagentRunIdOverride,
       threadId: this.threadId,
       // Legacy alias kept on the ctx so middleware that reads
       // `ctx.conversationId` keeps working. Always equals `threadId`.
@@ -5100,7 +5106,8 @@ async function* runRoutedSubagents(
   const messages = options.messages ?? []
   const turn = readSubagentTurn(messages, options.resume)
   if (!turn && (options.resume?.length ?? 0) > 0) {
-    // No child owns these answers. Main raised them after a handoff.
+    // No child owns these answers. Main raised them, after a main pick or a
+    // handoff. Run main alone.
     yield* runChatEngine(
       { ...options, threadId, runId, subagents: undefined },
       engineRef,
@@ -5121,7 +5128,11 @@ async function* runRoutedSubagents(
     // SUBAGENT_STARTED metadata. Children that finished keep their result.
     // Suspended children continue.
     const plan =
-      savedPlan(turn?.plan, bag.agents) ??
+      savedPlan(turn?.plan, bag.agents, {
+        threadId,
+        interruptedRunId: options.parentRunId ?? runId,
+        interruptIds: options.resume?.map((entry) => entry.interruptId) ?? [],
+      }) ??
       normalizeRouterPick(
         await bag.router({
           messages: turnMessages,
@@ -5130,10 +5141,20 @@ async function* runRoutedSubagents(
         }),
         bag.agents,
       )
-    // The run was stopped while the router decided. Start nothing.
-    if (abortSignal?.aborted) return
+    // The run was stopped while the router decided. Start nothing. No
+    // RUN_STARTED went out, so the stream ends without a terminal, but the
+    // record start() opened still has to settle. Otherwise it stays `running`
+    // and reconstructChat hands the client a run to tail that never emits.
+    if (abortSignal?.aborted) {
+      const error = new Error('Aborted')
+      error.name = 'AbortError'
+      await subagentPersistence?.abort({ threadId, runId, error })
+      return
+    }
     const onlyStep = plan.steps.length === 1 ? plan.steps[0] : undefined
     if (onlyStep?.names.length === 1 && onlyStep.names[0] === 'main') {
+      // Earlier children own answers in this resume. Commit them first.
+      if (turn) await subagentPersistence?.finish({ threadId, runId })
       yield* runChatEngine(
         {
           ...options,
@@ -5162,7 +5183,9 @@ async function* runRoutedSubagents(
     const sink = createSubagentSink()
     const stepTexts: Array<string> = []
     let stepMessages = turnMessages
-    let failed = false
+    let failure:
+      | Extract<StreamChunk, { type: EventType.SUBAGENT_ERROR }>
+      | undefined
     for (const step of plan.steps) {
       const entries: Array<SpawnEntry> = []
       const textByName = new Map<string, string>()
@@ -5208,10 +5231,10 @@ async function* runRoutedSubagents(
           yield tagged
         }
       }
-      if (stepChunks.some((chunk) => chunk.type === EventType.SUBAGENT_ERROR)) {
-        failed = true
-        break
-      }
+      failure = stepChunks.find(
+        (chunk) => chunk.type === EventType.SUBAGENT_ERROR,
+      )
+      if (failure) break
       if (sink.interrupts.length > 0) break
       for (const entry of entries) {
         const text = collectNamedText(stepChunks, [entry.name])
@@ -5247,19 +5270,26 @@ async function* runRoutedSubagents(
       return
     }
 
-    if (failed) {
+    if (failure) {
+      // Carry the child's own cause, not a generic label, and keep the usage
+      // the children already spent: the run failed, but the tokens were real.
+      const message = failure.message || 'A subagent failed'
       await subagentPersistence?.abort({
         threadId,
         runId,
-        error: new Error('A subagent failed'),
+        error: new Error(message),
       })
-      yield {
-        type: EventType.RUN_ERROR,
-        threadId,
-        runId,
-        message: 'A subagent failed',
-        timestamp: Date.now(),
-      }
+      yield withChildUsage(
+        {
+          type: EventType.RUN_ERROR,
+          threadId,
+          runId,
+          message,
+          ...(failure.code !== undefined ? { code: failure.code } : {}),
+          timestamp: Date.now(),
+        },
+        sink,
+      )
       return
     }
 
@@ -5282,6 +5312,9 @@ async function* runRoutedSubagents(
     const strategy = bag.strategy ?? 'exclusive'
     if (strategy === 'handoff') {
       const childText = stepTexts.join('\n\n')
+      // The children are done. Commit their answers and settle their records
+      // before main runs. Main's own persistence takes over from here.
+      await subagentPersistence?.finish({ threadId, runId })
       yield* streamWithChildUsage(
         runChatEngine(
           {
@@ -5292,7 +5325,14 @@ async function* runRoutedSubagents(
             ...(turn && { resume: turn.rest }),
             messages: [
               ...turnMessages,
-              { role: 'assistant', content: childText || 'Subagent finished.' },
+              {
+                // Same id as the recorder's parent row, so the stored thread
+                // keeps one host message for the cards.
+                id: subagentHostMessageId(runId),
+                role: 'assistant',
+                content: childText || 'Subagent finished.',
+                metadata: { tanstack: { runId } },
+              },
             ],
           },
           engineRef,
@@ -5318,10 +5358,19 @@ async function* runRoutedSubagents(
   }
 }
 
-/** The plan from a resumed turn, or undefined when it is absent or invalid. */
+/**
+ * The plan from a resumed turn, or undefined when it is absent. A plan that
+ * names agents this chat does not have is stale: re-routing would strand the
+ * suspended child that owns the answers, so fail the resume instead.
+ */
 function savedPlan(
   plan: unknown,
   agents: ReadonlyArray<DefinedAgent>,
+  run: {
+    threadId: string
+    interruptedRunId: string
+    interruptIds: ReadonlyArray<string>
+  },
 ): { steps: ReadonlyArray<SubagentStep> } | undefined {
   if (typeof plan !== 'object' || plan === null || !('steps' in plan)) {
     return undefined
@@ -5329,8 +5378,22 @@ function savedPlan(
   try {
     // The plan comes back from the client. Check it like a router pick.
     return normalizeRouterPick(plan as SubagentStepsPlan, agents)
-  } catch {
-    return undefined
+  } catch (error) {
+    throw new InterruptResumeValidationError([
+      {
+        scope: 'batch',
+        threadId: run.threadId,
+        interruptedRunId: run.interruptedRunId,
+        generation: 0,
+        interruptIds: run.interruptIds,
+        code: 'stale',
+        message: `The saved subagent plan does not match the agents of this chat. ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        source: 'server',
+        retryable: false,
+      },
+    ])
   }
 }
 

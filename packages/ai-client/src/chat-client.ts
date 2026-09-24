@@ -337,6 +337,23 @@ const REJOIN_REBUILD_TRIGGERS = new Set<string>([
   'SUBAGENT_STARTED',
 ])
 
+type SubagentCard = Extract<UIMessage['parts'][number], { type: 'subagent' }>
+
+/** Every subagent card in the messages, nested cards included. */
+function collectSubagentParts(
+  messages: ReadonlyArray<UIMessage>,
+): Array<SubagentCard> {
+  const cards: Array<SubagentCard> = []
+  for (const message of messages) {
+    for (const part of message.parts) {
+      if (part.type !== 'subagent') continue
+      cards.push(part)
+      cards.push(...collectSubagentParts(part.subagent.messages))
+    }
+  }
+  return cards
+}
+
 function readSubagentRunId(chunk: StreamChunk) {
   if ('subagentRunId' in chunk && typeof chunk.subagentRunId === 'string') {
     return chunk.subagentRunId
@@ -347,7 +364,10 @@ function readSubagentRunId(chunk: StreamChunk) {
 // Cap parent-chain walks so a cyclic replayed parentRunId cannot loop.
 const MAX_RUN_LINEAGE_DEPTH = 64
 
-/** A deep copy of plain data. Dates stay Dates. Functions are dropped. */
+/**
+ * A deep copy of plain data. Dates stay Dates. Function-valued properties are
+ * dropped.
+ */
 function copyForDevtools<T>(value: T): T
 function copyForDevtools(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(copyForDevtools)
@@ -702,8 +722,9 @@ export class ChatClient<
           this.syncSubagentHandles()
           this.persistor?.notifyMessagesChanged(messages)
           this.callbacksRef.current.onMessagesChange(messages)
-          // A child's chunks fire no other devtools event, so the panel would
-          // see the child only when the parent run ends.
+          // The bridge only snapshots on status changes, and the panel draws a
+          // child card from the snapshot, so without this the card would update
+          // only when the parent run ends.
           this.queueDevtoolsSnapshot()
         },
         onStreamStart: () => {
@@ -2008,6 +2029,10 @@ export class ChatClient<
     this.callbacksRef.current.onChunk(chunk)
     this.devtoolsBridge.observeChunk(chunk)
     const attributedId = readSubagentRunId(chunk)
+    // A resumed child starts again under the same id, so its start lifts the stop.
+    if (attributedId && chunk.type === EventType.SUBAGENT_STARTED) {
+      this.stoppedSubagentIds.delete(attributedId)
+    }
     if (attributedId && this.stoppedSubagentIds.has(attributedId)) {
       this.updateRunLifecycle(chunk)
       this.resolveJoinedRun(chunk)
@@ -2760,6 +2785,7 @@ export class ChatClient<
     this.resetHistoryPaging()
     this.discardPendingSends()
     this.persistor?.remove()
+    this.stoppedSubagentIds.clear()
     this.lastResume = null
     this.interruptManager.reset()
     this.pendingResumeThreadId = null
@@ -3036,50 +3062,43 @@ export class ChatClient<
   }
 
   private syncSubagentHandles(): void {
-    const messages = this.processor.getMessages()
-    const present = new Set<string>()
-    for (const message of messages) {
-      for (const part of message.parts) {
-        if (part.type === 'subagent') present.add(part.subagent.id)
-      }
-    }
+    // Every card, nested ones included, gets a handle.
+    const cards = collectSubagentParts(this.processor.getMessages())
+    const present = new Set(cards.map((part) => part.subagent.id))
     // A card that left the messages (clear, reload) loses its handle.
     for (const id of this.subagentHandles.keys()) {
       if (!present.has(id)) this.subagentHandles.delete(id)
     }
-    for (const message of messages) {
-      for (const part of message.parts) {
-        if (part.type !== 'subagent') continue
-        const id = part.subagent.id
-        const existing = this.subagentHandles.get(id)
-        if (existing) {
-          if (part.subagent === existing) continue
-          // Keep the same live object, with exactly the card's fields. The
-          // wire reads this object, so a field the card dropped goes too.
-          const { stop } = existing
-          for (const key of Object.keys(existing)) {
-            Reflect.deleteProperty(existing, key)
-          }
-          Object.assign(existing, part.subagent, { stop })
-          part.subagent = existing
-          continue
+    for (const part of cards) {
+      const id = part.subagent.id
+      const existing = this.subagentHandles.get(id)
+      if (existing) {
+        if (part.subagent === existing) continue
+        // Keep the same live object, with exactly the card's fields. The
+        // wire reads this object, so a field the card dropped goes too.
+        const { stop } = existing
+        for (const key of Object.keys(existing)) {
+          Reflect.deleteProperty(existing, key)
         }
-        const handle: SubagentHandle = {
-          ...part.subagent,
-          stop: () => {
-            this.stopSubagent(id)
-          },
-        }
-        this.subagentHandles.set(id, handle)
-        part.subagent = handle
+        Object.assign(existing, part.subagent, { stop })
+        part.subagent = existing
+        continue
       }
+      const handle: SubagentHandle = {
+        ...part.subagent,
+        stop: () => {
+          this.stopSubagent(id)
+        },
+      }
+      this.subagentHandles.set(id, handle)
+      part.subagent = handle
     }
   }
 
   private stopSubagent(id: string): void {
-    this.stoppedSubagentIds.add(id)
     const handle = this.subagentHandles.get(id)
     if (!handle || handle.status !== 'running') return
+    this.stoppedSubagentIds.add(id)
     this.processor.processChunk({
       type: EventType.SUBAGENT_ERROR,
       subagentRunId: id,
