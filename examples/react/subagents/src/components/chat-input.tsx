@@ -29,7 +29,7 @@ export function ChatInput() {
           const text = field.value.trim()
           if (!text) return
           field.value = ''
-          void chat.sendMessage(text)
+          void chat.sendMessage(text).catch(() => undefined)
         }}
       >
         <div className="flex items-end gap-2">

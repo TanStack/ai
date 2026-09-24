@@ -29,6 +29,7 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         parentRunId: ctx.parentRunId,
+        subagentRunId: ctx.subagentRunId,
         resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
@@ -46,6 +47,7 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         parentRunId: ctx.parentRunId,
+        subagentRunId: ctx.subagentRunId,
         resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
@@ -63,6 +65,7 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         parentRunId: ctx.parentRunId,
+        subagentRunId: ctx.subagentRunId,
         resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [

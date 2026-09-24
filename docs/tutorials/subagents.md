@@ -186,9 +186,9 @@ export const seo = {
 export const blogAgents = [researcher, writer, seo] as const
 ```
 
-Create `src/lib/agents.ts`. `defineAgent` spreads each declaration and adds `run`, a full `chat()` call. Pass `ctx.threadId` and `ctx.runId` so the child stays on the parent stream.
+Create `src/lib/agents.ts`. `defineAgent` spreads each declaration and adds `run`, a full `chat()` call. Pass `ctx.threadId`, `ctx.runId`, `ctx.parentRunId`, `ctx.subagentRunId`, and `ctx.resume` into that call.
 
-The parent `chat({ subagents: { agents } })` owns the list. It does not call `run` until a turn picks that name. Exclusive strategy means the chosen child owns the turn. Main does not answer after it.
+The parent `chat({ subagents: { agents } })` owns the list. It does not call `run` until a turn picks that name.
 
 ```typescript ignore
 import { chat, defineAgent } from '@tanstack/ai'
@@ -222,6 +222,7 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         parentRunId: ctx.parentRunId,
+        subagentRunId: ctx.subagentRunId,
         resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
@@ -239,6 +240,7 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         parentRunId: ctx.parentRunId,
+        subagentRunId: ctx.subagentRunId,
         resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
@@ -256,6 +258,7 @@ export function createBlogAgents(apiKey: string) {
         threadId: ctx.threadId,
         runId: ctx.runId,
         parentRunId: ctx.parentRunId,
+        subagentRunId: ctx.subagentRunId,
         resume: ctx.resume,
         abortController: linkAbort(ctx.abortSignal),
         systemPrompts: [
@@ -530,7 +533,7 @@ export const { useAppChat, useChatContext } = createChatHook({
             const text = field.value.trim()
             if (!text) return
             field.value = ''
-            void chat.sendMessage(text)
+            void chat.sendMessage(text).catch(() => undefined)
           }}
         >
           <textarea name="message" disabled={chat.isLoading} />
@@ -542,7 +545,9 @@ export const { useAppChat, useChatContext } = createChatHook({
     },
   },
   partsComponents: {
-    fallback: () => null,
+    fallback: ({ part }) => (
+      <p className="text-xs text-gray-400">{part.type}</p>
+    ),
   },
 })
 ```
@@ -560,7 +565,9 @@ partsComponents: {
   text: ({ part }) => (
     <TextPart className="chat-markdown" content={part.content} />
   ),
-  fallback: () => null,
+  fallback: ({ part }) => (
+    <p className="text-xs text-gray-400">{part.type}</p>
+  ),
 },
 ```
 
@@ -707,7 +714,7 @@ export function ChatInput() {
           const text = field.value.trim()
           if (!text) return
           field.value = ''
-          void chat.sendMessage(text)
+          void chat.sendMessage(text).catch(() => undefined)
         }}
       >
         <div className="flex items-end gap-2">
@@ -807,7 +814,9 @@ export const { useAppChat, useChatContext } = createChatHook({
     text: ({ part }) => (
       <TextPart className="chat-markdown" content={part.content} />
     ),
-    fallback: () => null,
+    fallback: ({ part }) => (
+      <p className="text-xs text-gray-400">{part.type}</p>
+    ),
   },
   subagentsComponents: {
     researcher: Researcher,
