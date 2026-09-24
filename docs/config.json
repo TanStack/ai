@@ -1283,7 +1283,7 @@
           "updatedAt": "2026-08-21"
         },
         {
-          "label": "Sampling â†’ modelOptions",
+          "label": "Sampling \u00e2\u2020\u2019 modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
         },
