@@ -20,7 +20,7 @@ import type { GeminiRealtimeTokenOptions } from './types'
  *   adapter: geminiRealtimeToken({
  *     // Optional: constraint model config by token
  *     liveConnectConstraints: {
- *       model: 'gemini-3.1-flash-live-preview',
+ *       model: 'gemini-3.8-live',
  *     },
  *   }),
  * })

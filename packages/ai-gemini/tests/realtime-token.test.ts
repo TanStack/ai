@@ -53,3 +53,21 @@ describe('geminiRealtimeToken', () => {
     )
   })
 })
+
+describe('GeminiRealtimeModel', () => {
+  it('accepts the Gemini 3.8 Live models as a token constraint', async () => {
+    process.env.GOOGLE_API_KEY = 'test-key'
+    mocks.createSpy.mockResolvedValueOnce({ name: 'tok' })
+
+    const token = await geminiRealtimeToken({
+      liveConnectConstraints: { model: 'gemini-3.8-live-extended-thinking' },
+    }).generateToken()
+
+    expect(token.config).toEqual({ model: 'gemini-3.8-live-extended-thinking' })
+    expect(
+      mocks.createSpy.mock.lastCall?.[0].config.liveConnectConstraints,
+    ).toEqual({
+      model: 'gemini-3.8-live-extended-thinking',
+    })
+  })
+})

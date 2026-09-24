@@ -33,7 +33,19 @@ export interface ContentPartUrlSource {
   mimeType?: string
 }
 
-export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
+export interface ContentPartFileSource {
+  type: 'file'
+  /** The opaque handle the provider issued (a file id or provider URI). */
+  value: string
+  /** Adapter name of the provider that issued the handle, when known. */
+  provider?: string
+  mimeType?: string
+}
+
+export type ContentPartSource =
+  | ContentPartDataSource
+  | ContentPartUrlSource
+  | ContentPartFileSource
 
 export interface TextPart {
   type: 'text'
@@ -684,6 +696,36 @@ export interface RerankRequestCompletedEvent extends BaseEventContext {
 
 /** Emitted when rerank usage metrics are available. */
 export interface RerankUsageEvent extends BaseEventContext {
+  requestId: string
+  model: string
+  usage: TokenUsage
+}
+
+// ===========================
+// Evaluate Events
+// ===========================
+
+/** Emitted when an evaluate request starts. */
+export interface EvaluateRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  /** Number of questions submitted for evaluation. */
+  questionCount: number
+}
+
+/** Emitted when evaluate completes. */
+export interface EvaluateRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  /** Number of questions submitted for evaluation. */
+  questionCount: number
+  duration: number
+}
+
+/** Emitted when evaluate usage metrics are available. */
+export interface EvaluateUsageEvent extends BaseEventContext {
   requestId: string
   model: string
   usage: TokenUsage
@@ -1502,6 +1544,11 @@ export interface AIDevtoolsEventMap {
   'rerank:request:started': RerankRequestStartedEvent
   'rerank:request:completed': RerankRequestCompletedEvent
   'rerank:usage': RerankUsageEvent
+
+  // Evaluate events
+  'evaluate:request:started': EvaluateRequestStartedEvent
+  'evaluate:request:completed': EvaluateRequestCompletedEvent
+  'evaluate:usage': EvaluateUsageEvent
 
   // Image events
   'image:request:started': ImageRequestStartedEvent

@@ -224,41 +224,25 @@ export async function generationParamsFromRequest<TKind extends GenerationKind>(
   return generationParamsFromBody(kind, body)
 }
 
-export enum EventType {
-  TEXT_MESSAGE_START = 'TEXT_MESSAGE_START',
-  TEXT_MESSAGE_CONTENT = 'TEXT_MESSAGE_CONTENT',
-  TEXT_MESSAGE_END = 'TEXT_MESSAGE_END',
-  TEXT_MESSAGE_CHUNK = 'TEXT_MESSAGE_CHUNK',
-  TOOL_CALL_START = 'TOOL_CALL_START',
-  TOOL_CALL_ARGS = 'TOOL_CALL_ARGS',
-  TOOL_CALL_END = 'TOOL_CALL_END',
-  TOOL_CALL_CHUNK = 'TOOL_CALL_CHUNK',
-  TOOL_CALL_RESULT = 'TOOL_CALL_RESULT',
-  THINKING_START = 'THINKING_START',
-  THINKING_END = 'THINKING_END',
-  THINKING_TEXT_MESSAGE_START = 'THINKING_TEXT_MESSAGE_START',
-  THINKING_TEXT_MESSAGE_CONTENT = 'THINKING_TEXT_MESSAGE_CONTENT',
-  THINKING_TEXT_MESSAGE_END = 'THINKING_TEXT_MESSAGE_END',
-  STATE_SNAPSHOT = 'STATE_SNAPSHOT',
-  STATE_DELTA = 'STATE_DELTA',
-  MESSAGES_SNAPSHOT = 'MESSAGES_SNAPSHOT',
-  ACTIVITY_SNAPSHOT = 'ACTIVITY_SNAPSHOT',
-  ACTIVITY_DELTA = 'ACTIVITY_DELTA',
-  RAW = 'RAW',
-  CUSTOM = 'CUSTOM',
-  RUN_STARTED = 'RUN_STARTED',
-  RUN_FINISHED = 'RUN_FINISHED',
-  RUN_ERROR = 'RUN_ERROR',
-  STEP_STARTED = 'STEP_STARTED',
-  STEP_FINISHED = 'STEP_FINISHED',
-  REASONING_START = 'REASONING_START',
-  REASONING_MESSAGE_START = 'REASONING_MESSAGE_START',
-  REASONING_MESSAGE_CONTENT = 'REASONING_MESSAGE_CONTENT',
-  REASONING_MESSAGE_END = 'REASONING_MESSAGE_END',
-  REASONING_MESSAGE_CHUNK = 'REASONING_MESSAGE_CHUNK',
-  REASONING_END = 'REASONING_END',
-  REASONING_ENCRYPTED_VALUE = 'REASONING_ENCRYPTED_VALUE',
-}
+export { EventType } from '@ag-ui/core'
+
+export {
+  defineAgent,
+  type DefinedAgent,
+  type SubagentChoiceOptions,
+  type SubagentRunContext,
+} from './activities/chat/agents/define-agent'
+export {
+  subagentRoute,
+  type SubagentRouteOptions,
+} from './activities/chat/agents/route'
+export type {
+  SubagentOrder,
+  SubagentRouterPick,
+  SubagentRouterPlan,
+  SubagentStep,
+  SubagentStepsPlan,
+} from './activities/chat/agents/spawn'
 
 export {
   toolDefinition,
@@ -345,10 +329,20 @@ export type { AdapterYieldChunk } from './utilities/adapter-yield-chunk'
 export { getChunkRunId, getChunkThreadId } from './utilities/chunk-ids'
 export type { WireMessage } from './utilities/ag-ui-wire'
 
+// A browser client that received an uploaded handle from its server can build
+// the `{ type: 'file' }` content source itself — `fileSourceFromHandle` is a
+// pure object builder, so exporting it here keeps the documented client flow
+// from pulling in the server entry.
+export { fileSourceFromHandle } from './activities/files/index'
+export type { FileHandle } from './activities/files/adapter'
+
 export type {
   AudioPart,
   ContentPart,
   ContentPartDataSource,
+  ContentPartFileSource,
+  SubagentHandleData,
+  SubagentStatus,
   ContentPartSource,
   ContentPartUrlSource,
   CustomEvent,

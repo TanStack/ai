@@ -1,4 +1,8 @@
-import { resolveMediaPrompt } from '@tanstack/ai'
+import {
+  isFileSource,
+  resolveMediaPrompt,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
@@ -73,6 +77,7 @@ interface GrokVideoStatusResponse {
 function mediaPartToUrl(
   part: ImagePart<MediaInputMetadata> | VideoPart<MediaInputMetadata>,
 ): string {
+  if (isFileSource(part.source)) throw unsupportedFileSourceError('grok')
   if (part.source.type === 'url') return part.source.value
   return `data:${part.source.mimeType};base64,${part.source.value}`
 }

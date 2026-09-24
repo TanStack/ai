@@ -3,7 +3,7 @@ id: StateDeltaEvent
 title: StateDeltaEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1353](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1353)
+Defined in: [packages/ai/src/types.ts:1391](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1391)
 
 Emitted to provide an incremental state update.
 
@@ -12,9 +12,3 @@ Emitted to provide an incremental state update.
 ## Extends
 
 - `StateDeltaEvent`
-
-## Indexable
-
-```ts
-[k: string]: unknown
-```

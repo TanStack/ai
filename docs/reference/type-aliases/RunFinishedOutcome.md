@@ -7,4 +7,4 @@ title: RunFinishedOutcome
 type RunFinishedOutcome = AGUIRunFinishedOutcome;
 ```
 
-Defined in: [packages/ai/src/types.ts:1191](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1191)
+Defined in: [packages/ai/src/types.ts:1237](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1237)

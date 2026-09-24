@@ -91,6 +91,7 @@ const OPERATION_NAME: Record<GenerationActivity, string> = {
   transcription: 'transcription',
   embedding: 'embeddings',
   rerank: 'rerank',
+  evaluate: 'evaluate',
   summarize: 'summarize',
   world: 'world_generation',
   liveVideo: 'live_video_generation',

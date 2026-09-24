@@ -25,7 +25,7 @@ vue: @tanstack/ai-vue
 
 <!-- ::end:tabs -->
 
-## `useWebMCPTools(tools, options?)`
+## `useRegisterWebMCPTools(tools, options?)`
 
 Register executable client tools for the current Vue scope. Vue removes them when the scope is disposed.
 
@@ -34,25 +34,41 @@ For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
 ```vue
 <script setup lang="ts">
 import {
-  useWebMCPTools,
-  type UseWebMCPToolsOptions,
+  useRegisterWebMCPTools,
+  type UseRegisterWebMCPToolsOptions,
 } from "@tanstack/ai-vue";
 import { searchProducts } from "./tools";
 
 const tools = [searchProducts];
-const options: UseWebMCPToolsOptions<typeof tools> = {
+const options: UseRegisterWebMCPToolsOptions<typeof tools> = {
   onError(error) {
     console.error(error);
   },
 };
 
-useWebMCPTools(tools, options);
+useRegisterWebMCPTools(tools, options);
 </script>
 ```
 
-`UseWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The composable owns the registration signal.
+`UseRegisterWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The composable owns the registration signal.
 
 The `context` field is required when a tool declares a required runtime context.
+
+## `usePageWebMCPTools(options?)`
+
+Read the WebMCP tools on the page as client tools. The ref starts empty and updates when the page adds or removes a tool. Pass the ref to `useChat` as `tools`.
+
+```ts
+import { usePageWebMCPTools } from "@tanstack/ai-vue";
+
+export function useSameOriginPageTools() {
+  return usePageWebMCPTools({
+    filter: (tool) => tool.origin === location.origin,
+  });
+}
+```
+
+`filter` skips a tool when it returns `false`. `onError` gets a failed WebMCP read. For a complete guide, see [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
 
 ## `createChatHook(options)`
 
@@ -119,7 +135,7 @@ const { messages, sendMessage, isLoading, error, addToolApprovalResponse } =
 Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state callbacks):
 
 - `connection` - Connection adapter (required)
-- `tools?` - Array of client tool implementations (with `.client()` method)
+- `tools?` - Array of client tool implementations (with `.client()` method). Pass a ref or getter to change the tools after the chat is created.
 - `initialMessages?` - Initial messages array
 - `threadId?` - The only identity for this chat. Required when persistence is on. If omitted, minted after mount.
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (reactive -- changes are synced automatically via `watch`)

@@ -226,6 +226,16 @@ export function createChat<
 
   if (typeof window !== 'undefined') {
     try {
+      // Sync tools, so a getter such as `get tools() { return page.tools }`
+      // updates the client.
+      $effect.pre(() => {
+        const tools = options.tools
+        if (tools !== undefined) client.updateOptions({ tools })
+      })
+    } catch {
+      // Effects are only valid during component initialization.
+    }
+    try {
       onMount(() => {
         // Delivery-durability resume is transparent: the resumable SSE
         // connection adapter reattaches via the browser's native

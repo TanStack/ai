@@ -9,6 +9,10 @@ import { notifyRunDisconnected } from './delivery-disconnect'
 import { resolveResumeRunId } from './stream-durability'
 import { EventType } from './types'
 import { toWireChunk } from './strip-to-spec-middleware'
+import {
+  isDurabilityBatchedCustom,
+  stripDurabilityBatchHint,
+} from './utilities/durability-batch'
 import { resolveDebugOption } from './logger/resolve'
 import { runErrorEventToError } from './utilities/errors'
 import type { LockStore } from './activities/chat/middleware/locks'
@@ -319,23 +323,29 @@ function resolveBatchSize(batch: number | undefined): number {
 
 /**
  * Boundaries at which the batching producer flushes early, regardless of the
- * batch size — the run-start marker, terminal events, and tool-call ends.
- * Flushing here keeps the durability log promptly consistent at semantically
- * meaningful points.
+ * batch size: run-start, terminals, tool-call ends, and CUSTOM events that
+ * are not high-volume adapter output.
  *
  * `RUN_STARTED` matters especially for one-shot activities (image, speech,
  * transcription, summarize): they emit `RUN_STARTED`, then await the provider
  * for seconds, then a terminal. Without flushing `RUN_STARTED` the log stays
  * empty for the whole run, so a mount-time `joinRun` finds nothing and its
- * empty-log deadline fast-fails as "run gone" — even though the run is alive.
+ * empty-log deadline fast-fails as "run gone" even though the run is alive.
  * Flushing it immediately makes the run resumable from the instant it starts.
+ *
+ * CUSTOM progress events (compaction, tool progress, middleware) flush at
+ * emit time so a live indicator can render. `process.stdout`,
+ * `process.stderr`, `sandbox.file`, and `sandbox.file.diff` stay batched.
+ * `emitCustomEvent(name, value, { batch: true })` opts a single event into
+ * that same batch.
  */
 function isDurabilityFlushBoundary(chunk: StreamChunk): boolean {
   return (
     chunk.type === 'RUN_STARTED' ||
     chunk.type === 'RUN_FINISHED' ||
     chunk.type === 'RUN_ERROR' ||
-    chunk.type === 'TOOL_CALL_END'
+    chunk.type === 'TOOL_CALL_END' ||
+    (chunk.type === 'CUSTOM' && !isDurabilityBatchedCustom(chunk))
   )
 }
 
@@ -446,7 +456,7 @@ export function durableStreamSource<TOffset extends string>(
 
     async function* flush(): AsyncIterable<StreamChunk> {
       if (batch.length === 0) return
-      const toForward = batch
+      const toForward = batch.map(stripDurabilityBatchHint)
       batch = []
       // Tag each chunk with the exact backend offset. Requiring one opaque
       // token per chunk preserves exact-once resume at any batch size.

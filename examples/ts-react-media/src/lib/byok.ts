@@ -5,6 +5,7 @@ import { geminiByok } from '@tanstack/ai-gemini/byok'
 import { grokByok } from '@tanstack/ai-grok/byok'
 import { openrouterByok } from '@tanstack/ai-openrouter/byok'
 import { reactorByok } from '@tanstack/ai-reactor/byok'
+import { worldlabsByok } from '@tanstack/ai-worldlabs/byok'
 import { createServerFn } from '@tanstack/react-start'
 import {
   ByokBlockedError,
@@ -20,6 +21,7 @@ export {
   grokByok,
   openrouterByok,
   reactorByok,
+  worldlabsByok,
 }
 
 export const KEYED_PROVIDERS = [
@@ -29,6 +31,7 @@ export const KEYED_PROVIDERS = [
   openrouterByok,
   byteplusByok,
   reactorByok,
+  worldlabsByok,
 ] as const
 
 export const byok = defineByok({
@@ -41,7 +44,14 @@ export const byok = defineByok({
 byok.setServerCoverage(true)
 
 export function toByokProvider(
-  provider: 'fal' | 'gemini' | 'xai' | 'byteplus' | 'openrouter' | 'reactor',
+  provider:
+    | 'fal'
+    | 'gemini'
+    | 'xai'
+    | 'byteplus'
+    | 'openrouter'
+    | 'reactor'
+    | 'worldlabs',
 ): ProviderId {
   if (provider === 'xai') return grokByok.id
   return provider

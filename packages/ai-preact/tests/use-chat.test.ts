@@ -21,6 +21,24 @@ describe('useChat', () => {
     vi.doUnmock('preact/hooks')
   })
 
+  it('sends tools that change after the first render to the client', () => {
+    const updateOptions = vi.spyOn(ChatClient.prototype, 'updateOptions')
+    const connection = createMockConnectionAdapter()
+    const nextTools = [
+      { __toolSide: 'client' as const, name: 'late', description: 'Late' },
+    ]
+    const initialTools: typeof nextTools = []
+    const { rerender } = renderHook(
+      (tools: typeof nextTools) => useChat({ connection, tools }),
+      { initialProps: initialTools },
+    )
+
+    rerender(nextTools)
+
+    expect(updateOptions).toHaveBeenCalledWith({ tools: nextTools })
+    updateOptions.mockRestore()
+  })
+
   function createDeferred<T>() {
     let resolve!: (value: T) => void
     const promise = new Promise<T>((promiseResolve) => {
@@ -1916,7 +1934,6 @@ describe('useChat', () => {
             messageId: 'msg-after-toggle',
             timestamp: Date.now(),
             delta: 'after toggle',
-            content: 'after toggle',
           },
           {
             type: EventType.RUN_FINISHED,
