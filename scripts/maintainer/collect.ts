@@ -27,6 +27,9 @@ interface GqlActor {
 
 interface GqlTimelineNode {
   __typename: string
+  actor?: GqlActor | null
+  assignee?: GqlActor | null
+  requestedReviewer?: GqlActor | null
   author?: GqlActor | null
   createdAt?: string
   submittedAt?: string
@@ -58,7 +61,20 @@ function normalizeTimeline(
   const events: Array<TimelineEvent> = []
   for (const node of nodes) {
     if (!node) continue
-    if (node.__typename === 'IssueComment' && node.createdAt) {
+    if (
+      (node.__typename === 'AssignedEvent' ||
+        node.__typename === 'ReviewRequestedEvent') &&
+      node.createdAt
+    ) {
+      events.push({
+        kind:
+          node.__typename === 'AssignedEvent' ? 'assigned' : 'review-requested',
+        actor: actorLogin(node.actor),
+        subject: actorLogin(node.assignee ?? node.requestedReviewer),
+        isBot: actorIsBot(node.actor, config),
+        at: node.createdAt,
+      })
+    } else if (node.__typename === 'IssueComment' && node.createdAt) {
       events.push({
         kind: 'comment',
         actor: actorLogin(node.author),
@@ -109,6 +125,8 @@ const COMMENT_FRAGMENT = `
 
 const PR_TIMELINE_FRAGMENT = `
   ${COMMENT_FRAGMENT}
+  ... on AssignedEvent { actor { login __typename } createdAt assignee { ... on User { login } } }
+  ... on ReviewRequestedEvent { actor { login __typename } createdAt requestedReviewer { ... on User { login } } }
   ... on PullRequestReview { author { login __typename } submittedAt state }
   ... on PullRequestCommit { commit { committedDate author { user { login } } } }
 `
@@ -124,10 +142,12 @@ query($owner: String!, $name: String!, $cursor: String) {
         author { login __typename ... on User { createdAt } }
         labels(first: 20) { nodes { name } }
         assignees(first: 10) { nodes { login } }
-        files(first: 100) { nodes { path } }
+        files(first: 100) { nodes { path } pageInfo { hasNextPage endCursor } }
+        reviewRequests(first: 100) { nodes { requestedReviewer { ... on User { login } } } pageInfo { hasNextPage endCursor } }
         closingIssuesReferences(first: 10) { nodes { number } }
         commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
-        timelineItems(last: 100, itemTypes: [ISSUE_COMMENT, PULL_REQUEST_REVIEW, PULL_REQUEST_COMMIT]) {
+        timelineItems(first: 100, itemTypes: [ISSUE_COMMENT, PULL_REQUEST_REVIEW, PULL_REQUEST_COMMIT, ASSIGNED_EVENT, REVIEW_REQUESTED_EVENT]) {
+          pageInfo { hasNextPage endCursor }
           nodes { ${PR_TIMELINE_FRAGMENT} }
         }
       }
@@ -180,7 +200,9 @@ query($query: String!, $cursor: String) {
       ... on PullRequest {
         number title url createdAt closedAt mergedAt
         author { login __typename }
-        timelineItems(first: 30, itemTypes: [ISSUE_COMMENT, PULL_REQUEST_REVIEW]) {
+        files(first: 100) { nodes { path } pageInfo { hasNextPage endCursor } }
+        timelineItems(first: 100, itemTypes: [ISSUE_COMMENT, PULL_REQUEST_REVIEW, PULL_REQUEST_COMMIT, ASSIGNED_EVENT, REVIEW_REQUESTED_EVENT]) {
+          pageInfo { hasNextPage endCursor }
           nodes { ${PR_TIMELINE_FRAGMENT} }
         }
       }
@@ -200,7 +222,7 @@ async function paginate<TNode>(
     nodes: Array<TNode | null>
     pageInfo: { hasNextPage: boolean; endCursor: string | null }
   }>,
-  maxPages = 20,
+  maxPages = Infinity,
 ): Promise<Array<TNode>> {
   const all: Array<TNode> = []
   let cursor: string | null = null
@@ -225,6 +247,20 @@ export async function collectSnapshot(
     nodes: Array<Record<string, any> | null>
     pageInfo: { hasNextPage: boolean; endCursor: string | null }
   }
+
+  const ownership = await client.graphql<{
+    repository: { object: { text: string } | null }
+  }>(
+    `
+    query($owner: String!, $name: String!) {
+      repository(owner: $owner, name: $name) {
+        object(expression: "HEAD:.github/CODEOWNERS") { ... on Blob { text } }
+      }
+    }`,
+    vars,
+  )
+  if (!ownership.repository.object)
+    throw new Error('Default-branch CODEOWNERS is missing')
 
   const prNodes = await paginate((cursor) =>
     client
@@ -259,16 +295,57 @@ export async function collectSnapshot(
   )
     .toISOString()
     .slice(0, 10)
-  const closedNodes = await paginate(
-    (cursor) =>
-      client
-        .graphql<{ search: Connection }>(CLOSED_SEARCH_QUERY, {
-          query: `repo:${config.repo} closed:>=${sinceDate}`,
-          cursor,
-        })
-        .then((d) => d.search),
-    10,
+  const closedNodes = await paginate((cursor) =>
+    client
+      .graphql<{ search: Connection }>(CLOSED_SEARCH_QUERY, {
+        query: `repo:${config.repo} closed:>=${sinceDate}`,
+        cursor,
+      })
+      .then((d) => d.search),
   )
+
+  // Page nested connections too: a core-owned path or review may be beyond page one.
+  for (const node of [
+    ...prNodes,
+    ...closedNodes.filter((n) => n.__typename === 'PullRequest'),
+  ]) {
+    for (const [field, selection] of [
+      ['files', 'nodes { path }'],
+      [
+        'reviewRequests',
+        'nodes { requestedReviewer { ... on User { login } } }',
+      ],
+      ['timelineItems', `nodes { ${PR_TIMELINE_FRAGMENT} }`],
+    ]) {
+      const connection = node[field!]
+      if (!connection?.pageInfo?.hasNextPage) continue
+      const remaining = await paginate((cursor) =>
+        client
+          .graphql<{
+            repository: { pullRequest: Record<string, Connection> }
+          }>(
+            `
+        query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+          repository(owner: $owner, name: $name) {
+            pullRequest(number: $number) {
+              ${field}(first: 100, after: $cursor${field === 'timelineItems' ? ', itemTypes: [ISSUE_COMMENT, PULL_REQUEST_REVIEW, PULL_REQUEST_COMMIT, ASSIGNED_EVENT, REVIEW_REQUESTED_EVENT]' : ''}) {
+                ${selection}
+                pageInfo { hasNextPage endCursor }
+              }
+            }
+          }
+        }`,
+            {
+              ...vars,
+              number: node.number,
+              cursor: cursor ?? connection.pageInfo.endCursor,
+            },
+          )
+          .then((d) => d.repository.pullRequest[field!]!),
+      )
+      connection.nodes.push(...remaining)
+    }
+  }
 
   const prs: Array<PRItem> = prNodes.map((n) => {
     const author = actorLogin(n.author)
@@ -298,6 +375,10 @@ export async function collectSnapshot(
       assignees: (n.assignees?.nodes ?? [])
         .filter(Boolean)
         .map((a: { login: string }) => a.login),
+      requestedReviewers: (n.reviewRequests?.nodes ?? []).flatMap(
+        (r: { requestedReviewer?: { login?: string } | null }) =>
+          r?.requestedReviewer?.login ? [r.requestedReviewer.login] : [],
+      ),
       ciState: normalizeCIState(
         n.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state,
       ),
@@ -366,6 +447,9 @@ export async function collectSnapshot(
       createdAt: n.createdAt,
       closedAt: n.closedAt,
       mergedAt: n.mergedAt ?? null,
+      files: (n.files?.nodes ?? [])
+        .filter(Boolean)
+        .map((f: { path: string }) => f.path),
       timeline: normalizeTimeline(
         n.timelineItems?.nodes ?? [],
         actorLogin(n.author),
@@ -376,6 +460,7 @@ export async function collectSnapshot(
   return {
     owner,
     repo,
+    codeowners: ownership.repository.object.text,
     takenAt: now.toISOString(),
     prs,
     issues,

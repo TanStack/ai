@@ -3,8 +3,6 @@ id: createImageOptions
 title: createImageOptions
 ---
 
-# Function: createImageOptions()
-
 ```ts
 function createImageOptions<TAdapter, TStream>(options): ImageActivityOptions<TAdapter, TStream>;
 ```

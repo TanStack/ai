@@ -1,7 +1,7 @@
 ---
 title: Cloudflare
 id: cloudflare-adapter
-description: "Run Workers AI chat, embeddings, images, speech, and transcription from a Cloudflare Worker or any server, and route other providers through AI Gateway, with TanStack AI."
+description: "Run Workers AI chat, embeddings, images, speech, transcription, and evaluate from a Cloudflare Worker or any server, and route other providers through AI Gateway, with TanStack AI."
 keywords:
   - tanstack ai
   - cloudflare
@@ -10,6 +10,8 @@ keywords:
   - env.AI
   - edge inference
   - adapter
+  - evaluate
+  - jev
 ---
 
 You have a Cloudflare Worker and want an AI route without managing API keys. Or you have a server elsewhere and want to call Workers AI models. Or you already use OpenAI or Anthropic and want AI Gateway caching and logs in front of them. This adapter does all three.
@@ -265,6 +267,80 @@ const stream = chat({
   },
 });
 ```
+
+## Evaluate
+
+Use `cloudflareDecider('typesafe/jev')` with `decide()`.
+Pass `gateway: { id: 'default' }` on the adapter config to send the run through AI Gateway.
+
+From a Worker, pass the binding:
+
+```typescript
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { createCloudflareDecider } from "@tanstack/ai-cloudflare";
+import type { Ai } from "@cloudflare/workers-types";
+
+interface Env {
+  AI: Ai;
+}
+
+const ticket = {
+  subject: "Charged twice for the same invoice",
+  body: "Please refund the extra payment.",
+};
+
+export async function evaluateTicket(env: Env) {
+  const result = await decide({
+    adapter: createCloudflareDecider("typesafe/jev", {
+      binding: env.AI,
+      gateway: { id: "default" },
+    }),
+    state: ticket,
+    questions: {
+      queue: choice({
+        instructions: "Which team should handle this ticket?",
+        options: {
+          billing: "Payments, invoices, refunds",
+          tech: "Bugs, outages, integrations",
+          sales: "Pricing, upgrades, new accounts",
+        },
+      }),
+      urgency: score({
+        instructions: "How urgent is this ticket?",
+        levels: ["low", "medium", "high"],
+      }),
+      refund: boolean({
+        instructions: "Is the customer asking for a refund?",
+      }),
+    },
+  });
+
+  return result;
+}
+```
+
+From any other server, `cloudflareDecider` reads `CLOUDFLARE_ACCOUNT_ID` and
+`CLOUDFLARE_API_TOKEN`:
+
+```typescript
+import { decide, boolean } from "@tanstack/ai";
+import { cloudflareDecider } from "@tanstack/ai-cloudflare";
+
+const result = await decide({
+  adapter: cloudflareDecider("typesafe/jev"),
+  state: "Please refund the extra payment.",
+  questions: {
+    refund: boolean({
+      instructions: "Is the customer asking for a refund?",
+    }),
+  },
+});
+
+console.log(result.refund.value);
+```
+
+See the [Evaluate guide](../evaluate/evaluate) for question helpers, the result
+shape, abort, and middleware.
 
 ## Summarize, embed, and media
 

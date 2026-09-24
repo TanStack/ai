@@ -3,8 +3,6 @@ id: createFrozenRegistry
 title: createFrozenRegistry
 ---
 
-# Function: createFrozenRegistry()
-
 ```ts
 function createFrozenRegistry<TTool>(tools?): ToolRegistry<TTool>;
 ```

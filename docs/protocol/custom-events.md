@@ -162,6 +162,23 @@ const progress: ChatMiddleware = {
 };
 ```
 
+With durability on the response, each of these events flushes as soon as it
+is emitted, so `prepare` reaches the client while `prepare()` is still
+running. High-volume names stay in the durability batch:
+`process.stdout`, `process.stderr`, `sandbox.file`, and `sandbox.file.diff`.
+Pass `{ batch: true }` to keep one of your own events in that batch:
+
+```ts
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const noisy: ChatMiddleware = {
+  name: "noisy",
+  async onConfig(ctx) {
+    ctx.emitCustomEvent("my-app:ticks", { n: 1 }, { batch: true });
+  },
+};
+```
+
 These flow over the wire exactly like the built-in events: same `CUSTOM`
 chunk shape, same runtime behavior. But `'my-app:progress'` isn't one of the
 literal names in `KnownCustomEvent`, so it's intentionally absent from

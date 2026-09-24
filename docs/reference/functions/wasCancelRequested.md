@@ -3,8 +3,6 @@ id: wasCancelRequested
 title: wasCancelRequested
 ---
 
-# Function: wasCancelRequested()
-
 ```ts
 function wasCancelRequested(runs, runId): Promise<boolean>;
 ```

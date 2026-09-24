@@ -3,8 +3,6 @@ id: GenericInterruptContinuationReadResult
 title: GenericInterruptContinuationReadResult
 ---
 
-# Type Alias: GenericInterruptContinuationReadResult
-
 ```ts
 type GenericInterruptContinuationReadResult = 
   | {

@@ -132,6 +132,12 @@ const runErrorBoundaryMiddleware: ChatMiddleware<unknown, typeof reviewPlan> = {
   },
 }
 
+/** The adapter's accumulated `content`. The AG-UI 1.0 event type omits it. */
+function accumulated(chunk: StreamChunk): string {
+  const content: unknown = Reflect.get(chunk, 'content')
+  return typeof content === 'string' ? content : ''
+}
+
 const chunkTransformMiddleware: ChatMiddleware = {
   name: 'chunk-transform',
   onChunk(_ctx, chunk) {
@@ -139,7 +145,7 @@ const chunkTransformMiddleware: ChatMiddleware = {
       return {
         ...chunk,
         delta: '[MW] ' + chunk.delta,
-        content: '[MW] ' + (chunk.content || ''),
+        content: '[MW] ' + accumulated(chunk),
       }
     }
     return chunk
@@ -195,7 +201,7 @@ const prefixConsumerMiddleware: ChatMiddleware = {
       return {
         ...chunk,
         delta: prefix + ' ' + chunk.delta,
-        content: prefix + ' ' + (chunk.content || ''),
+        content: prefix + ' ' + accumulated(chunk),
       }
     }
     return chunk

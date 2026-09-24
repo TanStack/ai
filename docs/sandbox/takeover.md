@@ -14,8 +14,6 @@ keywords:
   - driverEpoch
 ---
 
-# Takeover & Detached Runs
-
 A sandboxed coding agent can work for ten minutes. A browser tab does not last
 ten minutes. Users refresh, close the laptop, lose wifi, and hit a load balancer
 that lands the next request on a different replica.
@@ -501,10 +499,8 @@ export async function POST(request: Request) {
 Populate `driving` where you create the run's `AbortController`: in the `POST`
 handler for a fresh run, and in `controllerFor` on the takeover path.
 
-On the client, `chat.stop()` alone is **not** a cancel. It aborts a local
-`AbortController` and sends the server nothing, which on a durable run is
-indistinguishable from a refresh, so the agent keeps running. Call the endpoint
-too:
+On the client, `chat.stop()` sends the server nothing. A durable run then
+continues, because a refresh looks the same. Call the endpoint too.
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'

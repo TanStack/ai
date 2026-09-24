@@ -12,8 +12,6 @@ keywords:
   - tree-shakeable
 ---
 
-# Tree-Shaking & Bundle Optimization
-
 TanStack AI is designed from the ground up for maximum tree-shakeability. The entire system—from activity functions to adapters—uses a functional, modular architecture that ensures you only bundle the code you actually use.
 
 ## Design Philosophy
@@ -277,7 +275,7 @@ Each adapter type implements a specific interface:
 - `TranscriptionAdapter` - Provides `generateTranscription()` method for audio transcription
 - `VideoAdapter` - Provides `generateVideo()` method for video generation
 - `LiveVideoAdapter` - Provides `createLiveVideo()` method for live video sessions
-- `WorldAdapter` - Provides `createWorld()` method for live world sessions
+- `WorldAdapter` - Provides `createWorld()` method for live world sessions and world jobs
 
 All adapters have a `kind` property that indicates their type:
 

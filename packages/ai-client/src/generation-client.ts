@@ -1,4 +1,5 @@
 import { ByokBlockedError, ByokMissingError } from '@tanstack/ai/byok'
+import { byokFallbackProviderId } from './byok/client'
 import {
   prepareResolvedByokHeaders,
   resolveByokProviderId,
@@ -280,6 +281,7 @@ export class GenerationClient<
         const provider = resolveByokProviderId(
           this.byokProvider,
           this.body.provider,
+          byokFallbackProviderId(this.byok),
         )
         headers = await prepareResolvedByokHeaders(this.byok, provider)
       }

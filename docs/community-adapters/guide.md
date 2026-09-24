@@ -13,8 +13,6 @@ keywords:
   - contribute
 ---
 
-# Community Adapters Guide
-
 This guide explains how to create and contribute community adapters for the TanStack AI ecosystem.
 
 Community adapters extend TanStack AI by integrating external services, APIs, or custom model logic. They are authored and maintained by the community and can be reused across projects.

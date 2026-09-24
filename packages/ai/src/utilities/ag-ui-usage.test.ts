@@ -192,3 +192,41 @@ describe('rebuildTokenUsage', () => {
     })
   })
 })
+
+it('maps cache-write usage in both directions', () => {
+  const usage: TokenUsage = {
+    promptTokens: 12,
+    completionTokens: 3,
+    totalTokens: 15,
+    promptTokensDetails: { cachedTokens: 4, cacheWriteTokens: 5 },
+  }
+  const wire = toSpecTokenUsage(usage)
+  expect(wire.usage).toEqual([
+    {
+      inputTokens: 12,
+      outputTokens: 3,
+      totalTokens: 15,
+      cachedInputTokens: 4,
+      cacheWriteInputTokens: 5,
+    },
+  ])
+  // Old readers only know the leftover field, so it stays there too.
+  expect(wire.leftover).toEqual({
+    promptTokensDetails: { cacheWriteTokens: 5 },
+  })
+  expect(fromSpecTokenUsage(wire.usage, wire.leftover)).toEqual(usage)
+  expect(fromSpecTokenUsage(wire.usage)).toEqual(usage)
+})
+
+it('sums every spec usage entry', () => {
+  expect(
+    fromSpecTokenUsage([
+      { inputTokens: 1, outputTokens: 2, totalTokens: 3 },
+      { inputTokens: 4, outputTokens: 5, totalTokens: 9 },
+    ]),
+  ).toEqual({
+    promptTokens: 5,
+    completionTokens: 7,
+    totalTokens: 12,
+  })
+})

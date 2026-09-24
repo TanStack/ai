@@ -3,8 +3,6 @@ id: InterruptResolutionResult
 title: InterruptResolutionResult
 ---
 
-# Type Alias: InterruptResolutionResult
-
 ```ts
 type InterruptResolutionResult = 
   | void
@@ -13,4 +11,4 @@ type InterruptResolutionResult =
 };
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:176](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L176)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:179](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L179)

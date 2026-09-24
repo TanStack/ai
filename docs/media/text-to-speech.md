@@ -13,8 +13,6 @@ keywords:
   - speech generation
 ---
 
-# Text-to-Speech (TTS)
-
 TanStack AI provides support for text-to-speech generation through dedicated TTS adapters. This guide covers how to convert text into spoken audio using OpenAI and Gemini providers.
 
 ## Overview
@@ -25,6 +23,8 @@ Text-to-speech (TTS) is handled by TTS adapters that follow the same tree-shakea
 - **Gemini**: Gemini 2.5 Flash TTS (experimental)
 - **BytePlus**: Seed Speech (`seed-audio-1.0`)
 - **fal.ai**: Kokoro, ElevenLabs, MiniMax, Chatterbox, Dia, Orpheus, F5-TTS, VibeVoice, and more
+
+Most providers here ship a fixed catalog of voices. When none of them fit, [create your own](./voice-creation) and pass the new voice ID as `voice`. On a provider whose catalog is per-account, `listVoices()` reads back what is available.
 
 ## Basic Usage
 
@@ -128,7 +128,9 @@ const result = await generateSpeech({
 console.log(result.contentType) // "audio/mpeg"
 ```
 
-Formats are `wav`, `mp3`, `pcm` and `ogg_opus`, and synthesis is **capped at 120 seconds of output**. Set `modelOptions.enable_subtitle` for sentence- and word-level timings — note those timings are in milliseconds while `duration` is in seconds.
+Formats are `wav`, `mp3`, `pcm` and `ogg_opus`, and synthesis is **capped at 120 seconds of output**.
+
+Seed Audio also does multi-role dialogue and word-level timings. Use `turns` for dialogue and `timestamps` for timings, both covered below.
 
 Seed Speech has no top-level `speaker` field: the adapter sends `voice` as `references: [{ speaker }]`. Because `modelOptions.references` **replaces** that array rather than merging into it, passing `references` for voice cloning silently drops `voice` — include a `speaker` member yourself if you still want a stock voice. See the [BytePlus adapter](../adapters/byteplus#text-to-speech-seed-speech) for the voice-id naming conventions.
 
@@ -140,9 +142,11 @@ All TTS adapters support these common options:
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `text` | `string` | The text to convert to speech (required) |
+| `text` | `string` | The text to convert to speech. Required unless you pass `turns` |
+| `turns` | `Array<{ text, voice }>` | Dialogue lines, one per speaker turn. Use it instead of `text` |
 | `voice` | `string` | The voice to use for generation |
 | `format` | `string` | Output audio format (e.g., "mp3", "wav") |
+| `timestamps` | `boolean` | Ask for `alignment` and `segments` on the result |
 
 ### OpenAI Voice Options
 
@@ -172,6 +176,98 @@ OpenAI provides several distinct voices:
 | `flac` | FLAC audio (lossless) |
 | `wav` | WAV audio (uncompressed) |
 | `pcm` | Raw PCM audio |
+
+## Dialogue With Two or More Voices
+
+You want a two-person skit, and one `text` string with one `voice` cannot give
+you that. Prefixing speaker names into the string is a guess about the prompt
+format, and the provider never tells you which line landed where.
+
+Pass `turns` instead. Each turn carries its own text and its own voice:
+
+```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { byteplusSpeech } from '@tanstack/ai-byteplus'
+
+// Replace SECOND_VOICE with another voice id from the BytePlus voice list.
+const SECOND_VOICE = 'your-second-voice-id'
+
+const result = await generateSpeech({
+  adapter: byteplusSpeech('seed-audio-1.0'),
+  turns: [
+    {
+      text: 'Do you have a left-handed bass?',
+      voice: 'en_female_stokie_uranus_bigtts',
+    },
+    { text: 'We do. Come and try it.', voice: SECOND_VOICE },
+  ],
+  format: 'mp3',
+})
+```
+
+`turns` and `text` are mutually exclusive. Pass one or the other.
+
+Not every provider can do dialogue, and the ones that can have different
+speaker limits. The adapter declares its limit, so a request that asks for too
+many voices fails before it reaches the provider:
+
+| Adapter | Distinct voices per request |
+|---------|------------------------------|
+| `byteplusSpeech` | 3 |
+| `elevenlabsSpeech` | 10 |
+| `geminiSpeech` | 2 |
+| Other TTS adapters | Dialogue not supported |
+
+Read the limit at runtime from `adapter.capabilities`:
+
+```typescript
+import { byteplusSpeech } from '@tanstack/ai-byteplus'
+
+const adapter = byteplusSpeech('seed-audio-1.0')
+
+console.log(adapter.capabilities?.maxSpeakers) // 3
+console.log(adapter.capabilities?.timestamps) // true
+```
+
+## Timings: Where Each Word and Turn Lands
+
+`result.duration` is the length of the file. It does not tell you where speech
+stops, and it does not tell you which turn is where. Trimming trailing silence
+or captioning a clip needs both.
+
+Set `timestamps: true` and the result carries the timings:
+
+```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { byteplusSpeech } from '@tanstack/ai-byteplus'
+
+const result = await generateSpeech({
+  adapter: byteplusSpeech('seed-audio-1.0'),
+  text: 'Welcome to the guitar store.',
+  timestamps: true,
+})
+
+// Where speech ends, which is earlier than the end of the file.
+const speechEnds = result.alignment?.endSeconds.at(-1)
+
+for (const segment of result.segments ?? []) {
+  console.log(segment.startSeconds, segment.endSeconds, segment.text)
+}
+```
+
+Two fields come back, and they answer different questions:
+
+- `alignment`: one entry per character or per word, with start and end times.
+  `alignment.unit` says which granularity the provider reported.
+- `segments`: one entry per turn (dialogue) or per sentence (single voice).
+  A dialogue segment also carries `turnIndex` and `voice`.
+
+All times are seconds. Providers that report milliseconds convert in the
+adapter, so you never mix units.
+
+`timestamps` is rejected on an adapter that cannot return timings, rather than
+silently giving you a result with nothing in it. Check
+`adapter.capabilities?.timestamps` before you ask.
 
 ## Playing Audio in the Browser
 

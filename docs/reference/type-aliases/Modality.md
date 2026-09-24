@@ -3,17 +3,11 @@ id: Modality
 title: Modality
 ---
 
-# Type Alias: Modality
-
 ```ts
-type Modality = "text" | "image" | "audio" | "video" | "document";
+type Modality = AGUIContentPart["type"];
 ```
 
-Defined in: [packages/ai/src/types.ts:211](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L211)
+Defined in: [packages/ai/src/types.ts:227](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L227)
 
-Supported input modality types for multimodal content.
-- 'text': Plain text content
-- 'image': Image content (base64 or URL)
-- 'audio': Audio content (base64 or URL)
-- 'video': Video content (base64 or URL)
-- 'document': Document content like PDFs (base64 or URL)
+Supported input modality types for multimodal content: the `type` of each
+AG-UI `ContentPart` (text, image, audio, video, document).

@@ -44,10 +44,12 @@ export interface WorldAdapter<
   }
 
   /**
-   * Open a world session from a prompt.
+   * Create a world from a prompt.
    *
-   * Server adapters typically mint a short-lived token and return it with the
+   * Live session adapters mint a short-lived token and return it with the
    * prompt so a browser can connect, set the prompt, and start streaming.
+   * Job adapters start generation and return a world URL (or an operation
+   * id while the job is still running).
    */
   createWorld: (
     options: WorldGenerationOptions<TProviderOptions>,
