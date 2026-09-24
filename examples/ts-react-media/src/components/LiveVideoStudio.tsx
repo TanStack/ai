@@ -544,8 +544,8 @@ export default function LiveVideoStudio() {
 
           {isLive || !showSeedField ? null : (
             <SeedImageField
-              file={seedFile}
-              onChange={setSeedFile}
+              files={seedFile ? [seedFile] : []}
+              onChange={(files) => setSeedFile(files[0] ?? null)}
               required={false}
               disabled={isBusy}
             />

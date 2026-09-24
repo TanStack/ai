@@ -615,7 +615,16 @@ const CLAUDE_OPUS_5_5 = {
   max_output_tokens: 128_000,
   supports: {
     input: ['text', 'image', 'document'],
-    tools: [],
+    // No 'computer_use': this model accepts only `computer_toolset_20260801`,
+    // and `computerUseTool()` sends the older versions, which return a 400.
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
   },
   pricing: {
     input: {
@@ -635,7 +644,8 @@ const CLAUDE_OPUS_5_5 = {
     AnthropicStopSequencesOptions &
     AnthropicAdaptiveOnlyThinkingOptions &
     AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+    AnthropicSamplingOptions &
+    AnthropicOutputConfigOptions
 >
 
 export const ANTHROPIC_MODELS = [
@@ -773,6 +783,7 @@ export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
   CLAUDE_OPUS_5.id,
   CLAUDE_FABLE_5.id,
   CLAUDE_FABLE_5_1.id,
+  CLAUDE_OPUS_5_5.id,
   CLAUDE_SONNET_5.id,
   CLAUDE_SONNET_4_5.id,
   CLAUDE_SONNET_4_6.id,
@@ -931,7 +942,8 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicStopSequencesOptions &
     AnthropicAdaptiveOnlyThinkingOptions &
     AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+    AnthropicSamplingOptions &
+    AnthropicOutputConfigOptions
 }
 
 export type AnthropicChatModelToolCapabilitiesByName = {
