@@ -112,6 +112,37 @@ describe('mount hydration failure is surfaced (persistence: true)', () => {
     client.dispose()
   })
 
+  it('clears the hydration error when a later load succeeds', async () => {
+    let attempt = 0
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      hydrate: () =>
+        ++attempt === 1
+          ? Promise.reject(new Error('server returned 500'))
+          : Promise.resolve({
+              messages: [],
+              activeRun: null,
+              interrupts: null,
+            }),
+    }
+
+    const client = mounted({ threadId: 't1', connection, persistence: true })
+    await vi.waitFor(() => {
+      expect(client.getStatus()).toBe('error')
+    })
+
+    // Retry: the view detaches and attaches again, and this load succeeds.
+    client.detach()
+    client.attach()
+    await vi.waitFor(() => {
+      expect(attempt).toBe(2)
+      expect(client.getError()).toBeUndefined()
+    })
+    expect(client.getStatus()).not.toBe('error')
+
+    client.dispose()
+  })
+
   it('does not surface anything when hydration succeeds', async () => {
     const onError = vi.fn()
     const statuses: Array<string> = []
