@@ -2008,6 +2008,10 @@ export class ChatClient<
     this.callbacksRef.current.onChunk(chunk)
     this.devtoolsBridge.observeChunk(chunk)
     const attributedId = readSubagentRunId(chunk)
+    // A resumed child starts again under the same id, so its start lifts the stop.
+    if (attributedId && chunk.type === EventType.SUBAGENT_STARTED) {
+      this.stoppedSubagentIds.delete(attributedId)
+    }
     if (attributedId && this.stoppedSubagentIds.has(attributedId)) {
       this.updateRunLifecycle(chunk)
       this.resolveJoinedRun(chunk)
@@ -2760,6 +2764,7 @@ export class ChatClient<
     this.resetHistoryPaging()
     this.discardPendingSends()
     this.persistor?.remove()
+    this.stoppedSubagentIds.clear()
     this.lastResume = null
     this.interruptManager.reset()
     this.pendingResumeThreadId = null
@@ -3077,9 +3082,9 @@ export class ChatClient<
   }
 
   private stopSubagent(id: string): void {
-    this.stoppedSubagentIds.add(id)
     const handle = this.subagentHandles.get(id)
     if (!handle || handle.status !== 'running') return
+    this.stoppedSubagentIds.add(id)
     this.processor.processChunk({
       type: EventType.SUBAGENT_ERROR,
       subagentRunId: id,

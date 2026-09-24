@@ -232,8 +232,13 @@ function openAgentStream(
   const subagentRunId = resume?.subagentRunId ?? createSubagentId()
   // The parent binds child interrupts to its own run (see rebindInterrupts),
   // so the resumed child continues from the interrupted parent run id.
+  if (resume !== undefined && ctx.interruptedRunId === undefined) {
+    throw new Error(
+      `Subagent "${entry.name}" has interrupt answers, but the run has no parentRunId. Pass the interrupted run id as parentRunId.`,
+    )
+  }
   const resumed =
-    resume !== undefined && ctx.interruptedRunId !== undefined
+    resume !== undefined
       ? {
           messages: [...ctx.messages, ...resume.messages],
           parentRunId: ctx.interruptedRunId,
@@ -427,6 +432,8 @@ export async function* spawnAgentStream(
         continue
       }
       if (chunk.type === EventType.RUN_FINISHED) {
+        // The engine yields one RUN_FINISHED per model call. Add each one.
+        if (sink) collectUsage(sink, chunk)
         finished = chunk
         continue
       }
@@ -452,7 +459,6 @@ export async function* spawnAgentStream(
       yield stoppedEvent(id)
       return
     }
-    if (sink) collectUsage(sink, finished)
     if (outcome?.type === 'interrupt') {
       const interrupts = outcome.interrupts.map((interrupt) =>
         interrupt.subagentRunId

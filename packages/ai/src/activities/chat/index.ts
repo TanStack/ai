@@ -38,6 +38,7 @@ import {
   tanstackMetadata,
   withTanstackMetadata,
 } from '../../utilities/merge-metadata'
+import { subagentHostMessageId } from '../../utilities/subagent-wire'
 import { withDurabilityBatchHint } from '../../utilities/durability-batch'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
 import { restorePublicUsage } from '../../utilities/restore-inbound-chunk'
@@ -5134,6 +5135,8 @@ async function* runRoutedSubagents(
     if (abortSignal?.aborted) return
     const onlyStep = plan.steps.length === 1 ? plan.steps[0] : undefined
     if (onlyStep?.names.length === 1 && onlyStep.names[0] === 'main') {
+      // Earlier children own answers in this resume. Commit them first.
+      if (turn) await subagentPersistence?.finish({ threadId, runId })
       yield* runChatEngine(
         {
           ...options,
@@ -5282,6 +5285,9 @@ async function* runRoutedSubagents(
     const strategy = bag.strategy ?? 'exclusive'
     if (strategy === 'handoff') {
       const childText = stepTexts.join('\n\n')
+      // The children are done. Commit their answers and settle their records
+      // before main runs. Main's own persistence takes over from here.
+      await subagentPersistence?.finish({ threadId, runId })
       yield* streamWithChildUsage(
         runChatEngine(
           {
@@ -5292,7 +5298,14 @@ async function* runRoutedSubagents(
             ...(turn && { resume: turn.rest }),
             messages: [
               ...turnMessages,
-              { role: 'assistant', content: childText || 'Subagent finished.' },
+              {
+                // Same id as the recorder's parent row, so the stored thread
+                // keeps one host message for the cards.
+                id: subagentHostMessageId(runId),
+                role: 'assistant',
+                content: childText || 'Subagent finished.',
+                metadata: { tanstack: { runId } },
+              },
             ],
           },
           engineRef,

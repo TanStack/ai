@@ -23,7 +23,7 @@ const user: UIMessage = {
 }
 
 /** A child that asks approval to delete a file, then reports. */
-function cleanerAgent() {
+function cleanerAgent({ needsApproval = true } = {}) {
   const execute = vi.fn().mockReturnValue({ deleted: true })
   const { adapter } = createMockAdapter({
     iterations: [
@@ -64,7 +64,7 @@ function cleanerAgent() {
         runId: ctx.runId,
         parentRunId: ctx.parentRunId,
         resume: ctx.resume,
-        tools: [{ ...serverTool('deleteFile', execute), needsApproval: true }],
+        tools: [{ ...serverTool('deleteFile', execute), needsApproval }],
       })
     },
   })
@@ -218,6 +218,77 @@ describe('subagent interrupts', () => {
       expect.objectContaining({ type: 'tool-result', toolCallId: 'call_c' }),
     )
     expect(childParts).toContainEqual({ type: 'text', content: 'Deleted a' })
+  })
+
+  it('rejects a child resume that has no parentRunId', async () => {
+    const { agent, execute } = cleanerAgent()
+    const parent = createMockAdapter({ iterations: [] }).adapter
+    const subagents = { agents: [agent], router: () => 'cleaner' }
+    const first = await collectChunks(
+      chat({
+        adapter: parent,
+        threadId: 't',
+        runId: 'run-1',
+        messages: [user],
+        subagents,
+      }) as AsyncIterable<StreamChunk>,
+    )
+    const processor = new StreamProcessor({ initialMessages: [user] })
+    replay(processor, first)
+    processor.addToolApprovalResponse('approval_call_c', true)
+
+    // Without the interrupted run id the child would start over and drop
+    // the answer. Fail instead.
+    await expect(
+      collectChunks(
+        chat({
+          adapter: parent,
+          threadId: 't',
+          runId: 'run-2',
+          messages: requestMessages(processor.getMessages()),
+          resume: [
+            {
+              interruptId: 'approval_call_c',
+              status: 'resolved',
+              payload: true,
+            },
+          ],
+          subagents,
+        }) as AsyncIterable<StreamChunk>,
+      ),
+    ).rejects.toThrow(/parentRunId/)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('adds every model call of a child to the parent usage', async () => {
+    const { agent } = cleanerAgent({ needsApproval: false })
+    const parent = createMockAdapter({ iterations: [] }).adapter
+    const chunks = await collectChunks(
+      chat({
+        adapter: parent,
+        threadId: 't',
+        runId: 'run-1',
+        messages: [user],
+        subagents: { agents: [agent], router: () => 'cleaner' },
+      }) as AsyncIterable<StreamChunk>,
+    )
+    const terminal = chunks.at(-1)
+    expect(terminal).toMatchObject({ type: EventType.RUN_FINISHED })
+    // The child made two model calls: the tool call and the reply.
+    expect(
+      fromSpecTokenUsage(
+        terminal?.type === EventType.RUN_FINISHED &&
+          Array.isArray(terminal.usage)
+          ? terminal.usage
+          : undefined,
+        terminal ? tanstackMetadata(terminal)?.usage : undefined,
+      ),
+    ).toMatchObject({
+      promptTokens: 7,
+      completionTokens: 3,
+      totalTokens: 10,
+      cost: 0.25,
+    })
   })
 
   it('suspends a child that a tool call started, then resumes it', async () => {

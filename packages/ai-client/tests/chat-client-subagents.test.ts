@@ -191,6 +191,50 @@ describe('ChatClient subagents', () => {
       { type: 'text', content: 'partial' },
     ])
   })
+
+  it('lets a stopped child stream again when the server restarts it', async () => {
+    let call = 0
+    const connection: ConnectConnectionAdapter = {
+      async *connect(_messages, _data, abortSignal) {
+        call++
+        yield runStarted()
+        yield subagentStarted()
+        if (call === 1) {
+          yield childTextStart()
+          yield childTextContent('partial')
+          await new Promise<void>((resolve) => {
+            abortSignal?.addEventListener('abort', () => resolve(), {
+              once: true,
+            })
+          })
+          return
+        }
+        yield childTextStart()
+        yield childTextContent('again')
+        yield subagentFinished()
+        yield runFinished()
+      },
+    }
+
+    const client = new ChatClient({ connection })
+    const first = client.sendMessage('hi')
+    await vi.waitFor(() => {
+      expect(client.getSubagents()[0]?.messages[0]?.parts).toEqual([
+        { type: 'text', content: 'partial' },
+      ])
+    })
+    client.getSubagents()[0]?.stop?.()
+    await first
+    expect(client.getSubagents()[0]?.status).toBe('error')
+
+    // The same child id starts again, as a resume does. Its chunks count.
+    await client.sendMessage('go on')
+    const handle = client.getSubagents().find((entry) => entry.id === 'sub-1')
+    expect(handle?.status).toBe('finished')
+    expect(handle?.messages[0]?.parts).toEqual([
+      { type: 'text', content: 'again' },
+    ])
+  })
 })
 
 describe('ChatClient subagent handles for restored messages', () => {

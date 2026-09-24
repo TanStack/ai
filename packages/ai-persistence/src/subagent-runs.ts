@@ -2,6 +2,7 @@ import {
   StreamProcessor,
   convertMessagesToModelMessages,
   modelMessagesToUIMessages,
+  subagentHostMessageId,
 } from '@tanstack/ai'
 import type {
   Interrupt,
@@ -42,7 +43,7 @@ function readSubagentRunId(chunk: StreamChunk) {
 }
 
 function assistantId(runId: string) {
-  return `assistant:${runId}`
+  return subagentHostMessageId(runId)
 }
 
 function messageText(message: ModelMessage) {

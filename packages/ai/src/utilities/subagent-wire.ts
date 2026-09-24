@@ -173,3 +173,12 @@ export function subagentWireText(messages: ReadonlyArray<unknown>): string {
   }
   return blocks.join('\n\n')
 }
+
+/**
+ * The id of the parent assistant message that hosts a routed turn's cards.
+ * The persistence recorder writes that message, and a handoff run passes the
+ * same id so the stored thread keeps one copy.
+ */
+export function subagentHostMessageId(runId: string) {
+  return `assistant:${runId}`
+}
