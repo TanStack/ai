@@ -2098,9 +2098,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // the API does not try to pair, which replays correctly. `call_id` is
         // untouched, so the matching `function_call_output` still resolves.
         // One reasoning item (or none at all) always lands adjacent to its
-        // calls, so those keep their ids and their prompt-cache hits.
+        // calls, so those keep their ids and their prompt-cache hits. If any
+        // reasoning was dropped as a duplicate, a call may belong to it, so
+        // the ids go too.
         const canPairReasoning =
-          reasoningCandidates === 0 || emittedReasoning === 1
+          reasoningCandidates === 0 ||
+          (reasoningCandidates === 1 && emittedReasoning === 1)
 
         // If the assistant message has tool calls, add them as FunctionToolCall objects
         // Responses API expects arguments as a string (JSON string)

@@ -2633,6 +2633,40 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(calls[1]).toMatchObject({ call_id: 'call_B' })
     })
 
+    it('unpairs the calls when one of two reasoning items was deduplicated away', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: '',
+          thinking: [{ content: '', signature: reasoningSignature('rs_A') }],
+        },
+        {
+          // rs_A is a duplicate and is dropped; only rs_C is replayed here.
+          // A call made by rs_A would then have no adjacent reasoning.
+          role: 'assistant',
+          content: '',
+          thinking: [
+            { content: '', signature: reasoningSignature('rs_A') },
+            { content: '', signature: reasoningSignature('rs_C') },
+          ],
+          toolCalls: [
+            {
+              id: 'call_B',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_B' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_B', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      const call = input.find((item) => item.type === 'function_call')
+      expect(call).not.toHaveProperty('id')
+      expect(call).toMatchObject({ call_id: 'call_B' })
+    })
+
     /**
      * End-to-end guard for the `call_id` / output-item-`id` split, covering
      * every adapter that inherits this base (`@tanstack/ai-openai`,
