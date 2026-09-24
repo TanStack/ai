@@ -189,6 +189,7 @@ export function computeAnthropicBetas(
           budget_tokens?: number
         }
         context_management?: unknown | null
+        mcp_servers?: ReadonlyArray<unknown>
       }
     | undefined,
   hasFileSource = false,
@@ -207,6 +208,15 @@ export function computeAnthropicBetas(
   // enough (issue #1074). `null` is a typed "unset" — do not enable the beta.
   if (modelOptions?.context_management != null) {
     betas.add('context-management-2025-06-27')
+  }
+
+  // The MCP connector needs its beta header as well (same shape as #1074);
+  // an empty array is a typed "unset" — do not enable the beta.
+  // ponytail: 2025-04-04 matches the `mcp_servers` shape we type
+  // (`tool_configuration` on each server). 2025-11-20 needs an `mcp_toolset`
+  // in `tools` for every server, which this adapter does not send yet.
+  if (modelOptions?.mcp_servers && modelOptions.mcp_servers.length > 0) {
+    betas.add('mcp-client-2025-04-04')
   }
 
   // Code-execution beta is version-aware: select from the FIRST code_execution

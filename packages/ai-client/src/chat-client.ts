@@ -506,6 +506,8 @@ export class ChatClient<
   private readonly activeRunIds = new Set<string>()
   /** Latched by `dispose()`; stops any late async callback starting new work. */
   private disposed = false
+  /** The error a failed mount hydration set, cleared by the next successful one. */
+  private hydrationError: Error | undefined
   /** Whether a view is currently watching. See `attach` / `detach`. */
   private tailing = false
   /** Constructor inputs `attach()` needs on every re-attach, not just the first. */
@@ -1124,7 +1126,10 @@ export class ChatClient<
       const generation = this.historyGeneration
       try {
         result = await hydrate(this.threadId, hydrateOptions)
-      } catch {
+      } catch (cause) {
+        // Same staleness guard as the success path below: a failure from an
+        // older attempt must not touch the state of a newer one.
+        if (generation === this.historyGeneration) this.failHydration(cause)
         return
       }
       if (generation !== this.historyGeneration) return
@@ -1140,6 +1145,13 @@ export class ChatClient<
       if (this.disposed || !this.tailing) return
       // A send may have started while the fetch was in flight — don't stomp it.
       if (this.isLoading || this.abortController) return
+      // A retry after a failed load succeeded: drop that failure, but not an
+      // error something else set since.
+      if (this.hydrationError && this.error === this.hydrationError) {
+        this.setError(undefined)
+        this.setStatus('ready')
+      }
+      this.hydrationError = undefined
       this.applyHydrationPage(result.page)
       if (result.messages.length > 0) {
         const windowMessages = normalizeMessagesDates(result.messages)
@@ -1168,6 +1180,36 @@ export class ChatClient<
         this.maybeRejoinInFlight(result.activeRun.runId)
       }
     })()
+  }
+
+  /**
+   * Surface a mount-hydration failure (`persistence: true`) on the observable
+   * fields, mirroring `GenerationClient.failHydration`, so "this thread failed
+   * to load" is distinguishable from "this thread has no messages" and the app
+   * can show an error / offer a retry. A genuine miss — the server having no
+   * record for a fresh thread — resolves normally and never reaches here; only a
+   * thrown transport / authorize-gate error does.
+   *
+   * Skipped when the view unmounted (`!tailing`) or a `sendMessage` took
+   * ownership while the hydrate GET was in flight, so a live run's state always
+   * wins over a stale mount-time failure — same guard as the success path above.
+   */
+  private failHydration(cause: unknown): void {
+    if (this.disposed || !this.tailing) return
+    if (this.isLoading || this.abortController) return
+    const error = cause instanceof Error ? cause : new Error(String(cause))
+    // Mirror the send path: a BYOK key that is missing / locked must still
+    // trigger the key-request flow on thread load, not just be reported.
+    if (error instanceof ByokMissingError) {
+      this.byok?.request(error.provider, 'missing')
+    }
+    if (error instanceof ByokBlockedError && error.reason === 'locked') {
+      this.byok?.request(error.provider, 'locked')
+    }
+    this.hydrationError = error
+    this.setStatus('error')
+    this.setError(error)
+    this.callbacksRef.current.onError(error)
   }
 
   mountDevtools(): void {
