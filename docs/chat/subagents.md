@@ -256,6 +256,14 @@ The resume uses the plan that the router picked in the first run. It does not ca
 
 The same flow works without a router. The child's tool call stays open until the resume, then the parent model reads the child's result.
 
+## Middleware
+
+A child is its own `chat()` call. Put the child's middleware in that call. The parent's middleware list does not reach the child.
+
+Inside a child, the middleware context has `subagentRunId`. Use it to tell a child run from a top-level run, and to link a child trace to its card.
+
+On a routed turn where a child runs and main does not, the parent's middleware does not run. Only `withPersistence` records that turn. A turn where main runs, including a handoff, runs the parent's middleware as usual.
+
 ## Persistence
 
 Put `withPersistence` on the parent `chat()` only. The parent stores each child:

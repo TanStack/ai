@@ -261,6 +261,52 @@ describe('subagent interrupts', () => {
     expect(execute).not.toHaveBeenCalled()
   })
 
+  it('rejects a resume whose saved plan names an unknown agent', async () => {
+    const { agent, execute } = cleanerAgent()
+    const parent = createMockAdapter({ iterations: [] }).adapter
+    const router = vi.fn(() => 'cleaner')
+    const subagents = { agents: [agent], router }
+    const first = await collectChunks(
+      chat({
+        adapter: parent,
+        threadId: 't',
+        runId: 'run-1',
+        messages: [user],
+        subagents,
+      }) as AsyncIterable<StreamChunk>,
+    )
+    const processor = new StreamProcessor({ initialMessages: [user] })
+    replay(processor, first)
+    processor.addToolApprovalResponse('approval_call_c', true)
+    // A client sends back a plan for an agent this chat no longer has.
+    cardOf(processor.getMessages()).subagent.metadata = {
+      tanstack: { subagentPlan: { steps: [{ names: ['gone'] }] } },
+    }
+
+    await expect(
+      collectChunks(
+        chat({
+          adapter: parent,
+          threadId: 't',
+          runId: 'run-2',
+          parentRunId: 'run-1',
+          messages: requestMessages(processor.getMessages()),
+          resume: [
+            {
+              interruptId: 'approval_call_c',
+              status: 'resolved',
+              payload: true,
+            },
+          ],
+          subagents,
+        }) as AsyncIterable<StreamChunk>,
+      ),
+    ).rejects.toThrow(/saved subagent plan/)
+    // The router did not silently run again, and the child did not restart.
+    expect(router).toHaveBeenCalledTimes(1)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
   it('puts subagentRunId on the child middleware context', async () => {
     const seen: Array<string | undefined> = []
     const child = defineAgent({

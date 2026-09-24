@@ -269,4 +269,56 @@ describe('ChatClient subagent handles for restored messages', () => {
     client.clear()
     expect(client.getSubagents()).toEqual([])
   })
+
+  it('gives a nested card a handle with stop', () => {
+    const client = new ChatClient({
+      connection: createMockConnectionAdapter({ chunks: [] }),
+      initialMessages: [
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'subagent',
+              subagent: {
+                id: 'sub-outer',
+                name: 'researcher',
+                status: 'finished',
+                messages: [
+                  {
+                    id: 'c1',
+                    role: 'assistant',
+                    parts: [
+                      {
+                        type: 'subagent',
+                        subagent: {
+                          id: 'sub-inner',
+                          name: 'fetcher',
+                          status: 'finished',
+                          messages: [],
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    const ids = client.getSubagents().map((handle) => handle.id)
+    expect(ids).toEqual(['sub-outer', 'sub-inner'])
+    const inner = client.getSubagents().find((h) => h.id === 'sub-inner')
+    expect(typeof inner?.stop).toBe('function')
+    const outer = client.getMessages()[0]?.parts[0]
+    const nested =
+      outer?.type === 'subagent'
+        ? outer.subagent.messages[0]?.parts[0]
+        : undefined
+    expect(nested?.type === 'subagent' ? nested.subagent : undefined).toBe(
+      inner,
+    )
+  })
 })

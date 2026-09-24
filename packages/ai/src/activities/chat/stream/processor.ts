@@ -150,6 +150,11 @@ export interface StreamProcessorOptions {
   recording?: boolean
   /** Initial messages to populate the processor */
   initialMessages?: Array<UIMessage>
+  /**
+   * Set on the processor of a subagent card. Chunks tagged with this id are
+   * the card's own; chunks for an id no card holds are dropped.
+   */
+  subagentRunId?: string
 }
 
 const STRUCTURED_OUTPUT_UPDATE_BATCH_SIZE = 12
@@ -228,7 +233,10 @@ export class StreamProcessor {
   private recording: ChunkRecording | null = null
   private recordingStartTime = 0
 
+  private readonly subagentRunId?: string
+
   constructor(options: StreamProcessorOptions = {}) {
+    this.subagentRunId = options.subagentRunId
     this.chunkStrategy = options.chunkStrategy || new ImmediateStrategy()
     this.events = options.events || {}
     this.jsonParser = options.jsonParser || defaultJSONParser
@@ -608,8 +616,6 @@ export class StreamProcessor {
 
     if (this.routeToChild(chunk)) return
 
-    // Cast needed: @ag-ui/core Zod passthrough types add `& { [k: string]: unknown }`
-    // which prevents TypeScript from narrowing the `type` discriminant in switch.
     const c = chunk
     // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType enum members vs string-literal case labels; default branch handles untraced events.
     switch (c.type) {
@@ -1020,6 +1026,7 @@ export class StreamProcessor {
       return existing
     }
     const child = new StreamProcessor({
+      subagentRunId,
       initialMessages: messages,
       events: {
         onToolCall: (args) => this.events.onToolCall?.(args),
@@ -1140,8 +1147,8 @@ export class StreamProcessor {
 
   /**
    * Send a child's chunk to that child's processor, so the card keeps text,
-   * reasoning, tool calls, results, approvals, and nested children. A tool
-   * event without `subagentRunId` follows its `TOOL_CALL_START`.
+   * reasoning, tool calls, results, and nested children. A tool event without
+   * `subagentRunId` follows its `TOOL_CALL_START`.
    */
   private routeToChild(chunk: StreamChunk): boolean {
     let id: string | undefined
@@ -1151,7 +1158,8 @@ export class StreamProcessor {
       chunk.type === 'SUBAGENT_FINISHED' ||
       chunk.type === 'SUBAGENT_ERROR'
     ) {
-      // A direct child's own lifecycle is handled here.
+      // A direct child's own lifecycle goes to processChunk's switch, not to a
+      // child.
       if (this.findSubagentPart(chunk.subagentRunId)) return false
       id = chunk.subagentRunId
     } else if ('subagentRunId' in chunk && chunk.subagentRunId) {
@@ -1161,9 +1169,18 @@ export class StreamProcessor {
     }
     if (id === undefined) return false
     const owner = this.childOwning(id)
-    if (owner === undefined) return false
+    if (owner === undefined) {
+      // A card's own chunks reach its processor tagged with its id.
+      if (id === this.subagentRunId) return false
+      // No card holds this id. Keep the chunk off this message list.
+      console.warn(
+        `[StreamProcessor] Dropped a chunk for unknown subagent ${id}`,
+      )
+      return true
+    }
     if (this.findSubagentPart(owner)?.part.subagent.status === 'error') {
-      // A stopped child, and its nested children, ignore late events.
+      // An errored child, and its nested children, ignore late events.
+      // Finished and suspended children still accept them, for a resume.
       return true
     }
     if (chunk.type === 'TOOL_CALL_START') {
@@ -1351,9 +1368,10 @@ export class StreamProcessor {
 
   /**
    * Put subagent cards back on a snapshot. Child wire messages (tagged with
-   * `subagentRunId`) become a card on the message before them. A card that
-   * the snapshot does not carry stays on its message, because a server
-   * snapshot can hold the parent history only.
+   * `subagentRunId`) become a card on the nearest assistant message before
+   * them, or a new assistant message when there is none. A card that the
+   * snapshot does not carry stays on its message, because a server snapshot
+   * can hold the parent history only.
    */
   private attachSnapshotSubagents(
     messages: Array<UIMessage>,
@@ -1369,7 +1387,7 @@ export class StreamProcessor {
     }> = []
     const children = new Map<string, StreamProcessor>()
     for (const group of groups) {
-      const child = new StreamProcessor()
+      const child = new StreamProcessor({ subagentRunId: group.id })
       child.processChunk({
         type: EventType.MESSAGES_SNAPSHOT,
         messages: group.messages,

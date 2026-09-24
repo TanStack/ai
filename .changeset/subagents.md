@@ -24,3 +24,5 @@ AG-UI `{ type: 'file' }` content sources now cross the wire as `ContentPartFileS
 `RUN_FINISHED.usage[]` now carries `cacheWriteInputTokens`. `metadata.tanstack.usage` still carries `promptTokensDetails.cacheWriteTokens`, so older readers see the same usage as before.
 
 `chat({ subagentRunId })` puts that id on the middleware context as `ctx.subagentRunId`. A child `chat()` passes `subagentRunId: ctx.subagentRunId`, so a middleware inside the child knows it runs as a subagent and which card it belongs to. The field is absent on a top-level run.
+
+`fromSpecTokenUsage` adds every entry of `RUN_FINISHED.usage[]`. Before, it read only the first entry. A run with more than one usage entry now reports the total.

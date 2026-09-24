@@ -124,7 +124,7 @@ other consumers. Each missing optional method disables one feature:
 | ----------------- | --------------------------------------------------------- | -------------------------------------------------------- |
 | `findActiveRun`   | `reconstruct.ts` (`stores.runs?.findActiveRun(threadId)`) | required. A `null` stub hides a live run                 |
 | `listReclaimable` | `reapDetachedRuns` in `@tanstack/ai-sandbox`              | the store cannot be reaped at all                        |
-| `listByThread`    | application code. Nothing in the framework calls it       | nothing framework-side breaks                            |
+| `listByThread`    | `reconstructChat`, when the transcript has tool calls     | the cards of children that a tool call started stay absent |
 | `listByParentRun` | `reconstructChat`                                         | a reload shows the saved text, and the cards stay absent |
 
 Consumers of the optional methods feature-detect with `store.method?.(...)`
@@ -295,7 +295,8 @@ faithfully (previous section) for the durable path to work at all.
   insert).
 - **`get`** (required): current record, or `null` when unknown.
 - **`listByThread`** (optional): every run for `threadId`, ascending by
-  `startedAt`. Only needed to render a thread's past agent activity.
+  `startedAt`. `reconstructChat` calls it to find the parent runs of children
+  that a tool call started.
 - **`listByParentRun`** (optional): child runs for `parentRunId`, ascending by
   `startedAt`. `reconstructChat` uses this list to put subagent cards back.
   Omit the method and a reload shows the saved text. The cards stay absent.
@@ -493,9 +494,8 @@ An omitted method that is NOT declared throws with an actionable message
 instead of silently reporting a pass. A declared one is reported as a SKIPPED
 vitest case, never as a pass. A case that did not run must never be
 indistinguishable from one that did. See
-`examples/ts-react-chat/src/lib/sqlite-persistence.test.ts`. It declares
-`skipMethods: ['runs.listByThread']` only. `findActiveRun`, `listReclaimable`,
-and `listByParentRun` stay under test.
+`examples/ts-react-chat/src/lib/sqlite-persistence.test.ts`. It implements every
+run method, so it declares no `skipMethods`.
 
 Reference implementation: `memoryPersistence()` in `@tanstack/ai-persistence`.
 

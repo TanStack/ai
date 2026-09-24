@@ -86,10 +86,11 @@ export type PartProps<TOptions, TKey extends ChatUIPartKey = ChatUIPartKey> = {
 }
 
 /**
- * Widgets for one subagent card. Each entry replaces the root entry of the
- * same key for this card and for the children nested in it. A key that is
- * not set here uses the root entry. Tool names and tool props come from that
- * agent's `tools`.
+ * Widgets for one subagent card. Each entry replaces the enclosing entry of
+ * the same key: the root map at top level, the outer card's map when nested.
+ * It applies to this card and the children nested in it. An unset key keeps
+ * the enclosing entry. Tool names and tool props come from that agent's
+ * `tools`.
  */
 export type SubagentPartsProps<
   TOptions,
@@ -930,9 +931,10 @@ export function createChatUI<
           : outer,
       [outer, partsComponents, toolsComponents],
     )
-    // ponytail: root `<Interrupts />` still lists an approval for a tool that
-    // only a card registers, so it shows in both places. Pass the card tool
-    // names up to `inlineToolNames` if that matters.
+    // ponytail: root `<Interrupts />` still lists an approval for a tool call
+    // inside a card, so it shows in both places. Hiding it needs `selectChatUI`
+    // to collect tool-call ids from nested subagent messages (its `callIds` is
+    // top-level only) plus the card tool names in `inlineToolNames`.
     return (
       <WidgetsContext.Provider value={widgets}>
         <SubagentMessagesBody messages={messages} />

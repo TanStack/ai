@@ -613,13 +613,15 @@ export function useChat<
     return activeStructuredPart.data as Final
   }, [activeStructuredPart])
 
+  const subagents = useMemo(() => client.getSubagents(), [renderedMessages])
+
   // The runtime shape unconditionally exposes partial/final; the public
   // return type hides them when no outputSchema was supplied. TS can't
   // structurally narrow across that conditional, so the `as` is the seam.
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- hook return shape diverges from generic UseChatReturn<TTools, TSchema> due to conditional type on TSchema; TS can't structurally narrow
   return {
     messages: renderedMessages,
-    subagents: client.getSubagents(),
+    subagents,
     sendMessage,
     append,
     reload,

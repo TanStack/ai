@@ -3,6 +3,7 @@ import {
   convertMessagesToModelMessages,
   modelMessagesToUIMessages,
   subagentHostMessageId,
+  wireSubagentInfo,
 } from '@tanstack/ai'
 import type {
   Interrupt,
@@ -165,13 +166,8 @@ function withoutCards(messages: ReadonlyArray<UIMessage>): Array<UIMessage> {
 export function storedSubagentInfo(
   messages: ReadonlyArray<ModelMessage>,
 ): SubagentWireInfo | undefined {
-  const metadata = messages[0]?.metadata
-  if (metadata == null || typeof metadata !== 'object') return
-  const tanstack = (metadata as { tanstack?: unknown }).tanstack
-  if (tanstack == null || typeof tanstack !== 'object') return
-  const info = (tanstack as { subagent?: unknown }).subagent
-  if (info == null || typeof info !== 'object') return
-  return info as SubagentWireInfo
+  // Same validation as the wire path. Malformed stored data reads as absent.
+  return wireSubagentInfo(messages[0])
 }
 
 type ChildNote = {
@@ -203,7 +199,8 @@ export function createSubagentRunRecorder(stores: {
   // map when their child or their run ends.
   const children = new Map<string, ChildNote>()
   const intervalMs = stores.intervalMs ?? 1000
-  // Resume entries each run answers. Committed once that run settles.
+  // Resume entries each run answers. Committed when the run finishes or
+  // suspends. Dropped on abort.
   const answered = new Map<string, Array<RunAgentResumeItem>>()
   const parentSavedAt = new Map<string, number>()
 
@@ -339,6 +336,7 @@ export function createSubagentRunRecorder(stores: {
         }),
         ...(chunk.metadata !== undefined && { metadata: chunk.metadata }),
         processor: new StreamProcessor({
+          subagentRunId: id,
           initialMessages: modelMessagesToUIMessages(stored),
         }),
         status: 'running',

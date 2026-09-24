@@ -479,8 +479,9 @@ export type SubagentStatus = 'running' | 'finished' | 'error' | 'suspended'
 /**
  * One child invocation as the client sees it. AG-UI `SubagentInfo` names the
  * child; the other AG-UI fields come from its `SUBAGENT_STARTED`,
- * `SUBAGENT_FINISHED` and `SUBAGENT_ERROR` events. `id`, `status`,
- * `parentRunId` and `messages` are client state that the spec does not model.
+ * `SUBAGENT_FINISHED` and `SUBAGENT_ERROR` events. `id` is the AG-UI
+ * `subagentRunId`. `status`, `parentRunId` and `messages` are client state the
+ * spec does not model.
  */
 export interface SubagentHandleData
   extends
@@ -1743,7 +1744,7 @@ export type AGUIEvent =
  * `subagentRunId`.
  *
  * @ag-ui/core provides: `subagentRunId`, `name`, `description?`,
- * `parentSubagentRunId?`, `parentToolCallId?`, `parentMessageId?`
+ * `parentSubagentRunId?`, `parentToolCallId?`, `parentMessageId?`, `metadata?`
  */
 export interface SubagentStartedEvent extends AGUISubagentStartedEvent {}
 

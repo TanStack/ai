@@ -1929,8 +1929,8 @@ export interface WithPersistenceOptions {
   snapshotStreaming?: boolean
   /**
    * Minimum milliseconds between streaming snapshots when `snapshotStreaming`
-   * is on. A streaming subagent child uses the same interval for its
-   * transcript writes. Defaults to 1000.
+   * is on. Defaults to 1000. A streaming subagent child always uses the same
+   * interval for its transcript writes, with or without `snapshotStreaming`.
    */
   snapshotIntervalMs?: number
 }

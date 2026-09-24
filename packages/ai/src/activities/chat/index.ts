@@ -5106,7 +5106,8 @@ async function* runRoutedSubagents(
   const messages = options.messages ?? []
   const turn = readSubagentTurn(messages, options.resume)
   if (!turn && (options.resume?.length ?? 0) > 0) {
-    // No child owns these answers. Main raised them after a handoff.
+    // No child owns these answers. Main raised them, after a main pick or a
+    // handoff. Run main alone.
     yield* runChatEngine(
       { ...options, threadId, runId, subagents: undefined },
       engineRef,
@@ -5127,7 +5128,11 @@ async function* runRoutedSubagents(
     // SUBAGENT_STARTED metadata. Children that finished keep their result.
     // Suspended children continue.
     const plan =
-      savedPlan(turn?.plan, bag.agents) ??
+      savedPlan(turn?.plan, bag.agents, {
+        threadId,
+        interruptedRunId: options.parentRunId ?? runId,
+        interruptIds: options.resume?.map((entry) => entry.interruptId) ?? [],
+      }) ??
       normalizeRouterPick(
         await bag.router({
           messages: turnMessages,
@@ -5336,10 +5341,19 @@ async function* runRoutedSubagents(
   }
 }
 
-/** The plan from a resumed turn, or undefined when it is absent or invalid. */
+/**
+ * The plan from a resumed turn, or undefined when it is absent. A plan that
+ * names agents this chat does not have is stale: re-routing would strand the
+ * suspended child that owns the answers, so fail the resume instead.
+ */
 function savedPlan(
   plan: unknown,
   agents: ReadonlyArray<DefinedAgent>,
+  run: {
+    threadId: string
+    interruptedRunId: string
+    interruptIds: ReadonlyArray<string>
+  },
 ): { steps: ReadonlyArray<SubagentStep> } | undefined {
   if (typeof plan !== 'object' || plan === null || !('steps' in plan)) {
     return undefined
@@ -5347,8 +5361,22 @@ function savedPlan(
   try {
     // The plan comes back from the client. Check it like a router pick.
     return normalizeRouterPick(plan as SubagentStepsPlan, agents)
-  } catch {
-    return undefined
+  } catch (error) {
+    throw new InterruptResumeValidationError([
+      {
+        scope: 'batch',
+        threadId: run.threadId,
+        interruptedRunId: run.interruptedRunId,
+        generation: 0,
+        interruptIds: run.interruptIds,
+        code: 'stale',
+        message: `The saved subagent plan does not match the agents of this chat. ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        source: 'server',
+        retryable: false,
+      },
+    ])
   }
 }
 

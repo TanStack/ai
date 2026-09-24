@@ -105,10 +105,11 @@ The invariants are the whole game, whichever route you take:
 
 On `runs`, `findActiveRun` is required. `listByThread`, `listByParentRun`, and
 `listReclaimable` are optional, so implement those only if the app needs them.
-`withPersistence` calls `createOrResume` and `update`. `reconstruct.ts` calls
+`withPersistence` calls `createOrResume`, `update`, and `get`. `reconstruct.ts` calls
 `findActiveRun` for rejoin-by-thread and `listByParentRun` to put subagent
 cards back. `@tanstack/ai-sandbox`'s `reapDetachedRuns` calls `listReclaimable`.
-Nothing in the framework calls `listByThread`. Consumers of the optional methods
+`reconstruct.ts` also calls `listByThread` to find the parent runs of children
+that a tool call started. Consumers of the optional methods
 feature-detect with `store.method?.(...)` and degrade when one is absent. The
 conformance testkit does not: each optional method you leave out must be listed
 in `skipMethods` or the suite fails. `listByParentRun` is the exception. When it

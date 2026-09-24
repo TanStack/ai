@@ -340,7 +340,8 @@ function attributeChunk(
   if ('subagentRunId' in chunk && typeof chunk.subagentRunId === 'string') {
     return chunk
   }
-  // Run-scoped events never get here (spawnAgentStream drops them).
+  // RUN_* and MESSAGES_SNAPSHOT never get here (spawnAgentStream drops them).
+  // Everything else is tagged.
   return { ...chunk, subagentRunId } as StreamChunk
 }
 
@@ -640,8 +641,9 @@ export function collectNamedText(
 }
 
 /**
- * The parent conversation at the tool call that starts a child, without that
- * open tool call. Kept text on the calling message stays.
+ * The parent conversation up to the message that carries this tool call, with
+ * that message's tool calls removed. Its string text stays; array content is
+ * dropped.
  */
 function messagesBeforeCall(
   messages: ReadonlyArray<ModelMessage>,

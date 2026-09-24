@@ -143,10 +143,8 @@ function createDeltaStrategy(
 
       if (blockOnMatch) return null // drop chunk
 
-      // Strip out the previous `content` field by destructuring it away — with
-      // `exactOptionalPropertyTypes` we can't assign `content: undefined`
-      // against `content?: string`. The replacement event carries only the
-      // filtered delta.
+      // Drop the adapter-era content field; the replacement event carries only
+      // the filtered delta.
       const { content: _strippedContent, ...rest } = chunk as Extract<
         AdapterYieldChunk,
         { type: 'TEXT_MESSAGE_CONTENT' }

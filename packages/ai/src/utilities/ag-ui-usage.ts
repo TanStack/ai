@@ -69,8 +69,8 @@ export function toSpecTokenUsage(
     spec.reasoningTokens = reasoningTokens
   }
 
-  // cacheWriteTokens stays in the leftover too: readers built before
-  // cacheWriteInputTokens existed (older clients, devtools) read it from there.
+  // cacheWriteTokens stays in the leftover too, so clients built before
+  // cacheWriteInputTokens existed still rebuild it.
   const leftoverPrompt = promptTokensDetails
     ? definedDetails(withoutKey(promptTokensDetails, 'cachedTokens'))
     : undefined

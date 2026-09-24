@@ -112,6 +112,10 @@ export interface RunRecord {
    * reuse this record by faking `threadId = requestId`; they need a separate
    * job store. `withGenerationPersistence` currently does exactly that and
    * labels itself a stopgap — do not copy it.
+   *
+   * A subagent child record stores `subagent:<subagentRunId>` here, the key of
+   * its own transcript, so `findActiveRun` and `listByThread` on the
+   * conversation never return children. Use `listByParentRun`.
    */
   threadId: string
   /**
@@ -120,8 +124,9 @@ export interface RunRecord {
    */
   parentRunId?: string
   /**
-   * Child run id stamped on `SUBAGENT_*` chunks and on `subagentRunId`.
-   * For a child record this matches `runId`. Absent on the parent run.
+   * The child's AG-UI subagentRunId, the id on its `SUBAGENT_*` chunks and on
+   * every chunk it streams. On a child record this equals `runId`. Absent on
+   * the parent run.
    */
   subagentRunId?: string
   /** Agent name (`researcher`, `writer`) when this record is a subagent. */
@@ -233,8 +238,10 @@ export interface RunStore {
   /** Current record, or null when unknown. */
   get: (runId: string) => Promise<RunRecord | null>
   /**
-   * Every run in a conversation, ascending by `startedAt`. OPTIONAL: only
-   * needed to render a thread's past agent activity. Consumers feature-detect.
+   * Every run in a conversation, ascending by `startedAt`. OPTIONAL.
+   * `reconstructChat` calls it to find the parent runs of children that a
+   * tool call started. Without it those cards stay absent on reload.
+   * Consumers feature-detect.
    */
   listByThread?: (threadId: string) => Promise<Array<RunRecord>>
   /**

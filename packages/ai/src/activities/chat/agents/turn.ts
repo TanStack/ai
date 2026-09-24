@@ -29,7 +29,10 @@ export interface SubagentTurnChild {
 
 /** The interrupted turn that a resume continues. */
 export interface SubagentTurn {
-  /** Messages up to and including the last user message. */
+  /**
+   * Messages up to and including the last top-level user message. Child wire
+   * messages do not count.
+   */
   before: Array<AnyMessage>
   /** Direct children of the parent in that turn. */
   children: Array<SubagentTurnChild>

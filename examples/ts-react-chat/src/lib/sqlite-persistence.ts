@@ -470,6 +470,9 @@ function createRunStore(db: DatabaseSync) {
   const byParentStmt = db.prepare(
     `SELECT * FROM runs WHERE parent_run_id = ? ORDER BY started_at ASC`,
   )
+  const byThreadStmt = db.prepare(
+    `SELECT * FROM runs WHERE thread_id = ? ORDER BY started_at ASC`,
+  )
   // Reclaim candidates: ALL THREE of status === 'running', detachedSince set,
   // and detachedSince <= now - ttlMs (inclusive cutoff — a run detached at
   // exactly the boundary IS reclaimable, so this is `<=` not `<`). `cutoff` is
@@ -596,6 +599,10 @@ function createRunStore(db: DatabaseSync) {
       const rows = byParentStmt.all(
         parentRunId,
       ) as Array<unknown> as Array<RunRow>
+      return Promise.resolve(rows.map(mapRun))
+    },
+    listByThread(threadId) {
+      const rows = byThreadStmt.all(threadId) as Array<unknown> as Array<RunRow>
       return Promise.resolve(rows.map(mapRun))
     },
     // Reclaim candidates for a sandbox reaper to sweep. Not thread-scoped —

@@ -8,7 +8,10 @@ export interface SubagentInfo {
   path: string
   status?: string
   error?: string
-  /** How many user messages come before this child in the chat. */
+  /**
+   * Zero-based index of the user turn this child belongs to (the last root
+   * user message before it). A nested child takes its parent's turn.
+   */
   turn: number
   messages: Array<unknown>
 }
@@ -129,8 +132,9 @@ interface StepSource {
 
 /**
  * The root conversation's steps plus each child's server steps. A child run
- * has its own thread id (`<threadId>:<agent>`), so the store files its steps
- * under another conversation. They are found by run id.
+ * may have its own thread id (`<threadId>:<agent>` unless `sandbox: 'inherit'`),
+ * so the store can file its steps under another conversation. They are found
+ * by run id.
  */
 export function collectServerSteps(
   root: StepSource | undefined,

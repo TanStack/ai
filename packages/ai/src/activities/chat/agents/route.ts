@@ -13,8 +13,10 @@ export interface SubagentRouteOptions<
    */
   when?: { [K in TAgents[number]['name']]: string }
   /**
-   * Agents that run after the other selected agents.
-   * The first group starts together. This group reads that text.
+   * Agents that run after the other selected agents. The lead group starts
+   * together. The `then` agents then run one after another in list order, and
+   * each reads the text so far. Used only when the router picks at least one
+   * agent from each group. Otherwise `pick` returns `{ names, order }`.
    */
   then?: ReadonlyArray<TAgents[number]['name']>
 }
@@ -43,7 +45,10 @@ type RouteAnswers<TAgents extends ReadonlyArray<DefinedAgent>> = {
  * `pick` returns `main`, one name, `{ names, order }`, or `{ steps }`.
  * Names follow the `agents` array order.
  * `{ names, order }` overrides `subagents.order` for that turn.
- * `then` builds `{ steps }`: the other names start together, then those agents read that text.
+ * `then`: agents that run after the other selected agents. The lead group
+ * starts together. The `then` agents then run one after another in list
+ * order, and each reads the text so far. Used only when the router picks at
+ * least one agent from each group. Otherwise `pick` returns `{ names, order }`.
  */
 export function subagentRoute<
   const TAgents extends ReadonlyArray<DefinedAgent>,

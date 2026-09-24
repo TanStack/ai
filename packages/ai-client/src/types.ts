@@ -517,9 +517,8 @@ export interface TextPart {
 }
 
 /**
- * Helper type that creates a tool-call part for a specific tool.
- * This is a conditional type to enable proper distribution over union types,
- * creating a discriminated union where `name` is the discriminant.
+ * Tool-call part for a bare `{ name }` tool, such as a server tool
+ * definition a subagent carries. No `approval` field.
  */
 type ToolCallPartForNamedTool<T extends { name: string }> = {
   type: 'tool-call'
@@ -531,6 +530,11 @@ type ToolCallPartForNamedTool<T extends { name: string }> = {
   output?: InferToolOutput<T>
 }
 
+/**
+ * Helper type that creates a tool-call part for a specific tool.
+ * This is a conditional type to enable proper distribution over union types,
+ * creating a discriminated union where `name` is the discriminant.
+ */
 type ToolCallPartForTool<T> = T extends AnyClientTool
   ? {
       type: 'tool-call'
@@ -627,7 +631,13 @@ export interface ThinkingPart {
 export type { SubagentStatus }
 
 export interface SubagentHandle extends SubagentHandleData {
-  /** Bound by ChatClient after the first SUBAGENT_STARTED for this id. */
+  /**
+   * Set by ChatClient on every card it holds, streamed, restored, or initial,
+   * nested cards included. Calling it marks the card `error` (`Stopped`),
+   * ignores that child's later chunks until the same child starts again, and
+   * aborts the local request, parent stream included. A durable server run
+   * keeps going.
+   */
   stop?: () => void
 }
 
@@ -995,8 +1005,9 @@ export interface ChatClientBaseOptions<
 
   /**
    * The agents you pass to `chat({ subagents: { agents } })`, for types only.
-   * The client does not call `run`. `createChatHook` requires a
-   * `subagentsComponents` entry for every agent name.
+   * The client does not call `run`. `createChatHook` from
+   * `@tanstack/ai-react/ui` requires a `subagentsComponents` entry for every
+   * agent name.
    */
   subagents?: ReadonlyArray<SubagentClientAgent>
 

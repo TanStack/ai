@@ -4,7 +4,7 @@ import type { ContentPart, StreamChunk, ToolOutputState } from '../types'
 /**
  * Adapter / engine yield before normalize. Public StreamChunk is spec-only.
  * This type still allows the old extra fields.
- * Same shape as the AG-UI 1.0 branch: extras never override a spec field.
+ * Extras never override a spec field (see WithAdapterExtras).
  */
 type AdapterExtras = {
   model?: string
