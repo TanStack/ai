@@ -245,10 +245,20 @@ export function createChat<
     client.mountDevtools()
   }
 
+  // Remix has no effects, so read `options.tools` before each call that can
+  // start a run. A getter such as `get tools() { return page.tools }` then
+  // sends the current tools.
+  const syncTools = () => {
+    if (options.tools !== undefined) {
+      client.updateOptions({ tools: options.tools })
+    }
+  }
+
   const sendMessage = async (
     content: string | MultimodalContent,
     sendOptions?: SendMessageOptions,
   ) => {
+    syncTools()
     try {
       await client.sendMessage(content, undefined, sendOptions)
     } finally {
@@ -259,6 +269,7 @@ export function createChat<
   const cancelQueued = (id: string) => client.cancelQueued(id)
 
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
+    syncTools()
     try {
       await client.append(message)
     } finally {
@@ -267,6 +278,7 @@ export function createChat<
   }
 
   const reload = async () => {
+    syncTools()
     try {
       await client.reload()
     } finally {
@@ -300,6 +312,7 @@ export function createChat<
     state?: 'output-available' | 'output-error'
     errorText?: string
   }) => {
+    syncTools()
     await client.addToolResult(result)
   }
 
@@ -308,6 +321,7 @@ export function createChat<
     id: string
     approved: boolean
   }) => {
+    syncTools()
     await client.addToolApprovalResponse(response)
     syncResumeState()
   }
@@ -316,6 +330,7 @@ export function createChat<
     resumeItems: Array<RunAgentResumeItem>,
     state?: ChatResumeState,
   ) => {
+    syncTools()
     const result = await client.resumeInterrupts(resumeItems, state)
     syncResumeState()
     return result
@@ -328,6 +343,7 @@ export function createChat<
           interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
         ) => undefined),
   ) => {
+    syncTools()
     if (typeof resolution === 'boolean') {
       client.resolveInterrupts(resolution)
     } else {
@@ -340,13 +356,17 @@ export function createChat<
   }
 
   const retryInterrupts = () => {
+    syncTools()
     client.retryInterrupts()
   }
 
   const resumeInterruptsUnsafe = (
     resumeItems: Array<RunAgentResumeItem>,
     state?: ChatResumeState,
-  ) => client.resumeInterruptsUnsafe(resumeItems, state)
+  ) => {
+    syncTools()
+    return client.resumeInterruptsUnsafe(resumeItems, state)
+  }
 
   function activeStructuredPart(): StructuredOutputPart | null {
     let lastUserIndex = -1

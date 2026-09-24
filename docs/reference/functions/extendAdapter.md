@@ -25,7 +25,7 @@ The original factory's signature is fully preserved, including any config parame
 
 ### TDefs
 
-`TDefs` *extends* readonly [`ExtendedModelDef`](../interfaces/ExtendedModelDef.md)\<`string`, readonly [`Modality`](../type-aliases/Modality.md)[], `unknown`, readonly `string`[], readonly `string`[]\>[]
+`TDefs` *extends* readonly [`ExtendedModelDef`](../interfaces/ExtendedModelDef.md)\<`string`, readonly (`"text"` \| `"image"` \| `"audio"` \| `"video"` \| `"document"`)[], `unknown`, readonly `string`[], readonly `string`[]\>[]
 
 ## Parameters
 

@@ -26,7 +26,7 @@ The model name (inferred from argument)
 
 #### TInput
 
-`TInput` *extends* readonly [`Modality`](../type-aliases/Modality.md)[]
+`TInput` *extends* readonly (`"text"` \| `"image"` \| `"audio"` \| `"video"` \| `"document"`)[]
 
 The input modalities array (inferred from argument)
 
@@ -77,7 +77,7 @@ const reasoner = createModel('reasoner', {
 ## Call Signature
 
 ```ts
-function createModel<TName, TCaps>(name, capabilities): ExtendedModelDef<TName, TCaps["input"] extends readonly Modality[] ? any[any] : readonly Modality[], TCaps["modelOptions"], TCaps["features"] extends readonly string[] ? any[any] : readonly string[], TCaps["tools"] extends readonly string[] ? any[any] : readonly string[]>;
+function createModel<TName, TCaps>(name, capabilities): ExtendedModelDef<TName, TCaps["input"] extends readonly ("text" | "image" | "audio" | "video" | "document")[] ? any[any] : readonly ("text" | "image" | "audio" | "video" | "document")[], TCaps["modelOptions"], TCaps["features"] extends readonly string[] ? any[any] : readonly string[], TCaps["tools"] extends readonly string[] ? any[any] : readonly string[]>;
 ```
 
 Defined in: [packages/ai/src/extend-adapter.ts:96](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L96)
@@ -97,7 +97,7 @@ The model name (inferred from argument)
 
 #### TCaps
 
-`TCaps` *extends* [`ModelCapabilities`](../interfaces/ModelCapabilities.md)\<readonly [`Modality`](../type-aliases/Modality.md)[], readonly `string`[], readonly `string`[], `unknown`\>
+`TCaps` *extends* [`ModelCapabilities`](../interfaces/ModelCapabilities.md)\<readonly (`"text"` \| `"image"` \| `"audio"` \| `"video"` \| `"document"`)[], readonly `string`[], readonly `string`[], `unknown`\>
 
 ### Parameters
 
@@ -113,7 +113,7 @@ The model name identifier (literal string)
 
 ### Returns
 
-[`ExtendedModelDef`](../interfaces/ExtendedModelDef.md)\<`TName`, `TCaps`\[`"input"`\] *extends* readonly [`Modality`](../type-aliases/Modality.md)[] ? `any`\[`any`\] : readonly [`Modality`](../type-aliases/Modality.md)[], `TCaps`\[`"modelOptions"`\], `TCaps`\[`"features"`\] *extends* readonly `string`[] ? `any`\[`any`\] : readonly `string`[], `TCaps`\[`"tools"`\] *extends* readonly `string`[] ? `any`\[`any`\] : readonly `string`[]\>
+[`ExtendedModelDef`](../interfaces/ExtendedModelDef.md)\<`TName`, `TCaps`\[`"input"`\] *extends* readonly (`"text"` \| `"image"` \| `"audio"` \| `"video"` \| `"document"`)[] ? `any`\[`any`\] : readonly (`"text"` \| `"image"` \| `"audio"` \| `"video"` \| `"document"`)[], `TCaps`\[`"modelOptions"`\], `TCaps`\[`"features"`\] *extends* readonly `string`[] ? `any`\[`any`\] : readonly `string`[], `TCaps`\[`"tools"`\] *extends* readonly `string`[] ? `any`\[`any`\] : readonly `string`[]\>
 
 A properly typed model definition for use with `extendAdapter`
 

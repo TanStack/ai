@@ -157,23 +157,17 @@ describe('PersistenceCompletionCapability', () => {
         type: EventType.TEXT_MESSAGE_START,
         messageId: 'assistant-1',
         role: 'assistant',
-        runId: 'run-1',
-        threadId: 'thread-1',
         timestamp: 2,
       },
       {
         type: EventType.TEXT_MESSAGE_CONTENT,
         messageId: 'assistant-1',
         delta: 'done',
-        runId: 'run-1',
-        threadId: 'thread-1',
         timestamp: 3,
       },
       {
         type: EventType.TEXT_MESSAGE_END,
         messageId: 'assistant-1',
-        runId: 'run-1',
-        threadId: 'thread-1',
         timestamp: 4,
       },
       {
