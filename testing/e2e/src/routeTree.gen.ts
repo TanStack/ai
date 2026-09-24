@@ -53,6 +53,7 @@ import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-
 import { Route as ApiTextFirstToolWireRouteImport } from './routes/api.text-first-tool-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiSubagentsTestRouteImport } from './routes/api.subagents-test'
+import { Route as ApiStructuredOutputLengthWireRouteImport } from './routes/api.structured-output-length-wire'
 import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-tool-history'
 import { Route as ApiSandboxFilePersistenceRouteImport } from './routes/api.sandbox-file-persistence'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
@@ -342,6 +343,12 @@ const ApiSubagentsTestRoute = ApiSubagentsTestRouteImport.update({
   path: '/api/subagents-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiStructuredOutputLengthWireRoute =
+  ApiStructuredOutputLengthWireRouteImport.update({
+    id: '/api/structured-output-length-wire',
+    path: '/api/structured-output-length-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiSandboxToolHistoryRoute = ApiSandboxToolHistoryRouteImport.update({
   id: '/api/sandbox-tool-history',
   path: '/api/sandbox-tool-history',
@@ -776,6 +783,7 @@ export interface FileRoutesByFullPath {
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
+  '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
   '/api/subagents-test': typeof ApiSubagentsTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/text-first-tool-wire': typeof ApiTextFirstToolWireRoute
@@ -887,6 +895,7 @@ export interface FileRoutesByTo {
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
+  '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
   '/api/subagents-test': typeof ApiSubagentsTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/text-first-tool-wire': typeof ApiTextFirstToolWireRoute
@@ -999,6 +1008,7 @@ export interface FileRoutesById {
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
+  '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
   '/api/subagents-test': typeof ApiSubagentsTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/text-first-tool-wire': typeof ApiTextFirstToolWireRoute
@@ -1112,6 +1122,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
+    | '/api/structured-output-length-wire'
     | '/api/subagents-test'
     | '/api/summarize'
     | '/api/text-first-tool-wire'
@@ -1223,6 +1234,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
+    | '/api/structured-output-length-wire'
     | '/api/subagents-test'
     | '/api/summarize'
     | '/api/text-first-tool-wire'
@@ -1334,6 +1346,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
+    | '/api/structured-output-length-wire'
     | '/api/subagents-test'
     | '/api/summarize'
     | '/api/text-first-tool-wire'
@@ -1446,6 +1459,7 @@ export interface RootRouteChildren {
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
   ApiSandboxFilePersistenceRoute: typeof ApiSandboxFilePersistenceRoute
   ApiSandboxToolHistoryRoute: typeof ApiSandboxToolHistoryRoute
+  ApiStructuredOutputLengthWireRoute: typeof ApiStructuredOutputLengthWireRoute
   ApiSubagentsTestRoute: typeof ApiSubagentsTestRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiTextFirstToolWireRoute: typeof ApiTextFirstToolWireRoute
@@ -1770,6 +1784,13 @@ declare module '@tanstack/react-router' {
       path: '/api/subagents-test'
       fullPath: '/api/subagents-test'
       preLoaderRoute: typeof ApiSubagentsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/structured-output-length-wire': {
+      id: '/api/structured-output-length-wire'
+      path: '/api/structured-output-length-wire'
+      fullPath: '/api/structured-output-length-wire'
+      preLoaderRoute: typeof ApiStructuredOutputLengthWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/sandbox-tool-history': {
@@ -2379,6 +2400,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
   ApiSandboxFilePersistenceRoute: ApiSandboxFilePersistenceRoute,
   ApiSandboxToolHistoryRoute: ApiSandboxToolHistoryRoute,
+  ApiStructuredOutputLengthWireRoute: ApiStructuredOutputLengthWireRoute,
   ApiSubagentsTestRoute: ApiSubagentsTestRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiTextFirstToolWireRoute: ApiTextFirstToolWireRoute,
