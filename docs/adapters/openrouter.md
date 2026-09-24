@@ -10,6 +10,8 @@ keywords:
   - llm gateway
   - 300 models
   - adapter
+  - evaluate
+  - jev
 ---
 
 OpenRouter is TanStack AI's first official AI partner and the recommended starting point for most projects. It provides access to 300+ models from OpenAI, Anthropic, Google, Meta, Mistral, and many more — all through a single API key and unified interface.
@@ -56,6 +58,37 @@ const adapter = createOpenRouterText(
   },
 );
 ```
+
+### Retry rate limits
+
+A busy upstream provider can reply with HTTP 429. The adapter retries only 5XX errors by default. Add `"429"` to `retryCodes` to retry rate limits too:
+
+```typescript
+import { createOpenRouterText } from "@tanstack/ai-openrouter";
+
+const adapter = createOpenRouterText(
+  "openai/gpt-5",
+  process.env.OPENROUTER_API_KEY!,
+  {
+    retryConfig: {
+      strategy: "backoff",
+      backoff: {
+        initialInterval: 500,
+        maxInterval: 60000,
+        exponent: 1.5,
+        maxElapsedTime: 120000,
+      },
+      retryConnectionErrors: true,
+    },
+    retryCodes: ["429", "5XX"],
+  },
+);
+```
+
+- `retryCodes`: the HTTP status codes to retry. `"5XX"` matches every 5xx code.
+- `retryConfig`: how long to wait between tries. When the response has a `Retry-After` header, the SDK waits that long.
+
+Now a 429 waits, then retries, and the chat continues with the next response.
 
 ## Available Models
 
@@ -492,6 +525,61 @@ attribution headers, just like the chat adapter.
 See the [Reranking guide](../rerank/rerank) for object documents, RAG
 pipelines, options, and the result shape.
 
+## Evaluate
+
+OpenRouter exposes TypeSafe Jev through `POST /api/alpha/decisions`.
+Use `openRouterDecider` with `decide()` to ask typed questions about a
+shared `state`:
+
+```typescript
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { openRouterDecider } from "@tanstack/ai-openrouter";
+
+const ticket = {
+  subject: "Charged twice for the same invoice",
+  body: "Please refund the extra payment.",
+};
+
+const result = await decide({
+  adapter: openRouterDecider("~typesafe/jev-latest"),
+  state: ticket,
+  questions: {
+    queue: choice({
+      instructions: "Which team should handle this ticket?",
+      options: {
+        billing: "Payments, invoices, refunds",
+        tech: "Bugs, outages, integrations",
+        sales: "Pricing, upgrades, new accounts",
+      },
+    }),
+    urgency: score({
+      instructions: "How urgent is this ticket?",
+      levels: ["low", "medium", "high"],
+    }),
+    refund: boolean({
+      instructions: "Is the customer asking for a refund?",
+    }),
+  },
+});
+
+console.log(result.queue.value);
+console.log(result.queue.probability);
+console.log(result.queue.confidence);
+console.log(result.meta.usage);
+```
+
+`openRouterDecider` reads `OPENROUTER_API_KEY` from the environment. Pass a
+key explicitly with `createOpenRouterDecider("~typesafe/jev-latest", "sk-or-...")`.
+
+Known slugs:
+
+- `~typesafe/jev-latest`
+- `typesafe/jev-1.13`
+- `typesafe/jev-1.13.0`
+
+See the [Evaluate guide](../evaluate/evaluate) for question helpers, the result
+shape, abort, and middleware.
+
 ## Image Generation
 
 For a React + Start walkthrough with `useGenerateImage`, open [Generate Image](../tutorials/generate-image).
@@ -586,6 +674,7 @@ streaming mode, and the image-to-video role-mapping table.
 - [Getting Started](../getting-started/quick-start) - Learn the basics
 - [Tools Guide](../tools/tools) - Learn about tools
 - [Reranking](../rerank/rerank) - Reorder documents by relevance
+- [Evaluate](../evaluate/evaluate) - Ask typed questions about shared state
 
 ## Provider Tools
 

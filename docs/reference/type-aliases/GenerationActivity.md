@@ -10,9 +10,11 @@ type GenerationActivity =
   | "video"
   | "audio"
   | "tts"
+  | "voice"
   | "transcription"
   | "embedding"
   | "rerank"
+  | "evaluate"
   | "summarize"
   | "world"
   | "liveVideo";

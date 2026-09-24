@@ -48,7 +48,7 @@ const getRealtimeToken = createServerFn({ method: 'POST' })
   .handler(async () => {
     return realtimeToken({
       adapter: openaiRealtimeToken({
-        model: 'gpt-realtime',
+        model: 'gpt-realtime-2.1',
       }),
     })
   })
@@ -119,7 +119,7 @@ import { openaiRealtimeToken } from '@tanstack/ai-openai'
 
 const token = await realtimeToken({
   adapter: openaiRealtimeToken({
-    model: 'gpt-realtime',
+    model: 'gpt-realtime-2.1',
   }),
 })
 ```
@@ -138,8 +138,12 @@ const adapter = openaiRealtime()
 
 | Model | Description |
 |-------|-------------|
-| `gpt-realtime` | Full realtime model |
-| `gpt-realtime-mini` | Smaller, faster realtime model |
+| `gpt-realtime-2.1` | Latest full realtime model (default) |
+| `gpt-realtime-2.1-mini` | Latest smaller, faster realtime model |
+| `gpt-realtime-2` | Previous full realtime model |
+| `gpt-realtime-1.5` | Earlier full realtime model |
+| `gpt-realtime` | Original full realtime model |
+| `gpt-realtime-mini` | Original smaller, faster realtime model |
 
 **Available voices:** `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`, `marin`, `cedar`
 
