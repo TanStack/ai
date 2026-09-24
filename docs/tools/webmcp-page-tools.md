@@ -293,6 +293,8 @@ export function useReadOnlyPageTools() {
 
 Every framework API takes the same `filter` and `onError` options. `onError` gets a failed WebMCP read, for example a `NotAllowedError` from the `tools` permissions policy. The last good list stays in place.
 
+Tool names must be unique after filtering, including tools from different frames. If names repeat, `getWebMCPTools()` rejects and subscriptions report the error through `onError`. Subscriptions keep the last good list. Give the tools unique names or use `filter` to select one of them.
+
 Some providers reject a tool name with a period, such as `help.open`. WebMCP allows periods. Skip those tools with `filter`.
 
 ## Read page tools without a framework

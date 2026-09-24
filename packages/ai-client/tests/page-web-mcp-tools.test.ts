@@ -92,6 +92,28 @@ describe('getWebMCPTools', () => {
     await expect(getWebMCPTools()).resolves.toEqual([])
   })
 
+  it('rejects duplicate names from different frames after filtering', async () => {
+    const parentTool = { ...weather, window: {}, title: 'Parent weather' }
+    const frameTool = { ...weather, window: {}, title: 'Frame weather' }
+    const modelContext = installModelContext([parentTool, frameTool])
+
+    await expect(getWebMCPTools()).rejects.toThrow(
+      'Duplicate WebMCP tool name "get_weather"',
+    )
+    expect(modelContext.executeTool).not.toHaveBeenCalled()
+
+    const tools = await getWebMCPTools({
+      filter: (tool) => tool.title === 'Parent weather',
+    })
+    expect(tools).toHaveLength(1)
+    await tools[0]?.execute?.({ city: 'Sarajevo' })
+    expect(modelContext.executeTool).toHaveBeenCalledWith(
+      parentTool,
+      { city: 'Sarajevo' },
+      {},
+    )
+  })
+
   it('rejects when getTools rejects', async () => {
     const modelContext = installModelContext([])
     modelContext.getTools.mockRejectedValueOnce(new Error('NotAllowedError'))
@@ -101,6 +123,28 @@ describe('getWebMCPTools', () => {
 })
 
 describe('subscribeWebMCPTools', () => {
+  it('reports duplicate names without replacing the last good list and recovers', async () => {
+    const modelContext = installModelContext([weather])
+    const controller = new AbortController()
+    const listener = vi.fn()
+    const onError = vi.fn()
+    subscribeWebMCPTools(listener, { signal: controller.signal, onError })
+    await vi.waitFor(() => expect(listener).toHaveBeenCalledOnce())
+
+    modelContext.changeTools([weather, { ...weather }])
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce())
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('Duplicate WebMCP tool name'),
+      }),
+    )
+    expect(listener).toHaveBeenCalledOnce()
+
+    modelContext.changeTools([other])
+    await vi.waitFor(() => expect(listener).toHaveBeenCalledTimes(2))
+    expect(listener.mock.lastCall?.[0][0].name).toBe('other_tool')
+    controller.abort()
+  })
   it('sends the list now and after each toolchange until the signal aborts', async () => {
     const modelContext = installModelContext([weather])
     const controller = new AbortController()

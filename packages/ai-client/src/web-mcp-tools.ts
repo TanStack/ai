@@ -287,22 +287,31 @@ async function readWebMCPTools(
   options: GetWebMCPToolsOptions | undefined,
 ): Promise<Array<AnyClientTool>> {
   const pageTools = await reader.getTools()
+  const names = new Set<string>()
   return pageTools
     .filter((tool) => options?.filter?.(tool) ?? true)
-    .map((tool) => ({
-      __toolSide: 'client' as const,
-      name: tool.name,
-      description: tool.description,
-      inputSchema: tool.inputSchema ?? { type: 'object' },
-      async execute(input: unknown, context?: { abortSignal?: AbortSignal }) {
-        const result = await reader.executeTool(
-          tool,
-          input,
-          context?.abortSignal ? { signal: context.abortSignal } : {},
+    .map((tool) => {
+      if (names.has(tool.name)) {
+        throw new Error(
+          `Duplicate WebMCP tool name "${tool.name}". Use a filter or register tools with unique names.`,
         )
-        return parseToolResult(result)
-      },
-    }))
+      }
+      names.add(tool.name)
+      return {
+        __toolSide: 'client' as const,
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema ?? { type: 'object' },
+        async execute(input: unknown, context?: { abortSignal?: AbortSignal }) {
+          const result = await reader.executeTool(
+            tool,
+            input,
+            context?.abortSignal ? { signal: context.abortSignal } : {},
+          )
+          return parseToolResult(result)
+        },
+      }
+    })
 }
 
 /**

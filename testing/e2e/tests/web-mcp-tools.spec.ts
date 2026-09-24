@@ -37,8 +37,12 @@ interface WebMCPRegistration {
  * - `'object'`: the object that the WebMCP specification takes.
  * A strict mock makes each test prove the form that its caller sends.
  */
-async function installModelContext(page: Page, inputForm: 'string' | 'object') {
-  await page.addInitScript((expectedForm) => {
+async function installModelContext(
+  page: Page,
+  scenario: 'string' | 'object' | 'duplicate-names',
+) {
+  await page.addInitScript((mode) => {
+    const expectedForm = mode === 'duplicate-names' ? 'object' : mode
     const registrations = new Map<string, WebMCPRegistration>()
     const modelContext = new (class extends EventTarget {
       async registerTool(
@@ -80,9 +84,11 @@ async function installModelContext(page: Page, inputForm: 'string' | 'object') {
       }
 
       async getTools() {
-        return [...registrations.values()].map(({ descriptor }) => ({
+        const tools = [...registrations.values()].map(({ descriptor }) => ({
           ...descriptor,
         }))
+        // Simulate a second frame exposing the same tool names.
+        return mode === 'duplicate-names' ? [...tools, ...tools] : tools
       }
 
       async executeTool(tool: RegisteredWebMCPTool, inputArguments: unknown) {
@@ -134,7 +140,7 @@ async function installModelContext(page: Page, inputForm: 'string' | 'object') {
       configurable: true,
       value: modelContext,
     })
-  }, inputForm)
+  }, scenario)
 }
 
 test('WebMCP discovers, executes, and removes a React tool', async ({
@@ -170,4 +176,19 @@ test('usePageWebMCPTools sends filtered page tools to useChat and runs them', as
   await expect(page.getByTestId('assistant-text')).toContainText(
     'WEBMCP_PAGE_OK',
   )
+})
+
+test('duplicate page tool names report an error and stay out of chat', async ({
+  page,
+}) => {
+  await installModelContext(page, 'duplicate-names')
+  await page.goto('/web-mcp-page-tools')
+
+  await expect(page.getByRole('alert')).toContainText(
+    'Duplicate WebMCP tool name "find_guitar"',
+  )
+  await expect(page.getByTestId('page-tool-names')).toBeEmpty()
+  await expect(
+    page.getByRole('button', { name: 'Ask the chat' }),
+  ).toBeDisabled()
 })

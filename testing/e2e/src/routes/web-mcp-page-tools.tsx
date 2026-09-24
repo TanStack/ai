@@ -7,6 +7,7 @@ import {
   useRegisterWebMCPTools,
 } from '@tanstack/ai-react'
 import { z } from 'zod'
+import { useState } from 'react'
 
 /**
  * Client half of the page WebMCP tools spec. One part of the page registers
@@ -39,9 +40,13 @@ export const Route = createFileRoute('/web-mcp-page-tools')({
 
 function WebMCPPageToolsPage() {
   const { testId } = Route.useSearch()
+  const [toolError, setToolError] = useState('')
   useRegisterWebMCPTools(pageToolList)
   const pageTools = usePageWebMCPTools({
     filter: (tool) => tool.name !== 'blocked_tool',
+    onError: (error) => {
+      setToolError(error instanceof Error ? error.message : String(error))
+    },
   })
   const { messages, sendMessage } = useChat({
     connection,
@@ -68,6 +73,7 @@ function WebMCPPageToolsPage() {
       <h2 id="web-mcp-page-heading" className="text-xl font-semibold">
         Page WebMCP tools
       </h2>
+      {toolError && <p role="alert">{toolError}</p>}
       <p>
         Page tools:{' '}
         <output data-testid="page-tool-names" aria-live="polite">
