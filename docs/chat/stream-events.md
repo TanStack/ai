@@ -34,6 +34,7 @@ Later:
 - `REASONING_*` / `REASONING_ENCRYPTED_VALUE`: thinking content. See [Thinking and Reasoning](./thinking-content)
 - `STEP_STARTED` / `STEP_FINISHED`: `stepName` only
 - `CUSTOM`: `name` and `value`. See [Custom Events](../protocol/custom-events)
+- `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` / `SUBAGENT_ERROR`: a child agent. Attributed events carry `subagentRunId`. A child that waits for an interrupt ends with `SUBAGENT_FINISHED` and `outcome: { type: 'suspended' }`. In request messages, each child message carries `subagentRunId`. See [Subagents](./subagents)
 
 On `RUN_FINISHED`, in-process `chat()` still uses TanStack `TokenUsage` (`promptTokens`). The SSE and HTTP wires use the spec `usage` array (`inputTokens`). Read `finishReason` from `metadata.tanstack.finishReason`. Custom servers: see [Event metadata](../protocol/metadata).
 

@@ -23,11 +23,11 @@ Defined in: [packages/ai/src/stream-to-websocket.ts:66](https://github.com/TanSt
 
 ```ts
 messages: (
+  | UIMessage<unknown>
   | ModelMessage<
   | string
   | ContentPart<unknown, unknown, unknown, unknown, unknown>[]
-  | null>
-  | UIMessage<unknown>)[];
+  | null>)[];
 ```
 
 Defined in: [packages/ai/src/stream-to-websocket.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L63)

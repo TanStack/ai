@@ -14,9 +14,16 @@ export type {
 } from './interrupt-manager'
 export { createMcpAppBridge } from './mcp-app-bridge'
 export type { McpAppBridge, CreateMcpAppBridgeOptions } from './mcp-app-bridge'
-export { registerWebMCPTools } from './web-mcp-tools'
+export {
+  getWebMCPTools,
+  registerWebMCPTools,
+  subscribeWebMCPTools,
+} from './web-mcp-tools'
 export type {
+  GetWebMCPToolsOptions,
   RegisterWebMCPToolsOptions,
+  SubscribeWebMCPToolsOptions,
+  WebMCPPageTool,
   WebMCPToolAnnotations,
   WebMCPToolOptions,
   WebMCPToolOptionsByName,
@@ -33,6 +40,13 @@ export type {
   ToolResultPart,
   ThinkingPart,
   StructuredOutputPart,
+  SubagentPart,
+  SubagentPartOf,
+  SubagentHandle,
+  SubagentHandleOf,
+  SubagentHandles,
+  SubagentClientAgent,
+  SubagentStatus,
   // Client configuration types
   ChatClientPersistence,
   ChatPersistedState,

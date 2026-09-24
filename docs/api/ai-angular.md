@@ -25,7 +25,7 @@ angular: @tanstack/ai-angular
 
 <!-- ::end:tabs -->
 
-## `injectWebMCPTools(tools, options?)`
+## `injectRegisterWebMCPTools(tools, options?)`
 
 Register executable client tools for the current Angular injection owner. Angular removes them when it destroys that owner.
 
@@ -34,13 +34,13 @@ For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
 ```typescript
 import { Component } from "@angular/core";
 import {
-  injectWebMCPTools,
-  type InjectWebMCPToolsOptions,
+  injectRegisterWebMCPTools,
+  type InjectRegisterWebMCPToolsOptions,
 } from "@tanstack/ai-angular";
 import { searchProducts } from "./tools";
 
 const tools = [searchProducts];
-const options: InjectWebMCPToolsOptions<typeof tools> = {
+const options: InjectRegisterWebMCPToolsOptions<typeof tools> = {
   onError(error) {
     console.error(error);
   },
@@ -48,13 +48,31 @@ const options: InjectWebMCPToolsOptions<typeof tools> = {
 
 @Component({ selector: "app-products", standalone: true, template: "" })
 export class ProductsComponent {
-  registration = injectWebMCPTools(tools, options);
+  registration = injectRegisterWebMCPTools(tools, options);
 }
 ```
 
-`InjectWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The injectable owns the registration signal.
+`InjectRegisterWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The injectable owns the registration signal.
 
 The `context` field is required when a tool declares a required runtime context. Call this function only in an Angular injection context.
+
+## `injectPageWebMCPTools(options?)`
+
+Read the WebMCP tools on the page as client tools. The signal starts empty and updates when the page adds or removes a tool. Pass the signal to `injectChat` as `tools`. Call it in an injection context.
+
+```ts
+import { Component } from "@angular/core";
+import { injectPageWebMCPTools } from "@tanstack/ai-angular";
+
+@Component({ selector: "app-page-tools", standalone: true, template: "" })
+export class PageTools {
+  pageTools = injectPageWebMCPTools({
+    filter: (tool) => tool.origin === location.origin,
+  });
+}
+```
+
+`filter` skips a tool when it returns `false`. `onError` gets a failed WebMCP read. For a complete guide, see [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
 
 ## `injectChat(options?)`
 
@@ -83,7 +101,7 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 
 - `connection` - Connection adapter (required, or use `fetcher`)
 - `fetcher?` - Direct async function for one-shot generation (alternative to `connection`)
-- `tools?` - Array of client tool implementations (with `.client()` method)
+- `tools?` - Array of client tool implementations (with `.client()` method). Reactive: pass a `Signal` or getter to change the tools after the chat is created.
 - `initialMessages?` - Initial messages array
 - `threadId?` - The only identity for this chat. Required when persistence is on. If omitted, minted after mount.
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field. Reactive — accepts a plain value, an Angular `Signal`, or a zero-arg getter; changes sync automatically via `effect`

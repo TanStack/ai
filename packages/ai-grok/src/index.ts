@@ -11,6 +11,14 @@ export {
   type GrokTextProviderOptions,
 } from './adapters/text'
 
+// Files adapter - upload to the xAI Files API and reference by public URL
+export {
+  GrokFilesAdapter,
+  createGrokFiles,
+  grokFiles,
+  type GrokFilesConfig,
+} from './adapters/files'
+
 // Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
 export {
   createGrokSummarize,
@@ -27,7 +35,6 @@ export {
   type GrokImageConfig,
 } from './adapters/image'
 export type {
-  GrokImageProviderOptions,
   GrokImagineImageProviderOptions,
   GrokImagineImage2ProviderOptions,
   GrokImageModelProviderOptionsByName,

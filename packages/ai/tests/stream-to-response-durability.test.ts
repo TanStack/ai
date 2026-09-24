@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { memoryStream } from '../src/stream-durability'
 import {
   RUN_ACCEPTED_EVENT,
@@ -9,9 +10,14 @@ import {
 } from '../src/stream-to-response'
 import { EventType } from '../src/types'
 import { chat } from '../src/activities/chat/index'
+import { toolDefinition } from '../src/activities/chat/tools/tool-definition'
+import { CUSTOM_EVENT } from '../src/custom-events'
+import { withDurabilityBatchHint } from '../src/utilities/durability-batch'
+import { tanstackMetadata } from '../src/utilities/merge-metadata'
 import { createMockAdapter, ev } from './test-utils'
+import type { ChatMiddleware } from '../src/activities/chat/middleware/types'
 import type { StreamDurability } from '../src/stream-durability'
-import type { StreamChunk } from '../src/types'
+import type { CustomEvent, StreamChunk } from '../src/types'
 import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
 
 function fiveChunkStream(): {
@@ -832,5 +838,233 @@ describe('a failing middleware onFinish surfaces past the transport', () => {
         error: expect.objectContaining({ message: 'messages.append failed' }),
       }),
     )
+  })
+})
+
+function customThenText(custom: StreamChunk): AsyncIterable<StreamChunk> {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield custom
+      yield ev.textStart()
+      yield ev.textContent('a')
+      yield ev.textContent('b')
+      yield ev.textEnd()
+      yield ev.runFinished('stop')
+    },
+  }
+}
+
+function customEvent(name: string): CustomEvent {
+  return {
+    type: EventType.CUSTOM,
+    name,
+    value: {},
+    timestamp: Date.now(),
+  }
+}
+
+const hasModelText = (chunks: Array<StreamChunk>): boolean =>
+  chunks.some((chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+
+function namedCustom(name: string): (chunk: StreamChunk) => boolean {
+  return (chunk) => chunk.type === EventType.CUSTOM && chunk.name === name
+}
+
+describe('CUSTOM events flush through durability at emit time', () => {
+  it('flushes a progress CUSTOM event on its own, before model text', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=custom-flush', {
+        method: 'POST',
+      }),
+    )
+    const appendSpy = vi.spyOn(durability, 'append')
+
+    await readBody(
+      toServerSentEventsResponse(customThenText(customEvent('work:started')), {
+        durability: { adapter: durability },
+      }),
+    )
+
+    const batches = appendSpy.mock.calls.map(([chunks]) => chunks)
+    const startedBatch = batches.find((chunks) =>
+      chunks.some(namedCustom('work:started')),
+    )
+    if (startedBatch === undefined) {
+      throw new Error('work:started was never appended')
+    }
+    expect(startedBatch).toHaveLength(1)
+    expect(hasModelText(startedBatch)).toBe(false)
+  })
+
+  it('keeps process.stdout in the batch with later text', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=stdout-batch', {
+        method: 'POST',
+      }),
+    )
+    const appendSpy = vi.spyOn(durability, 'append')
+
+    await readBody(
+      toServerSentEventsResponse(
+        customThenText(customEvent(CUSTOM_EVENT.PROCESS_STDOUT)),
+        { durability: { adapter: durability } },
+      ),
+    )
+
+    const batches = appendSpy.mock.calls.map(([chunks]) => chunks)
+    const stdoutBatch = batches.find((chunks) =>
+      chunks.some(namedCustom(CUSTOM_EVENT.PROCESS_STDOUT)),
+    )
+    if (stdoutBatch === undefined) {
+      throw new Error('process.stdout was never appended')
+    }
+    expect(hasModelText(stdoutBatch)).toBe(true)
+  })
+
+  it('keeps emitCustomEvent({ batch: true }) in the batch with later text', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=opt-in-batch', {
+        method: 'POST',
+      }),
+    )
+    const appendSpy = vi.spyOn(durability, 'append')
+    const marked = withDurabilityBatchHint(customEvent('work:started'))
+
+    await readBody(
+      toServerSentEventsResponse(customThenText(marked), {
+        durability: { adapter: durability },
+      }),
+    )
+
+    const batches = appendSpy.mock.calls.map(([chunks]) => chunks)
+    const startedBatch = batches.find((chunks) =>
+      chunks.some(namedCustom('work:started')),
+    )
+    if (startedBatch === undefined) {
+      throw new Error('work:started was never appended')
+    }
+    expect(hasModelText(startedBatch)).toBe(true)
+    expect(
+      startedBatch.some((chunk) => {
+        const tanstack = tanstackMetadata(chunk)
+        return tanstack != null && 'batch' in tanstack
+      }),
+    ).toBe(false)
+  })
+
+  it('appends a middleware CUSTOM event while onConfig is still waiting', async () => {
+    let release = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=live-middleware', {
+        method: 'POST',
+      }),
+    )
+    const appendSpy = vi.spyOn(durability, 'append')
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.textStart(),
+          ev.textContent('reply'),
+          ev.textEnd(),
+          ev.runFinished('stop'),
+        ],
+      ],
+    })
+    const middleware: ChatMiddleware = {
+      name: 'slow-prepare',
+      async onConfig(ctx) {
+        if (ctx.phase !== 'beforeModel') return
+        ctx.emitCustomEvent('work:started', { step: 'prepare' })
+        await gate
+        ctx.emitCustomEvent('work:ended', { step: 'prepare' })
+      },
+    }
+
+    const body = readBody(
+      toServerSentEventsResponse(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'go' }],
+          middleware: [middleware],
+        }),
+        { durability: { adapter: durability } },
+      ),
+    )
+
+    await vi.waitFor(() => {
+      const appended = appendSpy.mock.calls.some(([chunks]) =>
+        chunks.some(namedCustom('work:started')),
+      )
+      expect(appended).toBe(true)
+    })
+    expect(
+      appendSpy.mock.calls.some(([chunks]) =>
+        chunks.some(namedCustom('work:ended')),
+      ),
+    ).toBe(false)
+
+    release()
+    await body
+  })
+
+  it('flushes each tool progress event in its own append', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=tool-progress', {
+        method: 'POST',
+      }),
+    )
+    const appendSpy = vi.spyOn(durability, 'append')
+    const tool = toolDefinition({
+      name: 'longJob',
+      description: 'Reports progress while it runs',
+      inputSchema: z.object({}),
+    }).server((_args, ctx) => {
+      for (const step of [1, 2, 3]) {
+        ctx?.emitCustomEvent('tool:progress', { step })
+      }
+      return { done: true }
+    })
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.toolStart('call_1', 'longJob'),
+          ev.toolArgs('call_1', '{}'),
+          ev.runFinished('tool_calls'),
+        ],
+        [
+          ev.runStarted(),
+          ev.textStart(),
+          ev.textContent('done'),
+          ev.textEnd(),
+          ev.runFinished('stop'),
+        ],
+      ],
+    })
+
+    await readBody(
+      toServerSentEventsResponse(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'go' }],
+          tools: [tool],
+        }),
+        { durability: { adapter: durability } },
+      ),
+    )
+
+    const progressBatches = appendSpy.mock.calls
+      .map(([chunks]) => chunks)
+      .filter((chunks) => chunks.some(namedCustom('tool:progress')))
+    expect(progressBatches).toHaveLength(3)
+    expect(
+      progressBatches.every(
+        (chunks) => chunks.filter(namedCustom('tool:progress')).length === 1,
+      ),
+    ).toBe(true)
   })
 })

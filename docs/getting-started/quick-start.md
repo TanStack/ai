@@ -34,6 +34,8 @@ For an image from a prompt, open [Generate Image](../tutorials/generate-image).
 
 For a table that fills as JSON streams, open [Streaming Structured Table](../tutorials/streaming-structured-table).
 
+For a blog desk where a researcher and an SEO agent run together and a writer uses their notes, open [Subagents](../tutorials/subagents).
+
 > [!TIP]
 > If you do not want a key per provider, [OpenRouter](../adapters/openrouter) gives you 300+ models with one API key.
 

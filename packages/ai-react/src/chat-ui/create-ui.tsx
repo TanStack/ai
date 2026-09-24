@@ -1,4 +1,4 @@
-import { createContext, memo, useContext } from 'react'
+import { createContext, memo, useContext, useMemo } from 'react'
 import type { ComponentProps, ComponentType, Context, ReactNode } from 'react'
 import {
   automaticPartsForMessage,
@@ -8,8 +8,10 @@ import {
   selectMessageUI,
 } from '@tanstack/ai-client/ui'
 import type {
+  ChatUIApprovalToolName,
   ChatUIData,
   ChatUIHasNamedInterrupts,
+  ChatUIHasNamedSubagents,
   ChatUIHasNamedTools,
   ChatUIInterrupt,
   ChatUIInterruptName,
@@ -22,6 +24,9 @@ import type {
   ChatUISchemaOf,
   ChatUISelectedPart,
   ChatUISelectedPartOf,
+  ChatUISubagentName,
+  ChatUISubagentOf,
+  ChatUISubagentOptions,
   ChatUIToolApproval,
   ChatUIToolName,
   ChatUIToolsOf,
@@ -29,6 +34,8 @@ import type {
 import type {
   MessagePart,
   QueuedMessage,
+  SubagentHandle,
+  SubagentHandles,
   ToolCallPart,
   ToolResultPart,
   UIMessage,
@@ -56,6 +63,7 @@ export type LayoutProps<
   Messages: ComponentType
   Interrupts: ComponentType
   Queue: ComponentType
+  Subagents: ComponentType
   readonly __ui?: TOptions
 } & (TInput extends ComponentType<any> ? { Input: ComponentType } : {})
 
@@ -75,6 +83,38 @@ export type QueueProps<TOptions> = {
 
 export type PartProps<TOptions, TKey extends ChatUIPartKey = ChatUIPartKey> = {
   part: ChatUIPartOf<TOptions, TKey>
+}
+
+/**
+ * Widgets for one subagent card. Each entry replaces the enclosing entry of
+ * the same key: the root map at top level, the outer card's map when nested.
+ * It applies to this card and the children nested in it. An unset key keeps
+ * the enclosing entry. Tool names and tool props come from that agent's
+ * `tools`.
+ */
+export type SubagentPartsProps<
+  TOptions,
+  TName extends ChatUISubagentName<TOptions> = ChatUISubagentName<TOptions>,
+> = {
+  partsComponents?: ChatUIPartsComponents<
+    ChatUISubagentOptions<TOptions, TName>
+  >
+  toolsComponents?: {
+    [K in ChatUIToolName<
+      ChatUISubagentOptions<TOptions, TName>
+    >]?: ComponentType<ToolProps<ChatUISubagentOptions<TOptions, TName>, K>>
+  }
+}
+
+export type SubagentProps<
+  TOptions,
+  TName extends ChatUISubagentName<TOptions> = ChatUISubagentName<TOptions>,
+> = {
+  subagent: [ChatUISubagentOf<TOptions, TName>] extends [never]
+    ? SubagentHandle & { name: TName }
+    : SubagentHandles<ReadonlyArray<ChatUISubagentOf<TOptions, TName>>>
+  Parts: ComponentType<SubagentPartsProps<TOptions, TName>>
+  readonly __ui?: TOptions
 }
 
 export type ToolProps<
@@ -108,7 +148,7 @@ type GenericInterruptComponents<TOptions> =
       }
 
 type ToolApprovalMap<TOptions> = {
-  [K in ChatUIToolName<TOptions>]?: ComponentType<
+  [K in ChatUIApprovalToolName<TOptions>]?: ComponentType<
     InterruptProps<TOptions, K & ChatUIInterruptName<TOptions>>
   >
 }
@@ -161,6 +201,21 @@ export type ChatUIComponents<
           tools?: ToolApprovalMap<TOptions>
           generic?: GenericInterruptComponents<TOptions>
         }
+      }) &
+  (ChatUIHasNamedSubagents<TOptions> extends true
+    ? {
+        subagentsComponents: {
+          [K in ChatUISubagentName<TOptions>]: ComponentType<
+            SubagentProps<TOptions, K>
+          >
+        }
+      }
+    : {
+        subagentsComponents?: {
+          [K in ChatUISubagentName<TOptions>]?: ComponentType<
+            SubagentProps<TOptions, K>
+          >
+        }
       })
 
 /** Scoped contexts, for widgets in other files or nested chat trees. */
@@ -191,7 +246,7 @@ type PartMixins<TOptions> = {
 type InterruptMixins<TOptions> = {
   [K in ChatUINamedInterruptId<TOptions>]: BoundWidget
 } & {
-  [K in ChatUIToolName<TOptions>]?: BoundWidget
+  [K in ChatUIApprovalToolName<TOptions>]?: BoundWidget
 } & {
   fallback?: BoundWidget
   Render: BoundWidget
@@ -227,6 +282,32 @@ function queueItemEqual(
   )
 }
 
+// The handle is one live object that the client updates in place, so a row
+// gets its changing card fields as separate props. Messages are not one of
+// them: `SubagentMessages` reads them from the chat context, so new child
+// text shows without a row render.
+type SubagentRowProps = {
+  handle: SubagentHandle
+  status: SubagentHandle['status']
+  error: SubagentHandle['error']
+}
+
+function subagentListItemEqual(prev: SubagentRowProps, next: SubagentRowProps) {
+  return (
+    prev.handle.id === next.handle.id &&
+    prev.handle.stop === next.handle.stop &&
+    prev.status === next.status &&
+    prev.error === next.error
+  )
+}
+
+function subagentMessagesEqual(
+  prev: { messages: SubagentHandle['messages'] },
+  next: { messages: SubagentHandle['messages'] },
+) {
+  return prev.messages === next.messages
+}
+
 function selectedPartPropsEqual(
   prev: { selected: ChatUISelectedPart },
   next: { selected: ChatUISelectedPart },
@@ -252,6 +333,18 @@ function isSelectedPart(
   value: MessagePart | ChatUISelectedPart,
 ): value is ChatUISelectedPart {
   return 'key' in value && 'part' in value
+}
+
+/** `base` with each set entry of `overrides`. An unset entry keeps `base`. */
+function withWidgets(
+  base: Record<string, ComponentType<any> | undefined>,
+  overrides: Record<string, ComponentType<any> | undefined> | undefined,
+) {
+  const out = { ...base }
+  for (const [key, component] of Object.entries(overrides ?? {})) {
+    if (component) out[key] = component
+  }
+  return out
 }
 
 function bindMap(
@@ -288,12 +381,14 @@ export function createChatUI<
     partsComponents: parts,
     toolsComponents: tools,
     interruptsComponents: interrupts,
+    subagentsComponents: subagentComponents,
   } = config as ChatUIFactoryConfig<TOptions, TInput> & {
     toolsComponents?: Record<string, ComponentType<any> | undefined>
     interruptsComponents?: {
       tools?: Record<string, ComponentType<any> | undefined>
       generic?: Record<string, ComponentType<any> | undefined>
     }
+    subagentsComponents?: Record<string, ComponentType<any> | undefined>
   }
   const {
     layout: Layout,
@@ -445,6 +540,7 @@ export function createChatUI<
     Messages: Messages as ComponentType,
     Interrupts: Interrupts as ComponentType,
     Queue: Queue as ComponentType,
+    Subagents: Subagents as ComponentType,
     Input: (InputComponent ?? MissingInput) as ComponentType,
   }
 
@@ -525,6 +621,19 @@ export function createChatUI<
     inlineToolNames: ReadonlyArray<string>
   }
   const MessageRenderContext = createContext<MessageRenderValue | null>(null)
+  const SubagentRenderContext = createContext<{
+    handle: SubagentHandle
+    /** A `Subagents` row. Its messages come from the live chat state. */
+    listed?: true
+  } | null>(null)
+  // The widgets that dispatch uses. A subagent card's `Parts` can replace
+  // entries for its subtree. Outside a card these are the factory maps.
+  type WidgetMap = Record<string, ComponentType<any> | undefined>
+  const rootWidgets: { parts: WidgetMap; tools: WidgetMap } = {
+    parts: parts as WidgetMap,
+    tools: tools ?? {},
+  }
+  const WidgetsContext = createContext(rootWidgets)
 
   function Parts() {
     const scope = useContext(MessageRenderContext)
@@ -588,7 +697,7 @@ export function createChatUI<
     interrupts,
     inlineToolNames: names,
   }: {
-    message: ChatUIMessages<TOptions>[number]
+    message: UIMessage
     interrupts: ReadonlyArray<ChatUIInterrupt>
     inlineToolNames: ReadonlyArray<string>
   }) {
@@ -610,9 +719,10 @@ export function createChatUI<
   }: {
     selected: ChatUISelectedPart
   }) {
+    const widgets = useContext(WidgetsContext)
     if (selected.key === 'toolCall') {
       const name = selected.part.name
-      const Tool = tools?.[name as ChatUIToolName<TOptions>] as
+      const Tool = widgets.tools[name] as
         | ComponentType<ToolProps<TOptions>>
         | undefined
       if (!Tool) {
@@ -628,9 +738,30 @@ export function createChatUI<
       )
     }
 
-    const PartComponent = (parts[selected.key] ?? parts.fallback) as
-      | ComponentType<PartProps<TOptions>>
-      | undefined
+    if (selected.key === 'subagent' && selected.part.type === 'subagent') {
+      const name = selected.part.subagent.name
+      const Subagent = subagentComponents?.[name] as
+        | ComponentType<SubagentProps<TOptions>>
+        | undefined
+      if (!Subagent) {
+        throw new Error(`[tanstack-ai-ui] Missing subagentsComponents.${name}`)
+      }
+      return (
+        <SubagentRenderContext.Provider
+          value={{ handle: selected.part.subagent }}
+        >
+          <Subagent
+            Parts={SubagentMessages}
+            subagent={
+              selected.part.subagent as SubagentProps<TOptions>['subagent']
+            }
+          />
+        </SubagentRenderContext.Provider>
+      )
+    }
+
+    const PartComponent = (widgets.parts[selected.key] ??
+      widgets.parts.fallback) as ComponentType<PartProps<TOptions>> | undefined
     if (!PartComponent) {
       warn(
         `part:${selected.key}`,
@@ -746,6 +877,115 @@ export function createChatUI<
     )
   })
 
+  function readSubagentMessages() {
+    const scoped = useContext(SubagentRenderContext)
+    const chat = useChatContext()
+    if (scoped?.listed) {
+      const live = chat.subagents.find((item) => item.id === scoped.handle.id)
+      return (live ?? scoped.handle).messages
+    }
+    if (scoped) return scoped.handle.messages
+    const selected = useContext(PartContext)
+    if (selected?.key === 'subagent' && selected.part.type === 'subagent') {
+      return selected.part.subagent.messages
+    }
+    throw new Error(
+      '`Parts` must be rendered by a subagent component or `Subagents` item.',
+    )
+  }
+
+  const SubagentMessagesBody = memo(function SubagentMessagesBody({
+    messages,
+  }: {
+    messages: SubagentHandle['messages']
+  }) {
+    const chat = useChatContext()
+    const interrupts = readInterrupts(chat)
+    return (
+      <>
+        {messages.map((message) => (
+          <AutomaticParts
+            key={message.id}
+            inlineToolNames={inlineToolNames}
+            interrupts={interrupts}
+            message={message}
+          />
+        ))}
+      </>
+    )
+  }, subagentMessagesEqual)
+
+  function SubagentMessages({
+    partsComponents,
+    toolsComponents,
+  }: SubagentPartsProps<TOptions>) {
+    const messages = readSubagentMessages()
+    const outer = useContext(WidgetsContext)
+    const widgets = useMemo(
+      () =>
+        partsComponents || toolsComponents
+          ? {
+              parts: withWidgets(outer.parts, partsComponents),
+              tools: withWidgets(outer.tools, toolsComponents),
+            }
+          : outer,
+      [outer, partsComponents, toolsComponents],
+    )
+    // ponytail: root `<Interrupts />` still lists an approval for a tool call
+    // inside a card, so it shows in both places. Hiding it needs `selectChatUI`
+    // to collect tool-call ids from nested subagent messages (its `callIds` is
+    // top-level only) plus the card tool names in `inlineToolNames`.
+    return (
+      <WidgetsContext.Provider value={widgets}>
+        <SubagentMessagesBody messages={messages} />
+      </WidgetsContext.Provider>
+    )
+  }
+
+  const SubagentListItem = memo(function SubagentListItem({
+    handle,
+  }: SubagentRowProps) {
+    const Subagent = subagentComponents?.[handle.name] as
+      | ComponentType<SubagentProps<TOptions>>
+      | undefined
+    if (!Subagent) {
+      throw new Error(
+        `[tanstack-ai-ui] Missing subagentsComponents.${handle.name}`,
+      )
+    }
+    return (
+      <SubagentRenderContext.Provider value={{ handle, listed: true }}>
+        <Subagent
+          Parts={SubagentMessages}
+          subagent={handle as SubagentProps<TOptions>['subagent']}
+        />
+      </SubagentRenderContext.Provider>
+    )
+  }, subagentListItemEqual)
+
+  function Subagents({
+    children,
+  }: {
+    children?: (subagents: Array<SubagentHandle>) => ReactNode
+  } = {}) {
+    const chat = useChatContext()
+    const live = chat.subagents
+    if (children) return <>{children(live)}</>
+    if (live.length === 0) return null
+    return (
+      <>
+        {live.map((handle) => (
+          <SubagentListItem
+            key={handle.id}
+            handle={handle}
+            status={handle.status}
+            error={handle.error}
+          />
+        ))}
+      </>
+    )
+  }
+
   return {
     Chat,
     Provider,
@@ -755,6 +995,8 @@ export function createChatUI<
     Interrupts,
     Interrupt,
     Queue,
+    Subagents,
+    SubagentMessages,
     useChatContext,
     Input: InputComponent,
   }

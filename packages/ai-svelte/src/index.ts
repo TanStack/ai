@@ -1,8 +1,16 @@
 export { createChat } from './create-chat.svelte'
 export { createChatHook } from './create-chat-hook'
 export { createByok } from './create-byok.svelte'
-export { createWebMCPTools } from './create-web-mcp-tools.svelte'
-export type { CreateWebMCPToolsOptions } from './create-web-mcp-tools.svelte'
+export {
+  createPageWebMCPTools,
+  createRegisterWebMCPTools,
+  createWebMCPTools,
+} from './create-web-mcp-tools.svelte'
+export type {
+  CreatePageWebMCPToolsOptions,
+  CreateRegisterWebMCPToolsOptions,
+  CreateWebMCPToolsOptions,
+} from './create-web-mcp-tools.svelte'
 export type {
   CreateChatOptions,
   CreateChatReturn,
@@ -101,6 +109,11 @@ export {
   PartialJSONParser,
   defaultJSONParser,
   registerWebMCPTools,
+  getWebMCPTools,
+  subscribeWebMCPTools,
+  type GetWebMCPToolsOptions,
+  type SubscribeWebMCPToolsOptions,
+  type WebMCPPageTool,
   createMcpAppBridge,
   type McpAppBridge,
   type CreateMcpAppBridgeOptions,

@@ -7,20 +7,27 @@ import {
   isMessageHighlighted,
 } from '../hooks/preview-model'
 import { formatDuration } from '../utils'
+import { buildSubagentSteps, groupTimeline } from '../../store/subagent-steps'
 import { IterationCard } from './IterationCard'
 import type { HoverTarget } from '../hooks/preview-model'
 import type { Iteration, Message } from '../../store/ai-store'
+import type {
+  AgentStepGroup,
+  SubagentInfo,
+  TimelineGroup,
+} from '../../store/subagent-steps'
 import type { Component } from 'solid-js'
 
 /** A group of iterations triggered by a single user message */
-interface UserMessageGroup {
-  userMessage: Message | null
-  iterations: Array<Iteration>
-}
+type UserMessageGroup = TimelineGroup
 
 interface IterationTimelineProps {
   iterations: Array<Iteration>
   messages: Array<Message>
+  /** Child agents from the hook snapshot. Their steps get their own cards. */
+  subagents?: Array<SubagentInfo>
+  /** The chat's user messages, from the snapshot. They mark the turns. */
+  turns?: Array<Message>
   hoverTarget?: HoverTarget | null
   onHoverTarget?: (target: HoverTarget | null) => void
 }
@@ -33,47 +40,15 @@ export const IterationTimeline: Component<IterationTimelineProps> = (props) => {
    * Group iterations by user messages.
    * Memoized to avoid recomputing on unrelated store changes.
    */
-  const groups = createMemo((): Array<UserMessageGroup> => {
-    const userMessages = props.messages.filter((m) => m.role === 'user')
-    const iters = props.iterations
-
-    if (userMessages.length === 0) {
-      return iters.length > 0 ? [{ userMessage: null, iterations: iters }] : []
-    }
-
-    const result: Array<UserMessageGroup> = []
-
-    const sortedUsers = [...userMessages].sort(
-      (a, b) => a.timestamp - b.timestamp,
-    )
-
-    for (const [u, currentUser] of sortedUsers.entries()) {
-      const nextUser = sortedUsers[u + 1]
-
-      const groupIters = iters.filter((it) => {
-        if (it.startedAt < currentUser.timestamp) return false
-        if (nextUser && it.startedAt >= nextUser.timestamp) return false
-        return true
-      })
-
-      if (groupIters.length > 0) {
-        result.push({ userMessage: currentUser, iterations: groupIters })
-      }
-    }
-
-    // Catch any iterations before the first user message
-    const firstUser = sortedUsers[0]
-    if (firstUser) {
-      const earlyIters = iters.filter(
-        (it) => it.startedAt < firstUser.timestamp,
-      )
-      if (earlyIters.length > 0) {
-        result.unshift({ userMessage: null, iterations: earlyIters })
-      }
-    }
-
-    return result
-  })
+  const groups = createMemo(
+    (): Array<UserMessageGroup> =>
+      groupTimeline(
+        props.iterations,
+        props.messages,
+        props.subagents ?? [],
+        props.turns ?? [],
+      ),
+  )
 
   return (
     <div class={s().container}>
@@ -468,9 +443,126 @@ const UserMessageGroupCard: Component<{
                 />
               )}
             </For>
+            <For each={group().agents}>
+              {(agentGroup) => (
+                <SubagentStepsCard
+                  group={agentGroup}
+                  hoverTarget={props.hoverTarget}
+                  onHoverTarget={props.onHoverTarget}
+                />
+              )}
+            </For>
           </div>
         </div>
       </div>
     </div>
+  )
+}
+
+/** The steps of one child agent, drawn with the same cards as the root. */
+export const SubagentStepsCard: Component<{
+  group?: AgentStepGroup
+  /** Build the steps from the snapshot when no group is given. */
+  agent?: SubagentInfo
+  hoverTarget: HoverTarget | null
+  onHoverTarget?: (target: HoverTarget | null) => void
+}> = (props) => {
+  const styles = useStyles()
+  const s = () => styles().iterationTimeline
+  const [isOpen, setIsOpen] = createSignal(true)
+
+  const group = createMemo((): AgentStepGroup | undefined => {
+    if (props.group) return props.group
+    if (!props.agent) return undefined
+    return {
+      agent: props.agent,
+      ...buildSubagentSteps(props.agent),
+      source: 'snapshot',
+    }
+  })
+  const agent = () => group()?.agent
+  const iterations = () => group()?.iterations ?? []
+
+  const accentClass = () => {
+    const status = agent()?.status
+    if (status === 'running') return s().cardActive
+    if (status === 'error') return s().cardError
+    if (status === 'finished') return s().cardCompleted
+    return ''
+  }
+
+  return (
+    <Show when={agent()}>
+      {(current) => (
+        <div
+          class={`${s().card} ${accentClass()}`}
+          style={{ 'margin-top': '8px' }}
+          data-testid="ai-devtools-subagent-steps"
+          data-agent={current().path}
+          data-source={group()?.source}
+        >
+          <div
+            class={s().cardHeader}
+            role="button"
+            tabIndex={0}
+            aria-expanded={isOpen()}
+            onClick={() => setIsOpen(!isOpen())}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return
+              event.preventDefault()
+              setIsOpen(!isOpen())
+            }}
+          >
+            <div class={s().userBubble}>
+              {current().name.charAt(0).toUpperCase()}
+            </div>
+            <div class={s().cardHeaderContent}>
+              <span class={s().cardHeaderLabel}>{current().path}</span>
+              <div class={s().cardSubtitle}>
+                <span class={s().subtitleText}>subagent</span>
+                <Show when={current().status}>
+                  <span class={s().subtitleBadge}>{current().status}</span>
+                </Show>
+                <Show when={current().error}>
+                  <span class={s().subtitleBadgeWarn}>{current().error}</span>
+                </Show>
+              </div>
+            </div>
+            <div class={s().cardHeaderBadges}>
+              <span
+                class={`${s().badge} ${s().badgeDuration}`}
+                title={`${iterations().length} ${iterations().length === 1 ? 'iteration' : 'iterations'}`}
+              >
+                🔄 {iterations().length}
+              </span>
+            </div>
+            <span class={`${s().chevron} ${isOpen() ? s().chevronOpen : ''}`}>
+              {'▶'}
+            </span>
+          </div>
+          <div class={`${s().cardBody} ${isOpen() ? s().cardBodyOpen : ''}`}>
+            <div class={s().cardBodyInner}>
+              <div class={s().iterList}>
+                <For each={iterations()}>
+                  {(iteration, index) => (
+                    <IterationCard
+                      iteration={iteration}
+                      previousIteration={
+                        index() > 0 ? iterations()[index() - 1] : undefined
+                      }
+                      messages={group()?.messages ?? []}
+                      index={index()}
+                      isLast={index() === iterations().length - 1}
+                      hoverTarget={props.hoverTarget}
+                      onHoverTarget={props.onHoverTarget}
+                    />
+                  )}
+                </For>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </Show>
   )
 }
