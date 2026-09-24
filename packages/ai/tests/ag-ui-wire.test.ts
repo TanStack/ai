@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import type { MessagesSnapshotEvent } from '@ag-ui/core'
-import { convertMessagesToModelMessages } from '../src/activities/chat/messages'
+import {
+  aguiSnapshotMessageToUIMessage,
+  convertMessagesToModelMessages,
+} from '../src/activities/chat/messages'
 import { uiMessagesToWire, type WireMessage } from '../src/utilities/ag-ui-wire'
 import type { ModelMessage, UIMessage } from '../src/types'
 
@@ -78,6 +81,75 @@ describe('uiMessagesToWire', () => {
     const wire = uiMessagesToWire(messages)
     expect(wire).toHaveLength(1)
     expect(wire[0]!).toMatchObject({ id: 'u1', role: 'user', content: 'hi' })
+  })
+
+  it('keeps finished subagent text on the assistant message', () => {
+    const message: UIMessage = {
+      id: 'a1',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'subagent',
+          subagent: {
+            id: 'run-researcher',
+            name: 'researcher',
+            status: 'finished',
+            messages: [
+              {
+                id: 'note',
+                role: 'assistant',
+                parts: [{ type: 'text', content: 'Squids have three hearts.' }],
+              },
+            ],
+          },
+        },
+        {
+          type: 'subagent',
+          subagent: {
+            id: 'run-seo',
+            name: 'seo',
+            status: 'finished',
+            messages: [
+              {
+                id: 'seo-note',
+                role: 'assistant',
+                parts: [{ type: 'text', content: 'Title: Three hearts' }],
+              },
+            ],
+          },
+        },
+      ],
+    }
+    const expected = [
+      'researcher:',
+      'Squids have three hearts.',
+      '',
+      'seo:',
+      'Title: Three hearts',
+    ].join('\n')
+
+    // Child messages travel as their own AG-UI messages, tagged with the child.
+    const wire = uiMessagesToWire([message])
+    expect(
+      wire.map((item) => [item.id, item.subagentRunId, item.content]),
+    ).toEqual([
+      ['a1', undefined, undefined],
+      ['note', 'run-researcher', 'Squids have three hearts.'],
+      ['seo-note', 'run-seo', 'Title: Three hearts'],
+    ])
+    expect(wire[1]?.metadata?.tanstack?.subagent).toEqual({
+      name: 'researcher',
+      status: 'finished',
+    })
+
+    // The parent model still reads the child text on the parent message.
+    // A request body carries the wire messages as parsed JSON.
+    const body: Array<ModelMessage> = JSON.parse(JSON.stringify(wire))
+    for (const input of [[message], body]) {
+      const model = convertMessagesToModelMessages(input)
+      expect(model).toHaveLength(1)
+      expect(model[0]).toMatchObject({ role: 'assistant', content: expected })
+    }
   })
 
   it('mirrors a user UIMessage with mixed multimodal parts to an InputContent[] content', () => {
@@ -564,6 +636,23 @@ describe('uiMessagesToWire', () => {
           },
         ],
       },
+    ])
+  })
+
+  it('round-trips a file source through the AG-UI wire', () => {
+    const source = {
+      type: 'file' as const,
+      value: 'file-abc',
+      provider: 'openai',
+      mimeType: 'application/pdf',
+    }
+    const wire = uiMessagesToWire([
+      { id: 'user-1', role: 'user', content: [{ type: 'document', source }] },
+    ])
+    const message: MessagesSnapshotEvent['messages'][number] = wire[0]!
+    expect(message).toHaveProperty('content', [{ type: 'document', source }])
+    expect(aguiSnapshotMessageToUIMessage(message).parts).toEqual([
+      { type: 'document', source },
     ])
   })
 

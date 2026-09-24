@@ -103,22 +103,6 @@ const GROK_RESPONSES_TOOLS = [
   'mcp',
 ] as const satisfies ReadonlyArray<GrokProviderToolKind>
 
-const GROK_2_IMAGE = {
-  name: 'grok-2-image-1212',
-  supports: {
-    input: ['text'],
-    output: ['image'],
-  },
-  pricing: {
-    input: {
-      normal: 0.07,
-    },
-    output: {
-      normal: 0.07,
-    },
-  },
-} as const satisfies ModelMeta
-
 // Imagine API image models. Pricing is per generated image (output only).
 const GROK_IMAGINE_IMAGE = {
   name: 'grok-imagine-image',
@@ -327,7 +311,6 @@ export const GROK_VERTEX_CHAT_MODELS = [
  * Grok Image Generation Models
  */
 export const GROK_IMAGE_MODELS = [
-  GROK_2_IMAGE.name,
   GROK_IMAGINE_IMAGE.name,
   GROK_IMAGINE_IMAGE_2_0.name,
   GROK_IMAGINE_IMAGE_QUALITY.name,

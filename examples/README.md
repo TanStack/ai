@@ -10,6 +10,7 @@ Choose an example based on your use case:
 - **Want an image from a prompt?** → [Generate Image](#generate-image)
 - **Want a table that fills as JSON streams?** → [Streaming Structured Table](#streaming-structured-table)
 - **Want typed ticket routing?** → [Evaluate](#evaluate)
+- **Want a blog desk with three agents?** → [Subagents](#subagents)
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
@@ -69,6 +70,42 @@ pnpm --filter streaming-structured-table dev
 Open http://localhost:3100. Paste an OpenRouter key. Send `Compare 6 JavaScript frameworks`.
 
 📖 [Full Documentation](react/streaming-structured-table/README.md)
+
+---
+
+### Subagents
+
+A slim TanStack Start chat. Three named agents: researcher, SEO, and writer. Jev picks the agents for each turn. Research and SEO run together, and the writer runs after them. The UI shows a nested card for each.
+
+**Path:** `examples/react/subagents`
+
+**Getting Started:**
+
+```bash
+pnpm --filter subagents dev
+```
+
+Open http://localhost:3100. Paste an OpenRouter key. Ask for research, SEO titles, or a draft.
+
+📖 [Full Documentation](react/subagents/README.md)
+
+---
+
+### Persisted subagents
+
+The blog desk from the subagents example, with a saved chat. A refresh keeps the messages and the cards. A refresh during a run continues that run.
+
+**Path:** `examples/react/subagents-persisted`
+
+**Getting Started:**
+
+```bash
+pnpm --filter subagents-persisted dev
+```
+
+Open http://localhost:3105. Paste an OpenRouter key. Send a prompt. Then refresh the page.
+
+📖 [Full Documentation](react/subagents-persisted/README.md)
 
 ---
 

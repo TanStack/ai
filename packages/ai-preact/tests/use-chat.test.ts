@@ -1916,7 +1916,6 @@ describe('useChat', () => {
             messageId: 'msg-after-toggle',
             timestamp: Date.now(),
             delta: 'after toggle',
-            content: 'after toggle',
           },
           {
             type: EventType.RUN_FINISHED,

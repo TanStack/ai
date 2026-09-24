@@ -12,6 +12,7 @@ import type {
   MessagePart,
   ModelMessage,
   StructuredOutputPart,
+  SubagentPart,
   TanStackMessageMetadata,
   UIMessage,
   UIResourcePart,
@@ -19,6 +20,8 @@ import type {
 import type { MetadataRecord } from './merge-metadata'
 import { tanstackMetadata } from './merge-metadata'
 import { normalizeToolResult } from './tool-result'
+import { wireSubagentInfo, wireSubagentRunId } from './subagent-wire'
+import type { SubagentWireInfo } from './subagent-wire'
 import {
   coerceCreatedAt,
   modelMessageToUIMessage,
@@ -263,6 +266,10 @@ export function uiMessagesToWire(
         })
       }
     }
+
+    for (const part of parts) {
+      if (part.type === 'subagent') wire.push(...subagentToWire(part, options))
+    }
   }
 
   return wire
@@ -332,6 +339,8 @@ function messageMetadata(
   const tanstack: TanStackMessageMetadata = {}
   if (previousTanstack?.model !== undefined)
     tanstack.model = previousTanstack.model
+  if (previousTanstack?.runId !== undefined)
+    tanstack.runId = previousTanstack.runId
   if (previousTanstack?.signature !== undefined)
     tanstack.signature = previousTanstack.signature
   const createdAt = coerceCreatedAt(msg.createdAt)
@@ -424,6 +433,71 @@ function collectText(parts: ReadonlyArray<MessagePart>): string {
   return out.join('')
 }
 
+/**
+ * A child's messages, tagged with its AG-UI `subagentRunId`. The card data
+ * rides in `metadata.tanstack.subagent`, so the other side can rebuild the
+ * card and continue a suspended child.
+ */
+function subagentToWire(
+  part: SubagentPart,
+  options?: { includeSnapshotStructuredOutput: boolean },
+): Array<WireMessage> {
+  const { subagent } = part
+  const info: SubagentWireInfo = {
+    name: subagent.name,
+    status: subagent.status,
+    ...(subagent.description !== undefined && {
+      description: subagent.description,
+    }),
+    ...(subagent.error !== undefined && { error: subagent.error }),
+    ...(subagent.interruptIds !== undefined && {
+      interruptIds: subagent.interruptIds,
+    }),
+    ...(subagent.parentSubagentRunId !== undefined && {
+      parentSubagentRunId: subagent.parentSubagentRunId,
+    }),
+    ...(subagent.parentToolCallId !== undefined && {
+      parentToolCallId: subagent.parentToolCallId,
+    }),
+    ...(subagent.metadata !== undefined && { metadata: subagent.metadata }),
+  }
+  const child = uiMessagesToWire(subagent.messages, options)
+  const own = child.some((message) => wireSubagentRunId(message) === undefined)
+  const messages: Array<WireMessage> = own
+    ? child
+    : [{ id: `subagent:${subagent.id}`, role: 'assistant' }, ...child]
+  return messages.map((message, index) => {
+    const nestedId = wireSubagentRunId(message)
+    if (nestedId !== undefined) {
+      const nested = wireSubagentInfo(message)
+      if (!nested || nested.parentSubagentRunId !== undefined) return message
+      return withSubagentInfo(message, nestedId, {
+        ...nested,
+        parentSubagentRunId: subagent.id,
+      })
+    }
+    return withSubagentInfo(
+      message,
+      subagent.id,
+      !own && index === 0 ? { ...info, placeholder: true } : info,
+    )
+  })
+}
+
+function withSubagentInfo(
+  message: WireMessage,
+  subagentRunId: string,
+  info: SubagentWireInfo,
+): WireMessage {
+  const metadata = isRecord(message.metadata) ? message.metadata : {}
+  const tanstack = isRecord(metadata.tanstack) ? metadata.tanstack : {}
+  return {
+    ...message,
+    subagentRunId,
+    metadata: { ...metadata, tanstack: { ...tanstack, subagent: info } },
+  }
+}
+
 function collectUserContent(
   parts: ReadonlyArray<MessagePart>,
 ): string | Array<InputContent> {
@@ -447,21 +521,7 @@ function collectUserContent(
       p.type === 'video' ||
       p.type === 'document'
     ) {
-      // The pinned @ag-ui/core `InputContentSource` has only `data` and `url`
-      // arms, so a `{ type: 'file' }` provider handle cannot cross it. Throw
-      // rather than drop the part silently. AG-UI 1.0 adds a matching `file`
-      // arm ({ type, value, provider?, mimeType? }, ag-ui-protocol/ag-ui#2639);
-      // on upgrade, pass the part through here instead.
-      const source = p.source
-      if (source.type === 'file') {
-        throw new Error(
-          `The AG-UI wire format cannot carry a { type: 'file' } provider ` +
-            `file-handle source on a ${p.type} part. Send the handle in your ` +
-            `own request payload and build the source with ` +
-            `fileSourceFromHandle() on the server.`,
-        )
-      }
-      out.push({ ...p, source })
+      out.push(p)
     }
   }
   return out
