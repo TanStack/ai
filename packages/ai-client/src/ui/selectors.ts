@@ -25,6 +25,7 @@ const PART_KEY_BY_TYPE: Record<string, ChatUIPartKey> = {
   'tool-result': 'toolResult',
   'structured-output': 'structuredOutput',
   'ui-resource': 'uiResource',
+  subagent: 'subagent',
 }
 
 export function partTypeToKey(type: string): ChatUIPartKey | string {

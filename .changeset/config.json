@@ -11,6 +11,7 @@
   "fixed": [],
   "linked": [],
   "ignore": [
+    "@tanstack/workspace-plugin",
     "@tanstack/ai-codemods",
     "@tanstack/ai-code-mode-models-eval",
     "@tanstack/ai-e2e",

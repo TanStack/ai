@@ -1,0 +1,25 @@
+export {
+  ByokClient,
+  EMPTY_BYOK_SNAPSHOT,
+  decryptKeyring,
+  defaultByokStorage,
+  defineByok,
+  defineByokProvider,
+  deriveAesKey,
+  encryptKeyring,
+  isPasskeyStorageSupported,
+  memoryStorage,
+  passkeyStorage,
+} from '@tanstack/ai-client/byok'
+export type {
+  ByokPrompt,
+  ByokProvider,
+  ByokProviderInit,
+  ByokSnapshot,
+  DefineByokOptions,
+  KeyPreview,
+  KeyStatus,
+  Keyring,
+  KeyringStorage,
+  PasskeyStorageOptions,
+} from '@tanstack/ai-client/byok'

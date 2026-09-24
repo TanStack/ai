@@ -1,5 +1,9 @@
 import OpenAI from 'openai'
-import { resolveMediaPrompt } from '@tanstack/ai'
+import {
+  isFileSource,
+  resolveMediaPrompt,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { buildImagesUsage } from '@tanstack/openai-base'
@@ -26,7 +30,7 @@ import type {
   GrokImageModelInputModalitiesByName,
   GrokImageModelProviderOptionsByName,
   GrokImageModelSizeByName,
-  GrokImageProviderOptions,
+  GrokImagineImageProviderOptions,
 } from '../image/image-provider-options'
 import type { GrokClientConfig } from '../utils/client'
 
@@ -62,6 +66,7 @@ function imagineSizeParams(size: string | undefined): {
  * sources become base64 data URIs.
  */
 function imagePartToUrl(part: ImagePart<MediaInputMetadata>): string {
+  if (isFileSource(part.source)) throw unsupportedFileSourceError('grok')
   if (part.source.type === 'url') return part.source.value
   return `data:${part.source.mimeType};base64,${part.source.value}`
 }
@@ -79,9 +84,7 @@ interface GrokImageEditResponse {
  * Grok Image Generation Adapter
  *
  * Tree-shakeable adapter for Grok image generation functionality.
- * Supports the legacy grok-2-image-1212 model (text-to-image via the
- * OpenAI-compat endpoint) and the grok-imagine image models, which also
- * accept image prompt parts for image-conditioned generation via xAI's
+ * Supports the grok-imagine image models. Image prompt parts use xAI's
  * `/v1/images/edits` endpoint (up to 3 source images).
  *
  * Features:
@@ -93,7 +96,7 @@ export class GrokImageAdapter<
   TModel extends GrokImageModel,
 > extends BaseImageAdapter<
   TModel,
-  GrokImageProviderOptions,
+  GrokImagineImageProviderOptions,
   GrokImageModelProviderOptionsByName,
   GrokImageModelSizeByName,
   GrokImageModelInputModalitiesByName
@@ -111,9 +114,16 @@ export class GrokImageAdapter<
   }
 
   async generateImages(
-    options: ImageGenerationOptions<GrokImageProviderOptions>,
+    options: ImageGenerationOptions<GrokImagineImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
     const { model, numberOfImages, size, modelOptions } = options
+
+    if (!isGrokImagineImageModel(model)) {
+      throw new Error(
+        `Unknown image model: ${model}. Supported models: ` +
+          `grok-imagine-image, grok-imagine-image-2.0, grok-imagine-image-quality.`,
+      )
+    }
 
     const resolved = resolveMediaPrompt(options.prompt)
     const prompt = resolved.text
@@ -125,35 +135,21 @@ export class GrokImageAdapter<
     }
 
     if (resolved.images.length > 0) {
-      if (!isGrokImagineImageModel(model)) {
-        throw new Error(
-          `grok: model "${model}" does not support image prompt parts. ` +
-            `Image-conditioned generation requires an Imagine API model ` +
-            `('grok-imagine-image', 'grok-imagine-image-2.0' or ` +
-            `'grok-imagine-image-quality').`,
-        )
-      }
       return await this.editImages(options, resolved)
     }
 
-    validatePrompt({ prompt, model })
+    validatePrompt(prompt)
     validateImageSize(model, size)
     validateNumberOfImages(model, numberOfImages)
 
-    // grok-imagine models are aspect-ratio sized: the generic `size` option
-    // carries an "aspectRatio_resolution" template (e.g. '16:9_2k', like
-    // Gemini native image models) and maps to the Imagine API's
-    // `aspect_ratio` / `resolution` parameters instead of OpenAI-style `size`.
-    const isImagine = isGrokImagineImageModel(model)
+    // The generic `size` option carries an "aspectRatio_resolution" template
+    // (e.g. '16:9_2k', like Gemini native image models) and maps to the
+    // Imagine API's `aspect_ratio` / `resolution` parameters.
     const request = {
       model,
       prompt,
       n: numberOfImages ?? 1,
-      ...(isImagine
-        ? imagineSizeParams(size)
-        : size !== undefined && {
-            size: size,
-          }),
+      ...imagineSizeParams(size),
       stream: false,
       ...modelOptions,
     } as OpenAI_SDK.Images.ImageGenerateParamsNonStreaming
@@ -216,7 +212,7 @@ export class GrokImageAdapter<
    * verbatim — no referencing markers are injected.
    */
   private async editImages(
-    options: ImageGenerationOptions<GrokImageProviderOptions>,
+    options: ImageGenerationOptions<GrokImagineImageProviderOptions>,
     resolved: ResolvedMediaPrompt,
   ): Promise<ImageGenerationResult> {
     const { model, numberOfImages, size, modelOptions, logger } = options
@@ -239,7 +235,7 @@ export class GrokImageAdapter<
       )
     }
 
-    validatePrompt({ prompt, model })
+    validatePrompt(prompt)
     validateImageSize(model, size)
     validateNumberOfImages(model, numberOfImages)
 
@@ -310,14 +306,14 @@ export class GrokImageAdapter<
  * Creates a Grok image adapter with explicit API key.
  * Type resolution happens here at the call site.
  *
- * @param model - The model name (e.g., 'grok-2-image-1212')
+ * @param model - The model name (e.g., 'grok-imagine-image-2.0')
  * @param apiKey - Your xAI API key
  * @param config - Optional additional configuration
  * @returns Configured Grok image adapter instance with resolved types
  *
  * @example
  * ```typescript
- * const adapter = createGrokImage('grok-2-image-1212', "xai-...");
+ * const adapter = createGrokImage('grok-imagine-image-2.0', "xai-...");
  *
  * const result = await generateImage({
  *   adapter,
@@ -341,7 +337,7 @@ export function createGrokImage<TModel extends GrokImageModel>(
  * - `process.env` (Node.js)
  * - `window.env` (Browser with injected env)
  *
- * @param model - The model name (e.g., 'grok-2-image-1212')
+ * @param model - The model name (e.g., 'grok-imagine-image-2.0')
  * @param config - Optional configuration (excluding apiKey which is auto-detected)
  * @returns Configured Grok image adapter instance with resolved types
  * @throws Error if XAI_API_KEY is not found in environment
@@ -349,7 +345,7 @@ export function createGrokImage<TModel extends GrokImageModel>(
  * @example
  * ```typescript
  * // Automatically uses XAI_API_KEY from environment
- * const adapter = grokImage('grok-2-image-1212');
+ * const adapter = grokImage('grok-imagine-image-2.0');
  *
  * const result = await generateImage({
  *   adapter,

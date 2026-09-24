@@ -22,7 +22,7 @@ import {
 } from '@tanstack/ai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 import type { MCPClient } from '@tanstack/ai-mcp'
-import { resolveTextAdapter } from '@/lib/mcp-providers'
+import { resolveTextAdapter } from '@/lib/mcp-provider-adapters'
 import {
   SHOP_PREFIX,
   SHOP_SERVER_PATH,

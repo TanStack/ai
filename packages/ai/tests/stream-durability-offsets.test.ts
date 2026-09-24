@@ -7,7 +7,6 @@ function chunk(delta: string): StreamChunk {
     type: EventType.TEXT_MESSAGE_CONTENT,
     messageId: 'm1',
     delta,
-    content: delta,
     timestamp: 1,
   }
 }

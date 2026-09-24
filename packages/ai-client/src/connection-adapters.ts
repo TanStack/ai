@@ -531,12 +531,48 @@ function errorFromXhrStatus(xhr: XMLHttpRequest): Error {
   return new Error(`XHR error! status: ${xhr.status} ${xhr.statusText}`)
 }
 
+function chatHydrationSearchParams(
+  threadId: string,
+  options?: ChatHydrateOptions,
+): Record<string, string> {
+  const values: Record<string, string> = { threadId }
+  if (options?.limit !== undefined) {
+    values.limit = String(options.limit)
+  }
+  if (options?.before !== undefined) {
+    values.before = options.before
+  }
+  return values
+}
+
+function readChatHydrationPage(
+  value: unknown,
+): { truncated: false } | { truncated: true; cursor: string } {
+  if (value === null || typeof value !== 'object') {
+    return { truncated: false }
+  }
+  if (!('truncated' in value) || value.truncated !== true) {
+    return { truncated: false }
+  }
+  if (
+    !('cursor' in value) ||
+    typeof value.cursor !== 'string' ||
+    value.cursor === ''
+  ) {
+    return { truncated: false }
+  }
+  return { truncated: true, cursor: value.cursor }
+}
+
 /**
  * GET the hydration endpoint for a thread and parse its JSON `{ messages,
  * activeRun }` body. This is the transport-agnostic reconnect probe: keyed on
  * the STABLE thread id, it returns the stored transcript and — if a run is still
  * generating — a cursor the caller tails via `joinRun`. Shared by every fetch/
  * XHR adapter so the client never has to know which transport is in use.
+ *
+ * Pass `limit` / `before` to page. Old servers that omit `page` are treated as
+ * a full list (`truncated: false`).
  */
 async function fetchThreadHydration(
   fetchClient: typeof globalThis.fetch,
@@ -544,12 +580,16 @@ async function fetchThreadHydration(
   headers: Record<string, string>,
   credentials: RequestCredentials,
   threadId: string,
+  options?: ChatHydrateOptions,
 ): Promise<ChatHydrationResult> {
-  const response = await fetchClient(withSearchParams(url, { threadId }), {
-    method: 'GET',
-    headers: { Accept: 'application/json', ...headers },
-    credentials,
-  })
+  const response = await fetchClient(
+    withSearchParams(url, chatHydrationSearchParams(threadId, options)),
+    {
+      method: 'GET',
+      headers: { Accept: 'application/json', ...headers },
+      credentials,
+    },
+  )
   await assertResponseOk(response)
   const data = (await response.json()) as {
     messages?: Array<UIMessage>
@@ -558,6 +598,7 @@ async function fetchThreadHydration(
       runId?: unknown
       pending?: unknown
     } | null
+    page?: unknown
   }
   const activeRun =
     data.activeRun && typeof data.activeRun.runId === 'string'
@@ -579,6 +620,7 @@ async function fetchThreadHydration(
       : [],
     activeRun,
     interrupts,
+    page: readChatHydrationPage(data.page),
   }
 }
 
@@ -881,7 +923,10 @@ export interface ConnectConnectionAdapter {
    * `fetchServerSentEvents` / `fetchHttpStream`, and on `stream()` /
    * `rpcStream()` when supplied via {@link StreamConnectionHandlers}.
    */
-  hydrate?: (threadId: string) => Promise<ChatHydrationResult>
+  hydrate?: (
+    threadId: string,
+    options?: ChatHydrateOptions,
+  ) => Promise<ChatHydrationResult>
 }
 
 /**
@@ -912,10 +957,22 @@ export interface GenerationHydrationResult {
 }
 
 /**
+ * Optional paging for a chat hydrate GET.
+ * Omit both fields to load the full thread.
+ */
+export interface ChatHydrateOptions {
+  limit?: number
+  before?: string
+}
+
+/**
  * Server-resolved hydration for a thread. `messages` is the stored transcript;
  * `activeRun` is a cursor to a run still generating for the thread (or `null`).
  * Keyed on the STABLE thread id — the client never handles a run id, so a turn
  * that spans several runs (interrupt/tool continuations) reconnects correctly.
+ *
+ * `page` is additive. Old servers omit it; treat that as a full list
+ * (`truncated: false`).
  */
 export interface ChatHydrationResult {
   messages: Array<UIMessage>
@@ -929,6 +986,11 @@ export interface ChatHydrationResult {
     runId: string
     pending: Array<ChatPendingInterrupt>
   } | null
+  /**
+   * Whether this window is a slice of a longer thread.
+   * `cursor` is set when `truncated` is true and is sent back as `before`.
+   */
+  page?: { truncated: false } | { truncated: true; cursor: string }
 }
 
 /**
@@ -952,7 +1014,10 @@ export interface ResumableConnectConnectionAdapter extends ConnectConnectionAdap
    * JSON GET (`?threadId`), so it is transport-agnostic regardless of how the
    * delivery stream is served.
    */
-  hydrate?: (threadId: string) => Promise<ChatHydrationResult>
+  hydrate?: (
+    threadId: string,
+    options?: ChatHydrateOptions,
+  ) => Promise<ChatHydrationResult>
 }
 
 export interface SubscribeConnectionAdapter {
@@ -984,7 +1049,10 @@ export interface SubscribeConnectionAdapter {
    * cursor). Present only when the underlying connection supports it. The client
    * calls it on mount to re-hydrate without any app-side loader or prop.
    */
-  hydrate?: (threadId: string) => Promise<ChatHydrationResult>
+  hydrate?: (
+    threadId: string,
+    options?: ChatHydrateOptions,
+  ) => Promise<ChatHydrationResult>
 }
 
 /**
@@ -1209,7 +1277,10 @@ export function normalizeConnectionAdapter(
       // (no non-null assertion). Present only when the connection supports it.
       const hydrate = (connection as ResumableConnectConnectionAdapter).hydrate
       return typeof hydrate === 'function'
-        ? { hydrate: (threadId: string) => hydrate(threadId) }
+        ? {
+            hydrate: (threadId: string, options?: ChatHydrateOptions) =>
+              hydrate(threadId, options),
+          }
         : {}
     })(),
   }
@@ -1423,7 +1494,7 @@ export function fetchServerSentEvents(
         resolvedOptions.reconnect,
       )
     },
-    async hydrate(threadId) {
+    async hydrate(threadId, hydrateOptions) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions =
         typeof options === 'function' ? await options() : options
@@ -1433,6 +1504,7 @@ export function fetchServerSentEvents(
         mergeHeaders(resolvedOptions.headers),
         resolvedOptions.credentials || 'same-origin',
         threadId,
+        hydrateOptions,
       )
     },
     async hydrateGeneration(threadId) {
@@ -1579,7 +1651,7 @@ export function fetchHttpStream(
         resolvedOptions.reconnect,
       )
     },
-    async hydrate(threadId) {
+    async hydrate(threadId, hydrateOptions) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions =
         typeof options === 'function' ? await options() : options
@@ -1589,6 +1661,7 @@ export function fetchHttpStream(
         mergeHeaders(resolvedOptions.headers),
         resolvedOptions.credentials || 'same-origin',
         threadId,
+        hydrateOptions,
       )
     },
     async hydrateGeneration(threadId) {
@@ -1917,7 +1990,7 @@ export function xhrServerSentEvents(
         resolvedOptions.reconnect,
       )
     },
-    async hydrate(threadId) {
+    async hydrate(threadId, hydrateOptions) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
       // Hydration is a non-streaming JSON GET, so fetch is fine even for the
@@ -1928,6 +2001,7 @@ export function xhrServerSentEvents(
         mergeHeaders(resolvedOptions.headers),
         resolvedOptions.withCredentials ? 'include' : 'same-origin',
         threadId,
+        hydrateOptions,
       )
     },
     async hydrateGeneration(threadId) {
@@ -2000,7 +2074,7 @@ export function xhrHttpStream(
         resolvedOptions.reconnect,
       )
     },
-    async hydrate(threadId) {
+    async hydrate(threadId, hydrateOptions) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
       // Hydration is a non-streaming JSON GET, so fetch is fine even for the
@@ -2011,6 +2085,7 @@ export function xhrHttpStream(
         mergeHeaders(resolvedOptions.headers),
         resolvedOptions.withCredentials ? 'include' : 'same-origin',
         threadId,
+        hydrateOptions,
       )
     },
     async hydrateGeneration(threadId) {
@@ -2451,7 +2526,10 @@ export interface StreamConnectionHandlers {
    * Server-driven chat hydration for `persistence: true`: the stored
    * transcript for `threadId` plus a cursor to an in-flight run.
    */
-  hydrate?: (threadId: string) => Promise<ChatHydrationResult>
+  hydrate?: (
+    threadId: string,
+    options?: ChatHydrateOptions,
+  ) => Promise<ChatHydrationResult>
   /**
    * Server-driven generation hydration for `persistence: true`: the last
    * generation's resume snapshot for `threadId` plus a cursor to a run still

@@ -12,5 +12,5 @@
       "@tanstack/ai-angular": ["./src/index.ts"]
     }
   },
-  "include": ["src", "ui/src", "tests"]
+  "include": ["src", "ui/src", "byok/src", "tests"]
 }

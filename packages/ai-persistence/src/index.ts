@@ -15,6 +15,7 @@ export {
 } from './types'
 export type {
   MessageStore,
+  MessagePage,
   RunStatus,
   TerminalRunStatus,
   RunRecord,

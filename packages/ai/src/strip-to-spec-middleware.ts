@@ -6,6 +6,7 @@ import {
   tanstackMetadata,
   withTanstackMetadata,
 } from './utilities/merge-metadata'
+import { stripDurabilityBatchHint } from './utilities/durability-batch'
 import { normalizeStreamChunk } from './utilities/normalize-stream-chunk'
 import { isSpecTopLevelKey } from './utilities/spec-event-keys'
 
@@ -54,5 +55,5 @@ export function toWireChunk(
   chunk: StreamChunk | AdapterYieldChunk,
 ): StreamChunk {
   const [normalized] = normalizeStreamChunk(chunk)
-  return stripToSpec(normalized ?? chunk)
+  return stripDurabilityBatchHint(stripToSpec(normalized ?? chunk))
 }

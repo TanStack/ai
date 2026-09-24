@@ -30,7 +30,7 @@ react: @tanstack/ai-react
 
 <!-- ::end:tabs -->
 
-## `useWebMCPTools(tools, options?)`
+## `useRegisterWebMCPTools(tools, options?)`
 
 Register executable client tools after the React component mounts. React removes them on cleanup and replaces them when `tools` or `options` change.
 
@@ -38,27 +38,43 @@ For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
 
 ```tsx
 import {
-  useWebMCPTools,
-  type UseWebMCPToolsOptions,
+  useRegisterWebMCPTools,
+  type UseRegisterWebMCPToolsOptions,
 } from "@tanstack/ai-react";
 import { searchProducts } from "./tools";
 
 const tools = [searchProducts];
-const options: UseWebMCPToolsOptions<typeof tools> = {
+const options: UseRegisterWebMCPToolsOptions<typeof tools> = {
   onError(error) {
     console.error(error);
   },
 };
 
 function ProductsPage() {
-  useWebMCPTools(tools, options);
+  useRegisterWebMCPTools(tools, options);
   return null;
 }
 ```
 
-`UseWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The hook owns the registration signal.
+`UseRegisterWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The hook owns the registration signal.
 
 The `context` field is required when a tool declares a required runtime context. Keep `tools` and `options` stable when their values do not change.
+
+## `usePageWebMCPTools(options?)`
+
+Read the WebMCP tools on the page as client tools. The array starts empty and updates when the page adds or removes a tool. Pass it to `useChat` as `tools`.
+
+```tsx
+import { usePageWebMCPTools } from "@tanstack/ai-react";
+
+export function useSameOriginPageTools() {
+  return usePageWebMCPTools({
+    filter: (tool) => tool.origin === location.origin,
+  });
+}
+```
+
+`filter` skips a tool when it returns `false`. `onError` gets a failed WebMCP read. For a complete guide, see [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
 
 ## `createChatHook(options)`
 

@@ -4,7 +4,7 @@ import RedisMock from 'ioredis-mock'
 import { describe, expect, it, vi } from 'vitest'
 import { fromNodeRedis, redis } from '../../src/providers/redis'
 import type { RedisLike } from '../../src/providers/redis'
-import { runMemoryAdapterContract } from '../contract'
+import { runMemoryAdapterContract } from '../../src/testkit/contract'
 
 function mockClient(): RedisLike {
   return new RedisMock() as unknown as RedisLike

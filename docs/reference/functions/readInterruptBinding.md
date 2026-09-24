@@ -3,8 +3,6 @@ id: readInterruptBinding
 title: readInterruptBinding
 ---
 
-# Function: readInterruptBinding()
-
 ```ts
 function readInterruptBinding(descriptor): InterruptBinding | undefined;
 ```

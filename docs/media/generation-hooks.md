@@ -15,8 +15,6 @@ keywords:
   - react hooks
 ---
 
-# Generation Hooks
-
 TanStack AI provides framework hooks for every generation type: image, audio, speech, transcription, summarization, and video. Each hook connects to a server endpoint and manages loading, error, and result state for you.
 
 > **Surviving reloads and dropped connections:** every generation hook takes the
@@ -72,6 +70,8 @@ The same pattern applies to image, speech, transcription, summarize, and video. 
 ## useGenerateImage
 
 Trigger image generation and render the results.
+
+For a React + Start walkthrough with OpenRouter, open [Generate Image](../tutorials/generate-image).
 
 ```tsx
 import { useGenerateImage, fetchServerSentEvents } from '@tanstack/ai-react'

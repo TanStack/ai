@@ -26,8 +26,11 @@ Do these four steps:
 
 ## 1. Create a store
 
+If you use a framework package, import BYOK from its `/byok` subpath. You do not need `@tanstack/ai-client`. The same subpath exists on Vue, Solid, Svelte, Preact, Angular, Octane, and Remix.
+
 ```typescript group=byok
-import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
+import { defineByok, defaultByokStorage } from "@tanstack/ai-react/byok";
+
 
 export const byok = defineByok({
   storage: defaultByokStorage(),

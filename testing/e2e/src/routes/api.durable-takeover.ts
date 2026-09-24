@@ -460,8 +460,9 @@ function contentChunk(messageId: string, line: number): StreamChunk {
     // not a second copy of the delta. It matters because that field is what the
     // message a run saves is assembled from, so emitting the delta here made
     // every saved transcript one chunk long. Derived from `line` alone, so a
-    // replay reproduces it byte for byte and alignment still holds.
-    content: accumulatedContent(line),
+    // replay reproduces it byte for byte and alignment still holds. The
+    // AG-UI 1.0 event type has no `content`, so it rides in a spread.
+    ...{ content: accumulatedContent(line) },
     timestamp: Date.now(),
   }
 }

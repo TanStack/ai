@@ -1,5 +1,76 @@
 # @tanstack/ai-sandbox-cloudflare
 
+## 0.4.5
+
+### Patch Changes
+
+- Updated dependencies [[`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd)]:
+  - @tanstack/ai@0.60.0
+  - @tanstack/ai-sandbox@0.5.14
+  - @tanstack/ai-sandbox-local-process@0.2.5
+
+## 0.4.4
+
+### Patch Changes
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai-sandbox@0.5.13
+  - @tanstack/ai@0.59.0
+  - @tanstack/ai-sandbox-local-process@0.2.5
+
+## 0.4.3
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+  - @tanstack/ai-sandbox@0.5.12
+  - @tanstack/ai-sandbox-local-process@0.2.5
+
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+  - @tanstack/ai-sandbox@0.5.11
+  - @tanstack/ai-sandbox-local-process@0.2.5
+
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [[`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9), [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6)]:
+  - @tanstack/ai@0.56.0
+  - @tanstack/ai-sandbox@0.5.10
+  - @tanstack/ai-sandbox-local-process@0.2.5
+
+## 0.4.0
+
+### Minor Changes
+
+- [#1167](https://github.com/TanStack/ai/pull/1167) [`f791c71`](https://github.com/TanStack/ai/commit/f791c717eff898593dc86105c66b8d9b6bba7ac5) - Add the app-wide `stallTimeoutMs` option for both coordinator modes, with authenticated `/_bridge` and `/tool-exec` callbacks refreshing run activity on arrival and completion.
+
+## 0.3.14
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+  - @tanstack/ai-sandbox@0.5.9
+  - @tanstack/ai-sandbox-local-process@0.2.5
+
+## 0.3.13
+
+### Patch Changes
+
+- [#1200](https://github.com/TanStack/ai/pull/1200) [`39b4bf2`](https://github.com/TanStack/ai/commit/39b4bf296df7dca9195b2e4cda05529459625dae) - `exposePreview` now verifies the preview URL is actually reachable before returning it: it fails with an actionable error when nothing is listening on the port, and detects and replaces stale quick tunnels instead of re-sharing dead URLs ([#992](https://github.com/TanStack/ai/issues/992)).
+
+- Updated dependencies [[`75d94cf`](https://github.com/TanStack/ai/commit/75d94cf8babc22d19a6120b68f073d4e48cd69d4), [`db017f6`](https://github.com/TanStack/ai/commit/db017f662e8b2c9c7301c8510047568ff87f3ee6)]:
+  - @tanstack/ai-sandbox@0.5.8
+  - @tanstack/ai@0.54.1
+  - @tanstack/ai-sandbox-local-process@0.2.5
+
 ## 0.3.12
 
 ### Patch Changes

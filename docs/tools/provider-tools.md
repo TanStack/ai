@@ -90,6 +90,8 @@ const followUp = chat({
 The search/fetch call surfaces as a provider-executed `tool-call` part on the
 assistant message; the agent loop never tries to run it client-side.
 
+OpenAI `applyPatchTool`, `localShellTool`, and `shellTool({ environment: { type: "local" } })` are different. The model returns the call, and your app runs it. See [OpenAI adapter](../adapters/openai.md#applypatchtool).
+
 ## Type-level guard
 
 Every provider-specific tool factory (e.g. `webSearchTool`, `computerUseTool`)

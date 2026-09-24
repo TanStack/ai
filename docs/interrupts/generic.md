@@ -12,8 +12,6 @@ keywords:
   - INTERRUPT_BOUNDARY_PHASES
 ---
 
-# Generic Interrupts
-
 Use a generic interrupt when the server needs data from the client but no tool
 call caused the request. For example, ask the user to select a plan before the
 model runs.
