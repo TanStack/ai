@@ -35,7 +35,7 @@ Peer dependency: `@tanstack/ai`. A full working app is in [`examples/ts-react-me
 
 ## API key
 
-Create a key in the [World Labs platform](https://platform.worldlabs.ai/api-keys). Set `WORLDLABS_API_KEY`, or pass `apiKey`.
+Create a key in the [World Labs platform](https://platform.worldlabs.ai/api-keys). `worldlabsWorld()` reads `WORLDLABS_API_KEY`. `createWorldLabsWorld()` takes the key as the second argument.
 
 ```ts
 import { generateWorld } from '@tanstack/ai'
@@ -50,11 +50,12 @@ const world = await generateWorld({
 To pass a key explicitly:
 
 ```ts
-import { worldlabsWorld } from '@tanstack/ai-worldlabs'
+import { createWorldLabsWorld } from '@tanstack/ai-worldlabs'
 
-const adapter = worldlabsWorld('marble-1.1', {
-  apiKey: process.env.WORLDLABS_API_KEY!,
-})
+const adapter = createWorldLabsWorld(
+  'marble-1.1',
+  process.env.WORLDLABS_API_KEY!,
+)
 ```
 
 `world.url` is the Marble viewer URL (`https://marble.worldlabs.ai/world/{id}`). Do not iframe it. `world.assets` is optional. Splat, mesh, panorama, and thumbnail links appear only when the World Labs response includes them. Those URLs are often signed CDN links.
