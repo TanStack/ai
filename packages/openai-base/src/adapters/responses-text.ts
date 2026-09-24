@@ -1,4 +1,10 @@
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  EventType,
+  fileReferenceFor,
+  isFileSource,
+  normalizeSystemPrompts,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   toRunErrorPayload,
@@ -11,6 +17,13 @@ import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
 import type { StructuredOutputCompatibility } from '../utils/schema-converter'
 import { buildResponsesUsage } from '../usage'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
+import {
+  hostedShellCallIds,
+  readUserExecutedCall,
+  userToolRequestItem,
+  userToolResultItem,
+} from './responses-user-tools'
+import type { OpenAIUserToolName } from './responses-user-tools'
 import type OpenAI from 'openai'
 import type {
   StructuredOutputOptions,
@@ -98,7 +111,11 @@ function readReasoningItem(
  * item ID here so stateless follow-up requests can replay both values.
  */
 export interface OpenAIResponsesToolCallMetadata {
-  itemId: string
+  itemId?: string
+  /** Set for shell, local_shell, and apply_patch calls the app must run. */
+  openaiUserTool?: OpenAIUserToolName
+  /** Shell `action.max_output_length`, echoed on `shell_call_output`. */
+  maxOutputLength?: number | null
 }
 
 interface StreamedFunctionCallMetadata {
@@ -979,6 +996,56 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       accumulatedReasoning = ''
     }
 
+    const userToolChunks = (
+      item: unknown,
+      outputIndex: number,
+      bareShell: boolean,
+    ): Array<AdapterYieldChunk> => {
+      const call = readUserExecutedCall(item, { bareShell })
+      if (!call || toolCallMetadata.get(call.callId)?.ended) return []
+      const tracked = toolCallMetadata.get(call.callId) ?? {
+        callId: call.callId,
+        index: outputIndex,
+        name: call.name,
+        started: false,
+      }
+      toolCallMetadata.set(call.callId, tracked)
+      tracked.started = true
+      tracked.ended = true
+      tracked.name = call.name
+      const timestamp = Date.now()
+      const modelName = model || options.model
+      const metadata: OpenAIResponsesToolCallMetadata = {
+        openaiUserTool: call.name,
+        ...(call.itemId ? { itemId: call.itemId } : {}),
+        ...(call.maxOutputLength !== undefined
+          ? { maxOutputLength: call.maxOutputLength }
+          : {}),
+      }
+      return [
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: call.callId,
+          toolCallName: call.name,
+          toolName: call.name,
+          parentMessageId: aguiState.messageId,
+          model: modelName,
+          timestamp,
+          index: outputIndex,
+          metadata,
+        },
+        {
+          type: EventType.TOOL_CALL_END,
+          toolCallId: call.callId,
+          toolCallName: call.name,
+          toolName: call.name,
+          model: modelName,
+          timestamp,
+          input: call.input,
+        },
+      ]
+    }
+
     const emitReasoningDelta = function* (
       text: string,
     ): Generator<AdapterYieldChunk> {
@@ -1341,6 +1408,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               metadata.started = true
             }
           }
+          yield* userToolChunks(item, chunk.output_index, false)
         }
 
         // Handle function call arguments delta (streaming). Drop the
@@ -1545,6 +1613,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               metadata.pendingArguments = undefined
             }
           }
+          yield* userToolChunks(item, chunk.output_index, false)
         }
 
         if (chunk.type === 'response.completed') {
@@ -1621,11 +1690,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // be silently dropped from the AG-UI stream while `hasFunctionCalls`
           // below still routes the run's finishReason to 'tool_calls' —
           // leaving consumers waiting for tool results they never saw start.
-          for (const item of chunk.response.output) {
+          for (const [outputIndex, item] of chunk.response.output.entries()) {
             if (item.type !== 'function_call' || !item.id) continue
             const metadata = toolCallMetadata.get(item.id) ?? {
               callId: item.call_id || item.id,
-              index: 0,
+              index: outputIndex,
               name: item.name || '',
               started: false,
             }
@@ -1697,6 +1766,19 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             }
           }
 
+          const shellOutputs = hostedShellCallIds(chunk.response.output)
+          for (const [outputIndex, item] of chunk.response.output.entries()) {
+            if (
+              isRecord(item) &&
+              item.type === 'shell_call' &&
+              typeof item.call_id === 'string' &&
+              shellOutputs.has(item.call_id)
+            ) {
+              continue
+            }
+            yield* userToolChunks(item, outputIndex, true)
+          }
+
           yield* closeReasoning()
           // Emit TEXT_MESSAGE_END if we had text content
           if (hasEmittedTextMessageStart) {
@@ -1716,10 +1798,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // The Responses API's incomplete_details.reason ('max_output_tokens'
           // | 'content_filter') maps to the AG-UI finishReason vocabulary:
           // max_output_tokens → 'length', content_filter → 'content_filter'.
-          const hasFunctionCalls = chunk.response.output.some(
-            (item: unknown) =>
-              (item as { type: string }).type === 'function_call',
-          )
+          const hasFunctionCalls = chunk.response.output.some((item) => {
+            if (!isRecord(item)) return false
+            if (item.type === 'function_call') return true
+            if (
+              item.type === 'shell_call' &&
+              typeof item.call_id === 'string' &&
+              shellOutputs.has(item.call_id)
+            ) {
+              return false
+            }
+            return readUserExecutedCall(item, { bareShell: true }) !== null
+          })
           const incompleteReason = chunk.response.incomplete_details?.reason
           const finishReason:
             | 'tool_calls'
@@ -1923,10 +2013,28 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     messages: Array<ModelMessage>,
   ): ResponseInput {
     const result: ResponseInput = []
+    const userToolCalls = new Map<
+      string,
+      {
+        id: string
+        function: { name: string; arguments: string }
+        metadata?: unknown
+      }
+    >()
 
     for (const message of messages) {
       // Handle tool messages - convert to FunctionToolCallOutput
       if (message.role === 'tool') {
+        const owner = message.toolCallId
+          ? userToolCalls.get(message.toolCallId)
+          : undefined
+        const userOutput = owner
+          ? userToolResultItem(owner, message.content)
+          : null
+        if (userOutput) {
+          result.push(userOutput)
+          continue
+        }
         const toolContent = message.content
         const output: string | Array<ResponseFunctionCallOutputItem> =
           Array.isArray(toolContent)
@@ -1966,11 +2074,26 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // Responses API expects arguments as a string (JSON string)
         if (message.toolCalls && message.toolCalls.length > 0) {
           for (const toolCall of message.toolCalls) {
-            // Keep arguments as string for Responses API
             const argumentsString =
               typeof toolCall.function.arguments === 'string'
                 ? toolCall.function.arguments
                 : JSON.stringify(toolCall.function.arguments)
+            const replayCall = {
+              id: toolCall.id,
+              function: {
+                name: toolCall.function.name,
+                arguments: argumentsString,
+              },
+              ...(toolCall.metadata !== undefined
+                ? { metadata: toolCall.metadata }
+                : {}),
+            }
+            const userItem = userToolRequestItem(replayCall)
+            if (userItem) {
+              userToolCalls.set(toolCall.id, replayCall)
+              result.push(userItem)
+              continue
+            }
             const itemId = (
               toolCall.metadata as OpenAIResponsesToolCallMetadata | undefined
             )?.itemId
@@ -2046,6 +2169,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         const imageMetadata = part.metadata as
           | { detail?: 'auto' | 'low' | 'high' }
           | undefined
+        if (isFileSource(part.source)) {
+          if (this.supportsFileSources !== true) {
+            throw unsupportedFileSourceError(this.name)
+          }
+          return {
+            type: 'input_image',
+            file_id: fileReferenceFor(part.source, this.name),
+            detail: imageMetadata?.detail || 'auto',
+          }
+        }
         if (part.source.type === 'url') {
           return {
             type: 'input_image',
@@ -2069,6 +2202,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
       case 'audio': {
+        if (isFileSource(part.source)) {
+          if (this.supportsFileSources !== true) {
+            throw unsupportedFileSourceError(this.name)
+          }
+          return {
+            type: 'input_file',
+            file_id: fileReferenceFor(part.source, this.name),
+          }
+        }
         if (part.source.type === 'url') {
           return {
             type: 'input_file',
@@ -2102,6 +2244,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           documentMetadata?.detail !== undefined
             ? { detail: documentMetadata.detail as 'low' | 'high' }
             : {}
+        if (isFileSource(part.source)) {
+          if (this.supportsFileSources !== true) {
+            throw unsupportedFileSourceError(this.name)
+          }
+          return {
+            type: 'input_file',
+            file_id: fileReferenceFor(part.source, this.name),
+            ...documentDetail,
+          }
+        }
         if (part.source.type === 'url') {
           // The Responses API fetches the PDF itself; filename and MIME
           // type are inferred from the response.
@@ -2164,7 +2316,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           ...documentDetail,
         }
       }
-
       case 'video':
       default:
         // OpenAI Responses API doesn't accept native video parts on this

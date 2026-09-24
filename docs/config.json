@@ -243,7 +243,13 @@
         {
           "label": "WebMCP Tools",
           "to": "tools/webmcp",
-          "addedAt": "2026-09-02"
+          "addedAt": "2026-09-02",
+          "updatedAt": "2026-09-23"
+        },
+        {
+          "label": "Page WebMCP Tools in Chat",
+          "to": "tools/webmcp-page-tools",
+          "addedAt": "2026-09-23"
         },
         {
           "label": "Tool Approval Flow",
@@ -255,7 +261,7 @@
           "label": "Provider Tools",
           "to": "tools/provider-tools",
           "addedAt": "2026-04-21",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-09-22"
         },
         {
           "label": "Provider Skills",
@@ -713,7 +719,7 @@
           "label": "World Generation",
           "to": "media/world-generation",
           "addedAt": "2026-09-04",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-17"
         },
         {
           "label": "Generation Hooks",
@@ -1013,7 +1019,13 @@
           "label": "Multimodal Content",
           "to": "advanced/multimodal-content",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-08-07"
+        },
+        {
+          "label": "Files API",
+          "to": "advanced/files-api",
+          "addedAt": "2026-09-11",
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "Per-Model Type Safety",
@@ -1030,7 +1042,7 @@
           "label": "Tree-Shaking",
           "to": "advanced/tree-shaking",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-14"
         },
         {
           "label": "Extend Adapter",
@@ -1041,7 +1053,7 @@
           "label": "Typed Pre-Configured Options",
           "to": "advanced/typed-options",
           "addedAt": "2026-05-25",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-14"
         },
         {
           "label": "Approval Flow Processing",
@@ -1059,7 +1071,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-09-22"
         },
         {
           "label": "Anthropic",
@@ -1131,6 +1143,12 @@
           "to": "adapters/reactor",
           "addedAt": "2026-09-04",
           "updatedAt": "2026-09-04"
+        },
+        {
+          "label": "World Labs",
+          "to": "adapters/worldlabs",
+          "addedAt": "2026-09-14",
+          "updatedAt": "2026-09-17"
         },
         {
           "label": "OpenRouter Adapter",
@@ -1314,49 +1332,49 @@
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-preact",
           "to": "api/ai-preact",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-octane",
           "to": "api/ai-octane",
           "addedAt": "2026-08-21",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-remix",
           "to": "api/ai-remix",
           "addedAt": "2026-09-01",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         }
       ]
     },

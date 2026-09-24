@@ -1,5 +1,12 @@
 # @tanstack/ai-code-mode
 
+## 0.4.15
+
+### Patch Changes
+
+- Updated dependencies [[`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd)]:
+  - @tanstack/ai@0.60.0
+
 ## 0.4.14
 
 ### Patch Changes

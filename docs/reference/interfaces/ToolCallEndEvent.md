@@ -3,17 +3,15 @@ id: ToolCallEndEvent
 title: ToolCallEndEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1319](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1319)
+Defined in: [packages/ai/src/types.ts:1338](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1338)
 
 Emitted when a tool call completes.
 
-@ag-ui/core provides: `toolCallId`
-
-Same `Pick` (not `extends`) rationale as [ToolCallStartEvent](ToolCallStartEvent.md).
+@ag-ui/core provides: `toolCallId`, `subagentRunId?`
 
 ## Extends
 
-- `Pick`\<`AGUIToolCallEndEvent`, `"toolCallId"` \| `"timestamp"` \| `"rawEvent"`\>
+- `Omit`\<`AGUIToolCallEndEvent`, `"type"`\>
 
 ## Properties
 
@@ -23,7 +21,7 @@ Same `Pick` (not `extends`) rationale as [ToolCallStartEvent](ToolCallStartEvent
 optional input?: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:1325](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1325)
+Defined in: [packages/ai/src/types.ts:1341](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1341)
 
 Parsed tool arguments when the adapter already parsed them.
 
@@ -35,7 +33,15 @@ Parsed tool arguments when the adapter already parsed them.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1326](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1326)
+Defined in: [packages/ai/src/types.ts:1342](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1342)
+
+Extra information attached to this event.
+
+#### Overrides
+
+```ts
+Omit.metadata
+```
 
 ***
 
@@ -45,4 +51,4 @@ Defined in: [packages/ai/src/types.ts:1326](https://github.com/TanStack/ai/blob/
 type: "TOOL_CALL_END";
 ```
 
-Defined in: [packages/ai/src/types.ts:1323](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1323)
+Defined in: [packages/ai/src/types.ts:1339](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1339)

@@ -43,8 +43,13 @@ import { withDurabilityBatchHint } from '../../utilities/durability-batch'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
 import { restorePublicUsage } from '../../utilities/restore-inbound-chunk'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
-import { normalizeToolResult } from '../../utilities/tool-result'
+import {
+  normalizeToolResult,
+  parseToolOutput,
+  toolResultErrorText,
+} from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
+import { assertMessagesFileSourceSupport } from '../../utilities/content-source'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
 import type { DefinedAgent } from './agents/define-agent'
@@ -191,25 +196,6 @@ const interruptBindingMetadataKey = INTERRUPT_BINDING_METADATA_KEY
 
 /** Resume entries a subagent tool call owns. The parent run skips them. */
 const CHILD_RESUME_IDS = Symbol('tanstack.ai.childResumeIds')
-
-// ponytail: no adapter maps `{ type: 'file' }` yet, so every one fails closed
-// instead of reading the handle as a URL or base64. The Files API work
-// replaces this with a per-adapter capability check.
-function assertNoFileSources(
-  adapterName: string,
-  messages: ReadonlyArray<ModelMessage>,
-): void {
-  for (const message of messages) {
-    if (!Array.isArray(message.content)) continue
-    for (const part of message.content) {
-      if ('source' in part && part.source.type === 'file') {
-        throw new Error(
-          `${adapterName} does not support provider file-handle sources ({ type: 'file' }). Pass a data or url source.`,
-        )
-      }
-    }
-  }
-}
 
 interface StructuralInterruptFailure {
   error: Error
@@ -1587,7 +1573,12 @@ class TextEngine<
       )
     }
 
-    assertNoFileSources(this.adapter.name, this.messages)
+    // Fail closed on `{ type: 'file' }` sources for adapters that haven't
+    // declared support — an adapter written before the file arm existed would
+    // otherwise fall through to its URL/data branch and silently mis-map the
+    // reference. Checked per model call so tool results added mid-loop are
+    // covered too.
+    assertMessagesFileSourceSupport(this.adapter, this.messages)
 
     for await (const raw of this.adapter.chatStream({
       model: this.params.model,
@@ -3433,6 +3424,9 @@ class TextEngine<
         role: 'tool',
         content,
         toolCallId: result.toolCallId,
+        ...(result.state === 'output-error' && {
+          error: toolResultErrorText(parseToolOutput(wireContent)),
+        }),
       }
 
       if (placeholderIdx >= 0) {
@@ -3768,7 +3762,11 @@ class TextEngine<
     // Apply merged config back to engine state
     this.applyMiddlewareConfig(postOnConfig)
 
-    assertNoFileSources(this.adapter.name, this.messages)
+    // Schema-only structured output with no tools skips the agent loop, so
+    // `streamModelResponse` never runs this check. Middleware can also
+    // replace `this.messages` above. Fail closed here before the
+    // structured-output adapter call.
+    assertMessagesFileSourceSupport(this.adapter, this.messages)
 
     // Build the StructuredOutputOptions the adapter expects.
     // `this.adapter` is already `TAdapter extends AnyTextAdapter` per the

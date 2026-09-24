@@ -20,6 +20,6 @@ type AIAdapter =
   | AnyLiveVideoAdapter;
 ```
 
-Defined in: [packages/ai/src/activities/index.ts:323](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/index.ts#L323)
+Defined in: [packages/ai/src/activities/index.ts:338](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/index.ts#L338)
 
 Union of all adapter types that can be passed to chat()

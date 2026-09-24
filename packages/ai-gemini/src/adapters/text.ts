@@ -1,5 +1,10 @@
 import { FinishReason } from '@google/genai'
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  EventType,
+  fileReferenceFor,
+  isFileSource,
+  normalizeSystemPrompts,
+} from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
@@ -107,8 +112,11 @@ function contentPartToInteraction(part: ContentPart): InteractionContent {
     source.type === 'data'
       ? source.mimeType
       : (source.mimeType ?? DEFAULT_MEDIA_MIME_TYPES[part.type])
-  const base =
-    source.type === 'data'
+  // A Gemini Files API handle maps to the `uri` field, same as a public URL;
+  // `fileReferenceFor` throws when another provider issued it.
+  const base = isFileSource(source)
+    ? { uri: fileReferenceFor(source, 'gemini'), mime_type: mimeType }
+    : source.type === 'data'
       ? { data: source.value, mime_type: mimeType }
       : { uri: source.value, mime_type: mimeType }
 
@@ -216,6 +224,8 @@ export class GeminiTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'gemini' as const
+  // Consumes Gemini Files API references (geminiFiles()) as fileData.fileUri.
+  override readonly supportsFileSources = true
 
   private readonly client: GoogleGenAI
 
@@ -920,6 +930,13 @@ export class GeminiTextAdapter<
       case 'audio':
       case 'video':
       case 'document': {
+        // File references (Gemini Files API) and public URLs both pass
+        // through as `fileData`; Gemini fetches the URI server-side. A
+        // file source's handle is the file URI (throws when another provider
+        // issued it).
+        const fileUri = isFileSource(part.source)
+          ? fileReferenceFor(part.source, this.name)
+          : part.source.value
         const geminiPart: Part =
           part.source.type === 'data'
             ? {
@@ -930,7 +947,7 @@ export class GeminiTextAdapter<
               }
             : {
                 fileData: {
-                  fileUri: part.source.value,
+                  fileUri,
                   // For URL sources, use provided mimeType or fall back to
                   // reasonable defaults.
                   mimeType:
@@ -1045,6 +1062,9 @@ export class GeminiTextAdapter<
                 },
               })
             } else {
+              const fileUri = isFileSource(part.source)
+                ? fileReferenceFor(part.source, this.name)
+                : part.source.value
               const defaultMimeType = {
                 image: 'image/jpeg',
                 audio: 'audio/mp3',
@@ -1053,7 +1073,7 @@ export class GeminiTextAdapter<
               }[part.type]
               mediaParts.push({
                 fileData: {
-                  fileUri: part.source.value,
+                  fileUri,
                   mimeType: part.source.mimeType ?? defaultMimeType,
                 },
               })

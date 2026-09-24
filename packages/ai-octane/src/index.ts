@@ -3,8 +3,16 @@ export { createChatHook } from './create-chat-hook'
 export { useRealtimeChat } from './use-realtime-chat.tsrx'
 export { useMcpAppBridge } from './use-mcp-app-bridge.tsrx'
 export type { UseMcpAppBridgeOptions } from './use-mcp-app-bridge.tsrx'
-export { useWebMCPTools } from './use-web-mcp-tools.tsrx'
-export type { UseWebMCPToolsOptions } from './use-web-mcp-tools.tsrx'
+export {
+  usePageWebMCPTools,
+  useRegisterWebMCPTools,
+  useWebMCPTools,
+} from './use-web-mcp-tools.tsrx'
+export type {
+  UsePageWebMCPToolsOptions,
+  UseRegisterWebMCPToolsOptions,
+  UseWebMCPToolsOptions,
+} from './use-web-mcp-tools.tsrx'
 export type {
   DeepPartial,
   UseChatOptions,
@@ -99,6 +107,11 @@ export {
   PartialJSONParser,
   defaultJSONParser,
   registerWebMCPTools,
+  getWebMCPTools,
+  subscribeWebMCPTools,
+  type GetWebMCPToolsOptions,
+  type SubscribeWebMCPToolsOptions,
+  type WebMCPPageTool,
   clientTools,
   webSocket,
   fetchServerSentEvents,
