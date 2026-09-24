@@ -1,5 +1,5 @@
 ---
-"@tanstack/ai": patch
+'@tanstack/ai': patch
 ---
 
 Keep Anthropic's signed thinking order when a provider-executed tool (web_search / web_fetch) runs inside the same response as thinking, and stop provider-executed calls from being classified as client tool interrupts.
