@@ -309,7 +309,8 @@ describe('LLM Gateway AG-UI event emission', () => {
     expect(chunks[0]?.type).toBe('RUN_STARTED')
     if (chunks[0]?.type === 'RUN_STARTED') {
       expect(chunks[0].runId).toBeDefined()
-      expect(chunks[0].model).toBe('gpt-5.6-terra')
+      // The adapter stamps the model on RUN_STARTED. The AG-UI type omits it.
+      expect(Reflect.get(chunks[0], 'model')).toBe('gpt-5.6-terra')
     }
   })
 

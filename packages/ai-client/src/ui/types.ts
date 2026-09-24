@@ -10,6 +10,7 @@ import type {
   ChatInterrupt,
   MessagePart,
   RegisteredGenericInterrupt,
+  SubagentClientAgent,
   StructuredOutputPart,
   ToolApprovalInterrupt,
   ToolCallPart,
@@ -28,6 +29,7 @@ export type ChatUIPartKey =
   | 'toolResult'
   | 'structuredOutput'
   | 'uiResource'
+  | 'subagent'
 
 export type ChatUIPartTypeByKey = {
   text: 'text'
@@ -40,6 +42,7 @@ export type ChatUIPartTypeByKey = {
   toolResult: 'tool-result'
   structuredOutput: 'structured-output'
   uiResource: 'ui-resource'
+  subagent: 'subagent'
 }
 
 export type ChatUIPartOf<
@@ -60,13 +63,30 @@ export type ChatUIToolsOf<TOptions> = TOptions extends {
     : any
   : any
 
-export type ChatUIInterruptsOf<TOptions> = TOptions extends {
+type RootInterruptsOf<TOptions> = TOptions extends {
   interrupts: infer TInterrupts
 }
   ? TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>
     ? TInterrupts
     : readonly []
   : readonly []
+
+type AgentInterrupts<TOptions> = ConcreteItems<
+  AgentField<ChatUISubagentsOf<TOptions>[number], 'interrupts', readonly []>
+>
+
+/** The root `interrupts` plus every child agent's `interrupts`. */
+export type ChatUIInterruptsOf<TOptions> = [AgentInterrupts<TOptions>] extends [
+  never,
+]
+  ? RootInterruptsOf<TOptions>
+  : ReadonlyArray<
+      | RootInterruptsOf<TOptions>[number]
+      | Extract<
+          AgentInterrupts<TOptions>,
+          InterruptDefinition<any, any, any, any>
+        >
+    >
 
 export type ChatUISchemaOf<TOptions> = TOptions extends {
   outputSchema: infer TSchema
@@ -114,14 +134,105 @@ export type ChatUIHasNamedInterrupts<TOptions> = [
     ? false
     : true
 
+/** The agents in `options.subagents`, or an empty list. */
+export type ChatUISubagentsOf<TOptions> = TOptions extends {
+  subagents?: infer TAgents
+}
+  ? Exclude<TAgents, undefined> extends ReadonlyArray<SubagentClientAgent>
+    ? Exclude<TAgents, undefined>
+    : readonly []
+  : readonly []
+
+export type ChatUISubagentName<TOptions> =
+  ChatUISubagentsOf<TOptions>[number]['name']
+
+/** The agent in `options.subagents` with this name. */
+export type ChatUISubagentOf<TOptions, TName> = Extract<
+  ChatUISubagentsOf<TOptions>[number],
+  { name: TName }
+>
+
+type AgentField<TAgent, TKey extends string, TFallback> = TAgent extends {
+  [K in TKey]?: infer TValue
+}
+  ? [Exclude<TValue, undefined>] extends [never]
+    ? TFallback
+    : Exclude<TValue, undefined>
+  : TFallback
+
+/**
+ * One child agent seen as chat options, so the part, tool, and interrupt
+ * types read that agent's `tools`, `interrupts`, and `outputSchema`. An
+ * unknown name gives untyped options.
+ */
+export type ChatUISubagentOptions<TOptions, TName> = [
+  ChatUISubagentOf<TOptions, TName>,
+] extends [never]
+  ? {}
+  : ChatUISubagentOf<TOptions, TName> extends infer TAgent
+    ? {
+        tools: AgentField<TAgent, 'tools', readonly []>
+        interrupts: AgentField<TAgent, 'interrupts', readonly []>
+        outputSchema: AgentField<TAgent, 'outputSchema', undefined>
+      }
+    : {}
+
+type ConcreteItems<TList> = unknown extends TList
+  ? never
+  : TList extends ReadonlyArray<infer TItem>
+    ? TItem
+    : never
+
+type AgentTools<TOptions> = ConcreteItems<
+  AgentField<ChatUISubagentsOf<TOptions>[number], 'tools', readonly []>
+>
+
+/**
+ * The tools whose approvals can reach this chat: the root `tools` plus every
+ * child agent's `tools`.
+ */
+export type ChatUIApprovalToolsOf<TOptions> = [
+  ConcreteItems<ChatUIToolsOf<TOptions>> | AgentTools<TOptions>,
+] extends [never]
+  ? ChatUIToolsOf<TOptions>
+  : ReadonlyArray<
+      Extract<
+        ConcreteItems<ChatUIToolsOf<TOptions>> | AgentTools<TOptions>,
+        AnyClientTool
+      >
+    >
+
+export type ChatUIApprovalToolName<TOptions> =
+  ChatUIApprovalToolsOf<TOptions>[number] extends infer TTool
+    ? TTool extends AnyClientTool
+      ? TTool['name']
+      : string
+    : string
+
+export type ChatUIHasNamedSubagents<TOptions> = [
+  ChatUISubagentName<TOptions>,
+] extends [never]
+  ? false
+  : [string] extends [ChatUISubagentName<TOptions>]
+    ? false
+    : true
+
 export type ChatUINamedInterruptId<TOptions> = Exclude<
   ChatUIRegisteredInterruptId<TOptions>,
   'fallback'
 >
 
+type ChatUIHasNamedApprovalTools<TOptions> = [
+  ChatUIApprovalToolName<TOptions>,
+] extends [never]
+  ? false
+  : [string] extends [ChatUIApprovalToolName<TOptions>]
+    ? false
+    : true
+
 export type ChatUIInterruptName<TOptions> =
-  | (ChatUIHasNamedTools<TOptions> extends true
-      ? ChatUIToolName<TOptions>
+  | (ChatUIHasNamedApprovalTools<TOptions> extends true
+      ? ChatUIApprovalToolName<TOptions>
       : never)
   | (ChatUIHasNamedInterrupts<TOptions> extends true
       ? ChatUINamedInterruptId<TOptions>
@@ -136,9 +247,9 @@ export type ChatUIInterrupt = ChatInterrupt | ToolApprovalInterrupt
 
 export type ChatUIToolApproval<
   TOptions,
-  TName extends ChatUIToolName<TOptions> = ChatUIToolName<TOptions>,
+  TName extends string = ChatUIApprovalToolName<TOptions>,
 > = Extract<
-  ChatInterrupt<ChatUIToolsOf<TOptions>, ChatUIInterruptsOf<TOptions>>,
+  ChatInterrupt<ChatUIApprovalToolsOf<TOptions>, ChatUIInterruptsOf<TOptions>>,
   { kind: 'tool-approval'; toolName: TName }
 >
 
@@ -149,10 +260,7 @@ export type ChatUIToolPart<
   key: 'toolCall'
   part: Extract<ToolCallPart<ChatUIToolsOf<TOptions>>, { name: TName }>
   result?: ToolResultPart
-  interrupt?: Extract<
-    ChatInterrupt<ChatUIToolsOf<TOptions>, ChatUIInterruptsOf<TOptions>>,
-    { kind: 'tool-approval'; toolName: TName }
-  >
+  interrupt?: ChatUIToolApproval<TOptions, TName>
   input?: InferToolInput<ToolByName<TOptions, TName>>
   output?: InferToolOutput<ToolByName<TOptions, TName>>
 }
@@ -172,8 +280,8 @@ export type ChatUIInterruptOf<
 > = [TName] extends [never]
   ? ChatUIInterrupt
   : TName extends (
-        ChatUIHasNamedTools<TOptions> extends true
-          ? ChatUIToolName<TOptions>
+        ChatUIHasNamedApprovalTools<TOptions> extends true
+          ? ChatUIApprovalToolName<TOptions>
           : never
       )
     ? ChatUIToolApproval<TOptions, TName>

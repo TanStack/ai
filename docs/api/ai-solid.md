@@ -25,7 +25,7 @@ solid: @tanstack/ai-solid
 
 <!-- ::end:tabs -->
 
-## `useWebMCPTools(tools, options?)`
+## `useRegisterWebMCPTools(tools, options?)`
 
 Register executable client tools for the current Solid owner. Solid removes them when the owner is cleaned up.
 
@@ -33,27 +33,43 @@ For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
 
 ```tsx
 import {
-  useWebMCPTools,
-  type UseWebMCPToolsOptions,
+  useRegisterWebMCPTools,
+  type UseRegisterWebMCPToolsOptions,
 } from "@tanstack/ai-solid";
 import { searchProducts } from "./tools";
 
 const tools = [searchProducts];
-const options: UseWebMCPToolsOptions<typeof tools> = {
+const options: UseRegisterWebMCPToolsOptions<typeof tools> = {
   onError(error) {
     console.error(error);
   },
 };
 
 function ProductsPage() {
-  useWebMCPTools(tools, options);
+  useRegisterWebMCPTools(tools, options);
   return null;
 }
 ```
 
-`UseWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The primitive owns the registration signal.
+`UseRegisterWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The primitive owns the registration signal.
 
 The `context` field is required when a tool declares a required runtime context.
+
+## `usePageWebMCPTools(options?)`
+
+Read the WebMCP tools on the page as client tools. The accessor starts empty and updates when the page adds or removes a tool. Read it in a `get tools()` getter on `useChat`.
+
+```ts
+import { usePageWebMCPTools } from "@tanstack/ai-solid";
+
+export function useSameOriginPageTools() {
+  return usePageWebMCPTools({
+    filter: (tool) => tool.origin === location.origin,
+  });
+}
+```
+
+`filter` skips a tool when it returns `false`. `onError` gets a failed WebMCP read. For a complete guide, see [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
 
 ## `createChatHook(options)`
 
@@ -127,7 +143,7 @@ function ChatComponent() {
 Extends `ChatClientOptions` from `@tanstack/ai-client`:
 
 - `connection` - Connection adapter (required)
-- `tools?` - Array of client tool implementations (with `.client()` method)
+- `tools?` - Array of client tool implementations (with `.client()` method). Read a signal in a `get tools()` getter to change the tools after the chat is created.
 - `initialMessages?` - Initial messages array
 - `threadId?` - The only identity for this chat. Required when persistence is on. If omitted, minted after mount.
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-5.5' }`)

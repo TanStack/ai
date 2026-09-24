@@ -6,6 +6,7 @@ import {
   onScopeDispose,
   readonly,
   shallowRef,
+  toValue,
   watch,
 } from 'vue'
 import type {
@@ -151,7 +152,7 @@ export function useChat<
     onError: (err) => {
       options.onError?.(err)
     },
-    tools: options.tools,
+    tools: toValue(options.tools),
     ...(options.interrupts !== undefined && {
       interrupts: options.interrupts,
     }),
@@ -226,6 +227,13 @@ export function useChat<
         context: newContext,
         ...(newQueue !== undefined && { queue: newQueue }),
       })
+    },
+  )
+
+  watch(
+    () => toValue(options.tools),
+    (tools) => {
+      if (tools !== undefined) client.updateOptions({ tools })
     },
   )
 

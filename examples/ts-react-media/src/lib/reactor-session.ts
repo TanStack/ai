@@ -26,6 +26,15 @@ export function liveAcceptsSeedImage(model: string): boolean {
   return model === 'helios'
 }
 
+export function isRecorderUnavailable(error: unknown): boolean {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    return error.code === 'RECORDER_DISABLED'
+  }
+  return /recorder.*(disabled|not enabled)|RECORDER_DISABLED/i.test(
+    error instanceof Error ? error.message : String(error),
+  )
+}
+
 export function commandErrorMessage(data: unknown): string | null {
   if (typeof data === 'string' && data.length > 0) return data
   if (typeof data !== 'object' || data === null || !('reason' in data)) {

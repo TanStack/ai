@@ -1,7 +1,7 @@
 import { defineInterrupt, toolDefinition } from '@tanstack/ai/client'
 import { z } from 'zod'
 import type { ChatUIInterrupt } from '../src/ui'
-import type { QueuedMessage, UIMessage } from '../src/types'
+import type { QueuedMessage, SubagentHandle, UIMessage } from '../src/types'
 
 const getWeather = toolDefinition({
   name: 'getWeather',
@@ -37,6 +37,35 @@ export const chatOptions = {
   tools: [getWeather, purchaseItem],
   interrupts: [choosePlan],
   outputSchema: answerSchema,
+}
+
+const lookupFacts = toolDefinition({
+  name: 'lookupFacts',
+  description: 'Look up facts',
+  inputSchema: z.object({ topic: z.string() }),
+  outputSchema: z.object({ facts: z.array(z.string()) }),
+})
+
+const deleteDraft = toolDefinition({
+  name: 'deleteDraft',
+  description: 'Delete a draft',
+  needsApproval: true,
+  inputSchema: z.object({ id: z.string() }),
+})
+
+const pickTone = defineInterrupt({
+  id: 'pickTone',
+  payloadSchema: z.object({ options: z.array(z.string()) }),
+  responseSchema: z.string(),
+})
+
+/** `chatOptions` plus two child agents, each with its own tools. */
+export const subagentChatOptions = {
+  ...chatOptions,
+  subagents: [
+    { name: 'researcher', tools: [lookupFacts] },
+    { name: 'writer', tools: [deleteDraft], interrupts: [pickTone] },
+  ] as const,
 }
 
 function noop(): void {
@@ -206,10 +235,12 @@ export function createChatResult(init: {
   status?: 'ready' | 'submitted' | 'streaming' | 'error'
   queue?: Array<QueuedMessage>
   cancelQueued?: (id: string) => void
+  subagents?: Array<SubagentHandle>
 }) {
   const interrupts = init.interrupts ?? []
   return {
     messages: init.messages ?? [],
+    subagents: init.subagents ?? [],
     interrupts,
     pendingInterrupts: interrupts,
     error: init.error,

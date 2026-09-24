@@ -1,0 +1,27 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[webmcp-page] find a guitar",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "find_guitar",
+            "arguments": "{\"query\":\"guitar\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[webmcp-page] find a guitar",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "WEBMCP_PAGE_OK the page tool found a guitar"
+      }
+    }
+  ]
+}

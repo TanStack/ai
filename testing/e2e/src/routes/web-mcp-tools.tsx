@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { toolDefinition } from '@tanstack/ai'
-import { useWebMCPTools } from '@tanstack/ai-react'
+import { useRegisterWebMCPTools } from '@tanstack/ai-react'
 import { z } from 'zod'
 
 interface RegisteredWebMCPTool {
@@ -62,7 +62,7 @@ export const Route = createFileRoute('/web-mcp-tools')({
 })
 
 function ToolOwner() {
-  useWebMCPTools(tools, webMCPOptions)
+  useRegisterWebMCPTools(tools, webMCPOptions)
   return null
 }
 

@@ -15,7 +15,7 @@ Durable bookkeeping for a single run.
 optional cancelRequested?: boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:151](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L151)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:168](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L168)
 
 Set by an explicit out-of-band cancel, to be distinguished from a mere
 client disconnect (the two produce an identical TCP close, so intent is not
@@ -33,7 +33,7 @@ the run having stopped, and only the driver knows when it has.
 optional detachedSince?: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:141](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L141)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:158](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L158)
 
 Epoch ms when the last viewer detached; absent while someone is attached.
 Written by `withSandbox`'s detach path (`onAbort` in `@tanstack/ai-sandbox`'s
@@ -51,7 +51,7 @@ surfaces (see that method's doc comment).
 optional driverEpoch?: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:161](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L161)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:178](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L178)
 
 Monotonic fencing token for the run's driver. Bumped by each host that
 successfully claims the run (see `withRunClaim` in `@tanstack/ai-sandbox`),
@@ -69,7 +69,7 @@ loser nothing to read. Absent on a run that was never claimed.
 optional error?: RunError;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:120](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L120)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:137](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L137)
 
 ***
 
@@ -79,7 +79,32 @@ Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:120](https:
 optional finishedAt?: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:119](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L119)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:136](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L136)
+
+***
+
+### name?
+
+```ts
+optional name?: string;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:133](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L133)
+
+Agent name (`researcher`, `writer`) when this record is a subagent.
+
+***
+
+### parentRunId?
+
+```ts
+optional parentRunId?: string;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:125](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L125)
+
+Parent chat run that started this child, when this record is a subagent.
+Absent on the parent run itself.
 
 ***
 
@@ -99,7 +124,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:107](https:
 optional sandboxKey?: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:131](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L131)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:148](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L148)
 
 Compound sandbox key this run was bound to, when it ran in a sandbox.
 Recorded so a future reclaimer can identify the sandbox to tear down
@@ -117,7 +142,7 @@ destroying the sandbox. A backend must round-trip this field — see
 startedAt: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:118](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L118)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:135](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L135)
 
 ***
 
@@ -127,7 +152,21 @@ Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:118](https:
 status: RunStatus;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:117](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L117)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L134)
+
+***
+
+### subagentRunId?
+
+```ts
+optional subagentRunId?: string;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:131](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L131)
+
+The child's AG-UI subagentRunId, the id on its `SUBAGENT_*` chunks and on
+every chunk it streams. On a child record this equals `runId`. Absent on
+the parent run.
 
 ***
 
@@ -137,7 +176,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:117](https:
 threadId: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:116](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L116)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:120](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L120)
 
 Conversation this run belongs to — the `Scope.threadId`.
 
@@ -145,6 +184,10 @@ Generation jobs (a one-shot `generate()` with no conversation) must not
 reuse this record by faking `threadId = requestId`; they need a separate
 job store. `withGenerationPersistence` currently does exactly that and
 labels itself a stopgap — do not copy it.
+
+A subagent child record stores `subagent:<subagentRunId>` here, the key of
+its own transcript, so `findActiveRun` and `listByThread` on the
+conversation never return children. Use `listByParentRun`.
 
 ***
 
@@ -154,4 +197,4 @@ labels itself a stopgap — do not copy it.
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:121](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L121)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:138](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L138)
