@@ -28,6 +28,7 @@ describe('mount hydration failure is surfaced (persistence: true)', () => {
 
     const connection: ResumableConnectConnectionAdapter = {
       connect: async function* () {},
+      joinRun: async function* () {},
       hydrate: () => Promise.reject(new Error('server returned 500')),
     }
 
@@ -43,8 +44,9 @@ describe('mount hydration failure is surfaced (persistence: true)', () => {
     await vi.waitFor(() => {
       expect(onError).toHaveBeenCalledTimes(1)
     })
-    expect(onError.mock.calls[0][0]).toBeInstanceOf(Error)
-    expect(onError.mock.calls[0][0].message).toBe('server returned 500')
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'server returned 500' }),
+    )
     expect(errors.at(-1)).toBeInstanceOf(Error)
     expect(client.getError()?.message).toBe('server returned 500')
     expect(client.getStatus()).toBe('error')
@@ -62,6 +64,7 @@ describe('mount hydration failure is surfaced (persistence: true)', () => {
 
     const connection: ResumableConnectConnectionAdapter = {
       connect: async function* () {},
+      joinRun: async function* () {},
       hydrate: () => gate,
     }
 
@@ -89,6 +92,7 @@ describe('mount hydration failure is surfaced (persistence: true)', () => {
 
     const connection: ResumableConnectConnectionAdapter = {
       connect: async function* () {},
+      joinRun: async function* () {},
       hydrate: () => Promise.reject(new ByokMissingError('openai')),
     }
 
@@ -103,7 +107,7 @@ describe('mount hydration failure is surfaced (persistence: true)', () => {
     await vi.waitFor(() => {
       expect(onError).toHaveBeenCalledTimes(1)
     })
-    expect(onError.mock.calls[0][0]).toBeInstanceOf(ByokMissingError)
+    expect(onError).toHaveBeenCalledWith(expect.any(ByokMissingError))
     expect(byok.getSnapshot().prompt).toEqual({
       provider: 'openai',
       reason: 'missing',
@@ -116,6 +120,7 @@ describe('mount hydration failure is surfaced (persistence: true)', () => {
     let attempt = 0
     const connection: ResumableConnectConnectionAdapter = {
       connect: async function* () {},
+      joinRun: async function* () {},
       hydrate: () =>
         ++attempt === 1
           ? Promise.reject(new Error('server returned 500'))
@@ -149,6 +154,7 @@ describe('mount hydration failure is surfaced (persistence: true)', () => {
 
     const connection: ResumableConnectConnectionAdapter = {
       connect: async function* () {},
+      joinRun: async function* () {},
       hydrate: () =>
         Promise.resolve({ messages: [], activeRun: null, interrupts: null }),
     }
