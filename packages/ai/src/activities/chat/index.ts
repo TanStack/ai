@@ -3930,7 +3930,16 @@ class TextEngine<
     const yieldChunks = this.finalStructuredOutput.yieldChunks
     const source = this.finalStructuredOutput.source ?? 'text'
 
-    if (source === 'event') {
+    // A final turn cut off at the output cap holds truncated JSON, or none
+    // for a reasoning model that spent the budget. Report the token limit
+    // instead of a parse or missing-result error (#1426).
+    if (this.lastFinishReason === 'length') {
+      this.finalizationError = {
+        message:
+          'The response was cut off because the maximum token limit was reached (finish_reason=length); raise the output token limit.',
+        code: 'max_tokens',
+      }
+    } else if (source === 'event') {
       if (!this.structuredOutputResult) {
         this.finalizationError = {
           message: 'missing structured result',
