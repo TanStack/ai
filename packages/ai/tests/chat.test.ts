@@ -1853,7 +1853,8 @@ describe('chat()', () => {
         id: 'stale-denial',
         name: 'deleteData',
         createdAt: preservedCreatedAt,
-        error: 'legacy denial',
+        // The new denial's error text replaces the stale one (#1471).
+        error: 'User declined tool execution',
         content: JSON.stringify({ error: 'User declined tool execution' }),
         metadata: {
           traceId: 'keep-me',
