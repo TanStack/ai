@@ -17,14 +17,14 @@ export default defineConfig({
   optimizeDeps: {
     // The SDK loads wasm with a relative `import('./wasm/reactor_wasm.js')`
     // marked `@vite-ignore`. Pre-bundling moves the JS and that import 404s.
-    exclude: ['@reactor-team/js-sdk'],
+    exclude: ['@reactor-team/js-sdk', '@sparkjsdev/spark'],
     // Nested CJS deps of the excluded ESM package. Without this, the browser
     // loads awaitqueue as raw CJS and `import { AwaitQueue }` fails.
     include: ['awaitqueue', '@reactor-team/js-sdk > awaitqueue'],
   },
   assetsInclude: ['**/*.wasm'],
   ssr: {
-    external: ['@reactor-team/js-sdk'],
+    external: ['@reactor-team/js-sdk', '@sparkjsdev/spark', 'three'],
   },
   plugins: [
     {

@@ -322,9 +322,12 @@ export async function POST(request: Request) {
 `provider` controls which upstream providers may serve the request and in what order. Pin one provider and disable fallbacks:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
 const stream = chat({
   adapter: openRouterText("meta-llama/llama-4-maverick"),
-  messages,
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     provider: {
       order: ["groq", "together"], // provider slugs, in priority order
@@ -349,9 +352,12 @@ Provider slugs are the lowercase ids shown on OpenRouter's model pages (`"anthro
 `variant` appends OpenRouter's `:variant` suffix to the model id. It is adapter metadata only and is never sent in the request body:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
 const stream = chat({
   adapter: openRouterText("deepseek/deepseek-v4-pro"),
-  messages,
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     variant: "free", // requests deepseek/deepseek-v4-pro:free
   },
@@ -365,9 +371,12 @@ Accepted values are `"free"`, `"nitro"`, `"online"`, `"exacto"`, `"extended"`, a
 `plugins` enables OpenRouter's request-level plugins. Each entry is identified by `id`, with plugin-specific options alongside:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
 const stream = chat({
   adapter: openRouterText("openai/gpt-6-astra"),
-  messages,
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     plugins: [{ id: "web", maxResults: 5 }],
   },
@@ -381,9 +390,12 @@ Plugin ids include `web`, `file-parser`, `response-healing`, `moderation`, and `
 `reasoning` is OpenRouter's unified reasoning configuration:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
 const stream = chat({
   adapter: openRouterText("anthropic/claude-sonnet-5"),
-  messages,
+  messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     reasoning: { effort: "high" },
   },

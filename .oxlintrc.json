@@ -18,7 +18,8 @@
     "**/coverage/**",
     "**/dist/**",
     "**/snap/**",
-    "**/vite.config.*.timestamp-*.*"
+    "**/vite.config.*.timestamp-*.*",
+    "**/src/generated/**"
   ],
   "rules": {
     "unused-imports/no-unused-imports": "warn"

@@ -111,6 +111,7 @@ import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
+import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
@@ -650,6 +651,12 @@ const ApiAnthropicSkillsWireRoute = ApiAnthropicSkillsWireRouteImport.update({
   path: '/api/anthropic-skills-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnthropicMultiTurnStructuredWireRoute =
+  ApiAnthropicMultiTurnStructuredWireRouteImport.update({
+    id: '/api/anthropic-multi-turn-structured-wire',
+    path: '/api/anthropic-multi-turn-structured-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicOpus5CombinedWireRoute =
   ApiAnthropicOpus5CombinedWireRouteImport.update({
     id: '/api/anthropic-opus-5-combined-wire',
@@ -725,6 +732,7 @@ export interface FileRoutesByFullPath {
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
@@ -837,6 +845,7 @@ export interface FileRoutesByTo {
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
@@ -950,6 +959,7 @@ export interface FileRoutesById {
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
@@ -1064,6 +1074,7 @@ export interface FileRouteTypes {
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-structured-usage'
@@ -1176,6 +1187,7 @@ export interface FileRouteTypes {
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-structured-usage'
@@ -1288,6 +1300,7 @@ export interface FileRouteTypes {
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-structured-usage'
@@ -1401,6 +1414,7 @@ export interface RootRouteChildren {
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
+  ApiAnthropicMultiTurnStructuredWireRoute: typeof ApiAnthropicMultiTurnStructuredWireRoute
   ApiAnthropicOpus5CombinedWireRoute: typeof ApiAnthropicOpus5CombinedWireRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
   ApiAnthropicStructuredUsageRoute: typeof ApiAnthropicStructuredUsageRoute
@@ -2192,6 +2206,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAnthropicSkillsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/anthropic-multi-turn-structured-wire': {
+      id: '/api/anthropic-multi-turn-structured-wire'
+      path: '/api/anthropic-multi-turn-structured-wire'
+      fullPath: '/api/anthropic-multi-turn-structured-wire'
+      preLoaderRoute: typeof ApiAnthropicMultiTurnStructuredWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/anthropic-opus-5-combined-wire': {
       id: '/api/anthropic-opus-5-combined-wire'
       path: '/api/anthropic-opus-5-combined-wire'
@@ -2342,6 +2363,8 @@ const rootRouteChildren: RootRouteChildren = {
   WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
+  ApiAnthropicMultiTurnStructuredWireRoute:
+    ApiAnthropicMultiTurnStructuredWireRoute,
   ApiAnthropicOpus5CombinedWireRoute: ApiAnthropicOpus5CombinedWireRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
   ApiAnthropicStructuredUsageRoute: ApiAnthropicStructuredUsageRoute,
