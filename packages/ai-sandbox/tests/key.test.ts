@@ -59,6 +59,20 @@ describe('computeWorkspaceHash', () => {
     expect(a).toBe(b)
   })
 
+  it('excludes the git source token (#1468)', () => {
+    const a = computeWorkspaceHash(
+      defineWorkspace({
+        source: githubRepo({ repo: 'TanStack/ai', auth: { token: 'old' } }),
+      }),
+    )
+    const b = computeWorkspaceHash(
+      defineWorkspace({
+        source: githubRepo({ repo: 'TanStack/ai', auth: { token: 'new' } }),
+      }),
+    )
+    expect(a).toBe(b)
+  })
+
   it('changes when setup/scripts change', () => {
     const a = computeWorkspaceHash(
       defineWorkspace({

@@ -181,6 +181,35 @@ describe('OpenRouterEvaluateAdapter', () => {
     })
   })
 
+  it('maps usage.cost into meta.usage (#1456)', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        model: 'typesafe/jev-1.13.0',
+        answers: {
+          isUrgent: { type: 'noul', noul: 0.2 },
+        },
+        usage: { cost: 0.000019992, input_tokens: 476, output_tokens: 70 },
+      }),
+    )
+
+    const result = await decide({
+      adapter: adapter(),
+      state,
+      questions: {
+        isUrgent: boolean({
+          instructions: 'Does this message convey urgency?',
+        }),
+      },
+    })
+
+    expect(result.meta.usage).toEqual({
+      promptTokens: 476,
+      completionTokens: 70,
+      totalTokens: 546,
+      cost: 0.000019992,
+    })
+  })
+
   it('throws on a non-OK response', async () => {
     fetchMock.mockResolvedValue(
       new Response('bad request', { status: 400, statusText: 'Bad Request' }),
