@@ -2,7 +2,12 @@ import { normalizeToolResult } from '../../../utilities/tool-result'
 import { tanstackMetadata } from '../../../utilities/merge-metadata'
 import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
-import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
+import {
+  StandardSchemaValidationError,
+  isStandardSchema,
+  parseWithStandardSchema,
+  validateWithStandardSchema,
+} from './schema-converter'
 import type { ToolApprovalResolution } from '../../../interrupts'
 import type {
   AnyTool,
@@ -20,6 +25,7 @@ import type {
   ToolCallStartEvent,
   ToolExecutionContext,
   ToolInputResponse,
+  ToolResultOutcome,
   ToolOutputState,
 } from '../../../types'
 import type {
@@ -463,6 +469,8 @@ export interface ToolResult {
   toolName: string
   result: any
   state?: 'output-available' | 'output-error'
+  /** Set when the user or middleware cancelled or denied the tool call; state is output-error. */
+  outcome?: ToolResultOutcome
   /** Duration of tool execution in milliseconds (only for server-executed tools) */
   duration?: number
   /**
@@ -518,6 +526,7 @@ function isMcpInputRequired(value: unknown): value is McpInputRequiredThrow {
 }
 
 export interface ToolResumeExecutionState {
+  clientToolErrors?: ReadonlyMap<string, string>
   deniedToolResults?: ReadonlyMap<string, unknown>
   cancelledToolCallIds?: ReadonlySet<string>
   /** Answers to `mcp_input` interrupts, by tool call id. */
@@ -812,17 +821,35 @@ export async function* executeServerTool<TContext = unknown>(
   }
 }
 
-function buildClientToolResult(
+async function buildClientToolResult(
   toolCallId: string,
   toolName: string,
   tool: AnyTool,
   rawResult: unknown,
   input?: unknown,
-): ToolResult {
+  errorText?: string,
+): Promise<ToolResult> {
+  if (errorText !== undefined) {
+    return {
+      toolCallId,
+      toolName,
+      result: { error: errorText },
+      input,
+      state: 'output-error',
+    }
+  }
+
   try {
     let result = rawResult
     if (tool.outputSchema && isStandardSchema(tool.outputSchema)) {
-      result = parseWithStandardSchema(tool.outputSchema, result)
+      const validation = await validateWithStandardSchema<unknown>(
+        tool.outputSchema,
+        result,
+      )
+      if (!validation.success) {
+        throw new StandardSchemaValidationError(validation.issues)
+      }
+      result = validation.data
     }
 
     const parsed =
@@ -936,6 +963,7 @@ export async function* executeToolCalls<TContext = unknown>(
         toolName,
         result: { error: 'Tool execution cancelled' },
         state: 'output-error',
+        outcome: 'cancelled',
       })
       continue
     }
@@ -1027,14 +1055,16 @@ export async function* executeToolCalls<TContext = unknown>(
           if (approved) {
             input = editedApprovalArgs(resolution) ?? input
             // Approved - check if client has executed
-            if (clientResults.has(toolCall.id)) {
+            const clientError = resumeState?.clientToolErrors?.get(toolCall.id)
+            if (clientResults.has(toolCall.id) || clientError !== undefined) {
               results.push(
-                buildClientToolResult(
+                await buildClientToolResult(
                   toolCall.id,
                   toolName,
                   tool,
                   clientResults.get(toolCall.id),
                   input,
+                  clientError,
                 ),
               )
             } else {
@@ -1055,6 +1085,7 @@ export async function* executeToolCalls<TContext = unknown>(
                 deniedApprovalResult(resolution),
               input,
               state: 'output-error',
+              outcome: 'denied',
             })
           }
         } else {
@@ -1068,14 +1099,16 @@ export async function* executeToolCalls<TContext = unknown>(
         }
       } else {
         // No approval needed - check if client has executed
-        if (clientResults.has(toolCall.id)) {
+        const clientError = resumeState?.clientToolErrors?.get(toolCall.id)
+        if (clientResults.has(toolCall.id) || clientError !== undefined) {
           results.push(
-            buildClientToolResult(
+            await buildClientToolResult(
               toolCall.id,
               toolName,
               tool,
               clientResults.get(toolCall.id),
               input,
+              clientError,
             ),
           )
         } else {
@@ -1137,6 +1170,7 @@ export async function* executeToolCalls<TContext = unknown>(
               deniedApprovalResult(resolution),
             input,
             state: 'output-error',
+            outcome: 'denied',
           })
         }
       } else {

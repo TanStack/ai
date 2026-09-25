@@ -36,6 +36,32 @@ test.describe('Tool Error Handling', () => {
     expect(failingCall?.state).toBe('error')
   })
 
+  test('client tool that throws produces an error result and chat continues', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'client-tool-error', testId, aimockPort)
+    await runTest(page)
+    await waitForTestComplete(page, 15000, 1)
+
+    const metadata = await getMetadata(page)
+    expect(metadata.hasError).toBe('false')
+
+    const toolCalls = await getToolCalls(page)
+    expect(toolCalls).toContainEqual(
+      expect.objectContaining({ name: 'fail_client_tool', state: 'error' }),
+    )
+
+    const messages = await getMessages(page)
+    const responseText = messages
+      .flatMap((message) => message.parts)
+      .filter((part) => part.type === 'text')
+      .map((part) => part.content)
+      .join(' ')
+    expect(responseText).toContain('Recovered from client tool failure.')
+  })
+
   test('malformed tool arguments produce an error result and chat continues', async ({
     page,
     testId,

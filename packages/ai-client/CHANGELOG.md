@@ -1,5 +1,16 @@
 # @tanstack/ai-client
 
+## 0.35.2
+
+### Patch Changes
+
+- [#1202](https://github.com/TanStack/ai/pull/1202) [`dc11e34`](https://github.com/TanStack/ai/commit/dc11e34c3a37cdcd94f24293d25efad423b68a41) - Process live chat chunks without waiting for a separate macrotask after each chunk.
+
+- [#1488](https://github.com/TanStack/ai/pull/1488) [`73f25f7`](https://github.com/TanStack/ai/commit/73f25f7c60ac022bcfd1cbb0b95c9e03787ee1e2) - Rejoin an active continuation run on hydrate. When hydrate reports an active run and a pending interrupt from a different (parent) run, the client now joins the active run with `joinRun`. Before, it restored the parent interrupt, so the reply never appeared and the thread stayed parked. When both ids are the same (a run that just paused), the interrupt still wins.
+
+- Updated dependencies [[`a450d00`](https://github.com/TanStack/ai/commit/a450d007a039610994342dd9c3387f880a4eb992), [`c54e20c`](https://github.com/TanStack/ai/commit/c54e20cf5be8e1f73e0be661e242391fa0e4633e), [`a56192e`](https://github.com/TanStack/ai/commit/a56192eafa0da2ccca2d576dc4371b196355c605), [`740ae66`](https://github.com/TanStack/ai/commit/740ae6664d358f00deddf72319ef947fe3bb0935), [`5099a32`](https://github.com/TanStack/ai/commit/5099a32cbfb6c77e335769793415fe7e90bb17d8), [`820429f`](https://github.com/TanStack/ai/commit/820429fa9bea8ba220cf073406760475ac07b112), [`0abae97`](https://github.com/TanStack/ai/commit/0abae97f94fe4d37523f8a6427972ae7fe3b7fde), [`8c68c2d`](https://github.com/TanStack/ai/commit/8c68c2d9750bcc818201089bbbb7d90aa26d99a1)]:
+  - @tanstack/ai@0.62.0
+
 ## 0.35.1
 
 ### Patch Changes

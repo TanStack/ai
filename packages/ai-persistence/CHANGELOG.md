@@ -1,5 +1,20 @@
 # @tanstack/ai-persistence
 
+## 0.7.0
+
+### Minor Changes
+
+- [#1504](https://github.com/TanStack/ai/pull/1504) [`5099a32`](https://github.com/TanStack/ai/commit/5099a32cbfb6c77e335769793415fe7e90bb17d8) - Show how long each turn took after a reload.
+  - `withPersistence` records the run that produced each assistant message on `metadata.tanstack.run.id`.
+  - `reconstructChat(persistence, request, { includeRuns: true })` adds the finished run's `startedAt` and `finishedAt` to `metadata.tanstack.run` on those messages, and returns a top-level `runs` list. It needs a `runs` store that implements `listByThread`.
+  - `uiMessageToModelMessages` and `uiMessagesToWire` keep `metadata.tanstack.run.id`, so the tag survives the round trip from the client.
+  - `runPersistenceConformance` has a new `checks` option with two opt-in checks: `'messages.metadata'` and `'runs.listByThread.state'`. They are off by default, so an adapter that passed before still passes.
+
+### Patch Changes
+
+- Updated dependencies [[`a450d00`](https://github.com/TanStack/ai/commit/a450d007a039610994342dd9c3387f880a4eb992), [`c54e20c`](https://github.com/TanStack/ai/commit/c54e20cf5be8e1f73e0be661e242391fa0e4633e), [`a56192e`](https://github.com/TanStack/ai/commit/a56192eafa0da2ccca2d576dc4371b196355c605), [`740ae66`](https://github.com/TanStack/ai/commit/740ae6664d358f00deddf72319ef947fe3bb0935), [`5099a32`](https://github.com/TanStack/ai/commit/5099a32cbfb6c77e335769793415fe7e90bb17d8), [`820429f`](https://github.com/TanStack/ai/commit/820429fa9bea8ba220cf073406760475ac07b112), [`0abae97`](https://github.com/TanStack/ai/commit/0abae97f94fe4d37523f8a6427972ae7fe3b7fde), [`8c68c2d`](https://github.com/TanStack/ai/commit/8c68c2d9750bcc818201089bbbb7d90aa26d99a1)]:
+  - @tanstack/ai@0.62.0
+
 ## 0.6.7
 
 ### Patch Changes

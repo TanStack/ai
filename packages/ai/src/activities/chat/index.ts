@@ -882,6 +882,7 @@ class TextEngine<
   private readonly initialClientToolResults: Map<string, any>
   private readonly resumeApprovals = new Map<string, ToolApprovalResolution>()
   private readonly resumeClientToolResults = new Map<string, any>()
+  private readonly resumeClientToolErrors = new Map<string, string>()
   private readonly resumeDeniedToolResults = new Map<string, unknown>()
   private readonly resumeCancelledToolCallIds = new Set<string>()
   private readonly resumeInputResponses = new Map<string, ToolInputResponse>()
@@ -2196,6 +2197,7 @@ class TextEngine<
       this.middlewareCtx.context,
       this.toolAbortSignal,
       {
+        clientToolErrors: this.resumeClientToolErrors,
         deniedToolResults: this.resumeDeniedToolResults,
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
         inputResponses: this.resumeInputResponses,
@@ -2383,6 +2385,7 @@ class TextEngine<
       this.middlewareCtx.context,
       this.toolAbortSignal,
       {
+        clientToolErrors: this.resumeClientToolErrors,
         deniedToolResults: this.resumeDeniedToolResults,
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
         inputResponses: this.resumeInputResponses,
@@ -3342,6 +3345,7 @@ class TextEngine<
       } else if (
         !tool.execute &&
         !clientToolResults.has(toolCall.id) &&
+        !this.resumeClientToolErrors.has(toolCall.id) &&
         !this.resumeCancelledToolCallIds.has(toolCall.id)
       ) {
         clientRequests.push({
@@ -3449,9 +3453,15 @@ class TextEngine<
         content: wireContent,
         role: 'tool' as const,
       }
+      // An outcome always comes with output-error.
       chunks.push(
         (result.state === 'output-error'
-          ? withTanstackMetadata(resultChunk, { state: result.state })
+          ? withTanstackMetadata(resultChunk, {
+              state: result.state,
+              ...(result.outcome !== undefined && {
+                toolResultOutcome: result.outcome,
+              }),
+            })
           : resultChunk) as StreamChunk,
       )
 
@@ -3472,22 +3482,63 @@ class TextEngine<
           return false
         }
       })
+      const isDeniedResult = result.outcome === 'denied'
+      const existingToolResultIdx = isDeniedResult
+        ? this.messages.findIndex(
+            (message) =>
+              message.role === 'tool' &&
+              message.toolCallId === result.toolCallId,
+          )
+        : -1
+      const resultMessageIdx =
+        existingToolResultIdx >= 0 ? existingToolResultIdx : placeholderIdx
 
-      const newToolMessage: ModelMessage = {
-        role: 'tool',
-        content,
-        toolCallId: result.toolCallId,
-        ...(result.state === 'output-error' && {
-          error: toolResultErrorText(parseToolOutput(wireContent)),
-        }),
+      // Only a denied result keeps the old message's fields. A replaced
+      // pendingExecution placeholder must not leak into the real result.
+      const existingToolMessage =
+        existingToolResultIdx >= 0
+          ? this.messages[existingToolResultIdx]
+          : undefined
+      const errorField = result.state === 'output-error' && {
+        error: toolResultErrorText(parseToolOutput(wireContent)),
       }
+      const replacementMessage: ModelMessage =
+        existingToolMessage?.role === 'tool'
+          ? {
+              ...existingToolMessage,
+              content,
+              toolCallId: result.toolCallId,
+              ...errorField,
+            }
+          : {
+              role: 'tool',
+              content,
+              toolCallId: result.toolCallId,
+              ...errorField,
+            }
+      const newToolMessage: ModelMessage =
+        result.outcome !== undefined
+          ? withTanstackMetadata(replacementMessage, {
+              toolResultOutcome: result.outcome,
+            })
+          : replacementMessage
 
-      if (placeholderIdx >= 0) {
-        this.messages = [
-          ...this.messages.slice(0, placeholderIdx),
+      if (resultMessageIdx >= 0) {
+        const replacedMessages = [
+          ...this.messages.slice(0, resultMessageIdx),
           newToolMessage,
-          ...this.messages.slice(placeholderIdx + 1),
+          ...this.messages.slice(resultMessageIdx + 1),
         ]
+        this.messages = isDeniedResult
+          ? replacedMessages.filter(
+              (message, index) =>
+                index === resultMessageIdx ||
+                !(
+                  message.role === 'tool' &&
+                  message.toolCallId === result.toolCallId
+                ),
+            )
+          : replacedMessages
       } else {
         this.messages = [...this.messages, newToolMessage]
       }
@@ -3518,7 +3569,10 @@ class TextEngine<
         }
 
         // Only mark as complete if NOT pending execution
-        if (!hasPendingExecution) {
+        if (
+          !hasPendingExecution &&
+          !this.resumeDeniedToolResults.has(message.toolCallId)
+        ) {
           completedToolIds.add(message.toolCallId)
         }
       }
@@ -4328,6 +4382,7 @@ class TextEngine<
       resumeToolState: {
         approvals: this.resumeApprovals,
         clientToolResults: this.resumeClientToolResults,
+        clientToolErrors: this.resumeClientToolErrors,
         deniedToolResults: this.resumeDeniedToolResults,
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
       },
@@ -4578,6 +4633,7 @@ class TextEngine<
         this.earlyTermination = true
       } else if (policy.toolResume === 'cancel') {
         for (const request of pendingToolCalls) {
+          if (this.resumeDeniedToolResults.has(request.id)) continue
           this.resumeCancelledToolCallIds.add(request.id)
         }
       }
@@ -4719,6 +4775,11 @@ class TextEngine<
         this.resumeClientToolResults.set(toolCallId, result)
       }
     }
+    if (state?.clientToolErrors) {
+      for (const [toolCallId, errorText] of state.clientToolErrors) {
+        this.resumeClientToolErrors.set(toolCallId, errorText)
+      }
+    }
     if (state?.deniedToolResults) {
       for (const [toolCallId, result] of state.deniedToolResults) {
         this.resumeDeniedToolResults.set(toolCallId, result)
@@ -4778,6 +4839,7 @@ class TextEngine<
       this.earlyTermination = true
     } else if (policy.toolResume === 'cancel') {
       for (const toolCall of this.getPendingToolCallsFromMessages()) {
+        if (this.resumeDeniedToolResults.has(toolCall.id)) continue
         this.resumeCancelledToolCallIds.add(toolCall.id)
       }
     }
