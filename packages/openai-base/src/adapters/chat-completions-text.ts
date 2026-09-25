@@ -11,9 +11,15 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
-import { makeStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
+import {
+  makeStructuredOutputCompatibleWithMap,
+  warnStrictFallback,
+} from '../utils/schema-converter'
 import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
-import type { StructuredOutputCompatibility } from '../utils/schema-converter'
+import type {
+  OpenAIBaseTextAdapterOptions,
+  StructuredOutputCompatibility,
+} from '../utils/schema-converter'
 import { buildChatCompletionsUsage } from '../usage'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
@@ -67,10 +73,19 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   readonly name: string
   protected client: OpenAI
 
-  constructor(model: TModel, name: string, client: OpenAI) {
+  /** See {@link OpenAIBaseTextAdapterOptions.strictFallbackWarning}. */
+  protected readonly strictFallbackWarning: boolean
+
+  constructor(
+    model: TModel,
+    name: string,
+    client: OpenAI,
+    options: OpenAIBaseTextAdapterOptions = {},
+  ) {
     super({}, model)
     this.name = name
     this.client = client
+    this.strictFallbackWarning = options.strictFallbackWarning ?? true
   }
 
   async *chatStream(
@@ -1220,6 +1235,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions,
   ): ChatCompletionCreateParamsStreaming {
+    if (this.strictFallbackWarning) {
+      warnStrictFallback(options.tools, options.logger)
+    }
     const tools = options.tools
       ? convertToolsToChatCompletionsFormat(
           options.tools,
