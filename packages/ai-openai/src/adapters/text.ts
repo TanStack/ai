@@ -1,5 +1,8 @@
 import OpenAI from 'openai'
-import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseResponsesTextAdapter,
+  warnStrictFallback,
+} from '@tanstack/openai-base'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
@@ -19,11 +22,13 @@ import type {
 } from '../text/text-provider-options'
 import type { OpenAIMessageMetadataByModality } from '../message-types'
 import type { OpenAIClientConfig } from '../utils/client'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
 /**
  * Configuration for OpenAI text adapter
  */
-export interface OpenAITextConfig extends OpenAIClientConfig {}
+export interface OpenAITextConfig
+  extends OpenAIClientConfig, OpenAIBaseTextAdapterOptions {}
 
 /**
  * Alias for TextProviderOptions
@@ -99,7 +104,7 @@ export class OpenAITextAdapter<
   override readonly supportsFileSources = true
 
   constructor(config: OpenAITextConfig, model: TModel) {
-    super(model, 'openai', new OpenAI(config))
+    super(model, 'openai', new OpenAI(config), config)
   }
 
   /**
@@ -135,6 +140,9 @@ export class OpenAITextAdapter<
       tools: undefined,
     })
 
+    if (this.strictFallbackWarning) {
+      warnStrictFallback(options.tools, options.logger)
+    }
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)
       : undefined

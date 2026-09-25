@@ -149,6 +149,57 @@ describe('OpenAIBaseResponsesTextAdapter.structuredOutputStream', () => {
       expect(complete!.value.raw).toBe(json)
     })
 
+    it('finishes on response.completed without waiting for EOF (#1445)', async () => {
+      const chunks = [
+        eventCreated(),
+        eventOutputTextDelta('{"name":"John","age":30}'),
+        eventCompleted(),
+      ]
+      let returned = false
+      const openStream: AsyncIterable<Record<string, unknown>> = {
+        [Symbol.asyncIterator]() {
+          let index = 0
+          return {
+            next() {
+              if (index < chunks.length) {
+                return Promise.resolve({ value: chunks[index++]!, done: false })
+              }
+              // The HTTP body stays open: no more events and no EOF.
+              return new Promise(() => {})
+            },
+            return() {
+              returned = true
+              return Promise.resolve({ value: undefined, done: true })
+            },
+          }
+        },
+      }
+      mockCreate = vi.fn().mockResolvedValue(openStream)
+      const adapter = new TestAdapter()
+
+      const outcome = await Promise.race([
+        collect(
+          adapter.structuredOutputStream!({
+            chatOptions: {
+              model: 'test-model',
+              messages: [{ role: 'user', content: 'extract' }],
+              logger: testLogger,
+            },
+            outputSchema: personSchema,
+          }),
+        ),
+        new Promise<'timeout'>((resolve) =>
+          setTimeout(() => resolve('timeout'), 1000),
+        ),
+      ])
+
+      expect(outcome).not.toBe('timeout')
+      if (outcome !== 'timeout') {
+        expect(outcome.at(-1)?.type).toBe('RUN_FINISHED')
+      }
+      expect(returned).toBe(true)
+    })
+
     // response.reasoning.delta is the pre-2025-07 spec name for
     // response.reasoning_text.delta; providers frozen on the older spec
     // (e.g. Amazon Bedrock's Mantle endpoint serving Gemma) still emit it.

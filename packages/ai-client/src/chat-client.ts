@@ -1173,7 +1173,12 @@ export class ChatClient<
         this.processor.setMessages(windowMessages)
         this.rememberServerMessageIds(windowMessages)
       }
-      if (result.interrupts && result.interrupts.pending.length > 0) {
+      if (
+        result.interrupts &&
+        result.interrupts.pending.length > 0 &&
+        (!result.activeRun?.runId ||
+          result.activeRun.runId === result.interrupts.runId)
+      ) {
         // Pending interrupt = the thread is paused awaiting a human decision, so
         // there is nothing to tail (no chunks stream until it resolves). Restore
         // the approval/wait from the SERVER — identical to reconstructing it from
@@ -1183,7 +1188,9 @@ export class ChatClient<
         // on the server, so a racing hydrate reports both an `activeRun` cursor
         // AND the pending interrupt. Tailing that "active" run would drop the
         // approval card (and hang on a stream that never comes), so the interrupt
-        // always wins.
+        // wins over that same run. A DIFFERENT active run is the continuation
+        // that answered this interrupt: the server commits the answer only when
+        // that run finishes, so join it (see the `else` branch below).
         this.applyResumeSnapshot({
           resumeState: {
             threadId: this.threadId,

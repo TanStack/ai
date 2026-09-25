@@ -18,6 +18,10 @@ const generationHooks = [
   { displayName: 'Summary Studio', hookName: 'useSummarize' },
   { displayName: 'Video Studio', hookName: 'useGenerateVideo' },
 ] as const
+const customGeneration = {
+  displayName: 'Custom Generation',
+  hookName: 'useGeneration',
+} as const
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.clear())
@@ -29,11 +33,13 @@ test('generation hooks register all specialized hooks with generation-only detai
   aimockPort,
 }) => {
   await page.goto(devtoolsUrl('/devtools-generation-hooks', testId, aimockPort))
+  await waitForDevtoolsHarness(page)
+  await page.getByTestId('mount-custom-generation').click()
   await openDevtools(page)
-  await expectHookNames(
-    page,
-    generationHooks.map((hook) => hook.displayName),
-  )
+  await expectHookNames(page, [
+    ...generationHooks.map((hook) => hook.displayName),
+    customGeneration.displayName,
+  ])
 
   for (const hook of generationHooks) {
     await selectHook(page, hook.displayName)
@@ -58,6 +64,11 @@ test('generation hooks register all specialized hooks with generation-only detai
       'No output yet.',
     )
   }
+
+  await selectHook(page, customGeneration.displayName)
+  await expect(page.getByTestId('ai-devtools-hook-technical-name')).toHaveText(
+    customGeneration.hookName,
+  )
 })
 
 test('generation run history and output pane preserve ordered runs for every hook', async ({

@@ -41,6 +41,34 @@ const lookupTool = toolDefinition({
 }).client()
 
 const runningByThread = new Map<string, string>()
+// Issue #1429: the pending interrupt of the run that the held continuation
+// answers. The persistence store commits it only when the continuation ends.
+const parentInterruptByThread = new Map<
+  string,
+  { runId: string; pending: Array<unknown> }
+>()
+
+// User text for the #1429 scenario: the first run pauses on the client tool,
+// and the continuation run (not the first run) is held open.
+const CONTINUATION_SCENARIO = 'continue'
+
+async function* recordInterrupt(
+  stream: AsyncIterable<AdapterYieldChunk>,
+  threadId: string,
+): AsyncGenerator<AdapterYieldChunk> {
+  for await (const chunk of stream) {
+    if (
+      chunk.type === EventType.RUN_FINISHED &&
+      chunk.outcome?.type === 'interrupt'
+    ) {
+      parentInterruptByThread.set(threadId, {
+        runId: chunk.runId,
+        pending: chunk.outcome.interrupts,
+      })
+    }
+    yield chunk
+  }
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -220,8 +248,11 @@ export const Route = createFileRoute('/api/join-run-client-tool')({
         }
 
         const isResume = (params.resume?.length ?? 0) > 0
-        const shouldHold =
-          !isResume && paramsLastUserText(params.messages) !== 'later'
+        const userText = paramsLastUserText(params.messages)
+        const isContinuationScenario = userText === CONTINUATION_SCENARIO
+        const shouldHold = isContinuationScenario
+          ? isResume
+          : !isResume && userText !== 'later'
 
         if (shouldHold) {
           runningByThread.set(params.threadId, params.runId)
@@ -243,8 +274,11 @@ export const Route = createFileRoute('/api/join-run-client-tool')({
         const body = shouldHold
           ? holdAfter(stream, request.signal, () => {
               runningByThread.delete(params.threadId)
+              parentInterruptByThread.delete(params.threadId)
             })
-          : stream
+          : isContinuationScenario
+            ? recordInterrupt(stream, params.threadId)
+            : stream
 
         return toServerSentEventsResponse(body, {
           durability: { adapter: memoryStream(request) },
@@ -265,7 +299,7 @@ export const Route = createFileRoute('/api/join-run-client-tool')({
           ? {
               messages: [],
               activeRun: { runId: runningRunId },
-              interrupts: null,
+              interrupts: parentInterruptByThread.get(threadId) ?? null,
             }
           : { messages: [], activeRun: null, interrupts: null }
         return new Response(JSON.stringify(body), {
