@@ -1,15 +1,33 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
 # @tanstack/ai-parallel
 
 Give a TanStack AI agent current web sources and relevant excerpts through the [Parallel Search API](https://docs.parallel.ai/api-reference/search/search).
 
-This package is available from the TanStack AI workspace.
-
 ## Set up
 
-1. Install dependencies from the repository root:
+1. Install the packages:
 
    ```bash
-   pnpm install
+   npm install @tanstack/ai @tanstack/ai-openai @tanstack/ai-parallel
    ```
 
 2. Set your Parallel API key:
@@ -26,7 +44,7 @@ This package is available from the TanStack AI workspace.
    import { parallelSearchTool } from '@tanstack/ai-parallel'
 
    const stream = chat({
-     adapter: openaiText('gpt-5.6'),
+     adapter: openaiText('gpt-6-sol'),
      tools: [
        parallelSearchTool({
          mode: 'fast',

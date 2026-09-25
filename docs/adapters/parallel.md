@@ -13,21 +13,26 @@ keywords:
 
 An AI agent needs current web sources to answer questions beyond its training data. Parallel Search gives any function-calling TanStack AI model ranked sources and relevant excerpts.
 
-## Set up the workspace
+## Installation
 
-`@tanstack/ai-parallel` is available from the TanStack AI workspace.
+<!-- ::start:tabs variant="package-manager" mode="install" -->
 
-1. Install dependencies from the repository root:
+react: @tanstack/ai @tanstack/ai-openai @tanstack/ai-parallel
+vue: @tanstack/ai @tanstack/ai-openai @tanstack/ai-parallel
+solid: @tanstack/ai @tanstack/ai-openai @tanstack/ai-parallel
+svelte: @tanstack/ai @tanstack/ai-openai @tanstack/ai-parallel
+preact: @tanstack/ai @tanstack/ai-openai @tanstack/ai-parallel
+angular: @tanstack/ai @tanstack/ai-openai @tanstack/ai-parallel
+vanilla: @tanstack/ai @tanstack/ai-openai @tanstack/ai-parallel
+octane: @tanstack/ai @tanstack/ai-openai @tanstack/ai-parallel
 
-   ```bash
-   pnpm install
-   ```
+<!-- ::end:tabs -->
 
-2. Set your Parallel API key:
+Set your Parallel API key:
 
-   ```bash
-   export PARALLEL_API_KEY=your-api-key
-   ```
+```bash
+export PARALLEL_API_KEY=your-api-key
+```
 
 ## Add web search to an agent
 
@@ -39,7 +44,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { parallelSearchTool } from '@tanstack/ai-parallel'
 
 const stream = chat({
-  adapter: openaiText('gpt-5.6'),
+  adapter: openaiText('gpt-6-sol'),
   tools: [
     parallelSearchTool({
       mode: 'fast',
@@ -74,7 +79,7 @@ const search = parallelSearchTool({
 })
 ```
 
-The model can provide a query, an optional search objective, and an optional result limit. Application-owned source rules apply to every request.
+The model can provide a query, an optional search objective, and an optional result limit. `defaultMaxResults` is also the upper limit for the model's result limit. Application-owned source rules apply to every request.
 
 ## Use the search client directly
 

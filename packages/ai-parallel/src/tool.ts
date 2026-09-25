@@ -12,7 +12,6 @@ const inputSchema = z.object({
   objective: z
     .string()
     .trim()
-    .min(1)
     .optional()
     .describe('The question or goal that focuses the search results.'),
   max_results: z
@@ -41,7 +40,10 @@ export interface ParallelSearchToolConfig extends ParallelSearchClientConfig {
   description?: string
   /** Search mode applied to every request from this tool. */
   mode?: ParallelSearchMode
-  /** Result limit applied when the model does not provide one. */
+  /**
+   * Result limit applied when the model does not provide one. It is also the
+   * upper limit for a value that the model provides.
+   */
   defaultMaxResults?: number
   /** Application-controlled source restrictions for every search. */
   sourcePolicy?: ParallelSearchSourcePolicy
@@ -79,12 +81,15 @@ export function parallelSearchTool(config: ParallelSearchToolConfig = {}) {
     outputSchema,
   }).server(async ({ query, objective, max_results }, context) => {
     client ??= new ParallelSearchClient(clientConfig)
-    const maxResults = max_results ?? defaultMaxResults
+    const maxResults =
+      defaultMaxResults === undefined
+        ? max_results
+        : Math.min(max_results ?? defaultMaxResults, defaultMaxResults)
 
     const response = await client.search(
       {
         search_queries: [query],
-        objective,
+        objective: objective || undefined,
         mode,
         session_id: sessionId,
         advanced_settings:

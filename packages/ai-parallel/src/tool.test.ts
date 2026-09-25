@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { parseWithStandardSchema } from '@tanstack/ai'
 import { parallelSearchTool } from './tool'
 import { fetchCall, mockFetch, searchResponse } from '../tests/test-utils'
 
@@ -92,6 +93,34 @@ describe('parallelSearchTool', () => {
     expect(fetchCall(fetchMock).body.advanced_settings).toEqual({
       max_results: 2,
     })
+  })
+
+  it('caps a model-provided result limit at the application default', async () => {
+    const fetchMock = mockFetch(searchResponse())
+    const tool = parallelSearchTool({
+      apiKey: 'test-key',
+      fetch: fetchMock,
+      defaultMaxResults: 5,
+    })
+
+    await tool.execute?.({ query: 'news', max_results: 50 }, context)
+
+    expect(fetchCall(fetchMock).body.advanced_settings).toEqual({
+      max_results: 5,
+    })
+  })
+
+  it('ignores a blank objective from the model', async () => {
+    const fetchMock = mockFetch(searchResponse())
+    const tool = parallelSearchTool({ apiKey: 'test-key', fetch: fetchMock })
+
+    const args = parseWithStandardSchema<{ query: string; objective?: string }>(
+      tool.inputSchema,
+      { query: 'news', objective: '   ' },
+    )
+    await tool.execute?.(args, context)
+
+    expect(fetchCall(fetchMock).body).not.toHaveProperty('objective')
   })
 
   it('does not leak returned sessions between unrelated tool calls', async () => {
