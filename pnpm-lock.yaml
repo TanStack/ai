@@ -3687,7 +3687,7 @@ importers:
         specifier: ^1.57.0
         version: 1.57.0
       '@smithy/eventstream-codec':
-        specifier: 4.3.7
+        specifier: ^4.3.7
         version: 4.3.7
       '@smithy/node-http-handler':
         specifier: ^4.8.2

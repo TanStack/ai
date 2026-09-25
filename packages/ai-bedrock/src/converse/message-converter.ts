@@ -186,8 +186,10 @@ function messageToBlocks(
     for (const part of msg.content) {
       const docIndex = isDocumentPart(part) ? ++docCounter.value : 0
       blocks.push(contentPartToBlock(part, docIndex))
-      const { cachePoint } = (part.metadata ?? {}) as BedrockTextMetadata
-      if (cachePoint) blocks.push({ cachePoint })
+      if (isTextPart(part)) {
+        const { cachePoint } = (part.metadata ?? {}) as BedrockTextMetadata
+        if (cachePoint) blocks.push({ cachePoint })
+      }
     }
   }
   // null → no text blocks

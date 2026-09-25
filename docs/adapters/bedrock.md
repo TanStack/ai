@@ -200,13 +200,17 @@ const stream = chat({
     },
   ],
   messages: [
+    // An older turn. Its cachePoint was removed when the new turn was added.
+    { role: 'user', content: 'Summarize the report.' },
+    { role: 'assistant', content: 'The report says...' },
     {
       role: 'user',
       content: [
         {
           type: 'text',
           content: 'What changed since yesterday?',
-          // Caches the conversation up to here for the next round.
+          // Only the newest message has a checkpoint.
+          // It caches the conversation up to here for the next round.
           metadata: { cachePoint: { type: 'default' } },
         },
       ],
@@ -214,6 +218,8 @@ const stream = chat({
   ],
 })
 ```
+
+Keep one message checkpoint, on the newest message. Before you send the next turn, remove `cachePoint` from the older message and add it to the new message. The metadata stays in the message history. If you do not remove it, the checkpoints add up, and the request can go over the Bedrock limit of four.
 
 Tools take the same metadata. Pass `metadata: { cachePoint: { type: 'default' } }` to `toolDefinition()` for the last tool in the list to cache the tool definitions.
 

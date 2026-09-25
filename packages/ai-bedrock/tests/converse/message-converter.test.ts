@@ -54,6 +54,23 @@ describe('toConverseMessages', () => {
     ])
   })
 
+  it('reads cachePoint only from text parts', () => {
+    const { messages } = toConverseMessages([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
+            metadata: { cachePoint: { type: 'default' } },
+          },
+        ],
+      },
+    ])
+    expect(messages[0]!.content).toHaveLength(1)
+    expect(messages[0]!.content![0]).toHaveProperty('image')
+  })
+
   it('merges consecutive same-role messages (Converse requires alternation)', () => {
     const { messages } = toConverseMessages([
       { role: 'user', content: 'a' },
