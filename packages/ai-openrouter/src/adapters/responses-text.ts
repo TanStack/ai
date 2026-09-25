@@ -541,7 +541,8 @@ export class OpenRouterResponsesTextAdapter<
         if (chunk.type === 'response.completed') {
           if (chunk.response?.model) model = chunk.response.model
           if (chunk.response?.usage) usage = chunk.response.usage
-          continue
+          // Terminal event: do not wait for the HTTP body to close (#1445).
+          break
         }
 
         if (
@@ -1581,6 +1582,8 @@ export class OpenRouterResponsesTextAdapter<
             finishReason,
           }
           runFinishedEmitted = true
+          // Terminal event: do not wait for the HTTP body to close (#1445).
+          return
         }
 
         if (chunk.type === 'error') {

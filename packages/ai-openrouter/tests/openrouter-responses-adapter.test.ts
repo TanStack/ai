@@ -51,6 +51,34 @@ function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   }
 }
 
+// Yields the chunks, then never ends (the HTTP body stays open).
+// `state.returned` is true once the consumer releases the iterator.
+function createOpenAsyncIterable<T>(chunks: Array<T>) {
+  const state = { returned: false }
+  const iterable: AsyncIterable<T> = {
+    [Symbol.asyncIterator]() {
+      let index = 0
+      return {
+        next() {
+          if (index < chunks.length) {
+            return Promise.resolve({ value: chunks[index++]!, done: false })
+          }
+          return new Promise<IteratorResult<T>>(() => {})
+        },
+        return() {
+          state.returned = true
+          return Promise.resolve({ value: undefined as T, done: true })
+        },
+      }
+    },
+  }
+  return { iterable, state }
+}
+
+function timeout(ms: number): Promise<'timeout'> {
+  return new Promise((resolve) => setTimeout(() => resolve('timeout'), ms))
+}
+
 function setupMockSdkClient(
   streamEvents: Array<Record<string, unknown>>,
   nonStreamResult?: Record<string, unknown>,
@@ -596,6 +624,98 @@ describe('OpenRouter responses adapter — request shape', () => {
 describe('OpenRouter responses adapter — stream event bridge', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('finishes chat() on response.completed without waiting for EOF (#1445)', async () => {
+    const { iterable, state } = createOpenAsyncIterable([
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.output_text.delta',
+        sequenceNumber: 1,
+        itemId: 'msg_1',
+        outputIndex: 0,
+        contentIndex: 0,
+        delta: 'OK',
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 2,
+        response: {
+          model: 'm',
+          output: [],
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        },
+      },
+    ])
+    mockSend = vi.fn().mockResolvedValue(iterable)
+    const chunks: Array<AdapterYieldChunk> = []
+    const run = (async () => {
+      for await (const c of chat({
+        adapter: createAdapter(),
+        messages: [{ role: 'user', content: 'hi' }],
+      })) {
+        chunks.push(c)
+      }
+      return 'finished' as const
+    })()
+
+    expect(await Promise.race([run, timeout(1000)])).toBe('finished')
+    expect(chunks.at(-1)?.type).toBe('RUN_FINISHED')
+    expect(state.returned).toBe(true)
+  })
+
+  it('finishes structuredOutputStream on response.completed without waiting for EOF (#1445)', async () => {
+    const { iterable, state } = createOpenAsyncIterable([
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.output_text.delta',
+        sequenceNumber: 1,
+        itemId: 'msg_1',
+        outputIndex: 0,
+        contentIndex: 0,
+        delta: '{"name":"Alice"}',
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 2,
+        response: {
+          model: 'm',
+          output: [],
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        },
+      },
+    ])
+    mockSend = vi.fn().mockResolvedValue(iterable)
+    const chunks: Array<AdapterYieldChunk> = []
+    const run = (async () => {
+      for await (const c of createAdapter().structuredOutputStream({
+        chatOptions: {
+          model: 'openai/gpt-4o-mini' as any,
+          messages: [{ role: 'user', content: 'profile?' }],
+          logger: testLogger,
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+          required: ['name'],
+        },
+      })) {
+        chunks.push(c)
+      }
+      return 'finished' as const
+    })()
+
+    expect(await Promise.race([run, timeout(1000)])).toBe('finished')
+    expect(chunks.at(-1)?.type).toBe('RUN_FINISHED')
+    expect(state.returned).toBe(true)
   })
 
   it('routes text deltas through TEXT_MESSAGE_* lifecycle', async () => {
