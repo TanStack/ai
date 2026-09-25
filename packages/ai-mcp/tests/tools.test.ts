@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   Client,
+  DEFAULT_REQUEST_TIMEOUT_MSEC,
   InMemoryTransport,
   SUPPORTED_PROTOCOL_VERSIONS,
 } from '@modelcontextprotocol/client'
@@ -13,6 +14,7 @@ import {
 import { MCPInputRequiredError } from '../src/input-required'
 import {
   callMcpTool,
+  extractUiResourceUri,
   makeMcpExecute,
   mcpContentToTanstack,
   toServerTools,
@@ -734,5 +736,368 @@ describe('toServerTools', () => {
     const tools = toServerTools(client, defs, { prefix: 'wx', lazy: false })
     expect(tools.map((t) => t.name)).toContain('wx_get_weather')
     await client.close()
+  })
+})
+
+type RawMessage = { id: string; params: Record<string, unknown> }
+
+/**
+ * A spec 2026 client whose transport answers each raw request at once with
+ * the messages `reply` returns. Like `fakeMcpClient`, the partial needs the
+ * `unknown` bridge.
+ */
+function scriptedModernClient(
+  reply: (message: RawMessage) => Array<unknown>,
+  extra: Record<string, unknown> = {},
+) {
+  const sent: Array<RawMessage> = []
+  const transport: {
+    onmessage?: (message: unknown) => void
+    send: (message: RawMessage) => Promise<void>
+  } = {
+    async send(message) {
+      sent.push(message)
+      for (const answer of reply(message)) transport.onmessage?.(answer)
+      if (extra.sendError instanceof Error) throw extra.sendError
+    },
+  }
+  const client = {
+    getProtocolEra: () => 'modern',
+    transport,
+    ...extra,
+  } as unknown as Client
+  return { client, sent }
+}
+
+function answerWith(result: unknown) {
+  return (message: RawMessage) => [{ jsonrpc: '2.0', id: message.id, result }]
+}
+
+/** A spec 2025 client. Each SDK request is answered by `answers[method]`. */
+function scriptedLegacyClient(
+  answers: Record<string, (signal?: AbortSignal) => unknown>,
+) {
+  return {
+    getProtocolEra: () => 'legacy',
+    async request(
+      rpc: { method: string },
+      _schema: unknown,
+      options?: { signal?: AbortSignal },
+    ) {
+      const answer = answers[rpc.method]
+      if (answer === undefined) throw new Error(`No answer for ${rpc.method}`)
+      return answer(options?.signal)
+    },
+  } as unknown as Client
+}
+
+const okResult = { content: [{ type: 'text', text: 'ok' }] }
+const missingResult = 'ended without a result or error'
+
+describe('callMcpTool — spec 2026 raw requests', () => {
+  it('fails when the reply has no tool result, and sends the envelope', async () => {
+    const { client, sent } = scriptedModernClient(answerWith(null), {
+      _outboundMetaEnvelope: () => ({ version: '2026-07-28' }),
+    })
+
+    await expect(callMcpTool(client, 'ask', {}, false)).rejects.toThrow(
+      missingResult,
+    )
+    expect(sent[0]?.params._meta).toEqual({ version: '2026-07-28' })
+  })
+
+  it('sends no envelope when the client gives none', async () => {
+    for (const extra of [{}, { _outboundMetaEnvelope: () => 'x' }]) {
+      const { client, sent } = scriptedModernClient(answerWith(okResult), extra)
+      await expect(callMcpTool(client, 'ask', {}, false)).resolves.toEqual(
+        okResult,
+      )
+      expect(sent[0]?.params._meta).toBeUndefined()
+    }
+  })
+
+  it('uses defaults for a JSON-RPC error without code or message', async () => {
+    const { client } = scriptedModernClient((message) => [
+      { jsonrpc: '2.0', id: message.id, error: {} },
+    ])
+
+    await expect(callMcpTool(client, 'ask', {}, false)).rejects.toMatchObject({
+      code: ProtocolErrorCode.InternalError,
+      message: 'The MCP request failed.',
+    })
+  })
+
+  it('ignores messages for other requests', async () => {
+    const { client } = scriptedModernClient((message) => [
+      { jsonrpc: '2.0', id: 'other', result: {} },
+      { jsonrpc: '2.0', id: message.id, result: okResult },
+    ])
+
+    await expect(callMcpTool(client, 'ask', {}, false)).resolves.toEqual(
+      okResult,
+    )
+  })
+
+  it('keeps the answer when send fails after it, and fails without one', async () => {
+    const sendError = new Error('send failed')
+    const answered = scriptedModernClient(answerWith(okResult), { sendError })
+    await expect(
+      callMcpTool(answered.client, 'ask', {}, false),
+    ).resolves.toEqual(okResult)
+
+    const silent = scriptedModernClient(() => [], { sendError })
+    await expect(callMcpTool(silent.client, 'ask', {}, false)).rejects.toBe(
+      sendError,
+    )
+  })
+
+  it('fails when the client has no transport', async () => {
+    const client = { getProtocolEra: () => 'modern' } as unknown as Client
+
+    await expect(callMcpTool(client, 'ask', {}, false)).rejects.toThrow(
+      'The MCP client is not connected.',
+    )
+  })
+
+  it('stops on abort and resolves with a signal that never fires', async () => {
+    const answered = scriptedModernClient(answerWith(okResult))
+    await expect(
+      callMcpTool(
+        answered.client,
+        'ask',
+        {},
+        false,
+        new AbortController().signal,
+      ),
+    ).resolves.toEqual(okResult)
+
+    const silent = scriptedModernClient(() => [])
+    const controller = new AbortController()
+    const pending = callMcpTool(
+      silent.client,
+      'ask',
+      {},
+      false,
+      controller.signal,
+    )
+    controller.abort(new Error('stop'))
+    await expect(pending).rejects.toThrow('stop')
+  })
+
+  it('times out when the reply never comes', async () => {
+    vi.useFakeTimers()
+    try {
+      const { client } = scriptedModernClient(() => [])
+      const pending = expect(
+        callMcpTool(client, 'ask', {}, false),
+      ).rejects.toThrow(/timed out/)
+      await vi.advanceTimersByTimeAsync(DEFAULT_REQUEST_TIMEOUT_MSEC)
+      await pending
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('reads every input request shape', async () => {
+    const call = (result: unknown) =>
+      callMcpTool(
+        scriptedModernClient(answerWith(result)).client,
+        'ask',
+        {},
+        false,
+      )
+
+    await expect(
+      call({
+        resultType: 'input_required',
+        inputRequests: { a: { method: 'roots/list', params: {} } },
+      }),
+    ).rejects.toThrow('unsupported input: roots/list')
+
+    const noRecord = { resultType: 'input_required', inputRequests: 'x' }
+    const fallback = await inputRequiredFrom(() => call(noRecord))
+    expect(fallback.request).toEqual(noRecord)
+
+    const bare = { method: 'elicitation/create', message: 'City?' }
+    const flat = await inputRequiredFrom(() =>
+      call({ status: 'input_required', inputRequests: { a: 1, b: bare } }),
+    )
+    expect(flat.kind).toBe('form')
+    expect(flat.request).toEqual(bare)
+
+    const invalid = { status: 'input_required', inputRequests: { a: 1 } }
+    expect((await inputRequiredFrom(() => call(invalid))).request).toEqual(
+      invalid,
+    )
+
+    await expect(
+      call({ status: 'input_required', inputRequests: {} }),
+    ).rejects.toThrow(missingResult)
+  })
+
+  async function retrySent(
+    inputRequests: Record<string, unknown> | undefined,
+    inputResponse: Parameters<typeof callMcpTool>[5],
+    requestState?: string,
+  ) {
+    const { client, sent } = scriptedModernClient((message) => [
+      {
+        jsonrpc: '2.0',
+        id: message.id,
+        result:
+          sent.length === 1
+            ? { resultType: 'input_required', inputRequests, requestState }
+            : okResult,
+      },
+    ])
+    await callMcpTool(client, 'draft', {}, false, undefined, inputResponse)
+    return sent[1]?.params
+  }
+
+  it('answers a sampling request with text, a result object, or a cancel', async () => {
+    const sampling = { draft: { method: 'sampling/createMessage', params: {} } }
+
+    expect(
+      await retrySent(sampling, { status: 'resolved', payload: 'Sunny' }, 's1'),
+    ).toMatchObject({
+      requestState: 's1',
+      inputResponses: {
+        draft: {
+          role: 'assistant',
+          content: { type: 'text', text: 'Sunny' },
+          model: 'user',
+        },
+      },
+    })
+
+    const custom = { role: 'assistant', content: { type: 'text', text: 'x' } }
+    expect(
+      (await retrySent(sampling, { status: 'resolved', payload: custom }))
+        ?.inputResponses,
+    ).toEqual({ draft: custom })
+
+    await expect(retrySent(sampling, { status: 'cancelled' })).rejects.toThrow(
+      'The user cancelled the MCP sampling request.',
+    )
+  })
+
+  it('passes an ElicitResult as is and retries without requests', async () => {
+    const form = { city: { method: 'elicitation/create', params: {} } }
+    expect(
+      (
+        await retrySent(form, {
+          status: 'resolved',
+          payload: { action: 'decline' },
+        })
+      )?.inputResponses,
+    ).toEqual({ city: { action: 'decline' } })
+
+    const params = await retrySent(
+      undefined,
+      { status: 'resolved', payload: 'x' },
+      's1',
+    )
+    expect(params).toEqual({ name: 'draft', arguments: {}, requestState: 's1' })
+  })
+})
+
+describe('callMcpTool — spec 2025 task replies', () => {
+  const working = (pollInterval: number) => () => ({
+    task: { taskId: 't', status: 'working', pollInterval },
+  })
+  const completed = () => ({ taskId: 't', status: 'completed' })
+
+  it('throws MCPInputRequiredError when tasks/get asks for input', async () => {
+    const client = scriptedLegacyClient({
+      'tools/call': working(0),
+      'tasks/get': () => ({
+        status: 'input_required',
+        inputRequests: {
+          a: { method: 'elicitation/create', params: { message: 'City?' } },
+        },
+      }),
+    })
+
+    const error = await inputRequiredFrom(() =>
+      callMcpTool(client, 'job', {}, true),
+    )
+    expect(error.request).toEqual({ message: 'City?' })
+  })
+
+  it('fails on a task body it cannot read', async () => {
+    for (const body of [{}, { taskId: 't', status: 'weird' }]) {
+      const client = scriptedLegacyClient({
+        'tools/call': working(0),
+        'tasks/get': () => body,
+      })
+      await expect(callMcpTool(client, 'job', {}, true)).rejects.toThrow(
+        missingResult,
+      )
+    }
+  })
+
+  it('fails when tools/call or tasks/result has no tool result', async () => {
+    const noTask = scriptedLegacyClient({ 'tools/call': () => ({}) })
+    await expect(callMcpTool(noTask, 'job', {}, true)).rejects.toThrow(
+      missingResult,
+    )
+
+    const noResult = scriptedLegacyClient({
+      'tools/call': working(0),
+      'tasks/get': completed,
+      'tasks/result': () => ({}),
+    })
+    await expect(callMcpTool(noResult, 'job', {}, true)).rejects.toThrow(
+      missingResult,
+    )
+  })
+
+  it('names a failed task without a status message', async () => {
+    const client = scriptedLegacyClient({
+      'tools/call': () => ({ task: { taskId: 't', status: 'failed' } }),
+    })
+
+    await expect(callMcpTool(client, 'job', {}, true)).rejects.toThrow(
+      'MCP task "t" failed.',
+    )
+  })
+
+  it('waits the poll interval without a signal', async () => {
+    const client = scriptedLegacyClient({
+      'tools/call': working(1),
+      'tasks/get': completed,
+      'tasks/result': () => okResult,
+    })
+
+    await expect(callMcpTool(client, 'job', {}, true)).resolves.toEqual(
+      okResult,
+    )
+  })
+
+  it('throws the abort reason when the request fails after an abort', async () => {
+    const controller = new AbortController()
+    const client = scriptedLegacyClient({
+      'tools/call': (signal) =>
+        new Promise((_, reject) => {
+          signal?.addEventListener('abort', () =>
+            reject(new Error('socket closed')),
+          )
+        }),
+    })
+    const pending = callMcpTool(client, 'job', {}, true, controller.signal)
+    controller.abort(new Error('stop'))
+
+    await expect(pending).rejects.toThrow('stop')
+  })
+})
+
+describe('extractUiResourceUri', () => {
+  it('returns undefined when _meta.ui is not an object', () => {
+    expect(
+      extractUiResourceUri({
+        ...mcpToolDef({ name: 'a' }),
+        _meta: { ui: 'x' },
+      }),
+    ).toBeUndefined()
   })
 })

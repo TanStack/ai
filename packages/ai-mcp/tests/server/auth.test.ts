@@ -241,4 +241,38 @@ describe('introspectionVerifier', () => {
 
     expect(error.code).toBe('server_error')
   })
+
+  it('rejects an active token without a client id or exp', async () => {
+    for (const claims of [
+      { active: true, exp: 1_900_000_000 },
+      { active: true, client_id: 'app-1' },
+    ]) {
+      const server = endpoint(() => Response.json(claims))
+      const verifier = introspectionVerifier({
+        ...options,
+        fetch: server.fetchImpl,
+      })
+      const error = await oauthErrorOf(() =>
+        verifier.verifyAccessToken('opaque-1'),
+      )
+      expect(error.code).toBe('invalid_token')
+    }
+  })
+
+  it('reads list scopes, no scopes, and a non-URL audience', async () => {
+    const verify = async (claims: Record<string, unknown>) => {
+      const server = endpoint(() =>
+        Response.json({ active: true, azp: 'app-1', exp: 1, ...claims }),
+      )
+      return introspectionVerifier({
+        ...options,
+        fetch: server.fetchImpl,
+      }).verifyAccessToken('opaque-1')
+    }
+
+    const listed = await verify({ scope: ['a', 1, 'b'], aud: ['not a url'] })
+    expect(listed.scopes).toEqual(['a', 'b'])
+    expect(listed.resource).toBeUndefined()
+    expect((await verify({})).scopes).toEqual([])
+  })
 })

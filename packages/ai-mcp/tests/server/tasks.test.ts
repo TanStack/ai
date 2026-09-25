@@ -205,4 +205,79 @@ describe('server tasks', () => {
     expect(await getTask(handle.taskId, store, 'bob')).toBeNull()
     expect(await getTask(handle.taskId, store)).toBeNull()
   })
+
+  it('records a thrown string, or a default message for an empty one', async () => {
+    const store = inMemoryTaskStore()
+    const captured = captureWaitUntil()
+    const named = await startTask(() => Promise.reject('quota'), {
+      store,
+      waitUntil: captured.waitUntil,
+    })
+    const empty = await startTask(() => Promise.reject(''), {
+      store,
+      waitUntil: captured.waitUntil,
+    })
+    await Promise.all(captured.calls)
+
+    expect((await requireTask(named.taskId, store)).task.statusMessage).toBe(
+      'quota',
+    )
+    expect((await requireTask(empty.taskId, store)).task.statusMessage).toEqual(
+      expect.stringMatching(/.+/),
+    )
+  })
+
+  it('logs when the result cannot be saved and waitUntil is absent', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const store = inMemoryTaskStore()
+      let saves = 0
+      const failing: TaskStore = {
+        ...store,
+        async set(id, value) {
+          saves += 1
+          if (saves > 1) throw new Error('disk full')
+          await store.set(id, value)
+        },
+      }
+      const handle = await startTask(async () => 'done', { store: failing })
+
+      await vi.waitFor(() =>
+        expect(errors).toHaveBeenCalledWith(
+          `Task ${handle.taskId} could not save its result:`,
+          expect.objectContaining({ message: 'disk full' }),
+        ),
+      )
+    } finally {
+      errors.mockRestore()
+    }
+  })
+
+  it('returns null for a stored value that is not a task', async () => {
+    const store = inMemoryTaskStore()
+    const valid = {
+      taskId: 't',
+      status: 'working',
+      ttl: null,
+      createdAt: 'now',
+      lastUpdatedAt: 'now',
+    }
+    const broken = [
+      'text',
+      { ...valid, taskId: '' },
+      { ...valid, createdAt: 1 },
+      { ...valid, lastUpdatedAt: 1 },
+      { ...valid, ttl: 5 },
+      { ...valid, owner: 1 },
+      { ...valid, statusMessage: 1 },
+      { ...valid, status: 'completed' },
+      { ...valid, status: 'unknown' },
+    ]
+    for (const value of broken) {
+      await store.set('t', value)
+      expect(await getTask('t', store)).toBeNull()
+    }
+    await store.set('t', valid)
+    expect(await getTask('t', store)).not.toBeNull()
+  })
 })

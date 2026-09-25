@@ -687,4 +687,364 @@ describe('createMCPServer', () => {
       },
     ])
   })
+
+  it('asks a spec 2025 client for input and a sample in the same call', async () => {
+    const samples: Array<unknown> = []
+    const server = createMCPServer({
+      name: 'writer',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'draft',
+          description: 'Draft for a city',
+          inputSchema: z.object({}),
+        }).server<MCPToolContext>(async (_args, ctx) => {
+          ctx.emitCustomEvent('progress', {})
+          const city = await ctx.context.requestInput({ message: 'City?' })
+          const draft = await ctx.context.sample({
+            messages: [
+              { role: 'user', content: `Draft for ${String(city)}` },
+              { role: 'assistant', content: 'Sure' },
+            ],
+          })
+          return `${String(city)}: ${draft}`
+        }),
+      ],
+    })
+
+    await withClient(
+      server,
+      {
+        era: '2025',
+        prepare(client) {
+          client.setRequestHandler('elicitation/create', async () => ({
+            action: 'accept',
+            content: { value: 'Paris' },
+          }))
+          client.setRequestHandler('sampling/createMessage', async (req) => {
+            samples.push(req.params.messages)
+            return {
+              role: 'assistant',
+              content: { type: 'text', text: 'Sunny' },
+              model: 'client',
+            }
+          })
+        },
+      },
+      async (client) => {
+        const called = await client.callTool({ name: 'draft', arguments: {} })
+        expect(called.content).toEqual([{ type: 'text', text: 'Paris: Sunny' }])
+      },
+    )
+
+    expect(samples).toEqual([
+      [
+        { role: 'user', content: { type: 'text', text: 'Draft for Paris' } },
+        { role: 'assistant', content: { type: 'text', text: 'Sure' } },
+      ],
+    ])
+  })
+
+  it('handles spec 2025 declines, empty answers, and text-less samples', async () => {
+    let answer: { action: 'accept' | 'decline' } = { action: 'decline' }
+    const server = createMCPServer({
+      name: 'writer',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'ask',
+          description: 'Ask',
+          inputSchema: z.object({}),
+        }).server<MCPToolContext>(async (_args, ctx) =>
+          JSON.stringify(await ctx.context.requestInput({ message: 'City?' })),
+        ),
+        toolDefinition({
+          name: 'draft',
+          description: 'Draft',
+          inputSchema: z.object({}),
+        }).server<MCPToolContext>(async (_args, ctx) =>
+          ctx.context.sample(summaryRequest),
+        ),
+      ],
+    })
+
+    await withClient(
+      server,
+      {
+        era: '2025',
+        prepare(client) {
+          client.setRequestHandler('elicitation/create', async () => answer)
+          client.setRequestHandler('sampling/createMessage', async () => ({
+            role: 'assistant',
+            content: { type: 'image', data: 'AAAA', mimeType: 'image/png' },
+            model: 'client',
+          }))
+        },
+      },
+      async (client) => {
+        const declined = await client.callTool({ name: 'ask', arguments: {} })
+        expect(declined.isError).toBe(true)
+        expect(JSON.stringify(declined.content)).toContain(
+          'The user did not accept the input request.',
+        )
+
+        answer = { action: 'accept' }
+        const empty = await client.callTool({ name: 'ask', arguments: {} })
+        expect(empty.isError).toBe(true)
+
+        const drafted = await client.callTool({ name: 'draft', arguments: {} })
+        expect(drafted.isError).toBe(true)
+        expect(JSON.stringify(drafted.content)).toContain(
+          'The client sample result has no text.',
+        )
+      },
+    )
+  })
+
+  it('gives a spec 2026 tool a non-string answer as the answer object', async () => {
+    const server = createMCPServer({
+      name: 'weather',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'ask',
+          description: 'Ask',
+          inputSchema: z.object({}),
+        }).server<MCPToolContext>(async (_args, ctx) =>
+          JSON.stringify(await ctx.context.requestInput({ message: 'City?' })),
+        ),
+      ],
+    })
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      const answered = await callMcpTool(client, 'ask', {}, false, undefined, {
+        status: 'resolved',
+        payload: { value: 3 },
+      })
+      expect(answered.content).toEqual([{ type: 'text', text: '{"value":3}' }])
+    })
+  })
+
+  it('lets a task tool sample only with the sample option', async () => {
+    const results: Array<unknown> = []
+    const calls: Array<Promise<unknown>> = []
+    const draftTool = toolDefinition({
+      name: 'draft',
+      description: 'Draft in a task',
+      execution: 'task',
+    }).server<MCPToolContext>(async (_args, ctx) => {
+      ctx.emitCustomEvent('progress', {})
+      try {
+        results.push(await ctx.context.sample(summaryRequest))
+      } catch (error) {
+        results.push(error instanceof Error ? error.message : '')
+      }
+      return 'done'
+    })
+    for (const sample of [undefined, async () => 'from-adapter']) {
+      const server = createMCPServer({
+        name: 'tasks',
+        version: '1.0.0',
+        sample,
+        waitUntil: (promise) => calls.push(promise),
+        tools: [draftTool],
+      })
+      await withClient(server, { era: '2025' }, async (client) => {
+        await taskCall(client, 'draft')
+      })
+    }
+    await Promise.all(calls)
+
+    expect(results).toEqual([
+      'ctx.context.sample in an execution: "task" tool needs the sample option of createMCPServer.',
+      'from-adapter',
+    ])
+  })
+
+  it('fails the task call when the store loses the task', async () => {
+    const server = createMCPServer({
+      name: 'tasks',
+      version: '1.0.0',
+      taskStore: {
+        get: async () => null,
+        set: async () => undefined,
+        delete: async () => undefined,
+      },
+      tools: [
+        toolDefinition({
+          name: 'slow',
+          description: 'Slow work',
+          execution: 'task',
+        }).server(async () => 'done'),
+      ],
+    })
+
+    await withClient(server, { era: '2025' }, async (client) => {
+      const called = await client.request(
+        {
+          method: 'tools/call',
+          params: { name: 'slow', arguments: {}, task: {} },
+        },
+        callToolResult,
+      )
+      expect(called.isError).toBe(true)
+      expect(JSON.stringify(called.content)).toMatch(/was not saved/)
+    })
+  })
+
+  it('rejects a bad task id and a result that is not ready', async () => {
+    const gate = deferredText()
+    const server = createMCPServer({
+      name: 'tasks',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'slow',
+          description: 'Slow work',
+          execution: 'task',
+        }).server(async () => gate.work),
+      ],
+    })
+
+    await withClient(server, { era: '2025' }, async (client) => {
+      await expect(taskGet(client, '')).rejects.toThrow()
+      const created = await taskCall(client, 'slow')
+      await expect(taskResultOf(client, created.task.taskId)).rejects.toThrow(
+        'Task result is not ready',
+      )
+      gate.resolve({ text: 'done' })
+    })
+  })
+
+  it('returns a tool error for a tool without execute', async () => {
+    const server = createMCPServer({
+      name: 'weather',
+      version: '1.0.0',
+      tools: [{ ...echoTool(), execute: undefined }],
+    })
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      const called = await client.callTool({
+        name: 'echo',
+        arguments: { text: 'hi' },
+      })
+      expect(called.isError).toBe(true)
+      expect(JSON.stringify(called.content)).toContain(
+        'Tool echo has no execute function.',
+      )
+    })
+  })
+
+  it('accepts a JSON Schema input schema', async () => {
+    const server = createMCPServer({
+      name: 'weather',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'city',
+          description: 'City name',
+          inputSchema: {
+            type: 'object',
+            properties: { city: { type: 'string' } },
+          },
+        }).server(async () => 'ok'),
+      ],
+    })
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      const listed = await client.listTools()
+      expect(listed.tools[0]?.inputSchema).toMatchObject({
+        properties: { city: { type: 'string' } },
+      })
+    })
+  })
+
+  it('reads every resource body shape and a uri template', async () => {
+    const resource = (name: string, body: unknown) =>
+      resourceDefinition({
+        uri: `file:///${name}`,
+        name,
+        mimeType: 'text/plain',
+      }).read(async () => body)
+    const server = createMCPServer({
+      name: 'files',
+      version: '1.0.0',
+      resources: [
+        resource('blob', { blob: 'AAAA' }),
+        resource('string', 'plain'),
+        resource('json', { a: 1 }),
+        resource('empty', undefined),
+        resourceDefinition({
+          uriTemplate: 'file:///users/{id}',
+          name: 'user',
+          mimeType: 'text/plain',
+        }).read(async () => 'user'),
+        { name: 'nowhere', mimeType: 'text/plain', read: async () => 'x' },
+      ],
+    })
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      const read = async (uri: string) =>
+        (await client.readResource({ uri })).contents[0]
+      expect(await read('file:///blob')).toMatchObject({ blob: 'AAAA' })
+      expect(await read('file:///string')).toMatchObject({ text: 'plain' })
+      expect(await read('file:///json')).toMatchObject({ text: '{"a":1}' })
+      expect(await read('file:///empty')).toMatchObject({ text: '' })
+      expect(await read('file:///users/7')).toMatchObject({
+        uri: 'file:///users/7',
+        text: 'user',
+      })
+      const listed = await client.listResources()
+      expect(listed.resources.map((r) => r.name)).not.toContain('nowhere')
+    })
+  })
+
+  it('keeps assistant prompt messages and drops invalid ones', async () => {
+    const server = createMCPServer({
+      name: 'prompts',
+      version: '1.0.0',
+      prompts: [
+        promptDefinition({
+          name: 'chat',
+          description: 'Chat',
+          argsSchema: z.object({}),
+        }).render(async () => [
+          { role: 'assistant', content: 'Hi' },
+          { role: 'user', content: 'Hello' },
+          // An invalid item from an untyped render function.
+          JSON.parse('{"role":"user"}'),
+        ]),
+      ],
+    })
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      const prompt = await client.getPrompt({ name: 'chat', arguments: {} })
+      expect(prompt.messages).toEqual([
+        { role: 'assistant', content: { type: 'text', text: 'Hi' } },
+        { role: 'user', content: { type: 'text', text: 'Hello' } },
+      ])
+    })
+  })
+
+  it('forgets a spec 2025 session that the client ends', async () => {
+    const server = surfaceServer()
+    let sessionId = ''
+
+    await withClient(server, { era: '2025' }, async (_client, transport) => {
+      sessionId = transport.sessionId ?? ''
+      await transport.terminateSession()
+    })
+
+    const late = await server.fetch(sessionRequest('any', sessionId))
+    expect(late.status).toBe(404)
+  })
+
+  it('does not keep a spec 2025 request that opens no session', async () => {
+    const server = surfaceServer()
+    const request = sessionRequest('any', 'x')
+    request.headers.delete('mcp-session-id')
+
+    const response = await server.fetch(request)
+    expect(response.ok).toBe(false)
+  })
 })
