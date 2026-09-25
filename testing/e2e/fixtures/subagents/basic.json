@@ -1,0 +1,83 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[subagent-route] research squids",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "reasoning": "Look up the facts first.",
+        "toolCalls": [
+          {
+            "name": "lookupFacts",
+            "arguments": "{\"topic\":\"squids\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-route] research squids",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Squids have three hearts."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-approval] clean up the old logs",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "deleteLogs",
+            "arguments": "{\"folder\":\"old\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-approval] clean up the old logs",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Deleted the old logs."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-tool] research squids",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "researcher",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-tool] research squids",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Squids have three hearts."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-tool] research squids",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "Research is done."
+      }
+    }
+  ]
+}

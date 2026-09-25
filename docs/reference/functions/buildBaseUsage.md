@@ -3,8 +3,6 @@ id: buildBaseUsage
 title: buildBaseUsage
 ---
 
-# Function: buildBaseUsage()
-
 ```ts
 function buildBaseUsage<TProviderDetails>(input): TokenUsage<TProviderDetails>;
 ```

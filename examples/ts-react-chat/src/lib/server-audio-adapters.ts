@@ -25,6 +25,7 @@ import type {
   AnyTranscriptionAdapter,
   AnyTTSAdapter,
 } from '@tanstack/ai'
+import type { ElevenLabsAudioModel } from '@tanstack/ai-elevenlabs'
 import {
   AUDIO_PROVIDERS,
   SPEECH_PROVIDERS,
@@ -113,7 +114,7 @@ export function buildAudioAdapter(
       return falAudio(model)
     case 'elevenlabs-music':
     case 'elevenlabs-sfx':
-      return elevenlabsAudio(model as 'music_v1')
+      return elevenlabsAudio(model as ElevenLabsAudioModel)
   }
 }
 

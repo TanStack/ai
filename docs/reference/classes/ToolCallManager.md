@@ -3,9 +3,7 @@ id: ToolCallManager
 title: ToolCallManager
 ---
 
-# Class: ToolCallManager\<TToolsOrContext, TContext\>
-
-Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:213](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L213)
+Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:236](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L236)
 
 Manages tool call accumulation and execution for the chat() method's automatic tool execution loop.
 
@@ -59,7 +57,7 @@ if (manager.hasToolCalls()) {
 new ToolCallManager<TToolsOrContext, TContext>(tools): ToolCallManager<TToolsOrContext, TContext>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:224](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L224)
+Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:247](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L247)
 
 #### Parameters
 
@@ -79,7 +77,7 @@ Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:224](https://gi
 addToolCallArgsEvent(event): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:252](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L252)
+Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:284](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L284)
 
 Add a TOOL_CALL_ARGS event to accumulate arguments (AG-UI)
 
@@ -101,7 +99,7 @@ Add a TOOL_CALL_ARGS event to accumulate arguments (AG-UI)
 addToolCallStartEvent(event): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:235](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L235)
+Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:258](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L258)
 
 Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
 
@@ -123,7 +121,7 @@ Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
 clear(): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:423](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L423)
+Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:455](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L455)
 
 Clear the tool calls map for the next iteration
 
@@ -139,7 +137,7 @@ Clear the tool calls map for the next iteration
 completeToolCall(event): void;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:270](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L270)
+Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:302](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L302)
 
 Complete a tool call with its final input
 Called when TOOL_CALL_END is received
@@ -165,7 +163,7 @@ executeTools(finishEvent, ...contextArgs): AsyncGenerator<AdapterYieldChunk, Mod
 | null>[], void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:302](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L302)
+Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:334](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L334)
 
 Execute all tool calls and return tool result messages
 Yields TOOL_CALL_END events for streaming
@@ -197,7 +195,7 @@ RUN_FINISHED event from the stream
 getToolCalls(): ToolCall<unknown>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:291](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L291)
+Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:323](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L323)
 
 Get all complete tool calls (filtered for valid ID and name)
 
@@ -213,7 +211,7 @@ Get all complete tool calls (filtered for valid ID and name)
 hasToolCalls(): boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:284](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L284)
+Defined in: [packages/ai/src/activities/chat/tools/tool-calls.ts:316](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-calls.ts#L316)
 
 Check if there are any complete tool calls to execute
 

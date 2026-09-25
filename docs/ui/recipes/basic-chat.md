@@ -12,6 +12,8 @@ keywords:
 
 Start here. This chat has no tools, no interrupts, and no styling.
 
+For a Start app with BYOK, open [Basic Chat](../../tutorials/basic-chat).
+
 You need three components: a `layout`, a `message`, and a `text` part. Leave the rest out.
 
 ## Server

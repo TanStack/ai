@@ -149,15 +149,79 @@ export class DurableObjectRunEventLog implements RunEventLog {
     this.wake(runId)
   }
 
+  async touch(runId: string): Promise<void> {
+    await this.storage.transaction(async (txn) => {
+      const stored = await txn.get<StoredRunRecord>(recKey(runId))
+      if (!stored) return
+      const { record, migrated } = migrateStoredRunRecord(stored)
+      if (isTerminalRunStatus(record.status)) {
+        if (migrated) await txn.put(recKey(runId), record)
+        return
+      }
+      await txn.put(recKey(runId), { ...record, updatedAt: Date.now() })
+    })
+    // Activity without a new event or status transition gives a tailing reader
+    // nothing to observe, so intentionally do not wake it.
+  }
+
+  async finishIfStale(
+    runId: string,
+    cutoff: number,
+    chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
+  ): Promise<boolean> {
+    const finished = await this.storage.transaction(async (txn) => {
+      const stored = await txn.get<StoredRunRecord>(recKey(runId))
+      if (!stored) return false
+      const { record, migrated } = migrateStoredRunRecord(stored)
+      if (isTerminalRunStatus(record.status) || record.updatedAt >= cutoff) {
+        if (migrated) await txn.put(recKey(runId), record)
+        return false
+      }
+
+      const now = Date.now()
+      const seq = record.lastSeq + 1
+      const next: RunLogRecord = {
+        ...record,
+        status: 'failed',
+        lastSeq: seq,
+        error: {
+          message: chunk.message,
+          ...(chunk.code !== undefined ? { code: chunk.code } : {}),
+        },
+        finishedAt: now,
+        updatedAt: now,
+      }
+      // Read the current activity clock and commit the terminal event + record
+      // in this one transaction. Keep wake-ups outside: transaction callbacks
+      // may be retried and must contain no external work.
+      await txn.put(evtKey(runId, seq), chunk)
+      await txn.put(recKey(runId), next)
+      return true
+    })
+    if (finished) this.wake(runId)
+    return finished
+  }
+
   async update(runId: string, patch: RunRecordPatch): Promise<void> {
-    const record = await this.getRecord(runId)
-    if (!record) return // unknown runId is a no-op
-    const next: RunLogRecord = { ...record, ...patch, updatedAt: Date.now() }
-    await this.storage.put(recKey(runId), next)
+    const updated = await this.storage.transaction(async (txn) => {
+      const stored = await txn.get<StoredRunRecord>(recKey(runId))
+      if (!stored) return false
+      const { record, migrated } = migrateStoredRunRecord(stored)
+      if (isTerminalRunStatus(record.status)) {
+        if (migrated) await txn.put(recKey(runId), record)
+        return false
+      }
+      await txn.put(recKey(runId), {
+        ...record,
+        ...patch,
+        updatedAt: Date.now(),
+      })
+      return true
+    })
     // A patch may terminalize the shared status field (core's driver writes its
-    // terminal status through `RunStore.update`) — parked readers must see it
-    // now, not a TAIL_POLL_MS later.
-    this.wake(runId)
+    // terminal status through `RunStore.update`) — wake only after that update
+    // commits. A late update racing a terminal writer is an atomic no-op.
+    if (updated) this.wake(runId)
   }
 
   async get(runId: string): Promise<RunLogRecord | null> {

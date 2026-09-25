@@ -45,7 +45,7 @@ import { cloudflareSandbox } from './provider'
 import { ChatSandboxCoordinator } from './chat-coordinator'
 import { ContainerSandboxCoordinator } from './container-coordinator'
 import { createSandboxAgentWorker } from './worker'
-import { resolvePreviewHost } from './coordinator'
+import { normalizeStallTimeoutMs, resolvePreviewHost } from './coordinator'
 import type { ChatCoordinatorEnv, ChatRunConfig } from './chat-coordinator'
 import type {
   ContainerCoordinatorEnv,
@@ -83,6 +83,11 @@ export interface SandboxAgentEnv
 interface BaseAgentConfig<TEnv extends SandboxAgentEnv> {
   /** chat()-provided server tools, resolved per run (DO-drives: bridged over MCP). */
   tools?: (input: StartRunInput, env: TEnv) => Array<AnyTool>
+  /**
+   * Fail a run after this many milliseconds without persisted activity. Omitted
+   * defaults to five minutes; `false` disables the watchdog.
+   */
+  stallTimeoutMs?: number | false
 }
 
 /** DO-drives config: the DO runs `chat()` with the given adapter. */
@@ -188,11 +193,16 @@ function resolveCoordinator<TEnv extends SandboxAgentEnv>(
 export function createCloudflareSandboxAgent<
   TEnv extends SandboxAgentEnv = SandboxAgentEnv,
 >(config: CloudflareSandboxAgentConfig<TEnv>): CloudflareSandboxAgent<TEnv> {
+  const stallTimeoutMs = normalizeStallTimeoutMs(config.stallTimeoutMs)
   const worker = createSandboxAgentWorker<TEnv>(resolveCoordinator)
 
   if (config.mode === 'colocated') {
     const colocated = config
     class ConfiguredContainerCoordinator extends ContainerSandboxCoordinator<TEnv> {
+      constructor(ctx: DurableObjectState, env: TEnv) {
+        super(ctx, env, stallTimeoutMs)
+      }
+
       protected override config(input: StartRunInput): ContainerRunConfig {
         return {
           hostTools: colocated.tools?.(input, this.env) ?? [],
@@ -207,6 +217,10 @@ export function createCloudflareSandboxAgent<
 
   const doDrives = config
   class ConfiguredChatCoordinator extends ChatSandboxCoordinator<TEnv> {
+    constructor(ctx: DurableObjectState, env: TEnv) {
+      super(ctx, env, stallTimeoutMs)
+    }
+
     protected override config(input: StartRunInput): ChatRunConfig {
       const tools = doDrives.tools?.(input, this.env)
       return {

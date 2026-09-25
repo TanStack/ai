@@ -149,8 +149,10 @@ packages:
   - 'packages/*'
   - 'packages/ai-code-mode/models-eval'
   - 'examples/*'
+  - 'examples/react/*'
   - 'testing/*'
   - 'codemods'
+  - 'tools/*'
 
 allowBuilds:
   # Vite + every transitive bundler-step needs the platform-specific binary.

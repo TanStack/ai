@@ -3,8 +3,6 @@ id: EmbeddingAdapter
 title: EmbeddingAdapter
 ---
 
-# Interface: EmbeddingAdapter\<TModel, TProviderOptions, TModelProviderOptionsByName, TModelInputModalitiesByName\>
-
 Defined in: [packages/ai/src/activities/embed/adapter.ts:31](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L31)
 
 Embedding adapter interface with pre-resolved generics.
@@ -45,7 +43,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/embed/adapter.ts:48](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L48)
+Defined in: [packages/ai/src/activities/embed/adapter.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L54)
 
 **`Internal`**
 
@@ -77,7 +75,7 @@ providerOptions: TProviderOptions;
 createEmbeddings: (options) => Promise<EmbeddingResult>;
 ```
 
-Defined in: [packages/ai/src/activities/embed/adapter.ts:57](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L57)
+Defined in: [packages/ai/src/activities/embed/adapter.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L63)
 
 Generate embeddings for the input items (one vector per item)
 
@@ -111,7 +109,7 @@ Discriminator for adapter kind
 readonly model: TModel;
 ```
 
-Defined in: [packages/ai/src/activities/embed/adapter.ts:43](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L43)
+Defined in: [packages/ai/src/activities/embed/adapter.ts:49](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L49)
 
 The model this adapter is configured for
 
@@ -126,3 +124,17 @@ readonly name: string;
 Defined in: [packages/ai/src/activities/embed/adapter.ts:41](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L41)
 
 Adapter name identifier
+
+***
+
+### supportsFileSources?
+
+```ts
+readonly optional supportsFileSources?: boolean;
+```
+
+Defined in: [packages/ai/src/activities/embed/adapter.ts:47](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/adapter.ts#L47)
+
+Declares that this adapter can consume `{ type: 'file' }` content
+sources (provider Files API references). `embed()` rejects file sources
+in preflight for adapters that don't declare this.

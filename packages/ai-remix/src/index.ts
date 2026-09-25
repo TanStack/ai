@@ -3,8 +3,16 @@ export { createByok } from './create-byok.ts'
 export { createRealtimeChat } from './create-realtime-chat.ts'
 export { createMcpAppBridge } from './create-mcp-app-bridge.ts'
 export type { CreateMcpAppBridgeOptions } from './create-mcp-app-bridge.ts'
-export { createWebMCPTools } from './create-web-mcp-tools.ts'
-export type { CreateWebMCPToolsOptions } from './create-web-mcp-tools.ts'
+export {
+  createPageWebMCPTools,
+  createRegisterWebMCPTools,
+  createWebMCPTools,
+} from './create-web-mcp-tools.ts'
+export type {
+  CreatePageWebMCPToolsOptions,
+  CreateRegisterWebMCPToolsOptions,
+  CreateWebMCPToolsOptions,
+} from './create-web-mcp-tools.ts'
 export type {
   DeepPartial,
   CreateChatOptions,
@@ -64,6 +72,46 @@ export type { CreateAudioRecorderOptions } from './create-audio-recorder.ts'
 // Re-export from ai-client for convenience (mirror octane index.ts).
 // createMcpAppBridge / CreateMcpAppBridgeOptions come from ./create-mcp-app-bridge.
 export {
+  AudioRecorder,
+  ChatClient,
+  InterruptManager,
+  RealtimeClient,
+  GenerationClient,
+  VideoGenerationClient,
+  GENERATION_EVENTS,
+  reconstructImageResult,
+  reconstructAudioResult,
+  reconstructSpeechResult,
+  reconstructTranscriptionResult,
+  reconstructSummarizeResult,
+  UnsupportedResponseStreamError,
+  createAIDevtoolsGenerationPreview,
+  StreamTruncatedError,
+  DurableStreamIncompleteError,
+  StreamReconnectLimitError,
+  uiMessageToModelMessages,
+  modelMessageToUIMessage,
+  modelMessagesToUIMessages,
+  convertMessagesToModelMessages,
+  normalizeToUIMessage,
+  generateMessageId,
+  StreamProcessor,
+  ImmediateStrategy,
+  PunctuationStrategy,
+  BatchStrategy,
+  WordBoundaryStrategy,
+  CompositeStrategy,
+  parsePartialJSON,
+  PartialJSONParser,
+  defaultJSONParser,
+  registerWebMCPTools,
+  getWebMCPTools,
+  subscribeWebMCPTools,
+  type GetWebMCPToolsOptions,
+  type SubscribeWebMCPToolsOptions,
+  type WebMCPPageTool,
+  clientTools,
+  webSocket,
   fetchServerSentEvents,
   fetchHttpStream,
   xhrServerSentEvents,

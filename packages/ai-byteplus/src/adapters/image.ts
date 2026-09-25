@@ -1,4 +1,8 @@
-import { resolveMediaPrompt } from '@tanstack/ai'
+import {
+  isFileSource,
+  resolveMediaPrompt,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
@@ -69,6 +73,7 @@ const SUPPORTED_INPUT_ROLES: ReadonlySet<string> = new Set([
  */
 function imagePartToImageRef(part: ImagePart<MediaInputMetadata>): string {
   const { source } = part
+  if (isFileSource(source)) throw unsupportedFileSourceError('byteplus')
   if (source.type === 'url') return source.value
   if (source.value.startsWith('data:')) return source.value
   return `data:${source.mimeType.toLowerCase()};base64,${source.value}`

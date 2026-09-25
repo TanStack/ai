@@ -3,9 +3,7 @@ id: LazyToolsConfig
 title: LazyToolsConfig
 ---
 
-# Interface: LazyToolsConfig
-
-Defined in: [packages/ai/src/types.ts:817](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L817)
+Defined in: [packages/ai/src/types.ts:873](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L873)
 
 Configuration for the lazy-tool discovery catalog, shared by chat() and
 Code Mode. Optional in both — lazy behavior is triggered purely by tools
@@ -21,7 +19,7 @@ always returns the full description + schema.
 optional includeDescription?: "full" | "first-sentence" | "none";
 ```
 
-Defined in: [packages/ai/src/types.ts:823](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L823)
+Defined in: [packages/ai/src/types.ts:879](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L879)
 
 How much of each lazy tool's description appears in the pre-discovery
 catalog (the names list shown before the model discovers the tool).

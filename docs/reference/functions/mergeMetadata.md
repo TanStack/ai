@@ -3,8 +3,6 @@ id: mergeMetadata
 title: mergeMetadata
 ---
 
-# Function: mergeMetadata()
-
 ```ts
 function mergeMetadata(current, incoming): MetadataRecord | undefined;
 ```

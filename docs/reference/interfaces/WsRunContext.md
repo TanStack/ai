@@ -3,8 +3,6 @@ id: WsRunContext
 title: WsRunContext
 ---
 
-# Interface: WsRunContext
-
 Defined in: [packages/ai/src/stream-to-websocket.ts:62](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L62)
 
 Per-turn context for one inbound `run` frame on a conversation-scoped socket.
@@ -25,11 +23,11 @@ Defined in: [packages/ai/src/stream-to-websocket.ts:66](https://github.com/TanSt
 
 ```ts
 messages: (
+  | UIMessage<unknown>
   | ModelMessage<
   | string
   | ContentPart<unknown, unknown, unknown, unknown, unknown>[]
-  | null>
-  | UIMessage<unknown>)[];
+  | null>)[];
 ```
 
 Defined in: [packages/ai/src/stream-to-websocket.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L63)

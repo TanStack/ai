@@ -3,8 +3,6 @@ id: WireMessage
 title: WireMessage
 ---
 
-# Type Alias: WireMessage
-
 ```ts
 type WireMessage = 
   | WireSystemMessage
@@ -14,4 +12,4 @@ type WireMessage =
   | WireReasoningMessage;
 ```
 
-Defined in: [packages/ai/src/utilities/ag-ui-wire.ts:65](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-wire.ts#L65)
+Defined in: [packages/ai/src/utilities/ag-ui-wire.ts:69](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-wire.ts#L69)

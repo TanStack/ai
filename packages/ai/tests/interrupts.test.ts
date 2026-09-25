@@ -183,8 +183,8 @@ describe('AG-UI interrupt protocol types', () => {
     } satisfies TextOptions
 
     expect(options.resume).toBe(resume)
-    expectTypeOf<RunFinishedOutcome>().toMatchTypeOf<
-      { type: 'success' } | { type: 'interrupt'; interrupts: Array<Interrupt> }
+    expectTypeOf<RunFinishedOutcome['type']>().toEqualTypeOf<
+      'success' | 'interrupt' | 'cancelled'
     >()
   })
 })

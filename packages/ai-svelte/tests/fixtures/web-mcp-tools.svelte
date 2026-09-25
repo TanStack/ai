@@ -1,6 +1,6 @@
 <script lang="ts">
   import { toolDefinition } from '@tanstack/ai/client'
-  import { createWebMCPTools } from '../../src/create-web-mcp-tools.svelte'
+  import { createRegisterWebMCPTools } from '../../src/create-web-mcp-tools.svelte'
 
   let { onError }: { onError?: (error: unknown) => void } = $props()
 
@@ -9,7 +9,7 @@
     description: 'Get the current status',
   }).client(async () => ({ ok: true }))
 
-  createWebMCPTools([statusTool], {
+  createRegisterWebMCPTools([statusTool], {
     onError(error) {
       onError?.(error)
     },

@@ -4,9 +4,9 @@
  * sandbox paths (default workspace root `/workspace`).
  *
  * Filesystem data ops (read/readBytes/write/list/mkdir/remove) use Blaxel's
- * native filesystem endpoints; `rename` shells out through `exec` and `exists`
- * through a bare `test -e` probe because the filesystem API has no move or
- * stat call. Commands run through Blaxel's
+ * native filesystem endpoints; `rename` shells out through `exec`, `exists`
+ * through a bare `test -e` probe, and `lstat` through GNU `stat -c '%f:%s'`
+ * because the filesystem API has no move or stat call. Commands run through Blaxel's
  * process API, which reports stdout, stderr, and the exit code as separate
  * fields, so no output demultiplexing is needed.
  */
@@ -21,6 +21,7 @@ import type {
   ProcessOptions,
   SandboxCapabilities,
   SandboxChannel,
+  SandboxFsStat,
   SandboxHandle,
   SpawnHandle,
 } from '@tanstack/ai-sandbox'
@@ -35,11 +36,9 @@ export const BLAXEL_CAPS: SandboxCapabilities = {
   // stdin channel, so adapters that feed a prompt over stdin must write it to a
   // file and redirect instead.
   writableStdin: false,
-  // The SDK exposes a server-side kill endpoint, but child-process-group
-  // termination has not yet been measured against a live sandbox. Keep journal
-  // follow mode disabled until that conformance test can prove it leaves no
-  // remote process behind.
-  killableProcesses: false,
+  // The remote reaper terminates the supervisor and child process groups.
+  // Credential-gated journal conformance verifies follow cleanup.
+  killableProcesses: true,
   // Blaxel's source-scoped snapshot/fork API is a private preview, offers no
   // entitlement probe, and does not document snapshots surviving deletion.
   // TanStack's snapshot contract must reconstruct a sandbox after resume says
@@ -70,7 +69,27 @@ const PREVIEW_TTL_UNIT_MS: Record<string, number> = {
 
 /** Maximum unread stdout or stderr retained per spawned process. */
 const STREAM_BUFFER_LIMIT_BYTES = 8 * 1024 * 1024
+/** Raw bytes per framed output record; base64 grows it by 4/3. */
+const RECORD_BLOCK_BYTES = 65536
+/**
+ * Blaxel's log stream writes this token to keep the connection alive, and it
+ * can land in the middle of a line that is still being produced, which also
+ * ends that line early. The rest of the line then arrives without a stream
+ * tag, which the SDK hands only to `onLog`. Records never contain the token
+ * (base64 has no `[`), so it is stripped and the two halves are joined by the
+ * record terminator.
+ */
+const LOG_STREAM_KEEPALIVE = '[keepalive]'
+/**
+ * Stream label inside a framed record. The remote's stdout and stderr are both
+ * framed onto the supervisor's stdout: Blaxel's log stream forwards the two
+ * process streams in interleaved 4 KB chunks and tags only the first chunk of
+ * a line, so concurrent long lines on both would be delivered mixed together.
+ * One wire stream, labeled per record, sidesteps that demultiplexing.
+ */
+const RECORD_STREAM_LABEL = { stdout: '1:', stderr: '2:' } as const
 const PROCESS_REGISTRATION_RECONCILIATION_MS = 10_000
+const PROCESS_REAPER_TIMEOUT_SECONDS = 30
 /** Exit code `wait()` reports for a process ended by `kill()` (128 + SIGTERM). */
 const KILLED_EXIT_CODE = 143
 
@@ -112,6 +131,8 @@ export interface BlaxelSandboxLike {
       options?: {
         onStdout?: (chunk: string) => void
         onStderr?: (chunk: string) => void
+        /** Every line, tagged or not; tagged lines arrive with the tag stripped. */
+        onLog?: (chunk: string) => void
         onError?: (error: Error) => void
       },
     ) => { close: () => void; wait: () => Promise<void> }
@@ -299,6 +320,7 @@ export class BlaxelHandle implements SandboxHandle {
       // The framework's watcher calls this once per file event, so it bypasses
       // the capture supervisor: one process call instead of ~6 round trips.
       exists: (p) => this.probe(`test -e ${q(this.abs(p))}`),
+      lstat: (p) => this.lstat(this.abs(p)),
       watch: (p, onEvent) => {
         // Without `onError` the SDK discards watch failures (404, auth, stream
         // reset) and silently stops delivering events. The contract has no
@@ -399,17 +421,36 @@ export class BlaxelHandle implements SandboxHandle {
   /**
    * Capture remote stdout/stderr live into byte-bounded files. Fixed-size wire
    * records bound the SDK's newline accumulator, and the terminal path never
-   * calls cumulative wait/get.
+   * calls cumulative wait/get. Both captures frame onto the supervisor's stdout
+   * (see `RECORD_STREAM_LABEL`), serialized by a `mkdir` lock so records from
+   * the two captures never interleave.
+   *
+   * With `gate`, the supervisor prints a ready marker and holds the command
+   * until the host creates `<outputDir>/go`. Blaxel's log stream is a live
+   * tail: output produced before the host attaches arrives cut at an arbitrary
+   * byte, which would corrupt the first framed record. Spawn opens the gate
+   * only after it has seen a complete marker, so every record it decodes was
+   * produced while the stream was already attached.
    */
-  private boundedCommand(command: string): {
+  private boundedCommand(
+    command: string,
+    options: { gate?: boolean } = {},
+  ): {
     command: string
     outputDir: string
     overflowMarker: string
     recordPrefix: string
+    /** Every framed line ends with this, so a line split by a keepalive can be rejoined. */
+    recordSuffix: string
+    readyMarker: string
+    gateFile: string
   } {
     const outputDir = `/tmp/tanstack-ai-output-${randomUUID()}`
     const overflowMarker = `__TANSTACK_AI_OUTPUT_OVERFLOW_${randomUUID()}__`
     const recordPrefix = `__TANSTACK_AI_OUTPUT_CHUNK_${randomUUID()}__:`
+    const readyMarker = `__TANSTACK_AI_READY_${randomUUID()}__`
+    const recordSuffix = `__TANSTACK_AI_EOL_${randomUUID().replace(/-/g, '')}__`
+    const gateFile = `${outputDir}/go`
     const supervisorDelimiter = `__TANSTACK_AI_SUPERVISOR_${randomUUID().replace(/-/g, '')}__`
     const dir = q(outputDir)
     const outPipe = q(`${outputDir}/stdout.pipe`)
@@ -420,13 +461,16 @@ export class BlaxelHandle implements SandboxHandle {
     const pidsFile = q(`${outputDir}/pids`)
     const limitsFile = q(`${outputDir}/limits`)
     const supervisorFile = q(`${outputDir}/supervisor.sh`)
+    const lockDir = q(`${outputDir}/lock`)
+    const lock = `while ! mkdir ${lockDir} 2>/dev/null; do sleep 0.01; done`
+    const unlock = `rmdir ${lockDir}`
     const capture = (
       pipe: string,
       file: string,
       label: 'stdout' | 'stderr',
-      redirect = '',
     ): string => {
       const chunkFile = q(`${outputDir}/${label}.chunk`)
+      const recordStart = q(recordPrefix + RECORD_STREAM_LABEL[label])
       return [
         '(',
         // Count raw bytes explicitly because `ulimit -f` units vary between
@@ -436,7 +480,7 @@ export class BlaxelHandle implements SandboxHandle {
         `: > ${file} || __tanstack_capture_status=1`,
         `__tanstack_remaining=${STREAM_BUFFER_LIMIT_BYTES}`,
         'while [ "$__tanstack_capture_status" -eq 0 ] && [ "$__tanstack_remaining" -gt 0 ]; do',
-        '  __tanstack_block=65536',
+        `  __tanstack_block=${RECORD_BLOCK_BYTES}`,
         '  if [ "$__tanstack_remaining" -lt "$__tanstack_block" ]; then __tanstack_block="$__tanstack_remaining"; fi',
         `  : > ${chunkFile}`,
         `  dd of=${chunkFile} bs="$__tanstack_block" count=1 2>/dev/null`,
@@ -445,9 +489,11 @@ export class BlaxelHandle implements SandboxHandle {
         `  __tanstack_chunk_size=$(wc -c < ${chunkFile})`,
         '  [ "$__tanstack_chunk_size" -gt 0 ] || break',
         `  cat ${chunkFile} >> ${file} || { __tanstack_capture_status=1; break; }`,
-        `  printf '%s' ${q(recordPrefix)}`,
+        `  ${lock}`,
+        `  printf '%s' ${recordStart}`,
         `  base64 < ${chunkFile} | tr -d '\r\n'`,
-        `  printf '\\n'`,
+        `  printf '%s\\n' ${q(recordSuffix)}`,
+        `  ${unlock}`,
         '  __tanstack_remaining=$((__tanstack_remaining - __tanstack_chunk_size))',
         'done',
         'if [ "$__tanstack_capture_status" -eq 0 ] && [ "$__tanstack_remaining" -eq 0 ]; then',
@@ -461,9 +507,11 @@ export class BlaxelHandle implements SandboxHandle {
         `rm -f -- ${chunkFile}`,
         'if [ "$__tanstack_capture_status" -ne 0 ]; then',
         `  printf '%s\\n' ${q(label)} >> ${limitsFile}`,
-        `  printf '%s\\n' ${q(overflowMarker)}`,
+        `  ${lock}`,
+        `  printf '%s%s\\n' ${q(overflowMarker)} ${q(recordSuffix)}`,
+        `  ${unlock}`,
         'fi',
-        `) < ${pipe}${redirect} &`,
+        `) < ${pipe} &`,
       ].join('\n')
     }
 
@@ -491,6 +539,11 @@ export class BlaxelHandle implements SandboxHandle {
       "trap '__tanstack_reap 129' HUP",
       "trap '__tanstack_reap 130' INT",
       "trap '__tanstack_reap 143' TERM",
+      ...(options.gate
+        ? [
+            `while [ ! -e ${q(gateFile)} ]; do printf '%s%s\\n' ${q(readyMarker)} ${q(recordSuffix)}; sleep 0.1; done`,
+          ]
+        : []),
       // Job control gives each background job a distinct process group. Both
       // this supervisor and a later host-side reaper can then terminate the
       // command and the complete capture pipelines without relying on
@@ -498,7 +551,7 @@ export class BlaxelHandle implements SandboxHandle {
       'set -m',
       capture(outPipe, outFile, 'stdout'),
       '__tanstack_stdout_reader=$!',
-      capture(errPipe, errFile, 'stderr', ' >&2'),
+      capture(errPipe, errFile, 'stderr'),
       '__tanstack_stderr_reader=$!',
       '(',
       command,
@@ -518,6 +571,9 @@ export class BlaxelHandle implements SandboxHandle {
       outputDir,
       overflowMarker,
       recordPrefix,
+      recordSuffix,
+      readyMarker,
+      gateFile,
       // Materialize the supervisor without evaluating it in Blaxel's
       // image-dependent outer shell, then run it in Bash so job-control process
       // groups have consistent semantics. The script unlinks itself on entry.
@@ -570,8 +626,9 @@ export class BlaxelHandle implements SandboxHandle {
 
   private async reapProcessGroups(outputDir: string): Promise<void> {
     const pidsFile = q(`${outputDir}/pids`)
-    const result = await this.sandbox.process.exec({
-      name: this.processName('reap'),
+    const name = this.processName('reap')
+    await this.sandbox.process.exec({
+      name,
       command: [
         `if [ -r ${pidsFile} ]; then`,
         `  __tanstack_pids=$(cat ${pidsFile})`,
@@ -587,12 +644,23 @@ export class BlaxelHandle implements SandboxHandle {
         'fi',
       ].join('\n'),
       workingDir: this.workdir,
-      waitForCompletion: true,
-      timeout: 30,
+      waitForCompletion: false,
+      keepAlive: true,
+      timeout: PROCESS_REAPER_TIMEOUT_SECONDS,
     })
-    if (result.exitCode !== 0) {
+    // Client-side wait is the completion bound: SDK wait throws at maxWait.
+    // keepAlive avoids the SDK's default keep-alive timeout, matching spawn.
+    const result = await this.sandbox.process.wait(name, {
+      maxWait: PROCESS_REAPER_TIMEOUT_SECONDS * 1000,
+      interval: 250,
+    })
+    const exitCode = result.exitCode
+    const finished =
+      (result.status === 'completed' || result.status === 'failed') &&
+      Number.isInteger(exitCode)
+    if (!finished || exitCode !== 0) {
       throw new Error(
-        `blaxel: remote process-group reaper exited ${result.exitCode ?? 'without a status'}.`,
+        `blaxel: remote process-group reaper exited ${exitCode ?? 'without a status'} (status=${String(result.status)}).`,
       )
     }
   }
@@ -737,6 +805,31 @@ export class BlaxelHandle implements SandboxHandle {
     return result.exitCode === 0
   }
 
+  private async lstat(path: string): Promise<SandboxFsStat | undefined> {
+    const result = await this.sandbox.process.exec({
+      name: this.processName('lstat'),
+      command: `LC_ALL=C stat -c '%f:%s' -- ${q(path)}`,
+      workingDir: this.workdir,
+      waitForCompletion: true,
+      timeout: 30,
+    })
+    if (result.exitCode === undefined) {
+      throw new Error(
+        `blaxel: lstat ended without an exit code (status=${String(result.status)}).`,
+      )
+    }
+    if (result.exitCode !== 0) {
+      const stderr = result.stderr ?? ''
+      if (stderr.includes('No such file or directory')) {
+        return undefined
+      }
+      throw new Error(
+        `blaxel: lstat ${path} failed: ${stderr.trim() || `exit ${result.exitCode}`}`,
+      )
+    }
+    return parseLstatOutput(result.stdout ?? '')
+  }
+
   private async exec(
     command: string,
     opts?: ProcessOptions,
@@ -839,7 +932,7 @@ export class BlaxelHandle implements SandboxHandle {
     const name = this.processName('spawn')
     const stdout = new ChunkStream('stdout')
     const stderr = new ChunkStream('stderr')
-    const bounded = this.boundedCommand(command)
+    const bounded = this.boundedCommand(command, { gate: true })
     let termination: Promise<void> | undefined
     const terminate = (): Promise<void> =>
       (termination ??= this.terminateProcess(name, bounded.outputDir))
@@ -908,7 +1001,7 @@ export class BlaxelHandle implements SandboxHandle {
       stderr.fail(error)
       void terminate().catch(() => undefined)
     }
-    const onLine = (stream: ChunkStream, line: string): void => {
+    const onLine = (line: string): void => {
       if (line === bounded.overflowMarker) {
         failTransport(
           new Error(
@@ -923,7 +1016,19 @@ export class BlaxelHandle implements SandboxHandle {
         )
         return
       }
-      const encoded = line.slice(bounded.recordPrefix.length)
+      const labeled = line.slice(bounded.recordPrefix.length)
+      const stream = labeled.startsWith(RECORD_STREAM_LABEL.stdout)
+        ? stdout
+        : labeled.startsWith(RECORD_STREAM_LABEL.stderr)
+          ? stderr
+          : undefined
+      if (stream === undefined) {
+        failTransport(
+          new Error('blaxel: received malformed framed process output.'),
+        )
+        return
+      }
+      const encoded = labeled.slice(RECORD_STREAM_LABEL.stdout.length)
       const bytes = Buffer.from(encoded, 'base64')
       if (bytes.length === 0 || bytes.toString('base64') !== encoded) {
         failTransport(
@@ -935,9 +1040,48 @@ export class BlaxelHandle implements SandboxHandle {
         void terminate().catch(() => undefined)
       }
     }
+    // Nothing but ready markers is produced before the gate opens, and the
+    // attach-time cut can only land inside one of those, so anything received
+    // before the first complete marker is a marker fragment to skip. A marker
+    // may also trail the gate by one loop iteration.
+    let gateOpened = false
+    const readyLine = bounded.readyMarker + bounded.recordSuffix
+    const maxUnitLength =
+      bounded.recordPrefix.length +
+      RECORD_STREAM_LABEL.stdout.length +
+      Math.ceil(RECORD_BLOCK_BYTES / 3) * 4 +
+      bounded.recordSuffix.length
+    let pending = ''
+    const assemble = (line: string): void => {
+      const cleaned = line.split(LOG_STREAM_KEEPALIVE).join('')
+      if (!gateOpened) {
+        if (cleaned.endsWith(readyLine)) {
+          gateOpened = true
+          this.sandbox.fs.write(bounded.gateFile, '').catch(failTransport)
+        }
+        return
+      }
+      pending += cleaned
+      if (!pending.endsWith(bounded.recordSuffix)) {
+        if (pending.length > maxUnitLength) {
+          pending = ''
+          failTransport(
+            new Error('blaxel: received malformed framed process output.'),
+          )
+        }
+        return
+      }
+      const unit = pending.slice(0, -bounded.recordSuffix.length)
+      pending = ''
+      if (unit === bounded.readyMarker) return
+      onLine(unit)
+    }
+    // `onLog` sees every wire line once: tagged ones with the tag stripped and
+    // untagged continuations after a keepalive. Everything framed travels on
+    // stdout; the supervisor's own stderr only ever carries shell diagnostics,
+    // which the framing rejects as malformed rather than passing through.
     const logs = this.sandbox.process.streamLogs(name, {
-      onStdout: (line) => onLine(stdout, line),
-      onStderr: (line) => onLine(stderr, line),
+      onLog: assemble,
       onError: failTransport,
     })
 
@@ -1304,6 +1448,22 @@ function mayHaveStartedProcess(error: unknown): boolean {
     status === 429 ||
     status >= 500
   )
+}
+
+function parseLstatOutput(output: string): SandboxFsStat {
+  const fields = /^([0-9a-fA-F]{3,4}):(\d+)\s*$/.exec(output)
+  const parsedMode = Number.parseInt(fields?.[1] ?? '', 16)
+  const parsedSize = Number(fields?.[2])
+  if (!Number.isSafeInteger(parsedMode) || !Number.isSafeInteger(parsedSize)) {
+    throw new Error(`blaxel: invalid lstat output: ${JSON.stringify(output)}`)
+  }
+  const type = parsedMode & 0o170000
+  if (type === 0o100000) {
+    return { type: 'file', mode: parsedMode, size: parsedSize }
+  }
+  if (type === 0o040000) return { type: 'dir', mode: parsedMode }
+  if (type === 0o120000) return { type: 'symlink', mode: parsedMode }
+  return { type: 'other', mode: parsedMode }
 }
 
 /** POSIX single-quote escape for embedding paths in a shell command. */

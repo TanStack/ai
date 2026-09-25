@@ -3,13 +3,11 @@ id: AGUIEventType
 title: AGUIEventType
 ---
 
-# ~~Type Alias: AGUIEventType~~
-
 ```ts
 type AGUIEventType = `${EventType}`;
 ```
 
-Defined in: [packages/ai/src/types.ts:1140](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1140)
+Defined in: [packages/ai/src/types.ts:1202](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1202)
 
 AG-UI Protocol event types.
 

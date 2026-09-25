@@ -9,8 +9,6 @@ keywords:
   - drizzle prisma d1 adapter
 ---
 
-# Build Your Own Persistence Adapter
-
 Your data lives in your own database (Postgres behind Prisma, a SQLite file, D1,
 Mongo) and you do not want another service just for chat history. You do not need
 one. An adapter is a plain object of store functions. The core never looks at your
@@ -171,6 +169,11 @@ runPersistenceConformance('chat-only adapter', () => chatOnlyPersistence(), {
   skipMethods: ['runs.listByThread'],
 })
 ```
+
+The optional run methods are `listByThread`, `listByParentRun`, and
+`listReclaimable`. Add an omitted `listByThread` or `listReclaimable` to
+`skipMethods`. An omitted `listByParentRun` needs no entry: the subagent checks
+skip on their own.
 
 Anything absent and undeclared fails with a message naming exactly what to add, so a
 half-wired adapter cannot report a pass. When this is green, your adapter is a drop-in

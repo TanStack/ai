@@ -1,0 +1,12 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[structured-stream-invalid] recommend a guitar as json"
+      },
+      "response": {
+        "content": "{not valid json"
+      }
+    }
+  ]
+}

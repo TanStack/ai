@@ -48,61 +48,34 @@ describe('InMemoryRunEventLog', () => {
     expect(events.map((e) => e.seq)).toEqual([2, 3])
   })
 
-  it('live-tails: a blocked reader wakes on append and on finish', async () => {
+  it('replays backlog, then blocks for append and finish', async () => {
     const log = new InMemoryRunEventLog()
     await log.open({ runId: 'r1', threadId: 't1' })
-
-    const seen: Array<number> = []
-    const reader = (async () => {
-      for await (const e of log.read('r1')) seen.push(e.seq)
-    })()
-
-    // Reader is blocked (no events yet). Append over a few microtask turns.
     await log.append('r1', chunk('a'))
-    await new Promise((r) => setTimeout(r, 0))
+    const reader = log.read('r1')[Symbol.asyncIterator]()
+
+    const backlog = await reader.next()
+    expect(backlog.value?.seq).toBe(0)
+    const next = reader.next()
     await log.append('r1', chunk('b'))
-    await new Promise((r) => setTimeout(r, 0))
+    const appended = await next
+    expect(appended.value?.seq).toBe(1)
+    const done = reader.next()
     await log.finish('r1', 'completed')
-
-    await reader
-    expect(seen).toEqual([0, 1])
-  })
-
-  it('a reader that joins mid-run gets backlog + live tail, resumably', async () => {
-    const log = new InMemoryRunEventLog()
-    await log.open({ runId: 'r1', threadId: 't1' })
-    await log.append('r1', chunk('a')) // seq 0 — before the reader joins
-
-    const seen: Array<number> = []
-    const reader = (async () => {
-      for await (const e of log.read('r1', { fromSeq: -1 })) seen.push(e.seq)
-    })()
-
-    await new Promise((r) => setTimeout(r, 0))
-    await log.append('r1', chunk('b')) // seq 1 — live
-    await log.finish('r1', 'completed')
-    await reader
-
-    expect(seen).toEqual([0, 1])
+    expect((await done).done).toBe(true)
   })
 
   it('stops tailing when the read signal aborts (client disconnect)', async () => {
     const log = new InMemoryRunEventLog()
     await log.open({ runId: 'r1', threadId: 't1' })
     await log.append('r1', chunk('a'))
-
     const ac = new AbortController()
-    const seen: Array<number> = []
-    const reader = (async () => {
-      for await (const e of log.read('r1', { signal: ac.signal })) {
-        seen.push(e.seq)
-      }
-    })()
+    const reader = log.read('r1', { signal: ac.signal })[Symbol.asyncIterator]()
 
-    await new Promise((r) => setTimeout(r, 0))
-    ac.abort() // run never finishes; reader must still return
-    await reader
-    expect(seen).toEqual([0])
+    expect((await reader.next()).value?.seq).toBe(0)
+    const done = reader.next()
+    ac.abort()
+    expect((await done).done).toBe(true)
   })
 
   it('open is idempotent and rejects appends after terminal', async () => {

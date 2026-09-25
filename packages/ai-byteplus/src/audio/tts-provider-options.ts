@@ -3,6 +3,7 @@ import type {
   BytePlusTTSReference,
   BytePlusTTSSampleRate,
   BytePlusTTSSubtitle,
+  BytePlusTTSWatermark,
 } from './wire-types'
 import type { TTSResult } from '@tanstack/ai'
 
@@ -79,10 +80,13 @@ export interface BytePlusTTSProviderOptions {
    */
   enable_subtitle?: boolean
   /**
-   * Watermark the generated audio. The field name is confirmed against the
-   * endpoint schema; the boolean type is assumed and unprobed.
+   * Watermark the generated audio.
+   *
+   * Seed Audio takes an object with two independent markers — an audible
+   * `aigc_watermark` appended to the clip and an `aigc_metadata` block written
+   * into the audio header. `true` is shorthand for `{ aigc_watermark: true }`.
    */
-  watermark?: boolean
+  watermark?: boolean | BytePlusTTSWatermark
 }
 
 /**

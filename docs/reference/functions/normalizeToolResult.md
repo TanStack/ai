@@ -3,13 +3,11 @@ id: normalizeToolResult
 title: normalizeToolResult
 ---
 
-# Function: normalizeToolResult()
-
 ```ts
 function normalizeToolResult(result): string | ContentPart[];
 ```
 
-Defined in: [packages/ai/src/utilities/tool-result.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/tool-result.ts#L54)
+Defined in: [packages/ai/src/utilities/tool-result.ts:90](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/tool-result.ts#L90)
 
 Normalize a tool's return value for transport:
 - string            → unchanged
