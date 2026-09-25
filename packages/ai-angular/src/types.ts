@@ -61,7 +61,7 @@ export type DeepPartial<T> =
  *
  * Mirrors the Vue `useChat` options, except:
  * - State-change callbacks are managed internally and exposed as signals.
- * - `body`, `forwardedProps`, and `live` accept a {@link ReactiveOption} so
+ * - `tools`, `body`, `forwardedProps`, and `live` accept a {@link ReactiveOption} so
  *   they can be a static value, a `Signal`, or a getter and stay reactive.
  */
 export type InjectChatOptions<
@@ -86,9 +86,12 @@ export type InjectChatOptions<
   | 'devtools'
   | 'body'
   | 'forwardedProps'
+  | 'tools'
 > & {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /** Client-side tools with execution logic. Reactive. */
+  tools?: ReactiveOption<TTools>
   /** Additional request body params. Reactive. */
   body?: ReactiveOption<Record<string, any>>
   /** Forwarded request props (preferred over `body`). Reactive. */

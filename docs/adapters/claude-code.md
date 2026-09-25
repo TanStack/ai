@@ -81,7 +81,7 @@ const stream = chat({
 | `apiKey`                     | Anthropic API key for the harness subprocess.                                                                                                       |
 | `env`                        | Extra environment variables for the harness subprocess.                                                                                            |
 | `pathToClaudeCodeExecutable` | Use a specific Claude Code executable instead of the SDK's bundled one.                                                                             |
-| `streamPartials`             | Emit true token-level text deltas (default `true`).                                                                                                 |
+| `streamPartials`             | Emit true token-level deltas for text and tool-call arguments (default `true`). When `false`, both emit whole from the complete message.            |
 | `canUseTool`                 | Custom permission handler; replaces the adapter's default handler.                                                                                  |
 | `settingSources`             | Claude Code settings tiers to load. Default `['project']`: the workspace's `CLAUDE.md`, `.claude/skills`, and `.mcp.json` apply, and the host's `~/.claude` (plugins, hooks, skills) is not loaded. Pass `['user', 'project', 'local']` for CLI-equivalent behavior, or `[]` to load no settings. |
 

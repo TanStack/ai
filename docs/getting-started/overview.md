@@ -22,6 +22,8 @@ Generate an image from a prompt in [Generate Image](../tutorials/generate-image)
 
 Stream a typed table from `chat({ outputSchema })` in [Streaming Structured Table](../tutorials/streaming-structured-table).
 
+Add three named agents (researcher, SEO, and writer) to a blog-writing chat in [Subagents](../tutorials/subagents).
+
 ## Key Features
 
 - ✅ **Type-Safe** - Full TypeScript support with Zod schema inference
@@ -133,6 +135,7 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 - **@tanstack/ai-byteplus** - BytePlus (Seed chat, Seedance video, Seedream image, Seed Speech)
 - **@tanstack/ai-fal** - fal (image & video generation)
 - **@tanstack/ai-reactor** - Reactor (live world and video generation: Orbis, Happy Oyster, LingBot, Helios, FastH3)
+- **@tanstack/ai-worldlabs** - World Labs Marble (persistent 3D world generation)
 - **@tanstack/ai-llmgateway** - LLM Gateway (hundreds of models via one OpenAI-compatible endpoint, self-hostable)
 - **@tanstack/ai-cloudflare** - Cloudflare Workers AI (chat, embeddings, image, speech, transcription, evaluate) and AI Gateway routing
 - **@tanstack/ai-typesafe** - TypeSafe Jev (typed evaluate decisions)

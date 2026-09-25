@@ -1,5 +1,8 @@
 import OpenAI from 'openai'
-import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
+import {
+  OpenAIBaseResponsesTextAdapter,
+  warnStrictFallback,
+} from '@tanstack/openai-base'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
@@ -19,11 +22,13 @@ import type {
 } from '../text/text-provider-options'
 import type { OpenAIMessageMetadataByModality } from '../message-types'
 import type { OpenAIClientConfig } from '../utils/client'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
 /**
  * Configuration for OpenAI text adapter
  */
-export interface OpenAITextConfig extends OpenAIClientConfig {}
+export interface OpenAITextConfig
+  extends OpenAIClientConfig, OpenAIBaseTextAdapterOptions {}
 
 /**
  * Alias for TextProviderOptions
@@ -92,9 +97,14 @@ export class OpenAITextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'openai' as const
+  // OpenAI's Responses endpoint consumes `file_id` references issued by its
+  // Files API (`openaiFiles()`). The default is undefined (unsupported) so
+  // compatible subclasses of the openai-base adapter (Grok, Bedrock, custom)
+  // — which have no such surface — fail closed in preflight.
+  override readonly supportsFileSources = true
 
   constructor(config: OpenAITextConfig, model: TModel) {
-    super(model, 'openai', new OpenAI(config))
+    super(model, 'openai', new OpenAI(config), config)
   }
 
   /**
@@ -130,6 +140,9 @@ export class OpenAITextAdapter<
       tools: undefined,
     })
 
+    if (this.strictFallbackWarning) {
+      warnStrictFallback(options.tools, options.logger)
+    }
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)
       : undefined
@@ -157,6 +170,23 @@ export class OpenAITextAdapter<
       openAIModelRejectsSamplingParams(options.model)
     ) {
       request.include = ['reasoning.encrypted_content']
+    }
+
+    // OpenAI only returns the URLs used by a hosted web search when this
+    // response item is included. Preserve caller entries and add the item for
+    // branded web search tools only. A custom function named `web_search` has
+    // no internal provider-tool discriminator and must not change the request.
+    const hasWebSearchTool = options.tools?.some((tool) => {
+      const kind = tool.metadata?.['__kind']
+      return (
+        kind === 'openai.web_search' || kind === 'openai.web_search_preview'
+      )
+    })
+    if (hasWebSearchTool) {
+      const include = request.include ?? []
+      if (!include.includes('web_search_call.action.sources')) {
+        request.include = [...include, 'web_search_call.action.sources']
+      }
     }
 
     return request

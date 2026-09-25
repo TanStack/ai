@@ -19,12 +19,22 @@ import type {
   UsageCostBreakdown,
 } from '@tanstack/ai-event-client'
 import type {
+  ActivityDeltaEvent as AGUIActivityDeltaEvent,
+  ActivitySnapshotEvent as AGUIActivitySnapshotEvent,
+  AudioPart as AGUIAudioPart,
   BaseEvent as AGUIBaseEvent,
+  ContentPart as AGUIContentPart,
   CustomEvent as AGUICustomEvent,
+  DataSource as AGUIDataSource,
+  DocumentPart as AGUIDocumentPart,
+  FileSource as AGUIFileSource,
+  ImagePart as AGUIImagePart,
   Interrupt as AGUIInterrupt,
   MessagesSnapshotEvent as AGUIMessagesSnapshotEvent,
   ReasoningEncryptedValueEvent as AGUIReasoningEncryptedValueEvent,
   ReasoningEndEvent as AGUIReasoningEndEvent,
+  RawEvent as AGUIRawEvent,
+  ReasoningMessageChunkEvent as AGUIReasoningMessageChunkEvent,
   ReasoningMessageContentEvent as AGUIReasoningMessageContentEvent,
   ReasoningMessageEndEvent as AGUIReasoningMessageEndEvent,
   ReasoningMessageStartEvent as AGUIReasoningMessageStartEvent,
@@ -38,19 +48,31 @@ import type {
   StateSnapshotEvent as AGUIStateSnapshotEvent,
   StepFinishedEvent as AGUIStepFinishedEvent,
   StepStartedEvent as AGUIStepStartedEvent,
+  SubagentErrorEvent as AGUISubagentErrorEvent,
+  SubagentFinishedEvent as AGUISubagentFinishedEvent,
+  SubagentFinishedSuspendedOutcome as AGUISubagentFinishedSuspendedOutcome,
+  SubagentInfo as AGUISubagentInfo,
+  SubagentRunId as AGUISubagentRunId,
+  SubagentStartedEvent as AGUISubagentStartedEvent,
+  TextMessageChunkEvent as AGUITextMessageChunkEvent,
   TextMessageContentEvent as AGUITextMessageContentEvent,
   TextMessageEndEvent as AGUITextMessageEndEvent,
   TextMessageStartEvent as AGUITextMessageStartEvent,
+  ToolCall as AGUIToolCall,
   ToolCallArgsEvent as AGUIToolCallArgsEvent,
+  ToolCallChunkEvent as AGUIToolCallChunkEvent,
   ToolCallEndEvent as AGUIToolCallEndEvent,
   ToolCallResultEvent as AGUIToolCallResultEvent,
   ToolCallStartEvent as AGUIToolCallStartEvent,
+  UrlSource as AGUIUrlSource,
+  VideoPart as AGUIVideoPart,
   EventType,
 } from '@ag-ui/core'
 import type {
   SpecTokenUsage,
   TokenUsageLeftover,
 } from './utilities/ag-ui-usage'
+import type { SubagentWireInfo } from './utilities/subagent-wire'
 
 // Re-export ProviderTool so the type is reachable from `@tanstack/ai`'s root
 // entry via `export * from './types'` without forcing the subpath import.
@@ -163,17 +185,22 @@ export type InferSchemaType<T> =
       ? TInput
       : unknown
 
-export interface ToolCall<TMetadata = unknown> {
-  id: string
-  type: 'function'
-  function: {
-    name: string
-    arguments: string // JSON string
-  }
+/** AG-UI `ToolCall` with typed metadata. `function.arguments` is a JSON string. */
+export interface ToolCall<TMetadata = unknown> extends Omit<
+  AGUIToolCall,
+  'metadata'
+> {
   /** Provider-specific metadata to carry through the tool call lifecycle.
    * Typed per-adapter via `TToolCallMetadata`. For example,
    * `@tanstack/ai-gemini` sets this to `{ thoughtSignature?: string }`. */
   metadata?: TMetadata
+}
+
+/** One source link from a provider-executed web search. */
+export interface ProviderExecutedToolSource {
+  url: string
+  title?: string
+  pageAge?: string
 }
 
 /**
@@ -189,10 +216,12 @@ export interface ToolCall<TMetadata = unknown> {
  *
  * Provider-specific payloads live under a namespaced key (e.g. `anthropic`),
  * keeping this convention opaque to the framework core. The index signature
- * preserves those per-adapter fields.
+ * preserves those per-adapter fields. `sources` is the normalized list of
+ * links a web search used, shared across providers.
  */
 export interface ProviderExecutedToolMetadata {
   providerExecuted?: boolean
+  sources?: Array<ProviderExecutedToolSource>
   [key: string]: unknown
 }
 
@@ -201,106 +230,84 @@ export interface ProviderExecutedToolMetadata {
 // ============================================================================
 
 /**
- * Supported input modality types for multimodal content.
- * - 'text': Plain text content
- * - 'image': Image content (base64 or URL)
- * - 'audio': Audio content (base64 or URL)
- * - 'video': Video content (base64 or URL)
- * - 'document': Document content like PDFs (base64 or URL)
+ * Supported input modality types for multimodal content: the `type` of each
+ * AG-UI `ContentPart` (text, image, audio, video, document).
  */
-export type Modality = 'text' | 'image' | 'audio' | 'video' | 'document'
+export type Modality = AGUIContentPart['type']
 
 /**
- * Source specification for inline data content (base64).
- * Requires a mimeType to ensure providers receive proper content type information.
+ * Inline base64 content. AG-UI `DataSource`: `mimeType` is required.
  */
-export interface ContentPartDataSource {
+export interface ContentPartDataSource extends AGUIDataSource {}
+
+/**
+ * URL-referenced content. AG-UI `UrlSource`: `mimeType` is optional.
+ */
+export interface ContentPartUrlSource extends AGUIUrlSource {}
+
+/**
+ * A provider-issued file handle (Files API). AG-UI `FileSource`: the handle
+ * is opaque, do not fetch or parse it.
+ *
+ * The media is uploaded once via a `files` adapter (`openaiFiles()`,
+ * `anthropicFiles()`, `geminiFiles()`, `grokFiles()`, `falFiles()`) and
+ * referenced here by the returned handle instead of re-sending base64 or a
+ * public URL on each request. Only the provider that minted a handle can
+ * resolve it. Adapters that cannot consume file handles at all are rejected
+ * by the activity-layer preflight before mapping starts.
+ */
+export interface ContentPartFileSource<
+  TProvider extends string = string,
+> extends AGUIFileSource {
   /**
-   * Indicates this is inline data content.
+   * The adapter name of the provider that issued the handle (`'openai'`,
+   * `'gemini'`, ...), the same id TanStack reports as the usage provider.
+   * When present, an adapter rejects a handle another provider issued.
    */
-  type: 'data'
-  /**
-   * The base64-encoded content value.
-   */
-  value: string
-  /**
-   * The MIME type of the content (e.g., 'image/png', 'audio/wav').
-   * Required for data sources to ensure proper handling by providers.
-   */
-  mimeType: string
+  provider?: TProvider
 }
 
 /**
- * Source specification for URL-based content.
- * mimeType is optional as it can often be inferred from the URL or response headers.
+ * Where a media part's bytes come from: inline data, a URL, or a provider
+ * file handle. Same members as AG-UI `PartSource`.
  */
-export interface ContentPartUrlSource {
-  /**
-   * Indicates this is URL-referenced content.
-   */
-  type: 'url'
-  /**
-   * HTTP(S) URL or data URI pointing to the content.
-   */
-  value: string
-  /**
-   * Optional MIME type hint for cases where providers can't infer it from the URL.
-   */
-  mimeType?: string
-}
+export type ContentPartSource =
+  | ContentPartDataSource
+  | ContentPartUrlSource
+  | ContentPartFileSource
 
 /**
- * Source specification for multimodal content.
- * Discriminated union supporting both inline data (base64) and URL-based content.
- * - For 'data' sources: mimeType is required
- * - For 'url' sources: mimeType is optional
- */
-export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
-
-/**
- * Image content part for multimodal messages.
+ * Image content part for multimodal messages. AG-UI `ImagePart` with typed metadata.
  * @template TMetadata - Provider-specific metadata type (e.g., OpenAI's detail level)
  */
-export interface ImagePart<TMetadata = unknown> {
-  type: 'image'
-  /** Source of the image content */
-  source: ContentPartSource
+export interface ImagePart<TMetadata = unknown> extends AGUIImagePart {
   /** Provider-specific metadata (e.g., OpenAI's detail: 'auto' | 'low' | 'high') */
   metadata?: TMetadata
 }
 
 /**
- * Audio content part for multimodal messages.
+ * Audio content part for multimodal messages. AG-UI `AudioPart` with typed metadata.
  * @template TMetadata - Provider-specific metadata type
  */
-export interface AudioPart<TMetadata = unknown> {
-  type: 'audio'
-  /** Source of the audio content */
-  source: ContentPartSource
+export interface AudioPart<TMetadata = unknown> extends AGUIAudioPart {
   /** Provider-specific metadata (e.g., format, sample rate) */
   metadata?: TMetadata
 }
 
 /**
- * Video content part for multimodal messages.
+ * Video content part for multimodal messages. AG-UI `VideoPart` with typed metadata.
  * @template TMetadata - Provider-specific metadata type
  */
-export interface VideoPart<TMetadata = unknown> {
-  type: 'video'
-  /** Source of the video content */
-  source: ContentPartSource
+export interface VideoPart<TMetadata = unknown> extends AGUIVideoPart {
   /** Provider-specific metadata (e.g., duration, resolution) */
   metadata?: TMetadata
 }
 
 /**
- * Document content part for multimodal messages (e.g., PDFs).
+ * Document content part for multimodal messages (e.g., PDFs). AG-UI `DocumentPart` with typed metadata.
  * @template TMetadata - Provider-specific metadata type (e.g., Anthropic's media_type)
  */
-export interface DocumentPart<TMetadata = unknown> {
-  type: 'document'
-  /** Source of the document content */
-  source: ContentPartSource
+export interface DocumentPart<TMetadata = unknown> extends AGUIDocumentPart {
   /** Provider-specific metadata (e.g., media_type for PDFs) */
   metadata?: TMetadata
 }
@@ -492,6 +499,37 @@ export interface StructuredOutputPart<TData = unknown> {
   errorMessage?: string
 }
 
+export type SubagentStatus = 'running' | 'finished' | 'error' | 'suspended'
+
+/**
+ * One child invocation as the client sees it. AG-UI `SubagentInfo` names the
+ * child; the other AG-UI fields come from its `SUBAGENT_STARTED`,
+ * `SUBAGENT_FINISHED` and `SUBAGENT_ERROR` events. `id` is the AG-UI
+ * `subagentRunId`. `status`, `parentRunId` and `messages` are client state the
+ * spec does not model.
+ */
+export interface SubagentHandleData
+  extends
+    AGUISubagentInfo,
+    Pick<
+      AGUISubagentStartedEvent,
+      'parentSubagentRunId' | 'parentToolCallId' | 'metadata'
+    > {
+  id: AGUISubagentRunId
+  status: SubagentStatus
+  /** The parent chat run that started this child. */
+  parentRunId?: string
+  /** Interrupts this child raised, while `status` is `'suspended'`. */
+  interruptIds?: AGUISubagentFinishedSuspendedOutcome['interruptIds']
+  messages: Array<UIMessage>
+  error?: Pick<AGUISubagentErrorEvent, 'message' | 'code'>
+}
+
+export interface SubagentPart {
+  type: 'subagent'
+  subagent: SubagentHandleData
+}
+
 export interface UIResourcePart {
   type: 'ui-resource'
   /** The ui:// resource object in MCP-native shape — fed straight to the renderer. */
@@ -520,6 +558,7 @@ export type MessagePart<TData = unknown> =
   | ThinkingPart
   | StructuredOutputPart<TData>
   | UIResourcePart
+  | SubagentPart
 
 /**
  * Shape of `metadata.tanstack` on a message.
@@ -528,6 +567,16 @@ export type MessagePart<TData = unknown> =
 export interface TanStackMessageMetadata {
   createdAt?: string
   model?: string
+  /** Parent chat run that produced this assistant message. */
+  runId?: string
+  /**
+   * The chat run that produced this assistant message. `withPersistence` sets
+   * `id`. `reconstructChat` with `includeRuns: true` adds the finished run's
+   * timings, in epoch ms.
+   */
+  run?: { id: string; startedAt?: number; finishedAt?: number }
+  /** Card data on a child wire message. See `uiMessagesToWire`. */
+  subagent?: SubagentWireInfo
   /** Thinking signature for a `role: 'reasoning'` fan-out message. */
   signature?: string
   /** Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignature). */
@@ -1113,6 +1162,12 @@ export interface TextOptions<
    * Surfaced for observability/middleware; not consumed by the LLM call.
    */
   parentRunId?: string
+  /**
+   * AG-UI subagent run id when this chat runs as a child of another run.
+   * A child `chat()` passes `ctx.subagentRunId`. Middleware reads it as
+   * `ctx.subagentRunId`. Absent on a top-level run.
+   */
+  subagentRunId?: string
 
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: unknown
@@ -1285,15 +1340,12 @@ export interface TextMessageEndEvent extends AGUITextMessageEndEvent {}
 /**
  * Emitted when a tool call starts.
  *
- * @ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
- *
- * Field shapes are taken from AG-UI via `Pick` (not `extends`) so Zod
- * `.passthrough()` index signatures do not pollute the StreamChunk
- * discriminated union — required for {@link KnownCustomEvent} narrowing.
+ * @ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`,
+ * `subagentRunId?`
  */
-export interface ToolCallStartEvent extends Pick<
+export interface ToolCallStartEvent extends Omit<
   AGUIToolCallStartEvent,
-  'toolCallId' | 'toolCallName' | 'parentMessageId' | 'timestamp' | 'rawEvent'
+  'type'
 > {
   type: 'TOOL_CALL_START'
   /** Alias of `toolCallName`. Kept so existing stream readers still compile. */
@@ -1312,14 +1364,9 @@ export interface ToolCallArgsEvent extends AGUIToolCallArgsEvent {}
 /**
  * Emitted when a tool call completes.
  *
- * @ag-ui/core provides: `toolCallId`
- *
- * Same `Pick` (not `extends`) rationale as {@link ToolCallStartEvent}.
+ * @ag-ui/core provides: `toolCallId`, `subagentRunId?`
  */
-export interface ToolCallEndEvent extends Pick<
-  AGUIToolCallEndEvent,
-  'toolCallId' | 'timestamp' | 'rawEvent'
-> {
+export interface ToolCallEndEvent extends Omit<AGUIToolCallEndEvent, 'type'> {
   type: 'TOOL_CALL_END'
   /** Parsed tool arguments when the adapter already parsed them. */
   input?: unknown
@@ -1377,15 +1424,9 @@ export interface StateDeltaEvent extends AGUIStateDeltaEvent {}
 /**
  * Custom event for extensibility.
  *
- * @ag-ui/core provides: `name`, `value`
- *
- * Uses `Pick` (not `extends`) so the Zod passthrough index signature does not
- * erase discriminant property access on {@link KnownCustomEvent} unions.
+ * @ag-ui/core provides: `name`, `value`, `subagentRunId?`
  */
-export interface CustomEvent extends Pick<
-  AGUICustomEvent,
-  'name' | 'value' | 'timestamp' | 'rawEvent'
-> {
+export interface CustomEvent extends Omit<AGUICustomEvent, 'type'> {
   type: 'CUSTOM'
   metadata?: Record<string, any>
 }
@@ -1671,6 +1712,24 @@ export interface ReasoningEndEvent extends AGUIReasoningEndEvent {}
  */
 export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValueEvent {}
 
+/** AG-UI 1.0 ActivitySnapshotEvent shape. */
+export interface ActivitySnapshotEvent extends AGUIActivitySnapshotEvent {}
+
+/** AG-UI 1.0 ActivityDeltaEvent shape. */
+export interface ActivityDeltaEvent extends AGUIActivityDeltaEvent {}
+
+/** AG-UI 1.0 RawEvent shape. */
+export interface RawEvent extends AGUIRawEvent {}
+
+/** AG-UI 1.0 TextMessageChunkEvent shape. */
+export interface TextMessageChunkEvent extends AGUITextMessageChunkEvent {}
+
+/** AG-UI 1.0 ToolCallChunkEvent shape. */
+export interface ToolCallChunkEvent extends AGUIToolCallChunkEvent {}
+
+/** AG-UI 1.0 ReasoningMessageChunkEvent shape. */
+export interface ReasoningMessageChunkEvent extends AGUIReasoningMessageChunkEvent {}
+
 // ============================================================================
 // AG-UI Event Union
 // ============================================================================
@@ -1679,6 +1738,12 @@ export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValu
  * Union of all AG-UI events.
  */
 export type AGUIEvent =
+  | ActivitySnapshotEvent
+  | ActivityDeltaEvent
+  | RawEvent
+  | TextMessageChunkEvent
+  | ToolCallChunkEvent
+  | ReasoningMessageChunkEvent
   | RunStartedEvent
   | RunFinishedEvent
   | RunErrorEvent
@@ -1701,6 +1766,32 @@ export type AGUIEvent =
   | ReasoningMessageEndEvent
   | ReasoningEndEvent
   | ReasoningEncryptedValueEvent
+  | SubagentStartedEvent
+  | SubagentFinishedEvent
+  | SubagentErrorEvent
+
+/**
+ * A child agent started. The later chunks for that child carry the same
+ * `subagentRunId`.
+ *
+ * @ag-ui/core provides: `subagentRunId`, `name`, `description?`,
+ * `parentSubagentRunId?`, `parentToolCallId?`, `parentMessageId?`, `metadata?`
+ */
+export interface SubagentStartedEvent extends AGUISubagentStartedEvent {}
+
+/**
+ * A child agent's segment of this run ended.
+ *
+ * @ag-ui/core provides: `subagentRunId`, `result?`, `outcome?`
+ */
+export interface SubagentFinishedEvent extends AGUISubagentFinishedEvent {}
+
+/**
+ * A child agent failed. The parent run can continue.
+ *
+ * @ag-ui/core provides: `subagentRunId`, `message`, `code?`
+ */
+export interface SubagentErrorEvent extends AGUISubagentErrorEvent {}
 
 /**
  * Chunk returned by the SDK during streaming chat completions.
@@ -2245,7 +2336,7 @@ export interface VideoUrlResult {
 // ============================================================================
 
 /**
- * Options for world generation (live, prompt-steerable sessions).
+ * Options for world generation (live session or finished job).
  *
  * @experimental World generation is an experimental feature and may change.
  */
@@ -2257,8 +2348,10 @@ export interface WorldGenerationOptions<
   /** Natural-language description of the world or scene */
   prompt: string
   /**
-   * Provider mint options. Reactor resolution/seed/audio are browser
-   * `sendCommand` fields, not token-mint fields.
+   * Provider-specific options. Live adapters (Reactor) use mint fields here.
+   * Job adapters (World Labs) use image/video inputs, `wait`, and poll.
+   * Reactor resolution/seed/audio are browser `sendCommand` fields, not
+   * token-mint fields.
    */
   modelOptions?: TProviderOptions
   /**
@@ -2276,27 +2369,72 @@ export interface WorldGenerationOptions<
 }
 
 /**
+ * Assets from a finished world job. Live session adapters omit this.
+ * URLs are often signed CDN links. They can expire and may need a proxy
+ * to fetch from a browser.
+ *
+ * @experimental World generation is an experimental feature and may change.
+ */
+export interface WorldGenerationAssets {
+  /** Auto-generated scene description */
+  caption?: string
+  /** Preview image URL */
+  thumbnailUrl?: string
+  splats?: {
+    /** Quality-key map of splat URLs (`100k`, `500k`, `full_res`, …) */
+    spzUrls?: Record<string, string>
+    metricScaleFactor?: number
+    groundPlaneOffset?: number
+  }
+  mesh?: {
+    colliderMeshUrl?: string
+    hqMeshUrl?: string
+    fullResMeshUrl?: string
+  }
+  imagery?: {
+    panoUrl?: string
+  }
+}
+
+/**
  * Result of world generation. JSON-serializable so a server route can return
- * it to a browser. The browser uses `token` + `model` to open the live
- * session (set the prompt, start streaming, steer mid-run).
+ * it to a browser.
+ *
+ * Live adapters (Reactor): `status: 'ready'` with `token` and token
+ * `expiresAt`. The browser uses `token` + `model` to open the session.
+ *
+ * Job adapters (World Labs): `status: 'ready'` with viewer `url` and
+ * `worldId`, or `status: 'waiting'` with `operationId` and no `url`.
+ * `expiresAt` on a job is operation expiry, not a session token.
  *
  * @experimental World generation is an experimental feature and may change.
  */
 export interface WorldGenerationResult {
   /** Unique identifier for this generation */
   id: string
-  /** Model used for generation (provider connect slug) */
+  /** Model used for generation (provider connect slug or model id) */
   model: string
-  /** Short-lived session token for the client connection */
-  token: string
-  /** Token expiry as milliseconds since epoch */
-  expiresAt: number
-  /** Prompt the client should send when it starts the session */
+  /** Short-lived session token for a live client connection */
+  token?: string
+  /**
+   * Expiry as milliseconds since epoch. Live adapters: session token.
+   * Job adapters: operation expiry when the provider sends it.
+   */
+  expiresAt?: number
+  /** Prompt used to generate the world, or the prompt the client should send */
   prompt: string
-  /** Session status after the server half finishes */
+  /** Status after the server half finishes */
   status: 'ready' | 'waiting'
   /** Provider session id, when the adapter created one */
   sessionId?: string
+  /** Viewer URL for a finished world job (not an asset download URL) */
+  url?: string
+  /** Provider world id for a finished or in-progress job */
+  worldId?: string
+  /** Provider operation id for a long-running world job */
+  operationId?: string
+  /** Assets when a world job has finished and the provider returned them */
+  assets?: WorldGenerationAssets
   /** Token usage / billing, when the adapter can report it */
   usage?: TokenUsage
 }

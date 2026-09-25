@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox",
-  "version": "0.5.12",
+  "version": "0.5.15",
   "description": "Provider-agnostic sandbox layer for TanStack AI — run harness adapters inside isolated sandboxes (defineSandbox, defineWorkspace, withSandbox) with a uniform SandboxHandle, workspace bootstrap, policy, and resumable lifecycle.",
   "author": "",
   "license": "MIT",
@@ -56,6 +56,12 @@
   },
   "nx": {
     "targets": {
+      "test:lib": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      },
       "test:types": {
         "dependsOn": [
           "build",

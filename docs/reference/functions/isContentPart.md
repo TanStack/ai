@@ -7,11 +7,12 @@ title: isContentPart
 function isContentPart(value): value is ContentPart;
 ```
 
-Defined in: [packages/ai/src/utilities/tool-result.ts:16](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/tool-result.ts#L16)
+Defined in: [packages/ai/src/utilities/tool-result.ts:17](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/tool-result.ts#L17)
 
 Structural check for a single `ContentPart`. A text part must carry a string
-`content`; every other modality must carry a `source` with `type` of
-`'url' | 'data'` and a string `value`.
+`content`. Every other part carries a source with a string `value`; a file
+source's `value` is a non-empty opaque handle, and its optional `provider`
+is a string.
 
 ## Parameters
 

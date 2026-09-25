@@ -1272,6 +1272,106 @@ describe('OpenRouter structured output', () => {
     expect(params.stream).toBe(false)
   })
 
+  it('reports a finishReason=length response as truncation, not a parse error (#1426)', async () => {
+    const nonStreamResponse = {
+      choices: [
+        {
+          message: { content: '{"title":"Hel' },
+          finishReason: 'length',
+        },
+      ],
+    }
+
+    setupMockSdkClient([], nonStreamResponse)
+    const adapter = createAdapter()
+
+    await expect(
+      adapter.structuredOutput({
+        chatOptions: {
+          model: 'openai/gpt-4o-mini',
+          messages: [
+            { role: 'user', content: 'Return a short title as JSON.' },
+          ],
+          logger: testLogger,
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { title: { type: 'string' } },
+          required: ['title'],
+        },
+      }),
+    ).rejects.toThrow(/cut off because the maximum token limit was reached/)
+  })
+
+  // `chat({ outputSchema })` uses structuredOutputStream, so the stream path
+  // needs the same truncation report (#1426).
+  it.each([
+    ['truncated JSON', '{"title":"Hel'],
+    ['no content', ''],
+  ])(
+    'structuredOutputStream emits RUN_ERROR { code: "max_tokens" } on finishReason=length (%s)',
+    async (_label, content) => {
+      setupMockSdkClient([
+        {
+          id: 'gen-1',
+          model: 'openai/gpt-4o-mini',
+          choices: [{ delta: { content }, finishReason: 'length' }],
+        },
+      ])
+      const adapter = createAdapter()
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.structuredOutputStream({
+        chatOptions: {
+          model: 'openai/gpt-4o-mini',
+          messages: [{ role: 'user', content: 'Return a title as JSON.' }],
+          logger: testLogger,
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { title: { type: 'string' } },
+          required: ['title'],
+        },
+      })) {
+        chunks.push(chunk)
+      }
+
+      const runError = chunks.find((c) => c.type === 'RUN_ERROR') as
+        | { code?: string; message?: string }
+        | undefined
+      expect(runError?.code).toBe('max_tokens')
+      expect(runError?.message).toMatch(
+        /cut off because the maximum token limit was reached/,
+      )
+    },
+  )
+
+  it('reports finishReason=length as truncation even when content is empty (reasoning budget exhausted)', async () => {
+    const nonStreamResponse = {
+      choices: [{ message: { content: null }, finishReason: 'length' }],
+    }
+
+    setupMockSdkClient([], nonStreamResponse)
+    const adapter = createAdapter()
+
+    await expect(
+      adapter.structuredOutput({
+        chatOptions: {
+          model: 'openai/gpt-4o-mini',
+          messages: [
+            { role: 'user', content: 'Return a short title as JSON.' },
+          ],
+          logger: testLogger,
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { title: { type: 'string' } },
+          required: ['title'],
+        },
+      }),
+    ).rejects.toThrow(/cut off because the maximum token limit was reached/)
+  })
+
   it('forwards response.usage tokens and cost on structuredOutput (#1076)', async () => {
     // Regression: structuredOutput used to return only { data, rawText },
     // dropping OpenRouter usage/cost so middleware onFinish/onUsage saw
@@ -1581,6 +1681,40 @@ describe('OpenRouter structured output', () => {
       type: 'json_object',
     })
     expect(rawParams.chatRequest.stream).toBe(true)
+  })
+
+  it('respects includeUsage false for structured output streams', async () => {
+    setupMockSdkClient([
+      {
+        id: 'c1',
+        model: 'anthropic/claude-sonnet-4.5',
+        choices: [{ delta: { content: '{"ok":true}' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Respond with ok' }],
+      modelOptions: { streamOptions: { includeUsage: false } },
+      outputSchema: {
+        type: 'object',
+        properties: { ok: { type: 'boolean' } },
+        required: ['ok'],
+      },
+    })
+
+    const structuredCall = mockSend.mock.calls.find(
+      ([args]: Array<any>) => args.chatRequest.responseFormat,
+    )
+    expect(structuredCall).toBeDefined()
+    // The SDK sends JSON.stringify of the outbound schema result.
+    const body = JSON.parse(
+      JSON.stringify(
+        ChatRequest$outboundSchema.parse(structuredCall[0].chatRequest),
+      ),
+    )
+    expect(body).not.toHaveProperty('stream_options')
   })
 
   it('parses JSON response content correctly', async () => {
@@ -2413,6 +2547,13 @@ describe('OpenRouter SDK constructor wiring', () => {
       'https://custom.example.com/api/v1',
     )
   })
+
+  it('keeps retryCodes out of the SDK constructor config', () => {
+    void createOpenRouterText('openai/gpt-4o-mini', 'test-key', {
+      retryCodes: ['429'],
+    })
+    expect(lastOpenRouterConfig).not.toHaveProperty('retryCodes')
+  })
 })
 
 describe('OpenRouter stream_options conversion', () => {
@@ -2451,6 +2592,33 @@ describe('OpenRouter stream_options conversion', () => {
 
     const serialized = ChatRequest$outboundSchema.parse(params)
     expect((serialized as any).stream_options).toEqual({ include_usage: true })
+  })
+
+  it('respects an explicit includeUsage false override', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'anthropic/claude-sonnet-4.5',
+        choices: [{ delta: { content: 'hi' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    for await (const _ of adapter.chatStream({
+      model: 'anthropic/claude-sonnet-4.5',
+      messages: [{ role: 'user', content: 'hi' }],
+      modelOptions: { streamOptions: { includeUsage: false } },
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    // The SDK sends JSON.stringify of the outbound schema result.
+    const body = JSON.parse(
+      JSON.stringify(ChatRequest$outboundSchema.parse(rawParams.chatRequest)),
+    )
+    expect(body).not.toHaveProperty('stream_options')
   })
 
   it('propagates the abort signal to the SDK call', async () => {
@@ -2508,6 +2676,103 @@ describe('OpenRouter stream_options conversion', () => {
     // only for OpenRouter while other providers preserve them.
     const [, options] = mockSend.mock.calls[0]!
     expect(options.headers).toEqual(headers)
+  })
+
+  // The SDK only reads `retryCodes` per call (default `['5XX']`), so a
+  // configured `retryCodes` must reach every `chat.send` call site or 429s
+  // are never retried.
+  it('forwards configured retryCodes to the SDK call on chatStream', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'hi' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key', {
+      retryCodes: ['429', '5XX'],
+    })
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [, options] = mockSend.mock.calls[0]!
+    expect(options.retryCodes).toEqual(['429', '5XX'])
+  })
+
+  it('forwards configured retryCodes to the SDK call on structuredOutput', async () => {
+    setupMockSdkClient([], {
+      choices: [{ message: { content: '{"ok":true}' } }],
+    })
+    const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key', {
+      retryCodes: ['429', '5XX'],
+    })
+
+    await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'hi' }],
+        logger: testLogger,
+      },
+      outputSchema: { type: 'object' },
+    })
+
+    const [, options] = mockSend.mock.calls[0]!
+    expect(options.retryCodes).toEqual(['429', '5XX'])
+  })
+
+  it('forwards configured retryCodes to the SDK call on structuredOutputStream', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: '{"ok":true}' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key', {
+      retryCodes: ['429', '5XX'],
+    })
+
+    for await (const _ of adapter.structuredOutputStream({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'hi' }],
+        logger: testLogger,
+      },
+      outputSchema: { type: 'object' },
+    })) {
+      // consume
+    }
+
+    const [, options] = mockSend.mock.calls[0]!
+    expect(options.retryCodes).toEqual(['429', '5XX'])
+  })
+
+  it('omits retryCodes from the SDK call when not configured', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'hi' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    for await (const _ of adapter.chatStream({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hi' }],
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [, options] = mockSend.mock.calls[0]!
+    expect(options).not.toHaveProperty('retryCodes')
   })
 
   it('maps RequestAbortedError from the SDK to RUN_ERROR with code: aborted', async () => {

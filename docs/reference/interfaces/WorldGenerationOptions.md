@@ -3,11 +3,11 @@ id: WorldGenerationOptions
 title: WorldGenerationOptions
 ---
 
-Defined in: [packages/ai/src/types.ts:2252](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2252)
+Defined in: [packages/ai/src/types.ts:2328](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2328)
 
 **`Experimental`**
 
-Options for world generation (live, prompt-steerable sessions).
+Options for world generation (live session or finished job).
 
  World generation is an experimental feature and may change.
 
@@ -25,7 +25,7 @@ Options for world generation (live, prompt-steerable sessions).
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: [packages/ai/src/types.ts:2275](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2275)
+Defined in: [packages/ai/src/types.ts:2353](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2353)
 
 **`Experimental`**
 
@@ -41,7 +41,7 @@ supported. Request-specific — never store on a global client config.
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:2269](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2269)
+Defined in: [packages/ai/src/types.ts:2347](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2347)
 
 **`Experimental`**
 
@@ -57,7 +57,7 @@ catch blocks.
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2256](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2256)
+Defined in: [packages/ai/src/types.ts:2332](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2332)
 
 **`Experimental`**
 
@@ -71,12 +71,14 @@ The model to use for world generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:2263](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2263)
+Defined in: [packages/ai/src/types.ts:2341](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2341)
 
 **`Experimental`**
 
-Provider mint options. Reactor resolution/seed/audio are browser
-`sendCommand` fields, not token-mint fields.
+Provider-specific options. Live adapters (Reactor) use mint fields here.
+Job adapters (World Labs) use image/video inputs, `wait`, and poll.
+Reactor resolution/seed/audio are browser `sendCommand` fields, not
+token-mint fields.
 
 ***
 
@@ -86,7 +88,7 @@ Provider mint options. Reactor resolution/seed/audio are browser
 prompt: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2258](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2258)
+Defined in: [packages/ai/src/types.ts:2334](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2334)
 
 **`Experimental`**
 

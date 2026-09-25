@@ -1,5 +1,9 @@
 import OpenAI from 'openai'
-import { EventType } from '@tanstack/ai'
+import {
+  EventType,
+  isFileSource,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { generateId } from '@tanstack/ai-utils'
 import {
@@ -44,6 +48,7 @@ import type {
   BytePlusVideoMetadata,
 } from '../message-types'
 import type { BytePlusArkConfig } from '../utils/client'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof BytePlusChatModelToolCapabilitiesByName
@@ -53,7 +58,8 @@ type ResolveToolCapabilities<TModel extends string> =
 /**
  * Configuration for the BytePlus text adapter.
  */
-export interface BytePlusTextConfig extends BytePlusArkConfig {}
+export interface BytePlusTextConfig
+  extends BytePlusArkConfig, OpenAIBaseTextAdapterOptions {}
 
 /**
  * Re-export of the public provider options type.
@@ -103,7 +109,12 @@ export class BytePlusTextAdapter<
   override readonly name = 'byteplus' as const
 
   constructor(config: BytePlusTextConfig, model: TModel) {
-    super(model, 'byteplus', new OpenAI(withBytePlusArkDefaults(config)))
+    super(
+      model,
+      'byteplus',
+      new OpenAI(withBytePlusArkDefaults(config)),
+      config,
+    )
   }
 
   /**
@@ -262,6 +273,9 @@ export class BytePlusTextAdapter<
 
     if (part.type === 'audio') {
       const metadata = part.metadata as BytePlusAudioMetadata | undefined
+      if (isFileSource(part.source)) {
+        throw unsupportedFileSourceError('byteplus')
+      }
       // Ark takes audio either by URL or as inline base64 with an explicit
       // container format; unlike images there is no data-URI form.
       if (part.source.type === 'url') {
@@ -438,6 +452,7 @@ function asChatContentPart(
  * inline base64 becomes a `data:` URI.
  */
 function toUrlOrDataUri(source: ContentPartSource): string {
+  if (isFileSource(source)) throw unsupportedFileSourceError('byteplus')
   if (source.type !== 'data' || source.value.startsWith('data:')) {
     return source.value
   }

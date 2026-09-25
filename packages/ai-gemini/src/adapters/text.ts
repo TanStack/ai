@@ -1,5 +1,10 @@
 import { FinishReason } from '@google/genai'
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  EventType,
+  fileReferenceFor,
+  isFileSource,
+  normalizeSystemPrompts,
+} from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
@@ -26,6 +31,7 @@ import type {
   GenerateContentParameters,
   GenerateContentResponse,
   GoogleGenAI,
+  GroundingMetadata,
   Part,
   ThinkingLevel,
   VideoMetadata,
@@ -35,6 +41,7 @@ import type {
   Modality,
   ModelMessage,
   AdapterYieldChunk,
+  ProviderExecutedToolSource,
   TextOptions,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
@@ -55,6 +62,26 @@ const DEFAULT_MEDIA_MIME_TYPES = {
   video: 'video/mp4',
   document: 'application/pdf',
 } as const
+
+function getGroundingSources(
+  metadata: GroundingMetadata,
+): Array<ProviderExecutedToolSource> {
+  const sources = new Map<string, ProviderExecutedToolSource>()
+  for (const chunk of metadata.groundingChunks ?? []) {
+    const url = chunk.web?.uri
+    if (!url) continue
+    const existing = sources.get(url)
+    if (existing) {
+      if (!existing.title && chunk.web?.title) existing.title = chunk.web.title
+      continue
+    }
+    sources.set(url, {
+      url,
+      ...(chunk.web?.title ? { title: chunk.web.title } : {}),
+    })
+  }
+  return [...sources.values()]
+}
 
 /**
  * Content block shape for an Interactions API `input` step. The installed
@@ -107,8 +134,11 @@ function contentPartToInteraction(part: ContentPart): InteractionContent {
     source.type === 'data'
       ? source.mimeType
       : (source.mimeType ?? DEFAULT_MEDIA_MIME_TYPES[part.type])
-  const base =
-    source.type === 'data'
+  // A Gemini Files API handle maps to the `uri` field, same as a public URL;
+  // `fileReferenceFor` throws when another provider issued it.
+  const base = isFileSource(source)
+    ? { uri: fileReferenceFor(source, 'gemini'), mime_type: mimeType }
+    : source.type === 'data'
       ? { data: source.value, mime_type: mimeType }
       : { uri: source.value, mime_type: mimeType }
 
@@ -216,6 +246,8 @@ export class GeminiTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'gemini' as const
+  // Consumes Gemini Files API references (geminiFiles()) as fileData.fileUri.
+  override readonly supportsFileSources = true
 
   private readonly client: GoogleGenAI
 
@@ -594,6 +626,51 @@ export class GeminiTextAdapter<
     let hasEmittedRunStarted = false
     let hasEmittedTextMessageStart = false
     let hasEmittedStepStarted = false
+    let groundingMetadata: GroundingMetadata | undefined
+    let groundingCallEmitted = false
+    const adapterName = this.name
+
+    const emitGroundingToolCall = function* (): Generator<AdapterYieldChunk> {
+      if (!groundingMetadata || groundingCallEmitted) return
+      const sources = getGroundingSources(groundingMetadata)
+      const hasGoogleSearchEvidence =
+        sources.length > 0 ||
+        (groundingMetadata.webSearchQueries?.length ?? 0) > 0 ||
+        groundingMetadata.searchEntryPoint !== undefined
+      if (!hasGoogleSearchEvidence) return
+
+      groundingCallEmitted = true
+      const toolCallId = generateId(adapterName)
+      const metadata: GeminiToolCallMetadata = {
+        providerExecuted: true,
+        sources,
+        gemini: { groundingMetadata },
+      }
+      yield {
+        type: EventType.TOOL_CALL_START,
+        toolCallId,
+        toolCallName: 'google_search',
+        toolName: 'google_search',
+        parentMessageId: messageId,
+        model,
+        timestamp: Date.now(),
+        index: toolCallMap.size,
+        metadata,
+      }
+      yield {
+        type: EventType.TOOL_CALL_END,
+        toolCallId,
+        toolCallName: 'google_search',
+        toolName: 'google_search',
+        model,
+        timestamp: Date.now(),
+        input: {
+          ...(groundingMetadata.webSearchQueries && {
+            queries: groundingMetadata.webSearchQueries,
+          }),
+        },
+      }
+    }
 
     for await (const chunk of result) {
       logger.provider(`provider=gemini`, { chunk })
@@ -608,6 +685,10 @@ export class GeminiTextAdapter<
           timestamp: Date.now(),
           parentRunId: options.parentRunId,
         }
+      }
+
+      if (chunk.candidates?.[0]?.groundingMetadata) {
+        groundingMetadata = chunk.candidates[0].groundingMetadata
       }
 
       if (chunk.candidates?.[0]?.content?.parts) {
@@ -820,6 +901,7 @@ export class GeminiTextAdapter<
       }
 
       if (chunk.candidates?.[0]?.finishReason) {
+        yield* emitGroundingToolCall()
         const finishReason = chunk.candidates[0].finishReason
 
         // Emit TOOL_CALL_END for all tracked tool calls. functionCall parts on
@@ -910,6 +992,8 @@ export class GeminiTextAdapter<
         }
       }
     }
+
+    yield* emitGroundingToolCall()
   }
 
   private convertContentPartToGemini(part: ContentPart): Part {
@@ -920,6 +1004,13 @@ export class GeminiTextAdapter<
       case 'audio':
       case 'video':
       case 'document': {
+        // File references (Gemini Files API) and public URLs both pass
+        // through as `fileData`; Gemini fetches the URI server-side. A
+        // file source's handle is the file URI (throws when another provider
+        // issued it).
+        const fileUri = isFileSource(part.source)
+          ? fileReferenceFor(part.source, this.name)
+          : part.source.value
         const geminiPart: Part =
           part.source.type === 'data'
             ? {
@@ -930,7 +1021,7 @@ export class GeminiTextAdapter<
               }
             : {
                 fileData: {
-                  fileUri: part.source.value,
+                  fileUri,
                   // For URL sources, use provided mimeType or fall back to
                   // reasonable defaults.
                   mimeType:
@@ -994,6 +1085,11 @@ export class GeminiTextAdapter<
 
       if (msg.role === 'assistant' && msg.toolCalls?.length) {
         for (const toolCall of msg.toolCalls) {
+          const metadata = toolCall.metadata as
+            | GeminiToolCallMetadata
+            | undefined
+          if (metadata?.providerExecuted) continue
+
           let parsedArgs: Record<string, unknown> = {}
           try {
             parsedArgs = toolCall.function.arguments
@@ -1006,9 +1102,7 @@ export class GeminiTextAdapter<
             parsedArgs = {}
           }
 
-          const thoughtSignature = (
-            toolCall.metadata as GeminiToolCallMetadata | undefined
-          )?.thoughtSignature
+          const thoughtSignature = metadata?.thoughtSignature
           // Gemini requires thoughtSignature at the Part level (sibling of
           // functionCall), not nested inside functionCall. Nesting it causes
           // the API to reject the next turn with
@@ -1045,6 +1139,9 @@ export class GeminiTextAdapter<
                 },
               })
             } else {
+              const fileUri = isFileSource(part.source)
+                ? fileReferenceFor(part.source, this.name)
+                : part.source.value
               const defaultMimeType = {
                 image: 'image/jpeg',
                 audio: 'audio/mp3',
@@ -1053,7 +1150,7 @@ export class GeminiTextAdapter<
               }[part.type]
               mediaParts.push({
                 fileData: {
-                  fileUri: part.source.value,
+                  fileUri,
                   mimeType: part.source.mimeType ?? defaultMimeType,
                 },
               })

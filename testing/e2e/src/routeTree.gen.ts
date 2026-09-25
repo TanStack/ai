@@ -11,9 +11,12 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
 import { Route as WebMcpToolsRouteImport } from './routes/web-mcp-tools'
+import { Route as WebMcpPageToolsRouteImport } from './routes/web-mcp-page-tools'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as ToolFirstTextRouteImport } from './routes/tool-first-text'
 import { Route as TextFirstToolRouteImport } from './routes/text-first-tool'
+import { Route as SubagentsUiTestRouteImport } from './routes/subagents-ui-test'
+import { Route as SubagentsTestRouteImport } from './routes/subagents-test'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MessageHistoryPagingRouteImport } from './routes/message-history-paging'
@@ -26,17 +29,20 @@ import { Route as GenerationPersistenceServerRouteImport } from './routes/genera
 import { Route as GenerationPersistenceResumeRouteImport } from './routes/generation-persistence-resume'
 import { Route as ForeignInterruptRouteImport } from './routes/foreign-interrupt'
 import { Route as DevtoolsToolsRouteImport } from './routes/devtools-tools'
+import { Route as DevtoolsSubagentsRouteImport } from './routes/devtools-subagents'
 import { Route as DevtoolsStructuredRouteImport } from './routes/devtools-structured'
 import { Route as DevtoolsRouteBRouteImport } from './routes/devtools-route-b'
 import { Route as DevtoolsRouteARouteImport } from './routes/devtools-route-a'
 import { Route as DevtoolsMemoryRouteImport } from './routes/devtools-memory'
 import { Route as DevtoolsGenerationHooksRouteImport } from './routes/devtools-generation-hooks'
 import { Route as DevtoolsChatRouteImport } from './routes/devtools-chat'
+import { Route as ChatClientStreamProcessingRouteImport } from './routes/chat-client-stream-processing'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
 import { Route as ByokRouteImport } from './routes/byok'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiWorldRouteImport } from './routes/api.world'
+import { Route as ApiWebMcpPageToolsRouteImport } from './routes/api.web-mcp-page-tools'
 import { Route as ApiVoiceRouteImport } from './routes/api.voice'
 import { Route as ApiVideoLiveRouteImport } from './routes/api.video-live'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
@@ -47,16 +53,21 @@ import { Route as ApiToolFirstTextWireRouteImport } from './routes/api.tool-firs
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiTextFirstToolWireRouteImport } from './routes/api.text-first-tool-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
+import { Route as ApiSubagentsTestRouteImport } from './routes/api.subagents-test'
+import { Route as ApiStructuredOutputLengthWireRouteImport } from './routes/api.structured-output-length-wire'
 import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-tool-history'
 import { Route as ApiSandboxFilePersistenceRouteImport } from './routes/api.sandbox-file-persistence'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
 import { Route as ApiProviderToolDispatchWireRouteImport } from './routes/api.provider-tool-dispatch-wire'
+import { Route as ApiProviderSearchMetadataWireRouteImport } from './routes/api.provider-search-metadata-wire'
 import { Route as ApiPortableSkillsWireRouteImport } from './routes/api.portable-skills-wire'
 import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persistence-durability'
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
 import { Route as ApiOtelTranscriptionRouteImport } from './routes/api.otel-transcription'
 import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
+import { Route as ApiOpenrouterStreamOptionsWireRouteImport } from './routes/api.openrouter-stream-options-wire'
+import { Route as ApiOpenrouterRetryCodesRouteImport } from './routes/api.openrouter-retry-codes'
 import { Route as ApiOpenrouterReasoningWireRouteImport } from './routes/api.openrouter-reasoning-wire'
 import { Route as ApiOpenrouterJsonObjectWireRouteImport } from './routes/api.openrouter-json-object-wire'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
@@ -74,6 +85,7 @@ import { Route as ApiMcpTestRouteImport } from './routes/api.mcp-test'
 import { Route as ApiMcpTaskErrorsRouteImport } from './routes/api.mcp-task-errors'
 import { Route as ApiMcpStatusTestRouteImport } from './routes/api.mcp-status-test'
 import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
+import { Route as ApiMcpPolicyTestRouteImport } from './routes/api.mcp-policy-test'
 import { Route as ApiMcpNoTasksServerRouteImport } from './routes/api.mcp-no-tasks-server'
 import { Route as ApiMcpManagedTestRouteImport } from './routes/api.mcp-managed-test'
 import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
@@ -90,6 +102,7 @@ import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api
 import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
 import { Route as ApiGeminiImageGaModelsRouteImport } from './routes/api.gemini-image-ga-models'
 import { Route as ApiForeignInterruptRouteImport } from './routes/api.foreign-interrupt'
+import { Route as ApiFileSourceWireRouteImport } from './routes/api.file-source-wire'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
@@ -98,10 +111,14 @@ import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-w
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
+import { Route as ApiBedrockConverseCacheRouteImport } from './routes/api.bedrock-converse-cache'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
+import { Route as ApiAnthropicThinkingOrderWireRouteImport } from './routes/api.anthropic-thinking-order-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
+import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
+import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
@@ -120,6 +137,11 @@ const WebMcpToolsRoute = WebMcpToolsRouteImport.update({
   path: '/web-mcp-tools',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WebMcpPageToolsRoute = WebMcpPageToolsRouteImport.update({
+  id: '/web-mcp-page-tools',
+  path: '/web-mcp-page-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ToolsTestRoute = ToolsTestRouteImport.update({
   id: '/tools-test',
   path: '/tools-test',
@@ -133,6 +155,16 @@ const ToolFirstTextRoute = ToolFirstTextRouteImport.update({
 const TextFirstToolRoute = TextFirstToolRouteImport.update({
   id: '/text-first-tool',
   path: '/text-first-tool',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubagentsUiTestRoute = SubagentsUiTestRouteImport.update({
+  id: '/subagents-ui-test',
+  path: '/subagents-ui-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubagentsTestRoute = SubagentsTestRouteImport.update({
+  id: '/subagents-test',
+  path: '/subagents-test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PersistenceDurabilityRoute = PersistenceDurabilityRouteImport.update({
@@ -197,6 +229,11 @@ const DevtoolsToolsRoute = DevtoolsToolsRouteImport.update({
   path: '/devtools-tools',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DevtoolsSubagentsRoute = DevtoolsSubagentsRouteImport.update({
+  id: '/devtools-subagents',
+  path: '/devtools-subagents',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DevtoolsStructuredRoute = DevtoolsStructuredRouteImport.update({
   id: '/devtools-structured',
   path: '/devtools-structured',
@@ -227,6 +264,12 @@ const DevtoolsChatRoute = DevtoolsChatRouteImport.update({
   path: '/devtools-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChatClientStreamProcessingRoute =
+  ChatClientStreamProcessingRouteImport.update({
+    id: '/chat-client-stream-processing',
+    path: '/chat-client-stream-processing',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ChatClientDefaultBridgeRoute = ChatClientDefaultBridgeRouteImport.update({
   id: '/chat-client-default-bridge',
   path: '/chat-client-default-bridge',
@@ -250,6 +293,11 @@ const ProviderIndexRoute = ProviderIndexRouteImport.update({
 const ApiWorldRoute = ApiWorldRouteImport.update({
   id: '/api/world',
   path: '/api/world',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWebMcpPageToolsRoute = ApiWebMcpPageToolsRouteImport.update({
+  id: '/api/web-mcp-page-tools',
+  path: '/api/web-mcp-page-tools',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiVoiceRoute = ApiVoiceRouteImport.update({
@@ -303,6 +351,17 @@ const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   path: '/api/summarize',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSubagentsTestRoute = ApiSubagentsTestRouteImport.update({
+  id: '/api/subagents-test',
+  path: '/api/subagents-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStructuredOutputLengthWireRoute =
+  ApiStructuredOutputLengthWireRouteImport.update({
+    id: '/api/structured-output-length-wire',
+    path: '/api/structured-output-length-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiSandboxToolHistoryRoute = ApiSandboxToolHistoryRouteImport.update({
   id: '/api/sandbox-tool-history',
   path: '/api/sandbox-tool-history',
@@ -323,6 +382,12 @@ const ApiProviderToolDispatchWireRoute =
   ApiProviderToolDispatchWireRouteImport.update({
     id: '/api/provider-tool-dispatch-wire',
     path: '/api/provider-tool-dispatch-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiProviderSearchMetadataWireRoute =
+  ApiProviderSearchMetadataWireRouteImport.update({
+    id: '/api/provider-search-metadata-wire',
+    path: '/api/provider-search-metadata-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPortableSkillsWireRoute = ApiPortableSkillsWireRouteImport.update({
@@ -357,6 +422,17 @@ const ApiOpenrouterWebToolsWireRoute =
     path: '/api/openrouter-web-tools-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenrouterStreamOptionsWireRoute =
+  ApiOpenrouterStreamOptionsWireRouteImport.update({
+    id: '/api/openrouter-stream-options-wire',
+    path: '/api/openrouter-stream-options-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiOpenrouterRetryCodesRoute = ApiOpenrouterRetryCodesRouteImport.update({
+  id: '/api/openrouter-retry-codes',
+  path: '/api/openrouter-retry-codes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOpenrouterReasoningWireRoute =
   ApiOpenrouterReasoningWireRouteImport.update({
     id: '/api/openrouter-reasoning-wire',
@@ -449,6 +525,11 @@ const ApiMcpServerRoute = ApiMcpServerRouteImport.update({
   path: '/api/mcp-server',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpPolicyTestRoute = ApiMcpPolicyTestRouteImport.update({
+  id: '/api/mcp-policy-test',
+  path: '/api/mcp-policy-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpNoTasksServerRoute = ApiMcpNoTasksServerRouteImport.update({
   id: '/api/mcp-no-tasks-server',
   path: '/api/mcp-no-tasks-server',
@@ -532,6 +613,11 @@ const ApiForeignInterruptRoute = ApiForeignInterruptRouteImport.update({
   path: '/api/foreign-interrupt',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFileSourceWireRoute = ApiFileSourceWireRouteImport.update({
+  id: '/api/file-source-wire',
+  path: '/api/file-source-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiEmbeddingRoute = ApiEmbeddingRouteImport.update({
   id: '/api/embedding',
   path: '/api/embedding',
@@ -573,6 +659,11 @@ const ApiByokChatRoute = ApiByokChatRouteImport.update({
   path: '/api/byok-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBedrockConverseCacheRoute = ApiBedrockConverseCacheRouteImport.update({
+  id: '/api/bedrock-converse-cache',
+  path: '/api/bedrock-converse-cache',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAudioRoute = ApiAudioRouteImport.update({
   id: '/api/audio',
   path: '/api/audio',
@@ -583,6 +674,12 @@ const ApiArktypeToolWireRoute = ApiArktypeToolWireRouteImport.update({
   path: '/api/arktype-tool-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnthropicThinkingOrderWireRoute =
+  ApiAnthropicThinkingOrderWireRouteImport.update({
+    id: '/api/anthropic-thinking-order-wire',
+    path: '/api/anthropic-thinking-order-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicStructuredUsageRoute =
   ApiAnthropicStructuredUsageRouteImport.update({
     id: '/api/anthropic-structured-usage',
@@ -594,6 +691,18 @@ const ApiAnthropicSkillsWireRoute = ApiAnthropicSkillsWireRouteImport.update({
   path: '/api/anthropic-skills-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnthropicOpus5CombinedWireRoute =
+  ApiAnthropicOpus5CombinedWireRouteImport.update({
+    id: '/api/anthropic-opus-5-combined-wire',
+    path: '/api/anthropic-opus-5-combined-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicMultiTurnStructuredWireRoute =
+  ApiAnthropicMultiTurnStructuredWireRouteImport.update({
+    id: '/api/anthropic-multi-turn-structured-wire',
+    path: '/api/anthropic-multi-turn-structured-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
   id: '/api/anthropic-bug-test',
   path: '/api/anthropic-bug-test',
@@ -634,12 +743,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
+  '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-memory': typeof DevtoolsMemoryRoute
   '/devtools-route-a': typeof DevtoolsRouteARoute
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
+  '/devtools-subagents': typeof DevtoolsSubagentsRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
@@ -652,17 +763,24 @@ export interface FileRoutesByFullPath {
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/subagents-test': typeof SubagentsTestRoute
+  '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
+  '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
+  '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
@@ -671,6 +789,7 @@ export interface FileRoutesByFullPath {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
@@ -687,6 +806,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
+  '/api/mcp-policy-test': typeof ApiMcpPolicyTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
@@ -704,16 +824,21 @@ export interface FileRoutesByFullPath {
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
+  '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
+  '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
+  '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
+  '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
+  '/api/subagents-test': typeof ApiSubagentsTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/text-first-tool-wire': typeof ApiTextFirstToolWireRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
@@ -724,6 +849,7 @@ export interface FileRoutesByFullPath {
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
   '/api/voice': typeof ApiVoiceRoute
+  '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
   '/api/world': typeof ApiWorldRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
@@ -736,12 +862,14 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
+  '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-memory': typeof DevtoolsMemoryRoute
   '/devtools-route-a': typeof DevtoolsRouteARoute
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
+  '/devtools-subagents': typeof DevtoolsSubagentsRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
@@ -754,17 +882,24 @@ export interface FileRoutesByTo {
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/subagents-test': typeof SubagentsTestRoute
+  '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
+  '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
+  '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
@@ -773,6 +908,7 @@ export interface FileRoutesByTo {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
@@ -789,6 +925,7 @@ export interface FileRoutesByTo {
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
+  '/api/mcp-policy-test': typeof ApiMcpPolicyTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
@@ -806,16 +943,21 @@ export interface FileRoutesByTo {
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
+  '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
+  '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
+  '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
+  '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
+  '/api/subagents-test': typeof ApiSubagentsTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/text-first-tool-wire': typeof ApiTextFirstToolWireRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
@@ -826,6 +968,7 @@ export interface FileRoutesByTo {
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
   '/api/voice': typeof ApiVoiceRoute
+  '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
   '/api/world': typeof ApiWorldRoute
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
@@ -839,12 +982,14 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
+  '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-memory': typeof DevtoolsMemoryRoute
   '/devtools-route-a': typeof DevtoolsRouteARoute
   '/devtools-route-b': typeof DevtoolsRouteBRoute
   '/devtools-structured': typeof DevtoolsStructuredRoute
+  '/devtools-subagents': typeof DevtoolsSubagentsRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
@@ -857,17 +1002,24 @@ export interface FileRoutesById {
   '/message-history-paging': typeof MessageHistoryPagingRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
+  '/subagents-test': typeof SubagentsTestRoute
+  '/subagents-ui-test': typeof SubagentsUiTestRoute
   '/text-first-tool': typeof TextFirstToolRoute
   '/tool-first-text': typeof ToolFirstTextRoute
   '/tools-test': typeof ToolsTestRoute
+  '/web-mcp-page-tools': typeof WebMcpPageToolsRoute
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
+  '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
+  '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
@@ -876,6 +1028,7 @@ export interface FileRoutesById {
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
+  '/api/file-source-wire': typeof ApiFileSourceWireRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
@@ -892,6 +1045,7 @@ export interface FileRoutesById {
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
+  '/api/mcp-policy-test': typeof ApiMcpPolicyTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
@@ -909,16 +1063,21 @@ export interface FileRoutesById {
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
+  '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
+  '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
+  '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
+  '/api/structured-output-length-wire': typeof ApiStructuredOutputLengthWireRoute
+  '/api/subagents-test': typeof ApiSubagentsTestRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/text-first-tool-wire': typeof ApiTextFirstToolWireRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
@@ -929,6 +1088,7 @@ export interface FileRoutesById {
   '/api/video': typeof ApiVideoRouteWithChildren
   '/api/video-live': typeof ApiVideoLiveRoute
   '/api/voice': typeof ApiVoiceRoute
+  '/api/web-mcp-page-tools': typeof ApiWebMcpPageToolsRoute
   '/api/world': typeof ApiWorldRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
@@ -943,12 +1103,14 @@ export interface FileRouteTypes {
     | '/'
     | '/byok'
     | '/chat-client-default-bridge'
+    | '/chat-client-stream-processing'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-memory'
     | '/devtools-route-a'
     | '/devtools-route-b'
     | '/devtools-structured'
+    | '/devtools-subagents'
     | '/devtools-tools'
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
@@ -961,17 +1123,24 @@ export interface FileRouteTypes {
     | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/subagents-test'
+    | '/subagents-ui-test'
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/web-mcp-page-tools'
     | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-multi-turn-structured-wire'
+    | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-structured-usage'
+    | '/api/anthropic-thinking-order-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
@@ -980,6 +1149,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/file-source-wire'
     | '/api/foreign-interrupt'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
@@ -996,6 +1166,7 @@ export interface FileRouteTypes {
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-no-tasks-server'
+    | '/api/mcp-policy-test'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
@@ -1013,16 +1184,21 @@ export interface FileRouteTypes {
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
+    | '/api/openrouter-retry-codes'
+    | '/api/openrouter-stream-options-wire'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
+    | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
+    | '/api/structured-output-length-wire'
+    | '/api/subagents-test'
     | '/api/summarize'
     | '/api/text-first-tool-wire'
     | '/api/tool-call-lifecycle-wire'
@@ -1033,6 +1209,7 @@ export interface FileRouteTypes {
     | '/api/video'
     | '/api/video-live'
     | '/api/voice'
+    | '/api/web-mcp-page-tools'
     | '/api/world'
     | '/$provider/'
     | '/api/audio/stream'
@@ -1045,12 +1222,14 @@ export interface FileRouteTypes {
     | '/'
     | '/byok'
     | '/chat-client-default-bridge'
+    | '/chat-client-stream-processing'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-memory'
     | '/devtools-route-a'
     | '/devtools-route-b'
     | '/devtools-structured'
+    | '/devtools-subagents'
     | '/devtools-tools'
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
@@ -1063,17 +1242,24 @@ export interface FileRouteTypes {
     | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/subagents-test'
+    | '/subagents-ui-test'
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/web-mcp-page-tools'
     | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-multi-turn-structured-wire'
+    | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-structured-usage'
+    | '/api/anthropic-thinking-order-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
@@ -1082,6 +1268,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/file-source-wire'
     | '/api/foreign-interrupt'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
@@ -1098,6 +1285,7 @@ export interface FileRouteTypes {
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-no-tasks-server'
+    | '/api/mcp-policy-test'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
@@ -1115,16 +1303,21 @@ export interface FileRouteTypes {
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
+    | '/api/openrouter-retry-codes'
+    | '/api/openrouter-stream-options-wire'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
+    | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
+    | '/api/structured-output-length-wire'
+    | '/api/subagents-test'
     | '/api/summarize'
     | '/api/text-first-tool-wire'
     | '/api/tool-call-lifecycle-wire'
@@ -1135,6 +1328,7 @@ export interface FileRouteTypes {
     | '/api/video'
     | '/api/video-live'
     | '/api/voice'
+    | '/api/web-mcp-page-tools'
     | '/api/world'
     | '/$provider'
     | '/api/audio/stream'
@@ -1147,12 +1341,14 @@ export interface FileRouteTypes {
     | '/'
     | '/byok'
     | '/chat-client-default-bridge'
+    | '/chat-client-stream-processing'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-memory'
     | '/devtools-route-a'
     | '/devtools-route-b'
     | '/devtools-structured'
+    | '/devtools-subagents'
     | '/devtools-tools'
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
@@ -1165,17 +1361,24 @@ export interface FileRouteTypes {
     | '/message-history-paging'
     | '/middleware-test'
     | '/persistence-durability'
+    | '/subagents-test'
+    | '/subagents-ui-test'
     | '/text-first-tool'
     | '/tool-first-text'
     | '/tools-test'
+    | '/web-mcp-page-tools'
     | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-multi-turn-structured-wire'
+    | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-structured-usage'
+    | '/api/anthropic-thinking-order-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
@@ -1184,6 +1387,7 @@ export interface FileRouteTypes {
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
+    | '/api/file-source-wire'
     | '/api/foreign-interrupt'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
@@ -1200,6 +1404,7 @@ export interface FileRouteTypes {
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-no-tasks-server'
+    | '/api/mcp-policy-test'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
@@ -1217,16 +1422,21 @@ export interface FileRouteTypes {
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
+    | '/api/openrouter-retry-codes'
+    | '/api/openrouter-stream-options-wire'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
+    | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
+    | '/api/structured-output-length-wire'
+    | '/api/subagents-test'
     | '/api/summarize'
     | '/api/text-first-tool-wire'
     | '/api/tool-call-lifecycle-wire'
@@ -1237,6 +1447,7 @@ export interface FileRouteTypes {
     | '/api/video'
     | '/api/video-live'
     | '/api/voice'
+    | '/api/web-mcp-page-tools'
     | '/api/world'
     | '/$provider/'
     | '/api/audio/stream'
@@ -1250,12 +1461,14 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ByokRoute: typeof ByokRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
+  ChatClientStreamProcessingRoute: typeof ChatClientStreamProcessingRoute
   DevtoolsChatRoute: typeof DevtoolsChatRoute
   DevtoolsGenerationHooksRoute: typeof DevtoolsGenerationHooksRoute
   DevtoolsMemoryRoute: typeof DevtoolsMemoryRoute
   DevtoolsRouteARoute: typeof DevtoolsRouteARoute
   DevtoolsRouteBRoute: typeof DevtoolsRouteBRoute
   DevtoolsStructuredRoute: typeof DevtoolsStructuredRoute
+  DevtoolsSubagentsRoute: typeof DevtoolsSubagentsRoute
   DevtoolsToolsRoute: typeof DevtoolsToolsRoute
   ForeignInterruptRoute: typeof ForeignInterruptRoute
   GenerationPersistenceResumeRoute: typeof GenerationPersistenceResumeRoute
@@ -1268,17 +1481,24 @@ export interface RootRouteChildren {
   MessageHistoryPagingRoute: typeof MessageHistoryPagingRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
+  SubagentsTestRoute: typeof SubagentsTestRoute
+  SubagentsUiTestRoute: typeof SubagentsUiTestRoute
   TextFirstToolRoute: typeof TextFirstToolRoute
   ToolFirstTextRoute: typeof ToolFirstTextRoute
   ToolsTestRoute: typeof ToolsTestRoute
+  WebMcpPageToolsRoute: typeof WebMcpPageToolsRoute
   WebMcpToolsRoute: typeof WebMcpToolsRoute
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
+  ApiAnthropicMultiTurnStructuredWireRoute: typeof ApiAnthropicMultiTurnStructuredWireRoute
+  ApiAnthropicOpus5CombinedWireRoute: typeof ApiAnthropicOpus5CombinedWireRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
   ApiAnthropicStructuredUsageRoute: typeof ApiAnthropicStructuredUsageRoute
+  ApiAnthropicThinkingOrderWireRoute: typeof ApiAnthropicThinkingOrderWireRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
+  ApiBedrockConverseCacheRoute: typeof ApiBedrockConverseCacheRoute
   ApiByokChatRoute: typeof ApiByokChatRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
@@ -1287,6 +1507,7 @@ export interface RootRouteChildren {
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
+  ApiFileSourceWireRoute: typeof ApiFileSourceWireRoute
   ApiForeignInterruptRoute: typeof ApiForeignInterruptRoute
   ApiGeminiImageGaModelsRoute: typeof ApiGeminiImageGaModelsRoute
   ApiGeminiNativeImageWireRoute: typeof ApiGeminiNativeImageWireRoute
@@ -1303,6 +1524,7 @@ export interface RootRouteChildren {
   ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
   ApiMcpManagedTestRoute: typeof ApiMcpManagedTestRoute
   ApiMcpNoTasksServerRoute: typeof ApiMcpNoTasksServerRoute
+  ApiMcpPolicyTestRoute: typeof ApiMcpPolicyTestRoute
   ApiMcpServerRoute: typeof ApiMcpServerRoute
   ApiMcpStatusTestRoute: typeof ApiMcpStatusTestRoute
   ApiMcpTaskErrorsRoute: typeof ApiMcpTaskErrorsRoute
@@ -1320,16 +1542,21 @@ export interface RootRouteChildren {
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterJsonObjectWireRoute: typeof ApiOpenrouterJsonObjectWireRoute
   ApiOpenrouterReasoningWireRoute: typeof ApiOpenrouterReasoningWireRoute
+  ApiOpenrouterRetryCodesRoute: typeof ApiOpenrouterRetryCodesRoute
+  ApiOpenrouterStreamOptionsWireRoute: typeof ApiOpenrouterStreamOptionsWireRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiOtelMediaRoute: typeof ApiOtelMediaRoute
   ApiOtelTranscriptionRoute: typeof ApiOtelTranscriptionRoute
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiPersistenceDurabilityRoute: typeof ApiPersistenceDurabilityRoute
   ApiPortableSkillsWireRoute: typeof ApiPortableSkillsWireRoute
+  ApiProviderSearchMetadataWireRoute: typeof ApiProviderSearchMetadataWireRoute
   ApiProviderToolDispatchWireRoute: typeof ApiProviderToolDispatchWireRoute
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
   ApiSandboxFilePersistenceRoute: typeof ApiSandboxFilePersistenceRoute
   ApiSandboxToolHistoryRoute: typeof ApiSandboxToolHistoryRoute
+  ApiStructuredOutputLengthWireRoute: typeof ApiStructuredOutputLengthWireRoute
+  ApiSubagentsTestRoute: typeof ApiSubagentsTestRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiTextFirstToolWireRoute: typeof ApiTextFirstToolWireRoute
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
@@ -1340,6 +1567,7 @@ export interface RootRouteChildren {
   ApiVideoRoute: typeof ApiVideoRouteWithChildren
   ApiVideoLiveRoute: typeof ApiVideoLiveRoute
   ApiVoiceRoute: typeof ApiVoiceRoute
+  ApiWebMcpPageToolsRoute: typeof ApiWebMcpPageToolsRoute
   ApiWorldRoute: typeof ApiWorldRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
 }
@@ -1358,6 +1586,13 @@ declare module '@tanstack/react-router' {
       path: '/web-mcp-tools'
       fullPath: '/web-mcp-tools'
       preLoaderRoute: typeof WebMcpToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/web-mcp-page-tools': {
+      id: '/web-mcp-page-tools'
+      path: '/web-mcp-page-tools'
+      fullPath: '/web-mcp-page-tools'
+      preLoaderRoute: typeof WebMcpPageToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tools-test': {
@@ -1379,6 +1614,20 @@ declare module '@tanstack/react-router' {
       path: '/text-first-tool'
       fullPath: '/text-first-tool'
       preLoaderRoute: typeof TextFirstToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subagents-ui-test': {
+      id: '/subagents-ui-test'
+      path: '/subagents-ui-test'
+      fullPath: '/subagents-ui-test'
+      preLoaderRoute: typeof SubagentsUiTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subagents-test': {
+      id: '/subagents-test'
+      path: '/subagents-test'
+      fullPath: '/subagents-test'
+      preLoaderRoute: typeof SubagentsTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/persistence-durability': {
@@ -1465,6 +1714,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DevtoolsToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/devtools-subagents': {
+      id: '/devtools-subagents'
+      path: '/devtools-subagents'
+      fullPath: '/devtools-subagents'
+      preLoaderRoute: typeof DevtoolsSubagentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/devtools-structured': {
       id: '/devtools-structured'
       path: '/devtools-structured'
@@ -1507,6 +1763,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DevtoolsChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/chat-client-stream-processing': {
+      id: '/chat-client-stream-processing'
+      path: '/chat-client-stream-processing'
+      fullPath: '/chat-client-stream-processing'
+      preLoaderRoute: typeof ChatClientStreamProcessingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/chat-client-default-bridge': {
       id: '/chat-client-default-bridge'
       path: '/chat-client-default-bridge'
@@ -1540,6 +1803,13 @@ declare module '@tanstack/react-router' {
       path: '/api/world'
       fullPath: '/api/world'
       preLoaderRoute: typeof ApiWorldRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/web-mcp-page-tools': {
+      id: '/api/web-mcp-page-tools'
+      path: '/api/web-mcp-page-tools'
+      fullPath: '/api/web-mcp-page-tools'
+      preLoaderRoute: typeof ApiWebMcpPageToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/voice': {
@@ -1612,6 +1882,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSummarizeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/subagents-test': {
+      id: '/api/subagents-test'
+      path: '/api/subagents-test'
+      fullPath: '/api/subagents-test'
+      preLoaderRoute: typeof ApiSubagentsTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/structured-output-length-wire': {
+      id: '/api/structured-output-length-wire'
+      path: '/api/structured-output-length-wire'
+      fullPath: '/api/structured-output-length-wire'
+      preLoaderRoute: typeof ApiStructuredOutputLengthWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/sandbox-tool-history': {
       id: '/api/sandbox-tool-history'
       path: '/api/sandbox-tool-history'
@@ -1638,6 +1922,13 @@ declare module '@tanstack/react-router' {
       path: '/api/provider-tool-dispatch-wire'
       fullPath: '/api/provider-tool-dispatch-wire'
       preLoaderRoute: typeof ApiProviderToolDispatchWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/provider-search-metadata-wire': {
+      id: '/api/provider-search-metadata-wire'
+      path: '/api/provider-search-metadata-wire'
+      fullPath: '/api/provider-search-metadata-wire'
+      preLoaderRoute: typeof ApiProviderSearchMetadataWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/portable-skills-wire': {
@@ -1680,6 +1971,20 @@ declare module '@tanstack/react-router' {
       path: '/api/openrouter-web-tools-wire'
       fullPath: '/api/openrouter-web-tools-wire'
       preLoaderRoute: typeof ApiOpenrouterWebToolsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openrouter-stream-options-wire': {
+      id: '/api/openrouter-stream-options-wire'
+      path: '/api/openrouter-stream-options-wire'
+      fullPath: '/api/openrouter-stream-options-wire'
+      preLoaderRoute: typeof ApiOpenrouterStreamOptionsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openrouter-retry-codes': {
+      id: '/api/openrouter-retry-codes'
+      path: '/api/openrouter-retry-codes'
+      fullPath: '/api/openrouter-retry-codes'
+      preLoaderRoute: typeof ApiOpenrouterRetryCodesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/openrouter-reasoning-wire': {
@@ -1801,6 +2106,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpServerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-policy-test': {
+      id: '/api/mcp-policy-test'
+      path: '/api/mcp-policy-test'
+      fullPath: '/api/mcp-policy-test'
+      preLoaderRoute: typeof ApiMcpPolicyTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-no-tasks-server': {
       id: '/api/mcp-no-tasks-server'
       path: '/api/mcp-no-tasks-server'
@@ -1913,6 +2225,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiForeignInterruptRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/file-source-wire': {
+      id: '/api/file-source-wire'
+      path: '/api/file-source-wire'
+      fullPath: '/api/file-source-wire'
+      preLoaderRoute: typeof ApiFileSourceWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/embedding': {
       id: '/api/embedding'
       path: '/api/embedding'
@@ -1969,6 +2288,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiByokChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/bedrock-converse-cache': {
+      id: '/api/bedrock-converse-cache'
+      path: '/api/bedrock-converse-cache'
+      fullPath: '/api/bedrock-converse-cache'
+      preLoaderRoute: typeof ApiBedrockConverseCacheRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/audio': {
       id: '/api/audio'
       path: '/api/audio'
@@ -1983,6 +2309,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiArktypeToolWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/anthropic-thinking-order-wire': {
+      id: '/api/anthropic-thinking-order-wire'
+      path: '/api/anthropic-thinking-order-wire'
+      fullPath: '/api/anthropic-thinking-order-wire'
+      preLoaderRoute: typeof ApiAnthropicThinkingOrderWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/anthropic-structured-usage': {
       id: '/api/anthropic-structured-usage'
       path: '/api/anthropic-structured-usage'
@@ -1995,6 +2328,20 @@ declare module '@tanstack/react-router' {
       path: '/api/anthropic-skills-wire'
       fullPath: '/api/anthropic-skills-wire'
       preLoaderRoute: typeof ApiAnthropicSkillsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-opus-5-combined-wire': {
+      id: '/api/anthropic-opus-5-combined-wire'
+      path: '/api/anthropic-opus-5-combined-wire'
+      fullPath: '/api/anthropic-opus-5-combined-wire'
+      preLoaderRoute: typeof ApiAnthropicOpus5CombinedWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-multi-turn-structured-wire': {
+      id: '/api/anthropic-multi-turn-structured-wire'
+      path: '/api/anthropic-multi-turn-structured-wire'
+      fullPath: '/api/anthropic-multi-turn-structured-wire'
+      preLoaderRoute: typeof ApiAnthropicMultiTurnStructuredWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-bug-test': {
@@ -2111,12 +2458,14 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ByokRoute: ByokRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
+  ChatClientStreamProcessingRoute: ChatClientStreamProcessingRoute,
   DevtoolsChatRoute: DevtoolsChatRoute,
   DevtoolsGenerationHooksRoute: DevtoolsGenerationHooksRoute,
   DevtoolsMemoryRoute: DevtoolsMemoryRoute,
   DevtoolsRouteARoute: DevtoolsRouteARoute,
   DevtoolsRouteBRoute: DevtoolsRouteBRoute,
   DevtoolsStructuredRoute: DevtoolsStructuredRoute,
+  DevtoolsSubagentsRoute: DevtoolsSubagentsRoute,
   DevtoolsToolsRoute: DevtoolsToolsRoute,
   ForeignInterruptRoute: ForeignInterruptRoute,
   GenerationPersistenceResumeRoute: GenerationPersistenceResumeRoute,
@@ -2129,17 +2478,25 @@ const rootRouteChildren: RootRouteChildren = {
   MessageHistoryPagingRoute: MessageHistoryPagingRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
+  SubagentsTestRoute: SubagentsTestRoute,
+  SubagentsUiTestRoute: SubagentsUiTestRoute,
   TextFirstToolRoute: TextFirstToolRoute,
   ToolFirstTextRoute: ToolFirstTextRoute,
   ToolsTestRoute: ToolsTestRoute,
+  WebMcpPageToolsRoute: WebMcpPageToolsRoute,
   WebMcpToolsRoute: WebMcpToolsRoute,
   WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
+  ApiAnthropicMultiTurnStructuredWireRoute:
+    ApiAnthropicMultiTurnStructuredWireRoute,
+  ApiAnthropicOpus5CombinedWireRoute: ApiAnthropicOpus5CombinedWireRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
   ApiAnthropicStructuredUsageRoute: ApiAnthropicStructuredUsageRoute,
+  ApiAnthropicThinkingOrderWireRoute: ApiAnthropicThinkingOrderWireRoute,
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
+  ApiBedrockConverseCacheRoute: ApiBedrockConverseCacheRoute,
   ApiByokChatRoute: ApiByokChatRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,
@@ -2148,6 +2505,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
+  ApiFileSourceWireRoute: ApiFileSourceWireRoute,
   ApiForeignInterruptRoute: ApiForeignInterruptRoute,
   ApiGeminiImageGaModelsRoute: ApiGeminiImageGaModelsRoute,
   ApiGeminiNativeImageWireRoute: ApiGeminiNativeImageWireRoute,
@@ -2164,6 +2522,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,
   ApiMcpManagedTestRoute: ApiMcpManagedTestRoute,
   ApiMcpNoTasksServerRoute: ApiMcpNoTasksServerRoute,
+  ApiMcpPolicyTestRoute: ApiMcpPolicyTestRoute,
   ApiMcpServerRoute: ApiMcpServerRoute,
   ApiMcpStatusTestRoute: ApiMcpStatusTestRoute,
   ApiMcpTaskErrorsRoute: ApiMcpTaskErrorsRoute,
@@ -2181,16 +2540,21 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterJsonObjectWireRoute: ApiOpenrouterJsonObjectWireRoute,
   ApiOpenrouterReasoningWireRoute: ApiOpenrouterReasoningWireRoute,
+  ApiOpenrouterRetryCodesRoute: ApiOpenrouterRetryCodesRoute,
+  ApiOpenrouterStreamOptionsWireRoute: ApiOpenrouterStreamOptionsWireRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiOtelMediaRoute: ApiOtelMediaRoute,
   ApiOtelTranscriptionRoute: ApiOtelTranscriptionRoute,
   ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiPersistenceDurabilityRoute: ApiPersistenceDurabilityRoute,
   ApiPortableSkillsWireRoute: ApiPortableSkillsWireRoute,
+  ApiProviderSearchMetadataWireRoute: ApiProviderSearchMetadataWireRoute,
   ApiProviderToolDispatchWireRoute: ApiProviderToolDispatchWireRoute,
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
   ApiSandboxFilePersistenceRoute: ApiSandboxFilePersistenceRoute,
   ApiSandboxToolHistoryRoute: ApiSandboxToolHistoryRoute,
+  ApiStructuredOutputLengthWireRoute: ApiStructuredOutputLengthWireRoute,
+  ApiSubagentsTestRoute: ApiSubagentsTestRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiTextFirstToolWireRoute: ApiTextFirstToolWireRoute,
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
@@ -2201,6 +2565,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiVideoRoute: ApiVideoRouteWithChildren,
   ApiVideoLiveRoute: ApiVideoLiveRoute,
   ApiVoiceRoute: ApiVoiceRoute,
+  ApiWebMcpPageToolsRoute: ApiWebMcpPageToolsRoute,
   ApiWorldRoute: ApiWorldRoute,
   ProviderIndexRoute: ProviderIndexRoute,
 }

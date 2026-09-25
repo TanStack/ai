@@ -174,6 +174,8 @@ export interface MiddlewareEvent {
 export interface Iteration {
   /** The requestId this iteration belongs to (unique per chat() call) */
   requestId?: string
+  /** The chat run. A subagent run is `<parentRunId>:<subagentRunId>`. */
+  runId?: string
   index: number
   messageId: string
   startedAt: number
@@ -2816,6 +2818,7 @@ export const AIProvider: ParentComponent = (props) => {
 
         const newIteration: Iteration = {
           requestId,
+          ...(e.payload.runId ? { runId: e.payload.runId } : {}),
           index: iteration,
           messageId,
           startedAt: e.payload.timestamp,

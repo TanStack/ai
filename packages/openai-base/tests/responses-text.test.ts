@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
+import { applyPatchTool } from '../src/tools/apply-patch-tool'
+import { localShellTool } from '../src/tools/local-shell-tool'
+import { shellTool } from '../src/tools/shell-tool'
 import type OpenAI from 'openai'
 import { EventType, chat } from '@tanstack/ai'
-import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, ModelMessage, Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
 const testLogger = resolveDebugOption(false)
@@ -31,6 +34,10 @@ class TestResponsesAdapter extends OpenAIBaseResponsesTextAdapter<string> {
   constructor(_config: unknown, model: string, name = 'openai-base-responses') {
     super(model, name, makeStubClient())
   }
+
+  convertInput(messages: Array<ModelMessage>) {
+    return this.convertMessagesToInput(messages)
+  }
 }
 
 // Helper to create async iterable from chunks
@@ -48,6 +55,30 @@ function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
       }
     },
   }
+}
+
+// Helper: yields the chunks, then never ends (the HTTP body stays open).
+// `state.returned` is true once the consumer releases the iterator.
+function createOpenAsyncIterable<T>(chunks: Array<T>) {
+  const state = { returned: false }
+  const iterable: AsyncIterable<T> = {
+    [Symbol.asyncIterator]() {
+      let index = 0
+      return {
+        next() {
+          if (index < chunks.length) {
+            return Promise.resolve({ value: chunks[index++]!, done: false })
+          }
+          return new Promise<IteratorResult<T>>(() => {})
+        },
+        return() {
+          state.returned = true
+          return Promise.resolve({ value: undefined as T, done: true })
+        },
+      }
+    },
+  }
+  return { iterable, state }
 }
 
 // Helper to setup the mock SDK client for streaming/non-streaming responses
@@ -72,6 +103,41 @@ const weatherTool: Tool = {
   name: 'lookup_weather',
   description: 'Return the forecast for a location',
 }
+
+describe('strict fallback warning (#1213)', () => {
+  it('warns once per tool when its schema cannot be sent as strict', async () => {
+    setupMockResponsesClient([])
+    const warn = vi.fn()
+    const logger = resolveDebugOption({
+      logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() },
+    })
+    const refTool: Tool = {
+      name: 'lookup_user',
+      description: 'Find a user',
+      inputSchema: {
+        type: 'object',
+        properties: { user: { $ref: '#/$defs/user' } },
+        required: ['user'],
+      },
+    }
+    const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+    for (let i = 0; i < 2; i++) {
+      for await (const _ of adapter.chatStream({
+        logger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: [refTool, weatherTool],
+      })) {
+        // drain
+      }
+    }
+
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]![0]).toContain('"lookup_user"')
+    expect(warn.mock.calls[0]![0]).toContain('$ref')
+  })
+})
 
 describe('OpenAIBaseResponsesTextAdapter', () => {
   beforeEach(() => {
@@ -217,6 +283,84 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
   })
 
   describe('streaming event sequence', () => {
+    it('reports RUN_ERROR when the stream ends before response.completed (#1447)', async () => {
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        { type: 'response.output_text.delta', delta: 'The answer is ' },
+      ])
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const last = chunks.at(-1)
+      expect(last?.type).toBe('RUN_ERROR')
+      if (last?.type === 'RUN_ERROR') {
+        expect(last.code).toBe('incomplete-stream')
+      }
+      expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(false)
+      // The partial text still reaches the caller.
+      expect(
+        chunks.some(
+          (c) =>
+            c.type === 'TEXT_MESSAGE_CONTENT' && c.delta === 'The answer is ',
+        ),
+      ).toBe(true)
+    })
+
+    it('finishes chat() on response.completed without waiting for EOF (#1445)', async () => {
+      const { iterable, state } = createOpenAsyncIterable([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        { type: 'response.output_text.delta', delta: 'OK' },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      mockResponsesCreate = vi.fn().mockResolvedValue(iterable)
+      const chunks: Array<{ type: string }> = []
+      const run = (async () => {
+        for await (const chunk of chat({
+          adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+          messages: [{ role: 'user', content: 'Hello' }],
+        })) {
+          chunks.push(chunk)
+        }
+        return 'finished'
+      })()
+      const outcome = await Promise.race([
+        run,
+        new Promise((resolve) => setTimeout(() => resolve('timeout'), 1000)),
+      ])
+
+      expect(outcome).toBe('finished')
+      expect(chunks.at(-1)?.type).toBe('RUN_FINISHED')
+      expect(state.returned).toBe(true)
+    })
+
     it('emits RUN_STARTED as the first event', async () => {
       const streamChunks = [
         {
@@ -941,6 +1085,219 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       if (runFinishedChunk?.type === 'RUN_FINISHED') {
         expect(runFinishedChunk.finishReason).toBe('tool_calls')
       }
+    })
+
+    it('emits provider-executed web search metadata with joined sources', async () => {
+      const webSearchCall = {
+        type: 'web_search_call',
+        id: 'ws_123',
+        status: 'completed',
+        action: {
+          type: 'search',
+          queries: ['latest release'],
+          sources: [{ type: 'url', url: 'https://example.com/release' }],
+        },
+      }
+      const citation = {
+        type: 'url_citation',
+        url: 'https://example.com/release',
+        title: 'Example release notes',
+        start_index: 0,
+        end_index: 7,
+      }
+
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-web-search',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { ...webSearchCall, status: 'searching' },
+        },
+        {
+          type: 'response.output_text.annotation.added',
+          item_id: 'msg-web-search',
+          output_index: 1,
+          content_index: 0,
+          annotation_index: 0,
+          annotation: citation,
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: webSearchCall,
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-web-search',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              webSearchCall,
+              {
+                id: 'msg-web-search',
+                type: 'message',
+                role: 'assistant',
+                status: 'completed',
+                content: [
+                  {
+                    type: 'output_text',
+                    text: 'Grounded',
+                    annotations: [citation],
+                  },
+                ],
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      ).chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Find the latest release.' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const starts = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_START')
+      const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(starts).toHaveLength(1)
+      expect(ends).toHaveLength(1)
+      expect(starts[0]).toMatchObject({
+        toolCallId: 'ws_123',
+        toolCallName: 'web_search',
+        metadata: {
+          providerExecuted: true,
+          sources: [
+            {
+              url: 'https://example.com/release',
+              title: 'Example release notes',
+            },
+          ],
+          openai: {
+            webSearchCall,
+            urlCitations: [citation],
+          },
+        },
+      })
+      expect(ends[0]).toMatchObject({
+        toolCallId: 'ws_123',
+        input: webSearchCall.action,
+      })
+    })
+
+    it('gives each web search only its own citations and its real output index', async () => {
+      const search = (id: string, url: string) => ({
+        type: 'web_search_call',
+        id,
+        status: 'completed',
+        action: { type: 'search', query: id, sources: [{ type: 'url', url }] },
+      })
+      const cite = (url: string) => ({
+        type: 'url_citation',
+        url,
+        title: `Title ${url}`,
+        start_index: 0,
+        end_index: 1,
+      })
+      const ws1 = search('ws_1', 'https://a.example/')
+      // ws_2 does not stream. It is only in response.completed, at index 1.
+      const ws2 = search('ws_2', 'https://b.example/')
+
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-2ws',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        { type: 'response.output_item.done', output_index: 0, item: ws1 },
+        {
+          type: 'response.output_text.annotation.added',
+          item_id: 'msg_1',
+          output_index: 2,
+          content_index: 0,
+          annotation_index: 0,
+          annotation: cite('https://a.example/'),
+        },
+        {
+          type: 'response.output_text.annotation.added',
+          item_id: 'msg_1',
+          output_index: 2,
+          content_index: 0,
+          annotation_index: 1,
+          annotation: cite('https://b.example/'),
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-2ws',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              ws1,
+              ws2,
+              {
+                id: 'msg_1',
+                type: 'message',
+                role: 'assistant',
+                status: 'completed',
+                content: [
+                  { type: 'output_text', text: 'Two', annotations: [] },
+                ],
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      ).chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Search twice.' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const starts = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_START')
+      expect(starts).toMatchObject([
+        {
+          toolCallId: 'ws_1',
+          index: 0,
+          metadata: {
+            sources: [{ url: 'https://a.example/' }],
+            openai: { urlCitations: [cite('https://a.example/')] },
+          },
+        },
+        {
+          toolCallId: 'ws_2',
+          index: 1,
+          metadata: {
+            sources: [{ url: 'https://b.example/' }],
+            openai: { urlCitations: [cite('https://b.example/')] },
+          },
+        },
+      ])
     })
 
     it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
@@ -1746,6 +2103,81 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
   })
 
   describe('error handling', () => {
+    it('flushes completed web searches before RUN_ERROR on incomplete response', async () => {
+      const webSearchCall = {
+        type: 'web_search_call',
+        id: 'ws-incomplete',
+        status: 'completed',
+        action: {
+          type: 'search',
+          queries: ['latest release'],
+          sources: [{ type: 'url', url: 'https://example.com/release' }],
+        },
+      }
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-incomplete',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { ...webSearchCall, status: 'searching' },
+        },
+        {
+          type: 'response.incomplete',
+          response: {
+            id: 'resp-incomplete',
+            model: 'test-model',
+            status: 'incomplete',
+            incomplete_details: { reason: 'max_output_tokens' },
+            output: [webSearchCall],
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      ).chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Find the latest release.' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const toolStartIndex = chunks.findIndex(
+        (chunk) => chunk.type === EventType.TOOL_CALL_START,
+      )
+      const toolEndIndex = chunks.findIndex(
+        (chunk) => chunk.type === EventType.TOOL_CALL_END,
+      )
+      const runErrorIndex = chunks.findIndex(
+        (chunk) => chunk.type === EventType.RUN_ERROR,
+      )
+      expect(toolStartIndex).toBeGreaterThanOrEqual(0)
+      expect(toolEndIndex).toBeGreaterThan(toolStartIndex)
+      expect(runErrorIndex).toBeGreaterThan(toolEndIndex)
+      expect(
+        chunks.filter((chunk) => chunk.type === EventType.RUN_ERROR),
+      ).toHaveLength(1)
+      expect(chunks[toolStartIndex]).toMatchObject({
+        toolCallId: 'ws-incomplete',
+        metadata: {
+          providerExecuted: true,
+          sources: [{ url: 'https://example.com/release' }],
+          openai: { webSearchCall },
+        },
+      })
+    })
+
     it('emits RUN_ERROR on stream error', async () => {
       const streamChunks = [
         {
@@ -2451,6 +2883,345 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
           }),
         ]),
       )
+    })
+
+    it('replays provider-executed web search output items without a fake function call', () => {
+      const webSearchCall = {
+        type: 'web_search_call' as const,
+        id: 'ws_roundtrip',
+        status: 'completed' as const,
+        action: {
+          type: 'search' as const,
+          queries: ['latest release'],
+          sources: [
+            { type: 'url' as const, url: 'https://example.com/release' },
+          ],
+        },
+      }
+      const assistantMessage = {
+        id: 'msg_roundtrip',
+        type: 'message' as const,
+        role: 'assistant' as const,
+        status: 'completed' as const,
+        content: [
+          {
+            type: 'output_text' as const,
+            text: 'Grounded',
+            annotations: [],
+          },
+        ],
+      }
+
+      const input = new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      ).convertInput([
+        {
+          role: 'assistant',
+          content: 'Grounded',
+          toolCalls: [
+            {
+              id: 'ws_roundtrip',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{}' },
+              metadata: {
+                itemId: 'ws_roundtrip',
+                providerExecuted: true,
+                sources: [{ url: 'https://example.com/release' }],
+                openai: {
+                  webSearchCall,
+                  urlCitations: [],
+                  assistantMessage,
+                },
+              },
+            },
+          ],
+        },
+      ])
+
+      expect(input).toEqual([webSearchCall, assistantMessage])
+    })
+
+    /**
+     * Regression tests for #1345.
+     *
+     * The Responses API requires a persisted `function_call` item to follow the
+     * reasoning item that produced it. A ModelMessage keeps reasoning and tool
+     * calls in two flat arrays, so a turn where the model reasoned more than
+     * once replays as reasoning A, reasoning B, call A, call B and the request
+     * is rejected with "Item 'fc_...' of type 'function_call' was provided
+     * without its required 'reasoning' item: 'rs_...'" — permanently, because
+     * the regrouped order is what gets stored.
+     */
+    const reasoningSignature = (id: string) =>
+      JSON.stringify({ id, encrypted_content: `enc-${id}` })
+
+    const completedOnly = (responseId: string) => [
+      {
+        type: 'response.created',
+        response: {
+          id: responseId,
+          model: 'test-model',
+          status: 'in_progress',
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: responseId,
+          model: 'test-model',
+          status: 'completed',
+          output: [],
+          usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+        },
+      },
+    ]
+
+    const inputForMessages = async (messages: Array<ModelMessage>) => {
+      setupMockResponsesClient(completedOnly('resp-1'))
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      for await (const _chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages,
+      })) {
+        // drain
+      }
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      return payload.input as Array<Record<string, unknown>>
+    }
+
+    it('keeps the function_call item id when a single reasoning item pairs with it', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: '',
+          thinking: [{ content: '', signature: reasoningSignature('rs_A') }],
+          toolCalls: [
+            {
+              id: 'call_A',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_A' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_A', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      expect(input.map((item) => item.type)).toEqual([
+        'message',
+        'reasoning',
+        'function_call',
+        'function_call_output',
+      ])
+      // rs_A sits directly before fc_A, so the pairing holds and the item id
+      // (which buys a prompt-cache hit) is kept.
+      expect(input[2]).toMatchObject({ id: 'fc_A', call_id: 'call_A' })
+    })
+
+    it('drops the function_call item ids when a turn carries two reasoning items', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: '',
+          thinking: [
+            { content: '', signature: reasoningSignature('rs_A') },
+            { content: '', signature: reasoningSignature('rs_B') },
+          ],
+          toolCalls: [
+            {
+              id: 'call_A',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_A' },
+            },
+            {
+              id: 'call_B',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_B' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_A', content: '{}' },
+        { role: 'tool', toolCallId: 'call_B', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      // Both reasoning items are still replayed, in order.
+      expect(input.filter((item) => item.type === 'reasoning')).toMatchObject([
+        { id: 'rs_A' },
+        { id: 'rs_B' },
+      ])
+
+      // Neither call can be adjacent to its own reasoning item any more, so
+      // both are sent as fresh items. call_id is untouched so the outputs
+      // still correlate.
+      const calls = input.filter((item) => item.type === 'function_call')
+      expect(calls).toHaveLength(2)
+      for (const call of calls) {
+        expect(call).not.toHaveProperty('id')
+      }
+      expect(calls.map((call) => call.call_id)).toEqual(['call_A', 'call_B'])
+      expect(
+        input
+          .filter((item) => item.type === 'function_call_output')
+          .map((item) => item.call_id),
+      ).toEqual(['call_A', 'call_B'])
+    })
+
+    it('skips the raw web search items when a turn carries two reasoning items', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: 'Grounded',
+          thinking: [
+            { content: '', signature: reasoningSignature('rs_A') },
+            { content: '', signature: reasoningSignature('rs_B') },
+          ],
+          toolCalls: [
+            {
+              id: 'ws_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{}' },
+              metadata: {
+                itemId: 'ws_1',
+                providerExecuted: true,
+                openai: {
+                  webSearchCall: {
+                    type: 'web_search_call',
+                    id: 'ws_1',
+                    status: 'completed',
+                    action: { type: 'search', query: 'latest release' },
+                  },
+                  urlCitations: [],
+                  assistantMessage: {
+                    id: 'msg_1',
+                    type: 'message',
+                    role: 'assistant',
+                    status: 'completed',
+                    content: [
+                      {
+                        type: 'output_text',
+                        text: 'Grounded',
+                        annotations: [],
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            {
+              id: 'call_A',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_A' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_A', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      // The ws_/msg_ ids cannot sit next to their reasoning item, so the raw
+      // items are skipped and the text goes out as a plain message with no id.
+      expect(input.map((item) => item.type)).toEqual([
+        'message',
+        'reasoning',
+        'reasoning',
+        'function_call',
+        'message',
+        'function_call_output',
+      ])
+      expect(input[3]).not.toHaveProperty('id')
+      expect(input[4]).toEqual({
+        type: 'message',
+        role: 'assistant',
+        content: 'Grounded',
+      })
+    })
+
+    it('replays a reasoning id only once and unpairs the calls that lost it', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: '',
+          thinking: [{ content: '', signature: reasoningSignature('rs_A') }],
+          toolCalls: [
+            {
+              id: 'call_A',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_A' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_A', content: '{}' },
+        {
+          // Same reasoning id on a second assistant message. Sending it twice
+          // fails with "Duplicate item found with id rs_A".
+          role: 'assistant',
+          content: '',
+          thinking: [{ content: '', signature: reasoningSignature('rs_A') }],
+          toolCalls: [
+            {
+              id: 'call_B',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_B' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_B', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      expect(input.filter((item) => item.type === 'reasoning')).toMatchObject([
+        { id: 'rs_A' },
+      ])
+
+      const calls = input.filter((item) => item.type === 'function_call')
+      expect(calls[0]).toMatchObject({ id: 'fc_A', call_id: 'call_A' })
+      // The second message's reasoning was deduplicated away, so its call has
+      // no reasoning item to pair with and must not claim its old item id.
+      expect(calls[1]).not.toHaveProperty('id')
+      expect(calls[1]).toMatchObject({ call_id: 'call_B' })
+    })
+
+    it('unpairs the calls when one of two reasoning items was deduplicated away', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: '',
+          thinking: [{ content: '', signature: reasoningSignature('rs_A') }],
+        },
+        {
+          // rs_A is a duplicate and is dropped; only rs_C is replayed here.
+          // A call made by rs_A would then have no adjacent reasoning.
+          role: 'assistant',
+          content: '',
+          thinking: [
+            { content: '', signature: reasoningSignature('rs_A') },
+            { content: '', signature: reasoningSignature('rs_C') },
+          ],
+          toolCalls: [
+            {
+              id: 'call_B',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_B' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_B', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      const call = input.find((item) => item.type === 'function_call')
+      expect(call).not.toHaveProperty('id')
+      expect(call).toMatchObject({ call_id: 'call_B' })
     })
 
     /**
@@ -3522,6 +4293,529 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         expect(errorChunk.message).toMatch(/only support application\/pdf/)
         expect(errorChunk.message).toMatch(/%PDF/)
       }
+    })
+  })
+
+  describe('user-executed shell and apply_patch calls', () => {
+    function completedResponse(output: Array<Record<string, unknown>>) {
+      return [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-user-tool',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-user-tool',
+            model: 'test-model',
+            status: 'completed',
+            output,
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+    }
+
+    async function collect(output: Array<Record<string, unknown>>) {
+      setupMockResponsesClient(completedResponse(output))
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'edit the file' }],
+        tools: [applyPatchTool(), shellTool(), localShellTool()],
+      })) {
+        chunks.push(chunk)
+      }
+      return chunks
+    }
+
+    it('surfaces an apply_patch_call and asks the app to run it', async () => {
+      const chunks = await collect([
+        {
+          type: 'apply_patch_call',
+          id: 'apc_1',
+          call_id: 'call_patch',
+          status: 'completed',
+          operation: {
+            type: 'update_file',
+            path: 'lib/fib.py',
+            diff: '@@\n-def fib\n+def fibonacci\n',
+          },
+        },
+      ])
+
+      const starts = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_START')
+      const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(starts).toHaveLength(1)
+      expect(ends).toHaveLength(1)
+      expect(starts[0]).toMatchObject({
+        toolCallId: 'call_patch',
+        toolName: 'apply_patch',
+        metadata: { itemId: 'apc_1', openaiUserTool: 'apply_patch' },
+      })
+      expect(ends[0]).toMatchObject({
+        toolCallId: 'call_patch',
+        input: {
+          operation: {
+            type: 'update_file',
+            path: 'lib/fib.py',
+            diff: '@@\n-def fib\n+def fibonacci\n',
+          },
+        },
+      })
+      const finished = chunks.find((chunk) => chunk.type === 'RUN_FINISHED')
+      expect(finished).toMatchObject({ finishReason: 'tool_calls' })
+    })
+
+    it('surfaces a local shell call and ignores a hosted container shell', async () => {
+      const chunks = await collect([
+        {
+          type: 'shell_call',
+          id: 'sh_local',
+          call_id: 'call_local',
+          status: 'completed',
+          environment: { type: 'local' },
+          action: {
+            commands: ['echo hello'],
+            max_output_length: 4096,
+            timeout_ms: 1000,
+          },
+        },
+        {
+          type: 'shell_call',
+          id: 'sh_hosted',
+          call_id: 'call_hosted',
+          status: 'completed',
+          environment: { type: 'container_auto' },
+          action: {
+            commands: ['ls'],
+            max_output_length: null,
+            timeout_ms: null,
+          },
+        },
+      ])
+
+      const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(ends).toHaveLength(1)
+      expect(ends[0]).toMatchObject({
+        toolCallId: 'call_local',
+        toolName: 'shell',
+        input: {
+          commands: ['echo hello'],
+          max_output_length: 4096,
+          timeout_ms: 1000,
+        },
+      })
+    })
+
+    it('surfaces a shell call with no environment when the provider did not run it', async () => {
+      const chunks = await collect([
+        {
+          type: 'shell_call',
+          id: 'sh_bare',
+          call_id: 'call_bare',
+          status: 'completed',
+          action: {
+            commands: ['printf hello'],
+            max_output_length: null,
+            timeout_ms: null,
+          },
+        },
+      ])
+
+      const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(ends).toHaveLength(1)
+      expect(ends[0]).toMatchObject({
+        toolCallId: 'call_bare',
+        toolName: 'shell',
+      })
+    })
+
+    it('does not ask the app to re-run a shell call that already has output', async () => {
+      const chunks = await collect([
+        {
+          type: 'shell_call',
+          id: 'sh_done',
+          call_id: 'call_done',
+          status: 'completed',
+          action: {
+            commands: ['ls'],
+            max_output_length: null,
+            timeout_ms: null,
+          },
+        },
+        {
+          type: 'shell_call_output',
+          call_id: 'call_done',
+          output: [
+            {
+              stdout: 'a.ts\n',
+              stderr: '',
+              outcome: { type: 'exit', exit_code: 0 },
+            },
+          ],
+        },
+      ])
+
+      expect(chunks.some((chunk) => chunk.type === 'TOOL_CALL_END')).toBe(false)
+      const finished = chunks.find((chunk) => chunk.type === 'RUN_FINISHED')
+      expect(finished).toMatchObject({ finishReason: 'stop' })
+    })
+
+    it('surfaces a local_shell_call', async () => {
+      const chunks = await collect([
+        {
+          type: 'local_shell_call',
+          id: 'lsh_1',
+          call_id: 'call_lsh',
+          status: 'completed',
+          action: {
+            type: 'exec',
+            command: ['pwd'],
+            env: { HOME: '/tmp' },
+          },
+        },
+      ])
+
+      const ends = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(ends).toHaveLength(1)
+      expect(ends[0]).toMatchObject({
+        toolCallId: 'call_lsh',
+        toolName: 'local_shell',
+        input: {
+          type: 'exec',
+          command: ['pwd'],
+          env: { HOME: '/tmp' },
+        },
+      })
+    })
+
+    it('does not emit the same user tool twice when output_item.done and response.completed both carry it', async () => {
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-once',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: {
+            type: 'apply_patch_call',
+            id: 'apc_once',
+            call_id: 'call_once',
+            status: 'completed',
+            operation: { type: 'delete_file', path: 'old.ts' },
+          },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-once',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'apply_patch_call',
+                id: 'apc_once',
+                call_id: 'call_once',
+                status: 'completed',
+                operation: { type: 'delete_file', path: 'old.ts' },
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'delete old.ts' }],
+        tools: [applyPatchTool()],
+      })) {
+        chunks.push(chunk)
+      }
+      expect(
+        chunks.filter((chunk) => chunk.type === 'TOOL_CALL_END'),
+      ).toHaveLength(1)
+    })
+
+    it('replays apply_patch and shell results as Responses output items', async () => {
+      setupMockResponsesClient(completedResponse([]))
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [
+          { role: 'user', content: 'edit and run' },
+          {
+            role: 'assistant',
+            content: null,
+            toolCalls: [
+              {
+                id: 'call_patch',
+                type: 'function',
+                function: {
+                  name: 'apply_patch',
+                  arguments: JSON.stringify({
+                    operation: {
+                      type: 'update_file',
+                      path: 'lib/fib.py',
+                      diff: '@@\n-a\n+b\n',
+                    },
+                  }),
+                },
+                metadata: { itemId: 'apc_1', openaiUserTool: 'apply_patch' },
+              },
+              {
+                id: 'call_local',
+                type: 'function',
+                function: {
+                  name: 'shell',
+                  arguments: JSON.stringify({
+                    commands: ['echo hello'],
+                    max_output_length: 4096,
+                    timeout_ms: null,
+                  }),
+                },
+                metadata: {
+                  itemId: 'sh_1',
+                  openaiUserTool: 'shell',
+                  maxOutputLength: 4096,
+                },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call_patch',
+            content: JSON.stringify({
+              status: 'failed',
+              output: 'file not found',
+            }),
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call_local',
+            content: JSON.stringify({
+              stdout: 'hello\n',
+              stderr: '',
+              outcome: { type: 'exit', exit_code: 0 },
+            }),
+          },
+        ],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input).toEqual(
+        expect.arrayContaining([
+          {
+            type: 'apply_patch_call',
+            id: 'apc_1',
+            call_id: 'call_patch',
+            status: 'completed',
+            operation: {
+              type: 'update_file',
+              path: 'lib/fib.py',
+              diff: '@@\n-a\n+b\n',
+            },
+          },
+          {
+            type: 'shell_call',
+            id: 'sh_1',
+            call_id: 'call_local',
+            status: 'completed',
+            action: {
+              commands: ['echo hello'],
+              max_output_length: 4096,
+              timeout_ms: null,
+            },
+          },
+          {
+            type: 'apply_patch_call_output',
+            call_id: 'call_patch',
+            status: 'failed',
+            output: 'file not found',
+          },
+          {
+            type: 'shell_call_output',
+            call_id: 'call_local',
+            max_output_length: 4096,
+            output: [
+              {
+                stdout: 'hello\n',
+                stderr: '',
+                outcome: { type: 'exit', exit_code: 0 },
+              },
+            ],
+          },
+        ]),
+      )
+      expect(chunks.some((chunk) => chunk.type === 'RUN_ERROR')).toBe(false)
+    })
+
+    it('pauses chat() so the app can run apply_patch', async () => {
+      setupMockResponsesClient(
+        completedResponse([
+          {
+            type: 'apply_patch_call',
+            id: 'apc_chat',
+            call_id: 'call_chat',
+            status: 'completed',
+            operation: { type: 'delete_file', path: 'old.ts' },
+          },
+        ]),
+      )
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'delete old.ts' }],
+        tools: [applyPatchTool()],
+      })) {
+        chunks.push(chunk)
+      }
+
+      expect(chunks.some((chunk) => chunk.type === 'RUN_ERROR')).toBe(false)
+      const start = chunks.find((chunk) => chunk.type === 'TOOL_CALL_START')
+      expect(start).toMatchObject({
+        toolName: 'apply_patch',
+        toolCallId: 'call_chat',
+      })
+      const end = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
+      expect(end).toMatchObject({
+        toolCallId: 'call_chat',
+        input: { operation: { type: 'delete_file', path: 'old.ts' } },
+      })
+      const finished = chunks.find((chunk) => chunk.type === 'RUN_FINISHED')
+      expect(finished).toMatchObject({
+        outcome: { type: 'interrupt' },
+      })
+      expect(mockResponsesCreate).toHaveBeenCalledOnce()
+    })
+
+    async function pausedCallIds(
+      output: Array<Record<string, unknown>>,
+      tools: Array<Tool> = [applyPatchTool(), shellTool(), localShellTool()],
+    ) {
+      setupMockResponsesClient(completedResponse(output))
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'edit the file' }],
+        tools,
+      })) {
+        chunks.push(chunk)
+      }
+      const finished = chunks.find((chunk) => chunk.type === 'RUN_FINISHED')
+      if (
+        finished?.type !== 'RUN_FINISHED' ||
+        finished.outcome?.type !== 'interrupt'
+      ) {
+        return []
+      }
+      return finished.outcome.interrupts.flatMap((interrupt) =>
+        interrupt.toolCallId ? [interrupt.toolCallId] : [],
+      )
+    }
+
+    it('pauses chat() for an apply_patch call and a bare shell call', async () => {
+      const ids = await pausedCallIds([
+        {
+          type: 'apply_patch_call',
+          id: 'apc_pair',
+          call_id: 'call_patch',
+          status: 'completed',
+          operation: { type: 'delete_file', path: 'old.ts' },
+        },
+        {
+          type: 'shell_call',
+          id: 'sh_pair',
+          call_id: 'call_shell',
+          status: 'completed',
+          action: {
+            commands: ['printf hello'],
+            max_output_length: null,
+            timeout_ms: null,
+          },
+        },
+      ])
+
+      expect(ids).toEqual(['call_patch', 'call_shell'])
+      expect(mockResponsesCreate).toHaveBeenCalledOnce()
+    })
+
+    it('pauses chat() for every bare shell call in one response', async () => {
+      const ids = await pausedCallIds([
+        {
+          type: 'shell_call',
+          id: 'sh_a',
+          call_id: 'call_a',
+          status: 'completed',
+          action: {
+            commands: ['printf a'],
+            max_output_length: null,
+            timeout_ms: null,
+          },
+        },
+        {
+          type: 'shell_call',
+          id: 'sh_b',
+          call_id: 'call_b',
+          status: 'completed',
+          action: {
+            commands: ['printf b'],
+            max_output_length: null,
+            timeout_ms: null,
+          },
+        },
+      ])
+
+      expect(ids).toEqual(['call_a', 'call_b'])
+      expect(mockResponsesCreate).toHaveBeenCalledOnce()
+    })
+
+    it('pauses chat() for a bare shell call and a function call', async () => {
+      const ids = await pausedCallIds(
+        [
+          {
+            type: 'shell_call',
+            id: 'sh_first',
+            call_id: 'call_shell',
+            status: 'completed',
+            action: {
+              commands: ['printf hello'],
+              max_output_length: null,
+              timeout_ms: null,
+            },
+          },
+          {
+            type: 'function_call',
+            id: 'fc_weather',
+            call_id: 'call_weather',
+            name: 'lookup_weather',
+            arguments: '{}',
+          },
+        ],
+        [shellTool(), weatherTool],
+      )
+
+      expect(ids).toEqual(['call_weather', 'call_shell'])
+      expect(mockResponsesCreate).toHaveBeenCalledOnce()
     })
   })
 

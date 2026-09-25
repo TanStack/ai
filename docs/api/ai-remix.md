@@ -26,7 +26,7 @@ remix: @tanstack/ai-remix remix
 
 `remix` is a required peer.
 
-## `createWebMCPTools(handle, tools, options?)`
+## `createRegisterWebMCPTools(handle, tools, options?)`
 
 Register executable client tools for a Remix component. Remix removes them when the component `Handle` signal aborts.
 
@@ -34,14 +34,14 @@ For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
 
 ```tsx
 import {
-  createWebMCPTools,
-  type CreateWebMCPToolsOptions,
+  createRegisterWebMCPTools,
+  type CreateRegisterWebMCPToolsOptions,
 } from '@tanstack/ai-remix'
 import { clientEntry, type Handle } from 'remix/ui'
 import { searchProducts } from './tools'
 
 const tools = [searchProducts]
-const options: CreateWebMCPToolsOptions<typeof tools> = {
+const options: CreateRegisterWebMCPToolsOptions<typeof tools> = {
   onError(error) {
     console.error(error)
   },
@@ -50,15 +50,32 @@ const options: CreateWebMCPToolsOptions<typeof tools> = {
 export const ProductsPage = clientEntry(
   import.meta.url,
   function ProductsPage(handle: Handle) {
-    createWebMCPTools(handle, tools, options)
+    createRegisterWebMCPTools(handle, tools, options)
     return () => null
   },
 )
 ```
 
-`CreateWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The helper uses `handle.signal` for registration.
+`CreateRegisterWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The helper uses `handle.signal` for registration.
 
 The `context` field is required when a tool declares a required runtime context.
+
+## `createPageWebMCPTools(handle, options?)`
+
+Read the WebMCP tools on the page as client tools. The `tools` field starts empty. When the page adds or removes a tool, the helper updates `tools` and calls `handle.update()`. Read it in a `get tools()` getter on `createChat`.
+
+```ts
+import { createPageWebMCPTools } from '@tanstack/ai-remix'
+import type { Handle } from 'remix/ui'
+
+export function readPageTools(handle: Handle) {
+  return createPageWebMCPTools(handle, {
+    filter: (tool) => tool.origin === location.origin,
+  })
+}
+```
+
+`filter` skips a tool when it returns `false`. `onError` gets a failed WebMCP read. For a complete guide, see [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
 
 ## Server
 
@@ -167,7 +184,7 @@ Read `chat.messages` and `chat.isLoading` in the render function so each paint s
 Extends `ChatClientOptions` from `@tanstack/ai-client`. Pass `connection` or `fetcher`, not both. `Handle` is the first argument, not an option.
 
 - `connection` or `fetcher` - how the helper talks to your server
-- `tools?` - client tool implementations from `.client()`
+- `tools?` - client tool implementations from `.client()`. A `get tools()` getter is read each time a run starts.
 - `threadId?` - the only identity for this chat. Required when persistence is on
 - `initialMessages?` - starting transcript
 - `forwardedProps?` - JSON sent to the server on the AG-UI `forwardedProps` field

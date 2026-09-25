@@ -217,6 +217,46 @@ describe('withPersistence (state-only)', () => {
     )
   })
 
+  it('tags the assistant messages each run adds with its run id (#1061)', async () => {
+    const persistence = memoryPersistence()
+    const runTurn = async (runId: string, messages: Array<ModelMessage>) => {
+      const { adapter } = mockAdapter([
+        [
+          ev.runStarted(runId),
+          ev.text(`reply ${runId}`),
+          ev.runFinished(runId),
+        ],
+      ])
+      await collect(
+        chat({
+          adapter,
+          messages,
+          runId,
+          threadId: 't1',
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      return loadedThread(persistence)
+    }
+    // An assistant message stored before run ids were recorded.
+    const legacy: ModelMessage = { role: 'assistant', content: 'old reply' }
+
+    const afterFirst = await runTurn('r1', [
+      { role: 'user', content: 'old' },
+      legacy,
+      { role: 'user', content: 'one' },
+    ])
+    const afterSecond = await runTurn('r2', [
+      ...afterFirst,
+      { role: 'user', content: 'two' },
+    ])
+
+    const runIds = afterSecond
+      .filter((message) => message.role === 'assistant')
+      .map((message) => message.metadata?.tanstack?.run?.id)
+    expect(runIds).toEqual([undefined, 'r1', 'r2'])
+  })
+
   it('does not add ids to caller messages while saving', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([

@@ -59,6 +59,37 @@ const adapter = createOpenRouterText(
 );
 ```
 
+### Retry rate limits
+
+A busy upstream provider can reply with HTTP 429. The adapter retries only 5XX errors by default. Add `"429"` to `retryCodes` to retry rate limits too:
+
+```typescript
+import { createOpenRouterText } from "@tanstack/ai-openrouter";
+
+const adapter = createOpenRouterText(
+  "openai/gpt-5",
+  process.env.OPENROUTER_API_KEY!,
+  {
+    retryConfig: {
+      strategy: "backoff",
+      backoff: {
+        initialInterval: 500,
+        maxInterval: 60000,
+        exponent: 1.5,
+        maxElapsedTime: 120000,
+      },
+      retryConnectionErrors: true,
+    },
+    retryCodes: ["429", "5XX"],
+  },
+);
+```
+
+- `retryCodes`: the HTTP status codes to retry. `"5XX"` matches every 5xx code.
+- `retryConfig`: how long to wait between tries. When the response has a `Retry-After` header, the SDK waits that long.
+
+Now a 429 waits, then retries, and the chat continues with the next response.
+
 ## Available Models
 
 OpenRouter provides access to 300+ models from various providers. Models use the format `provider/model-name`:
@@ -284,6 +315,99 @@ export async function POST(request: Request) {
 }
 ```
 
+`models` is the fallback list: OpenRouter tries them in order when the primary model is unavailable. The rest of OpenRouter's routing surface is also exposed through `modelOptions` and forwarded to the request as-is. The option names are the camelCase ones from the OpenRouter SDK.
+
+### Provider preferences
+
+`provider` controls which upstream providers may serve the request and in what order. Pin one provider and disable fallbacks:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
+const stream = chat({
+  adapter: openRouterText("meta-llama/llama-4-maverick"),
+  messages: [{ role: "user", content: "Hello!" }],
+  modelOptions: {
+    provider: {
+      order: ["groq", "together"], // provider slugs, in priority order
+      allowFallbacks: false, // fail instead of routing elsewhere
+    },
+  },
+});
+```
+
+Provider slugs are the lowercase ids shown on OpenRouter's model pages (`"anthropic"`, `"openai"`, `"groq"`, …). Other fields on `provider`:
+
+- `only` / `ignore`: allow-list or deny-list of provider slugs, merged with your account-wide provider settings for this request.
+- `requireParameters`: only route to providers that support every parameter in the request. Without it, OpenRouter sends each provider only the parameters it supports and silently drops the rest, so a `responseFormat` or a sampling option can be ignored without an error. When you stream with `requireParameters: true`, also set `modelOptions.streamOptions: { includeUsage: false }`. Without it, the adapter sends `stream_options`, and OpenRouter returns a 404 for providers that do not support that parameter.
+- `sort`: `"price"`, `"throughput"`, or `"latency"`, or an object with `by` and `partition`, applied when `order` is not set. Setting it disables load balancing.
+- `maxPrice`: the highest pricing you accept. It takes `prompt` and `completion` in USD per million tokens, plus `request` (per-request pricing) and `image` (per image) where a provider offers them. Providers above the limit are skipped.
+- `quantizations`: restrict to providers serving the model at given quantization levels (e.g. `"fp8"`, `"int4"`).
+- `dataCollection`: `"deny"` to use only providers that do not collect user data.
+- `zdr`: `true` to restrict routing to zero-data-retention endpoints.
+
+### Model variants
+
+`variant` appends OpenRouter's `:variant` suffix to the model id. It is adapter metadata only and is never sent in the request body:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
+const stream = chat({
+  adapter: openRouterText("deepseek/deepseek-v4-pro"),
+  messages: [{ role: "user", content: "Hello!" }],
+  modelOptions: {
+    variant: "free", // requests deepseek/deepseek-v4-pro:free
+  },
+});
+```
+
+Accepted values are `"free"`, `"nitro"`, `"online"`, `"exacto"`, `"extended"`, and `"thinking"`. Which of them a model actually offers is up to OpenRouter's catalog.
+
+### Plugins
+
+`plugins` enables OpenRouter's request-level plugins. Each entry is identified by `id`, with plugin-specific options alongside:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
+const stream = chat({
+  adapter: openRouterText("openai/gpt-6-astra"),
+  messages: [{ role: "user", content: "Hello!" }],
+  modelOptions: {
+    plugins: [{ id: "web", maxResults: 5 }],
+  },
+});
+```
+
+Plugin ids include `web`, `file-parser`, `response-healing`, `moderation`, and `auto-router`; see the OpenRouter documentation for each plugin's options. Web fetching is not a plugin but a server tool (`openrouter:web_fetch`); for web search and fetch as _tools_ the model can call, see [Provider Tools](#provider-tools) below.
+
+### Reasoning
+
+`reasoning` is OpenRouter's unified reasoning configuration:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
+const stream = chat({
+  adapter: openRouterText("anthropic/claude-sonnet-5"),
+  messages: [{ role: "user", content: "Hello!" }],
+  modelOptions: {
+    reasoning: { effort: "high" },
+  },
+});
+```
+
+`effort` accepts `"none"`, `"minimal"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, and `"max"`. To switch reasoning off for a request, pass `reasoning: { enabled: false }`; the adapter sends it as `effort: "none"` because the SDK's request schema drops `enabled`.
+
+### Session and metadata
+
+`user` (a unique user identifier), `sessionId`, and `metadata` (up to 16 key-value pairs) are forwarded unchanged. `sessionId` doubles as OpenRouter's sticky routing key: requests that share it are routed to the same provider to maximize prompt-cache hits, and grouped together for observability.
+
 ## Model Options
 
 OpenRouter supports various provider-specific options. Sampling parameters live here too — `temperature`, `topP`, and `maxCompletionTokens` (OpenRouter's token-limit key for the chat adapter) — rather than as root-level props on `chat()`:
@@ -455,6 +579,8 @@ console.log(result.queue.probability);
 console.log(result.queue.confidence);
 console.log(result.meta.usage);
 ```
+
+To bill per request, read `result.meta.usage.cost`. To look the request up later with `GET /api/v1/generation?id=`, read `result.meta.id`. `result.meta.provider` names the upstream provider that served the request.
 
 `openRouterDecider` reads `OPENROUTER_API_KEY` from the environment. Pass a
 key explicitly with `createOpenRouterDecider("~typesafe/jev-latest", "sk-or-...")`.

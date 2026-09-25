@@ -64,6 +64,36 @@ export async function makeServerWithAnnotatedTool() {
   return { server, clientTransport }
 }
 
+/** One read-only tool and one unannotated tool, for tool-policy tests. */
+export async function makeServerWithMixedTools() {
+  const server = new McpServer({ name: 'mixed', version: '1.0.0' })
+  server.registerTool(
+    'get_weather',
+    {
+      description: 'Get weather for a city',
+      inputSchema: { city: z.string() },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ city }) => ({
+      content: [{ type: 'text' as const, text: `Sunny in ${city}` }],
+    }),
+  )
+  server.registerTool(
+    'set_alert',
+    {
+      description: 'Create a weather alert',
+      inputSchema: { city: z.string() },
+    },
+    async ({ city }) => ({
+      content: [{ type: 'text' as const, text: `Alert set for ${city}` }],
+    }),
+  )
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
 /** Build a connected (server, clientTransport) pair whose only tool always returns an MCP error result. */
 export async function makeServerWithFailingTool() {
   const server = new McpServer({ name: 'failing', version: '1.0.0' })

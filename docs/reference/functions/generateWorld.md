@@ -7,11 +7,12 @@ title: generateWorld
 function generateWorld<TAdapter, TStream>(options): WorldActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateWorld/index.ts:155](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/index.ts#L155)
+Defined in: [packages/ai/src/activities/generateWorld/index.ts:156](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/index.ts#L156)
 
 **`Experimental`**
 
-World generation activity - opens a live, prompt-steerable world session.
+World generation activity. Live adapters mint a session token. Job
+adapters return a viewer URL or an in-progress operation id.
 
 ## Type Parameters
 

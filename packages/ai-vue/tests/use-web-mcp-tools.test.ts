@@ -1,9 +1,16 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { defineComponent } from 'vue'
+import { defineComponent, effectScope } from 'vue'
 import { toolDefinition } from '@tanstack/ai/client'
-import { useWebMCPTools } from '../src/index'
-import type { UseWebMCPToolsOptions } from '../src/index'
+import { ChatClient } from '@tanstack/ai-client'
+import { useChat } from '../src/use-chat'
+import { createMockConnectionAdapter } from './test-utils'
+import {
+  usePageWebMCPTools,
+  useRegisterWebMCPTools,
+  useWebMCPTools,
+} from '../src/index'
+import type { UseRegisterWebMCPToolsOptions } from '../src/index'
 
 interface RegisteredWebMCPTool {
   name: string
@@ -61,7 +68,7 @@ function installModelContext({
 function mountWebMCPTools(onError?: (error: unknown) => void) {
   const Host = defineComponent({
     setup() {
-      useWebMCPTools([statusTool], { onError })
+      useRegisterWebMCPTools([statusTool], { onError })
       return () => null
     },
   })
@@ -77,7 +84,7 @@ afterEach(() => {
   Reflect.deleteProperty(document, 'modelContext')
 })
 
-describe('useWebMCPTools (Vue)', () => {
+describe('useRegisterWebMCPTools (Vue)', () => {
   it('registers tools and removes them when the scope unmounts', async () => {
     const modelContext = installModelContext()
     const wrapper = mountWebMCPTools()
@@ -121,7 +128,7 @@ describe('useWebMCPTools (Vue)', () => {
       return context.context.tenantId
     })
     const tools = [contextual] as const
-    const options: UseWebMCPToolsOptions<typeof tools> = {
+    const options: UseRegisterWebMCPToolsOptions<typeof tools> = {
       context: { tenantId: 'tenant-1' },
       toolOptions: { contextual: { title: 'Tenant status' } },
     }
@@ -130,9 +137,9 @@ describe('useWebMCPTools (Vue)', () => {
 
     const checkTypes = () => {
       // @ts-expect-error contextual tools require context
-      useWebMCPTools(tools)
-      useWebMCPTools(tools, options)
-      useWebMCPTools(tools, {
+      useRegisterWebMCPTools(tools)
+      useRegisterWebMCPTools(tools, options)
+      useRegisterWebMCPTools(tools, {
         context: { tenantId: 'tenant-1' },
         toolOptions: {
           // @ts-expect-error tool options only accept inferred tool names
@@ -141,5 +148,65 @@ describe('useWebMCPTools (Vue)', () => {
       })
     }
     void checkTypes
+  })
+})
+
+describe('useWebMCPTools (Vue)', () => {
+  it('is a deprecated alias of useRegisterWebMCPTools', () => {
+    expect(useWebMCPTools).toBe(useRegisterWebMCPTools)
+  })
+})
+
+function installPageTools(names: Array<string>) {
+  const target = new EventTarget()
+  const modelContext = {
+    names,
+    getTools: async () =>
+      modelContext.names.map((name) => ({
+        name,
+        description: `Run ${name}`,
+        origin: 'https://example.com',
+      })),
+    executeTool: async () => '"done"',
+    addEventListener: target.addEventListener.bind(target),
+    removeEventListener: target.removeEventListener.bind(target),
+    change(nextNames: Array<string>) {
+      modelContext.names = nextNames
+      target.dispatchEvent(new Event('toolchange'))
+    },
+  }
+  Object.defineProperty(document, 'modelContext', {
+    configurable: true,
+    value: modelContext,
+  })
+  return modelContext
+}
+
+describe('usePageWebMCPTools (Vue)', () => {
+  it('returns filtered page tools, updates on toolchange, and syncs useChat', async () => {
+    const modelContext = installPageTools(['first', 'blocked'])
+    const updateOptions = vi.spyOn(ChatClient.prototype, 'updateOptions')
+    const scope = effectScope()
+    const tools = scope.run(() => {
+      const pageTools = usePageWebMCPTools({
+        filter: (tool) => tool.name !== 'blocked',
+      })
+      useChat({ connection: createMockConnectionAdapter(), tools: pageTools })
+      return pageTools
+    })
+
+    expect(tools?.value).toEqual([])
+    await vi.waitFor(() =>
+      expect(tools?.value.map((tool) => tool.name)).toEqual(['first']),
+    )
+    modelContext.change(['first', 'second'])
+    await vi.waitFor(() => expect(tools?.value).toHaveLength(2))
+    await vi.waitFor(() =>
+      expect(updateOptions).toHaveBeenCalledWith({ tools: tools?.value }),
+    )
+    await expect(tools?.value[0]?.execute?.({})).resolves.toBe('done')
+
+    scope.stop()
+    updateOptions.mockRestore()
   })
 })

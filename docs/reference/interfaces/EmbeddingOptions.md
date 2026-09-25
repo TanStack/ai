@@ -3,7 +3,7 @@ id: EmbeddingOptions
 title: EmbeddingOptions
 ---
 
-Defined in: [packages/ai/src/types.ts:2839](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2839)
+Defined in: [packages/ai/src/types.ts:2962](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2962)
 
 Options for embedding generation, as received by adapters. The `embed()`
 entry point normalizes a single input item to an array before calling the
@@ -23,7 +23,7 @@ adapter, so `input` is always an array here.
 optional dimensions?: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:2848](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2848)
+Defined in: [packages/ai/src/types.ts:2971](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2971)
 
 Requested output dimensionality. Adapters for models with fixed
 dimensions throw a clear runtime error when this is set.
@@ -36,7 +36,7 @@ dimensions throw a clear runtime error when this is set.
 input: EmbeddingInputItem[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2843](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2843)
+Defined in: [packages/ai/src/types.ts:2966](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2966)
 
 The items to embed — one vector per item
 
@@ -48,7 +48,7 @@ The items to embed — one vector per item
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:2856](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2856)
+Defined in: [packages/ai/src/types.ts:2979](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2979)
 
 Internal logger threaded from the embed() entry point. Adapters must
 call logger.request() before the SDK call and logger.errors() in catch
@@ -62,7 +62,7 @@ blocks.
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2841](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2841)
+Defined in: [packages/ai/src/types.ts:2964](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2964)
 
 The model to use for embedding generation
 
@@ -74,6 +74,6 @@ The model to use for embedding generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:2850](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2850)
+Defined in: [packages/ai/src/types.ts:2973](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2973)
 
 Model-specific options for embedding generation

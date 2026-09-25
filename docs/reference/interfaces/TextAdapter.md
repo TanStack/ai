@@ -60,7 +60,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:95](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L95)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:104](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L104)
 
 **`Internal`**
 
@@ -110,7 +110,7 @@ toolCapabilities: TToolCapabilities;
 chatStream: (options) => AsyncIterable<AdapterYieldChunk>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L107)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:116](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L116)
 
 Stream text completions from the model
 
@@ -132,7 +132,7 @@ Stream text completions from the model
 optional combinedStructuredOutputSource?: (modelOptions?) => "text" | "event";
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:174](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L174)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:183](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L183)
 
 Where native-combined structured output is taken from.
 
@@ -213,7 +213,7 @@ this is the declaration/validation surface only.
 structuredOutput: (options) => Promise<StructuredOutputResult<unknown>>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:119](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L119)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:128](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L128)
 
 Generate structured output using the provider's native structured output API.
 This method uses stream: false and sends the JSON schema to the provider
@@ -241,7 +241,7 @@ Promise with the raw data (validation is done in the chat function)
 optional structuredOutputStream?: (options) => AsyncIterable<AdapterYieldChunk>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:137](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L137)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:146](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L146)
 
 Stream structured output using the provider's native streaming structured
 output API (stream + response_format json_schema in a single request).
@@ -274,7 +274,7 @@ their timestamps follow stream order.
 optional supportsCombinedToolsAndSchema?: (modelOptions?) => boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:160](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L160)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:169](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L169)
 
 Declares whether the adapter supports combining `tools` and a
 schema-constrained final answer in a single streaming request.
@@ -303,3 +303,19 @@ answer per-request. Most adapters can return a constant.
 #### Returns
 
 `boolean`
+
+***
+
+### supportsFileSources?
+
+```ts
+readonly optional supportsFileSources?: boolean;
+```
+
+Defined in: [packages/ai/src/activities/chat/adapter.ts:99](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L99)
+
+Declares that this adapter can consume `{ type: 'file' }` content sources
+(provider Files API references). `chat()` rejects file sources in preflight
+for adapters that don't declare this, so an adapter written before the
+file arm existed fails closed instead of silently mis-mapping a reference
+onto its URL/data branch.

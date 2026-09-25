@@ -1,5 +1,41 @@
 # @tanstack/ai-sandbox-cloudflare
 
+## 0.4.7
+
+### Patch Changes
+
+- [#1484](https://github.com/TanStack/ai/pull/1484) [`61231d6`](https://github.com/TanStack/ai/commit/61231d61df2908ef14efd59801d8c0f9b82eb51b) - Add a package README to each sandbox provider: what it isolates with, the factory call, the auth and snapshot/resume behaviour that differs between them, and links to the sandbox docs.
+
+- Updated dependencies [[`61231d6`](https://github.com/TanStack/ai/commit/61231d61df2908ef14efd59801d8c0f9b82eb51b)]:
+  - @tanstack/ai-sandbox-local-process@0.2.6
+
+## 0.4.6
+
+### Patch Changes
+
+- Updated dependencies [[`54d39d3`](https://github.com/TanStack/ai/commit/54d39d30704bbdbdccea756af31530cc6713fc2e), [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb), [`74b5823`](https://github.com/TanStack/ai/commit/74b582305471eaf37a3b68595e60ed1a6f42d914), [`abb0169`](https://github.com/TanStack/ai/commit/abb0169bf96c38f59791450ce060d089a7fcd26e), [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088), [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b)]:
+  - @tanstack/ai@0.61.0
+  - @tanstack/ai-sandbox@0.5.15
+  - @tanstack/ai-sandbox-local-process@0.2.5
+
+## 0.4.5
+
+### Patch Changes
+
+- Updated dependencies [[`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd)]:
+  - @tanstack/ai@0.60.0
+  - @tanstack/ai-sandbox@0.5.14
+  - @tanstack/ai-sandbox-local-process@0.2.5
+
+## 0.4.4
+
+### Patch Changes
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai-sandbox@0.5.13
+  - @tanstack/ai@0.59.0
+  - @tanstack/ai-sandbox-local-process@0.2.5
+
 ## 0.4.3
 
 ### Patch Changes

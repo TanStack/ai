@@ -1,8 +1,16 @@
 export { useChat } from './use-chat'
 export { createChatHook } from './create-chat-hook'
 export { useByok } from './use-byok'
-export { useWebMCPTools } from './use-web-mcp-tools'
-export type { UseWebMCPToolsOptions } from './use-web-mcp-tools'
+export {
+  usePageWebMCPTools,
+  useRegisterWebMCPTools,
+  useWebMCPTools,
+} from './use-web-mcp-tools'
+export type {
+  UsePageWebMCPToolsOptions,
+  UseRegisterWebMCPToolsOptions,
+  UseWebMCPToolsOptions,
+} from './use-web-mcp-tools'
 export type {
   DeepPartial,
   UseChatOptions,
@@ -98,6 +106,11 @@ export {
   PartialJSONParser,
   defaultJSONParser,
   registerWebMCPTools,
+  getWebMCPTools,
+  subscribeWebMCPTools,
+  type GetWebMCPToolsOptions,
+  type SubscribeWebMCPToolsOptions,
+  type WebMCPPageTool,
   clientTools,
   createMcpAppBridge,
   type McpAppBridge,

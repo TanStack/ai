@@ -230,6 +230,33 @@ names to the server's literals (args stay untyped — use Mode 2 for typed args)
 
 See the "Codegen CLI" section below for details.
 
+## Tool policy: `toolFilter` and `needsApproval`
+
+By default every server tool reaches the model and runs without approval.
+Set a policy on the client. It applies in `tools()`, in `chat({ mcp })`, and
+per server in `createMCPClients`. Both callbacks receive the raw MCP tool
+definition (native unprefixed `name`, `title`, `annotations`).
+
+```typescript
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  // Hide tools from the model. Unannotated tools fail this check.
+  toolFilter: (tool) => tool.annotations?.readOnlyHint === true,
+  // Pause for approval before these tools run (auto-discovery only).
+  needsApproval: (tool) => tool.annotations?.destructiveHint !== false,
+})
+```
+
+- `toolFilter` also applies to `tools([defs])`: a hidden definition throws
+  `MCPToolNotFoundError`. MCP Apps widget calls also honor it. It does not
+  apply to `callTool()`.
+- `needsApproval` does not change `tools([defs])`: each `toolDefinition` keeps
+  its own `needsApproval`.
+- Annotations are server-declared hints. For an untrusted server, filter by
+  `tool.name` instead.
+
 ## Lifecycle
 
 **The caller owns the lifecycle.** `chat()` never closes the client.
@@ -768,7 +795,7 @@ and do NOT appear in the library's runtime dependency graph.
 - `MCPConnectionError` — thrown when a server connection fails or when calling
   methods after `close()`.
 - `MCPToolNotFoundError` — thrown from `client.tools([defs])` when a definition's
-  `name` is not exposed by the server.
+  `name` is not exposed by the server, or the client's `toolFilter` hides it.
 - `MCPTaskRequiredToolError` — thrown when a task-required tool is bound via
   `tools([defs])` or called via `callTool()` and the server does not declare
   the tasks capability for `tools/call`. Auto-discovery skips those tools

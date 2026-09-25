@@ -25,7 +25,7 @@ type KnownCustomEvent =
   | UIResourceEvent;
 ```
 
-Defined in: [packages/ai/src/types.ts:1560](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1560)
+Defined in: [packages/ai/src/types.ts:1586](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1586)
 
 Every CUSTOM event TanStack AI itself emits, as a discriminated union on
 `name`. User-emitted custom events (via `emitCustomEvent` with a custom name)

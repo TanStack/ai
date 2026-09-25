@@ -10,6 +10,19 @@ import type { ContentPart, ModelMessage, UIMessage } from '../src/types'
 
 describe('Message Converters', () => {
   describe('uiMessageToModelMessages', () => {
+    it('keeps the run id and drops the run timings (#1061)', () => {
+      const [assistant] = uiMessageToModelMessages({
+        id: 'a1',
+        role: 'assistant',
+        parts: [{ type: 'text', content: 'hi' }],
+        metadata: {
+          tanstack: { run: { id: 'r1', startedAt: 1, finishedAt: 2 } },
+        },
+      })
+
+      expect(assistant?.metadata).toEqual({ tanstack: { run: { id: 'r1' } } })
+    })
+
     it('does not inherit assistant id or date for an unowned tool result', () => {
       const result = uiMessageToModelMessages({
         id: 'assistant-1',

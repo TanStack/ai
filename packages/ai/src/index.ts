@@ -18,6 +18,10 @@ export {
   embed,
   generateWorld,
   generateLiveVideo,
+  uploadFile,
+  getFile,
+  deleteFile,
+  fileSourceFromHandle,
 } from './activities/index'
 
 // Create options functions - for pre-defining typed configurations
@@ -70,6 +74,10 @@ export type {
   WorldAdapter,
   AnyLiveVideoAdapter,
   LiveVideoAdapter,
+  FilesAdapter,
+  AnyFilesAdapter,
+  FileHandle,
+  FileUploadInput,
 } from './activities/index'
 
 // Rerank adapter base + types
@@ -77,6 +85,24 @@ export { BaseRerankAdapter } from './activities/rerank/adapter'
 
 // Evaluate adapter base + types
 export { BaseEvaluateAdapter } from './activities/evaluate/adapter'
+
+export {
+  defineAgent,
+  type DefinedAgent,
+  type SubagentChoiceOptions,
+  type SubagentRunContext,
+} from './activities/chat/agents/define-agent'
+export {
+  subagentRoute,
+  type SubagentRouteOptions,
+} from './activities/chat/agents/route'
+export type {
+  SubagentOrder,
+  SubagentRouterPick,
+  SubagentRouterPlan,
+  SubagentStep,
+  SubagentStepsPlan,
+} from './activities/chat/agents/spawn'
 
 // Tool definition
 export {
@@ -494,6 +520,11 @@ export { generationParamsFromBody, generationParamsFromRequest } from './client'
 
 // AG-UI wire serialization (used internally by @tanstack/ai-client)
 export { uiMessagesToWire } from './utilities/ag-ui-wire'
+export type { SubagentWireInfo } from './utilities/subagent-wire'
+export {
+  subagentHostMessageId,
+  wireSubagentInfo,
+} from './utilities/subagent-wire'
 export { mergeMetadata, withTanstackMetadata } from './utilities/merge-metadata'
 export { fromSpecTokenUsage, toSpecTokenUsage } from './utilities/ag-ui-usage'
 export type { SpecTokenUsage } from './utilities/ag-ui-usage'
@@ -506,6 +537,14 @@ export {
   isContentPartArray,
   normalizeToolResult,
 } from './utilities/tool-result'
+export {
+  assertMessagesFileSourceSupport,
+  assertPromptFileSourceSupport,
+  fileReferenceFor,
+  isFileSource,
+  unsupportedFileSourceError,
+  type FileSourceCapable,
+} from './utilities/content-source'
 
 export {
   getProviderExecutedMetadata,

@@ -65,6 +65,8 @@ function throwRunError(
  * `SummarizationOptions<TProviderOptions>` on the wrapper itself.
  */
 export interface ChatStreamCapable {
+  /** Native token-limit option for adapters whose provider name is user-defined. */
+  readonly maxTokensKey?: string
   chatStream: (options: TextOptions<any>) => AsyncIterable<AdapterYieldChunk>
 }
 
@@ -151,8 +153,8 @@ function applyDefaultTemperature(
 
 /**
  * Resolve `maxLength` to the provider-native max-output-tokens key for the
- * given summarize-adapter `name` (this wrapper's OWN `name`, not the wrapped
- * text adapter's) and merge it into a working copy of the caller's
+ * wrapped text adapter's explicit key, falling back to this wrapper's `name`,
+ * and merge it into a working copy of the caller's
  * `modelOptions`. The caller always wins: if they already set any recognised
  * token-limit key (flat or, for Ollama, nested `options.num_predict`), the
  * default is left untouched. Unknown/unrecognised adapter names fall back to
@@ -172,10 +174,11 @@ function applyMaxLength(
   adapterName: string,
   maxLength: number,
   modelOptions: Record<string, unknown>,
+  maxTokensKey?: string,
 ): Record<string, unknown> {
   const merged: Record<string, unknown> = { ...modelOptions }
 
-  if (adapterName === 'ollama') {
+  if (adapterName === 'ollama' && maxTokensKey === undefined) {
     // Honor a caller-set limit in either shape: a recognised flat key (e.g.
     // left over from a migration) or the nested `options.num_predict`.
     const callerSetFlatLimit = KNOWN_MAX_TOKENS_KEYS.some(
@@ -195,12 +198,12 @@ function applyMaxLength(
     return merged
   }
 
-  const key = MAX_TOKENS_KEY_BY_ADAPTER[adapterName]
+  const key = maxTokensKey ?? MAX_TOKENS_KEY_BY_ADAPTER[adapterName]
   if (key === undefined) return merged
 
-  const callerSetLimit = KNOWN_MAX_TOKENS_KEYS.some(
-    (k) => typeof merged[k] === 'number',
-  )
+  const callerSetLimit =
+    typeof merged[key] === 'number' ||
+    KNOWN_MAX_TOKENS_KEYS.some((k) => typeof merged[k] === 'number')
   if (callerSetLimit) return merged
 
   merged[key] = maxLength
@@ -372,17 +375,24 @@ export class ChatStreamSummarizeAdapter<
     working = applyDefaultTemperature(this.name, 0.3, working)
     // `maxLength` must reach the wire under the provider-native token key (it
     // differs per provider, and no adapter reads a generic `maxTokens`).
-    // Resolve it from this summarize adapter's `name` (the constructor arg,
-    // not the wrapped text adapter's name), never overriding a caller-supplied
-    // token limit.
+    // Prefer the wrapped adapter's explicit key, then this wrapper's name,
+    // never overriding a caller-supplied token limit.
     if (options.maxLength !== undefined) {
-      if (!isKnownMaxTokensAdapter(this.name)) {
+      if (
+        this.textAdapter.maxTokensKey === undefined &&
+        !isKnownMaxTokensAdapter(this.name)
+      ) {
         options.logger.warn(
           `summarize: maxLength=${options.maxLength} could not be mapped to a provider token key for adapter name "${this.name}" — it was dropped from modelOptions (the prompt still asks the model to stay under it). Construct ChatStreamSummarizeAdapter with a recognised provider name to forward the cap.`,
           { provider: this.name },
         )
       }
-      working = applyMaxLength(this.name, options.maxLength, working)
+      working = applyMaxLength(
+        this.name,
+        options.maxLength,
+        working,
+        this.textAdapter.maxTokensKey,
+      )
     }
     const modelOptions = working as TProviderOptions
 

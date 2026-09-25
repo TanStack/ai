@@ -1,4 +1,5 @@
 import {
+  EventType,
   StreamProcessor,
   convertSchemaToJsonSchema,
   generateMessageId,
@@ -72,6 +73,7 @@ import type {
   QueueStrategy,
   QueuedMessage,
   SendMessageOptions,
+  SubagentHandle,
   ToolCallPart,
   UIMessage,
   WhenBusy,
@@ -84,6 +86,20 @@ import type {
 /** Internal queue entry — public {@link QueuedMessage} plus optional per-send body. */
 interface InternalQueuedMessage extends QueuedMessage {
   body?: Record<string, any>
+}
+
+const STREAM_PROCESSING_BUDGET_MS = 8
+
+type SchedulerWithYield = {
+  yield?: () => Promise<void>
+}
+
+function yieldToHost(): Promise<void> {
+  const { scheduler } = globalThis as typeof globalThis & {
+    scheduler?: SchedulerWithYield
+  }
+  if (scheduler?.yield) return scheduler.yield()
+  return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
 function assertUniqueInterruptDefinitions(
@@ -328,12 +344,70 @@ const REJOIN_CONNECT_DEADLINE_MS = 2000
 const REJOIN_REBUILD_TRIGGERS = new Set<string>([
   'TEXT_MESSAGE_START',
   'TEXT_MESSAGE_CONTENT',
+  'REASONING_MESSAGE_CONTENT',
   'TOOL_CALL_START',
   'MESSAGES_SNAPSHOT',
+  // Drop the hydrated card before this chunk creates it again. A subagent
+  // turn may have no parent text, so the text triggers arrive too late.
+  'SUBAGENT_STARTED',
 ])
+
+function rebuildsAssistantMessage(chunk: StreamChunk): boolean {
+  if (chunk.type === 'REASONING_ENCRYPTED_VALUE') {
+    return (
+      chunk.subtype === 'message' &&
+      typeof chunk.encryptedValue === 'string' &&
+      chunk.encryptedValue.length > 0
+    )
+  }
+  if (chunk.type === 'STEP_FINISHED') {
+    return 'signature' in chunk && Boolean(chunk.signature)
+  }
+  return REJOIN_REBUILD_TRIGGERS.has(chunk.type)
+}
+
+type SubagentCard = Extract<UIMessage['parts'][number], { type: 'subagent' }>
+
+/** Every subagent card in the messages, nested cards included. */
+function collectSubagentParts(
+  messages: ReadonlyArray<UIMessage>,
+): Array<SubagentCard> {
+  const cards: Array<SubagentCard> = []
+  for (const message of messages) {
+    for (const part of message.parts) {
+      if (part.type !== 'subagent') continue
+      cards.push(part)
+      cards.push(...collectSubagentParts(part.subagent.messages))
+    }
+  }
+  return cards
+}
+
+function readSubagentRunId(chunk: StreamChunk) {
+  if ('subagentRunId' in chunk && typeof chunk.subagentRunId === 'string') {
+    return chunk.subagentRunId
+  }
+  return undefined
+}
 
 // Cap parent-chain walks so a cyclic replayed parentRunId cannot loop.
 const MAX_RUN_LINEAGE_DEPTH = 64
+
+/**
+ * A deep copy of plain data. Dates stay Dates. Function-valued properties are
+ * dropped.
+ */
+function copyForDevtools<T>(value: T): T
+function copyForDevtools(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(copyForDevtools)
+  if (value instanceof Date) return new Date(value.getTime())
+  if (value === null || typeof value !== 'object') return value
+  const out: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item !== 'function') out[key] = copyForDevtools(item)
+  }
+  return out
+}
 
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
@@ -342,6 +416,8 @@ export class ChatClient<
     any,
 > {
   private readonly processor: StreamProcessor
+  private readonly subagentHandles = new Map<string, SubagentHandle>()
+  private readonly stoppedSubagentIds = new Set<string>()
   private connection: SubscribeConnectionAdapter
   private uniqueId: string
   private threadId: string
@@ -459,6 +535,8 @@ export class ChatClient<
   private readonly activeRunIds = new Set<string>()
   /** Latched by `dispose()`; stops any late async callback starting new work. */
   private disposed = false
+  /** The error a failed mount hydration set, cleared by the next successful one. */
+  private hydrationError: Error | undefined
   /** Whether a view is currently watching. See `attach` / `detach`. */
   private tailing = false
   /** Constructor inputs `attach()` needs on every re-attach, not just the first. */
@@ -669,9 +747,16 @@ export class ChatClient<
         : {}),
       ...(initialMessages ? { initialMessages } : {}),
       events: {
-        onMessagesChange: (messages: Array<UIMessage>) => {
+        onMessagesChange: (messages) => {
+          // Restored or replaced messages bring their own cards. Give each one
+          // its live handle before anyone reads the messages.
+          this.syncSubagentHandles()
           this.persistor?.notifyMessagesChanged(messages)
           this.callbacksRef.current.onMessagesChange(messages)
+          // The bridge only snapshots on status changes, and the panel draws a
+          // child card from the snapshot, so without this the card would update
+          // only when the parent run ends.
+          this.queueDevtoolsSnapshot()
         },
         onStreamStart: () => {
           this.setStatus('streaming')
@@ -887,6 +972,8 @@ export class ChatClient<
         },
       },
     })
+    // `initialMessages` do not fire a change event. Give their cards handles.
+    this.syncSubagentHandles()
 
     this.persistor?.hydrateAsync(persistedState)
 
@@ -1068,7 +1155,10 @@ export class ChatClient<
       const generation = this.historyGeneration
       try {
         result = await hydrate(this.threadId, hydrateOptions)
-      } catch {
+      } catch (cause) {
+        // Same staleness guard as the success path below: a failure from an
+        // older attempt must not touch the state of a newer one.
+        if (generation === this.historyGeneration) this.failHydration(cause)
         return
       }
       if (generation !== this.historyGeneration) return
@@ -1084,13 +1174,25 @@ export class ChatClient<
       if (this.disposed || !this.tailing) return
       // A send may have started while the fetch was in flight — don't stomp it.
       if (this.isLoading || this.abortController) return
+      // A retry after a failed load succeeded: drop that failure, but not an
+      // error something else set since.
+      if (this.hydrationError && this.error === this.hydrationError) {
+        this.setError(undefined)
+        this.setStatus('ready')
+      }
+      this.hydrationError = undefined
       this.applyHydrationPage(result.page)
       if (result.messages.length > 0) {
         const windowMessages = normalizeMessagesDates(result.messages)
         this.processor.setMessages(windowMessages)
         this.rememberServerMessageIds(windowMessages)
       }
-      if (result.interrupts && result.interrupts.pending.length > 0) {
+      if (
+        result.interrupts &&
+        result.interrupts.pending.length > 0 &&
+        (!result.activeRun?.runId ||
+          result.activeRun.runId === result.interrupts.runId)
+      ) {
         // Pending interrupt = the thread is paused awaiting a human decision, so
         // there is nothing to tail (no chunks stream until it resolves). Restore
         // the approval/wait from the SERVER — identical to reconstructing it from
@@ -1100,7 +1202,9 @@ export class ChatClient<
         // on the server, so a racing hydrate reports both an `activeRun` cursor
         // AND the pending interrupt. Tailing that "active" run would drop the
         // approval card (and hang on a stream that never comes), so the interrupt
-        // always wins.
+        // wins over that same run. A DIFFERENT active run is the continuation
+        // that answered this interrupt: the server commits the answer only when
+        // that run finishes, so join it (see the `else` branch below).
         this.applyResumeSnapshot({
           resumeState: {
             threadId: this.threadId,
@@ -1112,6 +1216,36 @@ export class ChatClient<
         this.maybeRejoinInFlight(result.activeRun.runId)
       }
     })()
+  }
+
+  /**
+   * Surface a mount-hydration failure (`persistence: true`) on the observable
+   * fields, mirroring `GenerationClient.failHydration`, so "this thread failed
+   * to load" is distinguishable from "this thread has no messages" and the app
+   * can show an error / offer a retry. A genuine miss — the server having no
+   * record for a fresh thread — resolves normally and never reaches here; only a
+   * thrown transport / authorize-gate error does.
+   *
+   * Skipped when the view unmounted (`!tailing`) or a `sendMessage` took
+   * ownership while the hydrate GET was in flight, so a live run's state always
+   * wins over a stale mount-time failure — same guard as the success path above.
+   */
+  private failHydration(cause: unknown): void {
+    if (this.disposed || !this.tailing) return
+    if (this.isLoading || this.abortController) return
+    const error = cause instanceof Error ? cause : new Error(String(cause))
+    // Mirror the send path: a BYOK key that is missing / locked must still
+    // trigger the key-request flow on thread load, not just be reported.
+    if (error instanceof ByokMissingError) {
+      this.byok?.request(error.provider, 'missing')
+    }
+    if (error instanceof ByokBlockedError && error.reason === 'locked') {
+      this.byok?.request(error.provider, 'locked')
+    }
+    this.hydrationError = error
+    this.setStatus('error')
+    this.setError(error)
+    this.callbacksRef.current.onError(error)
   }
 
   mountDevtools(): void {
@@ -1693,7 +1827,9 @@ export class ChatClient<
 
   private getDevtoolsSnapshot(): AIDevtoolsChatSnapshot {
     return {
-      messages: this.processor.getMessages(),
+      // The devtools store keeps the objects it gets, and a subagent handle
+      // changes in place. A copy lets the panel see each new status and part.
+      messages: copyForDevtools(this.processor.getMessages()),
       status: this.status,
       isLoading: this.isLoading,
       isSubscribed: this.isSubscribed,
@@ -1799,13 +1935,23 @@ export class ChatClient<
   }
 
   /**
-   * Consume chunks from the connection subscription.
+   * Consume chunks from the connection subscription. Chunks are processed in
+   * order; the loop yields to the host after each processing budget.
    */
   private async consumeSubscription(signal: AbortSignal): Promise<void> {
     const stream = this.connection.subscribe(signal)
+    let chunkProcessingTime = 0
     for await (const chunk of stream) {
       if (signal.aborted) break
-      await this.processIncomingChunk(chunk)
+      const startedAt = performance.now()
+      this.processIncomingChunk(chunk)
+      chunkProcessingTime += performance.now() - startedAt
+      if (chunkProcessingTime < STREAM_PROCESSING_BUDGET_MS) continue
+      chunkProcessingTime = 0
+      // Skip the yield when the page is hidden. Browsers clamp timers there,
+      // and that wait paces stream pull.
+      if (typeof document !== 'undefined' && document.hidden) continue
+      await yieldToHost()
     }
   }
 
@@ -1828,7 +1974,7 @@ export class ChatClient<
    * give up after {@link REJOIN_CONNECT_DEADLINE_MS} if no chunk arrives and
    * clear the dead pointer so it does not retry on the next load.
    *
-   * Replay chunks are processed WITHOUT the per-chunk yield the live path uses,
+   * Replay chunks are processed WITHOUT the time-slice yield the live path uses,
    * so the buffered prefix snaps in and only the genuinely-live tail streams at
    * network speed — a reload looks like the run continued, not like it re-typed.
    */
@@ -1865,11 +2011,11 @@ export class ChatClient<
             attached = true
             clearTimeout(connectTimer)
           }
-          if (!rebuilt && REJOIN_REBUILD_TRIGGERS.has(chunk.type)) {
+          if (!rebuilt && rebuildsAssistantMessage(chunk)) {
             rebuilt = true
             this.dropTrailingInFlightAssistant()
           }
-          await this.processIncomingChunk(chunk, { defer: false })
+          this.processIncomingChunk(chunk)
         }
         // Same contract as `streamResponse`: client tools may finish (and
         // queue a resume) while `isLoading` is still true. Wait for them
@@ -1938,10 +2084,7 @@ export class ChatClient<
     }
   }
 
-  private async processIncomingChunk(
-    chunk: StreamChunk,
-    options?: { defer?: boolean },
-  ): Promise<void> {
+  private processIncomingChunk(chunk: StreamChunk): void {
     chunk = restoreInboundChunk(chunk)
     if (
       chunk.type === 'RUN_ERROR' &&
@@ -1970,18 +2113,20 @@ export class ChatClient<
     }
     this.callbacksRef.current.onChunk(chunk)
     this.devtoolsBridge.observeChunk(chunk)
+    const attributedId = readSubagentRunId(chunk)
+    // A resumed child starts again under the same id, so its start lifts the stop.
+    if (attributedId && chunk.type === EventType.SUBAGENT_STARTED) {
+      this.stoppedSubagentIds.delete(attributedId)
+    }
+    if (attributedId && this.stoppedSubagentIds.has(attributedId)) {
+      this.updateRunLifecycle(chunk)
+      this.resolveJoinedRun(chunk)
+      return
+    }
     this.processor.processChunk(chunk)
+    this.syncSubagentHandles()
     this.updateRunLifecycle(chunk)
     this.observeInterruptState(chunk)
-    // Live path: yield a macrotask so the UI can paint. Skip when the page is
-    // hidden. Browsers clamp setTimeout there, and that wait paces stream pull.
-    // Replay passes defer: false so a backlog applies in one batch.
-    if (
-      options?.defer !== false &&
-      (typeof document === 'undefined' || !document.hidden)
-    ) {
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    }
     this.resolveJoinedRun(chunk)
   }
 
@@ -2678,6 +2823,7 @@ export class ChatClient<
    */
   stop(): void {
     // Invalidate deferred work from the stopped continuation.
+    // This aborts the local request. A durable server run keeps going.
     this.continuationGeneration++
     const hadLocalStream = this.abortController !== null
     this.cancelInFlightStream({ setReadyStatus: true })
@@ -2715,6 +2861,7 @@ export class ChatClient<
     this.resetHistoryPaging()
     this.discardPendingSends()
     this.persistor?.remove()
+    this.stoppedSubagentIds.clear()
     this.lastResume = null
     this.interruptManager.reset()
     this.pendingResumeThreadId = null
@@ -2972,6 +3119,72 @@ export class ChatClient<
    */
   getMessages(): Array<UIMessage<TTools>> {
     return this.processor.getMessages() as Array<UIMessage<TTools>>
+  }
+
+  getSubagents() {
+    return [...this.subagentHandles.values()]
+  }
+
+  private devtoolsSnapshotQueued = false
+
+  /** One devtools snapshot per microtask, however many chunks arrive. */
+  private queueDevtoolsSnapshot(): void {
+    if (this.devtoolsSnapshotQueued) return
+    this.devtoolsSnapshotQueued = true
+    queueMicrotask(() => {
+      this.devtoolsSnapshotQueued = false
+      this.devtoolsBridge.emitSnapshot()
+    })
+  }
+
+  private syncSubagentHandles(): void {
+    // Every card, nested ones included, gets a handle.
+    const cards = collectSubagentParts(this.processor.getMessages())
+    const present = new Set(cards.map((part) => part.subagent.id))
+    // A card that left the messages (clear, reload) loses its handle.
+    for (const id of this.subagentHandles.keys()) {
+      if (!present.has(id)) this.subagentHandles.delete(id)
+    }
+    for (const part of cards) {
+      const id = part.subagent.id
+      const existing = this.subagentHandles.get(id)
+      if (existing) {
+        if (part.subagent === existing) continue
+        // Keep the same live object, with exactly the card's fields. The
+        // wire reads this object, so a field the card dropped goes too.
+        const { stop } = existing
+        for (const key of Object.keys(existing)) {
+          Reflect.deleteProperty(existing, key)
+        }
+        Object.assign(existing, part.subagent, { stop })
+        part.subagent = existing
+        continue
+      }
+      const handle: SubagentHandle = {
+        ...part.subagent,
+        stop: () => {
+          this.stopSubagent(id)
+        },
+      }
+      this.subagentHandles.set(id, handle)
+      part.subagent = handle
+    }
+  }
+
+  private stopSubagent(id: string): void {
+    const handle = this.subagentHandles.get(id)
+    if (!handle || handle.status !== 'running') return
+    this.stoppedSubagentIds.add(id)
+    this.processor.processChunk({
+      type: EventType.SUBAGENT_ERROR,
+      subagentRunId: id,
+      message: 'Stopped',
+      timestamp: Date.now(),
+    })
+    this.syncSubagentHandles()
+    handle.status = 'error'
+    handle.error = { message: 'Stopped' }
+    this.abortController?.abort()
   }
 
   /**

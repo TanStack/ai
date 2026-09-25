@@ -30,11 +30,6 @@ const SPEC_KEYS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
     EventType.TOOL_CALL_RESULT,
     keys('messageId', 'toolCallId', 'content', 'role'),
   ],
-  [EventType.THINKING_START, keys('title')],
-  [EventType.THINKING_END, SHARED],
-  [EventType.THINKING_TEXT_MESSAGE_START, SHARED],
-  [EventType.THINKING_TEXT_MESSAGE_CONTENT, keys('delta')],
-  [EventType.THINKING_TEXT_MESSAGE_END, SHARED],
   [EventType.STATE_SNAPSHOT, keys('snapshot')],
   [EventType.STATE_DELTA, keys('delta')],
   [EventType.MESSAGES_SNAPSHOT, keys('messages')],
@@ -45,7 +40,10 @@ const SPEC_KEYS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
   [EventType.ACTIVITY_DELTA, keys('messageId', 'activityType', 'patch')],
   [EventType.RAW, keys('event', 'source')],
   [EventType.CUSTOM, keys('name', 'value')],
-  [EventType.RUN_STARTED, keys('threadId', 'runId', 'parentRunId', 'input')],
+  [
+    EventType.RUN_STARTED,
+    keys('threadId', 'runId', 'protocolVersion', 'parentRunId', 'input'),
+  ],
   [
     EventType.RUN_FINISHED,
     keys('threadId', 'runId', 'result', 'outcome', 'usage'),
@@ -63,10 +61,39 @@ const SPEC_KEYS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
     EventType.REASONING_ENCRYPTED_VALUE,
     keys('subtype', 'entityId', 'encryptedValue'),
   ],
+  [
+    EventType.SUBAGENT_STARTED,
+    keys(
+      'subagentRunId',
+      'name',
+      'description',
+      'parentSubagentRunId',
+      'parentToolCallId',
+      'parentMessageId',
+    ),
+  ],
+  [EventType.SUBAGENT_FINISHED, keys('subagentRunId', 'result', 'outcome')],
+  [EventType.SUBAGENT_ERROR, keys('subagentRunId', 'message', 'code')],
 ])
 
+const RUN_SCOPED = new Set<string>([
+  EventType.RUN_STARTED,
+  EventType.RUN_FINISHED,
+  EventType.RUN_ERROR,
+  EventType.MESSAGES_SNAPSHOT,
+])
+
+const ATTRIBUTABLE_KEYS = new Map(
+  [...SPEC_KEYS]
+    .filter(([type]) => !RUN_SCOPED.has(type))
+    .map(
+      ([type, fields]) =>
+        [type, new Set([...fields, 'subagentRunId'])] as const,
+    ),
+)
+
 export function specKeysFor(type: string): ReadonlySet<string> {
-  return SPEC_KEYS.get(type) ?? SHARED
+  return ATTRIBUTABLE_KEYS.get(type) ?? SPEC_KEYS.get(type) ?? SHARED
 }
 
 export function isSpecTopLevelKey(type: string, key: string): boolean {

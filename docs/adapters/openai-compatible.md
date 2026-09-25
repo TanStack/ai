@@ -126,7 +126,12 @@ const provider = openaiCompatible({
 
 ## Chat Completions vs Responses
 
-By default the adapter targets the **Chat Completions** API (`/chat/completions`) — the surface virtually every compatible provider implements. For the rare provider that also implements OpenAI's **Responses** API (e.g. Azure OpenAI), opt in with `api: "responses"`:
+By default the adapter targets the **Chat Completions** API (`/chat/completions`). For providers that implement the **Responses** API, select `api: "responses"`. This API choice also controls how `ChatStreamSummarizeAdapter` forwards `maxLength`, regardless of the wrapper name:
+
+- Chat Completions uses `max_tokens`.
+- Responses uses `max_output_tokens`.
+
+An explicit token limit in `modelOptions` takes precedence over `maxLength`.
 
 ```typescript
 import { openaiCompatible } from "@tanstack/ai-openai/compatible";

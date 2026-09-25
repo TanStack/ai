@@ -1,5 +1,11 @@
 # @tanstack/ai-sandbox-daytona
 
+## 0.3.4
+
+### Patch Changes
+
+- [#1484](https://github.com/TanStack/ai/pull/1484) [`61231d6`](https://github.com/TanStack/ai/commit/61231d61df2908ef14efd59801d8c0f9b82eb51b) - Add a package README to each sandbox provider: what it isolates with, the factory call, the auth and snapshot/resume behaviour that differs between them, and links to the sandbox docs.
+
 ## 0.3.3
 
 ### Patch Changes

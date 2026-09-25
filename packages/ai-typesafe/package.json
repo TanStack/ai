@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-typesafe",
-  "version": "0.1.1",
+  "version": "0.1.4",
   "description": "TypeSafe Jev adapter for TanStack AI — typed evaluate decisions over HTTP.",
   "author": "Tanner Linsley",
   "license": "MIT",

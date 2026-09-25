@@ -11,8 +11,10 @@ import type {
 import type { LovableMessageMetadataByModality } from '../message-types'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
 import type { LovableClientConfig } from '../utils/client'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
-export interface LovableResponsesTextConfig extends LovableClientConfig {}
+export interface LovableResponsesTextConfig
+  extends LovableClientConfig, OpenAIBaseTextAdapterOptions {}
 
 export type LovableResponsesTextProviderOptions =
   ExternalResponsesProviderOptions
@@ -46,7 +48,7 @@ export class LovableResponsesTextAdapter<
   override readonly name = 'lovable' as const
 
   constructor(config: LovableResponsesTextConfig, model: TModel) {
-    super(model, 'lovable', new OpenAI(withLovableDefaults(config)))
+    super(model, 'lovable', new OpenAI(withLovableDefaults(config)), config)
   }
 }
 

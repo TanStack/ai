@@ -10,8 +10,10 @@ import type {
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
-export interface BedrockTextConfig extends BedrockClientConfig {}
+export interface BedrockTextConfig
+  extends BedrockClientConfig, OpenAIBaseTextAdapterOptions {}
 
 export type { ExternalTextProviderOptions as BedrockTextProviderOptions } from '../text/text-provider-options'
 
@@ -56,6 +58,7 @@ export class BedrockTextAdapter<
       model,
       'bedrock',
       new OpenAI(withBedrockDefaults(config, undefined, model)),
+      config,
     )
   }
 
