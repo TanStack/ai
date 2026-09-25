@@ -194,6 +194,10 @@ Provider-level errors (auth failure, rate limit, network) throw the same way —
 When the provider rejects the request, the message can be short, for example `Provider returned error`. The provider's full error body is on `error.cause`:
 
 ```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { MySchema } from "./schemas";
+
 try {
   const result = await chat({
     adapter: openaiText("gpt-6-astra"),
