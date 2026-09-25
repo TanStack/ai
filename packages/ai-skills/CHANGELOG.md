@@ -1,5 +1,11 @@
 # @tanstack/ai-skills
 
+## 0.1.11
+
+### Patch Changes
+
+- [#1483](https://github.com/TanStack/ai/pull/1483) [`39bfc72`](https://github.com/TanStack/ai/commit/39bfc72ee7a46e084eb05b07b4e606dd5ae03344) - Add a package README: what `withSkills` does, the inline setup, catalog options, the four skill sources and their entry points, and the conformance suite for a custom source.
+
 ## 0.1.10
 
 ### Patch Changes

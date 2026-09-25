@@ -1,5 +1,14 @@
 # @tanstack/ai-sandbox-cloudflare
 
+## 0.4.7
+
+### Patch Changes
+
+- [#1484](https://github.com/TanStack/ai/pull/1484) [`61231d6`](https://github.com/TanStack/ai/commit/61231d61df2908ef14efd59801d8c0f9b82eb51b) - Add a package README to each sandbox provider: what it isolates with, the factory call, the auth and snapshot/resume behaviour that differs between them, and links to the sandbox docs.
+
+- Updated dependencies [[`61231d6`](https://github.com/TanStack/ai/commit/61231d61df2908ef14efd59801d8c0f9b82eb51b)]:
+  - @tanstack/ai-sandbox-local-process@0.2.6
+
 ## 0.4.6
 
 ### Patch Changes
