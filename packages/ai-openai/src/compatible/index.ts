@@ -50,6 +50,7 @@ export function openaiCompatible<
     name = DEFAULT_NAME,
     models: _models,
     api = 'chat-completions',
+    strictFallbackWarning,
     ...clientOptions
   } = config
   const client = new OpenAI(clientOptions)
@@ -61,14 +62,14 @@ export function openaiCompatible<
         ResolveCompatOptions<TModels, TModelName>,
         ResolveCompatInput<TModels, TModelName>,
         ResolveCompatTools<TModels, TModelName>
-      >(client, model, name)
+      >(client, model, name, { strictFallbackWarning })
     }
     return new OpenAICompatibleChatAdapter<
       TModelName,
       ResolveCompatOptions<TModels, TModelName>,
       ResolveCompatInput<TModels, TModelName>,
       ResolveCompatTools<TModels, TModelName>
-    >(client, model, name)
+    >(client, model, name, { strictFallbackWarning })
   }
 }
 
@@ -93,11 +94,19 @@ export function openaiCompatibleText<const TModelName extends string>(
   const {
     name = DEFAULT_NAME,
     api = 'chat-completions',
+    strictFallbackWarning,
     ...clientOptions
   } = config
   const client = new OpenAI(clientOptions)
   if (api === 'responses') {
-    return new OpenAICompatibleResponsesAdapter<TModelName>(client, model, name)
+    return new OpenAICompatibleResponsesAdapter<TModelName>(
+      client,
+      model,
+      name,
+      { strictFallbackWarning },
+    )
   }
-  return new OpenAICompatibleChatAdapter<TModelName>(client, model, name)
+  return new OpenAICompatibleChatAdapter<TModelName>(client, model, name, {
+    strictFallbackWarning,
+  })
 }

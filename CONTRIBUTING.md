@@ -92,6 +92,26 @@ All commands are run from the repo root. Nx handles affected detection and cachi
 
 Working on a single package? `cd packages/<pkg>` and use its scripts directly (`pnpm test:lib`, `pnpm test:types`, etc.).
 
+### Faster local runs
+
+Root `pnpm test`, `pnpm test:pr`, and `pnpm test:lib` set `VITEST_MAX_WORKERS=1`. Nx runs 4 tasks at a time (`nx.json` `parallel`). Together that stops each package from spawning one Vitest worker per CPU core while 15 packages already run in parallel.
+
+A single package still uses all cores:
+
+```bash
+cd packages/ai
+pnpm test:lib
+```
+
+Local `pnpm test:e2e` runs openai, anthropic, and gemini. If none of those providers support a feature, the feature still runs on the providers that do. An explicit `E2E_PROVIDERS` list runs only those providers. CI always runs the full matrix.
+
+```bash
+E2E_PROVIDERS=* pnpm test:e2e          # full matrix locally
+E2E_PROVIDERS=grok pnpm test:e2e       # one provider
+```
+
+Playwright does not retry or record video locally. CI retries twice and keeps the video of a failed test.
+
 ## Generate a React playground
 
 You need a TanStack Start chat app to try a feature. Do not copy `examples/ts-react-chat`. Run the generator.

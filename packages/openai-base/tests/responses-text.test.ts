@@ -53,6 +53,30 @@ function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   }
 }
 
+// Helper: yields the chunks, then never ends (the HTTP body stays open).
+// `state.returned` is true once the consumer releases the iterator.
+function createOpenAsyncIterable<T>(chunks: Array<T>) {
+  const state = { returned: false }
+  const iterable: AsyncIterable<T> = {
+    [Symbol.asyncIterator]() {
+      let index = 0
+      return {
+        next() {
+          if (index < chunks.length) {
+            return Promise.resolve({ value: chunks[index++]!, done: false })
+          }
+          return new Promise<IteratorResult<T>>(() => {})
+        },
+        return() {
+          state.returned = true
+          return Promise.resolve({ value: undefined as T, done: true })
+        },
+      }
+    },
+  }
+  return { iterable, state }
+}
+
 // Helper to setup the mock SDK client for streaming/non-streaming responses
 function setupMockResponsesClient(
   streamChunks: Array<Record<string, unknown>>,
@@ -75,6 +99,41 @@ const weatherTool: Tool = {
   name: 'lookup_weather',
   description: 'Return the forecast for a location',
 }
+
+describe('strict fallback warning (#1213)', () => {
+  it('warns once per tool when its schema cannot be sent as strict', async () => {
+    setupMockResponsesClient([])
+    const warn = vi.fn()
+    const logger = resolveDebugOption({
+      logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() },
+    })
+    const refTool: Tool = {
+      name: 'lookup_user',
+      description: 'Find a user',
+      inputSchema: {
+        type: 'object',
+        properties: { user: { $ref: '#/$defs/user' } },
+        required: ['user'],
+      },
+    }
+    const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+    for (let i = 0; i < 2; i++) {
+      for await (const _ of adapter.chatStream({
+        logger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: [refTool, weatherTool],
+      })) {
+        // drain
+      }
+    }
+
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]![0]).toContain('"lookup_user"')
+    expect(warn.mock.calls[0]![0]).toContain('$ref')
+  })
+})
 
 describe('OpenAIBaseResponsesTextAdapter', () => {
   beforeEach(() => {
@@ -220,6 +279,84 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
   })
 
   describe('streaming event sequence', () => {
+    it('reports RUN_ERROR when the stream ends before response.completed (#1447)', async () => {
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        { type: 'response.output_text.delta', delta: 'The answer is ' },
+      ])
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const last = chunks.at(-1)
+      expect(last?.type).toBe('RUN_ERROR')
+      if (last?.type === 'RUN_ERROR') {
+        expect(last.code).toBe('incomplete-stream')
+      }
+      expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(false)
+      // The partial text still reaches the caller.
+      expect(
+        chunks.some(
+          (c) =>
+            c.type === 'TEXT_MESSAGE_CONTENT' && c.delta === 'The answer is ',
+        ),
+      ).toBe(true)
+    })
+
+    it('finishes chat() on response.completed without waiting for EOF (#1445)', async () => {
+      const { iterable, state } = createOpenAsyncIterable([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        { type: 'response.output_text.delta', delta: 'OK' },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      mockResponsesCreate = vi.fn().mockResolvedValue(iterable)
+      const chunks: Array<{ type: string }> = []
+      const run = (async () => {
+        for await (const chunk of chat({
+          adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+          messages: [{ role: 'user', content: 'Hello' }],
+        })) {
+          chunks.push(chunk)
+        }
+        return 'finished'
+      })()
+      const outcome = await Promise.race([
+        run,
+        new Promise((resolve) => setTimeout(() => resolve('timeout'), 1000)),
+      ])
+
+      expect(outcome).toBe('finished')
+      expect(chunks.at(-1)?.type).toBe('RUN_FINISHED')
+      expect(state.returned).toBe(true)
+    })
+
     it('emits RUN_STARTED as the first event', async () => {
       const streamChunks = [
         {

@@ -349,6 +349,7 @@ export class OpenRouterResponsesTextAdapter<
           totalTokens?: number
         }
       | undefined
+    let responseCompleted = false
 
     const closeReasoning = function* (this: {
       name: string
@@ -539,9 +540,11 @@ export class OpenRouterResponsesTextAdapter<
         }
 
         if (chunk.type === 'response.completed') {
+          responseCompleted = true
           if (chunk.response?.model) model = chunk.response.model
           if (chunk.response?.usage) usage = chunk.response.usage
-          continue
+          // Terminal event: do not wait for the HTTP body to close (#1445).
+          break
         }
 
         if (
@@ -604,6 +607,20 @@ export class OpenRouterResponsesTextAdapter<
           model,
           timestamp: Date.now(),
         }
+      }
+
+      if (!responseCompleted) {
+        const message = 'Response stream ended before response.completed'
+        yield {
+          type: EventType.RUN_ERROR,
+          runId: aguiState.runId,
+          model,
+          timestamp: Date.now(),
+          message,
+          code: 'incomplete-stream',
+          error: { message, code: 'incomplete-stream' },
+        }
+        return
       }
 
       if (accumulatedContent.length === 0) {
@@ -1581,6 +1598,8 @@ export class OpenRouterResponsesTextAdapter<
             finishReason,
           }
           runFinishedEmitted = true
+          // Terminal event: do not wait for the HTTP body to close (#1445).
+          return
         }
 
         if (chunk.type === 'error') {
@@ -1601,8 +1620,9 @@ export class OpenRouterResponsesTextAdapter<
         }
       }
 
-      // Synthetic terminal RUN_FINISHED if the stream ended without a
-      // response.completed event.
+      // The stream ended without a terminal event (e.g. a truncated
+      // connection). Completion was never confirmed, so this is not a
+      // successful stop (#1447). The partial text was already emitted.
       if (!runFinishedEmitted && aguiState.hasEmittedRunStarted) {
         yield* closeReasoning()
         if (hasEmittedTextMessageStart) {
@@ -1613,13 +1633,14 @@ export class OpenRouterResponsesTextAdapter<
             timestamp: Date.now(),
           }
         }
+        const message = 'Response stream ended before response.completed'
         yield {
-          type: EventType.RUN_FINISHED,
-          runId: aguiState.runId,
-          threadId: aguiState.threadId,
+          type: EventType.RUN_ERROR,
           model: model || options.model,
           timestamp: Date.now(),
-          finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
+          message,
+          code: 'incomplete-stream',
+          error: { message, code: 'incomplete-stream' },
         }
       }
     } catch (error: unknown) {

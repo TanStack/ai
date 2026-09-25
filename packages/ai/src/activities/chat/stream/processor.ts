@@ -36,6 +36,7 @@ import {
 import { getChunkRunId } from '../../../utilities/chunk-ids'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import {
+  isContentPartArray,
   normalizeToolResult,
   toolResultErrorText,
 } from '../../../utilities/tool-result'
@@ -179,6 +180,23 @@ function interruptBatchHasGeneric(interrupts: Array<Interrupt>): boolean {
       binding.kind === 'generic'
     )
   })
+}
+
+/**
+ * The canonical arguments string for a `TOOL_CALL_END.input`, or `undefined`
+ * when JSON cannot carry it: `JSON.stringify` returns `undefined` (despite
+ * its declared type) for a top-level function or symbol and throws on BigInt
+ * and circular references. `null` is not tool arguments either, so it also
+ * keeps the streamed value instead of writing `arguments = "null"`.
+ */
+function serializeToolInput(input: unknown): string | undefined {
+  if (input === undefined || input === null) return undefined
+  try {
+    const serialized: unknown = JSON.stringify(input)
+    return typeof serialized === 'string' ? serialized : undefined
+  } catch {
+    return undefined
+  }
 }
 
 /**
@@ -1953,11 +1971,13 @@ export class StreamProcessor {
    * Handle TOOL_CALL_END event — arguments are finalized (input-complete).
    * Tool output arrives on TOOL_CALL_RESULT, not on this event.
    *
-   * If TOOL_CALL_END carries parsed `input`, use it as the canonical arguments:
-   * back-fill the accumulated string when no TOOL_CALL_ARGS deltas were seen
-   * (adapters that deliver the whole input on END — e.g. Anthropic
-   * server_tool_use / web_search — issue #839) and override the rendered part's
-   * `input` with the canonical value.
+   * If TOOL_CALL_END carries parsed `input`, it is the canonical arguments:
+   * write it into the accumulated string and override the rendered part's
+   * `input` with it. That covers adapters that deliver the whole input on END
+   * (e.g. Anthropic server_tool_use / web_search — issue #839) and adapters
+   * that stream the wire arguments and then normalize them (OpenAI strict-mode
+   * null widening, undone by the adapter after #939), so `arguments` and
+   * `input` never disagree on the persisted part.
    *
    * @see docs/chat-architecture.md#single-shot-tool-call-response — End-to-end flow
    */
@@ -1980,16 +2000,15 @@ export class StreamProcessor {
     // Transition the tool call to input-complete (the authoritative completion signal)
     const existingToolCall = msgState.toolCalls.get(chunk.toolCallId)
     if (existingToolCall && existingToolCall.state !== 'input-complete') {
-      // Back-fill the arguments string from the parsed input when no
-      // TOOL_CALL_ARGS deltas were received, so completeToolCall's strict parse
-      // surfaces the correct value on the ToolCallPart.
-      if (input !== undefined && !existingToolCall.arguments) {
-        try {
-          existingToolCall.arguments = JSON.stringify(input)
-        } catch {
-          // circular refs, BigInt, etc. — leave arguments empty rather than
-          // aborting stream processing
-        }
+      // The parsed input replaces the accumulated arguments string, so
+      // completeToolCall's strict parse surfaces the canonical value on the
+      // ToolCallPart even when the streamed deltas carried a provider-side
+      // reshaping of it. An input JSON cannot carry is not canonical: both
+      // `arguments` and `input` then stay with the streamed value, so the
+      // two never disagree.
+      const serializedInput = serializeToolInput(input)
+      if (serializedInput !== undefined) {
+        existingToolCall.arguments = serializedInput
       }
 
       const index = msgState.toolCallOrder.indexOf(chunk.toolCallId)
@@ -1998,7 +2017,7 @@ export class StreamProcessor {
       // Canonicalize on the parsed input: overrides the accumulated-args parse
       // that completeToolCall wrote (adapters may coerce values differently
       // between streamed args and the final structured input).
-      if (input !== undefined) {
+      if (serializedInput !== undefined) {
         existingToolCall.parsedArguments = input
         this.messages = updateToolCallPart(this.messages, messageId, {
           id: existingToolCall.id,
@@ -2069,7 +2088,11 @@ export class StreamProcessor {
       this.messages,
       messageId,
       chunk.toolCallId,
-      aguiContentToContentParts(chunk.content),
+      // The server sends a ContentPart[] result as a JSON string. Keep the
+      // parsed array so uiMessagesToWire can carry it in metadata.
+      isContentPartArray(output)
+        ? output
+        : aguiContentToContentParts(chunk.content),
       resultState,
       resultState === 'error' ? toolResultErrorText(output) : undefined,
     )

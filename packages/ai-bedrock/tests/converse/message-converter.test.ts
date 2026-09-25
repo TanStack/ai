@@ -20,6 +20,57 @@ describe('toConverseMessages', () => {
     expect(system).toEqual([{ text: 'a' }, { text: 'b' }])
   })
 
+  it('follows a system prompt with a cachePoint when its metadata asks for one', () => {
+    const { system } = toConverseMessages(
+      [{ role: 'user', content: 'hi' }],
+      [
+        { content: 'stable', metadata: { cachePoint: { type: 'default' } } },
+        'volatile',
+      ],
+    )
+    expect(system).toEqual([
+      { text: 'stable' },
+      { cachePoint: { type: 'default' } },
+      { text: 'volatile' },
+    ])
+  })
+
+  it('follows a text part with a cachePoint when its metadata asks for one', () => {
+    const { messages } = toConverseMessages([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            content: 'a',
+            metadata: { cachePoint: { type: 'default', ttl: '1h' } },
+          },
+        ],
+      },
+    ])
+    expect(messages[0]!.content).toEqual([
+      { text: 'a' },
+      { cachePoint: { type: 'default', ttl: '1h' } },
+    ])
+  })
+
+  it('reads cachePoint only from text parts', () => {
+    const { messages } = toConverseMessages([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'data', value: 'aGk=', mimeType: 'image/png' },
+            metadata: { cachePoint: { type: 'default' } },
+          },
+        ],
+      },
+    ])
+    expect(messages[0]!.content).toHaveLength(1)
+    expect(messages[0]!.content![0]).toHaveProperty('image')
+  })
+
   it('merges consecutive same-role messages (Converse requires alternation)', () => {
     const { messages } = toConverseMessages([
       { role: 'user', content: 'a' },

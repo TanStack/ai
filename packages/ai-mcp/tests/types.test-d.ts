@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { MCPClient } from '../src/client'
 import type { MCPClients } from '../src/pool'
 import type {
+  MCPClientOptions,
   MappedServerTools,
   McpServerTool,
   McpToolMetadata,
@@ -77,3 +78,17 @@ discovered[0]!.metadata.mcp.annotaions
 // An McpServerTool still drops into anything that wants a plain ServerTool
 // (e.g. `chat({ tools })`) — the metadata guarantee only narrows.
 expectTypeOf<McpServerTool>().toExtend<ServerTool>()
+
+// Tool policy callbacks get the typed raw MCP tool definition.
+const policy: MCPClientOptions = {
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  toolFilter: (tool) => {
+    expectTypeOf(tool.name).toEqualTypeOf<string>()
+    expectTypeOf(tool.annotations).toEqualTypeOf<ToolAnnotations | undefined>()
+    // @ts-expect-error - misspelled field
+    void tool.annotaions
+    return tool.annotations?.readOnlyHint === true
+  },
+  needsApproval: (tool) => tool.annotations?.destructiveHint !== false,
+}
+void policy
