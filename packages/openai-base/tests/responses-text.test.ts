@@ -53,6 +53,30 @@ function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
   }
 }
 
+// Helper: yields the chunks, then never ends (the HTTP body stays open).
+// `state.returned` is true once the consumer releases the iterator.
+function createOpenAsyncIterable<T>(chunks: Array<T>) {
+  const state = { returned: false }
+  const iterable: AsyncIterable<T> = {
+    [Symbol.asyncIterator]() {
+      let index = 0
+      return {
+        next() {
+          if (index < chunks.length) {
+            return Promise.resolve({ value: chunks[index++]!, done: false })
+          }
+          return new Promise<IteratorResult<T>>(() => {})
+        },
+        return() {
+          state.returned = true
+          return Promise.resolve({ value: undefined as T, done: true })
+        },
+      }
+    },
+  }
+  return { iterable, state }
+}
+
 // Helper to setup the mock SDK client for streaming/non-streaming responses
 function setupMockResponsesClient(
   streamChunks: Array<Record<string, unknown>>,
@@ -220,6 +244,49 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
   })
 
   describe('streaming event sequence', () => {
+    it('finishes chat() on response.completed without waiting for EOF (#1445)', async () => {
+      const { iterable, state } = createOpenAsyncIterable([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        { type: 'response.output_text.delta', delta: 'OK' },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      mockResponsesCreate = vi.fn().mockResolvedValue(iterable)
+      const chunks: Array<{ type: string }> = []
+      const run = (async () => {
+        for await (const chunk of chat({
+          adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+          messages: [{ role: 'user', content: 'Hello' }],
+        })) {
+          chunks.push(chunk)
+        }
+        return 'finished'
+      })()
+      const outcome = await Promise.race([
+        run,
+        new Promise((resolve) => setTimeout(() => resolve('timeout'), 1000)),
+      ])
+
+      expect(outcome).toBe('finished')
+      expect(chunks.at(-1)?.type).toBe('RUN_FINISHED')
+      expect(state.returned).toBe(true)
+    })
+
     it('emits RUN_STARTED as the first event', async () => {
       const streamChunks = [
         {

@@ -603,7 +603,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           const response = chunk.response
           if (response.usage) usage = response.usage
           if (response.model) model = response.model
-          continue
+          // Terminal event: do not wait for the HTTP body to close (#1445).
+          break
         }
 
         if (chunk.type === 'response.failed') {
@@ -1837,6 +1838,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             finishReason,
           }
           runFinishedEmitted = true
+          // Terminal event: do not wait for the HTTP body to close (#1445).
+          return
         }
 
         if (chunk.type === 'error') {
