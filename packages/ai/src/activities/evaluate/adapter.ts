@@ -131,6 +131,10 @@ export interface EvaluateAdapterResult {
   model: string
   answers: Record<string, WireAnswer>
   usage: TokenUsage
+  /** Provider response id, for example to look the request up later. */
+  id?: string
+  /** Upstream provider that served the request, when a router reports it. */
+  provider?: string
 }
 
 /**

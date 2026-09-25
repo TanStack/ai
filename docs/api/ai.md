@@ -155,7 +155,7 @@ Optional:
 
 ### Returns
 
-Each question key is a top-level answer. `meta.model` and `meta.usage` hold the resolved model id and token usage.
+Each question key is a top-level answer. `meta.model` and `meta.usage` hold the resolved model id and token usage. When the adapter returns them, `meta.id` holds the provider response id and `meta.provider` names the upstream provider.
 
 - `choice`: `.value` is the selected option key. `.probability` is P(selected). `.confidence` is a number from 0 to 1. `.probabilities` is the full map.
 - `score`: `.value` is the nearest level label. `.score` is the raw fraction. `.probability` is P(that level). `.confidence` is a number from 0 to 1. `.legend` maps each level index to its label. `.probabilities` is the full map, keyed by level index.
