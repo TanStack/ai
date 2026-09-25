@@ -7,7 +7,10 @@ import {
   isToolResultOutcome,
   normalizeToolResult,
 } from '../../utilities/tool-result'
-import { tanstackMetadata } from '../../utilities/merge-metadata'
+import {
+  tanstackMetadata,
+  withTanstackMetadata,
+} from '../../utilities/merge-metadata'
 import {
   splitSubagentWire,
   subagentWireText,
@@ -22,7 +25,6 @@ import type {
   TextPart,
   ToolCall,
   ToolCallPart,
-  ToolResultPart,
   SubagentPart,
   UIMessage,
   UIResourcePart,
@@ -94,19 +96,6 @@ function parseToolResultContent(content: string): unknown {
     return JSON.parse(content)
   } catch {
     return content
-  }
-}
-
-function toolResultMetadata(
-  part: ToolResultPart,
-): Record<string, unknown> | undefined {
-  if (part.outcome === undefined) return part.metadata
-  const current = part.metadata
-  const currentTanstack =
-    current !== undefined && isRecord(current.tanstack) ? current.tanstack : {}
-  return {
-    ...(current ?? {}),
-    tanstack: { ...currentTanstack, toolResultOutcome: part.outcome },
   }
 }
 
@@ -745,7 +734,11 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
           (part.state === 'complete' || part.state === 'error') &&
           !emittedToolResultIds.has(part.toolCallId)
         ) {
-          const metadata = toolResultMetadata(part)
+          const metadata =
+            part.outcome === undefined
+              ? part.metadata
+              : withTanstackMetadata(part, { toolResultOutcome: part.outcome })
+                  .metadata
           messageList.push({
             ...(part.id !== undefined && { id: part.id }),
             ...optionalCreatedAt(part),
@@ -1278,6 +1271,7 @@ export function modelMessagesToUIMessages(
               : content
           toolCallPart.state = resultState
         }
+
         currentAssistantMessage.parts.push({
           type: 'tool-result',
           toolCallId: msg.toolCallId,

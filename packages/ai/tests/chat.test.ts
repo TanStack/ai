@@ -1847,7 +1847,10 @@ describe('chat()', () => {
           message.role === 'tool' && message.toolCallId === 'call_denied',
       )
       expect(
-        followUpMessages?.filter((message) => message === deniedMessage),
+        followUpMessages?.filter(
+          (message) =>
+            message.role === 'tool' && message.toolCallId === 'call_denied',
+        ),
       ).toHaveLength(1)
       expect(deniedMessage).toMatchObject({
         id: 'stale-denial',
@@ -1864,6 +1867,72 @@ describe('chat()', () => {
           },
         },
       })
+    })
+
+    it('does not copy placeholder fields into an approved tool result', async () => {
+      const execute = vi.fn(() => ({ ok: true }))
+      const { adapter, calls } = createMockAdapter({
+        iterations: [[ev.runStarted(), ev.runFinished('stop')]],
+      })
+
+      await collectChunks(
+        chat({
+          adapter,
+          threadId: 'thread-1',
+          runId: 'continuation-run',
+          parentRunId: 'interrupted-run',
+          messages: [
+            { role: 'user', content: 'Do it' },
+            {
+              role: 'assistant',
+              content: null,
+              toolCalls: [
+                {
+                  id: 'call_ok',
+                  type: 'function',
+                  function: { name: 'deleteData', arguments: '{}' },
+                },
+              ],
+            },
+            {
+              id: 'placeholder-id',
+              name: 'deleteData',
+              role: 'tool',
+              content: JSON.stringify({
+                approved: true,
+                pendingExecution: true,
+              }),
+              toolCallId: 'call_ok',
+              metadata: { placeholder: true },
+            },
+          ],
+          tools: [
+            { ...serverTool('deleteData', execute), needsApproval: true },
+          ],
+          resume: [
+            {
+              interruptId: 'approval_call_ok',
+              status: 'resolved',
+              payload: { approved: true },
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(execute).toHaveBeenCalledTimes(1)
+      const toolMessages = calls
+        .at(-1)
+        ?.messages.filter(
+          (message) =>
+            message.role === 'tool' && message.toolCallId === 'call_ok',
+        )
+      expect(toolMessages).toEqual([
+        {
+          role: 'tool',
+          content: JSON.stringify({ ok: true }),
+          toolCallId: 'call_ok',
+        },
+      ])
     })
 
     it('preserves a denied result when a generic interrupt also requests tool cancellation', async () => {

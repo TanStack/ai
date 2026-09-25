@@ -1049,6 +1049,29 @@ describe('Message Converters', () => {
         )
         expect(part).toMatchObject({ state: 'complete' })
         expect(part).not.toHaveProperty('outcome')
+
+        const restored = modelMessagesToUIMessages([
+          {
+            role: 'assistant',
+            content: null,
+            toolCalls: [
+              {
+                id: 'tool-1',
+                type: 'function',
+                function: { name: 'example', arguments: '{}' },
+              },
+            ],
+          },
+          modelMessage,
+        ])
+        expect(restored[0]?.parts).toContainEqual(
+          expect.objectContaining({ type: 'tool-call', state: 'complete' }),
+        )
+        const restoredPart = restored[0]?.parts.find(
+          (p) => p.type === 'tool-result',
+        )
+        expect(restoredPart).toMatchObject({ state: 'complete' })
+        expect(restoredPart).not.toHaveProperty('outcome')
       },
     )
 
@@ -1093,49 +1116,6 @@ describe('Message Converters', () => {
       })
       expect(restoredToolResult?.outcome).toBeUndefined()
     })
-
-    it.each([null, 'unknown', 42])(
-      'ignores invalid persisted tool result outcomes: %s',
-      (invalidOutcome) => {
-        const modelMessage = {
-          role: 'tool',
-          content: '{"result":"success"}',
-          toolCallId: 'tool-1',
-          metadata: { tanstack: { toolResultOutcome: invalidOutcome } },
-        } as unknown as ModelMessage
-
-        expect(modelMessageToUIMessage(modelMessage).parts).toContainEqual({
-          type: 'tool-result',
-          toolCallId: 'tool-1',
-          content: '{"result":"success"}',
-          state: 'complete',
-          metadata: modelMessage.metadata,
-        })
-
-        const restored = modelMessagesToUIMessages([
-          {
-            role: 'assistant',
-            content: null,
-            toolCalls: [
-              {
-                id: 'tool-1',
-                type: 'function',
-                function: { name: 'example', arguments: '{}' },
-              },
-            ],
-          },
-          modelMessage,
-        ])
-        const restoredToolResult = restored[0]?.parts.find(
-          (part) => part.type === 'tool-result',
-        )
-        expect(restoredToolResult).toMatchObject({
-          type: 'tool-result',
-          state: 'complete',
-        })
-        expect(restoredToolResult?.outcome).toBeUndefined()
-      },
-    )
 
     it('should convert assistant message with toolCalls and text', () => {
       const modelMessage: ModelMessage = {

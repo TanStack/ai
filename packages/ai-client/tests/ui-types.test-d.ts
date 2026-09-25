@@ -7,6 +7,8 @@ import type {
   ChatUIToolPart,
   RegisteredUIInterrupt,
 } from '../src/ui'
+import type { ToolResultOutcome } from '@tanstack/ai/client'
+import type { UIMessage } from '../src/types'
 import { chatOptions } from './ui-fixtures'
 
 type WeatherPart = ChatUIToolPart<typeof chatOptions, 'getWeather'>
@@ -40,3 +42,13 @@ expectTypeOf<AnyInterrupt>().toEqualTypeOf<ChatUIInterrupt>()
 type TextSelected = ChatUISelectedPartOf<typeof chatOptions, 'text'>
 expectTypeOf<TextSelected['part']['type']>().toEqualTypeOf<'text'>()
 expectTypeOf<TextSelected['part']['content']>().toEqualTypeOf<string>()
+
+// A useChat message part exposes the tool result outcome (#1386).
+type ToolResult = Extract<UIMessage['parts'][number], { type: 'tool-result' }>
+expectTypeOf<ToolResult['outcome']>().toEqualTypeOf<
+  ToolResultOutcome | undefined
+>()
+declare const message: UIMessage
+message.parts.some(
+  (part) => part.type === 'tool-result' && part.outcome === 'denied',
+)

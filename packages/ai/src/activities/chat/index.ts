@@ -3396,15 +3396,15 @@ class TextEngine<
         content: wireContent,
         role: 'tool' as const,
       }
-      const resultMetadata = {
-        ...(result.state === 'output-error' ? { state: result.state } : {}),
-        ...(result.outcome !== undefined
-          ? { toolResultOutcome: result.outcome }
-          : {}),
-      }
+      // An outcome always comes with output-error.
       chunks.push(
-        (Object.keys(resultMetadata).length > 0
-          ? withTanstackMetadata(resultChunk, resultMetadata)
+        (result.state === 'output-error'
+          ? withTanstackMetadata(resultChunk, {
+              state: result.state,
+              ...(result.outcome !== undefined && {
+                toolResultOutcome: result.outcome,
+              }),
+            })
           : resultChunk) as StreamChunk,
       )
 
@@ -3436,8 +3436,12 @@ class TextEngine<
       const resultMessageIdx =
         existingToolResultIdx >= 0 ? existingToolResultIdx : placeholderIdx
 
+      // Only a denied result keeps the old message's fields. A replaced
+      // pendingExecution placeholder must not leak into the real result.
       const existingToolMessage =
-        resultMessageIdx >= 0 ? this.messages[resultMessageIdx] : undefined
+        existingToolResultIdx >= 0
+          ? this.messages[existingToolResultIdx]
+          : undefined
       const errorField = result.state === 'output-error' && {
         error: toolResultErrorText(parseToolOutput(wireContent)),
       }
