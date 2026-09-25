@@ -407,6 +407,89 @@ export function ToolCatalog() {
 }
 ```
 
+## Limit and Gate Tools
+
+By default, the model gets every tool that the server lists, and each tool runs without approval. A server can expose tools that write or delete data. Two client options control this:
+
+- `toolFilter`: return `false` to hide a tool from the model.
+- `needsApproval`: return `true` to pause the run for [approval](./tool-approval) before each call to the tool.
+
+Both options receive the tool definition that the server sent. The definition has the native (unprefixed) `name`, the `title`, and the `annotations`. Both options are off by default.
+
+Send only the tools that the server marks read-only:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: 'https://my-mcp-server.example.com/mcp' },
+  toolFilter: (tool) => tool.annotations?.readOnlyHint === true,
+})
+
+const tools = await mcp.tools() // only read-only tools
+```
+
+A tool with no `annotations` does not pass this filter.
+
+On a server that you do not trust, filter by name. You control the names, and the server controls the hints:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const allowed = new Set(['search_issues', 'get_issue'])
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: 'https://my-mcp-server.example.com/mcp' },
+  toolFilter: (tool) => allowed.has(tool.name),
+})
+```
+
+Keep every tool, but ask the user before a tool runs:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const url = 'https://my-mcp-server.example.com/mcp'
+// Trust comes from your configuration, not from the server.
+const trustedServers = new Set(['https://my-mcp-server.example.com/mcp'])
+const serverIsTrusted = trustedServers.has(url)
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url },
+  // A read-only hint skips approval only on a server that you trust.
+  needsApproval: (tool) =>
+    !(serverIsTrusted && tool.annotations?.readOnlyHint === true),
+})
+```
+
+The run stops with an approval interrupt for each gated call. The client approves or denies it the same way as for any other tool. See [Tool Approval Flow](./tool-approval).
+
+In a [pool](#multi-server-pool), each server gets its own options:
+
+```ts
+import { createMCPClients } from '@tanstack/ai-mcp'
+
+const pool = await createMCPClients({
+  github: {
+    transport: { type: 'http', url: process.env.GITHUB_MCP_URL! },
+    toolFilter: (tool) => tool.annotations?.readOnlyHint === true,
+  },
+  docs: { transport: { type: 'http', url: process.env.DOCS_MCP_URL! } },
+})
+```
+
+The options apply in these places:
+
+- **`tools()`**: `toolFilter` hides tools, and `needsApproval` marks tools.
+- **`tools([...defs])`**: `toolFilter` applies. A definition that the filter hides throws `MCPToolNotFoundError`. `needsApproval` does not apply, because each `toolDefinition` has its own `needsApproval`.
+- **`chat({ mcp })`**: both apply, because `chat()` calls `tools()` on the client. See [Managed MCP](./mcp-managed).
+- **[MCP Apps](../mcp/apps) widget calls**: `toolFilter` applies. A widget cannot call a tool that the filter hides.
+- **`callTool()`**: neither applies. Your code calls the tool directly, and the model is not involved.
+
+> **The hints come from the server.** A compromised server can mark a delete tool `readOnlyHint: true`. Use a name allowlist or `needsApproval` for a server that you do not trust.
+
+`McpTool` is exported if you need to name the type of the `tool` argument.
+
 ## Multi-Server Pool
 
 `createMCPClients` connects to many servers in parallel and merges their tools into one flat array. Each server's tools are automatically prefixed with the config key to prevent name collisions.

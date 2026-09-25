@@ -231,6 +231,105 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
 }
 
 /**
+ * Regression adapter for PR #1481.
+ *
+ * Streams wire arguments with an extra `region: null` (the shape OpenAI
+ * strict mode widens an optional field into), then sends the canonical
+ * `input` without it on TOOL_CALL_END. Once history holds a tool result, it
+ * echoes the tool-call arguments of that history as text. On a second user
+ * turn, that history comes from the client's tool-call part.
+ */
+function createCanonicalToolInputAdapter(): AnyTextAdapter {
+  const model = 'canonical-tool-input-test'
+  return {
+    kind: 'text',
+    name: model,
+    model,
+    '~types': {
+      providerOptions: {},
+      inputModalities: ['text'],
+      messageMetadataByModality: {},
+      toolCapabilities: [],
+      toolCallMetadata: undefined,
+      systemPromptMetadata: undefined,
+    },
+    async *chatStream(options): AsyncGenerator<AdapterYieldChunk> {
+      const runId = options.runId ?? 'canonical-tool-input-run'
+      const threadId = options.threadId ?? 'canonical-tool-input-thread'
+      const messageId = `${runId}-message`
+      const toolCallId = 'canonical-tool-input-tool-call'
+      const timestamp = Date.now()
+
+      yield { type: EventType.RUN_STARTED, runId, threadId, model, timestamp }
+
+      if (options.messages.some((message) => message.role === 'tool')) {
+        const historyArguments = options.messages
+          .flatMap((message) => message.toolCalls ?? [])
+          .map((toolCall) => toolCall.function.arguments)
+        yield {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId,
+          role: 'assistant',
+          model,
+          timestamp,
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId,
+          delta: `History arguments: ${historyArguments.join(' ')}`,
+          model,
+          timestamp,
+        }
+        yield { type: EventType.TEXT_MESSAGE_END, messageId, model, timestamp }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          model,
+          finishReason: 'stop',
+          timestamp,
+        }
+        return
+      }
+
+      yield {
+        type: EventType.TOOL_CALL_START,
+        toolCallId,
+        toolCallName: 'check_status',
+        toolName: 'check_status',
+        model,
+        timestamp,
+      }
+      yield {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        delta: '{"component":"database","region":null}',
+        model,
+        timestamp,
+      }
+      yield {
+        type: EventType.TOOL_CALL_END,
+        toolCallId,
+        toolCallName: 'check_status',
+        toolName: 'check_status',
+        input: { component: 'database' },
+        model,
+        timestamp,
+      }
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId,
+        threadId,
+        model,
+        finishReason: 'tool_calls',
+        timestamp,
+      }
+    },
+    structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+  }
+}
+
+/**
  * Regression adapter for issue #1017.
  *
  * Emits a TEXT_MESSAGE_CONTENT delta between two TOOL_CALL_ARGS deltas.
@@ -412,16 +511,18 @@ export const Route = createFileRoute('/api/tools-test')({
           const adapterOptions =
             scenario === 'interleaved-args'
               ? { adapter: createInterleavedArgsAdapter() }
-              : providerFreeScenarios.has(scenario)
-                ? { adapter: createProviderFreeAdapter(scenario) }
-                : createTextAdapter(
-                    'openai',
-                    scenario === 'client-tool-reasoning'
-                      ? 'gpt-5.2'
-                      : undefined,
-                    aimockPort,
-                    testId,
-                  )
+              : scenario === 'canonical-tool-input'
+                ? { adapter: createCanonicalToolInputAdapter() }
+                : providerFreeScenarios.has(scenario)
+                  ? { adapter: createProviderFreeAdapter(scenario) }
+                  : createTextAdapter(
+                      'openai',
+                      scenario === 'client-tool-reasoning'
+                        ? 'gpt-5.2'
+                        : undefined,
+                      aimockPort,
+                      testId,
+                    )
 
           const tools = getToolsForScenario(scenario)
           const runtimeContext: TestRuntimeContext =

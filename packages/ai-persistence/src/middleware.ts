@@ -294,6 +294,11 @@ interface RunStateEntry {
    */
   streamingMessageId?: string
   streamingMessageCreatedAt?: Date
+  /**
+   * Length of `ctx.messages` when this run started. Messages from this index
+   * on are the ones this run added, so they get its run id on save (#1061).
+   */
+  firstRunMessage?: number
   completion?: {
     promise: Promise<void>
     resolve: () => void
@@ -302,6 +307,50 @@ interface RunStateEntry {
 }
 
 const runState = new WeakMap<object, RunStateEntry>()
+/** `metadata.tanstack.run.id` of a stored message, when set. */
+function runTagOf(message: ModelMessage): string | undefined {
+  const tanstack: unknown = message.metadata?.tanstack
+  if (typeof tanstack !== 'object' || tanstack === null) return
+  const run: unknown = (tanstack as { run?: unknown }).run
+  if (typeof run !== 'object' || run === null) return
+  const id: unknown = (run as { id?: unknown }).id
+  return typeof id === 'string' && id !== '' ? id : undefined
+}
+
+function withRunTag(message: ModelMessage, runId: string): ModelMessage {
+  const metadata = message.metadata ?? {}
+  const tanstack: unknown = metadata.tanstack
+  return {
+    ...message,
+    metadata: {
+      ...metadata,
+      tanstack: {
+        ...(typeof tanstack === 'object' && tanstack !== null ? tanstack : {}),
+        run: { id: runId },
+      },
+    },
+  }
+}
+
+/**
+ * The thread to save, with this run's id on the assistant messages it added
+ * (`metadata.tanstack.run.id`). `reconstructChat` uses it to match each
+ * message to its run. Messages from earlier runs are left as they are.
+ */
+function runMessages(
+  ctx: ChatMiddlewareContext,
+  state: RunStateEntry | undefined,
+): Array<ModelMessage> {
+  const from = state?.firstRunMessage
+  if (from === undefined) return [...ctx.messages]
+  return ctx.messages.map((message, index) =>
+    index >= from &&
+    message.role === 'assistant' &&
+    runTagOf(message) === undefined
+      ? withRunTag(message, ctx.runId)
+      : message,
+  )
+}
 
 const validResumeStatuses = new Set(['resolved', 'cancelled'])
 
@@ -2122,6 +2171,8 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // prior history) as soon as the run starts, so a reload mid-run rehydrates
       // it before the assistant reply exists. Best-effort: a failed eager
       // snapshot must not abort the run — the authoritative save is `onFinish`.
+      const state = runState.get(ctx)
+      if (state) state.firstRunMessage = ctx.messages.length
       try {
         await messageStore.saveThread(ctx.threadId, [...ctx.messages])
       } catch {
@@ -2235,7 +2286,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           : (state.usage ?? chunkUsage)
       state.usage = usage
       await interruptRun(runs, ctx.runId, usage)
-      await messageStore.saveThread(ctx.threadId, [...ctx.messages])
+      await messageStore.saveThread(ctx.threadId, runMessages(ctx, state))
       state.interrupted = true
     },
 
@@ -2253,7 +2304,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // or consuming approvals before the durable history lands leaves a
       // "finished" run whose transcript is missing the terminal turn.
       try {
-        await messageStore.saveThread(ctx.threadId, [...ctx.messages])
+        await messageStore.saveThread(ctx.threadId, runMessages(ctx, state))
         await commitPendingResumes(state, persistence.stores.interrupts)
         await completeRun(runs, ctx.runId, state?.usage ?? info.usage)
         state?.completion?.resolve()

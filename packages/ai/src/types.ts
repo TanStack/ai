@@ -560,6 +560,12 @@ export interface TanStackMessageMetadata {
   model?: string
   /** Parent chat run that produced this assistant message. */
   runId?: string
+  /**
+   * The chat run that produced this assistant message. `withPersistence` sets
+   * `id`. `reconstructChat` with `includeRuns: true` adds the finished run's
+   * timings, in epoch ms.
+   */
+  run?: { id: string; startedAt?: number; finishedAt?: number }
   /** Card data on a child wire message. See `uiMessagesToWire`. */
   subagent?: SubagentWireInfo
   /** Thinking signature for a `role: 'reasoning'` fan-out message. */

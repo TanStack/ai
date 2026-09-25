@@ -92,6 +92,26 @@ All commands are run from the repo root. Nx handles affected detection and cachi
 
 Working on a single package? `cd packages/<pkg>` and use its scripts directly (`pnpm test:lib`, `pnpm test:types`, etc.).
 
+### Faster local runs
+
+Root `pnpm test`, `pnpm test:pr`, and `pnpm test:lib` set `VITEST_MAX_WORKERS=1`. Nx runs 4 tasks at a time (`nx.json` `parallel`). Together that stops each package from spawning one Vitest worker per CPU core while 15 packages already run in parallel.
+
+A single package still uses all cores:
+
+```bash
+cd packages/ai
+pnpm test:lib
+```
+
+Local `pnpm test:e2e` runs openai, anthropic, and gemini. If none of those providers support a feature, the feature still runs on the providers that do. An explicit `E2E_PROVIDERS` list runs only those providers. CI always runs the full matrix.
+
+```bash
+E2E_PROVIDERS=* pnpm test:e2e          # full matrix locally
+E2E_PROVIDERS=grok pnpm test:e2e       # one provider
+```
+
+Playwright does not retry or record video locally. CI retries twice and keeps the video of a failed test.
+
 ## Coverage
 
 **Coverage runs in CI only. It is not part of `pnpm test`, `pnpm test:pr`, or any git hook, and you are not expected to run it locally.**
@@ -111,8 +131,7 @@ Add tests covering the code you changed. That's the whole remedy — there is no
 Two known limitations:
 
 - Uncovered `.tsx` files can't be remapped by the coverage provider and are dropped from the report with a `Failed to parse ... Excluding it from coverage` warning. `.tsx` files that tests _do_ load are measured normally, so the UI packages read higher than their real coverage.
-- `ai-react-ui`, `ai-solid-ui`, and `ai-vue-ui` have no tests, so they have no `test:coverage` script. The collect step fails when a measured package reports 0 statements. Add the script back when the package gets tests.
-- `preact-ai-devtools`, `react-ai-devtools`, `solid-ai-devtools`, and `svelte-ai-devtools` have no tests. They may be omitted (0 statements after `.tsx` remap failure) or show ~0% of remaining `.ts`; they do not gate the job.
+- `ai-react-ui`, `ai-solid-ui`, `ai-vue-ui`, `preact-ai-devtools`, `react-ai-devtools`, `solid-ai-devtools`, and `svelte-ai-devtools` have no tests, so they have no `test:coverage` script. The collect step fails when a measured package reports 0 statements. Add the script back when the package gets tests.
 
 A **new package that defines `test:coverage`** shows as `new` and cannot fail the comparison. Packages without that script are not measured.
 

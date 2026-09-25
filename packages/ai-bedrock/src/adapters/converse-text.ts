@@ -38,7 +38,11 @@ import type {
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type { BedrockClientConfig } from '../utils/client'
-import type { BedrockMessageMetadataByModality } from '../message-types'
+import type {
+  BedrockMessageMetadataByModality,
+  BedrockSystemPromptMetadata,
+  BedrockToolMetadata,
+} from '../message-types'
 import type {
   BedrockConverseModels,
   ResolveConverseProviderOptions,
@@ -78,7 +82,15 @@ export class BedrockConverseTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
-  BedrockMessageMetadataByModality
+  BedrockMessageMetadataByModality,
+  // TToolCapabilities — Converse has no per-model tool-capability table; the
+  // base default.
+  ReadonlyArray<string>,
+  // TToolCallMetadata — Converse has no tool-call metadata round-tripping.
+  unknown,
+  // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the chat()
+  // call site so users get `cachePoint` autocomplete.
+  BedrockSystemPromptMetadata
 > {
   override readonly kind = 'text' as const
   override readonly name = 'bedrock-converse' as const
@@ -593,10 +605,12 @@ function convertTools(tools: Array<Tool>): Array<ConverseToolInput> {
     const inputSchema: JSONSchema = convertSchemaToJsonSchema(
       tool.inputSchema,
     ) ?? { type: 'object', properties: {}, required: [] }
+    const { cachePoint }: BedrockToolMetadata = tool.metadata ?? {}
     return {
       name: tool.name,
       description: tool.description,
       inputSchema,
+      ...(cachePoint && { cachePoint }),
     }
   })
 }

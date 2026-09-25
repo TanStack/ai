@@ -82,6 +82,7 @@ import { Route as ApiMcpTestRouteImport } from './routes/api.mcp-test'
 import { Route as ApiMcpTaskErrorsRouteImport } from './routes/api.mcp-task-errors'
 import { Route as ApiMcpStatusTestRouteImport } from './routes/api.mcp-status-test'
 import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
+import { Route as ApiMcpPolicyTestRouteImport } from './routes/api.mcp-policy-test'
 import { Route as ApiMcpNoTasksServerRouteImport } from './routes/api.mcp-no-tasks-server'
 import { Route as ApiMcpManagedTestRouteImport } from './routes/api.mcp-managed-test'
 import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
@@ -107,13 +108,14 @@ import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-w
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
+import { Route as ApiBedrockConverseCacheRouteImport } from './routes/api.bedrock-converse-cache'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
 import { Route as ApiAnthropicThinkingOrderWireRouteImport } from './routes/api.anthropic-thinking-order-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
-import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
+import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
@@ -502,6 +504,11 @@ const ApiMcpServerRoute = ApiMcpServerRouteImport.update({
   path: '/api/mcp-server',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpPolicyTestRoute = ApiMcpPolicyTestRouteImport.update({
+  id: '/api/mcp-policy-test',
+  path: '/api/mcp-policy-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpNoTasksServerRoute = ApiMcpNoTasksServerRouteImport.update({
   id: '/api/mcp-no-tasks-server',
   path: '/api/mcp-no-tasks-server',
@@ -631,6 +638,11 @@ const ApiByokChatRoute = ApiByokChatRouteImport.update({
   path: '/api/byok-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBedrockConverseCacheRoute = ApiBedrockConverseCacheRouteImport.update({
+  id: '/api/bedrock-converse-cache',
+  path: '/api/bedrock-converse-cache',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAudioRoute = ApiAudioRouteImport.update({
   id: '/api/audio',
   path: '/api/audio',
@@ -658,16 +670,16 @@ const ApiAnthropicSkillsWireRoute = ApiAnthropicSkillsWireRouteImport.update({
   path: '/api/anthropic-skills-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAnthropicMultiTurnStructuredWireRoute =
-  ApiAnthropicMultiTurnStructuredWireRouteImport.update({
-    id: '/api/anthropic-multi-turn-structured-wire',
-    path: '/api/anthropic-multi-turn-structured-wire',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiAnthropicOpus5CombinedWireRoute =
   ApiAnthropicOpus5CombinedWireRouteImport.update({
     id: '/api/anthropic-opus-5-combined-wire',
     path: '/api/anthropic-opus-5-combined-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicMultiTurnStructuredWireRoute =
+  ApiAnthropicMultiTurnStructuredWireRouteImport.update({
+    id: '/api/anthropic-multi-turn-structured-wire',
+    path: '/api/anthropic-multi-turn-structured-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
@@ -746,6 +758,7 @@ export interface FileRoutesByFullPath {
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
@@ -771,6 +784,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
+  '/api/mcp-policy-test': typeof ApiMcpPolicyTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
@@ -860,6 +874,7 @@ export interface FileRoutesByTo {
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
@@ -885,6 +900,7 @@ export interface FileRoutesByTo {
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
+  '/api/mcp-policy-test': typeof ApiMcpPolicyTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
@@ -975,6 +991,7 @@ export interface FileRoutesById {
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
@@ -1000,6 +1017,7 @@ export interface FileRoutesById {
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
+  '/api/mcp-policy-test': typeof ApiMcpPolicyTestRoute
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
@@ -1091,6 +1109,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-thinking-order-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
@@ -1116,6 +1135,7 @@ export interface FileRouteTypes {
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-no-tasks-server'
+    | '/api/mcp-policy-test'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
@@ -1205,6 +1225,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-thinking-order-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
@@ -1230,6 +1251,7 @@ export interface FileRouteTypes {
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-no-tasks-server'
+    | '/api/mcp-policy-test'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
@@ -1319,6 +1341,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-thinking-order-wire'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
@@ -1344,6 +1367,7 @@ export interface FileRouteTypes {
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-no-tasks-server'
+    | '/api/mcp-policy-test'
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
@@ -1434,6 +1458,7 @@ export interface RootRouteChildren {
   ApiAnthropicThinkingOrderWireRoute: typeof ApiAnthropicThinkingOrderWireRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
+  ApiBedrockConverseCacheRoute: typeof ApiBedrockConverseCacheRoute
   ApiByokChatRoute: typeof ApiByokChatRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
@@ -1459,6 +1484,7 @@ export interface RootRouteChildren {
   ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
   ApiMcpManagedTestRoute: typeof ApiMcpManagedTestRoute
   ApiMcpNoTasksServerRoute: typeof ApiMcpNoTasksServerRoute
+  ApiMcpPolicyTestRoute: typeof ApiMcpPolicyTestRoute
   ApiMcpServerRoute: typeof ApiMcpServerRoute
   ApiMcpStatusTestRoute: typeof ApiMcpStatusTestRoute
   ApiMcpTaskErrorsRoute: typeof ApiMcpTaskErrorsRoute
@@ -2017,6 +2043,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpServerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-policy-test': {
+      id: '/api/mcp-policy-test'
+      path: '/api/mcp-policy-test'
+      fullPath: '/api/mcp-policy-test'
+      preLoaderRoute: typeof ApiMcpPolicyTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-no-tasks-server': {
       id: '/api/mcp-no-tasks-server'
       path: '/api/mcp-no-tasks-server'
@@ -2192,6 +2225,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiByokChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/bedrock-converse-cache': {
+      id: '/api/bedrock-converse-cache'
+      path: '/api/bedrock-converse-cache'
+      fullPath: '/api/bedrock-converse-cache'
+      preLoaderRoute: typeof ApiBedrockConverseCacheRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/audio': {
       id: '/api/audio'
       path: '/api/audio'
@@ -2227,18 +2267,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAnthropicSkillsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/anthropic-multi-turn-structured-wire': {
-      id: '/api/anthropic-multi-turn-structured-wire'
-      path: '/api/anthropic-multi-turn-structured-wire'
-      fullPath: '/api/anthropic-multi-turn-structured-wire'
-      preLoaderRoute: typeof ApiAnthropicMultiTurnStructuredWireRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/anthropic-opus-5-combined-wire': {
       id: '/api/anthropic-opus-5-combined-wire'
       path: '/api/anthropic-opus-5-combined-wire'
       fullPath: '/api/anthropic-opus-5-combined-wire'
       preLoaderRoute: typeof ApiAnthropicOpus5CombinedWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-multi-turn-structured-wire': {
+      id: '/api/anthropic-multi-turn-structured-wire'
+      path: '/api/anthropic-multi-turn-structured-wire'
+      fullPath: '/api/anthropic-multi-turn-structured-wire'
+      preLoaderRoute: typeof ApiAnthropicMultiTurnStructuredWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-bug-test': {
@@ -2392,6 +2432,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAnthropicThinkingOrderWireRoute: ApiAnthropicThinkingOrderWireRoute,
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
+  ApiBedrockConverseCacheRoute: ApiBedrockConverseCacheRoute,
   ApiByokChatRoute: ApiByokChatRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,
@@ -2417,6 +2458,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,
   ApiMcpManagedTestRoute: ApiMcpManagedTestRoute,
   ApiMcpNoTasksServerRoute: ApiMcpNoTasksServerRoute,
+  ApiMcpPolicyTestRoute: ApiMcpPolicyTestRoute,
   ApiMcpServerRoute: ApiMcpServerRoute,
   ApiMcpStatusTestRoute: ApiMcpStatusTestRoute,
   ApiMcpTaskErrorsRoute: ApiMcpTaskErrorsRoute,
