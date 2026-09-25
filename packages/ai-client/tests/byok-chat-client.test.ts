@@ -4,6 +4,7 @@ import {
   ByokBlockedError,
   ByokMissingError,
   ByokUnresolvedProviderError,
+  defineByokProvider,
 } from '@tanstack/ai/byok'
 import { defineByok, memoryStorage } from '../src/byok'
 import { ChatClient } from '../src/chat-client'
@@ -115,6 +116,44 @@ describe('ChatClient byok', () => {
     })
   })
 
+  it('stamps the only saved key when no provider slug is passed', async () => {
+    const byok = defineByok({ storage: memoryStorage() })
+    await byok.update('openai', OPENAI_KEY)
+    const record: {
+      headers?: Record<string, string>
+      data?: Record<string, unknown>
+    } = {}
+    const client = new ChatClient({
+      connection: recordingConnection(record),
+      byok,
+    })
+
+    await client.sendMessage('Hello')
+
+    expect(record.headers).toEqual({ 'x-byok-openai': OPENAI_KEY })
+  })
+
+  it('prompts for the only registered provider when no key is saved', async () => {
+    const openai = defineByokProvider({ id: 'openai', label: 'OpenAI' })
+    const byok = defineByok({ storage: memoryStorage(), providers: [openai] })
+    const connect = vi.fn(async function* () {
+      yield runFinished()
+    })
+    const client = new ChatClient({
+      connection: { connect },
+      byok,
+    })
+
+    await expect(client.sendMessage('Hello')).rejects.toBeInstanceOf(
+      ByokBlockedError,
+    )
+    expect(byok.getSnapshot().prompt).toEqual({
+      provider: 'openai',
+      reason: 'missing',
+    })
+    expect(connect).not.toHaveBeenCalled()
+  })
+
   it('throws and does not connect when no provider slug resolves', async () => {
     const byok = defineByok({ storage: memoryStorage() })
     await byok.update('openai', OPENAI_KEY)
@@ -138,6 +177,7 @@ describe('ChatClient byok', () => {
   it('throws when forwardedProps.provider is not a slug', async () => {
     const byok = defineByok({ storage: memoryStorage() })
     await byok.update('openai', OPENAI_KEY)
+    await byok.update('anthropic', 'sk-anthropic-secret')
     const connect = vi.fn(async function* () {
       yield runFinished()
     })

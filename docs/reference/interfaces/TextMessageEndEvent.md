@@ -3,7 +3,7 @@ id: TextMessageEndEvent
 title: TextMessageEndEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1261](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1261)
+Defined in: [packages/ai/src/types.ts:1323](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1323)
 
 Emitted when a text message completes.
 
@@ -12,9 +12,3 @@ Emitted when a text message completes.
 ## Extends
 
 - `TextMessageEndEvent`
-
-## Indexable
-
-```ts
-[k: string]: unknown
-```

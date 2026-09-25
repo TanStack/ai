@@ -204,6 +204,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // non-streaming `structuredOutput`) but aren't exercised by E2E yet.
   'structured-output-stream': new Set([
     'openai',
+    'gemini',
     'groq',
     'grok',
     'vertex-grok',
@@ -221,22 +222,16 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // `structured-output` part on the assistant message, and historical
   // turns stay renderable. Works for every provider that supports both
   // multi-turn and structured-output — non-native-streaming adapters
-  // (anthropic, gemini, ollama) fall back to a single
-  // `structured-output.complete` event per turn, but the per-message
-  // typed part still lands and the round-trip is identical.
-  // Anthropic temporarily excluded — multi-turn structured output regresses
-  // when the engine takes the #605 native-combined path on Claude 4.5+ (the
-  // 2nd turn's rendered structured-output part shows the 1st turn's
-  // content). Other native-combined providers (openai) still pass here,
-  // so the regression appears Anthropic-specific. Likely an interaction
-  // between the assistant message's text-content shape (post-#605) and
-  // either useChat's part rendering or aimock's response routing for the
-  // multi-turn shape. Tracking via follow-up issue; the single-turn
-  // anthropic structured-output and structured-output-stream entries
-  // (where applicable) continue to pass and are sufficient validation
-  // for #605's native combined mode landing.
+  // (gemini, ollama) fall back to a single `structured-output.complete`
+  // event per turn, but the per-message typed part still lands and the
+  // round-trip is identical.
+  // Anthropic is the one provider that breaks visibly when the structured
+  // part stops round-tripping into assistant content (#613), so it stays in
+  // this set; `tests/anthropic-multi-turn-structured-wire.spec.ts` pins the
+  // wire shape behind it.
   'multi-turn-structured': new Set([
     'openai',
+    'anthropic',
     'gemini',
     'vertex',
     'vertex-grok',
@@ -428,6 +423,12 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'lovable',
   ]),
+  // ElevenLabs is the only adapted provider with a voice-creation API.
+  // xAI's POST /v1/custom-voices and fal's clone endpoints are the obvious
+  // next two — add them here when their adapters implement generateVoice.
+  // aimock has no /v1/text-to-voice routes, so this runs against
+  // `elevenlabsVoiceMount` in global-setup.ts.
+  'voice-design': new Set(['elevenlabs']),
   transcription: new Set([
     'openai',
     'grok',

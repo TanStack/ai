@@ -7,14 +7,13 @@ title: fromSpecTokenUsage
 function fromSpecTokenUsage(usage, leftover?): TokenUsage<ProviderUsageDetails> | undefined;
 ```
 
-Defined in: [packages/ai/src/utilities/ag-ui-usage.ts:110](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-usage.ts#L110)
+Defined in: [packages/ai/src/utilities/ag-ui-usage.ts:182](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-usage.ts#L182)
 
 ## Parameters
 
 ### usage
 
-  \| readonly [`SpecTokenUsage`](../interfaces/SpecTokenUsage.md)[]
-  \| `undefined`
+readonly `TokenUsage`[] \| `undefined`
 
 ### leftover?
 

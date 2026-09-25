@@ -1,5 +1,83 @@
 # @tanstack/ai-anthropic
 
+## 0.19.1
+
+### Patch Changes
+
+- [#1425](https://github.com/TanStack/ai/pull/1425) [`6aef938`](https://github.com/TanStack/ai/commit/6aef938bcc6870ea30db4d7222bae55c72ecfb8b) - Send the `mcp-client-2025-04-04` beta header when `modelOptions.mcp_servers` is a non-empty array. The servers were forwarded in the request body without the header the MCP connector requires, the same gap [#1074](https://github.com/TanStack/ai/issues/1074) had for `context_management`. This beta matches the `mcp_servers` shape the adapter types (`tool_configuration` on each server).
+
+- [#1381](https://github.com/TanStack/ai/pull/1381) [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b) - Give `claude-opus-5-5` its provider tools and structured output with tools. The model now accepts `webSearchTool()`, `webFetchTool()`, `codeExecutionTool()`, `bashTool()`, `textEditorTool()`, and `memoryTool()`. `computerUseTool()` stays off because this model accepts only `computer_toolset_20260801`. Structured output alongside tools now uses `output_config.format` in one request, and `modelOptions.output_config` is typed for this model.
+
+- [#1467](https://github.com/TanStack/ai/pull/1467) [`dfd9f3a`](https://github.com/TanStack/ai/commit/dfd9f3a0bdc4ad1a43c49d4291625cc4953d1e04) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`54d39d3`](https://github.com/TanStack/ai/commit/54d39d30704bbdbdccea756af31530cc6713fc2e), [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb), [`74b5823`](https://github.com/TanStack/ai/commit/74b582305471eaf37a3b68595e60ed1a6f42d914), [`abb0169`](https://github.com/TanStack/ai/commit/abb0169bf96c38f59791450ce060d089a7fcd26e), [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088), [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b)]:
+  - @tanstack/ai@0.61.0
+
+## 0.19.0
+
+### Minor Changes
+
+- [#915](https://github.com/TanStack/ai/pull/915) [`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd) - feat(ai): native Files API support across providers (upload adapters + `file` content source)
+
+  Adds first-class support for provider **Files / storage APIs** so callers can upload media once and reference it by a provider-issued handle instead of re-sending base64 or a public URL each request (lower latency/bandwidth, no re-buffering on memory-constrained runtimes).
+  - **New tree-shakeable `files` adapter kind** — `openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, `grokFiles()`, and `falFiles()`. Each exposes `upload()`, and (where the provider has a lifecycle API) `get()` / `delete()`. Drive them with the new `uploadFile()` / `getFile()` / `deleteFile()` activity functions. fal is upload-only.
+  - **New `{ type: 'file' }` arm on `ContentPartSource`**, matching the AG-UI `FileSource` arm field for field: `{ type: 'file', value, provider?, mimeType? }`. `value` is the opaque handle the provider issued; `provider` names the adapter that issued it. Each adapter maps `value` to its native wire field: OpenAI (Responses) `input_image`/`input_file` `file_id`, Anthropic `file_id` message source (with the `files-api-2025-04-14` beta), Gemini `fileData.fileUri`, fal storage URL, Grok public URL. `fileSourceFromHandle(handle)` builds the source.
+  - **Fail-closed capability preflight** — adapters that can consume file references declare `supportsFileSources`; `chat()` / `generateImage()` / `generateVideo()` / `embed()` reject `{ type: 'file' }` sources for every other adapter (Bedrock, Mistral, Groq, OpenRouter, Ollama, BytePlus, Cohere, and any future adapter that doesn't opt in) **before a request is built**, so a reference can never be silently mis-mapped onto a URL/data field. Endpoints that need raw bytes (image edits, Sora `input_reference`, Veo, Chat Completions images) throw endpoint-specific errors. A supporting adapter handed a source whose `provider` names a different adapter throws an error naming the issuer.
+  - **Provider-literal typed handles** — `FileHandle<'openai'>` etc. flow from each files adapter through `uploadFile()`, and `getFile()`/`deleteFile()` accept the handle itself, so cross-provider lifecycle calls fail at compile time. `fileSourceFromHandle` and `FileHandle` are also exported from the browser-safe `@tanstack/ai/client` entry. A `{ type: 'file' }` source cannot cross the chat wire format (which carries `data`/`url` sources only) and throws rather than being dropped, so a browser that holds a handle sends it in its own request body and the server builds the source.
+
+### Patch Changes
+
+- Updated dependencies [[`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd)]:
+  - @tanstack/ai@0.60.0
+
+## 0.18.13
+
+### Patch Changes
+
+- [#1423](https://github.com/TanStack/ai/pull/1423) [`7d8858a`](https://github.com/TanStack/ai/commit/7d8858addf16f163949f60bc242901a9308334d3) - Restore the provider tool list and combined tools-and-schema support for `claude-opus-5` and `claude-fable-5-1`.
+
+  Both models were inserted by the model sync with `supports.tools: []`, which the sync writes for every new Anthropic model. The curated list is filled in by hand afterwards, and that step was missed for these two. `ResolveToolCapabilities` reads the generated tool-capabilities map, so a caller on either model could not pass `webSearchTool`, `webFetchTool`, `codeExecutionTool`, `computerUseTool`, `bashTool`, `textEditorTool`, or `memoryTool` without a type error, while the same call type-checked on `claude-opus-4-1`.
+
+  The two models were also missing from `ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS`, so `supportsCombinedToolsAndSchema()` returned `false` and structured output alongside tools fell back to the forced-tool-use workaround kept for pre-4.5 models instead of `output_config.format`.
+
+  `claude-opus-5` also did not declare `AnthropicOutputConfigOptions` in its provider-options type. The adapter merges `output_config.format` over any caller-supplied `output_config`, so a caller on this model could not tune `output_config.effort` alongside the schema. Opus 4.7, Opus 4.8, Sonnet 5, Fable 5 and Fable 5.1 all declare it.
+
+  `claude-opus-5-fast` keeps an empty tool list: it is absent from the supported-model lists for code execution, computer use, and structured outputs. The per-model type-safety suite now asserts that it is the only registered model without provider tools, so the next model inserted with an empty list fails the suite instead of shipping.
+
+## 0.18.12
+
+### Patch Changes
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+
+## 0.18.11
+
+### Patch Changes
+
+- [#1443](https://github.com/TanStack/ai/pull/1443) [`77c4607`](https://github.com/TanStack/ai/commit/77c4607f23a194319c72eb2b3c7034c91c129ad2) - Add a package README: setup, chat, tools, thinking, prompt caching, summarization, provider tools, Claude on Vertex AI, and links to the docs.
+
+## 0.18.10
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+
+## 0.18.9
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+
+## 0.18.8
+
+### Patch Changes
+
+- Updated dependencies [[`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9), [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6)]:
+  - @tanstack/ai@0.56.0
+
 ## 0.18.7
 
 ### Patch Changes

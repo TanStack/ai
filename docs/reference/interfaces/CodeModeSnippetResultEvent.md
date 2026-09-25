@@ -3,14 +3,11 @@ id: CodeModeSnippetResultEvent
 title: CodeModeSnippetResultEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1515](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1515)
+Defined in: [packages/ai/src/types.ts:1563](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1563)
 
 Custom event for extensibility.
 
-@ag-ui/core provides: `name`, `value`
-
-Uses `Pick` (not `extends`) so the Zod passthrough index signature does not
-erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCustomEvent.md) unions.
+@ag-ui/core provides: `name`, `value`, `subagentRunId?`
 
 ## Extends
 
@@ -24,7 +21,9 @@ erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCu
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1368](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1368)
+Defined in: [packages/ai/src/types.ts:1416](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1416)
+
+Extra information attached to this event.
 
 #### Inherited from
 
@@ -38,7 +37,10 @@ Defined in: [packages/ai/src/types.ts:1368](https://github.com/TanStack/ai/blob/
 name: "code_mode:snippet_result";
 ```
 
-Defined in: [packages/ai/src/types.ts:1516](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1516)
+Defined in: [packages/ai/src/types.ts:1564](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1564)
+
+What this custom event is. Required: without it a consumer cannot route
+the value.
 
 #### Overrides
 
@@ -54,7 +56,7 @@ CustomEvent.name
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1367](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1367)
+Defined in: [packages/ai/src/types.ts:1415](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1415)
 
 #### Inherited from
 
@@ -68,7 +70,9 @@ Defined in: [packages/ai/src/types.ts:1367](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1517](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1517)
+Defined in: [packages/ai/src/types.ts:1565](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1565)
+
+The payload. Any JSON value, and required.
 
 #### duration
 

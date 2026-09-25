@@ -5,7 +5,7 @@ import type { Tree } from '@nx/devkit'
 import type { ReactAppGeneratorSchema } from './schema'
 
 /**
- * Write a thin TanStack Start React chat lab under `examples/<name>/`.
+ * Write a thin TanStack Start React chat lab under `examples/react/<name>/`.
  *
  * @param tree - Nx virtual file tree
  * @param schema - Generator options. `name` is the app name from argv.
@@ -18,7 +18,7 @@ export default async function reactAppGenerator(
   generateFiles(
     tree,
     join(dirname(fileURLToPath(import.meta.url)), 'files'),
-    `examples/${nameVariants.fileName}`,
+    `examples/react/${nameVariants.fileName}`,
     { ...nameVariants, tmpl: '' },
   )
   await formatFiles(tree)

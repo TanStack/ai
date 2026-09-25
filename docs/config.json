@@ -13,13 +13,13 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Quick Start",
           "to": "getting-started/quick-start",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-01"
+          "updatedAt": "2026-09-17"
         },
         {
           "label": "Quick Start: React Native",
@@ -45,6 +45,78 @@
         }
       ],
       "tab": "get-started"
+    },
+    {
+      "label": "Tutorials",
+      "tab": "tutorial",
+      "children": [
+        {
+          "label": "Basic Chat",
+          "to": "tutorials/basic-chat",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Generate Image",
+          "to": "tutorials/generate-image",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Streaming Structured Table",
+          "to": "tutorials/streaming-structured-table",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Evaluate a ticket",
+          "to": "tutorials/evaluate",
+          "addedAt": "2026-09-18"
+        },
+        {
+          "label": "Subagents",
+          "to": "tutorials/subagents",
+          "addedAt": "2026-09-21"
+        },
+        {
+          "label": "Persisted subagents",
+          "to": "tutorials/subagents-persisted",
+          "addedAt": "2026-09-22"
+        }
+      ]
+    },
+    {
+      "label": "Examples",
+      "tab": "examples",
+      "children": [
+        {
+          "label": "Basic Chat",
+          "to": "framework/react/examples/basic-chat",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Generate Image",
+          "to": "framework/react/examples/generate-image",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Streaming Structured Table",
+          "to": "framework/react/examples/streaming-structured-table",
+          "addedAt": "2026-09-17"
+        },
+        {
+          "label": "Evaluate",
+          "to": "framework/react/examples/evaluate",
+          "addedAt": "2026-09-18"
+        },
+        {
+          "label": "Subagents",
+          "to": "framework/react/examples/subagents",
+          "addedAt": "2026-09-21"
+        },
+        {
+          "label": "Persisted subagents",
+          "to": "framework/react/examples/subagents-persisted",
+          "addedAt": "2026-09-22"
+        }
+      ]
     },
     {
       "label": "Comparison",
@@ -76,7 +148,14 @@
         {
           "label": "Stream Events",
           "to": "chat/stream-events",
-          "addedAt": "2026-08-26"
+          "addedAt": "2026-08-26",
+          "updatedAt": "2026-09-23"
+        },
+        {
+          "label": "Subagents",
+          "to": "chat/subagents",
+          "addedAt": "2026-09-21",
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "Agentic Cycle",
@@ -112,7 +191,7 @@
           "label": "One-Shot Extraction",
           "to": "structured-outputs/one-shot",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Streaming UIs",
@@ -164,7 +243,13 @@
         {
           "label": "WebMCP Tools",
           "to": "tools/webmcp",
-          "addedAt": "2026-09-02"
+          "addedAt": "2026-09-02",
+          "updatedAt": "2026-09-23"
+        },
+        {
+          "label": "Page WebMCP Tools in Chat",
+          "to": "tools/webmcp-page-tools",
+          "addedAt": "2026-09-23"
         },
         {
           "label": "Tool Approval Flow",
@@ -176,7 +261,7 @@
           "label": "Provider Tools",
           "to": "tools/provider-tools",
           "addedAt": "2026-04-21",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-09-22"
         },
         {
           "label": "Provider Skills",
@@ -206,7 +291,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-27"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Built-in Middleware",
@@ -223,7 +308,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Compaction",
@@ -395,7 +480,7 @@
           "label": "MCP Server Tools",
           "to": "tools/mcp",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Managed MCP with chat()",
@@ -486,13 +571,13 @@
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-26"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "Client Persistence",
           "to": "persistence/client-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "Generation Persistence",
@@ -509,7 +594,7 @@
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "Migrations",
@@ -538,7 +623,8 @@
         {
           "label": "Build a Chat Adapter",
           "to": "persistence/build-your-own-chat-adapter",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "Build a Generation Adapter",
@@ -556,7 +642,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-26"
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "How Persistence Works",
@@ -573,25 +659,31 @@
           "label": "Generations",
           "to": "media/generations",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-16"
         },
         {
           "label": "Realtime Voice Chat",
           "to": "media/realtime-chat",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-09-11"
         },
         {
           "label": "Text-to-Speech",
           "to": "media/text-to-speech",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-09-16"
         },
         {
           "label": "Transcription",
           "to": "media/transcription",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-08-04"
+        },
+        {
+          "label": "Voice Creation",
+          "to": "media/voice-creation",
+          "addedAt": "2026-09-16",
+          "updatedAt": "2026-09-16"
         },
         {
           "label": "Audio Recording",
@@ -627,7 +719,7 @@
           "label": "World Generation",
           "to": "media/world-generation",
           "addedAt": "2026-09-04",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-17"
         },
         {
           "label": "Generation Hooks",
@@ -658,6 +750,17 @@
           "to": "rerank/rerank",
           "addedAt": "2026-06-25",
           "updatedAt": "2026-08-19"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
+      "label": "Evaluate",
+      "children": [
+        {
+          "label": "Evaluate",
+          "to": "evaluate/evaluate",
+          "addedAt": "2026-09-18"
         }
       ],
       "tab": "guides"
@@ -716,7 +819,7 @@
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "Harnesses",
@@ -916,7 +1019,13 @@
           "label": "Multimodal Content",
           "to": "advanced/multimodal-content",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-08-07"
+        },
+        {
+          "label": "Files API",
+          "to": "advanced/files-api",
+          "addedAt": "2026-09-11",
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "Per-Model Type Safety",
@@ -933,7 +1042,7 @@
           "label": "Tree-Shaking",
           "to": "advanced/tree-shaking",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-14"
         },
         {
           "label": "Extend Adapter",
@@ -944,7 +1053,7 @@
           "label": "Typed Pre-Configured Options",
           "to": "advanced/typed-options",
           "addedAt": "2026-05-25",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-14"
         },
         {
           "label": "Approval Flow Processing",
@@ -962,7 +1071,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Anthropic",
@@ -974,7 +1083,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-16"
         },
         {
           "label": "Google Vertex AI",
@@ -1013,10 +1122,15 @@
           "updatedAt": "2026-09-03"
         },
         {
+          "label": "TypeSafe",
+          "to": "adapters/typesafe",
+          "addedAt": "2026-09-18"
+        },
+        {
           "label": "ElevenLabs",
           "to": "adapters/elevenlabs",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-16"
         },
         {
           "label": "fal.ai",
@@ -1031,10 +1145,16 @@
           "updatedAt": "2026-09-04"
         },
         {
+          "label": "World Labs",
+          "to": "adapters/worldlabs",
+          "addedAt": "2026-09-14",
+          "updatedAt": "2026-09-17"
+        },
+        {
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Perplexity Search",
@@ -1045,7 +1165,7 @@
           "label": "Vercel AI Gateway",
           "to": "adapters/vercel-gateway",
           "addedAt": "2026-08-12",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Lovable AI Gateway",
@@ -1057,7 +1177,7 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "LLM Gateway",
@@ -1067,13 +1187,14 @@
         {
           "label": "Cloudflare",
           "to": "adapters/cloudflare",
-          "addedAt": "2026-09-03"
+          "addedAt": "2026-09-03",
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "Claude Code",
           "to": "adapters/claude-code",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-25"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Codex",
@@ -1199,7 +1320,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-09-18"
         },
         {
           "label": "@tanstack/ai-client",
@@ -1211,49 +1332,49 @@
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-preact",
           "to": "api/ai-preact",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-octane",
           "to": "api/ai-octane",
           "addedAt": "2026-08-21",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         },
         {
           "label": "@tanstack/ai-remix",
           "to": "api/ai-remix",
           "addedAt": "2026-09-01",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-23"
         }
       ]
     },

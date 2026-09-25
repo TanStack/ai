@@ -12,6 +12,7 @@ import type { Modality } from '@tanstack/ai'
 import type { OpenAIMessageMetadataByModality } from '../message-types'
 import type { OpenAIClientConfig } from '../utils/client'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
 /**
  * Configuration for the OpenAI Chat Completions adapter.
@@ -21,7 +22,8 @@ import type { ExternalTextProviderOptions } from '../text/text-provider-options'
  * chat-completions-only knob (e.g. legacy `function_call`) has a place to land
  * without leaking into the Responses adapter's surface.
  */
-export interface OpenAIChatCompletionsConfig extends OpenAIClientConfig {}
+export interface OpenAIChatCompletionsConfig
+  extends OpenAIClientConfig, OpenAIBaseTextAdapterOptions {}
 
 export type OpenAIChatCompletionsProviderOptions = ExternalTextProviderOptions
 
@@ -65,7 +67,7 @@ export class OpenAIChatCompletionsTextAdapter<
   override readonly kind = 'text' as const
 
   constructor(config: OpenAIChatCompletionsConfig, model: TModel) {
-    super(model, 'openai-chat', new OpenAI(config))
+    super(model, 'openai-chat', new OpenAI(config), config)
   }
 }
 

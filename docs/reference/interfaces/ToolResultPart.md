@@ -3,7 +3,7 @@ id: ToolResultPart
 title: ToolResultPart
 ---
 
-Defined in: [packages/ai/src/types.ts:440](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L440)
+Defined in: [packages/ai/src/types.ts:438](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L438)
 
 ## Properties
 
@@ -15,7 +15,7 @@ content:
   | ContentPart<unknown, unknown, unknown, unknown, unknown>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:445](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L445)
+Defined in: [packages/ai/src/types.ts:443](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L443)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [packages/ai/src/types.ts:445](https://github.com/TanStack/ai/blob/m
 optional createdAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:449](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L449)
+Defined in: [packages/ai/src/types.ts:447](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L447)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [packages/ai/src/types.ts:449](https://github.com/TanStack/ai/blob/m
 optional error?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:447](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L447)
+Defined in: [packages/ai/src/types.ts:445](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L445)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [packages/ai/src/types.ts:447](https://github.com/TanStack/ai/blob/m
 optional id?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:442](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L442)
+Defined in: [packages/ai/src/types.ts:440](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L440)
 
 ***
 
@@ -55,7 +55,7 @@ Defined in: [packages/ai/src/types.ts:442](https://github.com/TanStack/ai/blob/m
 optional metadata?: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/types.ts:448](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L448)
+Defined in: [packages/ai/src/types.ts:446](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L446)
 
 ***
 
@@ -65,7 +65,7 @@ Defined in: [packages/ai/src/types.ts:448](https://github.com/TanStack/ai/blob/m
 optional name?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:443](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L443)
+Defined in: [packages/ai/src/types.ts:441](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L441)
 
 ***
 
@@ -75,7 +75,7 @@ Defined in: [packages/ai/src/types.ts:443](https://github.com/TanStack/ai/blob/m
 state: ToolResultState;
 ```
 
-Defined in: [packages/ai/src/types.ts:446](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L446)
+Defined in: [packages/ai/src/types.ts:444](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L444)
 
 ***
 
@@ -85,7 +85,7 @@ Defined in: [packages/ai/src/types.ts:446](https://github.com/TanStack/ai/blob/m
 toolCallId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:444](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L444)
+Defined in: [packages/ai/src/types.ts:442](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L442)
 
 ***
 
@@ -95,4 +95,4 @@ Defined in: [packages/ai/src/types.ts:444](https://github.com/TanStack/ai/blob/m
 type: "tool-result";
 ```
 
-Defined in: [packages/ai/src/types.ts:441](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L441)
+Defined in: [packages/ai/src/types.ts:439](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L439)

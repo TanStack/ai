@@ -1,6 +1,8 @@
 import { EventType } from '@tanstack/ai/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ChatClient } from '@tanstack/ai-client'
 import { createChat } from '../src/create-chat'
+import type { AnyClientTool } from '@tanstack/ai-client'
 import type { Handle } from 'remix/ui'
 import type { StreamChunk } from '@tanstack/ai/client'
 
@@ -74,6 +76,23 @@ function createConnection(chunks: Array<StreamChunk>) {
 }
 
 describe('createChat', () => {
+  it('sends the current getter tools when a run starts', async () => {
+    const { handle } = createHandle()
+    const updateOptions = vi.spyOn(ChatClient.prototype, 'updateOptions')
+    let tools: Array<AnyClientTool> = []
+    const chat = createChat(handle, {
+      connection: createConnection([textChunk('Hi'), runFinished()]),
+      get tools() {
+        return tools
+      },
+    })
+
+    tools = [{ __toolSide: 'client', name: 'late', description: 'Late' }]
+    await chat.sendMessage('Hello')
+
+    expect(updateOptions).toHaveBeenCalledWith({ tools })
+  })
+
   it('records user and assistant messages and calls handle.update after sendMessage', async () => {
     const { handle } = createHandle()
     const chat = createChat(handle, {

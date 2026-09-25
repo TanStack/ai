@@ -3,24 +3,16 @@ id: ToolCallStartEvent
 title: ToolCallStartEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1272](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1272)
+Defined in: [packages/ai/src/types.ts:1331](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1331)
 
 Emitted when a tool call starts.
 
-@ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
-
-Field shapes are taken from AG-UI via `Pick` (not `extends`) so Zod
-`.passthrough()` index signatures do not pollute the StreamChunk
-discriminated union — required for [KnownCustomEvent](../type-aliases/KnownCustomEvent.md) narrowing.
+@ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`,
+`subagentRunId?`
 
 ## Extends
 
-- `Pick`\<`AGUIToolCallStartEvent`, 
-  \| `"toolCallId"`
-  \| `"toolCallName"`
-  \| `"parentMessageId"`
-  \| `"timestamp"`
-  \| `"rawEvent"`\>
+- `Omit`\<`AGUIToolCallStartEvent`, `"type"`\>
 
 ## Properties
 
@@ -30,9 +22,15 @@ discriminated union — required for [KnownCustomEvent](../type-aliases/KnownCus
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1280](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1280)
+Defined in: [packages/ai/src/types.ts:1339](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1339)
 
 Provider-specific metadata to carry into the ToolCall.
+
+#### Overrides
+
+```ts
+Omit.metadata
+```
 
 ***
 
@@ -42,7 +40,7 @@ Provider-specific metadata to carry into the ToolCall.
 optional toolName?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1278](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1278)
+Defined in: [packages/ai/src/types.ts:1337](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1337)
 
 Alias of `toolCallName`. Kept so existing stream readers still compile.
 
@@ -54,4 +52,4 @@ Alias of `toolCallName`. Kept so existing stream readers still compile.
 type: "TOOL_CALL_START";
 ```
 
-Defined in: [packages/ai/src/types.ts:1276](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1276)
+Defined in: [packages/ai/src/types.ts:1335](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1335)

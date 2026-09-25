@@ -1,4 +1,9 @@
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  EventType,
+  isFileSource,
+  normalizeSystemPrompts,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   toRunErrorPayload,
@@ -6,9 +11,15 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
-import { makeStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
+import {
+  makeStructuredOutputCompatibleWithMap,
+  warnStrictFallback,
+} from '../utils/schema-converter'
 import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
-import type { StructuredOutputCompatibility } from '../utils/schema-converter'
+import type {
+  OpenAIBaseTextAdapterOptions,
+  StructuredOutputCompatibility,
+} from '../utils/schema-converter'
 import { buildChatCompletionsUsage } from '../usage'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
@@ -62,10 +73,19 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   readonly name: string
   protected client: OpenAI
 
-  constructor(model: TModel, name: string, client: OpenAI) {
+  /** See {@link OpenAIBaseTextAdapterOptions.strictFallbackWarning}. */
+  protected readonly strictFallbackWarning: boolean
+
+  constructor(
+    model: TModel,
+    name: string,
+    client: OpenAI,
+    options: OpenAIBaseTextAdapterOptions = {},
+  ) {
     super({}, model)
     this.name = name
     this.client = client
+    this.strictFallbackWarning = options.strictFallbackWarning ?? true
   }
 
   async *chatStream(
@@ -272,7 +292,19 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       // rather than letting it cascade into a JSON-parse error on '' — the
       // root cause (the model returned no content for the structured request)
       // is then visible in logs.
-      const rawText = response.choices[0]?.message.content
+      const choice = response.choices[0]
+
+      // A response cut off at the output cap is a truncated JSON document —
+      // or, for reasoning models, no content at all once the budget went to
+      // reasoning. Report it as truncation before the empty-content and
+      // parse errors, which would read like a schema failure (issue #1426).
+      if (choice?.finish_reason === 'length') {
+        throw new Error(
+          `${this.name}.structuredOutput: the response was cut off because the maximum token limit was reached (finish_reason=length); raise the output token limit (max_completion_tokens or max_tokens, depending on the provider)`,
+        )
+      }
+
+      const rawText = choice?.message.content
       if (typeof rawText !== 'string' || rawText.length === 0) {
         throw new Error(
           `${this.name}.structuredOutput: response contained no content`,
@@ -346,6 +378,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     let hasClosedReasoning = false
     let stepId: string | undefined
     let lastModel: string | undefined
+    let finishReason: string | null = null
     let lastUsage:
       | OpenAI.Chat.Completions.ChatCompletionChunk['usage']
       | undefined
@@ -486,6 +519,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
         const choice = chunk.choices[0]
         if (!choice) continue
+        if (choice.finish_reason) finishReason = choice.finish_reason
 
         const deltaContent = choice.delta.content
         if (deltaContent) {
@@ -527,6 +561,22 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
         }
+      }
+
+      // Same truncation check as `structuredOutput()`: report the token limit
+      // before the empty-content and parse errors (issue #1426).
+      if (finishReason === 'length') {
+        const message = `${this.name}.structuredOutputStream: the response was cut off because the maximum token limit was reached (finish_reason=length); raise the output token limit (max_completion_tokens or max_tokens, depending on the provider)`
+        yield {
+          type: EventType.RUN_ERROR,
+          runId: aguiState.runId,
+          model: lastModel || chatOptions.model,
+          timestamp: Date.now(),
+          message,
+          code: 'max_tokens',
+          error: { message, code: 'max_tokens' },
+        }
+        return
       }
 
       if (accumulatedContent.length === 0) {
@@ -1185,6 +1235,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions,
   ): ChatCompletionCreateParamsStreaming {
+    if (this.strictFallbackWarning) {
+      warnStrictFallback(options.tools, options.logger)
+    }
     const tools = options.tools
       ? convertToolsToChatCompletionsFormat(
           options.tools,
@@ -1390,6 +1443,22 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       const imageMetadata = part.metadata as
         | { detail?: 'auto' | 'low' | 'high' }
         | undefined
+
+      if (isFileSource(part.source)) {
+        // The Chat Completions API references images only by URL/data URI,
+        // not by an uploaded file_id. Only mention the Responses alternative
+        // for OpenAI itself — compatible providers built on this base have no
+        // file_id-consuming endpoint at all.
+        throw unsupportedFileSourceError(
+          this.name,
+          // Only OpenAI's own chat-completions adapter (name 'openai-chat')
+          // has a Responses sibling to point at; other subclasses (Groq,
+          // Bedrock, BytePlus, compatible providers) have no file_id surface.
+          this.name === 'openai-chat'
+            ? 'on the Chat Completions API — use the Responses adapter (openaiText) to reference an uploaded file by file_id'
+            : 'on the Chat Completions API',
+        )
+      }
 
       // For base64 data, construct a data URI using the mimeType from source.
       // Default to a generic octet-stream MIME if the source didn't provide

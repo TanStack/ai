@@ -87,10 +87,10 @@ const adapter = grokImage()
 
 const result = await generateImages({
   adapter,
-  model: 'grok-2-image-1212',
+  model: 'grok-imagine-image-2.0',
   prompt: 'A beautiful sunset over mountains',
   numberOfImages: 1,
-  size: '1024x1024',
+  size: '16:9',
 })
 
 console.log(result.images[0].url)

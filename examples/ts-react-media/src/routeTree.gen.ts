@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiMarbleSplatRouteImport } from './routes/api.marble-splat'
 import { Route as ApiFalProxyRouteImport } from './routes/api.fal.proxy'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMarbleSplatRoute = ApiMarbleSplatRouteImport.update({
+  id: '/api/marble-splat',
+  path: '/api/marble-splat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiFalProxyRoute = ApiFalProxyRouteImport.update({
@@ -25,27 +31,31 @@ const ApiFalProxyRoute = ApiFalProxyRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/marble-splat': typeof ApiMarbleSplatRoute
   '/api/fal/proxy': typeof ApiFalProxyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/marble-splat': typeof ApiMarbleSplatRoute
   '/api/fal/proxy': typeof ApiFalProxyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/marble-splat': typeof ApiMarbleSplatRoute
   '/api/fal/proxy': typeof ApiFalProxyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/fal/proxy'
+  fullPaths: '/' | '/api/marble-splat' | '/api/fal/proxy'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/fal/proxy'
-  id: '__root__' | '/' | '/api/fal/proxy'
+  to: '/' | '/api/marble-splat' | '/api/fal/proxy'
+  id: '__root__' | '/' | '/api/marble-splat' | '/api/fal/proxy'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiMarbleSplatRoute: typeof ApiMarbleSplatRoute
   ApiFalProxyRoute: typeof ApiFalProxyRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/marble-splat': {
+      id: '/api/marble-splat'
+      path: '/api/marble-splat'
+      fullPath: '/api/marble-splat'
+      preLoaderRoute: typeof ApiMarbleSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/fal/proxy': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiMarbleSplatRoute: ApiMarbleSplatRoute,
   ApiFalProxyRoute: ApiFalProxyRoute,
 }
 export const routeTree = rootRouteImport

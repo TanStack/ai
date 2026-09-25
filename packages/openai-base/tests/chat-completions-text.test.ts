@@ -98,6 +98,81 @@ const weatherTool: Tool = {
   description: 'Return the forecast for a location',
 }
 
+describe('strict fallback warning (#1213)', () => {
+  it('warns once per tool when its schema cannot be sent as strict', async () => {
+    setupMockSdkClient([])
+    const warn = vi.fn()
+    const logger = resolveDebugOption({
+      logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() },
+    })
+    const refTool: Tool = {
+      name: 'lookup_user',
+      description: 'Find a user',
+      inputSchema: {
+        type: 'object',
+        properties: { user: { $ref: '#/$defs/user' } },
+        required: ['user'],
+      },
+    }
+    const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+
+    for (let i = 0; i < 2; i++) {
+      for await (const _ of adapter.chatStream({
+        logger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: [refTool, weatherTool],
+      })) {
+        // drain
+      }
+    }
+
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]![0]).toContain('"lookup_user"')
+    expect(warn.mock.calls[0]![0]).toContain('$ref')
+  })
+
+  it.each([
+    ['strictFallbackWarning is false', false, 'development'],
+    ['NODE_ENV is production', true, 'production'],
+  ])('does not warn when %s', async (_label, flag, nodeEnv) => {
+    vi.stubEnv('NODE_ENV', nodeEnv)
+    setupMockSdkClient([])
+    const warn = vi.fn()
+    const logger = resolveDebugOption({
+      logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() },
+    })
+    const refTool: Tool = {
+      name: 'lookup_user',
+      description: 'Find a user',
+      inputSchema: {
+        type: 'object',
+        properties: { user: { $ref: '#/$defs/user' } },
+        required: ['user'],
+      },
+    }
+    class Adapter extends OpenAIBaseChatCompletionsTextAdapter<string> {
+      constructor() {
+        super('test-model', 'openai-base', makeStubClient(), {
+          strictFallbackWarning: flag,
+        })
+      }
+    }
+
+    for await (const _ of new Adapter().chatStream({
+      logger,
+      model: 'test-model',
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [refTool],
+    })) {
+      // drain
+    }
+
+    expect(warn).not.toHaveBeenCalled()
+    vi.unstubAllEnvs()
+  })
+})
+
 describe('OpenAIBaseChatCompletionsTextAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -1021,6 +1096,59 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
           },
         }),
       ).rejects.toThrow('Failed to parse structured output as JSON')
+    })
+
+    it('reports a finish_reason=length response as truncation, not a parse error (#1426)', async () => {
+      const nonStreamResponse = {
+        choices: [
+          {
+            message: { content: '{"name":"Ada' },
+            finish_reason: 'length',
+          },
+        ],
+      }
+      setupMockSdkClient([], nonStreamResponse)
+
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: {
+            logger: testLogger,
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'Give me a person object' }],
+          },
+          outputSchema: {
+            type: 'object',
+            properties: { name: { type: 'string' } },
+            required: ['name'],
+          },
+        }),
+      ).rejects.toThrow(/cut off because the maximum token limit was reached/)
+    })
+
+    it('reports finish_reason=length as truncation even when content is empty (reasoning budget exhausted)', async () => {
+      const nonStreamResponse = {
+        choices: [{ message: { content: null }, finish_reason: 'length' }],
+      }
+      setupMockSdkClient([], nonStreamResponse)
+
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+
+      await expect(
+        adapter.structuredOutput({
+          chatOptions: {
+            logger: testLogger,
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'Give me a person object' }],
+          },
+          outputSchema: {
+            type: 'object',
+            properties: { name: { type: 'string' } },
+            required: ['name'],
+          },
+        }),
+      ).rejects.toThrow(/cut off because the maximum token limit was reached/)
     })
 
     it('throws a clear "no content" error when content is empty', async () => {

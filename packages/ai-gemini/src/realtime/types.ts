@@ -40,9 +40,19 @@ export type GeminiRealtimeVoice =
   | 'Zubenelgenubi'
 
 /**
- * Gemini realtime model options
+ * Gemini realtime model options.
+ *
+ * - `gemini-3.8-live` — default low-latency voice model.
+ * - `gemini-3.8-live-extended-thinking` — reasons in the background while it
+ *   speaks. Set `thinkingConfig.thinkingLevel` to `LOW`, `MEDIUM`, or `HIGH`
+ *   (`MINIMAL` is not supported). Function calls run asynchronously, so
+ *   `turnComplete` no longer means the model is idle.
+ * - `gemini-3.1-flash-live-preview` — legacy preview model.
  */
-export type GeminiRealtimeModel = 'gemini-3.1-flash-live-preview'
+export type GeminiRealtimeModel =
+  | 'gemini-3.8-live'
+  | 'gemini-3.8-live-extended-thinking'
+  | 'gemini-3.1-flash-live-preview'
 
 /**
  * Options for the Gemini realtime client adapter

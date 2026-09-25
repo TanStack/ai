@@ -12,13 +12,17 @@ import type {
   MessagePart,
   ModelMessage,
   StructuredOutputPart,
+  SubagentPart,
   TanStackMessageMetadata,
   UIMessage,
   UIResourcePart,
 } from '../types'
 import type { MetadataRecord } from './merge-metadata'
 import { tanstackMetadata } from './merge-metadata'
+import { isProviderExecutedToolCall } from './provider-executed'
 import { normalizeToolResult } from './tool-result'
+import { wireSubagentInfo, wireSubagentRunId } from './subagent-wire'
+import type { SubagentWireInfo } from './subagent-wire'
 import {
   coerceCreatedAt,
   modelMessageToUIMessage,
@@ -168,9 +172,45 @@ export function uiMessagesToWire(
       continue
     }
 
-    // assistant: emit reasoning fan-outs first, then anchor, then tool fan-outs
+    // assistant: reasoning fan-outs, then anchor, then tool fan-outs.
+    //
+    // Provider-executed tools (Anthropic web_search / web_fetch) run inside one
+    // provider response, and the provider signs every thinking block against
+    // the blocks before it. Emitting all reasoning first and a single anchor
+    // with the joined text and every tool call turns
+    // "thinking, tool, thinking, text, tool" into
+    // "thinking, thinking, text, tool, tool", and the provider rejects the next
+    // turn ("thinking blocks in the latest assistant message cannot be
+    // modified"). Split the message into ordered segments at each thinking
+    // part that follows a provider-executed tool call, the same rule
+    // buildAssistantMessages applies, so the wire keeps the signed order.
+    // Segments after the first get derived anchor ids; strict AG-UI consumers
+    // still see plain anchors.
+    type Segment = {
+      thinking: Array<Extract<MessagePart, { type: 'thinking' }>>
+      parts: Array<MessagePart>
+    }
+    let current: Segment = { thinking: [], parts: [] }
+    const segments: Array<Segment> = [current]
     for (const part of parts) {
       if (part.type === 'thinking') {
+        if (
+          current.parts.some(
+            (p) => p.type === 'tool-call' && isProviderExecutedToolCall(p),
+          )
+        ) {
+          current = { thinking: [part], parts: [] }
+          segments.push(current)
+        } else {
+          current.thinking.push(part)
+        }
+      } else {
+        current.parts.push(part)
+      }
+    }
+
+    segments.forEach((segment, index) => {
+      for (const part of segment.thinking) {
         const reasoning: WireReasoningMessage = {
           role: 'reasoning',
           id: uniqueWireId(deriveReasoningId(uiMessage.id, part), usedWireIds),
@@ -181,22 +221,29 @@ export function uiMessagesToWire(
         }
         wire.push(reasoning)
       }
-    }
 
-    const text = collectText(parts)
-    const toolCalls = collectToolCalls(parts)
-    wire.push(
-      toAnchor(
-        uiMessage,
-        'assistant',
-        {
-          ...(text !== '' && { content: text }),
-          ...(toolCalls && { toolCalls }),
-        },
-        parts,
-        includeSnapshotStructuredOutput,
-      ),
-    )
+      const text = collectText(segment.parts)
+      const toolCalls = collectToolCalls(segment.parts)
+      const anchorMessage: UIMessage =
+        index === 0
+          ? uiMessage
+          : {
+              ...uiMessage,
+              id: uniqueWireId(`${uiMessage.id}-segment-${index}`, usedWireIds),
+            }
+      wire.push(
+        toAnchor(
+          anchorMessage,
+          'assistant',
+          {
+            ...(text !== '' && { content: text }),
+            ...(toolCalls && { toolCalls }),
+          },
+          segment.parts,
+          includeSnapshotStructuredOutput,
+        ),
+      )
+    })
 
     const explicitToolResults = new Set(
       parts.flatMap((part) =>
@@ -262,6 +309,10 @@ export function uiMessagesToWire(
           ),
         })
       }
+    }
+
+    for (const part of parts) {
+      if (part.type === 'subagent') wire.push(...subagentToWire(part, options))
     }
   }
 
@@ -332,6 +383,8 @@ function messageMetadata(
   const tanstack: TanStackMessageMetadata = {}
   if (previousTanstack?.model !== undefined)
     tanstack.model = previousTanstack.model
+  if (previousTanstack?.runId !== undefined)
+    tanstack.runId = previousTanstack.runId
   if (previousTanstack?.signature !== undefined)
     tanstack.signature = previousTanstack.signature
   const createdAt = coerceCreatedAt(msg.createdAt)
@@ -422,6 +475,71 @@ function collectText(parts: ReadonlyArray<MessagePart>): string {
     }
   }
   return out.join('')
+}
+
+/**
+ * A child's messages, tagged with its AG-UI `subagentRunId`. The card data
+ * rides in `metadata.tanstack.subagent`, so the other side can rebuild the
+ * card and continue a suspended child.
+ */
+function subagentToWire(
+  part: SubagentPart,
+  options?: { includeSnapshotStructuredOutput: boolean },
+): Array<WireMessage> {
+  const { subagent } = part
+  const info: SubagentWireInfo = {
+    name: subagent.name,
+    status: subagent.status,
+    ...(subagent.description !== undefined && {
+      description: subagent.description,
+    }),
+    ...(subagent.error !== undefined && { error: subagent.error }),
+    ...(subagent.interruptIds !== undefined && {
+      interruptIds: subagent.interruptIds,
+    }),
+    ...(subagent.parentSubagentRunId !== undefined && {
+      parentSubagentRunId: subagent.parentSubagentRunId,
+    }),
+    ...(subagent.parentToolCallId !== undefined && {
+      parentToolCallId: subagent.parentToolCallId,
+    }),
+    ...(subagent.metadata !== undefined && { metadata: subagent.metadata }),
+  }
+  const child = uiMessagesToWire(subagent.messages, options)
+  const own = child.some((message) => wireSubagentRunId(message) === undefined)
+  const messages: Array<WireMessage> = own
+    ? child
+    : [{ id: `subagent:${subagent.id}`, role: 'assistant' }, ...child]
+  return messages.map((message, index) => {
+    const nestedId = wireSubagentRunId(message)
+    if (nestedId !== undefined) {
+      const nested = wireSubagentInfo(message)
+      if (!nested || nested.parentSubagentRunId !== undefined) return message
+      return withSubagentInfo(message, nestedId, {
+        ...nested,
+        parentSubagentRunId: subagent.id,
+      })
+    }
+    return withSubagentInfo(
+      message,
+      subagent.id,
+      !own && index === 0 ? { ...info, placeholder: true } : info,
+    )
+  })
+}
+
+function withSubagentInfo(
+  message: WireMessage,
+  subagentRunId: string,
+  info: SubagentWireInfo,
+): WireMessage {
+  const metadata = isRecord(message.metadata) ? message.metadata : {}
+  const tanstack = isRecord(metadata.tanstack) ? metadata.tanstack : {}
+  return {
+    ...message,
+    subagentRunId,
+    metadata: { ...metadata, tanstack: { ...tanstack, subagent: info } },
+  }
 }
 
 function collectUserContent(

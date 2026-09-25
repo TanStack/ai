@@ -1,5 +1,60 @@
 # @tanstack/ai-persistence
 
+## 0.6.7
+
+### Patch Changes
+
+- Updated dependencies [[`54d39d3`](https://github.com/TanStack/ai/commit/54d39d30704bbdbdccea756af31530cc6713fc2e), [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb), [`74b5823`](https://github.com/TanStack/ai/commit/74b582305471eaf37a3b68595e60ed1a6f42d914), [`abb0169`](https://github.com/TanStack/ai/commit/abb0169bf96c38f59791450ce060d089a7fcd26e), [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088), [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b)]:
+  - @tanstack/ai@0.61.0
+
+## 0.6.6
+
+### Patch Changes
+
+- Updated dependencies [[`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd)]:
+  - @tanstack/ai@0.60.0
+
+## 0.6.5
+
+### Patch Changes
+
+- [#1438](https://github.com/TanStack/ai/pull/1438) [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0) - A subagent run record stores `parentRunId`, `subagentRunId`, and `name`. Each child keeps its full transcript: text, reasoning, tool calls, and tool results. `reconstructChat` uses `listByParentRun` to put each child card back, with nested children and a child that waits for an approval. A later message keeps that link, so the next agent still sees the child text.
+
+  Subagent support in a store is optional. `runPersistenceConformance` checks the three link fields and `listByParentRun` only when the store has `listByParentRun`. A store without it passes with no change and no `skipMethods` entry.
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+
+## 0.6.4
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+
+## 0.6.3
+
+### Patch Changes
+
+- [#1434](https://github.com/TanStack/ai/pull/1434) [`dd1f8e2`](https://github.com/TanStack/ai/commit/dd1f8e2431f2f4fd7804ff74cea90e21cb2bd2b7) - Add a package README: install, `withPersistence` on the server, `persistence: true` on the client, `reconstructChat` for reloads mid-answer, the smallest custom adapter, the `testkit` conformance suite, and links to the docs.
+
+- Updated dependencies [[`8bcfb88`](https://github.com/TanStack/ai/commit/8bcfb883bf7447c84cc0148bf838e9324dc5f1d3)]:
+  - @tanstack/ai-utils@0.4.1
+
+## 0.6.2
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [[`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9), [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6)]:
+  - @tanstack/ai@0.56.0
+
 ## 0.6.0
 
 ### Minor Changes

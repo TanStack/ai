@@ -6,7 +6,9 @@ description: >
   generateAudio() with geminiAudio/falAudio, generateVideo() with async
   polling (openaiVideo/geminiVideo/grokVideo/falVideo/byteplusVideo/openRouterVideo,
   per-model typed durations), generateSpeech() with openaiSpeech/byteplusSpeech/elevenlabsSpeech,
-  generateTranscription() with openaiTranscription/byteplusTranscription. React hooks:
+  generateTranscription() with openaiTranscription/byteplusTranscription,
+  generateVoice() with elevenlabsVoiceDesign (create a voice, then speak with it).
+  React hooks:
   useGenerateImage, useGenerateAudio,
   useGenerateSpeech, useTranscription, useGenerateVideo.
   TanStack Start server function integration with toServerSentEventsResponse.
@@ -21,6 +23,7 @@ sources:
   - 'TanStack/ai:docs/media/video-generation.md'
   - 'TanStack/ai:docs/media/text-to-speech.md'
   - 'TanStack/ai:docs/adapters/elevenlabs.md'
+  - 'TanStack/ai:docs/media/voice-creation.md'
   - 'TanStack/ai:docs/media/transcription.md'
   - 'TanStack/ai:docs/advanced/debug-logging.md'
 ---
@@ -280,6 +283,14 @@ await generateVideo({
 })
 ```
 
+Reference images / start frames that are reused (or arrive as inline base64 on
+memory-constrained runtimes) can instead be uploaded once via the provider's
+Files adapter and referenced with `source: fileSourceFromHandle(handle)` —
+supported for Gemini image generation (`geminiFiles()`) and fal image/video
+inputs (`falFiles()`). Endpoints that require raw bytes (OpenAI `images/edits`,
+Sora `input_reference`, Gemini Veo) reject file sources with a clear error.
+See `ai-core/adapter-configuration/SKILL.md` §7.
+
 **URL inputs that require an upload throw by default.** Most adapters pass a
 `type: 'url'` source straight through to the provider. Three paths can't —
 OpenAI `images.edit()`, OpenAI Sora `input_reference`, and Gemini **Veo** —
@@ -309,7 +320,7 @@ with `allowUrlFetch: true` on the adapter config
 | OpenAI     | gpt-image-2 / gpt-image-1 / -mini → `images.edit()` (up to 16). dall-e-2 → edit (1). dall-e-3 throws.                                                                                                    | Sora-2 / -pro → `input_reference` (single). Throws if >1.                                                                                                                                                                                                                                                                                     |
 | Gemini     | Native (gemini-\*-flash-image, "nano-banana") → multimodal `contents`. Imagen throws.                                                                                                                    | Veo → first un-roled / `'start_frame'` image is the input image; `'end_frame'` → `lastFrame`; `'reference'` / `'character'` → `referenceImages`. Omni Flash sends image/video parts as interaction content blocks (no role routing).                                                                                                          |
 | fal        | Per-endpoint field names from a generated map (`pnpm generate:fal-image-fields`). Defaults: 1 input → `image_url`; >1 → `image_urls`; roles → `mask_url` / `control_image_url` / `reference_image_urls`. | Per-endpoint map (e.g. Kling i2v start frame → `image_url`). Defaults: 1 input → `image_url`; `start_frame`/`end_frame` → `start_image_url`/`end_image_url`; `reference` → `reference_image_urls`.                                                                                                                                            |
-| Grok       | grok-imagine models → `/v1/images/edits` JSON endpoint (≤3 sources, addressed by xAI in request order; prompt sent verbatim; mask/control throw). grok-2-image-1212 throws.                              | Un-roled / `'start_frame'` image → starting frame; `'reference'` / `'character'` → `reference_images` (1.5). On 1.5 a starting frame can be combined with reference inputs (it pins the first frame). A `video` part + `modelOptions.mode: 'edit' \| 'extend'` routes to `/videos/edits` / `/videos/extensions` on `grok-imagine-video` only. |
+| Grok       | grok-imagine models → `/v1/images/edits` JSON endpoint (≤3 sources, addressed by xAI in request order; prompt sent verbatim; mask/control throw).                                                        | Un-roled / `'start_frame'` image → starting frame; `'reference'` / `'character'` → `reference_images` (1.5). On 1.5 a starting frame can be combined with reference inputs (it pins the first frame). A `video` part + `modelOptions.mode: 'edit' \| 'extend'` routes to `/videos/edits` / `/videos/extensions` on `grok-imagine-video` only. |
 | OpenRouter | Prompt parts map 1:1 onto multimodal `text` / `image_url` content parts, preserving interleaved order.                                                                                                   | Dedicated async API (`openRouterVideo`): `start_frame`/`end_frame` → `frame_images[]` (`first_frame`/`last_frame`); `reference`/`character` → `input_references[]`; an unroled image defaults to the start frame. Frame roles validated against the model's `supported_frame_images` metadata.                                                |
 | Anthropic  | n/a (no image generation API).                                                                                                                                                                           | n/a                                                                                                                                                                                                                                                                                                                                           |
 
@@ -406,7 +417,126 @@ const { generate, result, isLoading } = useGenerateSpeech({
 // Play:   <audio src={`data:audio/${result.format};base64,${result.audio}`} controls />
 ```
 
-### 4. Audio Transcription
+**Dialogue (`turns`) and timings (`timestamps`).** `text` + `voice` is one
+speaker. For a multi-voice script pass `turns` instead of `text` (they are
+mutually exclusive), and set `timestamps: true` to get `result.alignment`
+(per character or per word, `alignment.unit` says which) and `result.segments`
+(one per turn or per sentence). All times are seconds.
+
+```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { byteplusSpeech } from '@tanstack/ai-byteplus'
+
+// Second voice id comes from the BytePlus voice list.
+const SECOND_VOICE = 'your-second-voice-id'
+
+const result = await generateSpeech({
+  adapter: byteplusSpeech('seed-audio-1.0'),
+  turns: [
+    { text: 'Do you sell picks?', voice: 'en_female_stokie_uranus_bigtts' },
+    { text: 'By the till.', voice: SECOND_VOICE },
+  ],
+  timestamps: true,
+})
+
+result.alignment?.endSeconds.at(-1) // where speech stops, not where the file does
+result.segments?.[0] // { startSeconds, endSeconds, turnIndex?, voice?, text? }
+```
+
+Both are adapter capabilities, not universal. The activity rejects the request
+before it reaches the provider when the adapter cannot do it, so read
+`adapter.capabilities` rather than guessing:
+
+| Adapter                 | `maxSpeakers` | `timestamps`                                     |
+| ----------------------- | ------------- | ------------------------------------------------ |
+| `byteplusSpeech`        | 3             | yes (`enable_subtitle`, word + sentence)         |
+| `elevenlabsSpeech`      | 10            | yes (character, plus voice segments on dialogue) |
+| `geminiSpeech`          | 2             | no                                               |
+| every other TTS adapter | not supported | no                                               |
+
+### 4. Voice Creation
+
+Adapter: `elevenlabsVoiceDesign` (`eleven_ttv_v3`, `eleven_multilingual_ttv_v2`).
+
+`generateVoice()` makes a voice that does not exist in any catalog, either
+from a text description or from a clip of a real speaker. It returns voice ids
+you pass straight back to `generateSpeech()` as `voice`.
+
+> Pass `prompt`, or `referenceAudio`, or both — the activity throws when
+> neither is given. ElevenLabs always needs `prompt`, because its design
+> endpoint requires a description, and only `eleven_ttv_v3` accepts
+> `referenceAudio`. Without a `name` you get **previews**, which expire;
+> with a `name` the best candidate is kept in the provider's voice library.
+> Check `saved` on each returned voice rather than assuming. Remote audio
+> URLs are rejected: read the file and pass bytes.
+
+```typescript
+import { generateSpeech, generateVoice } from '@tanstack/ai'
+import {
+  elevenlabsSpeech,
+  elevenlabsVoiceDesign,
+} from '@tanstack/ai-elevenlabs'
+
+const designed = await generateVoice({
+  adapter: elevenlabsVoiceDesign('eleven_ttv_v3'),
+  prompt: 'A warm, gravelly narrator in his sixties with a slight Irish lilt',
+  name: 'Irish Narrator', // omit to audition previews instead
+})
+
+const [voice] = designed.voices
+if (!voice) throw new Error('The provider returned no voices.')
+
+// voice.voiceId  -> pass to generateSpeech()
+// voice.audio    -> base64 preview, when the provider returns one
+// voice.saved    -> true only when it is in the provider's library
+// voice.status   -> 'ready' on every adapter today
+
+const speech = await generateSpeech({
+  adapter: elevenlabsSpeech('eleven_v3'),
+  text: 'Once upon a time...',
+  voice: voice.voiceId,
+})
+```
+
+**Status.** Every returned voice carries `status`. It is `'ready'` on every
+adapter today, because they all finish the voice before returning. The
+`'training'` and `'failed'` members exist for providers that build a voice
+asynchronously; no adapter returns them yet, so do not write polling code
+against them.
+
+**Finding voices again.** `generateVoice()` hands back an id you are expected
+to store. `listVoices({ adapter: <a TTS adapter>, origins })` reads the
+account catalog back when you did not.
+
+```typescript
+import { listVoices } from '@tanstack/ai'
+import { elevenlabsSpeech } from '@tanstack/ai-elevenlabs'
+
+const { voices } = await listVoices({
+  adapter: elevenlabsSpeech('eleven_v3'),
+  origins: ['generated', 'cloned'],
+})
+```
+
+`listVoices` hangs off the **TTS** adapter, not the voice adapter, because
+`voice` is a `generateSpeech()` option — that is where the id gets consumed.
+It is OPTIONAL, and only providers with a per-account catalog implement it.
+Where the catalog is fixed the package publishes it instead — `GeminiTTSVoices`
+from `@tanstack/ai-gemini`, or the `OpenAITTSVoice` union from
+`@tanstack/ai-openai`. Prefer those: a type union beats a network call.
+Calling `listVoices()` on such an adapter throws and points at them.
+
+There is no React hook for this activity. Call it from a server route or
+server function and return the result as JSON.
+
+`elevenlabsVoiceDesign` is the only `generateVoice()` adapter in this repo.
+xAI, BytePlus, and fal.ai each publish a voice-cloning API and are the
+candidates for the next one, but none is implemented — do not write code
+against them from this file.
+
+OpenAI, Gemini, and Cloudflare have fixed voice catalogs and will not get one.
+
+### 5. Audio Transcription
 
 Adapters: `openaiTranscription` (whisper-1, gpt-4o-transcribe,
 gpt-4o-mini-transcribe, gpt-4o-transcribe-diarize) and `byteplusTranscription`
@@ -486,7 +616,7 @@ const { generate, result, isLoading } = useTranscription({
 // Trigger: generate({ audio: dataUrl, language: 'en' })
 ```
 
-### 5. Video Generation (Experimental -- async polling)
+### 6. Video Generation (Experimental -- async polling)
 
 Video generation uses a jobs/polling architecture. The server creates a job,
 polls for status, and streams updates to the client. Adapters: `openaiVideo`
@@ -662,7 +792,7 @@ const { generate, result, jobId, videoStatus, isLoading } = useGenerateVideo({
 // result (on completion): { url }
 ```
 
-### 6. Cost tracking (fal billable units)
+### 7. Cost tracking (fal billable units)
 
 fal bills media generation by usage-based units, not tokens. Every fal media
 adapter (`falImage`, `falAudio`, `falSpeech`, `falTranscription`, `falVideo`)
@@ -692,7 +822,7 @@ if (result.usage?.billed) {
 For video, the units arrive with the completed result: `getVideoJobStatus()`
 returns `usage` and emits a `video:usage` devtools event when fal reports it.
 
-### 7. Durable persistence (job lifecycle + artifact bytes)
+### 8. Durable persistence (job lifecycle + artifact bytes)
 
 To make generations survive a server restart and be re-served later, add
 `withGenerationPersistence` from `@tanstack/ai-persistence` as generation
@@ -1014,7 +1144,11 @@ generateAudio({
 
 ### g. MEDIUM: Gemini TTS multi-speaker with 0 or 3+ speakers
 
-`multiSpeakerVoiceConfig.speakerVoiceConfigs` is validated to be length 1 or 2. Passing an empty array or three+ entries throws at the adapter boundary
+Prefer `turns` for new code: it builds `multiSpeakerVoiceConfig` and the
+labelled prompt for you, and the two-speaker cap is enforced by the activity
+from `capabilities.maxSpeakers`.
+
+The hand-rolled form below still works. `multiSpeakerVoiceConfig.speakerVoiceConfigs` is validated to be length 1 or 2. Passing an empty array or three+ entries throws at the adapter boundary
 (not at Gemini's API) with a clear error. Don't try to work around it with
 `as any`.
 
@@ -1048,7 +1182,7 @@ generateSpeech({
 
 Not every model accepts image-conditioned prompts. The `prompt` type is
 narrowed per model, so passing an image part to a text-only model
-(dall-e-3, Imagen, grok-2-image) is a **compile-time error**; adapters
+(dall-e-3, Imagen) is a **compile-time error**; adapters
 also throw a clear runtime error as a backstop, so users learn at call
 time rather than getting silently wrong output.
 

@@ -19,7 +19,9 @@
  * a SKIPPED case, never as a pass. Silent gaps are not allowed: a case that did
  * not run must never be indistinguishable from one that did. A chat-only
  * adapter therefore passes `skip: ['generationRuns', 'artifacts', 'blobs']`,
- * and a generation-only one skips the four state stores.
+ * and a generation-only one skips the four state stores. `listByParentRun` is
+ * the exception. Subagent support is opt-in, its cases skip on their own, and
+ * a `'runs.listByParentRun'` entry is accepted but has no effect.
  *
  * NOT COVERED HERE: the four durable-run fields on `RunRecord` (`sandboxKey`,
  * `detachedSince`, `cancelRequested`, `driverEpoch`). They exist for durable
@@ -52,7 +54,10 @@ type MakePersistence = () => Promise<AIPersistence> | AIPersistence
  * policy in `../types.ts`. It was optional for one release cycle and silently
  * disabled reconnect on every backend that had not caught up.
  */
-type OptionalRunStoreMethod = 'listByThread' | 'listReclaimable'
+type OptionalRunStoreMethod =
+  | 'listByThread'
+  | 'listByParentRun'
+  | 'listReclaimable'
 
 /** Dotted `store.method` key a backend passes to declare an omitted method. */
 export type PersistenceConformanceMethodKey = `runs.${OptionalRunStoreMethod}`
@@ -105,6 +110,9 @@ export interface PersistenceConformanceOptions {
    * OPTIONAL store methods this backend intentionally does not implement, as
    * `'runs.listByThread'` and friends. A method that is absent and NOT listed
    * here fails the suite; a listed one is reported as a skipped case.
+   * `listByParentRun` is the exception. Subagent support is opt-in, its cases
+   * skip on their own, and a `'runs.listByParentRun'` entry is accepted but
+   * has no effect.
    */
   skipMethods?: Array<PersistenceConformanceMethodKey>
 }
@@ -168,6 +176,15 @@ export function runPersistenceConformance(
         `AIPersistence conformance: optional method '${key}' is not implemented. ` +
           `Implement it, or pass { skipMethods: ['${key}'] } if the omission is intentional.`,
       )
+    }
+
+    // Subagent support is opt-in. A store without `listByParentRun` skips the
+    // subagent checks (vitest reports them as skipped) and needs no
+    // `skipMethods` entry.
+    function supportsSubagents(
+      runs: RunStore,
+    ): runs is RunStore & Required<Pick<RunStore, 'listByParentRun'>> {
+      return typeof runs.listByParentRun === 'function'
     }
 
     describe('messages', () => {
@@ -368,6 +385,66 @@ export function runPersistenceConformance(
         })
       })
 
+      // `parentRunId`, `subagentRunId`, and `name` travel with createOrResume.
+      // A parent row omits them. A child row keeps the values from the first
+      // insert. A later createOrResume for that runId must not overwrite them.
+      // Only a store with subagent support (`listByParentRun`) must keep them.
+      it('round-trips subagent link fields and ignores them on resume', async (ctx) => {
+        const store = resolveStore('runs')
+        if (!store) return ctx.skip('store not provided')
+        if (!supportsSubagents(store)) {
+          return ctx.skip('runs.listByParentRun not implemented')
+        }
+
+        const parent = await store.createOrResume({
+          runId: 'lp-parent',
+          threadId: 'lp-thread',
+          startedAt: 1,
+        })
+        expect(parent.parentRunId).toBeUndefined()
+        expect(parent.subagentRunId).toBeUndefined()
+        expect(parent.name).toBeUndefined()
+
+        const child = await store.createOrResume({
+          runId: 'lp-child',
+          threadId: 'subagent:lp-child',
+          startedAt: 2,
+          parentRunId: 'lp-parent',
+          subagentRunId: 'lp-sub',
+          name: 'researcher',
+        })
+        expect(child).toMatchObject({
+          runId: 'lp-child',
+          threadId: 'subagent:lp-child',
+          startedAt: 2,
+          parentRunId: 'lp-parent',
+          subagentRunId: 'lp-sub',
+          name: 'researcher',
+        })
+
+        const resumed = await store.createOrResume({
+          runId: 'lp-child',
+          threadId: 'lp-other-thread',
+          startedAt: 99,
+          parentRunId: 'lp-other-parent',
+          subagentRunId: 'lp-other-sub',
+          name: 'writer',
+        })
+        expect(resumed).toMatchObject({
+          runId: 'lp-child',
+          threadId: 'subagent:lp-child',
+          startedAt: 2,
+          parentRunId: 'lp-parent',
+          subagentRunId: 'lp-sub',
+          name: 'researcher',
+        })
+        expect(await store.get('lp-child')).toMatchObject({
+          parentRunId: 'lp-parent',
+          subagentRunId: 'lp-sub',
+          name: 'researcher',
+        })
+      })
+
       it('findActiveRun returns the most recent running run for a thread', async (ctx) => {
         const store = resolveStore('runs')
         if (!store) return ctx.skip('store not provided')
@@ -441,6 +518,52 @@ export function runPersistenceConformance(
         })
         const listed = await runs.listByThread('lt')
         expect(listed.map((r) => r.runId)).toEqual(['lt-a', 'lt-b'])
+      })
+
+      // `listByParentRun` is optional and is skipped when absent. A store that
+      // has it returns only that parent's children, oldest `startedAt` first,
+      // and [] for an unknown parent.
+      it('lists child runs by parent when supported', async (ctx) => {
+        const runs = resolveStore('runs')
+        if (!runs) return ctx.skip('store not provided')
+        if (!supportsSubagents(runs)) {
+          return ctx.skip('runs.listByParentRun not implemented')
+        }
+
+        await runs.createOrResume({
+          runId: 'lbp-parent',
+          threadId: 'lbp-thread',
+          startedAt: 1,
+        })
+        await runs.createOrResume({
+          runId: 'lbp-b',
+          threadId: 'subagent:lbp-b',
+          startedAt: 20,
+          parentRunId: 'lbp-parent',
+          subagentRunId: 'lbp-sub-b',
+          name: 'seo',
+        })
+        await runs.createOrResume({
+          runId: 'lbp-a',
+          threadId: 'subagent:lbp-a',
+          startedAt: 10,
+          parentRunId: 'lbp-parent',
+          subagentRunId: 'lbp-sub-a',
+          name: 'researcher',
+        })
+        await runs.createOrResume({
+          runId: 'lbp-other',
+          threadId: 'subagent:lbp-other',
+          startedAt: 5,
+          parentRunId: 'lbp-elsewhere',
+          subagentRunId: 'lbp-sub-other',
+          name: 'writer',
+        })
+
+        const listed = await runs.listByParentRun('lbp-parent')
+        expect(listed.map((run) => run.runId)).toEqual(['lbp-a', 'lbp-b'])
+        expect(listed.map((run) => run.name)).toEqual(['researcher', 'seo'])
+        expect(await runs.listByParentRun('lbp-missing')).toEqual([])
       })
 
       // `listReclaimable` is optional on the RunStore contract; a declared

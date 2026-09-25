@@ -6,6 +6,11 @@ This directory contains comprehensive examples demonstrating TanStack AI across 
 
 Choose an example based on your use case:
 
+- **Want the smallest React + Start chat?** → [Basic Chat](#basic-chat)
+- **Want an image from a prompt?** → [Generate Image](#generate-image)
+- **Want a table that fills as JSON streams?** → [Streaming Structured Table](#streaming-structured-table)
+- **Want typed ticket routing?** → [Evaluate](#evaluate)
+- **Want a blog desk with three agents?** → [Subagents](#subagents)
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
@@ -13,6 +18,114 @@ Choose an example based on your use case:
 - **Polyglot AG-UI backends (Go/Rust/PHP/Zig/Bash/Python)?** → [AG-UI Polyglot Echo (ag-ui)](#ag-ui-polyglot-echo-ag-ui)
 
 ## TypeScript Examples
+
+### Basic Chat
+
+A slim TanStack Start chat. One provider (OpenRouter). You paste your own key.
+
+**Path:** `examples/react/basic-chat`
+
+**Getting Started:**
+
+```bash
+pnpm --filter basic-chat dev
+```
+
+Open http://localhost:3100. Paste an OpenRouter key. Send a message.
+
+📖 [Full Documentation](react/basic-chat/README.md)
+
+---
+
+### Generate Image
+
+A slim TanStack Start image app. One provider (OpenRouter). You paste your own key.
+
+**Path:** `examples/react/generate-image`
+
+**Getting Started:**
+
+```bash
+pnpm --filter generate-image dev
+```
+
+Open http://localhost:3100. Paste an OpenRouter key. Type a prompt. Click Generate.
+
+📖 [Full Documentation](react/generate-image/README.md)
+
+---
+
+### Streaming Structured Table
+
+A slim TanStack Start app. One schema. `chat({ outputSchema, stream: true })` fills a table as JSON streams in.
+
+**Path:** `examples/react/streaming-structured-table`
+
+**Getting Started:**
+
+```bash
+pnpm --filter streaming-structured-table dev
+```
+
+Open http://localhost:3100. Paste an OpenRouter key. Send `Compare 6 JavaScript frameworks`.
+
+📖 [Full Documentation](react/streaming-structured-table/README.md)
+
+---
+
+### Subagents
+
+A slim TanStack Start chat. Three named agents: researcher, SEO, and writer. Jev picks the agents for each turn. Research and SEO run together, and the writer runs after them. The UI shows a nested card for each.
+
+**Path:** `examples/react/subagents`
+
+**Getting Started:**
+
+```bash
+pnpm --filter subagents dev
+```
+
+Open http://localhost:3100. Paste an OpenRouter key. Ask for research, SEO titles, or a draft.
+
+📖 [Full Documentation](react/subagents/README.md)
+
+---
+
+### Persisted subagents
+
+The blog desk from the subagents example, with a saved chat. A refresh keeps the messages and the cards. A refresh during a run continues that run.
+
+**Path:** `examples/react/subagents-persisted`
+
+**Getting Started:**
+
+```bash
+pnpm --filter subagents-persisted dev
+```
+
+Open http://localhost:3105. Paste an OpenRouter key. Send a prompt. Then refresh the page.
+
+📖 [Full Documentation](react/subagents-persisted/README.md)
+
+---
+
+### Evaluate
+
+A slim TanStack Start app. Paste a support ticket. Jev answers queue, urgency, and refund.
+
+**Path:** `examples/react/evaluate`
+
+**Getting Started:**
+
+```bash
+pnpm --filter evaluate dev
+```
+
+Open http://localhost:3100. Add a key in `.env`. Pick a provider. Click Submit.
+
+📖 [Full Documentation](react/evaluate/README.md)
+
+---
 
 ### TanStack Chat (ts-react-chat)
 
@@ -131,9 +244,8 @@ pnpm dev
 
 ### World generation (ts-react-media)
 
-The media example has a **World** tab. Paste a Reactor key in the header
-dialog. The relay calls `generateWorld()`. The page connects and can steer
-the scene mid-run.
+The media example has a **World** tab. Pick a Reactor model for a live
+steerable stream, or a Marble model for a finished 3D World Labs world.
 
 ```bash
 cd examples/ts-react-media
@@ -141,7 +253,8 @@ pnpm install
 pnpm dev
 ```
 
-Open the World tab. Paste a Reactor key, or set `REACTOR_API_KEY`.
+Open the World tab. Paste a Reactor key (`REACTOR_API_KEY`) or a World Labs
+key (`WORLDLABS_API_KEY`).
 
 ---
 

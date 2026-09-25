@@ -13,6 +13,7 @@ import type {
 } from '../model-meta'
 import type { LLMGatewayMessageMetadataByModality } from '../message-types'
 import type { LLMGatewayClientConfig } from '../utils/client'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof LLMGatewayChatModelToolCapabilitiesByName
@@ -22,7 +23,8 @@ type ResolveToolCapabilities<TModel extends string> =
 /**
  * Configuration for LLM Gateway text adapter
  */
-export interface LLMGatewayTextConfig extends LLMGatewayClientConfig {}
+export interface LLMGatewayTextConfig
+  extends LLMGatewayClientConfig, OpenAIBaseTextAdapterOptions {}
 
 /**
  * Re-export of the public provider options type
@@ -61,7 +63,12 @@ export class LLMGatewayTextAdapter<
   override readonly name = 'llmgateway' as const
 
   constructor(config: LLMGatewayTextConfig, model: TModel) {
-    super(model, 'llmgateway', new OpenAI(withLLMGatewayDefaults(config)))
+    super(
+      model,
+      'llmgateway',
+      new OpenAI(withLLMGatewayDefaults(config)),
+      config,
+    )
   }
 
   /**

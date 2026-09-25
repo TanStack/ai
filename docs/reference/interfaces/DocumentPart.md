@@ -3,9 +3,13 @@ id: DocumentPart
 title: DocumentPart
 ---
 
-Defined in: [packages/ai/src/types.ts:300](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L300)
+Defined in: [packages/ai/src/types.ts:301](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L301)
 
-Document content part for multimodal messages (e.g., PDFs).
+Document content part for multimodal messages (e.g., PDFs). AG-UI `DocumentPart` with typed metadata.
+
+## Extends
+
+- `DocumentPart`
 
 ## Type Parameters
 
@@ -23,28 +27,12 @@ Provider-specific metadata type (e.g., Anthropic's media_type)
 optional metadata?: TMetadata;
 ```
 
-Defined in: [packages/ai/src/types.ts:305](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L305)
+Defined in: [packages/ai/src/types.ts:303](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L303)
 
 Provider-specific metadata (e.g., media_type for PDFs)
 
-***
-
-### source
+#### Overrides
 
 ```ts
-source: ContentPartSource;
+AGUIDocumentPart.metadata
 ```
-
-Defined in: [packages/ai/src/types.ts:303](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L303)
-
-Source of the document content
-
-***
-
-### type
-
-```ts
-type: "document";
-```
-
-Defined in: [packages/ai/src/types.ts:301](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L301)

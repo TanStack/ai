@@ -82,7 +82,7 @@ export class CloudflareTextAdapter<
   override readonly name = 'cloudflare' as const
 
   constructor(config: CloudflareTextConfig, model: TModel) {
-    super(model, 'cloudflare', createClient(config))
+    super(model, 'cloudflare', createClient(config), config)
   }
 
   /**

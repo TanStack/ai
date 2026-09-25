@@ -39,6 +39,17 @@ export {
 } from './adapters/audio'
 
 // ============================================================================
+// Voice (Voice Design) Adapter
+// ============================================================================
+
+export {
+  ElevenLabsVoiceAdapter,
+  createElevenLabsVoiceDesign,
+  elevenlabsVoiceDesign,
+  type ElevenLabsVoiceProviderOptions,
+} from './adapters/voice'
+
+// ============================================================================
 // Transcription (Speech-to-Text) Adapter
 // ============================================================================
 
@@ -57,6 +68,7 @@ export {
   ELEVENLABS_TTS_MODELS,
   ELEVENLABS_AUDIO_MODELS,
   ELEVENLABS_TRANSCRIPTION_MODELS,
+  ELEVENLABS_VOICE_MODELS,
   isElevenLabsMusicModel,
   isElevenLabsSoundEffectsModel,
   type ElevenLabsTTSModel,
@@ -64,6 +76,7 @@ export {
   type ElevenLabsMusicModel,
   type ElevenLabsSoundEffectsModel,
   type ElevenLabsTranscriptionModel,
+  type ElevenLabsVoiceModel,
   type ElevenLabsOutputFormat,
 } from './model-meta'
 

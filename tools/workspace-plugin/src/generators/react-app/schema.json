@@ -3,7 +3,7 @@
   "$id": "react-app",
   "title": "React App",
   "type": "object",
-  "description": "Create a TanStack Start React chat app under examples/",
+  "description": "Create a TanStack Start React chat app under examples/react/",
   "properties": {
     "name": {
       "type": "string",

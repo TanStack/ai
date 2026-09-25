@@ -3,7 +3,7 @@ id: ThinkingPart
 title: ThinkingPart
 ---
 
-Defined in: [packages/ai/src/types.ts:452](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L452)
+Defined in: [packages/ai/src/types.ts:450](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L450)
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: [packages/ai/src/types.ts:452](https://github.com/TanStack/ai/blob/m
 content: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:454](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L454)
+Defined in: [packages/ai/src/types.ts:452](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L452)
 
 ***
 
@@ -23,7 +23,7 @@ Defined in: [packages/ai/src/types.ts:454](https://github.com/TanStack/ai/blob/m
 optional signature?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:456](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L456)
+Defined in: [packages/ai/src/types.ts:454](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L454)
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: [packages/ai/src/types.ts:456](https://github.com/TanStack/ai/blob/m
 optional stepId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:455](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L455)
+Defined in: [packages/ai/src/types.ts:453](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L453)
 
 ***
 
@@ -43,4 +43,4 @@ Defined in: [packages/ai/src/types.ts:455](https://github.com/TanStack/ai/blob/m
 type: "thinking";
 ```
 
-Defined in: [packages/ai/src/types.ts:453](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L453)
+Defined in: [packages/ai/src/types.ts:451](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L451)

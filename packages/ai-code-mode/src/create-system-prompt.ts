@@ -46,7 +46,7 @@ export function createCodeModeSystemPrompt(config: CodeModeToolConfig): string {
 
 ### Discoverable APIs
 
-These additional functions are available but not yet documented. Before calling \`external_<name>\` for any of them inside \`execute_typescript\`, call the \`discover_tools\` tool with their names to get full TypeScript signatures:
+These additional functions are available but not yet documented. Before you write \`execute_typescript\` code that calls \`external_<name>\` for any of them, call the \`discover_tools\` tool with their names to get full TypeScript signatures. \`discover_tools\` is a separate tool call. It is not available inside \`execute_typescript\`:
 
 ${lazyTools
   .map(

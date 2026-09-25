@@ -1,9 +1,16 @@
-import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
+import {
+  isAssistantSegmentOf,
+  isProviderExecutedToolCall,
+} from '../../utilities/provider-executed'
 import {
   isContentPartArray,
   normalizeToolResult,
 } from '../../utilities/tool-result'
 import { tanstackMetadata } from '../../utilities/merge-metadata'
+import {
+  splitSubagentWire,
+  subagentWireText,
+} from '../../utilities/subagent-wire'
 import type { Message as AGUIMessage } from '@ag-ui/core'
 import type {
   ContentPart,
@@ -14,6 +21,7 @@ import type {
   TextPart,
   ToolCall,
   ToolCallPart,
+  SubagentPart,
   UIMessage,
   UIResourcePart,
 } from '../../types'
@@ -124,6 +132,37 @@ function getTextContent(
     .join('')
 }
 
+function historyTextFromParts(parts: ReadonlyArray<MessagePart>): string {
+  const blocks: Array<string> = []
+  for (const part of parts) {
+    if (part.type === 'text' && part.content !== '') {
+      blocks.push(part.content)
+    } else if (
+      part.type === 'structured-output' &&
+      part.status === 'complete' &&
+      part.raw !== ''
+    ) {
+      blocks.push(part.raw)
+    } else if (part.type === 'subagent') {
+      const nested = subagentHistoryText(part)
+      if (nested !== '') blocks.push(nested)
+    }
+  }
+  return blocks.join('\n\n')
+}
+
+/** Child text for a later turn. The name stays so the next agent can tell the notes apart. */
+export function subagentHistoryText(part: SubagentPart): string {
+  const blocks: Array<string> = []
+  for (const message of part.subagent.messages) {
+    if (!('parts' in message)) continue
+    const text = historyTextFromParts(message.parts).trim()
+    if (text !== '') blocks.push(text)
+  }
+  if (blocks.length === 0) return ''
+  return `${part.subagent.name}:\n${blocks.join('\n\n')}`
+}
+
 function toolResultContent(
   content: string | null | undefined | Array<ContentPart>,
 ): string | Array<ContentPart> {
@@ -134,6 +173,57 @@ function toolResultContent(
  * Convert UIMessages or ModelMessages to ModelMessages
  */
 export function convertMessagesToModelMessages(
+  messages: Array<UIMessage | ModelMessage>,
+): Array<ModelMessage> {
+  const { top, groups } = splitSubagentWire(messages)
+  if (groups.length === 0) return convertOwnMessages(messages)
+
+  // Child wire messages leave the parent history. The parent model reads each
+  // child's text on the assistant message before it, the same as for a UI
+  // subagent part. A child that a tool call started reports through the tool
+  // result instead.
+  const blocks = new Map<string | undefined, Array<string>>()
+  for (const group of groups) {
+    if (group.info.parentToolCallId !== undefined) continue
+    const text = subagentWireText(group.messages)
+    if (text === '') continue
+    const host = top
+      .slice(0, group.hostIndex + 1)
+      .findLast((message) => message.role === 'assistant')
+    const hostId = host && 'id' in host ? host.id : undefined
+    blocks.set(hostId, [
+      ...(blocks.get(hostId) ?? []),
+      `${group.info.name}:\n${text}`,
+    ])
+  }
+  const converted = convertOwnMessages(top)
+  for (const [hostId, texts] of blocks) {
+    const block = texts.join('\n\n')
+    const index =
+      hostId === undefined
+        ? -1
+        : converted.findIndex(
+            (message) => message.role === 'assistant' && message.id === hostId,
+          )
+    const host = converted[index]
+    if (!host) {
+      converted.push({ role: 'assistant', content: block })
+      continue
+    }
+    converted[index] = {
+      ...host,
+      content:
+        typeof host.content === 'string' && host.content !== ''
+          ? `${host.content}\n\n${block}`
+          : Array.isArray(host.content)
+            ? [...host.content, { type: 'text', content: block }]
+            : block,
+    }
+  }
+  return converted
+}
+
+function convertOwnMessages(
   messages: Array<UIMessage | ModelMessage>,
 ): Array<ModelMessage> {
   // Pre-pass: collect toolCallIds already represented in anchor UIMessage parts.
@@ -455,6 +545,7 @@ function assistantMetadata(
   const previous = tanstackMetadata(uiMessage)
   const tanstack: TanStackMessageMetadata = {}
   if (previous?.model !== undefined) tanstack.model = previous.model
+  if (previous?.runId !== undefined) tanstack.runId = previous.runId
   if (previous?.signature !== undefined) tanstack.signature = previous.signature
   if (fromParts.length > 0) tanstack.uiResources = fromParts
   const result = { ...current }
@@ -689,6 +780,22 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         // MCP Apps widget — rendered client-side only. It must never enter
         // model input, so it is intentionally dropped from the model message.
         break
+
+      case 'subagent': {
+        // A child that a tool call started reports through the tool result.
+        const block =
+          part.subagent.parentToolCallId === undefined
+            ? subagentHistoryText(part)
+            : ''
+        if (block !== '') {
+          const prefix = current.contentParts.length > 0 ? '\n\n' : ''
+          current.contentParts.push({
+            type: 'text',
+            content: `${prefix}${block}`,
+          })
+        }
+        break
+      }
 
       default:
         break
@@ -947,7 +1054,9 @@ export function aguiSnapshotMessageToUIMessage(
         modelMessageToUIMessage(
           {
             role: 'tool',
-            content: message.content,
+            content: isContentPartArray(message.content)
+              ? message.content
+              : aguiContentToContentParts(message.content),
             toolCallId: message.toolCallId,
             ...('name' in message && typeof message.name === 'string'
               ? { name: message.name }
@@ -1071,25 +1180,29 @@ function snapshotStructuredOutput(
  * AG-UI user content is either a plain string or a multimodal array whose text
  * entries use `{ type: 'text', text }` (vs. TanStack's `{ type: 'text', content }`).
  * Text entries are rewritten to the TanStack shape; image/audio/video/document
- * entries already match `ContentPart` and pass through. `binary` entries have no
- * TanStack equivalent and are dropped.
+ * entries already match `ContentPart` and pass through.
  */
 function aguiUserContentToParts(
   content: Extract<AGUIMessage, { role: 'user' }>['content'],
 ): Array<MessagePart> {
-  if (typeof content === 'string') {
-    return content ? [{ type: 'text', content }] : []
-  }
+  const converted = aguiContentToContentParts(content)
+  return typeof converted === 'string'
+    ? converted
+      ? [{ type: 'text', content: converted }]
+      : []
+    : converted
+}
 
-  const parts: Array<MessagePart> = []
-  for (const part of content) {
-    if (part.type === 'text') {
-      parts.push({ type: 'text', content: part.text })
-    } else if (part.type !== 'binary') {
-      parts.push(part)
-    }
-  }
-  return parts
+/** Convert wire content parts. Data, url, and file sources pass through. */
+export function aguiContentToContentParts(
+  content: Extract<AGUIMessage, { role: 'user' }>['content'],
+): string | Array<ContentPart> {
+  if (typeof content === 'string') return content
+  return content.map((part) => {
+    if (part.type !== 'text') return part
+    const { text, ...rest } = part
+    return { ...rest, content: text }
+  })
 }
 
 /**
@@ -1149,6 +1262,14 @@ export function modelMessagesToUIMessages(
       // Regular message. Preserve a persisted stable id so a hydrated message
       // keeps the same identity as its live stream (enables in-place resume).
       const uiMessage = modelMessageToUIMessage(msg, msg.id)
+      if (
+        msg.role === 'assistant' &&
+        currentAssistantMessage &&
+        isAssistantSegmentOf(msg.id, currentAssistantMessage.id)
+      ) {
+        currentAssistantMessage.parts.push(...uiMessage.parts)
+        continue
+      }
       uiMessages.push(uiMessage)
 
       // Track assistant messages for potential tool result merging

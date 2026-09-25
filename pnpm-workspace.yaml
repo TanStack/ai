@@ -149,6 +149,7 @@ packages:
   - 'packages/*'
   - 'packages/ai-code-mode/models-eval'
   - 'examples/*'
+  - 'examples/react/*'
   - 'testing/*'
   - 'codemods'
   - 'tools/*'
