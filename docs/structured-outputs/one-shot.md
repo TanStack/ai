@@ -189,6 +189,24 @@ try {
 
 Provider-level errors (auth failure, rate limit, network) throw the same way — wrap the call in `try` / `catch` to handle both.
 
+### Read the provider's error
+
+When the provider rejects the request, the message can be short, for example `Provider returned error`. The provider's full error body is on `error.cause`:
+
+```typescript
+try {
+  const result = await chat({
+    adapter: openaiText("gpt-6-astra"),
+    messages: [{ role: "user", content: "..." }],
+    outputSchema: MySchema,
+  });
+} catch (error) {
+  if (error instanceof Error) {
+    console.error(error.message, error.cause);
+  }
+}
+```
+
 ## Consuming the result on the client
 
 The `await chat({ outputSchema })` call above returns a `Promise<T>` — ideal for a server route, a script, or a CLI. There are two ways that typed object reaches a browser.
