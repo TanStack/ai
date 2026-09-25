@@ -38,13 +38,39 @@ import {
   tanstackMetadata,
   withTanstackMetadata,
 } from '../../utilities/merge-metadata'
+import { subagentHostMessageId } from '../../utilities/subagent-wire'
+import { withDurabilityBatchHint } from '../../utilities/durability-batch'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
 import { restorePublicUsage } from '../../utilities/restore-inbound-chunk'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
-import { normalizeToolResult } from '../../utilities/tool-result'
+import {
+  normalizeToolResult,
+  parseToolOutput,
+  toolResultErrorText,
+} from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
+import { assertMessagesFileSourceSupport } from '../../utilities/content-source'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
+import type { DefinedAgent } from './agents/define-agent'
+import {
+  collectNamedText,
+  createSubagentSink,
+  createSyntheticSubagentTools,
+  normalizeRouterPick,
+  rebindInterrupts,
+  spawnNamedAgents,
+  subagentCallMessages,
+  withChildUsage,
+} from './agents/spawn'
+import type {
+  SpawnEntry,
+  SubagentSink,
+  SubagentStep,
+  SubagentStepsPlan,
+  SubagentsBag,
+} from './agents/spawn'
+import { SUBAGENT_PLAN_KEY, readSubagentTurn } from './agents/turn'
 import {
   MiddlewareAbortError,
   ToolCallManager,
@@ -63,10 +89,12 @@ import {
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { isCancelRequestedReason } from './cancel'
 import {
+  appendUiResourceToModelMessages,
   convertMessagesToModelMessages,
   generateMessageId,
   modelMessagesToUIMessages,
   safeJsonStringify,
+  uiResourcePartFromCustomValue,
 } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
 import { getRunDetached } from './middleware/run-store'
@@ -99,6 +127,7 @@ import type {
   ChatStream,
   ConstrainedModelMessage,
   CustomEvent,
+  EmitCustomEventOptions,
   InferSchemaType,
   Interrupt,
   JSONSchema,
@@ -146,6 +175,12 @@ import type {
 } from './runtime-context-types'
 import type { ChatMCPOptions } from './mcp/types'
 
+/** One entry of the per-iteration arrival order (see `turnParts`). */
+type TurnPart =
+  | { type: 'thinking'; index: number }
+  | { type: 'text'; content: string }
+  | { type: 'call'; id: string; providerExecuted: boolean }
+
 // ===========================
 // Activity Kind
 // ===========================
@@ -158,6 +193,9 @@ type RuntimeToolWithApproval = AnyRuntimeTool & {
   approvalSchema?: ApprovalSchemaConfig
 }
 const interruptBindingMetadataKey = INTERRUPT_BINDING_METADATA_KEY
+
+/** Resume entries a subagent tool call owns. The parent run skips them. */
+const CHILD_RESUME_IDS = Symbol('tanstack.ai.childResumeIds')
 
 interface StructuralInterruptFailure {
   error: Error
@@ -391,8 +429,9 @@ type TextActivityOptionsWithContext<
     [],
   TContext = unknown,
   TMiddleware extends Array<unknown> | undefined = undefined,
+  TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
 > = Omit<
-  TextActivityOptions<TAdapter, TSchema, TStream, any>,
+  TextActivityOptions<TAdapter, TSchema, TStream, any, TAgents>,
   'tools' | 'middleware' | 'context' | 'interrupts'
 > & {
   tools?: TTools
@@ -418,6 +457,7 @@ export interface TextActivityOptions<
   TSchema extends SchemaInput | undefined,
   TStream extends boolean,
   TContext = unknown,
+  TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
 > {
   /** The text adapter to use (created by a provider function like openaiText('gpt-5.5')) */
   adapter: TAdapter
@@ -495,6 +535,8 @@ export interface TextActivityOptions<
   runId?: TextOptions['runId']
   /** Parent run ID for AG-UI protocol nested run correlation. */
   parentRunId?: TextOptions['parentRunId']
+  /** Subagent run id when this chat runs as a child. See `defineAgent`. */
+  subagentRunId?: TextOptions['subagentRunId']
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: TextOptions['state']
   /**
@@ -502,6 +544,12 @@ export interface TextActivityOptions<
    * before accepting new input on a thread with pending interrupts.
    */
   resume?: TextOptions['resume']
+  /**
+   * Named child agents. When `router` is set, the library spawns that agent
+   * directly. When `router` is omitted, the main model gets one synthetic
+   * server tool per agent and picks the child.
+   */
+  subagents?: SubagentsBag<TAgents>
   /**
    * Optional Standard Schema for structured output.
    * When provided, the activity will:
@@ -623,12 +671,12 @@ export function createChatOptions<
     TStream,
     InferredContext<TTools, TMiddleware>
   >,
-  'tools' | 'middleware' | 'interrupts'
+  'tools' | 'middleware' | 'interrupts' | 'context'
 > & {
   tools?: TTools
   interrupts?: TInterrupts
   middleware?: ExactMiddlewareOption<TTools, TContext, TInterrupts, TMiddleware>
-} {
+} & RuntimeContextOption<TTools, TMiddleware, TContext> {
   return options
 }
 
@@ -805,6 +853,15 @@ class TextEngine<
   private accumulatedContent = ''
   private accumulatedThinking: Array<{ content: string; signature?: string }> =
     []
+  /**
+   * Arrival order of this iteration's thinking steps, text and tool calls.
+   * A ModelMessage keeps `thinking` apart from `content`/`toolCalls`, so a
+   * provider turn that thinks between provider-executed tools would otherwise
+   * be recorded as "all thinking, then text, then tools" and the provider
+   * rejects the replay (signed thinking must keep its position). `null` once
+   * the order could no longer be tracked (callers fall back to one message).
+   */
+  private turnParts: Array<TurnPart> | null = []
   private currentThinkingContent = ''
   private currentThinkingSignature = ''
   private eventOptions?: Record<string, unknown> | undefined
@@ -838,6 +895,7 @@ class TextEngine<
   private readonly threadId: string
   private readonly runIdOverride?: string
   private readonly parentRunIdOverride?: string
+  private readonly subagentRunIdOverride?: string
 
   // Middleware support
   private readonly middlewareRunner: MiddlewareRunner<
@@ -968,6 +1026,7 @@ class TextEngine<
       this.createId('thread')
     this.runIdOverride = config.params.runId
     this.parentRunIdOverride = config.params.parentRunId
+    this.subagentRunIdOverride = config.params.subagentRunId
 
     // Initialize middleware — devtools first. Spec stripping for the AG-UI
     // wire happens in toServerSentEventsStream, so in-process chat()
@@ -986,6 +1045,7 @@ class TextEngine<
       streamId: this.streamId,
       runId: this.runIdOverride ?? this.requestId,
       parentRunId: this.parentRunIdOverride,
+      subagentRunId: this.subagentRunIdOverride,
       threadId: this.threadId,
       // Legacy alias kept on the ctx so middleware that reads
       // `ctx.conversationId` keeps working. Always equals `threadId`.
@@ -998,9 +1058,9 @@ class TextEngine<
         this.abortReason = reason
         this.middlewareAbortController?.abort(reason)
       },
-      emitCustomEvent: (name, value) => {
+      emitCustomEvent: (name, value, options) => {
         this.middlewareCustomQueue.push(
-          this.createCustomEventChunk(name, value),
+          this.createCustomEventChunk(name, value, options),
         )
         const waiters = this.middlewareCustomWaiters
         this.middlewareCustomWaiters = []
@@ -1245,7 +1305,7 @@ class TextEngine<
                 ...this.deferredModelRunFinishedChunks,
               )
               this.deferredModelRunFinishedChunks = []
-            } else {
+            } else if (!this.finalStructuredOutput?.nativeCombined) {
               yield* this.flushDeferredModelRunFinishedChunks()
             }
           } else {
@@ -1279,6 +1339,9 @@ class TextEngine<
       ) {
         if (this.finalStructuredOutput.nativeCombined === true) {
           yield* this.harvestCombinedStructuredOutput()
+          if (!this.finalizationError && !this.isCancelled()) {
+            yield* this.flushDeferredModelRunFinishedChunks()
+          }
         } else {
           yield* this.runStructuredFinalization()
         }
@@ -1442,6 +1505,7 @@ class TextEngine<
     this.streamIdentityCaptured = false
     this.accumulatedContent = ''
     this.accumulatedThinking = []
+    this.turnParts = []
     this.currentThinkingContent = ''
     this.currentThinkingSignature = ''
 
@@ -1508,6 +1572,13 @@ class TextEngine<
         typeof resolution === 'boolean' ? resolution : resolution.approved,
       )
     }
+
+    // Fail closed on `{ type: 'file' }` sources for adapters that haven't
+    // declared support — an adapter written before the file arm existed would
+    // otherwise fall through to its URL/data branch and silently mis-map the
+    // reference. Checked per model call so tool results added mid-loop are
+    // covered too.
+    assertMessagesFileSourceSupport(this.adapter, this.messages)
 
     for await (const raw of this.adapter.chatStream({
       model: this.params.model,
@@ -1741,12 +1812,27 @@ class TextEngine<
     // Adapters still emit leftover cumulative `content` on RAW yields.
     // Alignment suppresses already-delivered deltas, so this snapshot is
     // what a takeover saves as the full assistant text.
+    const before = this.accumulatedContent
     if (typeof extra.content === 'string' && extra.content !== '') {
       this.accumulatedContent = extra.content
     } else {
       this.accumulatedContent += chunk.delta
     }
     this.middlewareCtx.accumulatedContent = this.accumulatedContent
+    if (!this.turnParts) return
+    if (!this.accumulatedContent.startsWith(before)) {
+      // A cumulative `content` snapshot rewrote earlier text; order unknown.
+      this.turnParts = null
+      return
+    }
+    const delta = this.accumulatedContent.slice(before.length)
+    if (delta === '') return
+    const last = this.turnParts[this.turnParts.length - 1]
+    if (last && last.type === 'text') {
+      last.content += delta
+    } else {
+      this.turnParts.push({ type: 'text', content: delta })
+    }
   }
 
   private captureStreamMessageIdentity(messageId: string): void {
@@ -1771,6 +1857,20 @@ class TextEngine<
       this.captureStreamMessageIdentity(chunk.parentMessageId)
     }
     this.toolCallManager.addToolCallStartEvent(chunk)
+    if (
+      this.turnParts &&
+      !this.turnParts.some(
+        (part) => part.type === 'call' && part.id === chunk.toolCallId,
+      )
+    ) {
+      this.turnParts.push({
+        type: 'call',
+        id: chunk.toolCallId,
+        providerExecuted: isProviderExecutedToolCall({
+          metadata: chunk.metadata,
+        }),
+      })
+    }
     const metadata = chunk.metadata
     const thoughtSignature =
       metadata != null &&
@@ -1870,15 +1970,45 @@ class TextEngine<
   }
 
   private finalizeCurrentThinkingStep(): void {
-    if (this.currentThinkingContent) {
+    if (this.currentThinkingContent || this.currentThinkingSignature) {
       this.accumulatedThinking.push({
         content: this.currentThinkingContent,
         ...(this.currentThinkingSignature && {
           signature: this.currentThinkingSignature,
         }),
       })
+      if (this.turnParts) {
+        const placeholder = [...this.turnParts]
+          .reverse()
+          .find(
+            (part): part is Extract<TurnPart, { type: 'thinking' }> =>
+              part.type === 'thinking' && part.index === -1,
+          )
+        const index = this.accumulatedThinking.length - 1
+        if (placeholder) {
+          placeholder.index = index
+        } else {
+          this.turnParts.push({ type: 'thinking', index })
+        }
+      }
       this.currentThinkingContent = ''
       this.currentThinkingSignature = ''
+    }
+  }
+
+  /**
+   * Record where the current thinking step sits among this turn's parts. A
+   * step is finalized only when the next step starts (or the turn ends), by
+   * which time later tool calls have already arrived, so the position has to
+   * be noted when the step's first content or signature shows up.
+   */
+  private noteThinkingStepPosition(): void {
+    if (
+      this.turnParts &&
+      this.currentThinkingContent === '' &&
+      this.currentThinkingSignature === ''
+    ) {
+      this.turnParts.push({ type: 'thinking', index: -1 })
     }
   }
 
@@ -1888,6 +2018,7 @@ class TextEngine<
 
   private handleStepFinishedEvent(chunk: AdapterYieldChunk): void {
     if (typeof chunk.signature === 'string' && chunk.signature !== '') {
+      this.noteThinkingStepPosition()
       this.currentThinkingSignature = chunk.signature
     }
   }
@@ -1895,6 +2026,7 @@ class TextEngine<
   private handleReasoningMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
   ): void {
+    this.noteThinkingStepPosition()
     this.currentThinkingContent += chunk.delta
   }
 
@@ -1915,6 +2047,7 @@ class TextEngine<
       }
       return
     }
+    this.noteThinkingStepPosition()
     this.currentThinkingSignature = chunk.encryptedValue
   }
 
@@ -2014,7 +2147,8 @@ class TextEngine<
       this.resolveExecutableTools(executablePendingCalls),
       approvals,
       clientToolResults,
-      (eventName, data) => this.createCustomEventChunk(eventName, data),
+      (eventName, data, options) =>
+        this.createCustomEventChunk(eventName, data, options),
       {
         onBeforeToolCall: async (toolCall, tool, args) => {
           this.logger.tools(`phase=before name=${toolCall.function.name}`, {
@@ -2075,7 +2209,8 @@ class TextEngine<
 
     if (
       executionResult.needsApproval.length > 0 ||
-      executionResult.needsClientExecution.length > 0
+      executionResult.needsClientExecution.length > 0 ||
+      executionResult.subagentInterrupts.length > 0
     ) {
       this.discardDeferredToolCallRunFinishedChunks()
 
@@ -2092,6 +2227,8 @@ class TextEngine<
         finishEvent,
         executionResult.needsApproval,
         executionResult.needsClientExecution,
+        [],
+        executionResult.subagentInterrupts,
       )
       this.setToolPhase(emitted ? 'wait' : 'stop')
       return emitted ? 'wait' : 'stop'
@@ -2194,7 +2331,8 @@ class TextEngine<
       this.resolveExecutableTools(executableToolCalls),
       approvals,
       clientToolResults,
-      (eventName, data) => this.createCustomEventChunk(eventName, data),
+      (eventName, data, options) =>
+        this.createCustomEventChunk(eventName, data, options),
       {
         onBeforeToolCall: async (toolCall, tool, args) => {
           this.logger.tools(`phase=before name=${toolCall.function.name}`, {
@@ -2283,7 +2421,8 @@ class TextEngine<
 
     if (
       executionResult.needsApproval.length > 0 ||
-      executionResult.needsClientExecution.length > 0
+      executionResult.needsClientExecution.length > 0 ||
+      executionResult.subagentInterrupts.length > 0
     ) {
       if (allResults.length > 0) {
         for (const chunk of afterToolBoundaryChunks) {
@@ -2295,6 +2434,8 @@ class TextEngine<
         finishEvent,
         executionResult.needsApproval,
         executionResult.needsClientExecution,
+        [],
+        executionResult.subagentInterrupts,
       )
       this.setToolPhase(emitted ? 'wait' : 'stop')
       return
@@ -2392,21 +2533,110 @@ class TextEngine<
     )
   }
 
+  /**
+   * Split this iteration into assistant ModelMessages that keep the provider's
+   * block order: a new segment starts at every thinking step that follows a
+   * provider-executed tool call (the rule buildAssistantMessages applies to
+   * UIMessages). Segments after the first get `${id}-segment-${n}` ids.
+   * Returns null when no split is needed or the order could not be tracked,
+   * so callers fall back to the single-message shape.
+   */
+  private buildOrderedAssistantSegments(
+    toolCalls: ReadonlyArray<ToolCall>,
+    id: string | undefined,
+    createdAt: Date | undefined,
+  ): Array<ModelMessage> | null {
+    const parts = this.turnParts
+    if (!parts) return null
+    const providerCallIds = new Set(
+      parts.flatMap((part) =>
+        part.type === 'call' && part.providerExecuted ? [part.id] : [],
+      ),
+    )
+    type Segment = {
+      thinking: Array<{ content: string; signature?: string }>
+      text: string
+      callIds: Array<string>
+    }
+    let current: Segment = { thinking: [], text: '', callIds: [] }
+    const segments: Array<Segment> = [current]
+    let split = false
+    for (const part of parts) {
+      if (part.type === 'thinking') {
+        const thinking = this.accumulatedThinking[part.index]
+        if (!thinking) return null
+        if (current.callIds.some((callId) => providerCallIds.has(callId))) {
+          current = { thinking: [thinking], text: '', callIds: [] }
+          segments.push(current)
+          split = true
+        } else {
+          current.thinking.push(thinking)
+        }
+      } else if (part.type === 'text') {
+        current.text += part.content
+      } else {
+        current.callIds.push(part.id)
+      }
+    }
+    if (!split) return null
+    if (
+      segments.map((segment) => segment.text).join('') !==
+      this.accumulatedContent
+    ) {
+      return null
+    }
+    if (
+      segments.reduce((n, segment) => n + segment.thinking.length, 0) !==
+      this.accumulatedThinking.length
+    ) {
+      return null
+    }
+    const placed = new Set(segments.flatMap((segment) => segment.callIds))
+    for (const toolCall of toolCalls) {
+      if (!placed.has(toolCall.id)) current.callIds.push(toolCall.id)
+    }
+    return segments.map((segment, index) => {
+      const segmentCalls = toolCalls.filter((toolCall) =>
+        segment.callIds.includes(toolCall.id),
+      )
+      return {
+        role: 'assistant',
+        content: segment.text || null,
+        ...(segmentCalls.length > 0 && { toolCalls: segmentCalls }),
+        id:
+          id === undefined
+            ? undefined
+            : index === 0
+              ? id
+              : `${id}-segment-${index}`,
+        createdAt,
+        ...(segment.thinking.length > 0 && { thinking: segment.thinking }),
+      }
+    })
+  }
+
   private addAssistantToolCallMessage(toolCalls: Array<ToolCall>): void {
     this.finalizeCurrentThinkingStep()
 
+    const segments = this.buildOrderedAssistantSegments(
+      toolCalls,
+      this.currentMessageId ?? undefined,
+      this.currentMessageCreatedAt ?? undefined,
+    )
     this.messages = [
       ...this.messages,
-      {
-        role: 'assistant',
-        content: this.accumulatedContent || null,
-        toolCalls,
-        id: this.currentMessageId ?? undefined,
-        createdAt: this.currentMessageCreatedAt ?? undefined,
-        ...(this.accumulatedThinking.length > 0 && {
-          thinking: this.accumulatedThinking,
-        }),
-      },
+      ...(segments ?? [
+        {
+          role: 'assistant' as const,
+          content: this.accumulatedContent || null,
+          toolCalls,
+          id: this.currentMessageId ?? undefined,
+          createdAt: this.currentMessageCreatedAt ?? undefined,
+          ...(this.accumulatedThinking.length > 0 && {
+            thinking: this.accumulatedThinking,
+          }),
+        },
+      ]),
     ]
     this.middlewareCtx.messages = this.messages
   }
@@ -2485,13 +2715,23 @@ class TextEngine<
         !currentTurnAlreadyRecorded &&
         (this.accumulatedContent !== '' || thinking)
       ) {
-        messages.push({
-          role: 'assistant',
-          content: this.accumulatedContent || null,
-          id: this.currentMessageId ?? this.createId('msg'),
-          createdAt: this.currentMessageCreatedAt ?? new Date(),
-          ...(thinking ? { thinking } : {}),
-        })
+        const id = this.currentMessageId ?? this.createId('msg')
+        const createdAt = this.currentMessageCreatedAt ?? new Date()
+        messages.push(
+          ...(this.buildOrderedAssistantSegments(
+            this.toolCallManager.getToolCalls(),
+            id,
+            createdAt,
+          ) ?? [
+            {
+              role: 'assistant',
+              content: this.accumulatedContent || null,
+              id,
+              createdAt,
+              ...(thinking ? { thinking } : {}),
+            },
+          ]),
+        )
       }
       if (structuredOutput) {
         messages.push({
@@ -2613,6 +2853,7 @@ class TextEngine<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     > = [],
     genericInterruptIds: ReadonlyArray<string> = [],
+    childInterrupts: ReadonlyArray<Interrupt> = [],
   ): Array<Interrupt> {
     const interrupts: Array<Interrupt> = []
 
@@ -2730,6 +2971,9 @@ class TextEngine<
       })
     }
 
+    // A subagent tool call raised these. They keep their `subagentRunId`.
+    interrupts.push(...childInterrupts)
+
     const ids = new Set<string>()
     for (const interrupt of interrupts) {
       if (ids.has(interrupt.id)) {
@@ -2751,6 +2995,7 @@ class TextEngine<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     > = [],
     genericInterruptIds?: ReadonlyArray<string>,
+    childInterrupts?: ReadonlyArray<Interrupt>,
   ): StreamChunk {
     return {
       ...finishEvent,
@@ -2762,9 +3007,26 @@ class TextEngine<
           clientRequests,
           genericRequests,
           genericInterruptIds,
+          childInterrupts,
         ),
       },
     }
+  }
+
+  /**
+   * Record a `ui-resource` CUSTOM chunk on the assistant ModelMessage owning
+   * its `toolCallId` so the resource survives later MESSAGES_SNAPSHOT chunks
+   * (e.g. the interrupt snapshot emitted when the run pauses on a client
+   * tool). Mirrors the anchor-preserving approach used for
+   * `toolCallMetadata` (#867). See #1397.
+   */
+  private recordEmittedUiResource(value: unknown): void {
+    const part = uiResourcePartFromCustomValue(value)
+    if (!part) return
+    const next = appendUiResourceToModelMessages(this.messages, part)
+    if (next === this.messages) return
+    this.messages = next
+    this.middlewareCtx.messages = this.messages
   }
 
   private buildMessagesSnapshotChunk(): StreamChunk {
@@ -2895,11 +3157,13 @@ class TextEngine<
     genericRequests: ReadonlyArray<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     > = [],
+    childInterrupts: ReadonlyArray<Interrupt> = [],
   ): AsyncGenerator<StreamChunk, boolean, void> {
     yield* this.emitSyntheticRunStarted(finishEvent)
     const genericInterruptIds = genericRequests.map(() =>
       this.genericInterruptId(),
     )
+    // Binding completion also binds child interrupts to this run.
     const terminal = this.completeEphemeralInterruptBindings(
       this.buildInterruptFinishedChunk(
         finishEvent,
@@ -2907,6 +3171,7 @@ class TextEngine<
         clientRequests,
         genericRequests,
         genericInterruptIds,
+        childInterrupts,
       ),
     )
     let terminalOutputs: Array<StreamChunk>
@@ -3000,6 +3265,8 @@ class TextEngine<
     const approvalRequests: Array<ApprovalRequest> = []
     const clientRequests: Array<ClientToolRequest> = []
     for (const toolCall of toolCalls) {
+      // Provider-executed calls are complete; never surface them as client work.
+      if (isProviderExecutedToolCall(toolCall)) continue
       const tool = this.resolveExecutableTools([toolCall]).find(
         (candidate) => candidate.name === toolCall.function.name,
       ) as RuntimeToolWithApproval | undefined
@@ -3157,6 +3424,9 @@ class TextEngine<
         role: 'tool',
         content,
         toolCallId: result.toolCallId,
+        ...(result.state === 'output-error' && {
+          error: toolResultErrorText(parseToolOutput(wireContent)),
+        }),
       }
 
       if (placeholderIdx >= 0) {
@@ -3491,6 +3761,12 @@ class TextEngine<
 
     // Apply merged config back to engine state
     this.applyMiddlewareConfig(postOnConfig)
+
+    // Schema-only structured output with no tools skips the agent loop, so
+    // `streamModelResponse` never runs this check. Middleware can also
+    // replace `this.messages` above. Fail closed here before the
+    // structured-output adapter call.
+    assertMessagesFileSourceSupport(this.adapter, this.messages)
 
     // Build the StructuredOutputOptions the adapter expects.
     // `this.adapter` is already `TAdapter extends AnyTextAdapter` per the
@@ -3833,7 +4109,16 @@ class TextEngine<
     const yieldChunks = this.finalStructuredOutput.yieldChunks
     const source = this.finalStructuredOutput.source ?? 'text'
 
-    if (source === 'event') {
+    // A final turn cut off at the output cap holds truncated JSON, or none
+    // for a reasoning model that spent the budget. Report the token limit
+    // instead of a parse or missing-result error (#1426).
+    if (this.lastFinishReason === 'length') {
+      this.finalizationError = {
+        message:
+          'The response was cut off because the maximum token limit was reached (finish_reason=length); raise the output token limit.',
+        code: 'max_tokens',
+      }
+    } else if (source === 'event') {
       if (!this.structuredOutputResult) {
         this.finalizationError = {
           message: 'missing structured result',
@@ -3926,12 +4211,8 @@ class TextEngine<
     }
 
     // On success, emit the synthetic `structured-output.complete` carrying
-    // the parsed object + raw text. Pin the messageId so the client-side
-    // handler can target the right UIMessage even when the agent loop's
-    // terminal RUN_FINISHED has already cleared `activeMessageIds` (the
-    // complete event yields AFTER the loop ends, by which point
-    // `getActiveAssistantMessageId()` returns null and would otherwise drop
-    // the event silently).
+    // the parsed object + raw text before the deferred RUN_FINISHED. Pin
+    // the messageId so the client targets the schema-constrained turn.
     if (
       this.structuredOutputResult &&
       !this.finalizationError &&
@@ -3992,9 +4273,25 @@ class TextEngine<
     }
   }
 
+  /** Resume entries this run answers itself. A subagent tool owns the rest. */
+  private ownResume(
+    resume: ChatMiddlewareConfig['resume'],
+  ): ChatMiddlewareConfig['resume'] {
+    const childIds = (
+      this.params as { [CHILD_RESUME_IDS]?: ReadonlySet<string> }
+    )[CHILD_RESUME_IDS]
+    return childIds
+      ? resume?.filter((entry) => !childIds.has(entry.interruptId))
+      : resume
+  }
+
   private async applyEphemeralInterruptResume(
-    config: ChatMiddlewareConfig,
+    middlewareConfig: ChatMiddlewareConfig,
   ): Promise<void> {
+    const config = {
+      ...middlewareConfig,
+      resume: this.ownResume(middlewareConfig.resume),
+    }
     if ((config.resume?.length ?? 0) === 0) {
       return
     }
@@ -4227,7 +4524,7 @@ class TextEngine<
     }> = []
     const ids = new Set<string>()
     const batchIndexes = new Set<number>()
-    for (const resumeItem of this.params.resume ?? []) {
+    for (const resumeItem of this.ownResume(this.params.resume) ?? []) {
       const parsed = readGenericInterruptContinuation(resumeItem.metadata)
       if (parsed.status === 'absent') continue
       if (parsed.status === 'invalid') {
@@ -4432,6 +4729,11 @@ class TextEngine<
           if (this.hasPublicRunStarted) continue
           this.hasPublicRunStarted = true
         }
+        // Persist MCP Apps ui-resource emissions onto the tool-call anchor
+        // message so interrupt MESSAGES_SNAPSHOT chunks keep them (#1397).
+        if (spec.type === EventType.CUSTOM && spec.name === 'ui-resource') {
+          this.recordEmittedUiResource((spec as CustomEvent).value)
+        }
         yield spec
         this.middlewareCtx.chunkIndex++
       }
@@ -4532,11 +4834,12 @@ class TextEngine<
    */
   private async *drainToolCallGenerator(
     generator: AsyncGenerator<
-      CustomEvent,
+      CustomEvent | StreamChunk,
       {
         results: Array<ToolResult>
         needsApproval: Array<ApprovalRequest>
         needsClientExecution: Array<ClientToolRequest>
+        subagentInterrupts: Array<Interrupt>
       },
       void
     >,
@@ -4546,6 +4849,7 @@ class TextEngine<
       results: Array<ToolResult>
       needsApproval: Array<ApprovalRequest>
       needsClientExecution: Array<ClientToolRequest>
+      subagentInterrupts: Array<Interrupt>
     },
     void
   > {
@@ -4561,13 +4865,15 @@ class TextEngine<
   private createCustomEventChunk(
     eventName: string,
     value: Record<string, unknown>,
+    options?: EmitCustomEventOptions,
   ): CustomEvent {
-    return {
+    const chunk: CustomEvent = {
       type: EventType.CUSTOM,
       timestamp: Date.now(),
       name: eventName,
       value,
     }
+    return options?.batch ? withDurabilityBatchHint(chunk) : chunk
   }
 
   private createId(prefix: string): string {
@@ -4655,6 +4961,8 @@ export function chat<
   > = [],
   TContext = unknown,
   const TMiddleware extends Array<unknown> | undefined = undefined,
+  const TAgents extends ReadonlyArray<DefinedAgent> =
+    ReadonlyArray<DefinedAgent>,
 >(
   options: TextActivityOptionsWithContext<
     TAdapter,
@@ -4663,7 +4971,8 @@ export function chat<
     TTools,
     TInterrupts,
     TContext,
-    TMiddleware
+    TMiddleware,
+    TAgents
   >,
 ): TextActivityResult<TSchema, TStream, TTools> {
   validateInterruptDefinitions(options.interrupts)
@@ -4676,6 +4985,12 @@ export function chat<
   }
 
   const { outputSchema, stream } = options
+
+  if (outputSchema && (options.subagents?.agents.length ?? 0) > 0) {
+    throw new Error(
+      'chat() does not support subagents together with outputSchema. Put outputSchema on a child chat() instead.',
+    )
+  }
 
   if (outputSchema && stream === true) {
     return runStreamingStructuredOutput(
@@ -4716,7 +5031,10 @@ type RuntimeTextActivityOptions<
   TAdapter extends AnyTextAdapter,
   TSchema extends SchemaInput | undefined,
   TStream extends boolean,
-> = Omit<TextActivityOptions<TAdapter, TSchema, TStream, any>, 'middleware'> & {
+> = Omit<
+  TextActivityOptions<TAdapter, TSchema, TStream, any, any>,
+  'middleware'
+> & {
   middleware?: Array<AnyChatMiddleware>
 }
 
@@ -4745,6 +5063,7 @@ function toRuntimeTextActivityOptions<
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
   TContext,
   TMiddleware extends Array<unknown> | undefined,
+  TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
 >(
   options: TextActivityOptionsWithContext<
     TAdapter,
@@ -4753,7 +5072,8 @@ function toRuntimeTextActivityOptions<
     TTools,
     TInterrupts,
     TContext,
-    TMiddleware
+    TMiddleware,
+    TAgents
   >,
   overrides: { outputSchema: TOutputSchema; stream: TOutputStream },
 ): RuntimeTextActivityOptions<TAdapter, TOutputSchema, TOutputStream> {
@@ -4840,11 +5160,19 @@ function runStreamingText(
   return stream
 }
 
-async function* streamTextChunks(
+async function* runChatEngine(
   options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, boolean>,
   engineRef: DeliveryEngineRef,
 ): AsyncIterable<StreamChunk> {
-  const { adapter, middleware, context, debug, mcp, ...textOptions } = options
+  const {
+    adapter,
+    middleware,
+    context,
+    debug,
+    mcp,
+    subagents: _subagents,
+    ...textOptions
+  } = options
   const model = adapter.model
   const logger = resolveDebugOption(debug)
 
@@ -4876,6 +5204,410 @@ async function* streamTextChunks(
   } finally {
     await mcpManager.dispose()
   }
+}
+
+async function* streamTextChunks(
+  options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, boolean>,
+  engineRef: DeliveryEngineRef,
+): AsyncIterable<StreamChunk> {
+  const bag = options.subagents
+  const agents = bag?.agents ?? []
+  if (bag && agents.length > 0 && bag.router) {
+    yield* runRoutedSubagents(options, engineRef)
+    return
+  }
+  if (bag && agents.length > 0) {
+    const threadId = options.threadId ?? `thread-${Date.now()}`
+    const runId = options.runId ?? `run-${Date.now()}`
+    const messages = options.messages ?? []
+    // A resume can answer a child's interrupts. Those entries go to the child
+    // tool call. The parent run validates only its own entries.
+    const turn = readSubagentTurn(messages, options.resume)
+    const sink = createSubagentSink()
+    const calls = subagentCallMessages(
+      new Set(bag.agents.map((agent: DefinedAgent) => agent.name)),
+    )
+    const synthetic = createSyntheticSubagentTools(bag, {
+      messages: turn?.before ?? messages,
+      messagesFor: calls.messagesFor,
+      threadId,
+      runId,
+      ...(options.parentRunId !== undefined && {
+        interruptedRunId: options.parentRunId,
+      }),
+      ...(options.abortController && {
+        abortSignal: options.abortController.signal,
+      }),
+      ...(turn && { turn }),
+      sink,
+    })
+    yield* streamWithChildUsage(
+      runChatEngine(
+        {
+          ...options,
+          threadId,
+          runId,
+          ...(turn && {
+            [CHILD_RESUME_IDS]: new Set(
+              turn.children.flatMap((child) =>
+                child.resume.map((entry) => entry.interruptId),
+              ),
+            ),
+          }),
+          tools: [...(options.tools ?? []), ...synthetic],
+          middleware: [...(options.middleware ?? []), calls.middleware],
+        },
+        engineRef,
+      ),
+      sink,
+    )
+    return
+  }
+  yield* runChatEngine(options, engineRef)
+}
+
+/** Add child usage to the next RUN_FINISHED of the parent. */
+async function* streamWithChildUsage(
+  stream: AsyncIterable<StreamChunk>,
+  sink: SubagentSink,
+): AsyncIterable<StreamChunk> {
+  for await (const chunk of stream) {
+    yield chunk.type === EventType.RUN_FINISHED
+      ? withChildUsage(chunk, sink)
+      : chunk
+  }
+}
+
+async function* runRoutedSubagents(
+  options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, boolean>,
+  engineRef: DeliveryEngineRef,
+): AsyncIterable<StreamChunk> {
+  const bag = options.subagents
+  if (!bag?.router) {
+    yield* runChatEngine(options, engineRef)
+    return
+  }
+  const threadId = options.threadId ?? `thread-${Date.now()}`
+  const runId = options.runId ?? `run-${Date.now()}`
+  const messages = options.messages ?? []
+  const turn = readSubagentTurn(messages, options.resume)
+  if (!turn && (options.resume?.length ?? 0) > 0) {
+    // No child owns these answers. Main raised them, after a main pick or a
+    // handoff. Run main alone.
+    yield* runChatEngine(
+      { ...options, threadId, runId, subagents: undefined },
+      engineRef,
+    )
+    return
+  }
+  const abortSignal = options.abortController?.signal
+  const turnMessages = turn?.before ?? messages
+  const subagentPersistence = readRoutedSubagentPersistence(options.middleware)
+  await subagentPersistence?.start({
+    threadId,
+    runId,
+    messages,
+    ...(options.resume && { resume: options.resume }),
+  })
+  try {
+    // A resume reuses the plan that the first run put on each child's
+    // SUBAGENT_STARTED metadata. Children that finished keep their result.
+    // Suspended children continue.
+    const plan =
+      savedPlan(turn?.plan, bag.agents, {
+        threadId,
+        interruptedRunId: options.parentRunId ?? runId,
+        interruptIds: options.resume?.map((entry) => entry.interruptId) ?? [],
+      }) ??
+      normalizeRouterPick(
+        await bag.router({
+          messages: turnMessages,
+          agents: bag.agents,
+          ...(abortSignal && { abortSignal }),
+        }),
+        bag.agents,
+      )
+    // The run was stopped while the router decided. Start nothing. No
+    // RUN_STARTED went out, so the stream ends without a terminal, but the
+    // record start() opened still has to settle. Otherwise it stays `running`
+    // and reconstructChat hands the client a run to tail that never emits.
+    if (abortSignal?.aborted) {
+      const error = new Error('Aborted')
+      error.name = 'AbortError'
+      await subagentPersistence?.abort({ threadId, runId, error })
+      return
+    }
+    const onlyStep = plan.steps.length === 1 ? plan.steps[0] : undefined
+    if (onlyStep?.names.length === 1 && onlyStep.names[0] === 'main') {
+      // Earlier children own answers in this resume. Commit them first.
+      if (turn) await subagentPersistence?.finish({ threadId, runId })
+      yield* runChatEngine(
+        {
+          ...options,
+          threadId,
+          runId,
+          subagents: undefined,
+          ...(turn && { resume: turn.rest }),
+        },
+        engineRef,
+      )
+      return
+    }
+
+    yield {
+      type: EventType.RUN_STARTED,
+      threadId,
+      runId,
+      timestamp: Date.now(),
+    }
+
+    const earlier = [...(turn?.children ?? [])]
+    const takeEarlier = (name: string) => {
+      const index = earlier.findIndex((child) => child.name === name)
+      return index === -1 ? undefined : earlier.splice(index, 1)[0]
+    }
+    const sink = createSubagentSink()
+    const stepTexts: Array<string> = []
+    let stepMessages = turnMessages
+    let failure:
+      | Extract<StreamChunk, { type: EventType.SUBAGENT_ERROR }>
+      | undefined
+    for (const step of plan.steps) {
+      const entries: Array<SpawnEntry> = []
+      const textByName = new Map<string, string>()
+      for (const name of step.names) {
+        const prior = takeEarlier(name)
+        if (prior?.status === 'finished') {
+          textByName.set(name, prior.text)
+          continue
+        }
+        entries.push(
+          prior?.status === 'suspended'
+            ? {
+                name,
+                resume: {
+                  subagentRunId: prior.subagentRunId,
+                  messages: prior.messages,
+                  entries: prior.resume,
+                  text: prior.text,
+                },
+              }
+            : { name },
+        )
+      }
+      const stepChunks: Array<StreamChunk> = []
+      if (entries.length > 0) {
+        for await (const chunk of spawnNamedAgents(
+          entries,
+          { ...bag, order: step.order ?? bag.order },
+          {
+            messages: stepMessages,
+            ...(abortSignal && { abortSignal }),
+            threadId,
+            parentRunId: runId,
+            ...(options.parentRunId !== undefined && {
+              interruptedRunId: options.parentRunId,
+            }),
+          },
+          sink,
+        )) {
+          const tagged = withPlan(chunk, plan)
+          stepChunks.push(tagged)
+          await subagentPersistence?.chunk({ threadId, runId, chunk: tagged })
+          yield tagged
+        }
+      }
+      failure = stepChunks.find(
+        (chunk) => chunk.type === EventType.SUBAGENT_ERROR,
+      )
+      if (failure) break
+      if (sink.interrupts.length > 0) break
+      for (const entry of entries) {
+        const text = collectNamedText(stepChunks, [entry.name])
+        textByName.set(
+          entry.name,
+          [entry.resume?.text, text].filter(Boolean).join('\n\n'),
+        )
+      }
+      const text = step.names
+        .map((name) => textByName.get(name)?.trim() ?? '')
+        .filter((block) => block !== '')
+        .join('\n\n')
+      if (text) {
+        stepTexts.push(text)
+        stepMessages = [...stepMessages, { role: 'assistant', content: text }]
+      }
+    }
+
+    if (abortSignal?.aborted) {
+      const error = new Error('Aborted')
+      error.name = 'AbortError'
+      await subagentPersistence?.abort({ threadId, runId, error })
+      yield withChildUsage(
+        {
+          type: EventType.RUN_FINISHED,
+          threadId,
+          runId,
+          outcome: { type: 'cancelled' },
+          timestamp: Date.now(),
+        },
+        sink,
+      )
+      return
+    }
+
+    if (failure) {
+      // Carry the child's own cause, not a generic label, and keep the usage
+      // the children already spent: the run failed, but the tokens were real.
+      const message = failure.message || 'A subagent failed'
+      await subagentPersistence?.abort({
+        threadId,
+        runId,
+        error: new Error(message),
+      })
+      yield withChildUsage(
+        {
+          type: EventType.RUN_ERROR,
+          threadId,
+          runId,
+          message,
+          ...(failure.code !== undefined ? { code: failure.code } : {}),
+          timestamp: Date.now(),
+        },
+        sink,
+      )
+      return
+    }
+
+    if (sink.interrupts.length > 0) {
+      const interrupts = rebindInterrupts(sink.interrupts, runId)
+      await subagentPersistence?.suspend?.({ threadId, runId, interrupts })
+      yield withChildUsage(
+        {
+          type: EventType.RUN_FINISHED,
+          threadId,
+          runId,
+          outcome: { type: 'interrupt', interrupts },
+          timestamp: Date.now(),
+        },
+        sink,
+      )
+      return
+    }
+
+    const strategy = bag.strategy ?? 'exclusive'
+    if (strategy === 'handoff') {
+      const childText = stepTexts.join('\n\n')
+      // The children are done. Commit their answers and settle their records
+      // before main runs. Main's own persistence takes over from here.
+      await subagentPersistence?.finish({ threadId, runId })
+      yield* streamWithChildUsage(
+        runChatEngine(
+          {
+            ...options,
+            threadId,
+            runId,
+            subagents: undefined,
+            ...(turn && { resume: turn.rest }),
+            messages: [
+              ...turnMessages,
+              {
+                // Same id as the recorder's parent row, so the stored thread
+                // keeps one host message for the cards.
+                id: subagentHostMessageId(runId),
+                role: 'assistant',
+                content: childText || 'Subagent finished.',
+                metadata: { tanstack: { runId } },
+              },
+            ],
+          },
+          engineRef,
+        ),
+        sink,
+      )
+      return
+    }
+
+    await subagentPersistence?.finish({ threadId, runId })
+    yield withChildUsage(
+      {
+        type: EventType.RUN_FINISHED,
+        threadId,
+        runId,
+        timestamp: Date.now(),
+      },
+      sink,
+    )
+  } catch (error) {
+    await subagentPersistence?.abort({ threadId, runId, error })
+    throw error
+  }
+}
+
+/**
+ * The plan from a resumed turn, or undefined when it is absent. A plan that
+ * names agents this chat does not have is stale: re-routing would strand the
+ * suspended child that owns the answers, so fail the resume instead.
+ */
+function savedPlan(
+  plan: unknown,
+  agents: ReadonlyArray<DefinedAgent>,
+  run: {
+    threadId: string
+    interruptedRunId: string
+    interruptIds: ReadonlyArray<string>
+  },
+): { steps: ReadonlyArray<SubagentStep> } | undefined {
+  if (typeof plan !== 'object' || plan === null || !('steps' in plan)) {
+    return undefined
+  }
+  try {
+    // The plan comes back from the client. Check it like a router pick.
+    return normalizeRouterPick(plan as SubagentStepsPlan, agents)
+  } catch (error) {
+    throw new InterruptResumeValidationError([
+      {
+        scope: 'batch',
+        threadId: run.threadId,
+        interruptedRunId: run.interruptedRunId,
+        generation: 0,
+        interruptIds: run.interruptIds,
+        code: 'stale',
+        message: `The saved subagent plan does not match the agents of this chat. ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        source: 'server',
+        retryable: false,
+      },
+    ])
+  }
+}
+
+/** Put the router plan on a direct child's SUBAGENT_STARTED metadata. */
+function withPlan(
+  chunk: StreamChunk,
+  plan: { steps: ReadonlyArray<SubagentStep> },
+): StreamChunk {
+  if (
+    chunk.type !== EventType.SUBAGENT_STARTED ||
+    chunk.parentSubagentRunId !== undefined
+  ) {
+    return chunk
+  }
+  return withTanstackMetadata(chunk, { [SUBAGENT_PLAN_KEY]: plan })
+}
+
+function readRoutedSubagentPersistence(
+  middleware:
+    | ReadonlyArray<{
+        routedSubagentPersistence?: ChatMiddleware['routedSubagentPersistence']
+      }>
+    | undefined,
+) {
+  for (const item of middleware ?? []) {
+    if (item.routedSubagentPersistence) return item.routedSubagentPersistence
+  }
+  return undefined
 }
 
 /**

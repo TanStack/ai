@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VideoUnderstandingRouteImport } from './routes/video-understanding'
 import { Route as VideoRouteImport } from './routes/video'
 import { Route as TtsRouteImport } from './routes/tts'
 import { Route as TranscriptionRouteImport } from './routes/transcription'
@@ -22,6 +23,8 @@ import { Route as ImageRouteImport } from './routes/image'
 import { Route as CompactionRouteImport } from './routes/compaction'
 import { Route as AddonManagerRouteImport } from './routes/addon-manager'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiVideoUnderstandingUploadRouteImport } from './routes/api.video-understanding-upload'
+import { Route as ApiVideoUnderstandingRouteImport } from './routes/api.video-understanding'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
 import { Route as ApiTtsRouteImport } from './routes/api.tts'
 import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription'
@@ -40,6 +43,11 @@ import { Route as ApiCompactionChatRouteImport } from './routes/api.compaction-c
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiAddonChatRouteImport } from './routes/api.addon-chat'
 
+const VideoUnderstandingRoute = VideoUnderstandingRouteImport.update({
+  id: '/video-understanding',
+  path: '/video-understanding',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VideoRoute = VideoRouteImport.update({
   id: '/video',
   path: '/video',
@@ -103,6 +111,17 @@ const AddonManagerRoute = AddonManagerRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVideoUnderstandingUploadRoute =
+  ApiVideoUnderstandingUploadRouteImport.update({
+    id: '/api/video-understanding-upload',
+    path: '/api/video-understanding-upload',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiVideoUnderstandingRoute = ApiVideoUnderstandingRouteImport.update({
+  id: '/api/video-understanding',
+  path: '/api/video-understanding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiVideoRoute = ApiVideoRouteImport.update({
@@ -205,6 +224,7 @@ export interface FileRoutesByFullPath {
   '/transcription': typeof TranscriptionRoute
   '/tts': typeof TtsRoute
   '/video': typeof VideoRoute
+  '/video-understanding': typeof VideoUnderstandingRoute
   '/api/addon-chat': typeof ApiAddonChatRoute
   '/api/chat': typeof ApiChatRoute
   '/api/compaction-chat': typeof ApiCompactionChatRoute
@@ -222,6 +242,8 @@ export interface FileRoutesByFullPath {
   '/api/transcription': typeof ApiTranscriptionRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/video': typeof ApiVideoRoute
+  '/api/video-understanding': typeof ApiVideoUnderstandingRoute
+  '/api/video-understanding-upload': typeof ApiVideoUnderstandingUploadRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -237,6 +259,7 @@ export interface FileRoutesByTo {
   '/transcription': typeof TranscriptionRoute
   '/tts': typeof TtsRoute
   '/video': typeof VideoRoute
+  '/video-understanding': typeof VideoUnderstandingRoute
   '/api/addon-chat': typeof ApiAddonChatRoute
   '/api/chat': typeof ApiChatRoute
   '/api/compaction-chat': typeof ApiCompactionChatRoute
@@ -254,6 +277,8 @@ export interface FileRoutesByTo {
   '/api/transcription': typeof ApiTranscriptionRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/video': typeof ApiVideoRoute
+  '/api/video-understanding': typeof ApiVideoUnderstandingRoute
+  '/api/video-understanding-upload': typeof ApiVideoUnderstandingUploadRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -270,6 +295,7 @@ export interface FileRoutesById {
   '/transcription': typeof TranscriptionRoute
   '/tts': typeof TtsRoute
   '/video': typeof VideoRoute
+  '/video-understanding': typeof VideoUnderstandingRoute
   '/api/addon-chat': typeof ApiAddonChatRoute
   '/api/chat': typeof ApiChatRoute
   '/api/compaction-chat': typeof ApiCompactionChatRoute
@@ -287,6 +313,8 @@ export interface FileRoutesById {
   '/api/transcription': typeof ApiTranscriptionRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/video': typeof ApiVideoRoute
+  '/api/video-understanding': typeof ApiVideoUnderstandingRoute
+  '/api/video-understanding-upload': typeof ApiVideoUnderstandingUploadRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -304,6 +332,7 @@ export interface FileRouteTypes {
     | '/transcription'
     | '/tts'
     | '/video'
+    | '/video-understanding'
     | '/api/addon-chat'
     | '/api/chat'
     | '/api/compaction-chat'
@@ -321,6 +350,8 @@ export interface FileRouteTypes {
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
+    | '/api/video-understanding'
+    | '/api/video-understanding-upload'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -336,6 +367,7 @@ export interface FileRouteTypes {
     | '/transcription'
     | '/tts'
     | '/video'
+    | '/video-understanding'
     | '/api/addon-chat'
     | '/api/chat'
     | '/api/compaction-chat'
@@ -353,6 +385,8 @@ export interface FileRouteTypes {
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
+    | '/api/video-understanding'
+    | '/api/video-understanding-upload'
   id:
     | '__root__'
     | '/'
@@ -368,6 +402,7 @@ export interface FileRouteTypes {
     | '/transcription'
     | '/tts'
     | '/video'
+    | '/video-understanding'
     | '/api/addon-chat'
     | '/api/chat'
     | '/api/compaction-chat'
@@ -385,6 +420,8 @@ export interface FileRouteTypes {
     | '/api/transcription'
     | '/api/tts'
     | '/api/video'
+    | '/api/video-understanding'
+    | '/api/video-understanding-upload'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -401,6 +438,7 @@ export interface RootRouteChildren {
   TranscriptionRoute: typeof TranscriptionRoute
   TtsRoute: typeof TtsRoute
   VideoRoute: typeof VideoRoute
+  VideoUnderstandingRoute: typeof VideoUnderstandingRoute
   ApiAddonChatRoute: typeof ApiAddonChatRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiCompactionChatRoute: typeof ApiCompactionChatRoute
@@ -418,10 +456,19 @@ export interface RootRouteChildren {
   ApiTranscriptionRoute: typeof ApiTranscriptionRoute
   ApiTtsRoute: typeof ApiTtsRoute
   ApiVideoRoute: typeof ApiVideoRoute
+  ApiVideoUnderstandingRoute: typeof ApiVideoUnderstandingRoute
+  ApiVideoUnderstandingUploadRoute: typeof ApiVideoUnderstandingUploadRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/video-understanding': {
+      id: '/video-understanding'
+      path: '/video-understanding'
+      fullPath: '/video-understanding'
+      preLoaderRoute: typeof VideoUnderstandingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/video': {
       id: '/video'
       path: '/video'
@@ -511,6 +558,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/video-understanding-upload': {
+      id: '/api/video-understanding-upload'
+      path: '/api/video-understanding-upload'
+      fullPath: '/api/video-understanding-upload'
+      preLoaderRoute: typeof ApiVideoUnderstandingUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/video-understanding': {
+      id: '/api/video-understanding'
+      path: '/api/video-understanding'
+      fullPath: '/api/video-understanding'
+      preLoaderRoute: typeof ApiVideoUnderstandingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/video': {
@@ -649,6 +710,7 @@ const rootRouteChildren: RootRouteChildren = {
   TranscriptionRoute: TranscriptionRoute,
   TtsRoute: TtsRoute,
   VideoRoute: VideoRoute,
+  VideoUnderstandingRoute: VideoUnderstandingRoute,
   ApiAddonChatRoute: ApiAddonChatRoute,
   ApiChatRoute: ApiChatRoute,
   ApiCompactionChatRoute: ApiCompactionChatRoute,
@@ -666,6 +728,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTranscriptionRoute: ApiTranscriptionRoute,
   ApiTtsRoute: ApiTtsRoute,
   ApiVideoRoute: ApiVideoRoute,
+  ApiVideoUnderstandingRoute: ApiVideoUnderstandingRoute,
+  ApiVideoUnderstandingUploadRoute: ApiVideoUnderstandingUploadRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -3,8 +3,6 @@ title: Store Reference (Advanced)
 id: store-reference
 ---
 
-# Store Reference
-
 These are the public contracts from `@tanstack/ai-persistence`. Implement only the
 stores you need. Middleware turns behavior on from whichever stores are present, so
 there is no separate enable list.
@@ -31,13 +29,38 @@ the same record instead of disagreeing about one run.
 ```ts
 import type { ModelMessage } from '@tanstack/ai'
 
+type MessagePage =
+  | {
+      messages: Array<ModelMessage>
+      truncated: false
+      cursor?: never
+    }
+  | {
+      messages: Array<ModelMessage>
+      truncated: true
+      cursor: string
+    }
+
 interface MessageStore {
-  loadThread(threadId: string): Promise<Array<ModelMessage>>
+  loadThread(
+    threadId: string,
+    options?: { limit?: number; before?: string },
+  ): Promise<Array<ModelMessage> | MessagePage>
   saveThread(threadId: string, messages: Array<ModelMessage>): Promise<void>
 }
 ```
 
-`saveThread` receives the full authoritative model-message history, not a delta.
+- `loadThread` with only `threadId` (middleware, `onStart`, `onFinish`) returns
+  the full array. Never a `MessagePage`.
+- `limit` and `before` are a paging hint for hydrate. You can ignore them and
+  return the full array. `reconstructChat` then slices after UI conversion.
+- To page in the database, return a `MessagePage`. `truncated: true` requires a
+  `cursor`. `truncated` and `cursor` use the same words as `BlobStore.list`.
+- If you ignore `before` and return the newest array again, `reconstructChat`
+  loads the full thread and slices.
+- `saveThread` receives the full merged list. It is a replace, not an append.
+  Merge by id is `withPersistence`, not this store.
+
 `loadThread` returns `[]` (never `null`) for a thread that was never saved.
 
 ## RunStore
@@ -64,6 +87,10 @@ interface RunError {
 interface RunRecord {
   runId: string
   threadId: string
+  // Present on a subagent child run. Absent on the parent chat run.
+  parentRunId?: string
+  subagentRunId?: string
+  name?: string
   status: RunStatus
   startedAt: number // epoch ms
   finishedAt?: number // epoch ms, set once the run reaches a terminal status
@@ -90,6 +117,10 @@ interface RunStore {
     threadId: string
     status?: RunStatus
     startedAt: number
+    // Copied on the first insert only. A later call leaves them unchanged.
+    parentRunId?: string
+    subagentRunId?: string
+    name?: string
   }): Promise<RunRecord>
   // Required: patching an unknown runId is a no-op, not an error.
   update(
@@ -118,6 +149,9 @@ interface RunStore {
   // Optional. Every run for a thread, ascending by startedAt. Only needed to
   // render a thread's past agent activity.
   listByThread?(threadId: string): Promise<Array<RunRecord>>
+  // Optional. Child runs for one parent, oldest startedAt first.
+  // reconstructChat uses this to put subagent cards back on the parent message.
+  listByParentRun?(parentRunId: string): Promise<Array<RunRecord>>
   // Optional. Runs where status is 'running' and detachedSince <= now - ttlMs
   // (inclusive). This is the query `reapDetachedRuns` (@tanstack/ai-sandbox)
   // runs to find abandoned runs; scheduling that sweep is the app's job.
@@ -148,12 +182,18 @@ that implements those four is a valid `RunStore`. Three contracts to hold:
   for an idle thread. It was optional for exactly one release cycle and cost
   precisely that, which is why it is required now.
 
-`listByThread` and `listReclaimable` are genuinely optional, not
-recommended-but-checked: consumers feature-detect each one and degrade when it is
-absent, and the conformance suite skips a method's test cases once you declare
-the omission in `skipMethods`. Implement the ones your app needs:
+`listByThread`, `listByParentRun`, and `listReclaimable` are optional.
+Consumers feature-detect each one. After you declare an omission of
+`listByThread` or `listReclaimable` in `skipMethods`, the conformance suite
+skips that method. Implement the ones
+your app needs:
 
-- Skip `listByThread` and you cannot render a thread's past runs.
+- Skip `listByThread` and a reload loses the cards of children that a tool call
+  started. `reconstructChat` calls it to find their parent runs.
+- Skip `listByParentRun` and a reload shows the saved child text. The subagent
+  cards stay absent. `reconstructChat` calls this method to build the cards.
+  The conformance suite skips the subagent checks when this method is absent,
+  so it needs no `skipMethods` entry.
 - Skip `listReclaimable` and the store cannot be reaped: `reapDetachedRuns`
   feature-detects it, logs one line, and sweeps nothing, so detached runs are
   never finalized and their sandboxes never reclaimed. `detachedSince` *is*
@@ -202,11 +242,15 @@ genuinely has no run lifecycle should declare `ChatTranscriptStores` and omit
 `runs` entirely rather than supply a `RunStore` with a stubbed method: an absent
 store is caught by the type system, an incomplete one fails silently at runtime.
 
+`createOrResume` copies `parentRunId`, `subagentRunId`, and `name` on the first
+insert. A second call for the same `runId` leaves those fields unchanged. If
+the caller omits a field, omit that field on the stored record. Do not write
+`''` for a field the caller did not pass.
+
 The reference implementation, `MemoryRunStore` in
-`packages/ai-persistence/src/memory.ts`, implements all six. The
+`packages/ai-persistence/src/memory.ts`, implements all seven run methods. The
 `examples/ts-react-chat` SQLite adapter (`src/lib/sqlite-persistence.ts`)
-implements the four required methods plus `listReclaimable`, and declares
-`runs.listByThread` as skipped.
+implements all seven run methods.
 
 ## InterruptStore
 

@@ -24,6 +24,7 @@ export type Provider =
   | 'byteplus'
   | 'elevenlabs'
   | 'llmgateway'
+  | 'cloudflare'
 
 export type Feature =
   | 'chat'
@@ -50,12 +51,14 @@ export type Feature =
   | 'audio-gen'
   | 'sound-effects'
   | 'tts'
+  | 'voice-design'
   | 'transcription'
   | 'transcription-diarization'
   | 'video-gen'
   | 'image-to-video'
   | 'interactions-video'
   | 'stateful-interactions'
+  | 'video-understanding'
 
 export const ALL_PROVIDERS: Provider[] = [
   'openai',
@@ -81,6 +84,7 @@ export const ALL_PROVIDERS: Provider[] = [
   'byteplus',
   'elevenlabs',
   'llmgateway',
+  'cloudflare',
 ]
 
 export const ALL_FEATURES: Feature[] = [
@@ -108,10 +112,12 @@ export const ALL_FEATURES: Feature[] = [
   'audio-gen',
   'sound-effects',
   'tts',
+  'voice-design',
   'transcription',
   'transcription-diarization',
   'video-gen',
   'image-to-video',
   'interactions-video',
   'stateful-interactions',
+  'video-understanding',
 ]

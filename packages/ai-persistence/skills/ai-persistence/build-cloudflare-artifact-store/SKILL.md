@@ -28,6 +28,17 @@ type an object literal inline (autocomplete + contract checking, no separate
 annotation).
 
 ```ts
+import type {
+  ArtifactRecord,
+  BlobBody,
+  BlobGetOptions,
+  BlobListOptions,
+  BlobListPage,
+  BlobObject,
+  BlobPutOptions,
+  BlobRecord,
+} from '@tanstack/ai-persistence'
+
 // BlobStore — the byte layer. R2 backs it.
 interface BlobStore {
   put: (

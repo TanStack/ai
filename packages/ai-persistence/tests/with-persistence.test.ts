@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
+import { getPendingTurn } from '@tanstack/ai/adapter-internals'
 import type {
   AdapterYieldChunk,
   AnyTextAdapter,
@@ -12,6 +13,7 @@ import type {
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
 import { defineAIPersistence } from '../src/types'
+import { threadMessages } from './persistence-fixtures'
 
 // --- minimal mock text adapter ---------------------------------------------
 
@@ -109,6 +111,40 @@ function findAssistantToolCall(
       message.role === 'assistant' &&
       message.toolCalls?.some((call) => call.id === toolCallId),
   )
+}
+
+function messageIds(messages: ReadonlyArray<ModelMessage>) {
+  return messages.map((message) => message.id)
+}
+
+const snapshotProbe: ChatMiddleware = {
+  name: 'snapshot-probe',
+  async setup(ctx) {
+    await getPendingTurn(ctx, { optional: true })?.snapshot()
+  },
+}
+
+async function loadedThread(persistence: ReturnType<typeof memoryPersistence>) {
+  return threadMessages(await persistence.stores.messages!.loadThread('t1'))
+}
+
+async function runPersistedChat(
+  persistence: ReturnType<typeof memoryPersistence>,
+  messages: Array<ModelMessage>,
+) {
+  const { adapter } = mockAdapter([
+    [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+  ])
+  await collect(
+    chat({
+      adapter,
+      messages,
+      runId: 'r1',
+      threadId: 't1',
+      middleware: [withPersistence(persistence), snapshotProbe],
+    }) as AsyncIterable<StreamChunk>,
+  )
+  return loadedThread(persistence)
 }
 
 describe('withPersistence (state-only)', () => {
@@ -507,7 +543,7 @@ describe('withPersistence (state-only)', () => {
     // The empty-id start on turn 2 still resets the per-turn accumulator: the
     // crash-window snapshot holds only turn-2 text, and it must not inherit
     // turn 1's tool-call id — two persisted messages may never share an id.
-    const thread = await persistence.stores.messages!.loadThread('t1')
+    const thread = await loadedThread(persistence)
     expect(findAssistantToolCall(thread, 'call_1')?.id).toBe('assistant-turn-1')
     const terminal = thread.at(-1)
     expect(terminal).toMatchObject({
@@ -622,7 +658,7 @@ describe('withPersistence (state-only)', () => {
       }) as AsyncIterable<StreamChunk>,
     )
 
-    const thread = await persistence.stores.messages!.loadThread('t1')
+    const thread = await loadedThread(persistence)
     const toolTurn = findAssistantToolCall(thread, 'call_1')
     expect(toolTurn?.id).toBe('stream-assistant')
     expect(toolTurn?.createdAt).toBeInstanceOf(Date)
@@ -685,7 +721,7 @@ describe('withPersistence (state-only)', () => {
       }) as AsyncIterable<StreamChunk>,
     )
 
-    const turns = (await persistence.stores.messages!.loadThread('t1')).filter(
+    const turns = (await loadedThread(persistence)).filter(
       (message) =>
         message.role === 'assistant' && message.content === 'checking',
     )
@@ -769,7 +805,7 @@ describe('withPersistence (state-only)', () => {
       )
 
       const toolTurn = findAssistantToolCall(
-        await persistence.stores.messages!.loadThread('t1'),
+        await loadedThread(persistence),
         'call_1',
       )
       expect(toolTurn?.createdAt).toEqual(new Date('2026-01-01T00:00:05.000Z'))
@@ -1183,7 +1219,7 @@ describe('withPersistence (state-only)', () => {
       }) as AsyncIterable<StreamChunk>,
     )
 
-    const thread = await persistence.stores.messages!.loadThread('t1')
+    const thread = await loadedThread(persistence)
     const start = chunks.find(
       (chunk) =>
         chunk.type === EventType.CUSTOM &&
@@ -1411,5 +1447,145 @@ describe('withPersistence (state-only)', () => {
       }) as AsyncIterable<StreamChunk>,
     )
     expect(chunks.every((c) => !('cursor' in c))).toBe(true)
+  })
+})
+
+describe('withPersistence (merge by id)', () => {
+  it('does not drop stored extras when the incoming list is short', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'first', id: 'old-1' },
+      { role: 'assistant', content: 'second', id: 'old-2' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'next', id: 'new-1' },
+    ])
+
+    expect(messageIds(thread).slice(0, 3)).toEqual(['old-1', 'old-2', 'new-1'])
+    expect(thread).toEqual([
+      { role: 'user', content: 'first', id: 'old-1' },
+      { role: 'assistant', content: 'second', id: 'old-2' },
+      { role: 'user', content: 'next', id: 'new-1' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+  })
+
+  it('continues from the stored thread when incoming messages are empty', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'first', id: 'old-1' },
+      { role: 'assistant', content: 'second', id: 'old-2' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [])
+
+    expect(messageIds(thread).slice(0, 2)).toEqual(['old-1', 'old-2'])
+    expect(thread).toEqual([
+      { role: 'user', content: 'first', id: 'old-1' },
+      { role: 'assistant', content: 'second', id: 'old-2' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+  })
+
+  it('lets incoming content win when the same id is in both lists', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'stored text', id: 'old-1' },
+      { role: 'assistant', content: 'keep me', id: 'old-2' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'incoming wins', id: 'old-1' },
+      { role: 'assistant', content: 'keep me', id: 'old-2' },
+    ])
+
+    expect(thread.find((message) => message.id === 'old-1')).toEqual({
+      role: 'user',
+      content: 'incoming wins',
+      id: 'old-1',
+    })
+    expect(thread.find((message) => message.id === 'old-2')).toEqual({
+      role: 'assistant',
+      content: 'keep me',
+      id: 'old-2',
+    })
+  })
+
+  it('keeps the shared assistant when incoming is the last user plus that assistant', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'ask', id: 'u1' },
+      { role: 'assistant', content: 'tool call', id: 'a1' },
+      { role: 'assistant', content: 'later extra', id: 'a2' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'ask', id: 'u1' },
+      { role: 'assistant', content: 'tool call', id: 'a1' },
+    ])
+
+    expect(thread.find((message) => message.id === 'a1')).toEqual({
+      role: 'assistant',
+      content: 'tool call',
+      id: 'a1',
+    })
+    expect(thread.find((message) => message.id === 'a2')).toBeUndefined()
+  })
+
+  it('drops stored messages after the last shared incoming id', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'ask', id: 'u1' },
+      { role: 'assistant', content: 'old reply', id: 'a1' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'ask', id: 'u1' },
+    ])
+
+    expect(messageIds(thread)[0]).toBe('u1')
+    expect(thread.find((message) => message.id === 'a1')).toBeUndefined()
+    expect(thread).toEqual([
+      { role: 'user', content: 'ask', id: 'u1' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+  })
+
+  it('appends a message that has no id', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'keep', id: 'old-1' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'no id' },
+    ])
+
+    expect(thread.slice(0, 2)).toEqual([
+      { role: 'user', content: 'keep', id: 'old-1' },
+      { role: 'user', content: 'no id' },
+    ])
+  })
+
+  it('does not duplicate a stored no-id message that incoming repeats', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'go' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'go' },
+    ])
+
+    expect(
+      thread.filter(
+        (message) => message.role === 'user' && message.content === 'go',
+      ),
+    ).toHaveLength(1)
+    expect(thread).toEqual([
+      { role: 'user', content: 'go' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
   })
 })

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { BedrockConverseTextAdapter } from '../../src/adapters/converse-text'
+import type * as BedrockRuntime from '@aws-sdk/client-bedrock-runtime'
 import type {
   ConverseCommandOutput,
   ConverseStreamCommandInput,
@@ -170,6 +171,43 @@ describe('BedrockConverseTextAdapter', () => {
     expect(JSON.parse(res.rawText)).toEqual({ n: 5 })
   })
 
+  it('forwards cache counts from the structuredOutput usage', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.nonStreamOutput = {
+      output: {
+        message: {
+          role: 'assistant',
+          content: [
+            {
+              toolUse: {
+                toolUseId: 's',
+                name: 'structured_output',
+                input: { n: 5 },
+              },
+            },
+          ],
+        },
+      },
+      usage: {
+        inputTokens: 3,
+        outputTokens: 4,
+        totalTokens: 8416,
+        cacheReadInputTokens: 8409,
+        cacheWriteInputTokens: 0,
+      },
+    } as unknown as ConverseCommandOutput
+    const res = await a.structuredOutput({
+      chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
+      outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
+    })
+    expect(res.usage).toEqual({
+      promptTokens: 3,
+      completionTokens: 4,
+      totalTokens: 8416,
+      promptTokensDetails: { cachedTokens: 8409, cacheWriteTokens: 0 },
+    })
+  })
+
   it('streams structured output through structuredOutputStream', async () => {
     const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
     a.streamEvents = [
@@ -260,6 +298,52 @@ describe('BedrockConverseTextAdapter', () => {
         }
       ).usage,
     ).toEqual({ promptTokens: 7, completionTokens: 11, totalTokens: 18 })
+  })
+
+  it('forwards cache counts from the structuredOutputStream metadata usage', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [
+      { messageStart: { role: 'assistant' } },
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 's', name: 'structured_output' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"n":5}' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { contentBlockStop: { contentBlockIndex: 0 } },
+      { messageStop: { stopReason: 'tool_use' } },
+      {
+        metadata: {
+          usage: {
+            inputTokens: 3,
+            outputTokens: 4,
+            totalTokens: 8416,
+            cacheReadInputTokens: 8409,
+            cacheWriteInputTokens: 0,
+          },
+        },
+      } as unknown as ConverseStreamOutput,
+    ]
+    const events: Array<AdapterYieldChunk> = []
+    for await (const c of a.structuredOutputStream({
+      chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
+      outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
+    })) {
+      events.push(c)
+    }
+    const finished = events.find((e) => e.type === EventType.RUN_FINISHED)
+    expect((finished as { usage?: unknown }).usage).toEqual({
+      promptTokens: 3,
+      completionTokens: 4,
+      totalTokens: 8416,
+      promptTokensDetails: { cachedTokens: 8409, cacheWriteTokens: 0 },
+    })
   })
 
   it('omits usage from the structuredOutputStream RUN_FINISHED when no metadata event arrives (#1278)', async () => {
@@ -390,6 +474,37 @@ describe('BedrockConverseTextAdapter', () => {
     // ignored — this is the contract that keeps API-key auth working.
     expect(cfg.authSchemePreference).toEqual(['httpBearerAuth'])
     expect(cfg.token).toEqual({ token: 'ABSK-test-token' })
+  })
+
+  it('registers a build middleware that applies defaultHeaders', async () => {
+    type Middleware = (
+      next: (args: unknown) => unknown,
+    ) => (args: unknown) => unknown
+    const added: Array<Middleware> = []
+    class FakeClient {
+      middlewareStack = { add: (mw: Middleware) => added.push(mw) }
+    }
+    class Probe extends BedrockConverseTextAdapter<'us.amazon.nova-pro-v1:0'> {
+      protected override importBedrockRuntime() {
+        return Promise.resolve({
+          BedrockRuntimeClient: FakeClient,
+        } as unknown as typeof BedrockRuntime)
+      }
+      client() {
+        return this.getClient()
+      }
+    }
+    const a = new Probe(
+      { apiKey: 'k', defaultHeaders: { 'X-Gateway': 'yes' } },
+      'us.amazon.nova-pro-v1:0',
+    )
+    expect(await a.client()).toBeInstanceOf(FakeClient)
+    expect(added).toHaveLength(1)
+
+    const request = { headers: { host: 'bedrock' } }
+    const next = (args: unknown) => args
+    added[0]!(next)({ request })
+    expect(request.headers).toEqual({ host: 'bedrock', 'X-Gateway': 'yes' })
   })
 
   it('declares it does not support combined tools and schema', () => {

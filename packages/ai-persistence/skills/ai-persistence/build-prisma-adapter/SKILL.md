@@ -67,9 +67,14 @@ model ChatRun {
   detachedSince   BigInt? @map("detached_since")
   cancelRequested Boolean? @map("cancel_requested")
   driverEpoch     Int?     @map("driver_epoch")
+  parentRunId     String?  @map("parent_run_id")
+  subagentRunId   String?  @map("subagent_run_id")
+  name            String?
 
   @@index([threadId, status])
   @@index([threadId, startedAt])
+  // Powers listByParentRun: children of one parent, oldest startedAt first.
+  @@index([parentRunId, startedAt])
   // Powers listReclaimable: status = 'running' AND detachedSince <= cutoff.
   @@index([status, detachedSince])
   @@map("chat_runs")
@@ -204,6 +209,9 @@ function mapRun(row: ChatRun): RunRecord {
       ? { cancelRequested: row.cancelRequested }
       : {}),
     ...(row.driverEpoch != null ? { driverEpoch: row.driverEpoch } : {}),
+    ...(row.parentRunId != null ? { parentRunId: row.parentRunId } : {}),
+    ...(row.subagentRunId != null ? { subagentRunId: row.subagentRunId } : {}),
+    ...(row.name != null ? { name: row.name } : {}),
   }
 }
 
@@ -250,7 +258,8 @@ function createRunStore(db: PrismaClient): RunStore {
     },
     // An empty `update` is Prisma's ON CONFLICT DO NOTHING: an existing runId
     // comes back untouched, so resume and double-submit are safe.
-    async createOrResume({ runId, threadId, startedAt, status }) {
+    async createOrResume(input) {
+      const { runId, threadId, startedAt, status } = input
       const row = await db.chatRun.upsert({
         where: { runId },
         create: {
@@ -258,6 +267,13 @@ function createRunStore(db: PrismaClient): RunStore {
           threadId,
           status: status ?? 'running',
           startedAt: BigInt(startedAt),
+          ...(input.parentRunId !== undefined
+            ? { parentRunId: input.parentRunId }
+            : {}),
+          ...(input.subagentRunId !== undefined
+            ? { subagentRunId: input.subagentRunId }
+            : {}),
+          ...(input.name !== undefined ? { name: input.name } : {}),
         },
         update: {},
       })
@@ -310,6 +326,15 @@ function createRunStore(db: PrismaClient): RunStore {
     async listByThread(threadId) {
       const rows = await db.chatRun.findMany({
         where: { threadId },
+        orderBy: { startedAt: 'asc' },
+      })
+      return rows.map(mapRun)
+    },
+    // Optional. Child runs for one parent, oldest startedAt first.
+    // reconstructChat uses this list to put subagent cards back.
+    async listByParentRun(parentRunId) {
+      const rows = await db.chatRun.findMany({
+        where: { parentRunId },
         orderBy: { startedAt: 'asc' },
       })
       return rows.map(mapRun)
@@ -474,7 +499,7 @@ route** — derive the user from the session, never trust a client-supplied id.
 
 ## 5. Verify
 
-```ts ignore
+```ts
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { chatPersistence } from '../src/lib/chat-persistence'
 
@@ -489,11 +514,12 @@ provided; the suite also covers the three generation stores, so declare those as
 skipped until you add them. `skip` never accepts `'locks'`, which is not a
 store.
 
-If your recipe leaves an optional `runs` method
-(`listByThread`/`listReclaimable`) unimplemented, declare it
-with `skipMethods`, e.g. `{ skipMethods: ['runs.listByThread'] }`. An
-omitted method that is not declared fails the suite instead of silently
-passing.
+If your recipe leaves `listByThread` or `listReclaimable` unimplemented,
+declare it with `skipMethods`, for example
+`{ skipMethods: ['runs.listByThread'] }`. An omitted method that is not declared
+fails the suite instead of silently passing. Subagent support is optional: when
+`listByParentRun` is absent, the subagent checks skip on their own and need no
+entry.
 
 ## Only if you are publishing this as a package
 

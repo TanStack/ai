@@ -103,6 +103,15 @@ export default async function globalSetup() {
   // text tests.
   mock.mount('/omni-video', geminiOmniVideoMount())
 
+  // Agentic video understanding (standard Gemini chat adapter). A video part
+  // with metadata.processing:'agentic' routes through the non-streaming
+  // interactions.create(), which reads `output_text`. aimock's native
+  // interactions handler defaults to streaming SSE (keyed off `stream !==
+  // false`), so it can't serve create(). This dedicated prefix returns a
+  // completed JSON interaction instead. See the video-understanding provider
+  // block in src/lib/providers.ts.
+  mock.mount('/vu-interactions', geminiVideoUnderstandingMount())
+
   // Anthropic server_tool_use bug reproduction (issue #604). aimock can't
   // natively synthesize `server_tool_use` / `web_fetch_tool_result` content
   // blocks, so this mount hand-crafts the raw SSE Claude would emit when a
@@ -145,6 +154,11 @@ export default async function globalSetup() {
   // equivalents, so each mount returns false for anything it doesn't own and
   // those two fall through to the native handlers. Mounts are matched by raw
   // pathname *before* that normalization, so ordering here is safe.
+  // ElevenLabs voice design. aimock 1.34 has no /v1/text-to-voice routes at
+  // all — neither the design half nor the create half — so both are mounted
+  // here. Everything else under /v1 falls through to aimock's native handlers.
+  mock.mount('/v1/text-to-voice', elevenlabsVoiceMount())
+
   mock.mount('/api/v3', byteplusSeedanceMount())
   mock.mount('/api/v3', byteplusTTSMount())
   mock.mount('/api/v3', byteplusASRMount())
@@ -396,10 +410,16 @@ function elevenLabsTTSMount(): Mountable {
       if (req.method !== 'POST' || pathname === '/' || pathname === '')
         return false
       await drainBody(req)
+      const outputFormat = new URL(
+        req.url ?? '/',
+        'http://localhost',
+      ).searchParams.get('output_format')
+      const isPcm = outputFormat === 'pcm_44100'
+      const audio = isPcm ? FAKE_PCM_BYTES : FAKE_MP3_BYTES
       res.statusCode = 200
-      res.setHeader('Content-Type', 'audio/mpeg')
-      res.setHeader('Content-Length', String(FAKE_MP3_BYTES.length))
-      res.end(FAKE_MP3_BYTES)
+      res.setHeader('Content-Type', isPcm ? 'audio/pcm' : 'audio/mpeg')
+      res.setHeader('Content-Length', String(audio.length))
+      res.end(audio)
       return true
     },
   }
@@ -945,6 +965,47 @@ function geminiOmniVideoMount(): Mountable {
 }
 
 /**
+ * Mounts the agentic video-understanding interaction under a dedicated
+ * `/vu-interactions` prefix (the video-understanding provider points its baseUrl
+ * there). The standard Gemini adapter's agentic path calls the non-streaming
+ * `interactions.create()` and reads `output_text`; aimock's native handler
+ * would stream SSE instead. This returns a completed JSON interaction with the
+ * text the spec asserts on.
+ */
+function geminiVideoUnderstandingMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/vu-interactions'), so pathname
+      // looks like '/v1beta/interactions'.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/v1beta/interactions' || req.method !== 'POST') {
+        return false
+      }
+      const body = await readJsonRequestBody(req)
+      const model =
+        typeof body?.model === 'string' ? body.model : 'gemini-3.7-flash'
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          id: 'aimock-vu-1',
+          object: 'interaction',
+          status: 'completed',
+          model,
+          output_text:
+            'The video shows a guitar being played in a music store. A ' +
+            'musician demonstrates the instrument with a bright, clear tone.',
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
  * Fake audio payloads keyed by Seed Speech's `audio_config.format`.
  *
  * The TTS adapter labels its result from the format it *requested*
@@ -1177,6 +1238,35 @@ function byteplusSeedanceMount(): Mountable {
  * `subtitle` is omitted: the adapter only asks for it via `enable_subtitle`,
  * which this feature doesn't set.
  */
+/**
+ * Build a plausible `subtitle` block for a synthesised prompt: one sentence
+ * per line (a dialogue prompt has one line per turn) and one word entry per
+ * whitespace-separated token, at a flat 400 ms each.
+ *
+ * Times are **milliseconds**, matching the real endpoint — the adapter is what
+ * converts them to the seconds the core `alignment` / `segments` use.
+ */
+function subtitleFor(textPrompt: string): {
+  sentences: Array<{ text: string; start_time: number; end_time: number }>
+  words: Array<{ text: string; start_time: number; end_time: number }>
+} {
+  const WORD_MS = 400
+  const sentences = []
+  const words = []
+  let cursor = 0
+  for (const line of textPrompt.split('\n')) {
+    // Strip the `@AudioN: ` speaker marker a dialogue prompt puts on each line.
+    const text = line.replace(/^@Audio\d+:\s*/, '')
+    const start = cursor
+    for (const word of text.split(/\s+/).filter(Boolean)) {
+      words.push({ text: word, start_time: cursor, end_time: cursor + WORD_MS })
+      cursor += WORD_MS
+    }
+    sentences.push({ text, start_time: start, end_time: cursor })
+  }
+  return { sentences, words }
+}
+
 function byteplusTTSMount(): Mountable {
   return {
     async handleRequest(
@@ -1225,26 +1315,130 @@ function byteplusTTSMount(): Mountable {
           duration: 2.4,
           original_duration: 2.4,
           url: `https://example.com/welcome-to-the-guitar-store.${format}`,
-          // Timings only come back when the caller opted in. No spec sets
-          // `enable_subtitle` today; this keeps the branch honest if one does.
+          // Timings only come back when the caller opted in (core
+          // `timestamps: true` sets `enable_subtitle`).
           // Subtitle times are MILLISECONDS even though `duration` above is
           // seconds — the endpoint genuinely mixes units, so don't "fix" it.
           ...(audioConfig?.enable_subtitle === true && {
-            subtitle: {
-              sentences: [
-                {
-                  text: 'welcome to the guitar store',
-                  start_time: 0,
-                  end_time: 2400,
-                },
-              ],
-            },
+            subtitle: subtitleFor(body.text_prompt),
           }),
         }),
       )
       return true
     },
   }
+}
+
+/**
+ * Mounts ElevenLabs' two-step voice design API:
+ *
+ * - `POST /v1/text-to-voice/design` — returns candidate previews, each with a
+ *   `generated_voice_id` and base64 audio.
+ * - `POST /v1/text-to-voice` — promotes one candidate into a library voice.
+ *
+ * Like the BytePlus mounts, this **validates** rather than drains. There are no
+ * aimock fixtures for these routes, so a canned 200 would let an adapter
+ * regression — a dropped `voice_description`, a `generated_voice_id` that
+ * stopped coming from the chosen preview — pass green. A 400 turns it into a
+ * failing spec, which is why the mount exists.
+ */
+function elevenlabsVoiceMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST') return false
+
+      if (pathname === '/design') {
+        const body = await readJsonRequestBody(req)
+        if (!body) return rejectElevenLabsRequest(res, 'Malformed JSON body.')
+        if (
+          typeof body.voice_description !== 'string' ||
+          !body.voice_description
+        ) {
+          return rejectElevenLabsRequest(
+            res,
+            'Missing voice_description — the design endpoint requires a prompt.',
+          )
+        }
+        if (body.model_id !== 'eleven_ttv_v3') {
+          return rejectElevenLabsRequest(
+            res,
+            `Unexpected model_id: ${String(body.model_id)}.`,
+          )
+        }
+
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            text: 'The quick brown fox jumps over the lazy dog.',
+            previews: [
+              {
+                generated_voice_id: 'e2e-preview-1',
+                audio_base_64: FAKE_MP3_BYTES.toString('base64'),
+                media_type: 'audio/mpeg',
+                duration_secs: 4.2,
+                language: 'en',
+              },
+              {
+                generated_voice_id: 'e2e-preview-2',
+                audio_base_64: FAKE_MP3_BYTES.toString('base64'),
+                media_type: 'audio/mpeg',
+                duration_secs: 4.1,
+                language: 'en',
+              },
+            ],
+          }),
+        )
+        return true
+      }
+
+      if (pathname === '' || pathname === '/') {
+        const body = await readJsonRequestBody(req)
+        if (!body) return rejectElevenLabsRequest(res, 'Malformed JSON body.')
+        if (typeof body.voice_name !== 'string' || !body.voice_name) {
+          return rejectElevenLabsRequest(res, 'Missing voice_name.')
+        }
+        // The saved voice must come from a preview the design call returned —
+        // catches an adapter that promotes the wrong candidate, or none.
+        if (body.generated_voice_id !== 'e2e-preview-1') {
+          return rejectElevenLabsRequest(
+            res,
+            `Expected the first preview to be promoted, got: ${String(
+              body.generated_voice_id,
+            )}.`,
+          )
+        }
+
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            voice_id: 'e2e-saved-voice',
+            name: body.voice_name,
+            category: 'generated',
+          }),
+        )
+        return true
+      }
+
+      return false
+    },
+  }
+}
+
+/** ElevenLabs' error envelope: `{ detail: { status, message } }`. */
+function rejectElevenLabsRequest(
+  res: http.ServerResponse,
+  message: string,
+): true {
+  res.statusCode = 400
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify({ detail: { status: 'invalid_request', message } }))
+  return true
 }
 
 /**

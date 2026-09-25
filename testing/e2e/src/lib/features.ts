@@ -152,6 +152,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
+  'voice-design': {
+    tools: [],
+    modelOptions: {},
+  },
   transcription: {
     tools: [],
     modelOptions: {},
@@ -173,6 +177,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     modelOptions: {},
   },
   'stateful-interactions': {
+    tools: [],
+    modelOptions: {},
+  },
+  'video-understanding': {
     tools: [],
     modelOptions: {},
   },

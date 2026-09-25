@@ -4,6 +4,7 @@
   "nxCloudId": "6928ccd60a2e27ab22f38ad0",
   "useDaemonProcess": true,
   "useInferencePlugins": false,
+  "plugins": ["@tanstack/workspace-plugin"],
   "analytics": false,
   "parallel": 15,
   "tui": {
@@ -65,6 +66,8 @@
       "inputs": [
         "{workspaceRoot}/docs/**/*",
         "{workspaceRoot}/packages/*/src/**/*",
+        "{workspaceRoot}/packages/*/skills/**/*",
+        "{workspaceRoot}/skills/**/*",
         "{workspaceRoot}/kiira.config.ts"
       ]
     },

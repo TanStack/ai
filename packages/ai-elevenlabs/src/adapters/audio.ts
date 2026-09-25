@@ -7,6 +7,7 @@ import {
   readStreamToArrayBuffer,
 } from '../utils/client'
 import {
+  ELEVENLABS_AUDIO_MODELS,
   isElevenLabsMusicModel,
   isElevenLabsSoundEffectsModel,
 } from '../model-meta'
@@ -55,7 +56,7 @@ interface CommonAudioOptions {
 }
 
 /**
- * Provider options for music generation (`music_v1`).
+ * Provider options for music generation (`music_v*`).
  */
 export interface ElevenLabsMusicProviderOptions extends CommonAudioOptions {
   /** Structured composition plan. Mutually exclusive with `prompt`/`duration`. */
@@ -94,7 +95,7 @@ export type ElevenLabsAudioProviderOptions =
  *
  * @example
  * ```ts
- * const music = elevenlabsAudio('music_v1')
+ * const music = elevenlabsAudio('music_v2_5')
  * await generateAudio({ adapter: music, prompt: 'lo-fi beat', duration: 15 })
  *
  * const sfx = elevenlabsAudio('eleven_text_to_sound_v2')
@@ -129,7 +130,7 @@ export class ElevenLabsAudioAdapter<
         return await this.runSoundEffects(options)
       }
       throw new Error(
-        `Unsupported ElevenLabs audio model "${this.model}". Expected one of: music_v1, eleven_text_to_sound_v2, eleven_text_to_sound_v1.`,
+        `Unsupported ElevenLabs audio model "${this.model}". Expected one of: ${ELEVENLABS_AUDIO_MODELS.join(', ')}.`,
       )
     } catch (error) {
       logger.errors('elevenlabs.generateAudio fatal', {

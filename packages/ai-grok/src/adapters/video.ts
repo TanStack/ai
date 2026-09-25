@@ -1,4 +1,8 @@
-import { resolveMediaPrompt } from '@tanstack/ai'
+import {
+  isFileSource,
+  resolveMediaPrompt,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
@@ -73,6 +77,7 @@ interface GrokVideoStatusResponse {
 function mediaPartToUrl(
   part: ImagePart<MediaInputMetadata> | VideoPart<MediaInputMetadata>,
 ): string {
+  if (isFileSource(part.source)) throw unsupportedFileSourceError('grok')
   if (part.source.type === 'url') return part.source.value
   return `data:${part.source.mimeType};base64,${part.source.value}`
 }
@@ -363,16 +368,12 @@ export class GrokVideoAdapter<
     // Image-to-video: the single image prompt part becomes the starting frame
     // and the prompt text describes the desired motion. URL sources are
     // fetched by xAI's servers; data sources are sent as base64 data URIs.
+    // On grok-imagine-video-1.5 the starting frame combines with reference
+    // inputs — `image` pins the first frame while reference_images /
+    // reference_audios steer subjects and voices. Classic grok-imagine-video
+    // rejects that mix, but it rejects reference inputs outright, so the
+    // model gate above already covers it.
     const [startFrame] = startFrames
-
-    // xAI rejects `image` + `reference_images` / `reference_audios` as a
-    // 400: only one of image-to-video or reference-to-video can be active.
-    if (startFrame && hasReference) {
-      throw new Error(
-        `${this.name}: image-to-video and reference-to-video cannot be combined. ` +
-          `Use a starting-frame image, or reference images / voices, not both.`,
-      )
-    }
 
     // The generic `size` option carries an "aspectRatio_resolution" template
     // (e.g. '16:9_720p') and maps to the Imagine API's `aspect_ratio` /

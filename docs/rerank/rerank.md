@@ -14,8 +14,6 @@ keywords:
   - cohere
 ---
 
-# Reranking
-
 You have a query and a list of candidate documents — chunks from a vector
 search, rows from a keyword query, FAQ entries — and you need them ordered by
 how well they actually answer the query. Vector similarity gets you close, but

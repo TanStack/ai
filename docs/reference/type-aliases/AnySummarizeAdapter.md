@@ -3,8 +3,6 @@ id: AnySummarizeAdapter
 title: AnySummarizeAdapter
 ---
 
-# Type Alias: AnySummarizeAdapter
-
 ```ts
 type AnySummarizeAdapter = SummarizeAdapter<any, any>;
 ```

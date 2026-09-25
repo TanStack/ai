@@ -1,5 +1,7 @@
 import { describe, it, expect, expectTypeOf } from 'vitest'
-import { GEMINI_TTS_MODELS } from '../src/model-meta'
+import { GEMINI_MODELS, GEMINI_TTS_MODELS } from '../src/model-meta'
+import { createGeminiChat } from '../src'
+import { createGeminiTextInteractions } from '../src/experimental'
 import type {
   GeminiChatModelProviderOptionsByName,
   GeminiModelInputModalitiesByName,
@@ -13,6 +15,7 @@ import type {
   GeminiCachedContentOptions,
 } from '../src/text/text-provider-options'
 import type { GeminiMessageMetadataByModality } from '../src/message-types'
+import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
 import type {
   AudioPart,
   ConstrainedModelMessage,
@@ -51,6 +54,38 @@ type BaseOptions = GeminiToolConfigOptions &
   GeminiCachedContentOptions
 
 describe('Gemini Model Provider Options Type Assertions', () => {
+  it('registers gemini-3.8-flash with thinking, structured output, and multimodal input', () => {
+    const adapter = createGeminiChat('gemini-3.8-flash', 'test-key')
+    expect(GEMINI_MODELS).toContain('gemini-3.8-flash')
+    expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
+    expectTypeOf<
+      GeminiChatModelProviderOptionsByName['gemini-3.8-flash']
+    >().toEqualTypeOf<
+      BaseOptions &
+        GeminiThinkingOptions<'LOW' | 'MEDIUM' | 'HIGH'> &
+        GeminiStructuredOutputOptions
+    >()
+    expectTypeOf<
+      GeminiModelInputModalitiesByName['gemini-3.8-flash'][number]
+    >().toEqualTypeOf<'text' | 'image' | 'video' | 'audio' | 'document'>()
+  })
+
+  it('restricts gemini-3.8-flash thinking levels in both adapters', () => {
+    const adapter = createGeminiChat('gemini-3.8-flash', 'test-key')
+    const interactions = createGeminiTextInteractions(
+      'gemini-3.8-flash',
+      'test-key',
+    )
+    type Options = InferTextProviderOptions<typeof adapter>
+    type InteractionsOptions = InferTextProviderOptions<typeof interactions>
+    expectTypeOf<
+      NonNullable<Options['thinkingConfig']>['thinkingLevel']
+    >().toEqualTypeOf<'LOW' | 'MEDIUM' | 'HIGH' | undefined>()
+    expectTypeOf<
+      NonNullable<InteractionsOptions['generation_config']>['thinking_level']
+    >().toEqualTypeOf<'low' | 'medium' | 'high' | undefined>()
+  })
+
   describe('Models WITH thinking support', () => {
     it('gemini-3.1-pro-preview should support thinking options', () => {
       type Model = 'gemini-3.1-pro-preview'

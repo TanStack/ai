@@ -87,10 +87,14 @@ const OPERATION_NAME: Record<GenerationActivity, string> = {
   video: 'video_generation',
   audio: 'audio_generation',
   tts: 'text_to_speech',
+  voice: 'voice_generation',
   transcription: 'transcription',
   embedding: 'embeddings',
   rerank: 'rerank',
+  evaluate: 'evaluate',
   summarize: 'summarize',
+  world: 'world_generation',
+  liveVideo: 'live_video_generation',
 }
 
 export interface OtelMiddlewareOptions {

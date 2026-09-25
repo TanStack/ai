@@ -3,13 +3,11 @@ id: GeneratedImage
 title: GeneratedImage
 ---
 
-# Type Alias: GeneratedImage
-
 ```ts
 type GeneratedImage = GeneratedMediaSource & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:2036](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2036)
+Defined in: [packages/ai/src/types.ts:2134](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2134)
 
 A single generated image
 

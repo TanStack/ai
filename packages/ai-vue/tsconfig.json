@@ -3,7 +3,8 @@
   "compilerOptions": {
     "outDir": "dist",
     "jsx": "preserve",
-    "lib": ["ES2022", "DOM"]
+    "lib": ["ES2022", "DOM"],
+    "rootDir": "../.."
   },
   "include": ["src", "tests"],
   "exclude": ["node_modules", "dist"]

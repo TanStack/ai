@@ -6,18 +6,25 @@
     "dev": "vite dev --port 3000",
     "build": "vite build",
     "serve": "vite preview",
-    "test": "exit 0",
+    "test": "vitest run",
+    "test:lib": "vitest run",
     "test:types": "tsc"
   },
   "dependencies": {
+    "@fal-ai/client": "1.11.0-alpha.2",
+    "@reactor-team/js-sdk": "^3.0.1",
+    "@sparkjsdev/spark": "^2.2.0",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-byteplus": "workspace:*",
+    "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-fal": "workspace:*",
     "@tanstack/ai-gemini": "workspace:*",
     "@tanstack/ai-grok": "workspace:*",
     "@tanstack/ai-openrouter": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
+    "@tanstack/ai-reactor": "workspace:*",
+    "@tanstack/ai-worldlabs": "workspace:*",
     "@tanstack/react-router": "^1.158.4",
     "@tanstack/react-start": "^1.159.0",
     "@tanstack/router-plugin": "^1.158.4",
@@ -25,14 +32,17 @@
     "nitro": "3.0.260610-beta",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "tailwindcss": "^4.1.18"
+    "tailwindcss": "^4.1.18",
+    "three": "0.180.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@types/three": "0.180.0",
     "@vitejs/plugin-react": "^5.2.0",
     "typescript": "5.9.3",
-    "vite": "^8.2.1"
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
   }
 }

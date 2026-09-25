@@ -33,7 +33,19 @@ export interface ContentPartUrlSource {
   mimeType?: string
 }
 
-export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
+export interface ContentPartFileSource {
+  type: 'file'
+  /** The opaque handle the provider issued (a file id or provider URI). */
+  value: string
+  /** Adapter name of the provider that issued the handle, when known. */
+  provider?: string
+  mimeType?: string
+}
+
+export type ContentPartSource =
+  | ContentPartDataSource
+  | ContentPartUrlSource
+  | ContentPartFileSource
 
 export interface TextPart {
   type: 'text'
@@ -690,6 +702,36 @@ export interface RerankUsageEvent extends BaseEventContext {
 }
 
 // ===========================
+// Evaluate Events
+// ===========================
+
+/** Emitted when an evaluate request starts. */
+export interface EvaluateRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  /** Number of questions submitted for evaluation. */
+  questionCount: number
+}
+
+/** Emitted when evaluate completes. */
+export interface EvaluateRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  /** Number of questions submitted for evaluation. */
+  questionCount: number
+  duration: number
+}
+
+/** Emitted when evaluate usage metrics are available. */
+export interface EvaluateUsageEvent extends BaseEventContext {
+  requestId: string
+  model: string
+  usage: TokenUsage
+}
+
+// ===========================
 // Image Events
 // ===========================
 
@@ -824,6 +866,46 @@ export interface SpeechUsageEvent extends BaseEventContext {
 }
 
 // ===========================
+// Voice Events
+// ===========================
+
+/** Emitted when a voice creation request starts. */
+export interface VoiceRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt?: string
+  name?: string
+  description?: string
+  /** Whether reference audio was supplied — the audio itself is never emitted. */
+  hasReferenceAudio: boolean
+}
+
+/** Emitted when a voice creation request completes. */
+export interface VoiceRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  voiceIds: Array<string>
+  voiceCount: number
+  previewText?: string
+  duration: number
+}
+
+/** Emitted when voice creation usage metrics are available. */
+export interface VoiceUsageEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  model: string
+  usage: TokenUsage
+}
+
+// ===========================
 // Transcription Events
 // ===========================
 
@@ -927,6 +1009,17 @@ export interface SpeechRequestErrorEvent extends BaseEventContext {
   duration: number
 }
 
+/** Emitted when a voice creation request fails. */
+export interface VoiceRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+}
+
 /** Emitted when a transcription request fails. */
 export interface TranscriptionRequestErrorEvent extends BaseEventContext {
   requestId: string
@@ -988,6 +1081,106 @@ export interface VideoUsageEvent extends BaseEventContext {
   runId?: string
   model: string
   usage: TokenUsage
+}
+
+// ===========================
+// World Events
+// ===========================
+
+/** Emitted when a world generation request starts. */
+export interface WorldRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt: string
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a world generation request completes. */
+export interface WorldRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt: string
+  status: 'ready' | 'waiting'
+  duration: number
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a world generation request fails. */
+export interface WorldRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when world usage metrics are available. */
+export interface WorldUsageEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  model: string
+  usage: TokenUsage
+  modelOptions?: Record<string, unknown>
+}
+
+// ===========================
+// Live Events
+// ===========================
+
+/** Emitted when a live generation request starts. */
+export interface LiveVideoRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt: string
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a live generation request completes. */
+export interface LiveVideoRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt: string
+  status: 'ready' | 'waiting'
+  duration: number
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a live generation request fails. */
+export interface LiveVideoRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when live usage metrics are available. */
+export interface LiveVideoUsageEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  model: string
+  usage: TokenUsage
+  modelOptions?: Record<string, unknown>
 }
 
 // ---------------------------------------------------------------------------
@@ -1352,6 +1545,11 @@ export interface AIDevtoolsEventMap {
   'rerank:request:completed': RerankRequestCompletedEvent
   'rerank:usage': RerankUsageEvent
 
+  // Evaluate events
+  'evaluate:request:started': EvaluateRequestStartedEvent
+  'evaluate:request:completed': EvaluateRequestCompletedEvent
+  'evaluate:usage': EvaluateUsageEvent
+
   // Image events
   'image:request:started': ImageRequestStartedEvent
   'image:request:completed': ImageRequestCompletedEvent
@@ -1368,6 +1566,10 @@ export interface AIDevtoolsEventMap {
   'speech:request:completed': SpeechRequestCompletedEvent
   'speech:request:error': SpeechRequestErrorEvent
   'speech:usage': SpeechUsageEvent
+  'voice:request:started': VoiceRequestStartedEvent
+  'voice:request:completed': VoiceRequestCompletedEvent
+  'voice:request:error': VoiceRequestErrorEvent
+  'voice:usage': VoiceUsageEvent
 
   // Transcription events
   'transcription:request:started': TranscriptionRequestStartedEvent
@@ -1385,6 +1587,18 @@ export interface AIDevtoolsEventMap {
   'video:request:started': VideoRequestStartedEvent
   'video:request:completed': VideoRequestCompletedEvent
   'video:usage': VideoUsageEvent
+
+  // World events
+  'world:request:started': WorldRequestStartedEvent
+  'world:request:completed': WorldRequestCompletedEvent
+  'world:request:error': WorldRequestErrorEvent
+  'world:usage': WorldUsageEvent
+
+  // Live events
+  'liveVideo:request:started': LiveVideoRequestStartedEvent
+  'liveVideo:request:completed': LiveVideoRequestCompletedEvent
+  'liveVideo:request:error': LiveVideoRequestErrorEvent
+  'liveVideo:usage': LiveVideoUsageEvent
 
   // Client events
   'client:created': ClientCreatedEvent

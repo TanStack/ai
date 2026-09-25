@@ -1,15 +1,15 @@
 /**
- * Assignment routing: area-glob ownership first, then least-loaded with a
+ * Assignment routing: core ownership first, then balanced queues with a
  * deterministic rotation (keyed by item number) so ties spread out without
  * needing any stored state.
  */
 
-import { matchesAnyGlob } from './glob'
-import type { MaintainerEntry, ToolsetConfig } from './types'
+import { matchesAnyGlob, matchesGlob } from './glob'
+import type { ClosedItem, MaintainerEntry, ToolsetConfig } from './types'
 
 export type AssignmentLoad = Map<string, number>
 
-/** Current open-assignment count per roster maintainer (PRs + issues). */
+/** Current open-assignment count for one queue (PRs or issues). */
 export function computeLoad(
   config: ToolsetConfig,
   assigneeLists: Array<Array<string>>,
@@ -41,22 +41,59 @@ function pick(
   return leastLoaded[Math.abs(seed) % leastLoaded.length]!.github
 }
 
+/** CODEOWNERS uses the last matching rule, including ownerless exceptions. */
+export function requiresCoreReview(
+  files: Array<string>,
+  codeowners: string,
+): boolean {
+  const rules = codeowners
+    .split('\n')
+    .map((line) => line.split('#')[0]!.trim().split(/\s+/))
+    .filter(([pattern]) => pattern)
+  return files.some((file) => {
+    let owners: Array<string> = []
+    for (const [rawPattern, ...ruleOwners] of rules) {
+      let pattern = rawPattern!
+      const rooted =
+        pattern.startsWith('/') || pattern.slice(0, -1).includes('/')
+      pattern = pattern.replace(/^\//, '')
+      if (!rooted) pattern = `**/${pattern}`
+      if (pattern.endsWith('/')) pattern += '**'
+      if (matchesGlob(file, pattern) || matchesGlob(file, `${pattern}/**`)) {
+        owners = ruleOwners
+      }
+    }
+    return owners.some(
+      (owner) => owner.toLowerCase() === '@tanstack/tanstack-core',
+    )
+  })
+}
+
 function eligible(
   config: ToolsetConfig,
   author: string | null,
-  load: AssignmentLoad,
 ): Array<MaintainerEntry> {
   return config.maintainers.filter(
-    (m) =>
-      m.github.toLowerCase() !== author?.toLowerCase() &&
-      (load.get(m.github) ?? 0) < (m.maxOpenAssignments ?? 10),
+    (m) => m.github.toLowerCase() !== author?.toLowerCase(),
   )
 }
 
+/** Area expertise breaks load ties, keeping each queue balanced. */
+function leastLoadedCandidates(
+  candidates: Array<MaintainerEntry>,
+  load: AssignmentLoad,
+): Array<MaintainerEntry> {
+  const min = Math.min(...candidates.map((m) => load.get(m.github) ?? 0))
+  return candidates.filter((m) => (load.get(m.github) ?? 0) === min)
+}
+
+function packagePath(file: string): string | null {
+  return /^packages\/[^/]+\//.exec(file)?.[0] ?? null
+}
+
 /**
- * Route a PR by its changed files. Prefers the maintainer whose area globs
- * match the most files; falls back to least-loaded rotation. Returns null
- * when everyone eligible is at their assignment cap.
+ * Route a PR by its changed files. Core approval takes priority; otherwise area and recent
+ * merged-PR experience break ties in the least-loaded pool.
  */
 export function routePR(
   files: Array<string>,
@@ -64,12 +101,42 @@ export function routePR(
   config: ToolsetConfig,
   load: AssignmentLoad,
   seed: number,
+  codeowners = '',
+  history: Array<ClosedItem> = [],
 ): string | null {
-  const candidates = eligible(config, author, load)
+  const available = eligible(config, author)
+  if (requiresCoreReview(files, codeowners)) {
+    const core = available.find((m) => m.github.toLowerCase() === 'alemtuzlak')
+    if (core) return core.github
+    return pick(available, load, seed)
+  }
+  const candidates = leastLoadedCandidates(available, load)
   if (candidates.length === 0) return null
   const scored = candidates.map((m) => ({
     m,
-    score: files.filter((f) => matchesAnyGlob(f, m.areas)).length,
+    score: files.filter(
+      (file) =>
+        matchesAnyGlob(file, m.areas) ||
+        history.some(
+          (pr) =>
+            pr.type === 'pr' &&
+            pr.mergedAt &&
+            !pr.authorIsBot &&
+            (pr.author?.toLowerCase() === m.github.toLowerCase() ||
+              pr.timeline.some(
+                (e) =>
+                  e.kind === 'review' &&
+                  !e.isBot &&
+                  e.actor?.toLowerCase() === m.github.toLowerCase(),
+              )) &&
+            pr.files?.some(
+              (previous) =>
+                previous === file ||
+                (packagePath(file) !== null &&
+                  packagePath(file) === packagePath(previous)),
+            ),
+        ),
+    ).length,
   }))
   const best = Math.max(...scored.map((s) => s.score))
   if (best > 0) {
@@ -104,7 +171,7 @@ export function routeIssue(
   load: AssignmentLoad,
   seed: number,
 ): string | null {
-  const candidates = eligible(config, author, load)
+  const candidates = leastLoadedCandidates(eligible(config, author), load)
   if (candidates.length === 0) return null
   const lower = text.toLowerCase()
   const scored = candidates.map((m) => ({

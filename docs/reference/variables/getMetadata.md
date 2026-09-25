@@ -3,8 +3,6 @@ id: getMetadata
 title: getMetadata
 ---
 
-# Variable: getMetadata
-
 ```ts
 getMetadata: CapabilityGetter<MetadataStore>;
 ```

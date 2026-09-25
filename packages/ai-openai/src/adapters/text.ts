@@ -92,6 +92,11 @@ export class OpenAITextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'openai' as const
+  // OpenAI's Responses endpoint consumes `file_id` references issued by its
+  // Files API (`openaiFiles()`). The default is undefined (unsupported) so
+  // compatible subclasses of the openai-base adapter (Grok, Bedrock, custom)
+  // — which have no such surface — fail closed in preflight.
+  override readonly supportsFileSources = true
 
   constructor(config: OpenAITextConfig, model: TModel) {
     super(model, 'openai', new OpenAI(config))
@@ -146,6 +151,17 @@ export class OpenAITextAdapter<
     if (openAIModelRejectsSamplingParams(options.model)) {
       delete request.temperature
       delete request.top_p
+    }
+
+    // Reasoning models pair each function_call with a reasoning item. Request
+    // the encrypted blob so convertMessagesToInput can replay it. Pre-5 chat
+    // models do not emit those items, so leave include unset for them.
+    // Callers can still set include in modelOptions.
+    if (
+      request.include === undefined &&
+      openAIModelRejectsSamplingParams(options.model)
+    ) {
+      request.include = ['reasoning.encrypted_content']
     }
 
     return request

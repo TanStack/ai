@@ -37,8 +37,19 @@ import { execFileSync } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { isRoutingAlias, toModelConstName } from './model-sync/ids'
-import { buildProviderSupportsBody } from './model-sync/provider-supports'
+import {
+  isRoutingAlias,
+  toModelConstName,
+  toNativeProviderId,
+} from './model-sync/ids'
+import {
+  applyChatModelCatalogInserts,
+  insertConstants,
+} from './model-sync/native-insert'
+import {
+  buildAnthropicProviderOptionsType,
+  buildProviderSupportsBody,
+} from './model-sync/provider-supports'
 import type { SyncedProvider } from './model-sync/provider-supports'
 import { models } from './openrouter.models'
 import type { OpenRouterModel } from './openrouter.models'
@@ -68,6 +79,12 @@ interface ProviderConfig {
   providerOptionsTypeName: string
   /** Name of the input modalities type map */
   inputModalitiesTypeName: string
+  /**
+   * Name of the per-model tool-capabilities type map. Missing this lets
+   * `ResolveToolCapabilities` fall back to `readonly []` and every provider
+   * tool stops type-checking on the new model.
+   */
+  toolCapabilitiesTypeName?: string
   /**
    * Name of the runtime `Record<string, number>` mapping model id →
    * `max_output_tokens`, if the provider maintains one. Anthropic uses this to
@@ -100,6 +117,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     chatArrayName: 'OPENAI_CHAT_MODELS',
     providerOptionsTypeName: 'OpenAIChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'OpenAIModelInputModalitiesByName',
+    toolCapabilitiesTypeName: 'OpenAIChatModelToolCapabilitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video'],
     kind: 'openai',
     referenceSatisfies:
@@ -124,6 +142,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     chatArrayName: 'ANTHROPIC_MODELS',
     providerOptionsTypeName: 'AnthropicChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'AnthropicModelInputModalitiesByName',
+    toolCapabilitiesTypeName: 'AnthropicChatModelToolCapabilitiesByName',
     maxOutputTokensMapName: 'ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     kind: 'anthropic',
@@ -143,6 +162,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     chatArrayName: 'GEMINI_MODELS',
     providerOptionsTypeName: 'GeminiChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'GeminiModelInputModalitiesByName',
+    toolCapabilitiesTypeName: 'GeminiChatModelToolCapabilitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     kind: 'gemini',
     referenceSatisfies:
@@ -163,6 +183,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     chatArrayName: 'GROK_CHAT_MODELS',
     providerOptionsTypeName: 'GrokChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'GrokModelInputModalitiesByName',
+    toolCapabilitiesTypeName: 'GrokChatModelToolCapabilitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     kind: 'grok',
     referenceSatisfies: 'ModelMeta',
@@ -209,14 +230,6 @@ function stripPrefix(prefix: string, modelId: string): string {
 }
 
 /**
- * Convert a model ID (after prefix stripping) to a TypeScript constant name.
- * E.g. 'gpt-6' -> 'GPT_6', 'grok-4.20-multi-agent' -> 'GROK_4_20_MULTI_AGENT'
- */
-function toConstName(prefix: string, modelId: string): string {
-  return toModelConstName(stripPrefix(prefix, modelId))
-}
-
-/**
  * Convert an OpenRouter price string to per-million-token pricing.
  * Same logic as the existing convert script.
  */
@@ -225,6 +238,32 @@ function convertPrice(priceStr: string | undefined): number {
   if (isNaN(price)) return 0
   const result = price * 1_000_000
   return Math.round(result * 1e10) / 1e10
+}
+
+function anthropicOptionsType(model: OpenRouterModel): string {
+  return buildAnthropicProviderOptionsType({
+    supportedParameters: model.supported_parameters,
+    reasoningMandatory: model.reasoning?.mandatory === true,
+    hasCachedPricing: convertPrice(model.pricing.input_cache_read) > 0,
+  })
+}
+
+function providerOptionsEntryFor(
+  model: OpenRouterModel,
+  config: ProviderConfig,
+): string {
+  if (config.kind === 'anthropic') return anthropicOptionsType(model)
+  return config.referenceProviderOptionsEntry
+}
+
+function satisfiesClause(
+  model: OpenRouterModel,
+  config: ProviderConfig,
+): string {
+  if (config.kind === 'anthropic') {
+    return `ModelMeta<${anthropicOptionsType(model)}>`
+  }
+  return config.referenceSatisfies
 }
 
 /**
@@ -363,8 +402,9 @@ function generateModelConstant(
   prefix: string,
   config: ProviderConfig,
 ): string {
-  const constName = toConstName(prefix, model.id)
   const strippedId = stripPrefix(prefix, model.id)
+  const nativeId = toNativeProviderId(strippedId, config.kind)
+  const constName = toModelConstName(nativeId)
 
   const inputNormal = convertPrice(model.pricing.prompt)
   const inputCached = convertPrice(model.pricing.input_cache_read)
@@ -379,11 +419,11 @@ function generateModelConstant(
   lines.push(`const ${constName} = {`)
 
   // name field
-  lines.push(`  name: '${strippedId}',`)
+  lines.push(`  name: '${nativeId}',`)
 
   // id field (Anthropic has both name and id, set to same value for new models)
   if (config.hasBothNameAndId) {
-    lines.push(`  id: '${strippedId}',`)
+    lines.push(`  id: '${nativeId}',`)
   }
 
   // context / max_input_tokens
@@ -423,7 +463,7 @@ function generateModelConstant(
   lines.push(`    },`)
   lines.push(`  },`)
 
-  lines.push(`} as const satisfies ${config.referenceSatisfies}`)
+  lines.push(`} as const satisfies ${satisfiesClause(model, config)}`)
 
   return lines.join('\n')
 }
@@ -444,111 +484,6 @@ function formatNumber(n: number): string {
   }
   parts.unshift(remaining)
   return parts.join('_')
-}
-
-// ---------------------------------------------------------------------------
-// File modification
-// ---------------------------------------------------------------------------
-
-/**
- * Insert new model constants before the first `export` statement.
- */
-function insertConstants(content: string, constants: Array<string>): string {
-  const block = '\n' + constants.join('\n\n') + '\n'
-  // Find the first `\nexport ` that is not inside a comment
-  const exportIndex = content.indexOf('\nexport ')
-  if (exportIndex === -1) {
-    // Fallback: append before end of file
-    return content + block
-  }
-  return content.slice(0, exportIndex) + block + content.slice(exportIndex)
-}
-
-/**
- * Add entries to an array like: export const ARRAY_NAME = [ ... ] as const
- *
- * New entries are inserted immediately AFTER the opening bracket, so this
- * only ever writes separators it owns: each inserted line carries its own
- * trailing comma, and the existing body — multi-line with trailing commas, a
- * short single-line array, comment lines, or nothing at all — follows
- * unchanged. Inserting before the CLOSING bracket instead means guessing
- * whether the last existing entry already has a comma, which is how a
- * single-line `GROK_CHAT_MODELS` produced a syntax error (and a dead daily
- * sync) the day grok-4.5 arrived. `pnpm format` reflows the result, so the
- * inserted lines only need to parse, not to be pretty.
- */
-function addToArray(
-  content: string,
-  arrayName: string,
-  entries: Array<string>,
-  arrayRef: string,
-): string {
-  const open = `export const ${arrayName} = [`
-  const openIndex = content.indexOf(open)
-  if (openIndex === -1) {
-    console.warn(`  Warning: Could not find array '${arrayName}' in file`)
-    return content
-  }
-
-  const newEntries = entries
-    .map((constName) => `  ${constName}${arrayRef},`)
-    .join('\n')
-  const insertAt = openIndex + open.length
-  return `${content.slice(0, insertAt)}\n${newEntries}${content.slice(insertAt)}`
-}
-
-/**
- * Add entries to a type map like:
- *   export type TypeName = {
- *     ...existing entries...
- *   }
- */
-function addToTypeMap(
-  content: string,
-  typeName: string,
-  entries: Array<string>,
-): string {
-  // Match: export type TypeName = { ... \n}
-  const pattern = new RegExp(
-    `(export type ${typeName} = \\{[\\s\\S]*?)(\\n\\})`,
-  )
-  const match = pattern.exec(content)
-  if (!match) {
-    console.warn(`  Warning: Could not find type map '${typeName}' in file`)
-    return content
-  }
-
-  const newEntries = entries.join('\n')
-  // Use replacer function to prevent $-character interpretation in replacement string
-  return content.replace(pattern, () => `${match[1]}\n${newEntries}${match[2]}`)
-}
-
-/**
- * Add entries to a runtime object literal like:
- *   const MAP_NAME: Record<string, number> = {
- *     ...existing entries...
- *   }
- * Used for the Anthropic id → max_output_tokens map (issue #849), which is a
- * value declaration rather than a `type` alias.
- */
-function addToObjectMap(
-  content: string,
-  mapName: string,
-  entries: Array<string>,
-): string {
-  // Match: const MAP_NAME: Record<string, number> = { ... \n}
-  const pattern = new RegExp(
-    `(const ${mapName}: Record<string, number> = \\{[\\s\\S]*?)(\\n\\})`,
-  )
-  const match = pattern.exec(content)
-  if (!match) {
-    console.warn(`  Warning: Could not find object map '${mapName}' in file`)
-    return content
-  }
-
-  const newEntries = entries.join('\n')
-  // Use replacer function to prevent $-character interpretation in replacement string
-  return content.replace(pattern, () => `${match[1]}\n${newEntries}${match[2]}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -641,7 +576,8 @@ async function main() {
       }
 
       const strippedId = stripPrefix(prefix, model.id)
-      const constName = toConstName(prefix, model.id)
+      const nativeId = toNativeProviderId(strippedId, config.kind)
+      const constName = toModelConstName(nativeId)
 
       // Skip models with ':' variants (e.g., 'anthropic/claude-3.7-sonnet:thinking')
       // These are routing variants, not separate models
@@ -669,7 +605,7 @@ async function main() {
         !existingIds.has(normalizeId(strippedId)) &&
         !existingConstNames.has(constName)
       ) {
-        newModels.push({ model, constName, strippedId })
+        newModels.push({ model, constName, strippedId: nativeId })
       }
     }
 
@@ -708,71 +644,28 @@ async function main() {
     // Insert constants before first export
     content = insertConstants(content, constants)
 
-    // Filter to chat-eligible models: must output text
-    const chatModels = filteredModels.filter(({ model }) => outputsText(model))
-
-    if (chatModels.length > 0) {
-      content = addToArray(
-        content,
-        config.chatArrayName,
-        chatModels.map(({ constName }) => constName),
-        config.arrayRef,
-      )
-    }
-
     // NOTE: We intentionally do NOT add models to image arrays.
     // Image model arrays have specialized type maps (sizes, provider options)
     // that require manual curation.
 
-    // Add to provider options type map (skip for Grok - uses mapped type)
-    if (!config.providerOptionsIsMappedType && chatModels.length > 0) {
-      const providerOptionsEntries = chatModels.map(
-        ({ constName }) =>
-          `  [${constName}${config.arrayRef}]: ${config.referenceProviderOptionsEntry}`,
-      )
-      if (providerOptionsEntries.length > 0) {
-        content = addToTypeMap(
-          content,
-          config.providerOptionsTypeName,
-          providerOptionsEntries,
-        )
-      }
-    }
-
-    // Add to input modalities type map
-    const modalityEntries = chatModels.map(
-      ({ constName }) =>
-        `  [${constName}${config.arrayRef}]: typeof ${constName}.supports.input`,
+    const chatModels = filteredModels.filter(({ model }) => outputsText(model))
+    content = applyChatModelCatalogInserts(
+      content,
+      {
+        chatArrayName: config.chatArrayName,
+        arrayRef: config.arrayRef,
+        providerOptionsTypeName: config.providerOptionsTypeName,
+        inputModalitiesTypeName: config.inputModalitiesTypeName,
+        toolCapabilitiesTypeName: config.toolCapabilitiesTypeName,
+        maxOutputTokensMapName: config.maxOutputTokensMapName,
+        providerOptionsIsMappedType: config.providerOptionsIsMappedType,
+      },
+      chatModels.map(({ model, constName }) => ({
+        constName,
+        providerOptionsEntry: providerOptionsEntryFor(model, config),
+        hasMaxOutputTokens: Boolean(model.top_provider.max_completion_tokens),
+      })),
     )
-    if (modalityEntries.length > 0) {
-      content = addToTypeMap(
-        content,
-        config.inputModalitiesTypeName,
-        modalityEntries,
-      )
-    }
-
-    // Add to the id → max_output_tokens runtime map (Anthropic only). Only
-    // models whose generated constant actually carries `max_output_tokens`
-    // (i.e. OpenRouter reported a `max_completion_tokens`) get an entry; the
-    // rest correctly fall through to the map's constant default. Keeps the map
-    // in lockstep with the chat-model array so a synced model resolves to its
-    // real ceiling instead of the fallback (issue #849).
-    if (config.maxOutputTokensMapName) {
-      const maxOutputEntries = chatModels
-        .filter(({ model }) => model.top_provider.max_completion_tokens)
-        .map(
-          ({ constName }) =>
-            `  [${constName}${config.arrayRef}]: ${constName}.max_output_tokens,`,
-        )
-      if (maxOutputEntries.length > 0) {
-        content = addToObjectMap(
-          content,
-          config.maxOutputTokensMapName,
-          maxOutputEntries,
-        )
-      }
-    }
 
     // Write the modified file
     await writeFile(config.metaFile, content, 'utf-8')

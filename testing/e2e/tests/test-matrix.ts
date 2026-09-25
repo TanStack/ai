@@ -37,6 +37,7 @@ export const providers: Provider[] = [
   'byteplus',
   'elevenlabs',
   'llmgateway',
+  'cloudflare',
 ]
 
 export { isSupported }

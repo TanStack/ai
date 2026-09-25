@@ -14,8 +14,6 @@ keywords:
   - afterTools
 ---
 
-# Lifecycle Boundaries
-
 You know you need a generic interrupt. You do not know which phase to pause
 in. If you pause too early, the model has no draft to review. If you pause too
 late, a tool has already run.

@@ -2,6 +2,18 @@
 export { injectChat } from './inject-chat'
 export { injectByok } from './inject-byok'
 
+// WebMCP Tools
+export {
+  injectPageWebMCPTools,
+  injectRegisterWebMCPTools,
+  injectWebMCPTools,
+} from './inject-web-mcp-tools'
+export type {
+  InjectPageWebMCPToolsOptions,
+  InjectRegisterWebMCPToolsOptions,
+  InjectWebMCPToolsOptions,
+} from './inject-web-mcp-tools'
+
 // Generation
 export { injectGeneration } from './inject-generation'
 export type {
@@ -77,6 +89,48 @@ export type {
 
 // Re-export from @tanstack/ai-client for convenience
 export {
+  AudioRecorder,
+  ChatClient,
+  InterruptManager,
+  RealtimeClient,
+  GenerationClient,
+  VideoGenerationClient,
+  GENERATION_EVENTS,
+  reconstructImageResult,
+  reconstructAudioResult,
+  reconstructSpeechResult,
+  reconstructTranscriptionResult,
+  reconstructSummarizeResult,
+  UnsupportedResponseStreamError,
+  createAIDevtoolsGenerationPreview,
+  StreamTruncatedError,
+  DurableStreamIncompleteError,
+  StreamReconnectLimitError,
+  uiMessageToModelMessages,
+  modelMessageToUIMessage,
+  modelMessagesToUIMessages,
+  convertMessagesToModelMessages,
+  normalizeToUIMessage,
+  generateMessageId,
+  StreamProcessor,
+  ImmediateStrategy,
+  PunctuationStrategy,
+  BatchStrategy,
+  WordBoundaryStrategy,
+  CompositeStrategy,
+  parsePartialJSON,
+  PartialJSONParser,
+  defaultJSONParser,
+  registerWebMCPTools,
+  getWebMCPTools,
+  subscribeWebMCPTools,
+  type GetWebMCPToolsOptions,
+  type SubscribeWebMCPToolsOptions,
+  type WebMCPPageTool,
+  clientTools,
+  createMcpAppBridge,
+  type McpAppBridge,
+  type CreateMcpAppBridgeOptions,
   fetchServerSentEvents,
   localStoragePersistence,
   sessionStoragePersistence,

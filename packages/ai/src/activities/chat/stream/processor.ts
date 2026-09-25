@@ -18,20 +18,27 @@
  *   adapter contract, single-shot flows, and expected UIMessage output.
  */
 import {
+  aguiContentToContentParts,
   aguiSnapshotMessageToUIMessage,
   coerceCreatedAt,
   generateMessageId,
   uiMessageToModelMessages,
 } from '../messages.js'
 import { runErrorEventToError } from '../../../utilities/errors'
-import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
+import {
+  isAssistantSegmentOf,
+  isProviderExecutedToolCall,
+} from '../../../utilities/provider-executed'
 import {
   mergeMetadata,
   tanstackMetadata,
 } from '../../../utilities/merge-metadata'
 import { getChunkRunId } from '../../../utilities/chunk-ids'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
-import { normalizeToolResult } from '../../../utilities/tool-result'
+import {
+  normalizeToolResult,
+  toolResultErrorText,
+} from '../../../utilities/tool-result'
 import { defaultJSONParser } from './json-parser'
 import {
   appendStructuredOutputDelta,
@@ -47,6 +54,10 @@ import {
 } from './message-updaters'
 import { ImmediateStrategy } from './strategies'
 import { INTERRUPT_BINDING_METADATA_KEY } from '../../../interrupt-resume'
+import { EventType } from '../../../types'
+import { splitSubagentWire } from '../../../utilities/subagent-wire'
+import type { SubagentWireGroup } from '../../../utilities/subagent-wire'
+import type { Message as AGUIMessage } from '@ag-ui/core'
 import type {
   ChunkRecording,
   ChunkStrategy,
@@ -67,6 +78,7 @@ import type {
   ToolCall,
   ToolCallPart,
   ToolResultPart,
+  SubagentPart,
   UIMessage,
   UIResourceEvent,
   UIResourcePart,
@@ -144,6 +156,11 @@ export interface StreamProcessorOptions {
   recording?: boolean
   /** Initial messages to populate the processor */
   initialMessages?: Array<UIMessage>
+  /**
+   * Set on the processor of a subagent card. Chunks tagged with this id are
+   * the card's own; chunks for an id no card holds are dropped.
+   */
+  subagentRunId?: string
 }
 
 const STRUCTURED_OUTPUT_UPDATE_BATCH_SIZE = 12
@@ -207,6 +224,10 @@ export class StreamProcessor {
 
   // Run tracking (for concurrent run safety)
   private readonly activeRuns = new Set<string>()
+  // Direct children by subagentRunId. See childProcessor().
+  private readonly childProcessors = new Map<string, StreamProcessor>()
+  // Child tool calls whose later events may omit subagentRunId.
+  private readonly childToolCalls = new Map<string, string>()
 
   // Shared stream state
   private finishReason: string | null = null
@@ -218,7 +239,10 @@ export class StreamProcessor {
   private recording: ChunkRecording | null = null
   private recordingStartTime = 0
 
+  private readonly subagentRunId?: string
+
   constructor(options: StreamProcessorOptions = {}) {
+    this.subagentRunId = options.subagentRunId
     this.chunkStrategy = options.chunkStrategy || new ImmediateStrategy()
     this.events = options.events || {}
     this.jsonParser = options.jsonParser || defaultJSONParser
@@ -239,6 +263,37 @@ export class StreamProcessor {
    */
   setMessages(messages: Array<UIMessage>): void {
     this.messages = [...messages]
+    this.emitMessagesChange()
+  }
+
+  /**
+   * Put older UI messages at the front of the conversation.
+   *
+   * Skip a message if its id is already in the list. Keep the existing message.
+   * Then emit the same messages-change event as `setMessages`.
+   *
+   * Use this for older history pages. The first hydrate window uses `setMessages`.
+   *
+   * @param messages Older UI messages in insertion order. The first item is the oldest.
+   *
+   * @example
+   * ```ts
+   * processor.setMessages([newest])
+   * processor.prependMessages([oldest])
+   * ```
+   */
+  prependMessages(messages: Array<UIMessage>) {
+    const existingIds = new Set(this.messages.map((message) => message.id))
+    const olderMessages: Array<UIMessage> = []
+    for (const message of messages) {
+      const isDuplicate = existingIds.has(message.id)
+      if (isDuplicate) {
+        continue
+      }
+      existingIds.add(message.id)
+      olderMessages.push(message)
+    }
+    this.messages = [...olderMessages, ...this.messages]
     this.emitMessagesChange()
   }
 
@@ -347,6 +402,13 @@ export class StreamProcessor {
     )
 
     if (!messageWithToolCall) {
+      const owner = this.childOwningToolCall((part) => part.id === toolCallId)
+      if (owner !== undefined) {
+        this.updateChild(owner, (child) =>
+          child.addToolResult(toolCallId, output, error),
+        )
+        return
+      }
       console.warn(
         `[StreamProcessor] Could not find message with tool call ${toolCallId}`,
       )
@@ -383,6 +445,15 @@ export class StreamProcessor {
    * Add an approval response (called by client after handling onApprovalRequest)
    */
   addToolApprovalResponse(approvalId: string, approved: boolean): void {
+    const owner = this.childOwningToolCall(
+      (part) => part.approval?.id === approvalId,
+    )
+    if (owner !== undefined) {
+      this.updateChild(owner, (child) =>
+        child.addToolApprovalResponse(approvalId, approved),
+      )
+      return
+    }
     this.messages = updateToolCallApprovalResponse(
       this.messages,
       approvalId,
@@ -493,6 +564,8 @@ export class StreamProcessor {
     this.structuredMessageIds.clear()
     this.structuredOutputUpdateBatches.clear()
     this.pendingManualMessageId = null
+    this.childProcessors.clear()
+    this.childToolCalls.clear()
     this.emitMessagesChange()
   }
 
@@ -547,12 +620,24 @@ export class StreamProcessor {
       })
     }
 
-    // Cast needed: @ag-ui/core Zod passthrough types add `& { [k: string]: unknown }`
-    // which prevents TypeScript from narrowing the `type` discriminant in switch.
+    if (this.routeToChild(chunk)) return
+
     const c = chunk
     // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType enum members vs string-literal case labels; default branch handles untraced events.
     switch (c.type) {
       // AG-UI Events
+      case 'SUBAGENT_STARTED':
+        this.handleSubagentStartedEvent(chunk)
+        break
+
+      case 'SUBAGENT_FINISHED':
+        this.handleSubagentFinishedEvent(chunk)
+        break
+
+      case 'SUBAGENT_ERROR':
+        this.handleSubagentErrorEvent(chunk)
+        break
+
       case 'TEXT_MESSAGE_START':
         this.handleTextMessageStartEvent(
           chunk as Extract<StreamChunk, { type: 'TEXT_MESSAGE_START' }>,
@@ -876,6 +961,241 @@ export class StreamProcessor {
     this.emitMessagesChange()
   }
 
+  private findSubagentPart(subagentRunId: string) {
+    for (const message of this.messages) {
+      for (const part of message.parts) {
+        if (part.type === 'subagent' && part.subagent.id === subagentRunId) {
+          return { message, part }
+        }
+      }
+    }
+    return undefined
+  }
+
+  /**
+   * The direct child whose card holds `id`: the child itself, or a nested
+   * child inside its messages.
+   */
+  private childOwning(id: string): string | undefined {
+    const holds = (messages: ReadonlyArray<UIMessage>): boolean =>
+      messages.some((message) =>
+        message.parts.some(
+          (part) =>
+            part.type === 'subagent' &&
+            (part.subagent.id === id || holds(part.subagent.messages)),
+        ),
+      )
+    for (const message of this.messages) {
+      for (const part of message.parts) {
+        if (part.type !== 'subagent') continue
+        if (part.subagent.id === id || holds(part.subagent.messages)) {
+          return part.subagent.id
+        }
+      }
+    }
+    return undefined
+  }
+
+  /** The direct child whose messages hold this tool call. */
+  private childOwningToolCall(
+    matches: (part: ToolCallPart) => boolean,
+  ): string | undefined {
+    const holds = (messages: ReadonlyArray<UIMessage>): boolean =>
+      messages.some((message) =>
+        message.parts.some(
+          (part) =>
+            (part.type === 'tool-call' && matches(part)) ||
+            (part.type === 'subagent' && holds(part.subagent.messages)),
+        ),
+      )
+    for (const message of this.messages) {
+      for (const part of message.parts) {
+        if (part.type === 'subagent' && holds(part.subagent.messages)) {
+          return part.subagent.id
+        }
+      }
+    }
+    return undefined
+  }
+
+  /**
+   * The processor for a direct child. The card's messages are the source of
+   * truth. The processor re-reads them when something else replaced them.
+   */
+  private childProcessor(subagentRunId: string): StreamProcessor | undefined {
+    const found = this.findSubagentPart(subagentRunId)
+    if (!found) return undefined
+    const messages = found.part.subagent.messages
+    const existing = this.childProcessors.get(subagentRunId)
+    if (existing) {
+      if (existing.getMessages() !== messages) existing.messages = messages
+      return existing
+    }
+    const child = new StreamProcessor({
+      subagentRunId,
+      initialMessages: messages,
+      events: {
+        onToolCall: (args) => this.events.onToolCall?.(args),
+        onApprovalRequest: (args) => this.events.onApprovalRequest?.(args),
+        onCustomEvent: (name, value, context) =>
+          this.events.onCustomEvent?.(name, value, context),
+      },
+    })
+    this.childProcessors.set(subagentRunId, child)
+    return child
+  }
+
+  /** Run `update` on a direct child, then copy its messages onto the card. */
+  private updateChild(
+    subagentRunId: string,
+    update: (child: StreamProcessor) => void,
+  ): void {
+    const child = this.childProcessor(subagentRunId)
+    if (!child) return
+    update(child)
+    const messages = child.getMessages()
+    this.patchSubagent(subagentRunId, (subagent) => {
+      subagent.messages = messages
+    })
+  }
+
+  private handleSubagentStartedEvent(chunk: StreamChunk): void {
+    if (chunk.type !== 'SUBAGENT_STARTED') return
+    const existing = this.findSubagentPart(chunk.subagentRunId)
+    if (existing) {
+      // A resume continues the same child. Start a fresh stream on its card.
+      this.childProcessors.delete(chunk.subagentRunId)
+      this.patchSubagent(chunk.subagentRunId, (subagent) => {
+        subagent.status = 'running'
+        delete subagent.interruptIds
+        delete subagent.error
+        if (chunk.metadata !== undefined) subagent.metadata = chunk.metadata
+      })
+      return
+    }
+    const { messageId } = this.ensureAssistantMessage()
+    const part: SubagentPart = {
+      type: 'subagent',
+      subagent: {
+        id: chunk.subagentRunId,
+        name: chunk.name,
+        ...(chunk.description !== undefined && {
+          description: chunk.description,
+        }),
+        status: 'running',
+        ...(chunk.parentSubagentRunId !== undefined && {
+          parentSubagentRunId: chunk.parentSubagentRunId,
+        }),
+        ...(chunk.parentToolCallId !== undefined && {
+          parentToolCallId: chunk.parentToolCallId,
+        }),
+        ...(chunk.metadata !== undefined && { metadata: chunk.metadata }),
+        messages: [],
+      },
+    }
+    this.messages = this.messages.map((message) =>
+      message.id === messageId
+        ? { ...message, parts: [...message.parts, part] }
+        : message,
+    )
+    this.emitMessagesChange()
+  }
+
+  private handleSubagentFinishedEvent(chunk: StreamChunk): void {
+    if (chunk.type !== 'SUBAGENT_FINISHED') return
+    this.updateChild(chunk.subagentRunId, (child) => child.finalizeStream())
+    this.patchSubagent(chunk.subagentRunId, (subagent) => {
+      if (subagent.status === 'error') return
+      if (chunk.outcome?.type === 'suspended') {
+        subagent.status = 'suspended'
+        subagent.interruptIds = chunk.outcome.interruptIds ?? []
+        return
+      }
+      subagent.status = 'finished'
+    })
+  }
+
+  private handleSubagentErrorEvent(chunk: StreamChunk): void {
+    if (chunk.type !== 'SUBAGENT_ERROR') return
+    this.updateChild(chunk.subagentRunId, (child) => child.finalizeStream())
+    this.patchSubagent(chunk.subagentRunId, (subagent) => {
+      subagent.status = 'error'
+      subagent.error = {
+        message: chunk.message,
+        ...(chunk.code !== undefined && { code: chunk.code }),
+      }
+    })
+  }
+
+  private patchSubagent(
+    subagentRunId: string,
+    patch: (subagent: SubagentPart['subagent']) => void,
+  ): void {
+    this.messages = this.messages.map((message) => {
+      const index = message.parts.findIndex(
+        (part) =>
+          part.type === 'subagent' && part.subagent.id === subagentRunId,
+      )
+      if (index === -1) return message
+      const part = message.parts[index]
+      if (!part || part.type !== 'subagent') return message
+      const next: SubagentPart = {
+        type: 'subagent',
+        subagent: { ...part.subagent },
+      }
+      patch(next.subagent)
+      const parts = [...message.parts]
+      parts[index] = next
+      return { ...message, parts }
+    })
+    this.emitMessagesChange()
+  }
+
+  /**
+   * Send a child's chunk to that child's processor, so the card keeps text,
+   * reasoning, tool calls, results, and nested children. A tool event without
+   * `subagentRunId` follows its `TOOL_CALL_START`.
+   */
+  private routeToChild(chunk: StreamChunk): boolean {
+    let id: string | undefined
+    if (chunk.type === 'SUBAGENT_STARTED') {
+      id = chunk.parentSubagentRunId
+    } else if (
+      chunk.type === 'SUBAGENT_FINISHED' ||
+      chunk.type === 'SUBAGENT_ERROR'
+    ) {
+      // A direct child's own lifecycle goes to processChunk's switch, not to a
+      // child.
+      if (this.findSubagentPart(chunk.subagentRunId)) return false
+      id = chunk.subagentRunId
+    } else if ('subagentRunId' in chunk && chunk.subagentRunId) {
+      id = chunk.subagentRunId
+    } else if ('toolCallId' in chunk && typeof chunk.toolCallId === 'string') {
+      id = this.childToolCalls.get(chunk.toolCallId)
+    }
+    if (id === undefined) return false
+    const owner = this.childOwning(id)
+    if (owner === undefined) {
+      // A card's own chunks reach its processor tagged with its id.
+      if (id === this.subagentRunId) return false
+      // No card holds this id. Keep the chunk off this message list.
+      console.warn(
+        `[StreamProcessor] Dropped a chunk for unknown subagent ${id}`,
+      )
+      return true
+    }
+    if (this.findSubagentPart(owner)?.part.subagent.status === 'error') {
+      // An errored child, and its nested children, ignore late events.
+      // Finished and suspended children still accept them, for a resume.
+      return true
+    }
+    if (chunk.type === 'TOOL_CALL_START') {
+      this.childToolCalls.set(chunk.toolCallId, owner)
+    }
+    this.updateChild(owner, (child) => child.processChunk(chunk))
+    return true
+  }
+
   /**
    * Handle TEXT_MESSAGE_START event
    */
@@ -1030,10 +1350,11 @@ export class StreamProcessor {
     // the pre-snapshot state; see `reconcileSnapshotToolCalls`.
     const prevMessages = this.messages
     const prevById = new Map(prevMessages.map((msg) => [msg.id, msg]))
+    const { top, groups } = splitSubagentWire(chunk.messages)
     const normalized = this.mergeReasoningFanOut(
-      chunk.messages.map(aguiSnapshotMessageToUIMessage),
+      top.map(aguiSnapshotMessageToUIMessage),
     )
-    this.messages = this.reconcileSnapshotToolCalls(
+    const reconciled = this.reconcileSnapshotToolCalls(
       normalized,
       prevMessages,
     ).map((msg) => {
@@ -1042,7 +1363,111 @@ export class StreamProcessor {
       if (prev?.metadata == null) return msg
       return { ...msg, metadata: prev.metadata }
     })
+    this.messages = this.attachSnapshotSubagents(
+      reconciled,
+      top,
+      groups,
+      prevMessages,
+    )
     this.emitMessagesChange()
+  }
+
+  /**
+   * Put subagent cards back on a snapshot. Child wire messages (tagged with
+   * `subagentRunId`) become a card on the nearest assistant message before
+   * them, or a new assistant message when there is none. A card that the
+   * snapshot does not carry stays on its message, because a server snapshot
+   * can hold the parent history only.
+   */
+  private attachSnapshotSubagents(
+    messages: Array<UIMessage>,
+    top: ReadonlyArray<AGUIMessage>,
+    groups: ReadonlyArray<SubagentWireGroup<AGUIMessage>>,
+    prevMessages: ReadonlyArray<UIMessage>,
+  ): Array<UIMessage> {
+    const cards: Array<{
+      hostId?: string
+      toolCallId?: string
+      part: SubagentPart
+      carried: boolean
+    }> = []
+    const children = new Map<string, StreamProcessor>()
+    for (const group of groups) {
+      const child = new StreamProcessor({ subagentRunId: group.id })
+      child.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: group.messages,
+        timestamp: Date.now(),
+      })
+      children.set(group.id, child)
+      const { placeholder: _placeholder, ...info } = group.info
+      void _placeholder
+      cards.push({
+        hostId: top
+          .slice(0, group.hostIndex + 1)
+          .findLast((message) => message.role === 'assistant')?.id,
+        part: {
+          type: 'subagent',
+          subagent: { ...info, id: group.id, messages: child.getMessages() },
+        },
+        carried: false,
+      })
+    }
+    const inSnapshot = new Set(groups.map((group) => group.id))
+    for (const message of prevMessages) {
+      for (const part of message.parts) {
+        if (part.type !== 'subagent' || inSnapshot.has(part.subagent.id)) {
+          continue
+        }
+        cards.push({
+          hostId: message.id,
+          ...(part.subagent.parentToolCallId !== undefined && {
+            toolCallId: part.subagent.parentToolCallId,
+          }),
+          part,
+          carried: true,
+        })
+        const kept = this.childProcessors.get(part.subagent.id)
+        if (kept) children.set(part.subagent.id, kept)
+      }
+    }
+    this.childProcessors.clear()
+    for (const [id, child] of children) this.childProcessors.set(id, child)
+
+    let out = messages
+    for (const card of cards) {
+      let index = out.findIndex((message) => message.id === card.hostId)
+      if (index === -1 && card.toolCallId !== undefined) {
+        index = out.findIndex((message) =>
+          message.parts.some(
+            (part) => part.type === 'tool-call' && part.id === card.toolCallId,
+          ),
+        )
+      }
+      if (index === -1 && !card.carried) {
+        index = out.findLastIndex((message) => message.role === 'assistant')
+      }
+      if (index === -1) {
+        if (!card.carried) {
+          out = [
+            ...out,
+            { id: generateMessageId(), role: 'assistant', parts: [card.part] },
+          ]
+        }
+        continue
+      }
+      out = out.map((message, position) =>
+        position !== index ||
+        message.parts.some(
+          (part) =>
+            part.type === 'subagent' &&
+            part.subagent.id === card.part.subagent.id,
+        )
+          ? message
+          : { ...message, parts: [...message.parts, card.part] },
+      )
+    }
+    return out
   }
 
   /**
@@ -1099,20 +1524,30 @@ export class StreamProcessor {
         pending.push(msg)
         continue
       }
+      let next = msg
       if (
         msg.role === 'assistant' &&
         pending.length > 0 &&
         !isToolResultOnly(msg)
       ) {
-        out.push({
+        next = {
           ...msg,
           parts: [...pending.flatMap(thinkingParts), ...msg.parts],
-        })
+        }
         pending = []
+      } else {
+        flushPending()
+      }
+      const prev = out.at(-1)
+      if (
+        prev?.role === 'assistant' &&
+        next.role === 'assistant' &&
+        isAssistantSegmentOf(next.id, prev.id)
+      ) {
+        out[out.length - 1] = { ...prev, parts: [...prev.parts, ...next.parts] }
         continue
       }
-      flushPending()
-      out.push(msg)
+      out.push(next)
     }
     flushPending()
     return out
@@ -1286,9 +1721,7 @@ export class StreamProcessor {
             }
           }
           const errorText =
-            result.state === 'error'
-              ? this.extractToolResultError(output)
-              : undefined
+            result.state === 'error' ? toolResultErrorText(output) : undefined
           next = {
             ...next,
             output: errorText ? { error: errorText } : output,
@@ -1582,18 +2015,6 @@ export class StreamProcessor {
     }
   }
 
-  private extractToolResultError(output: unknown): string {
-    if (
-      output &&
-      typeof output === 'object' &&
-      'error' in output &&
-      typeof output.error === 'string'
-    ) {
-      return output.error
-    }
-    return typeof output === 'string' ? output : 'Tool execution failed'
-  }
-
   /**
    * Handle TOOL_CALL_RESULT event (AG-UI spec).
    *
@@ -1628,7 +2049,10 @@ export class StreamProcessor {
     // Step 1: Update the tool-call part's output field
     let output: unknown
     try {
-      output = JSON.parse(chunk.content)
+      output =
+        typeof chunk.content === 'string'
+          ? JSON.parse(chunk.content)
+          : chunk.content
     } catch {
       output = chunk.content
     }
@@ -1645,9 +2069,9 @@ export class StreamProcessor {
       this.messages,
       messageId,
       chunk.toolCallId,
-      chunk.content,
+      aguiContentToContentParts(chunk.content),
       resultState,
-      resultState === 'error' ? this.extractToolResultError(output) : undefined,
+      resultState === 'error' ? toolResultErrorText(output) : undefined,
     )
     this.emitMessagesChange()
   }
@@ -1701,7 +2125,12 @@ export class StreamProcessor {
     }
   }
 
-  private handleInterrupts(interrupts: Array<Interrupt>): void {
+  /**
+   * Apply interrupt state to tool-call parts, then fire the client events.
+   * A child's interrupt updates the child's card. `emit` is false there, so
+   * the events fire once, from the top processor.
+   */
+  private handleInterrupts(interrupts: Array<Interrupt>, emit = true): void {
     const hasGeneric = interruptBatchHasGeneric(interrupts)
     for (const interrupt of interrupts) {
       const metadata =
@@ -1712,6 +2141,16 @@ export class StreamProcessor {
       const toolCallId = interrupt.toolCallId
       if (!toolCallId) continue
 
+      const owner =
+        interrupt.subagentRunId !== undefined
+          ? this.childOwning(interrupt.subagentRunId)
+          : this.childOwningToolCall((part) => part.id === toolCallId)
+      if (owner !== undefined) {
+        this.updateChild(owner, (child) =>
+          child.handleInterrupts([interrupt], false),
+        )
+      }
+
       const toolName =
         typeof metadata.toolName === 'string'
           ? metadata.toolName
@@ -1719,6 +2158,17 @@ export class StreamProcessor {
       const input = Object.hasOwn(metadata, 'input') ? metadata.input : {}
 
       if (kind === 'approval' || interrupt.reason === 'approval_required') {
+        if (owner !== undefined) {
+          if (emit) {
+            this.events.onApprovalRequest?.({
+              toolCallId,
+              toolName,
+              input,
+              approvalId: interrupt.id,
+            })
+          }
+          continue
+        }
         // An interrupt terminal arrives after MESSAGES_SNAPSHOT, which may have
         // rebuilt the message list without the live active-message/tool-call
         // maps. Fall back to locating the assistant message that actually owns
@@ -1743,6 +2193,7 @@ export class StreamProcessor {
           this.emitMessagesChange()
         }
 
+        if (!emit) continue
         this.events.onApprovalRequest?.({
           toolCallId,
           toolName,
@@ -1755,7 +2206,7 @@ export class StreamProcessor {
       if (kind === 'client_tool' || interrupt.reason === 'client_tool_input') {
         // Generic interrupts in the same batch decide `toolResume`. Do not
         // run client tools until that policy is `continue`.
-        if (hasGeneric) continue
+        if (hasGeneric || !emit) continue
         this.events.onToolCall?.({
           toolCallId,
           toolName,
@@ -2586,6 +3037,8 @@ export class StreamProcessor {
   reset(): void {
     this.resetStreamState()
     this.messages = []
+    this.childProcessors.clear()
+    this.childToolCalls.clear()
   }
 
   /**

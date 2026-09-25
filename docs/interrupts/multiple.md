@@ -11,8 +11,6 @@ keywords:
   - cancelInterrupts
 ---
 
-# Multiple Interrupts
-
 One run can pause on several decisions at once. A tool approval and a generic
 middleware request can land in the same batch. You want to show the whole queue
 and send the answers back together, not one round trip each.

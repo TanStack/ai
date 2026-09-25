@@ -26,8 +26,11 @@ Do these four steps:
 
 ## 1. Create a store
 
+If you use a framework package, import BYOK from its `/byok` subpath. You do not need `@tanstack/ai-client`. The same subpath exists on Vue, Solid, Svelte, Preact, Angular, Octane, and Remix.
+
 ```typescript group=byok
-import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
+import { defineByok, defaultByokStorage } from "@tanstack/ai-react/byok";
+
 
 export const byok = defineByok({
   storage: defaultByokStorage(),
@@ -35,6 +38,12 @@ export const byok = defineByok({
 ```
 
 If the browser supports passkeys, `defaultByokStorage()` uses a passkey. If not, keys stay in memory for this tab only.
+
+Passkey storage runs a WebAuthn prompt to save and to unlock a key. Some browsers (Safari, Dia) only show that prompt right after a click. So call `byok.update()`, `byok.unlock()`, or `byok.prepare()` straight from the click handler, before you `await` other work. If you run the unlock deep in a send flow, the prompt may never appear and the call throws with a "needs a fresh user action" message instead. Unlock on the click, then send.
+
+This activation check applies to existing keyrings. First-time registration can require a second PRF prompt, which the browser handles even if registration consumes activation.
+
+Passkey storage accepts 32-byte PRF arrays from password managers such as 1Password and converts them to binary data without changing the encryption key.
 
 ## 2. Save a key
 
@@ -157,7 +166,7 @@ export async function POST(request: Request) {
 
 Import `openaiByok` from `@tanstack/ai-openai/byok`, not from the adapter main entry. The `/byok` file is safe in the browser. The main entry pulls in the provider SDK.
 
-The header wins. If the header is empty, `getByokKey` reads `OPENAI_API_KEY` from the environment. If both are empty, `byokMissing` returns a 401.
+The header wins. If the header is empty, `getByokKey` reads `OPENAI_API_KEY` from the environment. If both are empty, `byokMissing` returns a 401. If one credential is made of several values, read them together with [`getByokKeys`](../api/ai#getbyokkeys).
 
 CAUTION: Do not log the raw key. Use [`maskKey`](../api/ai#maskkey) on error strings.
 
@@ -180,3 +189,4 @@ For other cases:
 - Image and audio POSTs use the same store. See [Generation Hooks](../media/generation-hooks#usegenerateaudio).
 - OpenRouter can mint a key with OAuth. See [Sign in with OpenRouter](../adapters/openrouter#sign-in-with-openrouter-byok).
 - Lovable uses `lovableByok` from `@tanstack/ai-lovable/byok`. See [Lovable AI Gateway](../adapters/lovable#bring-your-own-key).
+- Cloudflare needs a token plus an account id. `cloudflareByok` from `@tanstack/ai-cloudflare/byok` declares `cloudflareAccountByok` as a companion. Pass both to `defineByok({ providers })` and a send for `cloudflare` carries both headers. See [Cloudflare](../adapters/cloudflare#bring-your-own-key).

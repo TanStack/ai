@@ -1,8 +1,12 @@
 import { BaseEmbeddingAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { arrayBufferToBase64, generateId } from '@tanstack/ai-utils'
-import { resolveEmbeddingInput } from '@tanstack/ai'
-import { getCohereApiKeyFromEnv } from '../utils/client'
+import {
+  isFileSource,
+  resolveEmbeddingInput,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
+import { getCohereApiKeyFromEnv, resolveCohereTransport } from '../utils/client'
 import type {
   EmbeddingOptions,
   EmbeddingResult,
@@ -22,7 +26,6 @@ import type { CohereClientConfig } from '../utils/client'
  */
 export interface CohereEmbeddingConfig extends CohereClientConfig {}
 
-const DEFAULT_BASE_URL = 'https://api.cohere.com'
 const DEFAULT_TIMEOUT_MS = 30_000
 
 /**
@@ -184,14 +187,15 @@ export class CohereEmbeddingAdapter<
       )
 
       const timeoutMs = this.clientConfig.timeout ?? DEFAULT_TIMEOUT_MS
+      const transport = resolveCohereTransport(this.clientConfig)
       const response = await fetchWithTimeout(
-        `${this.clientConfig.baseUrl ?? DEFAULT_BASE_URL}/v2/embed`,
+        `${transport.baseUrl}/v2/embed`,
         {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${this.clientConfig.apiKey}`,
             'Content-Type': 'application/json',
-            ...this.clientConfig.headers,
+            ...transport.headers,
           },
           body: JSON.stringify(body),
         },
@@ -264,6 +268,7 @@ export class CohereEmbeddingAdapter<
    */
   protected async resolveImageUrl(image: ImagePart): Promise<string> {
     const source = image.source
+    if (isFileSource(source)) throw unsupportedFileSourceError(this.name)
 
     if (source.type === 'data') {
       return `data:${source.mimeType};base64,${source.value}`

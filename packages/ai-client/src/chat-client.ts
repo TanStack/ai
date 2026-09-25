@@ -1,4 +1,5 @@
 import {
+  EventType,
   StreamProcessor,
   convertSchemaToJsonSchema,
   generateMessageId,
@@ -14,6 +15,7 @@ import {
   ByokMissingError,
   ByokUnresolvedProviderError,
 } from '@tanstack/ai/byok'
+import { byokFallbackProviderId } from './byok/client'
 import {
   prepareResolvedByokHeaders,
   resolveByokProviderId,
@@ -39,6 +41,7 @@ import type {
 } from '@tanstack/ai/client'
 import type { ByokClient } from './byok'
 import type {
+  ChatHydrateOptions,
   ChatHydrationResult,
   ConnectionAdapter,
   SubscribeConnectionAdapter,
@@ -70,6 +73,7 @@ import type {
   QueueStrategy,
   QueuedMessage,
   SendMessageOptions,
+  SubagentHandle,
   ToolCallPart,
   UIMessage,
   WhenBusy,
@@ -326,9 +330,70 @@ const REJOIN_CONNECT_DEADLINE_MS = 2000
 const REJOIN_REBUILD_TRIGGERS = new Set<string>([
   'TEXT_MESSAGE_START',
   'TEXT_MESSAGE_CONTENT',
+  'REASONING_MESSAGE_CONTENT',
   'TOOL_CALL_START',
   'MESSAGES_SNAPSHOT',
+  // Drop the hydrated card before this chunk creates it again. A subagent
+  // turn may have no parent text, so the text triggers arrive too late.
+  'SUBAGENT_STARTED',
 ])
+
+function rebuildsAssistantMessage(chunk: StreamChunk): boolean {
+  if (chunk.type === 'REASONING_ENCRYPTED_VALUE') {
+    return (
+      chunk.subtype === 'message' &&
+      typeof chunk.encryptedValue === 'string' &&
+      chunk.encryptedValue.length > 0
+    )
+  }
+  if (chunk.type === 'STEP_FINISHED') {
+    return 'signature' in chunk && Boolean(chunk.signature)
+  }
+  return REJOIN_REBUILD_TRIGGERS.has(chunk.type)
+}
+
+type SubagentCard = Extract<UIMessage['parts'][number], { type: 'subagent' }>
+
+/** Every subagent card in the messages, nested cards included. */
+function collectSubagentParts(
+  messages: ReadonlyArray<UIMessage>,
+): Array<SubagentCard> {
+  const cards: Array<SubagentCard> = []
+  for (const message of messages) {
+    for (const part of message.parts) {
+      if (part.type !== 'subagent') continue
+      cards.push(part)
+      cards.push(...collectSubagentParts(part.subagent.messages))
+    }
+  }
+  return cards
+}
+
+function readSubagentRunId(chunk: StreamChunk) {
+  if ('subagentRunId' in chunk && typeof chunk.subagentRunId === 'string') {
+    return chunk.subagentRunId
+  }
+  return undefined
+}
+
+// Cap parent-chain walks so a cyclic replayed parentRunId cannot loop.
+const MAX_RUN_LINEAGE_DEPTH = 64
+
+/**
+ * A deep copy of plain data. Dates stay Dates. Function-valued properties are
+ * dropped.
+ */
+function copyForDevtools<T>(value: T): T
+function copyForDevtools(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(copyForDevtools)
+  if (value instanceof Date) return new Date(value.getTime())
+  if (value === null || typeof value !== 'object') return value
+  const out: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item !== 'function') out[key] = copyForDevtools(item)
+  }
+  return out
+}
 
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
@@ -337,6 +402,8 @@ export class ChatClient<
     any,
 > {
   private readonly processor: StreamProcessor
+  private readonly subagentHandles = new Map<string, SubagentHandle>()
+  private readonly stoppedSubagentIds = new Set<string>()
   private connection: SubscribeConnectionAdapter
   private uniqueId: string
   private threadId: string
@@ -352,6 +419,9 @@ export class ChatClient<
   // run, so approvals/client-tool results can be sent back. Cleared when the
   // run terminates. This is STATE (interrupt) resume, not delivery/cursor.
   private lastResume: ChatResumeState | null = null
+  // Replay can deliver a parent pause after a descendant already finished.
+  private readonly runParents = new Map<string, string>()
+  private readonly supersededInterruptRunIds = new Set<string>()
   // The in-flight run id already handed to `resumeInFlightRun`, so a persisted
   // run is rejoined at most once even when both the sync read and the async
   // hydrate surface the same resume pointer.
@@ -451,11 +521,23 @@ export class ChatClient<
   private readonly activeRunIds = new Set<string>()
   /** Latched by `dispose()`; stops any late async callback starting new work. */
   private disposed = false
+  /** The error a failed mount hydration set, cleared by the next successful one. */
+  private hydrationError: Error | undefined
   /** Whether a view is currently watching. See `attach` / `detach`. */
   private tailing = false
   /** Constructor inputs `attach()` needs on every re-attach, not just the first. */
   private readonly rejoinRunId: string | null | undefined
   private readonly cachesMessages: boolean
+  /**
+   * Newest-window size from `history.pageSize`. Only set when
+   * `persistence === true`.
+   */
+  private readonly historyPageSize: number | undefined
+  private hasOlderMessages = false
+  private olderMessagesCursor: string | undefined
+  private readonly knownServerMessageIds = new Set<string>()
+  private loadOlderMessagesInFlight = false
+  private historyGeneration = 0
   private devtoolsMounted = false
 
   private readonly callbacksRef: {
@@ -511,6 +593,7 @@ export class ChatClient<
         )
       }
       cachesMessages = false
+      this.historyPageSize = options.history?.pageSize
     } else if (options.persistence) {
       // A storage adapter: keep the combined record (transcript + resume pointer)
       // in the browser. Persistence keys on `threadId` (the conversation
@@ -526,6 +609,9 @@ export class ChatClient<
         (messages) => this.processor.setMessages(messages),
         (snapshot) => this.applyPersistedResume(snapshot),
       )
+      this.historyPageSize = undefined
+    } else {
+      this.historyPageSize = undefined
     }
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
     // `RunAgentInput.forwardedProps` wire field. They are stored
@@ -647,9 +733,16 @@ export class ChatClient<
         : {}),
       ...(initialMessages ? { initialMessages } : {}),
       events: {
-        onMessagesChange: (messages: Array<UIMessage>) => {
+        onMessagesChange: (messages) => {
+          // Restored or replaced messages bring their own cards. Give each one
+          // its live handle before anyone reads the messages.
+          this.syncSubagentHandles()
           this.persistor?.notifyMessagesChanged(messages)
           this.callbacksRef.current.onMessagesChange(messages)
+          // The bridge only snapshots on status changes, and the panel draws a
+          // child card from the snapshot, so without this the card would update
+          // only when the parent run ends.
+          this.queueDevtoolsSnapshot()
         },
         onStreamStart: () => {
           this.setStatus('streaming')
@@ -865,6 +958,8 @@ export class ChatClient<
         },
       },
     })
+    // `initialMessages` do not fire a change event. Give their cards handles.
+    this.syncSubagentHandles()
 
     this.persistor?.hydrateAsync(persistedState)
 
@@ -1038,13 +1133,21 @@ export class ChatClient<
     if (!hydrate) return
     if (this.isLoading || this.abortController) return
     if (this.disposed) return
+    const pageSize = this.historyPageSize
+    const hydrateOptions: ChatHydrateOptions | undefined =
+      pageSize === undefined ? undefined : { limit: pageSize }
     void (async () => {
       let result: ChatHydrationResult
+      const generation = this.historyGeneration
       try {
-        result = await hydrate(this.threadId)
-      } catch {
+        result = await hydrate(this.threadId, hydrateOptions)
+      } catch (cause) {
+        // Same staleness guard as the success path below: a failure from an
+        // older attempt must not touch the state of a newer one.
+        if (generation === this.historyGeneration) this.failHydration(cause)
         return
       }
+      if (generation !== this.historyGeneration) return
       // NO VIEW IS WATCHING ANY MORE (it unmounted while this fetch was in
       // flight). Applying anything now is pointless, and one thing is actively
       // harmful: the branch below calls `maybeRejoinInFlight`, which opens a TAIL.
@@ -1057,8 +1160,18 @@ export class ChatClient<
       if (this.disposed || !this.tailing) return
       // A send may have started while the fetch was in flight — don't stomp it.
       if (this.isLoading || this.abortController) return
+      // A retry after a failed load succeeded: drop that failure, but not an
+      // error something else set since.
+      if (this.hydrationError && this.error === this.hydrationError) {
+        this.setError(undefined)
+        this.setStatus('ready')
+      }
+      this.hydrationError = undefined
+      this.applyHydrationPage(result.page)
       if (result.messages.length > 0) {
-        this.processor.setMessages(normalizeMessagesDates(result.messages))
+        const windowMessages = normalizeMessagesDates(result.messages)
+        this.processor.setMessages(windowMessages)
+        this.rememberServerMessageIds(windowMessages)
       }
       if (result.interrupts && result.interrupts.pending.length > 0) {
         // Pending interrupt = the thread is paused awaiting a human decision, so
@@ -1082,6 +1195,36 @@ export class ChatClient<
         this.maybeRejoinInFlight(result.activeRun.runId)
       }
     })()
+  }
+
+  /**
+   * Surface a mount-hydration failure (`persistence: true`) on the observable
+   * fields, mirroring `GenerationClient.failHydration`, so "this thread failed
+   * to load" is distinguishable from "this thread has no messages" and the app
+   * can show an error / offer a retry. A genuine miss — the server having no
+   * record for a fresh thread — resolves normally and never reaches here; only a
+   * thrown transport / authorize-gate error does.
+   *
+   * Skipped when the view unmounted (`!tailing`) or a `sendMessage` took
+   * ownership while the hydrate GET was in flight, so a live run's state always
+   * wins over a stale mount-time failure — same guard as the success path above.
+   */
+  private failHydration(cause: unknown): void {
+    if (this.disposed || !this.tailing) return
+    if (this.isLoading || this.abortController) return
+    const error = cause instanceof Error ? cause : new Error(String(cause))
+    // Mirror the send path: a BYOK key that is missing / locked must still
+    // trigger the key-request flow on thread load, not just be reported.
+    if (error instanceof ByokMissingError) {
+      this.byok?.request(error.provider, 'missing')
+    }
+    if (error instanceof ByokBlockedError && error.reason === 'locked') {
+      this.byok?.request(error.provider, 'locked')
+    }
+    this.hydrationError = error
+    this.setStatus('error')
+    this.setError(error)
+    this.callbacksRef.current.onError(error)
   }
 
   mountDevtools(): void {
@@ -1134,14 +1277,30 @@ export class ChatClient<
   ): void {
     if (chunk.type === 'RUN_STARTED') {
       const chunkRunId = getChunkRunId(chunk) ?? chunk.runId
+      const parentRunId =
+        'parentRunId' in chunk && typeof chunk.parentRunId === 'string'
+          ? chunk.parentRunId
+          : undefined
+      if (parentRunId) {
+        this.runParents.set(chunkRunId, parentRunId)
+        if (this.supersededInterruptRunIds.has(chunkRunId)) {
+          this.markLineageAnswered(parentRunId)
+        }
+      }
       this.activeResumeThreadId =
         'threadId' in chunk && typeof chunk.threadId === 'string'
           ? chunk.threadId
           : this.activeResumeThreadId
       this.activeResumeRunId = chunkRunId
-      this.activeRunIds.add(chunkRunId)
-      this.clearedStreamTracker.onRunStarted(chunkRunId)
-      this.setSessionGenerating(true)
+      // Late RUN_STARTED for a run that already finished is replay, not a live
+      // turn. A new send can reuse a finished run id while isLoading is true.
+      const isAnsweredReplayStart =
+        this.supersededInterruptRunIds.has(chunkRunId) && !this.isLoading
+      if (!isAnsweredReplayStart) {
+        this.activeRunIds.add(chunkRunId)
+        this.clearedStreamTracker.onRunStarted(chunkRunId)
+        this.setSessionGenerating(true)
+      }
       // Persist a live-run resume snapshot so a full page reload can rejoin this
       // in-flight run via joinRun. Only a persistor writes it, and a persistor
       // exists only in client-authoritative mode; server-authoritative reconnect
@@ -1149,11 +1308,24 @@ export class ChatClient<
       // client-cached run pointer (which goes stale the moment a turn spans a
       // second run) is ever written. Interrupt/terminal handling overwrites or
       // clears it in observeInterruptState.
-      if (this.persistor && this.connection.joinRun && !this.lastResume) {
+      if (
+        this.persistor &&
+        this.connection.joinRun &&
+        !this.lastResume &&
+        !isAnsweredReplayStart
+      ) {
         this.persistResumeSnapshot({
           threadId: this.activeResumeThreadId ?? this.threadId,
           runId: chunkRunId,
         })
+      }
+      if (
+        this.lastResume &&
+        this.supersededInterruptRunIds.has(this.lastResume.runId)
+      ) {
+        this.lastResume = null
+        this.persistor?.persistResumeSnapshot(null)
+        this.interruptManager.reset()
       }
       return
     }
@@ -1199,11 +1371,29 @@ export class ChatClient<
         ? chunk.threadId
         : this.activeResumeThreadId
 
+    // Record answered lineage before hydrating a pause. Intermediate
+    // tool_calls RUN_FINISHED is a mid-turn handoff, not an answered pause.
+    if (
+      runId &&
+      !isIntermediateToolTurn(chunk) &&
+      (chunk.type === 'RUN_ERROR' ||
+        (chunk.type === 'RUN_FINISHED' && chunk.outcome?.type !== 'interrupt'))
+    ) {
+      this.markLineageAnswered(runId)
+    }
+
     if (chunk.type === 'RUN_FINISHED' && chunk.outcome?.type === 'interrupt') {
       // Track the REQUEST run id (what the client sent) so a resume targets the
       // same run even when provider events carry their own run id.
       const interruptedRunId =
         this.currentRunId ?? runId ?? this.activeResumeRunId ?? ''
+      // Replay re-emits a pause that a continuation already answered.
+      if (
+        interruptedRunId &&
+        this.supersededInterruptRunIds.has(interruptedRunId)
+      ) {
+        return
+      }
       this.lastResume = {
         threadId: threadId ?? this.threadId,
         runId: interruptedRunId,
@@ -1248,13 +1438,20 @@ export class ChatClient<
       chunk.type === 'RUN_FINISHED' &&
       chunk.outcome?.type !== 'interrupt',
     )
+    // Replay can deliver a parent pause after a descendant already finished,
+    // and this terminal's run id may not match lastResume.
+    const isLineageDescendantTerminal = Boolean(
+      this.lastResume &&
+      this.supersededInterruptRunIds.has(this.lastResume.runId),
+    )
     if (
       isRunlessSessionError ||
       isTrackedRunTerminal ||
       isCurrentRunTerminal ||
       isActiveStreamRunTerminal ||
       isCurrentStreamTerminal ||
-      isActiveInterruptSubmissionTerminal
+      isActiveInterruptSubmissionTerminal ||
+      isLineageDescendantTerminal
     ) {
       this.lastResume = null
       // Run settled without an interrupt: drop the durable resume snapshot so a
@@ -1264,6 +1461,18 @@ export class ChatClient<
       return
     }
     this.notifyResumeStateChange('live')
+  }
+
+  /** Walk parentRunId links and mark this run plus its ancestors as answered. */
+  private markLineageAnswered(runId: string): void {
+    let current: string | undefined = runId
+    let hops = 0
+    while (current !== undefined && hops < MAX_RUN_LINEAGE_DEPTH) {
+      if (this.supersededInterruptRunIds.has(current)) return
+      this.supersededInterruptRunIds.add(current)
+      current = this.runParents.get(current)
+      hops++
+    }
   }
 
   /**
@@ -1597,7 +1806,9 @@ export class ChatClient<
 
   private getDevtoolsSnapshot(): AIDevtoolsChatSnapshot {
     return {
-      messages: this.processor.getMessages(),
+      // The devtools store keeps the objects it gets, and a subagent handle
+      // changes in place. A copy lets the panel see each new status and part.
+      messages: copyForDevtools(this.processor.getMessages()),
       status: this.status,
       isLoading: this.isLoading,
       isSubscribed: this.isSubscribed,
@@ -1769,7 +1980,7 @@ export class ChatClient<
             attached = true
             clearTimeout(connectTimer)
           }
-          if (!rebuilt && REJOIN_REBUILD_TRIGGERS.has(chunk.type)) {
+          if (!rebuilt && rebuildsAssistantMessage(chunk)) {
             rebuilt = true
             this.dropTrailingInFlightAssistant()
           }
@@ -1874,7 +2085,18 @@ export class ChatClient<
     }
     this.callbacksRef.current.onChunk(chunk)
     this.devtoolsBridge.observeChunk(chunk)
+    const attributedId = readSubagentRunId(chunk)
+    // A resumed child starts again under the same id, so its start lifts the stop.
+    if (attributedId && chunk.type === EventType.SUBAGENT_STARTED) {
+      this.stoppedSubagentIds.delete(attributedId)
+    }
+    if (attributedId && this.stoppedSubagentIds.has(attributedId)) {
+      this.updateRunLifecycle(chunk)
+      this.resolveJoinedRun(chunk)
+      return
+    }
     this.processor.processChunk(chunk)
+    this.syncSubagentHandles()
     this.updateRunLifecycle(chunk)
     this.observeInterruptState(chunk)
     // Live path: yield a macrotask so the UI can paint. Skip when the page is
@@ -2023,7 +2245,7 @@ export class ChatClient<
     if (emptyMessage) {
       return
     }
-    if (this.hasBlockingInterrupts()) {
+    if (this.hasPendingInterrupts()) {
       throw new Error(
         'ChatClient: cannot send normal input while pending interrupts exist. Use resumeInterrupts() instead.',
       )
@@ -2063,14 +2285,6 @@ export class ChatClient<
   /** True while interrupt descriptors still own continuation. */
   private hasPendingInterrupts(): boolean {
     return this.interruptManager.getDescriptors().length > 0
-  }
-
-  /** True while an interrupt batch owns the next user turn. */
-  private hasBlockingInterrupts(): boolean {
-    return (
-      this.activeInterruptSubmission !== undefined ||
-      this.hasPendingInterrupts()
-    )
   }
 
   /** True while a stream is active, a send is claiming the client, or the queue is draining. */
@@ -2188,7 +2402,7 @@ export class ChatClient<
    */
   async append(message: UIMessage | ModelMessage): Promise<void> {
     this.mountDevtools()
-    if (this.hasBlockingInterrupts()) {
+    if (this.hasPendingInterrupts()) {
       throw new Error(
         'ChatClient: cannot append normal input while pending interrupts exist. Use resumeInterrupts() instead.',
       )
@@ -2270,7 +2484,7 @@ export class ChatClient<
 
     try {
       // Get UIMessages with parts (preserves approval state and client tool results)
-      const messages = this.processor.getMessages()
+      const messages = this.messagesForSend(this.processor.getMessages())
       const clientTools = new Map(this.clientToolsRef.current)
       const runtimeContext = this.context
 
@@ -2335,6 +2549,7 @@ export class ChatClient<
         const provider = resolveByokProviderId(
           this.byokProvider,
           mergedBody.provider,
+          byokFallbackProviderId(this.byok),
         )
         byokHeaders = await prepareResolvedByokHeaders(this.byok, provider)
       }
@@ -2492,6 +2707,7 @@ export class ChatClient<
         await this.drainPostStreamActions()
 
         if (streamCompletedSuccessfully) {
+          this.rememberProcessorMessageIds()
           if (this.status !== 'ready') {
             // Terminal run, but onStreamEnd never fired: the processor had
             // no assistant message to emit it for (e.g. a bare
@@ -2588,6 +2804,7 @@ export class ChatClient<
    */
   stop(): void {
     // Invalidate deferred work from the stopped continuation.
+    // This aborts the local request. A durable server run keeps going.
     this.continuationGeneration++
     const hadLocalStream = this.abortController !== null
     this.cancelInFlightStream({ setReadyStatus: true })
@@ -2622,8 +2839,10 @@ export class ChatClient<
     // remove the stored conversation outright.
     this.persistor?.beginClear()
     this.processor.clearMessages()
+    this.resetHistoryPaging()
     this.discardPendingSends()
     this.persistor?.remove()
+    this.stoppedSubagentIds.clear()
     this.lastResume = null
     this.interruptManager.reset()
     this.pendingResumeThreadId = null
@@ -2881,6 +3100,174 @@ export class ChatClient<
    */
   getMessages(): Array<UIMessage<TTools>> {
     return this.processor.getMessages() as Array<UIMessage<TTools>>
+  }
+
+  getSubagents() {
+    return [...this.subagentHandles.values()]
+  }
+
+  private devtoolsSnapshotQueued = false
+
+  /** One devtools snapshot per microtask, however many chunks arrive. */
+  private queueDevtoolsSnapshot(): void {
+    if (this.devtoolsSnapshotQueued) return
+    this.devtoolsSnapshotQueued = true
+    queueMicrotask(() => {
+      this.devtoolsSnapshotQueued = false
+      this.devtoolsBridge.emitSnapshot()
+    })
+  }
+
+  private syncSubagentHandles(): void {
+    // Every card, nested ones included, gets a handle.
+    const cards = collectSubagentParts(this.processor.getMessages())
+    const present = new Set(cards.map((part) => part.subagent.id))
+    // A card that left the messages (clear, reload) loses its handle.
+    for (const id of this.subagentHandles.keys()) {
+      if (!present.has(id)) this.subagentHandles.delete(id)
+    }
+    for (const part of cards) {
+      const id = part.subagent.id
+      const existing = this.subagentHandles.get(id)
+      if (existing) {
+        if (part.subagent === existing) continue
+        // Keep the same live object, with exactly the card's fields. The
+        // wire reads this object, so a field the card dropped goes too.
+        const { stop } = existing
+        for (const key of Object.keys(existing)) {
+          Reflect.deleteProperty(existing, key)
+        }
+        Object.assign(existing, part.subagent, { stop })
+        part.subagent = existing
+        continue
+      }
+      const handle: SubagentHandle = {
+        ...part.subagent,
+        stop: () => {
+          this.stopSubagent(id)
+        },
+      }
+      this.subagentHandles.set(id, handle)
+      part.subagent = handle
+    }
+  }
+
+  private stopSubagent(id: string): void {
+    const handle = this.subagentHandles.get(id)
+    if (!handle || handle.status !== 'running') return
+    this.stoppedSubagentIds.add(id)
+    this.processor.processChunk({
+      type: EventType.SUBAGENT_ERROR,
+      subagentRunId: id,
+      message: 'Stopped',
+      timestamp: Date.now(),
+    })
+    this.syncSubagentHandles()
+    handle.status = 'error'
+    handle.error = { message: 'Stopped' }
+    this.abortController?.abort()
+  }
+
+  /**
+   * True when the last hydrate or older-page response said more messages exist.
+   */
+  getHasOlderMessages() {
+    return this.hasOlderMessages
+  }
+
+  /**
+   * Fetch the next older window and put it in front of the painted messages.
+   *
+   * No-op when there is no older page, no cursor, or a page load is already
+   * running. A network failure rejects and leaves the painted messages as they
+   * are; {@link getHasOlderMessages} stays true.
+   */
+  async loadOlderMessages() {
+    const hydrate = this.connection.hydrate
+    if (hydrate === undefined) return
+    if (this.disposed) return
+    if (!this.hasOlderMessages) return
+    const cursor = this.olderMessagesCursor
+    if (cursor === undefined) return
+    if (this.loadOlderMessagesInFlight) return
+
+    const hydrateOptions: ChatHydrateOptions = { before: cursor }
+    if (this.historyPageSize !== undefined) {
+      hydrateOptions.limit = this.historyPageSize
+    }
+
+    this.loadOlderMessagesInFlight = true
+    const generation = this.historyGeneration
+    try {
+      const result = await hydrate(this.threadId, hydrateOptions)
+      if (this.disposed) return
+      if (generation !== this.historyGeneration) return
+      const olderMessages = normalizeMessagesDates(result.messages)
+      if (olderMessages.length === 0) {
+        throw new Error('Older page was empty')
+      }
+      this.applyHydrationPage(result.page)
+      this.processor.prependMessages(olderMessages)
+      this.rememberServerMessageIds(olderMessages)
+    } finally {
+      this.loadOlderMessagesInFlight = false
+    }
+  }
+
+  private resetHistoryPaging() {
+    this.hasOlderMessages = false
+    this.olderMessagesCursor = undefined
+    this.knownServerMessageIds.clear()
+    this.historyGeneration++
+  }
+
+  private applyHydrationPage(page: ChatHydrationResult['page']) {
+    if (page?.truncated === true) {
+      this.hasOlderMessages = true
+      this.olderMessagesCursor = page.cursor
+      return
+    }
+    this.hasOlderMessages = false
+    this.olderMessagesCursor = undefined
+  }
+
+  private rememberServerMessageIds(messages: Array<UIMessage>) {
+    const ids = messages.map((message) => message.id)
+    for (const id of ids) {
+      this.knownServerMessageIds.add(id)
+    }
+  }
+
+  private rememberProcessorMessageIds() {
+    if (this.historyPageSize === undefined) return
+    this.rememberServerMessageIds(this.processor.getMessages())
+  }
+
+  private messagesForSend(messages: Array<UIMessage>) {
+    if (this.historyPageSize === undefined) {
+      return messages
+    }
+    const unknownMessages: Array<UIMessage> = []
+    for (const message of messages) {
+      const isKnown = this.knownServerMessageIds.has(message.id)
+      if (isKnown) {
+        continue
+      }
+      unknownMessages.push(message)
+    }
+    if (unknownMessages.length > 0) {
+      return unknownMessages
+    }
+    // No new ids: reload has already dropped the old assistant, so this is
+    // `[lastUser]`. Resume/continue still has the assistant, so the cutoff is
+    // that assistant and the stored tool-call stays.
+    const lastUserIndex = messages.findLastIndex(
+      (message) => message.role === 'user',
+    )
+    if (lastUserIndex === -1) {
+      return []
+    }
+    return messages.slice(lastUserIndex)
   }
 
   /**

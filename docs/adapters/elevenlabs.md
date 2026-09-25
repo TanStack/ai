@@ -13,12 +13,13 @@ keywords:
   - adapter
 ---
 
-The ElevenLabs adapter is **voice-focused**. It exposes four capabilities:
+The ElevenLabs adapter is **voice-focused**. It exposes five capabilities:
 
 - **Realtime voice agents** (`elevenlabsRealtime` / `elevenlabsRealtimeToken`) — full-duplex voice-to-voice conversations powered by ElevenLabs Conversational AI agents.
 - **Text-to-speech** (`elevenlabsSpeech`) — one-shot speech generation via `generateSpeech()`.
 - **Music & sound effects** (`elevenlabsAudio`) — one-shot audio generation via `generateAudio()`.
 - **Transcription** (`elevenlabsTranscription`) — speech-to-text via `generateTranscription()`.
+- **Voice design** (`elevenlabsVoiceDesign`): create a new voice via `generateVoice()`.
 
 It does not support text `chat()` or `summarize()` — use OpenAI, Anthropic, or Gemini for those.
 
@@ -286,6 +287,8 @@ Get your API key from the [ElevenLabs dashboard](https://elevenlabs.io/). Create
 
 For one-shot speech generation (not realtime), use `elevenlabsSpeech` with `generateSpeech()`:
 
+The `format` option supports `mp3` (default), `pcm`, `opus`, and `wav`. WAV output contains 44.1 kHz, 16-bit mono PCM with a RIFF header. Requests for `aac` or `flac` throw before the API call. An explicit `modelOptions.outputFormat` overrides `format` and returns the selected provider format without WAV wrapping.
+
 ```typescript
 import { generateSpeech } from "@tanstack/ai";
 import { elevenlabsSpeech } from "@tanstack/ai-elevenlabs";
@@ -300,6 +303,37 @@ const result = await generateSpeech({
 console.log(result.audio); // Base64-encoded audio
 ```
 
+### Dialogue and timings
+
+ElevenLabs has a separate dialogue endpoint that takes up to **10 distinct
+voices**, and a timestamped twin of each endpoint. `turns` and `timestamps`
+pick between them, so you never choose an endpoint by hand:
+
+```typescript
+import { generateSpeech } from "@tanstack/ai";
+import { elevenlabsSpeech } from "@tanstack/ai-elevenlabs";
+
+const result = await generateSpeech({
+  adapter: elevenlabsSpeech("eleven_v3"),
+  turns: [
+    { text: "Knock knock.", voice: "bYTqZQo3Jz7LQtmGTgwi" },
+    { text: "Who is there?", voice: "6lCwbsX1yVjD49QmpkTR" },
+  ],
+  timestamps: true,
+});
+
+// Character timings for the whole clip.
+console.log(result.alignment?.unit); // 'character'
+
+// One entry per turn, with the voice that spoke it.
+for (const segment of result.segments ?? []) {
+  console.log(segment.turnIndex, segment.voice, segment.text);
+}
+```
+
+`segments` only comes back from the dialogue endpoint. A single-voice request
+with `timestamps: true` returns `alignment` alone.
+
 ## Music & Sound Effects
 
 `elevenlabsAudio` covers both music generation and sound effects depending on the model:
@@ -310,7 +344,7 @@ import { elevenlabsAudio } from "@tanstack/ai-elevenlabs";
 
 // Music generation
 const music = await generateAudio({
-  adapter: elevenlabsAudio("music_v1"),
+  adapter: elevenlabsAudio("music_v2_5"),
   prompt: "An upbeat synthwave track for a product launch",
 });
 
@@ -320,6 +354,59 @@ const sfx = await generateAudio({
   prompt: "A glass shattering on concrete",
 });
 ```
+
+## Listing Voices
+
+`elevenlabsSpeech` can read the account's voice catalog, which includes anything `generateVoice()` has saved:
+
+```typescript
+import { listVoices } from "@tanstack/ai";
+import { elevenlabsSpeech } from "@tanstack/ai-elevenlabs";
+
+const { voices } = await listVoices({
+  adapter: elevenlabsSpeech("eleven_v3"),
+  origins: ["generated", "cloned"],
+});
+```
+
+ElevenLabs has no origin filter on `GET /v1/voices`, so the adapter fetches the catalog and narrows in memory. Its `famous` and `high_quality` categories both read as `professional`.
+
+## Voice Design
+
+`elevenlabsVoiceDesign` creates a new voice from a description. The voice IDs it returns go straight into `generateSpeech()`:
+
+```typescript
+import { generateVoice } from "@tanstack/ai";
+import { elevenlabsVoiceDesign } from "@tanstack/ai-elevenlabs";
+
+const result = await generateVoice({
+  adapter: elevenlabsVoiceDesign("eleven_ttv_v3"),
+  prompt: "A warm, gravelly narrator in his sixties with a slight Irish lilt",
+  name: "Irish Narrator",
+});
+
+const [voice] = result.voices;
+if (!voice) throw new Error("The provider returned no voices.");
+
+console.log(voice.voiceId);
+console.log(voice.saved); // true, because a name was given
+```
+
+Without a `name`, you get preview voices to audition. With a `name`, the best candidate is kept in your ElevenLabs voice library.
+
+`eleven_ttv_v3` also accepts `referenceAudio`, a clip of a real speaker used as a design reference — it still needs a `prompt`, and `modelOptions.promptStrength` balances the two. `eleven_multilingual_ttv_v2` takes no reference audio. See [Voice Creation](../media/voice-creation) for the full guide.
+
+## Models
+
+| Family | Models |
+| --- | --- |
+| Text-to-speech | `eleven_v3`, `eleven_v3_conversational`, `eleven_multilingual_v2`, `eleven_flash_v2_5`, `eleven_flash_v2` |
+| Music | `music_v2_5`, `music_v2` |
+| Sound effects | `eleven_text_to_sound_v2` |
+| Transcription | `scribe_v2`, `scribe_v2_medical` |
+| Voice design | `eleven_ttv_v3`, `eleven_multilingual_ttv_v2` |
+
+ElevenLabs deprecated `eleven_turbo_v2`, `eleven_turbo_v2_5`, `eleven_monolingual_v1`, `scribe_v1`, and `music_v1`. The adapter still accepts them, and each is commented as deprecated in `model-meta.ts`. Move to the current model in the same row.
 
 ## Transcription
 
@@ -331,12 +418,27 @@ import { elevenlabsTranscription } from "@tanstack/ai-elevenlabs";
 import { audioFile } from "./audio";
 
 const result = await generateTranscription({
-  adapter: elevenlabsTranscription("scribe_v1"),
+  adapter: elevenlabsTranscription("scribe_v2"),
   audio: audioFile,
 });
 
 console.log(result.text);
 ```
+
+## Behind a proxy
+
+Route every request through a gateway, such as Cloudflare AI Gateway or a corporate proxy, with `baseURL` and `defaultHeaders`. These two option names are the same on every TanStack AI adapter, so one gateway config works for all of them.
+
+```typescript
+import { createElevenLabsSpeech } from "@tanstack/ai-elevenlabs";
+
+const adapter = createElevenLabsSpeech("eleven_v3", process.env.ELEVENLABS_API_KEY!, {
+  baseURL: "https://gateway.example.com/elevenlabs",
+  defaultHeaders: { "cf-aig-authorization": `Bearer ${process.env.GATEWAY_TOKEN}` },
+});
+```
+
+This applies to the speech, audio, and transcription adapters. `baseUrl` and `headers` are aliases of the same two options. If you set both forms, `baseURL` and `defaultHeaders` win.
 
 ## API Reference
 
@@ -376,6 +478,14 @@ Creates an ElevenLabs audio adapter that covers both music generation and sound 
 ### `elevenlabsTranscription(model, config?)` / `createElevenLabsTranscription(model, apiKey, config?)`
 
 Creates an ElevenLabs transcription adapter for use with `generateTranscription()`.
+
+### `elevenlabsVoiceDesign(model, config?)` / `createElevenLabsVoiceDesign(model, apiKey, config?)`
+
+Creates an ElevenLabs voice-design adapter for use with `generateVoice()`.
+
+### `elevenlabsSpeech(...).listVoices(options?)`
+
+Reads the account's voice catalog via `GET /v1/voices`, for use with `listVoices()`.
 
 ## Limitations
 

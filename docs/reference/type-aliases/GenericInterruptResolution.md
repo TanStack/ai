@@ -3,8 +3,6 @@ id: GenericInterruptResolution
 title: GenericInterruptResolution
 ---
 
-# Type Alias: GenericInterruptResolution\<TDefinition\>
-
 ```ts
 type GenericInterruptResolution<TDefinition> = TDefinition extends AnyInterruptDefinition ? 
   | {
@@ -19,7 +17,7 @@ type GenericInterruptResolution<TDefinition> = TDefinition extends AnyInterruptD
 } : never;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:119](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L119)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:122](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L122)
 
 ## Type Parameters
 

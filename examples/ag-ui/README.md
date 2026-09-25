@@ -8,7 +8,7 @@ This example shows that any backend can serve `@tanstack/ai-react` clients as lo
 
 | Layer         | Stack                                                                    |
 | ------------- | ------------------------------------------------------------------------ |
-| Client        | React, Vite, `@tanstack/ai-react`, `@tanstack/ai-react-ui`               |
+| Client        | React, Vite, `@tanstack/ai-react`, `@tanstack/ai-react/ui`               |
 | Go server     | `net/http`, hand-rolled AG-UI SSE, OpenAI/Anthropic streaming on `:8001` |
 | Rust server   | Axum, hand-rolled AG-UI SSE, OpenAI/Anthropic streaming on `:8002`       |
 | PHP server    | Built-in PHP server + curl, hand-rolled AG-UI SSE on `:8003`             |

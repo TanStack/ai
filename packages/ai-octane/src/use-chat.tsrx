@@ -53,6 +53,7 @@ export function useChat<
     options.initialMessages || [],
   )
   const [isLoading, setIsLoading] = useState(false)
+  const [hasOlderMessages, setHasOlderMessages] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
   const [status, setStatus] = useState<ChatClientState>('ready')
   const [isSubscribed, setIsSubscribed] = useState(false)
@@ -141,16 +142,25 @@ export function useChat<
       ...transport,
       initialMessages: messagesToUse,
       ...(typeof initialOptions.threadId === 'string' &&
-      initialOptions.persistence
+      initialOptions.persistence === true
         ? {
-            persistence: initialOptions.persistence,
+            persistence: true,
             threadId: initialOptions.threadId,
-          }
-        : {
-            ...(initialOptions.threadId !== undefined && {
-              threadId: initialOptions.threadId,
+            ...(initialOptions.history !== undefined && {
+              history: initialOptions.history,
             }),
-          }),
+          }
+        : typeof initialOptions.threadId === 'string' &&
+            initialOptions.persistence
+          ? {
+              persistence: initialOptions.persistence,
+              threadId: initialOptions.threadId,
+            }
+          : {
+              ...(initialOptions.threadId !== undefined && {
+                threadId: initialOptions.threadId,
+              }),
+            }),
       ...(initialOptions.body !== undefined && { body: initialOptions.body }),
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
@@ -206,6 +216,9 @@ export function useChat<
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
         runOrQueueForActiveInstance(() => {
           setMessages(newMessages)
+          const currentInstance = getActiveInstance()
+          if (!currentInstance) return
+          setHasOlderMessages(currentInstance.getHasOlderMessages())
         })
       },
       onLoadingChange: (newIsLoading: boolean) => {
@@ -300,6 +313,7 @@ export function useChat<
     if (clientMessages !== messagesRef.current) {
       setMessages(clientMessages)
     }
+    setHasOlderMessages(client.getHasOlderMessages())
   }, [client])
 
   // OCTANE DIVERGENCE: upstream captures the initial transport. ChatClient
@@ -423,6 +437,11 @@ export function useChat<
       syncResumeState(client)
     }
   }, [client, syncResumeState])
+
+  const loadOlderMessages = useCallback(async () => {
+    await client.loadOlderMessages()
+    setHasOlderMessages(client.getHasOlderMessages())
+  }, [client])
 
   const stop = useCallback(() => {
     client.stop()
@@ -560,6 +579,8 @@ export function useChat<
     reload,
     stop,
     isLoading,
+    hasOlderMessages,
+    loadOlderMessages,
     error,
     status,
     isSubscribed,

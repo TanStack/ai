@@ -54,11 +54,12 @@ function createEmbeddingAdapter(
       }),
     gemini: () =>
       createGeminiEmbedding('gemini-embedding-001', DUMMY_KEY, {
-        httpOptions: { baseUrl: llmockBase(aimockPort), headers },
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
       }),
     mistral: () =>
       createMistralEmbedding('mistral-embed', DUMMY_KEY, {
-        serverURL: `${llmockBase(aimockPort)}/mistral`,
+        baseURL: `${llmockBase(aimockPort)}/mistral`,
         defaultHeaders: headers,
       }),
     ollama: () =>

@@ -23,7 +23,7 @@ The Bedrock adapter connects TanStack AI to [Amazon Bedrock](https://aws.amazon.
 
 - **Converse** (default) — Bedrock's model-agnostic API built on `@aws-sdk/client-bedrock-runtime`. Reaches the broad chat catalog including Anthropic Claude, Amazon Nova, Meta Llama, Mistral, DeepSeek, Cohere, AI21, and OpenAI gpt-oss models.
 - **Chat Completions** (`api: 'chat'`) — Bedrock's OpenAI-compatible Chat Completions endpoint. Reaches open-weight models only (gpt-oss, DeepSeek V3.x, Gemma, Qwen, Mistral open models, GLM, etc.). Does NOT reach Claude, Nova, or Llama.
-- **Responses** (`api: 'responses'`) — Bedrock's OpenAI-compatible Responses API, mantle-only. Currently the OpenAI gpt-oss family.
+- **Responses** (`api: 'responses'`) — Bedrock's OpenAI-compatible Responses API, mantle-only. Currently gpt-oss and Gemma 4.
 
 All paths support streaming and client-side tool calling. Reasoning output is
 surfaced when the model emits it (e.g. DeepSeek R1, gpt-oss); on the Converse
@@ -119,9 +119,25 @@ AWS_SESSION_TOKEN=...   # optional, for temporary credentials
 | `auth` | `'apikey' \| 'sigv4' \| 'auto'` | `'auto'` | Authentication mode |
 | `apiKey` | `string` | — | Explicit API key (overrides env vars) |
 | `baseURL` | `string` | — | Override the computed base URL entirely |
+| `defaultHeaders` | `Record<string, string>` | none | Headers sent with every request |
 | `endpoint` | `'runtime' \| 'mantle'` | `'runtime'` | Bedrock endpoint to target (Chat Completions path only) |
 
-The `endpoint` option only applies when `api: 'chat'`. The `runtime` endpoint (`bedrock-runtime`) hosts the broad open-weight catalog; `mantle` is an alternative. The Responses API always targets mantle.
+The `endpoint` option only applies when `api: 'chat'`. The `runtime` endpoint (`bedrock-runtime`) hosts the broad open-weight catalog; `mantle` is an alternative. On mantle, the adapter reads the path from the Bedrock API compatibility config (`/openai/v1` for Gemma 4, `/v1` for other models). An explicit `baseURL` still wins. The Responses API always targets mantle.
+
+## Behind a proxy
+
+Route every request through a gateway, such as Cloudflare AI Gateway or a corporate proxy, with `baseURL` and `defaultHeaders`. These two option names are the same on every TanStack AI adapter, so one gateway config works for all of them.
+
+```typescript
+import { createBedrockText } from "@tanstack/ai-bedrock";
+
+const adapter = createBedrockText("us.amazon.nova-pro-v1:0", process.env.BEDROCK_API_KEY!, {
+  baseURL: "https://gateway.example.com/aws-bedrock",
+  defaultHeaders: { "cf-aig-authorization": `Bearer ${process.env.GATEWAY_TOKEN}` },
+});
+```
+
+All three Bedrock APIs accept these options. On the Converse API the headers are added before SigV4 signing, so a signed request still includes them.
 
 ## Converse API (default)
 
@@ -161,6 +177,10 @@ const adapter = createBedrockText(
 )
 ```
 
+### Token usage
+
+`onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. When a request hits or writes a prompt cache, the cache counts arrive on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. Bedrock counts only the uncached part of the input in `promptTokens`, so add the two cache counts to it to get the full input size.
+
 ## Chat Completions API (`api: 'chat'`)
 
 Set `api: 'chat'` to use Bedrock's OpenAI-compatible Chat Completions endpoint. Returns a `bedrock` adapter.
@@ -191,7 +211,7 @@ for await (const chunk of chat({
 
 Set `api: 'responses'` to use Bedrock's OpenAI-compatible Responses API. Returns a `bedrock-responses` adapter. This API is mantle-only.
 
-**Model scope:** Currently the OpenAI gpt-oss family. The Responses API is stateful — pass `previous_response_id` and `store` through `modelOptions` to continue a conversation server-side.
+**Model scope:** Currently gpt-oss and Gemma 4. The Responses API is stateful — pass `previous_response_id` and `store` through `modelOptions` to continue a conversation server-side.
 
 **Reasoning:** Reasoning deltas stream as thinking content. Mantle-served models may still emit the pre-July-2025 event name `response.reasoning.delta` (removed from the OpenAI spec in favor of `response.reasoning_text.delta`); the adapter recognizes both and maps them identically.
 

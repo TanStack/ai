@@ -1,7 +1,18 @@
 export { useChat } from './use-chat.tsrx'
+export { createChatHook } from './create-chat-hook'
 export { useRealtimeChat } from './use-realtime-chat.tsrx'
 export { useMcpAppBridge } from './use-mcp-app-bridge.tsrx'
 export type { UseMcpAppBridgeOptions } from './use-mcp-app-bridge.tsrx'
+export {
+  usePageWebMCPTools,
+  useRegisterWebMCPTools,
+  useWebMCPTools,
+} from './use-web-mcp-tools.tsrx'
+export type {
+  UsePageWebMCPToolsOptions,
+  UseRegisterWebMCPToolsOptions,
+  UseWebMCPToolsOptions,
+} from './use-web-mcp-tools.tsrx'
 export type {
   DeepPartial,
   UseChatOptions,
@@ -63,6 +74,46 @@ export type {
 
 // Re-export from ai-client for convenience (mirror upstream index.ts)
 export {
+  AudioRecorder,
+  ChatClient,
+  InterruptManager,
+  RealtimeClient,
+  GenerationClient,
+  VideoGenerationClient,
+  GENERATION_EVENTS,
+  reconstructImageResult,
+  reconstructAudioResult,
+  reconstructSpeechResult,
+  reconstructTranscriptionResult,
+  reconstructSummarizeResult,
+  UnsupportedResponseStreamError,
+  createAIDevtoolsGenerationPreview,
+  StreamTruncatedError,
+  DurableStreamIncompleteError,
+  StreamReconnectLimitError,
+  uiMessageToModelMessages,
+  modelMessageToUIMessage,
+  modelMessagesToUIMessages,
+  convertMessagesToModelMessages,
+  normalizeToUIMessage,
+  generateMessageId,
+  StreamProcessor,
+  ImmediateStrategy,
+  PunctuationStrategy,
+  BatchStrategy,
+  WordBoundaryStrategy,
+  CompositeStrategy,
+  parsePartialJSON,
+  PartialJSONParser,
+  defaultJSONParser,
+  registerWebMCPTools,
+  getWebMCPTools,
+  subscribeWebMCPTools,
+  type GetWebMCPToolsOptions,
+  type SubscribeWebMCPToolsOptions,
+  type WebMCPPageTool,
+  clientTools,
+  webSocket,
   fetchServerSentEvents,
   fetchHttpStream,
   xhrServerSentEvents,

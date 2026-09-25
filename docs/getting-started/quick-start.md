@@ -18,6 +18,7 @@ keywords:
   - preact
   - angular
   - octane
+  - remix
 redirect_from:
   - /getting-started/quick-start-vue
   - /getting-started/quick-start-svelte
@@ -26,6 +27,14 @@ redirect_from:
 ---
 
 You want a streaming chat in your app. TanStack AI streams from a server route. The hook for your framework renders the tokens.
+
+For a React + Start app with BYOK, open [Basic Chat](../tutorials/basic-chat).
+
+For an image from a prompt, open [Generate Image](../tutorials/generate-image).
+
+For a table that fills as JSON streams, open [Streaming Structured Table](../tutorials/streaming-structured-table).
+
+For a blog desk where a researcher and an SEO agent run together and a writer uses their notes, open [Subagents](../tutorials/subagents).
 
 > [!TIP]
 > If you do not want a key per provider, [OpenRouter](../adapters/openrouter) gives you 300+ models with one API key.
@@ -46,6 +55,7 @@ preact: @tanstack/ai @tanstack/ai-preact @tanstack/ai-openai
 angular: @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
 vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-openai
 octane: @tanstack/ai @tanstack/ai-octane @tanstack/ai-openai octane
+remix: @tanstack/ai @tanstack/ai-remix @tanstack/ai-openai remix
 
 <!-- ::end:tabs -->
 
@@ -76,6 +86,8 @@ export async function POST(request: Request) {
 ```
 
 This works with TanStack Start, Next.js, SvelteKit, Hono, and any host that returns a Web `Response`.
+
+A Remix controller action can return this same `Response`.
 
 If your server is Node streams (Express), see [Quick Start: Server Only](./quick-start-server).
 
@@ -464,6 +476,65 @@ export function Chat() {
 The hook calls `attach()` on mount. It calls `detach()` and `dispose()` on unmount.
 
 See the [Octane API](../api/ai-octane).
+
+# Remix
+
+Call `createChat(handle, options)` from `@tanstack/ai-remix` inside a `clientEntry` island. Put `connection` and `tools` in setup. They are not serializable `clientEntry` props.
+
+`@tanstack/ai-remix` publishes uncompiled source. Remix compiles JSX through `jsxImportSource` `remix/ui`. Bind the form with the Remix `on` mixin.
+
+```tsx ignore
+import { createChat, fetchServerSentEvents } from "@tanstack/ai-remix";
+import { clientEntry, on, type Handle } from "remix/ui";
+
+export const Chat = clientEntry(
+  import.meta.url,
+  function Chat(handle: Handle) {
+    const chat = createChat(handle, {
+      connection: fetchServerSentEvents("/api/chat"),
+    });
+
+    return () => (
+      <div>
+        {chat.messages.map((message) => (
+          <div key={message.id}>
+            {message.parts.map((part, index) =>
+              part.type === "text" ? <p key={index}>{part.content}</p> : null,
+            )}
+          </div>
+        ))}
+        <form
+          mix={on("submit", (event) => {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const text = String(
+              new FormData(form).get("message") ?? "",
+            ).trim();
+            if (text === "") {
+              return;
+            }
+            form.reset();
+            void chat.sendMessage(text);
+          })}
+        >
+          <input name="message" disabled={chat.isLoading} />
+          {chat.isLoading ? (
+            <button type="button" mix={on("click", () => chat.stop())}>
+              Stop
+            </button>
+          ) : (
+            <button type="submit">Send</button>
+          )}
+        </form>
+      </div>
+    );
+  },
+);
+```
+
+Read `chat.messages` and `chat.isLoading` in the render function so each paint sees the latest values.
+
+See the [Remix API](../api/ai-remix). For a typed headless chat UI, see [Remix Chat UI](../ui/remix).
 
 <!-- ::end:framework -->
 

@@ -10,7 +10,7 @@ const forbidden = [
   '@google/genai',
   '@google/generative-ai',
   '@openrouter/sdk',
-  '@tanstack/ai-react-ui',
+  '@tanstack/ai-react/ui',
   '@tanstack/react-ai-devtools',
   '@tanstack/solid-ai-devtools',
   'elevenlabs',

@@ -19,6 +19,19 @@ keywords:
 
 > MCP tool execution is **server-side only**. The `createMCPClient` call lives in a server route (or serverless function) — never in browser code.
 
+## Server MCP and WebMCP
+
+Server MCP and WebMCP solve different problems.
+
+| Integration | Where it runs | What it does |
+|---|---|---|
+| Server MCP | Your server route | Connects TanStack `chat()` to tools, resources, and prompts from an MCP server. |
+| WebMCP | The browser page | Exposes executable client tools to a browser agent through `document.modelContext`. |
+
+WebMCP calls return directly to the browser agent. They do not become tool results in a TanStack chat run.
+
+See [WebMCP Tools](./webmcp) to expose browser actions. If your server needs MCP server tools, continue with this guide.
+
 ## Installation
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
@@ -244,16 +257,21 @@ const tools = await mcp.tools()
 // tools: ServerTool[]  — args typed unknown at compile time
 ```
 
-> **Task-based tools are excluded.** Tools that declare
-> `execution.taskSupport: 'required'` (the experimental MCP tasks feature)
-> can only run through the SDK's `tasks/callToolStream` flow, which
-> `@tanstack/ai-mcp` does not support yet — plain `callTool` is rejected by
-> the server with `-32600`. Discovery skips them so the model is never
-> offered a tool that cannot succeed.
+> **Task-based tools are supported.** Tools that declare
+> `execution.taskSupport: 'required'` automatically run through the MCP SDK's
+> experimental `tasks/callToolStream` flow. TanStack AI waits through task
+> status updates and returns the terminal result to the model. Tools declaring
+> `taskSupport: 'optional'` continue to use ordinary `callTool` execution.
+> Task execution needs the server to declare the tasks capability for
+> `tools/call`; a server that lists a task-required tool without it is
+> skipped by auto-discovery (the tool could never be invoked).
+>
+> If the chat run aborts, TanStack AI stops waiting for the task and sends a
+> best-effort `tasks/cancel` for a remote task the server has already created.
 
 ### Mode 2 — Explicit definitions (`client.tools([...defs])`)
 
-Pass TanStack `toolDefinition()` instances to get full TypeScript types and Zod validation. Only the named tools are returned (allowlist). `MCPToolNotFoundError` is thrown if a name isn't on the server, and `MCPTaskRequiredToolError` if the named tool requires task-based execution (see the Mode 1 note).
+Pass TanStack `toolDefinition()` instances to get full TypeScript types and Zod validation. Only the named tools are returned (allowlist). `MCPToolNotFoundError` is thrown if a name isn't on the server. Task-required tools use the same automatic task execution described in Mode 1.
 
 ```ts
 import { toolDefinition } from '@tanstack/ai'
@@ -600,6 +618,6 @@ The Quick Start above hands tools to `chat()` manually via `tools: await mcp.too
 | `MCPConnectionError` | `createMCPClient` fails to connect, or a method is called after `close()` |
 | `DuplicateToolNameError` | Two tools have the same name within one client or across the pool |
 | `MCPToolNotFoundError` | A `toolDefinition` name passed to `tools([...defs])` is not found on the server |
-| `MCPTaskRequiredToolError` | A `toolDefinition` passed to `tools([...defs])` names a tool that requires task-based execution (`execution.taskSupport: 'required'`) — such tools are also excluded from `tools()` auto-discovery |
+| `MCPTaskRequiredToolError` | A task-required tool was bound via `tools([...defs])` or called via `callTool()` but the server does not declare the tasks capability for `tools/call`, so the call could never execute |
 
 For the `MCPDuplicateToolNameError` thrown when merging tools from multiple sources inside a `chat({ mcp })` run, see [Managed MCP with `chat()`](./mcp-managed#tool-name-collisions).

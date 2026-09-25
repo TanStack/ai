@@ -41,7 +41,10 @@ const compareUtf8Bytes = (left: string, right: string): number => {
 
 class MemoryMessageStore implements MessageStore {
   private readonly threads = new Map<string, Array<ModelMessage>>()
-  loadThread(threadId: string): Promise<Array<ModelMessage>> {
+  loadThread(
+    threadId: string,
+    _options?: { limit?: number; before?: string },
+  ): Promise<Array<ModelMessage>> {
     return Promise.resolve(this.threads.get(threadId)?.slice() ?? [])
   }
   saveThread(threadId: string, messages: Array<ModelMessage>): Promise<void> {
@@ -57,6 +60,9 @@ class MemoryRunStore implements RunStore {
     threadId: string
     status?: RunRecord['status']
     startedAt: number
+    parentRunId?: string
+    subagentRunId?: string
+    name?: string
   }): Promise<RunRecord> {
     const existing = this.runs.get(input.runId)
     if (existing) return Promise.resolve(existing)
@@ -65,6 +71,13 @@ class MemoryRunStore implements RunStore {
       threadId: input.threadId,
       status: input.status ?? 'running',
       startedAt: input.startedAt,
+      ...(input.parentRunId !== undefined
+        ? { parentRunId: input.parentRunId }
+        : {}),
+      ...(input.subagentRunId !== undefined
+        ? { subagentRunId: input.subagentRunId }
+        : {}),
+      ...(input.name !== undefined ? { name: input.name } : {}),
     }
     this.runs.set(record.runId, record)
     return Promise.resolve(record)
@@ -101,6 +114,12 @@ class MemoryRunStore implements RunStore {
   listByThread(threadId: string): Promise<Array<RunRecord>> {
     const matching = [...this.runs.values()]
       .filter((run) => run.threadId === threadId)
+      .sort((a, b) => a.startedAt - b.startedAt)
+    return Promise.resolve(matching)
+  }
+  listByParentRun(parentRunId: string): Promise<Array<RunRecord>> {
+    const matching = [...this.runs.values()]
+      .filter((run) => run.parentRunId === parentRunId)
       .sort((a, b) => a.startedAt - b.startedAt)
     return Promise.resolve(matching)
   }

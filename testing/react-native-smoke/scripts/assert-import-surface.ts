@@ -27,7 +27,7 @@ const providerSdkPackages = new Set([
 ])
 
 const forbiddenPackages = new Set([
-  '@tanstack/ai-react-ui',
+  '@tanstack/ai-react/ui',
   '@tanstack/react-ai-devtools',
   '@tanstack/solid-ai-devtools',
   'react-dom',

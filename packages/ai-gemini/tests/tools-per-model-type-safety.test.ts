@@ -42,6 +42,24 @@ const userTool = toolDefinition({
 }).server(async ({ msg }) => msg)
 
 describe('Gemini per-model tool gating', () => {
+  it('gemini-3.8-flash accepts the Gemini 3.7 Flash tool set', () => {
+    const adapter = geminiText('gemini-3.8-flash')
+    typedTools(adapter, [
+      userTool,
+      codeExecutionTool(),
+      fileSearchTool({ fileSearchStoreNames: [] }),
+      googleSearchTool(),
+      googleMapsTool(),
+      urlContextTool(),
+      computerUseTool({
+        environment: Environment.ENVIRONMENT_BROWSER,
+        excludedPredefinedFunctions: [],
+      }),
+      // @ts-expect-error - gemini-3.8-flash does not support google_search_retrieval
+      googleSearchRetrievalTool(),
+    ])
+  })
+
   it('gemini-3.1-pro-preview accepts code_execution, file_search, google_search, url_context', () => {
     const adapter = geminiText('gemini-3.1-pro-preview')
     const fileSearchConfig: Parameters<typeof fileSearchTool>[0] = {

@@ -19,6 +19,14 @@ export {
   type GeminiSummarizeModel,
 } from './adapters/summarize'
 
+// Files adapter - upload media to the Gemini Files API and reference by file URI
+export {
+  GeminiFilesAdapter,
+  createGeminiFiles,
+  geminiFiles,
+  type GeminiFilesConfig,
+} from './adapters/files'
+
 // Image adapter
 export {
   GeminiImageAdapter,
@@ -59,6 +67,14 @@ export type {
 // is usable with only `@tanstack/ai-gemini` installed, without the consumer
 // having to add `@google/genai` to their own dependencies.
 export { HarmBlockThreshold, HarmCategory } from '@google/genai'
+
+// Files API helpers — upload + poll a file (e.g. video) until it is ACTIVE
+export {
+  uploadGeminiFile,
+  geminiVideoPart,
+  type GeminiUploadedFile,
+  type GeminiUploadFileOptions,
+} from './files/index'
 
 // Embedding adapter - for embedding vectors
 export {
@@ -168,6 +184,7 @@ export type {
   GeminiImageMetadata,
   GeminiAudioMetadata,
   GeminiVideoMetadata,
+  GeminiVideoProcessing,
   GeminiDocumentMetadata,
   GeminiMessageMetadataByModality,
 } from './message-types'

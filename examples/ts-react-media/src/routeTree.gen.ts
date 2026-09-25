@@ -9,55 +9,58 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SeedanceRouteImport } from './routes/seedance'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiMarbleSplatRouteImport } from './routes/api.marble-splat'
+import { Route as ApiFalProxyRouteImport } from './routes/api.fal.proxy'
 
-const SeedanceRoute = SeedanceRouteImport.update({
-  id: '/seedance',
-  path: '/seedance',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMarbleSplatRoute = ApiMarbleSplatRouteImport.update({
+  id: '/api/marble-splat',
+  path: '/api/marble-splat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFalProxyRoute = ApiFalProxyRouteImport.update({
+  id: '/api/fal/proxy',
+  path: '/api/fal/proxy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/seedance': typeof SeedanceRoute
+  '/api/marble-splat': typeof ApiMarbleSplatRoute
+  '/api/fal/proxy': typeof ApiFalProxyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/seedance': typeof SeedanceRoute
+  '/api/marble-splat': typeof ApiMarbleSplatRoute
+  '/api/fal/proxy': typeof ApiFalProxyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/seedance': typeof SeedanceRoute
+  '/api/marble-splat': typeof ApiMarbleSplatRoute
+  '/api/fal/proxy': typeof ApiFalProxyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/seedance'
+  fullPaths: '/' | '/api/marble-splat' | '/api/fal/proxy'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/seedance'
-  id: '__root__' | '/' | '/seedance'
+  to: '/' | '/api/marble-splat' | '/api/fal/proxy'
+  id: '__root__' | '/' | '/api/marble-splat' | '/api/fal/proxy'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  SeedanceRoute: typeof SeedanceRoute
+  ApiMarbleSplatRoute: typeof ApiMarbleSplatRoute
+  ApiFalProxyRoute: typeof ApiFalProxyRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/seedance': {
-      id: '/seedance'
-      path: '/seedance'
-      fullPath: '/seedance'
-      preLoaderRoute: typeof SeedanceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -65,12 +68,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/marble-splat': {
+      id: '/api/marble-splat'
+      path: '/api/marble-splat'
+      fullPath: '/api/marble-splat'
+      preLoaderRoute: typeof ApiMarbleSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fal/proxy': {
+      id: '/api/fal/proxy'
+      path: '/api/fal/proxy'
+      fullPath: '/api/fal/proxy'
+      preLoaderRoute: typeof ApiFalProxyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  SeedanceRoute: SeedanceRoute,
+  ApiMarbleSplatRoute: ApiMarbleSplatRoute,
+  ApiFalProxyRoute: ApiFalProxyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -3,8 +3,6 @@ id: ApprovalCapabilityOf
 title: ApprovalCapabilityOf
 ---
 
-# Type Alias: ApprovalCapabilityOf\<TTool\>
-
 ```ts
 type ApprovalCapabilityOf<TTool> = TTool extends ToolApprovalCapabilityMarker<infer TNeeds, unknown> ? TNeeds : false;
 ```

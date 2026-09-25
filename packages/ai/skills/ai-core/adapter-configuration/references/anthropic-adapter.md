@@ -21,45 +21,58 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 
 ## Key Chat Models
 
-| Model               | Context Window | Max Output | Notes                                       |
-| ------------------- | -------------- | ---------- | ------------------------------------------- |
-| `claude-fable-5`    | 1M             | 128K       | Most capable; thinking always on (adaptive) |
-| `claude-sonnet-5`   | 1M             | 128K       | Best balance; adaptive thinking by default  |
-| `claude-opus-4-8`   | 1M             | 128K       | Opus tier; adaptive thinking, no sampling   |
-| `claude-opus-4-7`   | 1M             | 128K       | Older Opus; adaptive thinking, no sampling  |
-| `claude-opus-4-6`   | 200K           | 128K       | Older Opus, adaptive + budget thinking      |
-| `claude-sonnet-4-6` | 1M             | 64K        | Previous gen balanced, adaptive + budget    |
-| `claude-sonnet-4-5` | 200K           | 64K        | Previous gen balanced                       |
-| `claude-opus-4-5`   | 200K           | 32K        | Previous gen most capable                   |
-| `claude-opus-4-1`   | 200K           | 64K        | Deprecated (retires 2026-08-05)             |
-| `claude-haiku-4-5`  | 200K           | 64K        | Fast and affordable                         |
+| Model                | Context Window | Max Output | Notes                                       |
+| -------------------- | -------------- | ---------- | ------------------------------------------- |
+| `claude-fable-5-1`   | 1M             | 128K       | Newest; thinking always on (adaptive)       |
+| `claude-fable-5`     | 1M             | 128K       | Most capable; thinking always on (adaptive) |
+| `claude-opus-5`      | 1M             | 128K       | Opus tier; budget thinking + sampling       |
+| `claude-opus-5-fast` | 1M             | 128K       | Fast-mode Opus 5; same options as opus-5    |
+| `claude-sonnet-5`    | 1M             | 128K       | Best balance; adaptive thinking by default  |
+| `claude-opus-4-8`    | 1M             | 128K       | Opus tier; adaptive thinking, no sampling   |
+| `claude-opus-4-7`    | 1M             | 128K       | Older Opus; adaptive thinking, no sampling  |
+| `claude-opus-4-6`    | 200K           | 128K       | Older Opus, adaptive + budget thinking      |
+| `claude-sonnet-4-6`  | 1M             | 64K        | Previous gen balanced, adaptive + budget    |
+| `claude-sonnet-4-5`  | 200K           | 64K        | Previous gen balanced                       |
+| `claude-opus-4-5`    | 200K           | 32K        | Previous gen most capable                   |
+| `claude-opus-4-1`    | 200K           | 64K        | Deprecated (retires 2026-08-05)             |
+| `claude-haiku-4-5`   | 200K           | 64K        | Fast and affordable                         |
 
 Note: Model IDs use the format `claude-sonnet-5`, `claude-opus-4-8`, etc.
-Retired models (Claude 3.x, Sonnet 3.7, Opus 4 / Sonnet 4) and the `-fast`
-variant ids were removed — every registered id resolves against the
-first-party Anthropic API.
+Retired models (Claude 3.x, Sonnet 3.7, Opus 4 / Sonnet 4) were removed —
+every registered id resolves against the first-party Anthropic API.
+`claude-opus-5-fast` is the only `-fast` id that remains.
+
+`output_config.effort` is typed only on the adaptive-era models
+(`claude-opus-4-7`, `claude-opus-4-8`, `claude-sonnet-5`, `claude-fable-5`,
+`claude-fable-5-1`). There is no top-level `effort` option on any model;
+`claude-opus-4-6` / `claude-sonnet-4-6` accept `thinking: { type: 'adaptive' }`
+but no effort knob.
 
 ## Provider-Specific modelOptions
 
 ```typescript
+import { chat } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 chat({
   adapter: anthropicText('claude-sonnet-4-6'),
   messages,
   modelOptions: {
     // Sampling
     temperature: 0.7,
-    top_p: 0.9, // cannot be combined with temperature
+    // top_p: 0.9, // cannot be combined with temperature
     max_tokens: 16000,
     // Extended thinking (budget-based)
     thinking: {
       type: 'enabled',
       budget_tokens: 8000, // must be >= 1024 and < max_tokens
     },
-    // Adaptive thinking (claude-sonnet-4-6, claude-opus-4-6+)
-    thinking: {
-      type: 'adaptive',
-    },
-    effort: 'high', // 'max' | 'high' | 'medium' | 'low'
+    // Adaptive thinking (claude-sonnet-4-6, claude-opus-4-6+) — the
+    // alternative to the budget shape above; effort is tuned via
+    // output_config.effort on the adaptive-era models (see below)
+    // thinking: { type: 'adaptive' },
     // Service tier
     service_tier: 'auto', // 'auto' | 'standard_only'
     // Stop sequences
@@ -99,6 +112,11 @@ ANTHROPIC_API_KEY
 The per-model types restrict `modelOptions` on the newest models:
 
 ```typescript
+import { chat } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 chat({
   adapter: anthropicText('claude-sonnet-5'), // or 'claude-fable-5', 'claude-opus-4-8'
   messages,

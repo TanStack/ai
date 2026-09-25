@@ -228,22 +228,9 @@ console.log(result.summary);
 
 ## Image Generation
 
-Generate images with Grok 2 Image:
+Generate images with a Grok Imagine model.
 
-```typescript
-import { generateImage } from "@tanstack/ai";
-import { grokImage } from "@tanstack/ai-grok";
-
-const result = await generateImage({
-  adapter: grokImage("grok-2-image-1212"),
-  prompt: "A futuristic cityscape at sunset",
-  numberOfImages: 1,
-});
-
-console.log(result.images);
-```
-
-The grok-imagine models (`grok-imagine-image`, `grok-imagine-image-2.0`,
+The image models (`grok-imagine-image`, `grok-imagine-image-2.0`,
 `grok-imagine-image-quality`) are aspect-ratio sized — `size` takes an
 `aspectRatio_resolution` template like `"16:9_2k"` (the `_2k` suffix is
 optional). `grok-imagine-image-2.0` is xAI's recommended model and adds a
@@ -293,9 +280,7 @@ const result = await generateImage({
 ```
 
 URL sources are fetched by xAI's servers, so they must be publicly
-reachable; use a `data` source for private images. `grok-2-image-1212` is
-text-to-image only — image prompt parts are a compile-time type error and
-throw at runtime.
+reachable; use a `data` source for private images.
 
 ## Video Generation (Experimental)
 
@@ -359,7 +344,7 @@ Like the Grok Imagine image models, sizing is aspect-ratio based: the `size` opt
 
 ### Reference-to-Video
 
-On `grok-imagine-video-1.5`, image prompt parts with `metadata.role: 'reference'` (or `'character'`) become `reference_images` — they guide subjects and style without locking the first frame, and are addressed from the prompt text as `<IMAGE_0>`, `<IMAGE_1>`, … in request order. Preset TTS voices (up to 3) can be referenced for generated speech via `modelOptions.reference_audios`, addressed as `<AUDIO_0>`, `<AUDIO_1>`, `<AUDIO_2>`. Reference-to-video output is capped at 720p. A starting-frame image and reference inputs cannot be combined — xAI rejects that mix with 400. Reference inputs are a 1.5-only feature — the adapter rejects them on `grok-imagine-video`:
+On `grok-imagine-video-1.5`, image prompt parts with `metadata.role: 'reference'` (or `'character'`) become `reference_images` — they guide subjects and style without locking the first frame, and are addressed from the prompt text as `<IMAGE_0>`, `<IMAGE_1>`, … in request order. Preset TTS voices (up to 3) can be referenced for generated speech via `modelOptions.reference_audios`, addressed as `<AUDIO_0>`, `<AUDIO_1>`, `<AUDIO_2>`. Reference-to-video output is capped at 720p. A starting-frame image can be combined with reference inputs on 1.5: the start frame pins the opening frame while the references steer subjects, style, and voices. Reference inputs are a 1.5-only feature, so the adapter rejects them on `grok-imagine-video`:
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -371,6 +356,11 @@ const { jobId } = await generateVideo({
     {
       type: "text",
       content: "<IMAGE_0> walks through a neon-lit alley while <AUDIO_0> narrates",
+    },
+    {
+      type: "image",
+      source: { type: "url", value: "https://example.com/opening-frame.png" },
+      metadata: { role: "start_frame" },
     },
     {
       type: "image",

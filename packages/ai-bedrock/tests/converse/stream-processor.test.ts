@@ -175,6 +175,34 @@ describe('processConverseStream', () => {
     }
   })
 
+  it('forwards cache read/write counts as promptTokensDetails', async () => {
+    const events = await collect(
+      { contentBlockDelta: { delta: { text: 'hi' }, contentBlockIndex: 0 } },
+      { messageStop: { stopReason: 'end_turn' } },
+      {
+        metadata: {
+          // inputTokens is the uncached part only; the cached prefix comes as
+          // its own fields.
+          usage: {
+            inputTokens: 3,
+            outputTokens: 4,
+            totalTokens: 8416,
+            cacheReadInputTokens: 0,
+            cacheWriteInputTokens: 8409,
+          },
+        },
+      },
+    )
+    const finished = events.find((e) => e.type === EventType.RUN_FINISHED)
+    expect((finished as { usage?: unknown }).usage).toEqual({
+      promptTokens: 3,
+      completionTokens: 4,
+      totalTokens: 8416,
+      // Zero is a real value here. The checkpoint was served, not missing.
+      promptTokensDetails: { cachedTokens: 0, cacheWriteTokens: 8409 },
+    })
+  })
+
   it('drains a tool call that never received contentBlockStop (truncated stream)', async () => {
     const events = await collect(
       {

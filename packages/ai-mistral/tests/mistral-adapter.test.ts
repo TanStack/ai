@@ -317,6 +317,34 @@ describe('Mistral AG-UI event emission', () => {
     }
   })
 
+  it('posts the raw stream to baseURL with defaultHeaders', async () => {
+    setupMockStream([
+      {
+        id: 'cmpl-1',
+        model: 'mistral-large-latest',
+        choices: [{ index: 0, delta: {}, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key', {
+      baseURL: 'https://gw.example/mistral/',
+      defaultHeaders: { 'X-Gateway': 'yes' },
+    })
+
+    for await (const _chunk of adapter.chatStream(
+      chatOpts({
+        model: 'mistral-large-latest',
+        messages: [{ role: 'user', content: 'Hello' }],
+      }),
+    )) {
+      // drain
+    }
+
+    const fetchMock = vi.mocked(globalThis.fetch)
+    const [url, init] = fetchMock.mock.calls[0]!
+    expect(url).toBe('https://gw.example/mistral/v1/chat/completions')
+    expect(init?.headers).toMatchObject({ 'X-Gateway': 'yes' })
+  })
+
   it('emits TEXT_MESSAGE_START before TEXT_MESSAGE_CONTENT', async () => {
     const streamChunks = [
       {

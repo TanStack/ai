@@ -13,11 +13,11 @@ keywords:
   - video generation
 ---
 
-# Generations
-
-You want an image, some speech, a transcript or a video, not a conversation. Every one
+You want an image, some speech, a transcript, a video, or a live stream, not a conversation. Every one
 of those is a **generation**: one request, one result. They all share the same shape, so
 learning one teaches you the rest.
+
+For a live, prompt-steerable stream that does not end as a file, see [Live Generation](./live-generation) or [World Generation](./world-generation).
 
 ## The fastest path
 
@@ -65,6 +65,8 @@ function ImageGenerator() {
 That is the whole loop. Swap `generateImage` and `useGenerateImage` for any other pair
 in the table below and nothing else changes.
 
+For a React + Start walkthrough with OpenRouter, open [Generate Image](../tutorials/generate-image).
+
 ## Which transport?
 
 | Transport | Use it when | How |
@@ -85,10 +87,13 @@ streaming is handled for you. All three are written out in
 | Audio generation | `generateAudio()` | `useGenerateAudio()` | [Audio Generation](./audio-generation) |
 | Text-to-speech | `generateSpeech()` | `useGenerateSpeech()` | [Text-to-Speech](./text-to-speech) |
 | Transcription | `generateTranscription()` | `useTranscription()` | [Transcription](./transcription) |
+| Voice creation | `generateVoice()` | - | [Voice Creation](./voice-creation) |
 | Summarization | `summarize()` | `useSummarize()` | - |
 | Video generation | `generateVideo()` | `useGenerateVideo()` | [Video Generation](./video-generation) |
+| Live generation | `generateLiveVideo()` | - | [Live Generation](./live-generation) |
+| World generation | `generateWorld()` | - | [World Generation](./world-generation) |
 
-> **Note:** Video generation uses a jobs/polling architecture. The `useGenerateVideo` hook additionally exposes `jobId`, `videoStatus`, `onJobCreated`, and `onStatusUpdate` for tracking the polling lifecycle. See the [Video Generation](./video-generation) guide for details.
+> **Note:** Video adapters use a jobs/polling architecture. The `useGenerateVideo` hook additionally exposes `jobId`, `videoStatus`, `onJobCreated`, and `onStatusUpdate` for tracking the polling lifecycle. Live adapters mint a session token. World Labs world jobs return a viewer URL and asset links.
 
 ## Advanced
 

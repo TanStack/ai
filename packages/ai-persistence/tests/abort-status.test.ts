@@ -242,6 +242,54 @@ describe('chat onAbort status', () => {
       usage,
     })
   })
+
+  it('clears a leftover detachedSince when the run completes', async () => {
+    const persistence = memoryPersistence()
+    const runs = persistence.stores.runs
+    if (!runs) throw new Error('memoryPersistence must provide a run store')
+    const runId = 'complete-clears-detach'
+    await runs.createOrResume({ runId, threadId: 't1', startedAt: 1 })
+    await runs.update(runId, { detachedSince: 1_000 })
+
+    const adapter = {
+      kind: 'text',
+      name: 'mock',
+      model: 'test-model',
+      '~types': {},
+      chatStream: () =>
+        (async function* () {
+          yield {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId: 't1',
+            timestamp: 1,
+          } satisfies StreamChunk
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId: 't1',
+            finishReason: 'stop',
+            timestamp: 1,
+          } satisfies StreamChunk
+        })(),
+      structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+    } as unknown as AnyTextAdapter
+
+    const stream = chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      runId,
+      threadId: 't1',
+      middleware: [withPersistence(persistence)],
+    }) as AsyncIterable<StreamChunk>
+    for await (const _ of stream) {
+      // drain
+    }
+
+    const run = await runs.get(runId)
+    expect(run?.status).toBe('completed')
+    expect(run?.detachedSince).toBeUndefined()
+  })
 })
 
 describe('interrupt status shape', () => {

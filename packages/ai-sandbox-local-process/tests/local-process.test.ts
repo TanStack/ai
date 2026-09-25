@@ -228,6 +228,52 @@ describe('local-process killTree — POSIX child.kill(signal) branch', () => {
   )
 })
 
+describe('local-process stdin errors', () => {
+  posixOnly(
+    'a write to a child that closed its stdin rejects without an uncaught error (skipped on Windows: named pipes do not report EPIPE the same way)',
+    async () => {
+      const sbx = await fresh()
+      // `finally`: the `sleep 30` below outlives a failed assertion otherwise.
+      try {
+        // `exec 0<&-` makes the child close its own stdin while it keeps
+        // running: the write end stays open, and no process holds the read end.
+        const proc = await sbx.process.spawn(
+          'exec 0<&- ; echo closed ; sleep 30',
+        )
+        // The shell echoes after it closes fd 0. An earlier write only fills the
+        // pipe buffer and resolves, which would prove nothing.
+        let closed = false
+        for await (const chunk of proc.stdout) {
+          if (chunk.includes('closed')) {
+            closed = true
+            break
+          }
+        }
+        expect(closed).toBe(true)
+
+        const uncaught: Array<Error> = []
+        const onUncaught = (error: Error): void => {
+          uncaught.push(error)
+        }
+        process.on('uncaughtException', onUncaught)
+        try {
+          await expect(proc.stdin.write('probe\n')).rejects.toThrow(/EPIPE/)
+          // Node emits the socket's `error` event on a `nextTick` after the
+          // callback, and that queue always drains before a `setImmediate`.
+          await new Promise((resolve) => setImmediate(resolve))
+        } finally {
+          process.off('uncaughtException', onUncaught)
+        }
+
+        expect(uncaught).toEqual([])
+      } finally {
+        await sbx.destroy()
+      }
+    },
+    30_000,
+  )
+})
+
 describe('local-process + spawnNdjson (real agent-CLI streaming)', () => {
   it('streams NDJSON events emitted by a spawned process', async () => {
     const sbx = await fresh()

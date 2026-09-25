@@ -27,6 +27,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   'one-shot-text': new Set([
     'openai',
@@ -47,6 +48,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // BytePlus and LLM Gateway both stream their reasoning trace as
   // `delta.reasoning_content`, which is exactly the field aimock's
@@ -65,6 +67,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
     'openai-compatible-legacy',
   ]),
   'multi-turn': new Set([
@@ -86,6 +89,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   'tool-calling': new Set([
     'openai',
@@ -109,6 +113,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   'parallel-tool-calls': new Set([
     'openai',
@@ -128,6 +133,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
   // Vertex uses the same Gemini stream, so it is excluded for the same reason.
@@ -148,6 +154,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
   'text-tool-text': new Set([
@@ -168,6 +175,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   'structured-output': new Set([
     'openai',
@@ -188,6 +196,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // Streaming structured output: only providers with native streaming JSON
   // schema support are listed here. Other providers fall back to the
@@ -195,6 +204,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // non-streaming `structuredOutput`) but aren't exercised by E2E yet.
   'structured-output-stream': new Set([
     'openai',
+    'gemini',
     'groq',
     'grok',
     'vertex-grok',
@@ -206,27 +216,22 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // Multi-turn structured output: every turn produces its own typed
   // `structured-output` part on the assistant message, and historical
   // turns stay renderable. Works for every provider that supports both
   // multi-turn and structured-output — non-native-streaming adapters
-  // (anthropic, gemini, ollama) fall back to a single
-  // `structured-output.complete` event per turn, but the per-message
-  // typed part still lands and the round-trip is identical.
-  // Anthropic temporarily excluded — multi-turn structured output regresses
-  // when the engine takes the #605 native-combined path on Claude 4.5+ (the
-  // 2nd turn's rendered structured-output part shows the 1st turn's
-  // content). Other native-combined providers (openai) still pass here,
-  // so the regression appears Anthropic-specific. Likely an interaction
-  // between the assistant message's text-content shape (post-#605) and
-  // either useChat's part rendering or aimock's response routing for the
-  // multi-turn shape. Tracking via follow-up issue; the single-turn
-  // anthropic structured-output and structured-output-stream entries
-  // (where applicable) continue to pass and are sufficient validation
-  // for #605's native combined mode landing.
+  // (gemini, ollama) fall back to a single `structured-output.complete`
+  // event per turn, but the per-message typed part still lands and the
+  // round-trip is identical.
+  // Anthropic is the one provider that breaks visibly when the structured
+  // part stops round-tripping into assistant content (#613), so it stays in
+  // this set; `tests/anthropic-multi-turn-structured-wire.spec.ts` pins the
+  // wire shape behind it.
   'multi-turn-structured': new Set([
     'openai',
+    'anthropic',
     'gemini',
     'vertex',
     'vertex-grok',
@@ -241,6 +246,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   'agentic-structured': new Set([
     'openai',
@@ -261,6 +267,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // Native-combined-mode adapters only. Each provider's default test model
   // (or per-feature override in `features.ts`) must opt into combined mode
@@ -295,6 +302,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openrouter',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // OpenAI only: this feature exercises the Responses adapter's PDF
   // `input_file` conversion (base64 `file_data` + filename).
@@ -311,6 +319,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openrouter',
     'byteplus',
     'llmgateway',
+    'cloudflare',
   ]),
   // byteplus excluded: @tanstack/ai-byteplus ships no summarize adapter —
   // Ark has no summarization endpoint, and api.summarize.ts builds a
@@ -333,6 +342,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'lovable',
     'mistral',
     'llmgateway',
+    'cloudflare',
   ]),
   'summarize-stream': new Set([
     'openai',
@@ -351,6 +361,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'lovable',
     'mistral',
     'llmgateway',
+    'cloudflare',
   ]),
   // Embedding (Promise-based `embed()` activity, no streaming). aimock 1.34
   // natively mocks OpenAI's /v1/embeddings (JSON fixture in
@@ -412,6 +423,12 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'lovable',
   ]),
+  // ElevenLabs is the only adapted provider with a voice-creation API.
+  // xAI's POST /v1/custom-voices and fal's clone endpoints are the obvious
+  // next two — add them here when their adapters implement generateVoice.
+  // aimock has no /v1/text-to-voice routes, so this runs against
+  // `elevenlabsVoiceMount` in global-setup.ts.
+  'voice-design': new Set(['elevenlabs']),
   transcription: new Set([
     'openai',
     'grok',
@@ -465,6 +482,11 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // the adapter (geminiTextInteractions, behind @tanstack/ai-gemini/experimental).
   // byteplus excluded for the same reason: Ark's chat endpoint is stateless.
   'stateful-interactions': new Set(['gemini']),
+  // Gemini-only. Agentic video understanding: a video content part with
+  // metadata.processing: 'agentic' makes geminiText route through the
+  // Interactions API (aimock serves synchronous text interactions natively;
+  // it extracts the text prompt and ignores the video block when matching).
+  'video-understanding': new Set(['gemini']),
 }
 
 export function isSupported(provider: Provider, feature: Feature): boolean {

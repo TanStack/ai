@@ -227,6 +227,24 @@ export default function Header() {
           </Link>
 
           <Link
+            to="/video-understanding"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 transition-colors mb-2',
+            }}
+          >
+            <Video size={20} />
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Video Understanding</span>
+              <span className="text-xs px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded">
+                Exp
+              </span>
+            </div>
+          </Link>
+
+          <Link
             to="/tts"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"

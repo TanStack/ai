@@ -3,8 +3,6 @@ title: Client Persistence
 id: client-persistence
 ---
 
-# Client Persistence
-
 A `ChatClient` (and every framework `useChat` / `createChat`) keeps messages in
 memory, so a reload or a crashed tab loses the whole conversation and any reply
 that was still streaming. The `persistence` option fixes that from the browser
@@ -66,6 +64,8 @@ pointer. On the next load `useChat` reads it and:
   reloaded, so it finishes in place instead of freezing half-done. This one needs
   a durability-backed connection (a route that records the stream and exposes a
   replay handler); see [Resumable streams](../resumable-streams/overview).
+
+Replay rebuilds reasoning, tool activity, and text from the durable log, including runs that emit reasoning before their first tool or text event. The completed activity remains in the transcript sent with the next message.
 
 ### Handle restored client tools
 
@@ -135,7 +135,8 @@ conversations.
 Pass `persistence: true`. The client stores nothing, no transcript and no resume
 pointer. On mount `useChat` hydrates the thread from the server by its
 `threadId`: it paints the stored transcript and, if a run is still generating,
-tails it to completion. Best when transcripts are large (localStorage is
+tails it to completion. `history: { pageSize }` paints the newest window on
+hydrate. Best when transcripts are large (localStorage is
 synchronous and quota-bound), when the same conversation must open on another
 device, or when you simply do not want message content in the browser.
 
@@ -153,13 +154,27 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 const connection = fetchServerSentEvents('/api/chat')
 
 function Chat({ threadId }: { threadId: string }) {
-  const { messages, sendMessage } = useChat({
-    threadId,
-    connection,
-    persistence: true,
-  })
+  const { messages, hasOlderMessages, loadOlderMessages, sendMessage } =
+    useChat({
+      threadId,
+      connection,
+      persistence: true,
+      history: { pageSize: 50 },
+    })
   return (
     <div>
+      {hasOlderMessages ? (
+        <button
+          type="button"
+          onClick={() => {
+            void loadOlderMessages().catch(() => {
+              // Show a retry. Painted messages stay.
+            })
+          }}
+        >
+          Load older
+        </button>
+      ) : null}
       {messages.map((m) => (
         <div key={m.id}>{m.role}</div>
       ))}
@@ -170,6 +185,19 @@ function Chat({ threadId }: { threadId: string }) {
   )
 }
 ```
+
+Call `loadOlderMessages()` from your scroll handler. The library does not watch
+the scrollbar.
+
+- `hasOlderMessages` follows `page.truncated` on the last hydrate or older-page
+  response.
+- Without `history`, hydrate loads the full thread.
+- `history` is only valid with `persistence: true`.
+- With `history.pageSize`, send posts only the new turn. Reload posts the last
+  user (the old assistant is already gone locally). Resume posts from that
+  user through the painted assistant so the stored tool-call is not dropped.
+- If `loadOlderMessages()` fails, the promise rejects and painted messages
+  stay. `hasOlderMessages` stays true. Catch the rejection in your UI.
 
 **Server**: one `GET` endpoint next to your chat `POST`. Replay the durability
 log when the request carries a resume cursor, otherwise return the stored
@@ -194,10 +222,13 @@ export function GET(request: Request): Response | Promise<Response> {
 ```
 
 `reconstructChat` returns `{ messages, activeRun }`: the transcript as UI
-messages, and `activeRun` when a run is still generating for the thread. The
-client calls this endpoint on mount and, when `activeRun` is set, tails the run
-through the replay branch above. You never handle a run id, and a second device
-resumes the live run the same way the original tab does. See
+messages, and `activeRun` when a run is still generating for the thread. With a
+valid `limit` query param, the body also has `page: { truncated, cursor }`.
+`reconstructChat` reads `limit` and `before` from the query.
+
+The client calls this endpoint on mount and, when `activeRun` is set, tails the
+run through the replay branch above. You never handle a run id, and a second
+device resumes the live run the same way the original tab does. See
 [Chat persistence](./chat-persistence).
 
 | Mode | Caches on client | Authoritative history | Reach for it when |

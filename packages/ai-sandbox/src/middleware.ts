@@ -18,6 +18,7 @@
  */
 import {
   defineChatMiddleware,
+  isTerminalRunStatus,
   provideDetachableRun,
   provideRunDetached,
   wasCancelRequested,
@@ -270,6 +271,20 @@ async function recordDetach(
   phase: 'disconnect' | 'abort',
 ): Promise<boolean> {
   try {
+    // A late abort from a superseded host can run after takeover has already
+    // completed the run. Re-stamping `detachedSince` then leaves a finished
+    // record looking detached. Skip the write; return true so `onAbort` does
+    // not treat this as a failed stamp and destroy the sandbox.
+    try {
+      const current = await durability.runs.get(ctx.runId)
+      if (current !== null && isTerminalRunStatus(current.status)) {
+        return true
+      }
+    } catch {
+      // Unreadable store: still try the update. A get() failure must not skip
+      // the stamp — that is how a cancel-probe rejection used to skip both
+      // detach and destroy.
+    }
     // The record already exists: `setup` pre-creates it for every durable run
     // BEFORE `ensure`, precisely so this stamp cannot land on a runId the store has
     // never heard of — `RunStore.update` is a documented no-op for an unknown

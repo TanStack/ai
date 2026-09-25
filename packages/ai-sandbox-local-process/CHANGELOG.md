@@ -1,5 +1,20 @@
 # @tanstack/ai-sandbox-local-process
 
+## 0.2.6
+
+### Patch Changes
+
+- [#1484](https://github.com/TanStack/ai/pull/1484) [`61231d6`](https://github.com/TanStack/ai/commit/61231d61df2908ef14efd59801d8c0f9b82eb51b) - Add a package README to each sandbox provider: what it isolates with, the factory call, the auth and snapshot/resume behaviour that differs between them, and links to the sandbox docs.
+
+## 0.2.5
+
+### Patch Changes
+
+- [#1293](https://github.com/TanStack/ai/pull/1293) [`efba9cf`](https://github.com/TanStack/ai/commit/efba9cf6768fc895ff4ecd8b89edea9cb3080cb5) - fix: stop an uncaught EPIPE when a write goes to a child that closed its stdin
+
+- Updated dependencies []:
+  - @tanstack/ai-sandbox@0.5.6
+
 ## 0.2.4
 
 ### Patch Changes

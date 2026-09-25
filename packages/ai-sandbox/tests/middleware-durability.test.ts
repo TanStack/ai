@@ -759,6 +759,32 @@ describe('withSandbox detach — the persistence-side effect', () => {
     expect(h.ctx.getOptional(RunDetachedCapability)).toBeUndefined()
   })
 
+  it('does not re-stamp detachedSince on abort after the run completed', async () => {
+    // Takeover claims the run and clears `detachedSince`, then the successor
+    // finishes. The original host's `onAbort` can still run after that. Stamping
+    // again would leave a completed record looking detached.
+    const runs = await seededRuns()
+    const h = await harness({ adapter: adapterFor('r1') }, { runs })
+    await runs.update('r1', { status: 'completed', finishedAt: Date.now() })
+
+    await h.abort({ cancelRequested: false })
+
+    expect((await runs.get('r1'))?.status).toBe('completed')
+    expect((await runs.get('r1'))?.detachedSince).toBeUndefined()
+    expect(h.destroys()).toBe(0)
+  })
+
+  it('does not re-stamp detachedSince on disconnect after the run completed', async () => {
+    const runs = await seededRuns()
+    const h = await harness({ adapter: adapterFor('r1') }, { runs })
+    await runs.update('r1', { status: 'completed', finishedAt: Date.now() })
+
+    await h.disconnect()
+
+    expect((await runs.get('r1'))?.detachedSince).toBeUndefined()
+    expect(h.ctx.getOptional(RunDetachedCapability)).toBeUndefined()
+  })
+
   it('does not detach on a disconnect when detachOnDisconnect is false', async () => {
     const runs = await seededRuns()
     const h = await harness(

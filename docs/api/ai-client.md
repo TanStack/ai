@@ -15,6 +15,8 @@ keywords:
 
 Framework-agnostic headless client for managing chat state and streaming.
 
+For typed headless chat UI types and selectors, import `@tanstack/ai-client/ui`. See [Custom Chat UI Adapters](../ui/custom-adapters).
+
 ## Installation
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
@@ -29,6 +31,50 @@ vanilla: @tanstack/ai-client
 octane: @tanstack/ai-client
 
 <!-- ::end:tabs -->
+
+## `registerWebMCPTools(tools, options)`
+
+Expose executable client tools through the browser WebMCP API. Abort the required signal to remove all tools from this registration.
+
+For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+
+```typescript
+import {
+  registerWebMCPTools,
+  type RegisterWebMCPToolsOptions,
+} from "@tanstack/ai-client";
+import { searchProducts } from "./tools";
+
+const controller = new AbortController();
+const tools = [searchProducts];
+const options: RegisterWebMCPToolsOptions<typeof tools> = {
+  signal: controller.signal,
+  toolOptions: {
+    searchProducts: {
+      title: "Search products",
+      annotations: { readOnlyHint: true },
+    },
+  },
+};
+
+await registerWebMCPTools(tools, options);
+
+// Remove these tools when their owner is no longer active.
+controller.abort();
+```
+
+The function returns `Promise<void>`. It resolves without registration during server rendering, in an insecure context, or when WebMCP is unavailable.
+
+It validates Standard Schema inputs and outputs. A tool with `needsApproval: true` causes registration to fail.
+
+### Public option types
+
+- `RegisterWebMCPToolsOptions<TTools, TContext>` - Requires `signal`. It also contains `toolOptions` and the client tool runtime `context`.
+- `WebMCPToolOptionsByName<TTools>` - A partial options map keyed by the inferred tool names.
+- `WebMCPToolOptions` - Contains the optional `title` and `annotations` fields for one tool.
+- `WebMCPToolAnnotations` - Contains the optional `readOnlyHint` and `untrustedContentHint` fields.
+
+`context` is required when a tool declares a required runtime context. If registration fails, the function removes tools that it registered during the call.
 
 ## `ChatClient`
 
@@ -549,6 +595,7 @@ export const byok = defineByok({
 ### Factory options
 
 - `storage?` - A `KeyringStorage` implementation. Default is `memoryStorage()` (session only, not saved)
+- `providers?` - Descriptors whose `with` companions the store expands. With `[cloudflareByok, cloudflareAccountByok]`, a send for `cloudflare` carries the token and the account id headers, and `prepare` prompts for each missing one
 
 ### Methods
 
@@ -556,8 +603,8 @@ export const byok = defineByok({
 - `update(key)` - Persist a key for the current `prompt` provider. Throws if `prompt` is null
 - `clear(provider?)` - Persist the removal, then drop one key, or all keys when you omit `provider`
 - `unlock()` - Decrypt unlockable storage (passkey). No-op for memory storage
-- `headers(provider)` - Return `x-byok-*` headers for that slug. Chat and generation clients throw if no slug resolves — they do not send every stored key
-- `prepare(provider?)` - Wait for hydration, then unlock if needed. If `provider` is set, the key is empty, and the server has no coverage, throw `ByokBlockedError` and set `prompt`
+- `headers(provider)` - Return `x-byok-*` headers for that slug and its companions. Chat and generation clients throw if no slug resolves — they do not send every stored key
+- `prepare(provider?)` - Wait for hydration, then unlock if needed. If `provider` is set and the key for it or a companion is empty with no server coverage, throw `ByokBlockedError` and set `prompt` for that slug
 - `ready()` - Resolve when constructor hydration (peek/load) finishes
 - `setServerCoverage(flags)` - `true` means do not block a send when the browser has no key (the relay can fill from env). `false` restores the default: block. A record merges per-slug flags
 - `request(provider, reason)` - Set `prompt` to `{ provider, reason }` (`missing` | `locked` | `invalid`)

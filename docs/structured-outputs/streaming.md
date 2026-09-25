@@ -18,6 +18,8 @@ You have an existing chat-style endpoint and you want the structured response to
 
 By the end you'll have a server endpoint streaming structured JSON as Server-Sent Events, and a client that reads a typed `partial` (progressive object) and `final` (completed terminal object) from `useChat`.
 
+For a full Start app that shows a table from `partial.rows`, open [Streaming Structured Table](../tutorials/streaming-structured-table).
+
 > **Note:** This is the streaming counterpart of [One-Shot Extraction](./one-shot). If you don't need progressive UI updates, the one-shot path is simpler. If you want users to iterate on the object across multiple turns and keep history, see [Multi-Turn Chat](./multi-turn).
 
 ## Server endpoint
@@ -156,7 +158,7 @@ The `structured-output` part fields:
 
 ## What the stream contains
 
-`chat({ outputSchema, stream: true })` returns a `StructuredOutputStream<T>`. The stream is the standard `StreamChunk` lifecycle plus a terminal `CUSTOM` event named `structured-output.complete`. It is not folded into `RUN_FINISHED`.
+`chat({ outputSchema, stream: true })` returns a `StructuredOutputStream<T>`. The stream includes a `CUSTOM` event named `structured-output.complete` before `RUN_FINISHED`. The completion event carries the parsed object. A parsing failure emits `RUN_ERROR` instead of a successful `RUN_FINISHED`.
 
 ```typescript ignore
 {
@@ -187,6 +189,7 @@ Streaming structured output works with **every adapter**, but only some support 
 | `@tanstack/ai-bedrock` | Native stream through Converse or an OpenAI-compatible API |
 | `@tanstack/ai-byteplus` | Native single-request stream on supported models; unsupported models emit `RUN_ERROR` |
 | `@tanstack/ai-llmgateway` | Native single-request stream (Chat Completions, `response_format: json_schema`) |
+| `@tanstack/ai-cloudflare` | Native single-request stream (Chat Completions, `response_format: json_schema`) |
 | `@tanstack/ai-lovable` | Native single-request stream (Responses or Chat Completions) |
 | Other adapters (anthropic, gemini, ollama, …) | Fallback: runs non-streaming `structuredOutput` and emits the final object as one `structured-output.complete` event |
 

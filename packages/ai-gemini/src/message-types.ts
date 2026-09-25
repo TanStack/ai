@@ -88,6 +88,19 @@ export interface GeminiAudioMetadata {
 }
 
 /**
+ * How Gemini processes a video for understanding.
+ *
+ * - `static` (default): single-pass frame sampling via `generateContent`.
+ * - `agentic`: multi-pass "agentic" video understanding, GA on the
+ *   `agentic_video`-capable flash models (`gemini-3.8-flash`, `gemini-3.7-flash`,
+ *   `gemini-3.6-flash`, `gemini-3.5-flash-lite`). The text adapter routes the
+ *   request through the Interactions API instead of `generateContent`. With
+ *   `agentic`, the sampling rate is expressed in the text prompt (e.g. "watch
+ *   it at 0.5 fps"), not via `fps`.
+ */
+export type GeminiVideoProcessing = 'agentic' | 'static'
+
+/**
  * Metadata for Gemini video content parts.
  */
 export interface GeminiVideoMetadata {
@@ -98,6 +111,30 @@ export interface GeminiVideoMetadata {
    * @see https://ai.google.dev/gemini-api/docs/vision#video-requirements
    */
   mimeType?: GeminiVideoMimeType
+  /**
+   * How the model processes this video for understanding. When set, the
+   * adapter routes the request through the Gemini Interactions API. Omit for
+   * the default single-pass `generateContent` behavior.
+   */
+  processing?: GeminiVideoProcessing
+  /**
+   * Frame-rate sampling density (frames per second) for single-pass
+   * (`generateContent`) understanding. Valid range (0, 24]; defaults to 1.0
+   * on the server. Ignored when `processing` is `agentic`.
+   *
+   * @see https://ai.google.dev/gemini-api/docs/vision#customize-frame-rate
+   */
+  fps?: number
+  /**
+   * Clip start offset, as a decimal number of seconds with an `s` suffix
+   * (e.g. `"10.5s"`). Restricts understanding to a segment of the video.
+   */
+  startOffset?: string
+  /**
+   * Clip end offset, as a decimal number of seconds with an `s` suffix
+   * (e.g. `"45s"`). Restricts understanding to a segment of the video.
+   */
+  endOffset?: string
 }
 
 /**

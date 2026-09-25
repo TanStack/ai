@@ -9,9 +9,9 @@ import { test, expect } from './fixtures'
  *     stream. The event carries the resource HTML (token MCP_APPS_WIDGET_OK),
  *     which a client reconciles into a `UIResourcePart`. We assert the event
  *     reaches the client; we do NOT assert the iframe widget mounts.
- *   - INTERACTIVE plane (`api.mcp-apps-call`): a POST to the route mounting
- *     `createMcpAppCallHandler` returns the MCP tool's result (token
- *     MCP_APPS_CALL_OK).
+ *   - INTERACTIVE plane (`api.mcp-apps-call`): POSTs to the route mounting
+ *     `createMcpAppCallHandler` return both ordinary and task-required MCP
+ *     tool results (tokens MCP_APPS_CALL_OK and MCP_APPS_TASK_CALL_OK).
  *   - ALLOWLIST: a call for a tool the server does not expose returns
  *     `{ ok: false }`.
  */
@@ -170,6 +170,32 @@ test.describe('mcp-apps — data + interactive planes', () => {
     // The result carries MCP_APPS_CALL_OK, which only the MCP server produces —
     // proving callTool actually executed against the in-process server.
     expect(JSON.stringify(json.result)).toContain('MCP_APPS_CALL_OK')
+  })
+
+  test('INTERACTIVE TASK: the call handler executes a task-required tool', async ({
+    request,
+    testId,
+  }) => {
+    const res = await request.post('/api/mcp-apps-call', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        threadId: `mcp-apps-task-thread-${testId}`,
+        serverId: 'widgets',
+        toolName: 'run_widget_task',
+        args: { action: 'refresh' },
+      },
+    })
+
+    const body = await res.text()
+    expect(res.ok(), `mcp-apps-call failed (${res.status()}): ${body}`).toBe(
+      true,
+    )
+
+    const json = parseCallResponse(body)
+    expect(json.ok, `expected ok:true, got: ${body}`).toBe(true)
+    expect(JSON.stringify(json.result)).toContain(
+      'MCP_APPS_TASK_CALL_OK:refresh',
+    )
   })
 
   test('ALLOWLIST: a call for a tool the server does not expose returns ok:false', async ({

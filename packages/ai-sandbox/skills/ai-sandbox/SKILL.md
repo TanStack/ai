@@ -48,9 +48,10 @@ agent CLI **inside** the sandbox and streams its events back.
 ## Setup — Claude Code in a Docker sandbox
 
 ```typescript
-import { chat } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import {
+  createSecrets,
   defineSandbox,
   defineWorkspace,
   withSandbox,
@@ -65,17 +66,25 @@ const sandbox = defineSandbox({
     packageManager: 'pnpm',
     setup: ['corepack enable', 'pnpm install'],
     scripts: { test: 'pnpm test' },
-    secrets: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '' },
+    secrets: createSecrets({
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
+    }),
   }),
   lifecycle: { reuse: 'thread', snapshot: 'after-setup', keepAlive: '30m' },
 })
 
-const stream = chat({
-  threadId,
-  adapter: claudeCodeText('sonnet'),
-  messages,
-  middleware: [withSandbox(sandbox)],
-})
+export async function POST(request: Request) {
+  const { threadId, messages } = await request.json()
+
+  const stream = chat({
+    threadId,
+    adapter: claudeCodeText('sonnet'),
+    messages,
+    middleware: [withSandbox(sandbox)],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ## Type-safe secrets
@@ -165,6 +174,8 @@ serial and parallel groups over a **persistent shell** whose cwd/env carry over
 between serial steps:
 
 ```typescript
+import { githubRepo, defineWorkspace } from '@tanstack/ai-sandbox'
+
 defineWorkspace({
   source: githubRepo({ repo: 'owner/app' }),
   setup: ({ serial, parallel }) => {
@@ -183,10 +194,17 @@ When the provider supports snapshots, bootstrap takes one automatically after
 Override or add a TTL:
 
 ```typescript
-lifecycle: {
-  snapshot: 'after-setup', // default when provider.capabilities().snapshots
-  snapshotMaxAge: '24h',   // re-create when the snapshot is older than this
-}
+import { defineSandbox } from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+const sandbox = defineSandbox({
+  id: 'repo-agent',
+  provider: dockerSandbox({ image: 'node:22' }),
+  lifecycle: {
+    snapshot: 'after-setup', // default when provider.capabilities().snapshots
+    snapshotMaxAge: '24h', // re-create when the snapshot is older than this
+  },
+})
 ```
 
 Providers without snapshot support skip the step silently.
@@ -199,8 +217,15 @@ middleware in this order, with the same persistence value in both places:
 
 ```typescript
 import { withPersistence } from '@tanstack/ai-persistence'
-import { memorySandboxSnapshots, withSandbox } from '@tanstack/ai-sandbox'
+import {
+  InMemorySandboxInstanceStore,
+  memorySandboxSnapshots,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
+// Your `defineSandbox(...)` result.
+import { sandbox } from './sandbox'
 
+const instances = new InMemorySandboxInstanceStore()
 const snapshots = await memorySandboxSnapshots({ sandbox, instances })
 
 const middleware = [
@@ -321,20 +346,30 @@ distributed lock: either `withLocks` from `@tanstack/ai/locks` (ordered
 **before** `withSandbox`) or the `locks` option.
 
 ```typescript
-import { chat } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { InMemoryLockStore, withLocks } from '@tanstack/ai/locks'
+import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { withSandbox } from '@tanstack/ai-sandbox'
+// Your `defineSandbox(...)` result.
+import { sandbox } from './sandbox'
 // Production: your BYO store — docs/sandbox/durability.md
 import { instanceStore } from './sandbox-instance-store'
 
-chat({
-  adapter,
-  messages,
-  middleware: [
-    withLocks(new InMemoryLockStore()), // multi-replica: distributed lock
-    withSandbox(sandbox, { instances: instanceStore }),
-  ],
-})
+export async function POST(request: Request) {
+  const { threadId, messages } = await request.json()
+
+  const stream = chat({
+    threadId,
+    adapter: claudeCodeText('sonnet'),
+    messages,
+    middleware: [
+      withLocks(new InMemoryLockStore()), // multi-replica: distributed lock
+      withSandbox(sandbox, { instances: instanceStore }),
+    ],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 The store option takes precedence over an ambient `SandboxInstanceStoreCapability`
@@ -360,8 +395,11 @@ middleware via the `sandbox` group (run-scoped):
 import { defineSandbox, withSandbox } from '@tanstack/ai-sandbox'
 // `defineChatMiddleware` is core's, not this package's — `@tanstack/ai-sandbox`
 // consumes it too (see its own `src/middleware.ts`).
-import { defineChatMiddleware } from '@tanstack/ai'
+import { chat, defineChatMiddleware } from '@tanstack/ai'
+import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+import { db } from './db'
+import { metrics } from './metrics'
 
 // Sandbox-scoped hooks (all optional):
 const sandbox = defineSandbox({
@@ -392,6 +430,13 @@ const auditMiddleware = defineChatMiddleware({
 
 // No extra middleware needed — sandbox.file CUSTOM events are emitted
 // automatically. Read them from the stream:
+const stream = chat({
+  threadId: 'thread-1',
+  adapter: claudeCodeText('sonnet'),
+  messages: [{ role: 'user', content: 'Add a README.' }],
+  middleware: [auditMiddleware, withSandbox(sandbox)],
+})
+
 for await (const chunk of stream) {
   if (chunk.type === 'CUSTOM' && chunk.name === 'sandbox.file') {
     const value = chunk.value
@@ -412,7 +457,10 @@ outside a `chat()` run:
 
 ```typescript
 import { watchWorkspace } from '@tanstack/ai-sandbox'
+// Your `defineSandbox(...)` result.
+import { sandbox } from './sandbox'
 
+const handle = await sandbox.ensure({ threadId: 'thread-1', runId: 'run-1' })
 const watcher = await watchWorkspace(handle, {
   onEvent: (e) => console.log(e.type, e.path),
   ignore: ['.git', 'node_modules'], // default
@@ -424,8 +472,24 @@ Enable the `sandbox` debug category to log watcher start/stop, event dispatch,
 and lifecycle transitions:
 
 ```typescript
-chat({ threadId, adapter, messages, debug: { sandbox: true } })
-// or debug: true to enable all categories
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { withSandbox } from '@tanstack/ai-sandbox'
+import { sandbox } from './sandbox'
+
+export async function POST(request: Request) {
+  const { threadId, messages } = await request.json()
+
+  const stream = chat({
+    threadId,
+    adapter: claudeCodeText('sonnet'),
+    messages,
+    middleware: [withSandbox(sandbox)],
+    debug: { sandbox: true }, // or debug: true to enable all categories
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ## Edge / serverless execution
@@ -551,12 +615,17 @@ file from byte 0 at any point, including after the original host has died.
 
 ```typescript
 import { spawnNdjson } from '@tanstack/ai-sandbox'
+import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
-for await (const event of spawnNdjson(sandbox, agentCommand, {
-  cwd,
-  journal: { runId }, // durability is opt-in: pass `journal` to route through it
-})) {
-  // parsed NDJSON objects, translated by the harness adapter as usual
+export async function runAgent(handle: SandboxHandle, runId: string) {
+  const agentCommand = 'claude -p --output-format stream-json'
+  for await (const event of spawnNdjson(handle, agentCommand, {
+    cwd: '/workspace',
+    journal: { runId }, // durability is opt-in: pass `journal` to route through it
+  })) {
+    // parsed NDJSON objects, translated by the harness adapter as usual
+    console.log(event)
+  }
 }
 ```
 
@@ -1006,6 +1075,17 @@ import {
 } from '@tanstack/ai-sandbox'
 import type { RunRecord } from '@tanstack/ai'
 import type { ReapResult, RunExitProbe } from '@tanstack/ai-sandbox'
+// Your distributed LockStore, the same one `withSandbox` gets.
+import { locks } from './locks'
+// Your persistence — the SAME RunStore the chat routes use.
+import { runs } from './persistence'
+// Your `defineSandbox(...)` result and the `SandboxInstanceStore` you passed to
+// `withSandbox(sandbox, { instances })`.
+import { instances, sandbox } from './sandbox'
+// The per-run log factory, resolving the SAME log the producing route wrote.
+import { durabilityFor } from './durability'
+// The same `drive` the attach route passes to `sandboxRunDriver`.
+import { driveRun } from './drive-run'
 
 async function hasFinished(record: RunRecord): Promise<RunExitProbe> {
   if (record.sandboxKey === undefined) return { state: 'unknown' }
