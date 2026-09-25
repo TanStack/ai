@@ -2,6 +2,8 @@ import {
   Client,
   StreamableHTTPClientTransport,
 } from '@modelcontextprotocol/client'
+import { OAuthError, OAuthErrorCode } from '@modelcontextprotocol/server'
+import type { OAuthTokenVerifier } from '@modelcontextprotocol/server'
 import { toolDefinition } from '@tanstack/ai'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
@@ -16,8 +18,8 @@ import { MCPInputRequiredError } from '../../src/input-required'
 import { callMcpTool } from '../../src/tools'
 
 const serverUrl = new URL('https://mcp.example.com/mcp')
-const protectedResourceUrl =
-  'https://mcp.example.com/.well-known/oauth-protected-resource'
+const resourceMetadataUrl =
+  'https://mcp.example.com/.well-known/oauth-protected-resource/mcp'
 
 const summaryRequest: SampleRequest = {
   messages: [{ role: 'user', content: 'Draft a summary' }],
@@ -86,10 +88,26 @@ function surfaceServer() {
   })
 }
 
-// Each token names its own subject.
-const subjectAuth = {
-  verifyToken: async (token: string) => ({ subject: token }),
+// The SDK verifier shape. Each token is its own subject on one client.
+// `accept` limits the verifier to one token.
+function tokenVerifier(accept?: string): OAuthTokenVerifier {
+  return {
+    async verifyAccessToken(token) {
+      if (accept !== undefined && token !== accept) {
+        throw new OAuthError(OAuthErrorCode.InvalidToken, 'Unknown token')
+      }
+      return {
+        token,
+        clientId: 'tester',
+        scopes: ['mcp'],
+        expiresAt: Math.floor(Date.now() / 1000) + 3600,
+        extra: { sub: token },
+      }
+    },
+  }
 }
+
+const subjectAuth = { verifier: tokenVerifier() }
 
 function initializeRequest(token: string) {
   return new Request(serverUrl, {
@@ -123,6 +141,19 @@ function sessionRequest(token: string, sessionId: string) {
       'mcp-protocol-version': '2025-11-25',
     },
     body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
+  })
+}
+
+// A spec 2026 tools/list request, with or without a bearer token.
+function mcpRequest(token: string | undefined) {
+  return new Request(serverUrl, {
+    method: 'POST',
+    headers: {
+      ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
   })
 }
 
@@ -378,26 +409,24 @@ describe('createMCPServer', () => {
     })
   })
 
-  it('rejects a missing bearer token with 401', async () => {
+  it('rejects a missing or bad bearer token with a spec 401', async () => {
     const server = createMCPServer({
       name: 'secure',
       version: '1.0.0',
-      auth: { verifyToken: async (token) => token === 'secret' },
+      auth: { verifier: tokenVerifier('secret'), resourceMetadataUrl },
       tools: [echoTool()],
     })
 
-    const missing = await server.fetch(
-      new Request(serverUrl, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          accept: 'application/json, text/event-stream',
-        },
-        body: '{}',
-      }),
-    )
+    const missing = await server.fetch(mcpRequest(undefined))
     expect(missing.status).toBe(401)
-    expect(missing.headers.get('WWW-Authenticate')).toBe('Bearer')
+    const challenge = missing.headers.get('WWW-Authenticate') ?? ''
+    expect(challenge).toContain('Bearer')
+    // RFC 9728: the challenge names the protected resource metadata.
+    expect(challenge).toContain(`resource_metadata="${resourceMetadataUrl}"`)
+
+    const bad = await server.fetch(mcpRequest('nope'))
+    expect(bad.status).toBe(401)
+    expect(bad.headers.get('WWW-Authenticate')).toContain('invalid_token')
 
     await withClient(
       server,
@@ -409,14 +438,45 @@ describe('createMCPServer', () => {
     )
   })
 
-  it('does not serve the protected resource metadata document', async () => {
-    const server = surfaceServer()
-    const response = await server.fetch(new Request(protectedResourceUrl))
-    const body = await response.text()
+  it('rejects a token without a required scope with 403', async () => {
+    const server = createMCPServer({
+      name: 'secure',
+      version: '1.0.0',
+      auth: { verifier: tokenVerifier(), requiredScopes: ['admin'] },
+      tools: [echoTool()],
+    })
 
-    expect(response.status).toBe(404)
-    expect(body).not.toContain('authorization_servers')
-    expect(body).not.toContain('bearer_methods_supported')
+    const denied = await server.fetch(mcpRequest('alice'))
+    expect(denied.status).toBe(403)
+    expect(denied.headers.get('WWW-Authenticate')).toContain(
+      'insufficient_scope',
+    )
+  })
+
+  it('gives a tool the verified token as ctx.context.authInfo', async () => {
+    const server = createMCPServer({
+      name: 'secure',
+      version: '1.0.0',
+      auth: subjectAuth,
+      tools: [
+        toolDefinition({
+          name: 'whoami',
+          description: 'Who is calling',
+          inputSchema: z.object({}),
+        }).server<MCPToolContext>(async (_args, ctx) => {
+          const info = ctx.context.authInfo
+          if (info === undefined) return 'nobody'
+          return `${info.clientId}:${String(info.extra?.sub)}`
+        }),
+      ],
+    })
+
+    for (const era of ['2026', '2025'] as const) {
+      await withClient(server, { era, authToken: 'alice' }, async (client) => {
+        const called = await client.callTool({ name: 'whoami', arguments: {} })
+        expect(called.content).toEqual([{ type: 'text', text: 'tester:alice' }])
+      })
+    }
   })
 
   it('uses the sample adapter for a spec 2026 sample and does not ask the client', async () => {

@@ -81,12 +81,13 @@ export function serveMCPStdio(server: {
       }
       await ensureLegacyStream()
       if (closed) return
-      const outbound = messagesFromBody(
-        response.headers.get('content-type'),
-        text,
-      )
-      // A 401 or a 404 can carry no JSON-RPC body. The host still needs
-      // an answer to its request, or it waits until its own timeout.
+      const contentType = response.headers.get('content-type')
+      // A 401 or a 404 can carry no JSON-RPC body, or an OAuth error body.
+      // The host still needs an answer to its request, or it waits until
+      // its own timeout.
+      const outbound = response.ok
+        ? messagesFromBody(contentType, text)
+        : errorMessagesFromBody(contentType, text)
       if (outbound.length === 0 && !response.ok) {
         await sendFailure(
           transport,
@@ -326,6 +327,15 @@ function messagesFromBody(contentType: string | null, text: string) {
     trimmed.startsWith('event:')
   if (isEventStream) return sseMessages(text)
   return jsonMessages(trimmed)
+}
+
+// An error response body is JSON-RPC only when the server wrote one.
+function errorMessagesFromBody(contentType: string | null, text: string) {
+  try {
+    return messagesFromBody(contentType, text)
+  } catch {
+    return []
+  }
 }
 
 function jsonMessages(text: string) {

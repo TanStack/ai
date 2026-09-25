@@ -1,461 +1,244 @@
-import { describe, expect, it, vi } from 'vitest'
-import {
-  authenticate,
-  protectedResourceMetadata,
-  requireBearerAuth,
-} from '../../src/server/auth'
-import type { ResourceServerAuth } from '../../src/server/auth'
+import { OAuthError } from '@modelcontextprotocol/server'
+import { SignJWT, exportJWK, generateKeyPair } from 'jose'
+import type { CryptoKey } from 'jose'
+import { describe, expect, it } from 'vitest'
+import { introspectionVerifier, jwtVerifier } from '../../src/server/auth'
 
-const JWKS_URL = 'https://auth.example.com/jwks.json'
-const RESOURCE = 'https://mcp.example.com'
+const issuer = 'https://auth.example.com/'
+const audience = 'https://mcp.example.com/mcp'
+const jwksUrl = 'https://auth.example.com/.well-known/jwks.json'
 
-type SigningAlg = 'RS256' | 'ES256'
-
-type PublishedJwk = JsonWebKey & {
-  kid: string
-  alg: SigningAlg
-  use: 'sig'
-}
-
-type SigningKey = {
-  kid: string
-  alg: SigningAlg
-  privateKey: CryptoKey
-  jwk: PublishedJwk
-}
-
-type JwtClaims = {
-  exp: number
-  nbf?: number
-  sub?: string
-  aud?: string | Array<string>
-}
-
-function mcpRequest(authorization?: string) {
-  const headers = new Headers()
-  if (authorization !== undefined) headers.set('Authorization', authorization)
-  return new Request(`${RESOURCE}/mcp`, { method: 'POST', headers })
-}
-
-function bearerResult(
-  authorization: string | undefined,
-  auth: ResourceServerAuth,
-) {
-  return requireBearerAuth(mcpRequest(authorization), auth)
-}
-
-function futureExp(secondsFromNow = 60 * 60) {
-  return Math.floor(Date.now() / 1000) + secondsFromNow
-}
-
-function bytesToBase64Url(bytes: Uint8Array) {
-  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('')
-  return btoa(binary)
-    .replaceAll('+', '-')
-    .replaceAll('/', '_')
-    .replaceAll('=', '')
-}
-
-function textToBase64Url(value: string) {
-  return bytesToBase64Url(new TextEncoder().encode(value))
-}
-
-async function signingKey(alg: SigningAlg, kid: string): Promise<SigningKey> {
-  const pair =
-    alg === 'RS256'
-      ? await crypto.subtle.generateKey(
-          {
-            name: 'RSASSA-PKCS1-v1_5',
-            modulusLength: 2048,
-            publicExponent: new Uint8Array([1, 0, 1]),
-            hash: 'SHA-256',
-          },
-          true,
-          ['sign', 'verify'],
-        )
-      : await crypto.subtle.generateKey(
-          { name: 'ECDSA', namedCurve: 'P-256' },
-          true,
-          ['sign', 'verify'],
-        )
-  const exported = await crypto.subtle.exportKey('jwk', pair.publicKey)
-  return {
-    kid,
-    alg,
-    privateKey: pair.privateKey,
-    jwk: { ...exported, kid, alg, use: 'sig' },
+async function signingKeys() {
+  const pair = await generateKeyPair('RS256')
+  const jwk = {
+    ...(await exportJWK(pair.publicKey)),
+    kid: 'key-1',
+    alg: 'RS256',
   }
+  // Serve the key set from memory instead of the network.
+  const fetchJwks = async () => Response.json({ keys: [jwk] })
+  return { privateKey: pair.privateKey, fetchJwks }
 }
 
-async function signJwt(
-  key: SigningKey,
-  claims: JwtClaims,
-  options?: { includeKid: boolean },
+function signToken(
+  privateKey: CryptoKey,
+  claims: {
+    issuer?: string
+    audience?: string
+    expiresIn?: string
+    extra?: Record<string, unknown>
+  } = {},
 ) {
-  const includeKid = options === undefined ? true : options.includeKid
-  const header = includeKid
-    ? { alg: key.alg, typ: 'JWT', kid: key.kid }
-    : { alg: key.alg, typ: 'JWT' }
-  const encodedHeader = textToBase64Url(JSON.stringify(header))
-  // `aud` is always checked. Most tests use a token for this server.
-  const encodedPayload = textToBase64Url(
-    JSON.stringify({ aud: RESOURCE, ...claims }),
-  )
-  const data = new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`)
-  const algorithm =
-    key.alg === 'RS256'
-      ? 'RSASSA-PKCS1-v1_5'
-      : { name: 'ECDSA', hash: 'SHA-256' }
-  const signature = await crypto.subtle.sign(algorithm, key.privateKey, data)
-  const encodedSignature = bytesToBase64Url(new Uint8Array(signature))
-  return `${encodedHeader}.${encodedPayload}.${encodedSignature}`
+  return new SignJWT({ scope: 'mcp read', ...claims.extra })
+    .setProtectedHeader({ alg: 'RS256', kid: 'key-1' })
+    .setIssuer(claims.issuer ?? issuer)
+    .setAudience(claims.audience ?? audience)
+    .setSubject('user-1')
+    .setIssuedAt()
+    .setExpirationTime(claims.expiresIn ?? '5m')
+    .sign(privateKey)
 }
 
-function jwksAuth(keys: Array<unknown>): ResourceServerAuth {
-  return {
-    jwksUrl: JWKS_URL,
-    resource: RESOURCE,
-    fetch: async (input) => {
-      const url = requestUrl(input)
-      if (url !== JWKS_URL) return new Response(null, { status: 404 })
-      return new Response(JSON.stringify({ keys }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
+async function oauthErrorOf(run: () => Promise<unknown>) {
+  try {
+    await run()
+  } catch (error) {
+    if (!(error instanceof OAuthError)) {
+      throw new Error(`expected an OAuthError, got ${String(error)}`)
+    }
+    return error
+  }
+  throw new Error('expected a rejection')
+}
+
+describe('jwtVerifier', () => {
+  it('returns the SDK AuthInfo for a valid token', async () => {
+    const keys = await signingKeys()
+    const verifier = jwtVerifier({
+      jwksUrl,
+      issuer,
+      audience,
+      fetch: keys.fetchJwks,
+    })
+    const token = await signToken(keys.privateKey, {
+      extra: { client_id: 'app-1' },
+    })
+
+    const info = await verifier.verifyAccessToken(token)
+
+    expect(info.token).toBe(token)
+    expect(info.clientId).toBe('app-1')
+    expect(info.scopes).toEqual(['mcp', 'read'])
+    expect(info.expiresAt).toEqual(expect.any(Number))
+    expect(info.resource?.href).toBe(audience)
+    expect(info.extra).toMatchObject({ sub: 'user-1', iss: issuer })
+  })
+
+  it('uses sub as the client id when the token has no client_id', async () => {
+    const keys = await signingKeys()
+    const verifier = jwtVerifier({
+      jwksUrl,
+      issuer,
+      audience,
+      fetch: keys.fetchJwks,
+    })
+
+    const info = await verifier.verifyAccessToken(
+      await signToken(keys.privateKey),
+    )
+
+    expect(info.clientId).toBe('user-1')
+  })
+
+  it('rejects a token for another issuer, audience, or time', async () => {
+    const keys = await signingKeys()
+    const verifier = jwtVerifier({
+      jwksUrl,
+      issuer,
+      audience,
+      fetch: keys.fetchJwks,
+    })
+    const cases = [
+      { issuer: 'https://other.example.com/' },
+      { audience: 'https://other.example.com/mcp' },
+      { expiresIn: '-1m' },
+    ]
+
+    for (const claims of cases) {
+      const token = await signToken(keys.privateKey, claims)
+      const error = await oauthErrorOf(() => verifier.verifyAccessToken(token))
+      expect(error.code).toBe('invalid_token')
+    }
+  })
+
+  it('rejects a token signed by a key that is not in the key set', async () => {
+    const keys = await signingKeys()
+    const other = await signingKeys()
+    const verifier = jwtVerifier({
+      jwksUrl,
+      issuer,
+      audience,
+      fetch: keys.fetchJwks,
+    })
+
+    const token = await signToken(other.privateKey)
+    const error = await oauthErrorOf(() => verifier.verifyAccessToken(token))
+
+    expect(error.code).toBe('invalid_token')
+  })
+
+  it('rejects a value that is not a JWT', async () => {
+    const keys = await signingKeys()
+    const verifier = jwtVerifier({
+      jwksUrl,
+      issuer,
+      audience,
+      fetch: keys.fetchJwks,
+    })
+
+    const error = await oauthErrorOf(() =>
+      verifier.verifyAccessToken('not-a-jwt'),
+    )
+
+    expect(error.code).toBe('invalid_token')
+  })
+
+  it('reports a key set outage as a server error, not a bad token', async () => {
+    const keys = await signingKeys()
+    const token = await signToken(keys.privateKey)
+    const outages = [
+      async () => {
+        throw new TypeError('fetch failed')
+      },
+      async () => new Response('down', { status: 503 }),
+    ]
+
+    for (const fetchJwks of outages) {
+      const verifier = jwtVerifier({
+        jwksUrl,
+        issuer,
+        audience,
+        fetch: fetchJwks,
       })
-    },
+      const error = await oauthErrorOf(() => verifier.verifyAccessToken(token))
+      expect(error.code).toBe('server_error')
+    }
+  })
+})
+
+describe('introspectionVerifier', () => {
+  function endpoint(reply: () => Response) {
+    const calls: Array<{ url: string; init: RequestInit | undefined }> = []
+    const fetchImpl = async (url: string, init?: RequestInit) => {
+      calls.push({ url, init })
+      return reply()
+    }
+    return { calls, fetchImpl }
   }
-}
 
-function requestUrl(input: RequestInfo | URL) {
-  if (input instanceof URL) return input.href
-  if (input instanceof Request) return input.url
-  return input
-}
+  const options = {
+    introspectionUrl: 'https://auth.example.com/oauth/introspect',
+    clientId: 'mcp-server',
+    clientSecret: 'secret',
+  }
 
-function algNoneToken() {
-  const header = textToBase64Url(JSON.stringify({ alg: 'none', typ: 'JWT' }))
-  const payload = textToBase64Url(
-    JSON.stringify({ sub: 'user', exp: futureExp() }),
-  )
-  return `${header}.${payload}.not-a-signature`
-}
-
-describe('requireBearerAuth', () => {
-  it('returns 401 when the Authorization header is missing', async () => {
-    const response = await bearerResult(undefined, {
-      verifyToken: async () => true,
-    })
-    expect(response?.status).toBe(401)
-    expect(response?.headers.get('WWW-Authenticate')).toBe('Bearer')
-  })
-
-  it('returns 401 when verifyToken rejects the token', async () => {
-    const response = await bearerResult('Bearer nope', {
-      verifyToken: async () => false,
-    })
-    expect(response?.status).toBe(401)
-    expect(response?.headers.get('WWW-Authenticate')).toBe(
-      'Bearer error="invalid_token"',
+  it('posts the token with basic auth and returns AuthInfo for an active token', async () => {
+    const server = endpoint(() =>
+      Response.json({
+        active: true,
+        client_id: 'app-1',
+        scope: 'mcp',
+        sub: 'user-1',
+        exp: 1_900_000_000,
+      }),
     )
-  })
-
-  it('does not return 401 when verifyToken accepts the token', async () => {
-    const response = await bearerResult('Bearer secret', {
-      verifyToken: async (token) => token === 'secret',
+    const verifier = introspectionVerifier({
+      ...options,
+      fetch: server.fetchImpl,
     })
-    expect(response).toBeUndefined()
+
+    const info = await verifier.verifyAccessToken('opaque-1')
+
+    expect(server.calls[0]?.url).toBe(options.introspectionUrl)
+    expect(server.calls[0]?.init?.method).toBe('POST')
+    expect(server.calls[0]?.init?.body).toBe('token=opaque-1')
+    expect(
+      new Headers(server.calls[0]?.init?.headers).get('authorization'),
+    ).toBe(`Basic ${btoa('mcp-server:secret')}`)
+    expect(info).toMatchObject({
+      token: 'opaque-1',
+      clientId: 'app-1',
+      scopes: ['mcp'],
+      expiresAt: 1_900_000_000,
+      extra: { sub: 'user-1' },
+    })
   })
 
-  it('does not return 401 for an RS256 token signed by the JWKS key', async () => {
-    const key = await signingKey('RS256', 'rsa-1')
-    const token = await signJwt(key, { sub: 'user', exp: futureExp() })
-    const response = await bearerResult(`Bearer ${token}`, jwksAuth([key.jwk]))
-    expect(response).toBeUndefined()
-  })
+  it('rejects a token that is not active', async () => {
+    const server = endpoint(() => Response.json({ active: false }))
+    const verifier = introspectionVerifier({
+      ...options,
+      fetch: server.fetchImpl,
+    })
 
-  it('does not return 401 when the JWT has no kid and the JWKS has one key', async () => {
-    const key = await signingKey('RS256', 'rsa-1')
-    const token = await signJwt(
-      key,
-      { sub: 'user', exp: futureExp() },
-      { includeKid: false },
+    const error = await oauthErrorOf(() =>
+      verifier.verifyAccessToken('opaque-1'),
     )
-    const response = await bearerResult(`Bearer ${token}`, jwksAuth([key.jwk]))
-    expect(response).toBeUndefined()
+
+    expect(error.code).toBe('invalid_token')
   })
 
-  it('returns 401 when the RS256 signature does not match the JWKS key', async () => {
-    const trusted = await signingKey('RS256', 'shared')
-    const attacker = await signingKey('RS256', 'shared')
-    const token = await signJwt(attacker, { sub: 'user', exp: futureExp() })
-    const response = await bearerResult(
-      `Bearer ${token}`,
-      jwksAuth([trusted.jwk]),
+  it('reports a failed endpoint as a server error, not a bad token', async () => {
+    const server = endpoint(() => new Response(null, { status: 503 }))
+    const verifier = introspectionVerifier({
+      ...options,
+      fetch: server.fetchImpl,
+    })
+
+    const error = await oauthErrorOf(() =>
+      verifier.verifyAccessToken('opaque-1'),
     )
-    expect(response?.status).toBe(401)
-  })
 
-  it('returns 401 when the JWT exp is in the past', async () => {
-    const key = await signingKey('RS256', 'rsa-1')
-    const token = await signJwt(key, {
-      sub: 'user',
-      exp: Math.floor(Date.now() / 1000) - 10,
-    })
-    const response = await bearerResult(`Bearer ${token}`, jwksAuth([key.jwk]))
-    expect(response?.status).toBe(401)
-  })
-
-  it('returns 401 when the JWT nbf is in the future', async () => {
-    const key = await signingKey('RS256', 'rsa-1')
-    const token = await signJwt(key, {
-      sub: 'user',
-      exp: futureExp(2 * 60 * 60),
-      nbf: futureExp(),
-    })
-    const response = await bearerResult(`Bearer ${token}`, jwksAuth([key.jwk]))
-    expect(response?.status).toBe(401)
-  })
-
-  it('does not return 401 for an ES256 token signed by the JWKS key', async () => {
-    const key = await signingKey('ES256', 'ec-1')
-    const token = await signJwt(key, { sub: 'user', exp: futureExp() })
-    const response = await bearerResult(`Bearer ${token}`, jwksAuth([key.jwk]))
-    expect(response).toBeUndefined()
-  })
-
-  it('returns 401 for an alg none token', async () => {
-    const response = await bearerResult(
-      `Bearer ${algNoneToken()}`,
-      jwksAuth([]),
-    )
-    expect(response?.status).toBe(401)
-  })
-
-  it('returns 401 when the JWKS response is not ok', async () => {
-    const key = await signingKey('RS256', 'rsa-1')
-    const token = await signJwt(key, { sub: 'user', exp: futureExp() })
-    const response = await bearerResult(`Bearer ${token}`, {
-      jwksUrl: JWKS_URL,
-      resource: RESOURCE,
-      fetch: async () =>
-        new Response(JSON.stringify({ keys: [key.jwk] }), { status: 500 }),
-    })
-    expect(response?.status).toBe(401)
-  })
-
-  it('returns 401 when resource is set and aud does not match', async () => {
-    const key = await signingKey('RS256', 'rsa-1')
-    const token = await signJwt(key, {
-      sub: 'user',
-      exp: futureExp(),
-      aud: 'https://other.example.com',
-    })
-    let fetches = 0
-    const response = await bearerResult(`Bearer ${token}`, {
-      jwksUrl: JWKS_URL,
-      resource: RESOURCE,
-      fetch: async () => {
-        fetches += 1
-        return new Response(JSON.stringify({ keys: [key.jwk] }), {
-          status: 200,
-        })
-      },
-    })
-    expect(response?.status).toBe(401)
-    expect(fetches).toBe(0)
-  })
-
-  it('accepts a token whose aud array contains resource', async () => {
-    const key = await signingKey('RS256', 'rsa-1')
-    const token = await signJwt(key, {
-      sub: 'user',
-      exp: futureExp(),
-      aud: ['https://other.example.com', RESOURCE],
-    })
-    const response = await bearerResult(`Bearer ${token}`, {
-      jwksUrl: JWKS_URL,
-      resource: RESOURCE,
-      fetch: async () =>
-        new Response(JSON.stringify({ keys: [key.jwk] }), { status: 200 }),
-    })
-    expect(response).toBeUndefined()
-  })
-
-  it('reuses a fresh JWKS response for the same fetch function', async () => {
-    const key = await signingKey('RS256', 'rsa-1')
-    const token = await signJwt(key, {
-      sub: 'user',
-      exp: futureExp(),
-      aud: RESOURCE,
-    })
-    let fetches = 0
-    const auth = {
-      jwksUrl: JWKS_URL,
-      resource: RESOURCE,
-      fetch: async () => {
-        fetches += 1
-        return new Response(JSON.stringify({ keys: [key.jwk] }), {
-          status: 200,
-        })
-      },
-    }
-    expect(await bearerResult(`Bearer ${token}`, auth)).toBeUndefined()
-    expect(await bearerResult(`Bearer ${token}`, auth)).toBeUndefined()
-    expect(fetches).toBe(1)
-  })
-
-  it('fetches again for an unknown kid, but at most once in 30 seconds', async () => {
-    const stale = await signingKey('RS256', 'old')
-    const current = await signingKey('RS256', 'new')
-    const token = await signJwt(current, { sub: 'user', exp: futureExp() })
-    let fetches = 0
-    const auth = {
-      jwksUrl: JWKS_URL,
-      resource: RESOURCE,
-      fetch: async () => {
-        fetches += 1
-        const keys = fetches === 1 ? [stale.jwk] : [stale.jwk, current.jwk]
-        return new Response(JSON.stringify({ keys }), { status: 200 })
-      },
-    }
-    const start = Date.now()
-    const now = vi.spyOn(Date, 'now').mockReturnValue(start)
-    try {
-      expect((await bearerResult(`Bearer ${token}`, auth))?.status).toBe(401)
-      expect((await bearerResult(`Bearer ${token}`, auth))?.status).toBe(401)
-      expect(fetches).toBe(1)
-
-      now.mockReturnValue(start + 31 * 1000)
-      expect(await bearerResult(`Bearer ${token}`, auth)).toBeUndefined()
-      expect(fetches).toBe(2)
-    } finally {
-      now.mockRestore()
-    }
-  })
-
-  it('waits 30 seconds after a failed JWKS fetch before it fetches again', async () => {
-    const key = await signingKey('RS256', 'rsa-1')
-    const token = await signJwt(key, { sub: 'user', exp: futureExp() })
-    let fetches = 0
-    const auth = {
-      jwksUrl: JWKS_URL,
-      resource: RESOURCE,
-      fetch: async () => {
-        fetches += 1
-        return new Response(null, { status: 503 })
-      },
-    }
-    expect((await bearerResult(`Bearer ${token}`, auth))?.status).toBe(401)
-    expect((await bearerResult(`Bearer ${token}`, auth))?.status).toBe(401)
-    expect(fetches).toBe(1)
-  })
-
-  it('shares one JWKS fetch between requests that miss at the same time', async () => {
-    const key = await signingKey('RS256', 'rsa-1')
-    const token = await signJwt(key, { sub: 'user', exp: futureExp() })
-    let fetches = 0
-    const auth = {
-      jwksUrl: JWKS_URL,
-      resource: RESOURCE,
-      fetch: async () => {
-        fetches += 1
-        await new Promise((resolve) => setTimeout(resolve, 10))
-        return new Response(JSON.stringify({ keys: [key.jwk] }), {
-          status: 200,
-        })
-      },
-    }
-    const results = await Promise.all([
-      bearerResult(`Bearer ${token}`, auth),
-      bearerResult(`Bearer ${token}`, auth),
-      bearerResult(`Bearer ${token}`, auth),
-    ])
-    expect(results).toEqual([undefined, undefined, undefined])
-    expect(fetches).toBe(1)
-  })
-
-  it('keeps the RSA and EC keys when the JWKS also has an OKP key', async () => {
-    const key = await signingKey('RS256', 'rsa-1')
-    const token = await signJwt(key, { sub: 'user', exp: futureExp() })
-    const okp = { kty: 'OKP', crv: 'Ed25519', x: 'abc', kid: 'ed-1' }
-    const response = await bearerResult(
-      `Bearer ${token}`,
-      jwksAuth([okp, key.jwk]),
-    )
-    expect(response).toBeUndefined()
-  })
-
-  it('returns 401 when the JWT has no aud', async () => {
-    const key = await signingKey('RS256', 'rsa-1')
-    const token = await signJwt(key, {
-      sub: 'user',
-      exp: futureExp(),
-      aud: [],
-    })
-    const response = await bearerResult(`Bearer ${token}`, jwksAuth([key.jwk]))
-    expect(response?.status).toBe(401)
-  })
-
-  it('returns 401 when the JWKS fetch does not settle', async () => {
-    const key = await signingKey('RS256', 'rsa-1')
-    const token = await signJwt(key, { sub: 'user', exp: futureExp() })
-    const response = await bearerResult(`Bearer ${token}`, {
-      jwksUrl: JWKS_URL,
-      resource: RESOURCE,
-      fetch: (_input, init) =>
-        new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener('abort', () => {
-            reject(new Error('aborted'))
-          })
-        }),
-    })
-    expect(response?.status).toBe(401)
-  }, 10_000)
-})
-
-describe('authenticate', () => {
-  it('returns the subject from verifyToken', async () => {
-    const result = await authenticate(mcpRequest('Bearer secret'), {
-      verifyToken: async () => ({ subject: 'alice' }),
-    })
-    expect(result).toEqual({ subject: 'alice' })
-  })
-
-  it('returns no subject when verifyToken returns true', async () => {
-    const result = await authenticate(mcpRequest('Bearer secret'), {
-      verifyToken: async () => true,
-    })
-    expect(result).toEqual({ subject: undefined })
-  })
-
-  it('returns the JWT sub as the subject', async () => {
-    const key = await signingKey('ES256', 'ec-sub')
-    const token = await signJwt(key, { sub: 'bob', exp: futureExp() })
-    const result = await authenticate(
-      mcpRequest(`Bearer ${token}`),
-      jwksAuth([key.jwk]),
-    )
-    expect(result).toEqual({ subject: 'bob' })
-  })
-})
-
-describe('protectedResourceMetadata', () => {
-  it('returns JSON that lists the authorization server URL', async () => {
-    const response = protectedResourceMetadata(RESOURCE, [
-      'https://auth.example.com',
-    ])
-    expect(response.status).toBe(200)
-    expect(response.headers.get('content-type')).toBe('application/json')
-    expect(await response.json()).toEqual({
-      resource: 'https://mcp.example.com',
-      authorization_servers: ['https://auth.example.com'],
-      bearer_methods_supported: ['header'],
-    })
-  })
-
-  it('throws when no authorization server URL is passed', () => {
-    expect(() => protectedResourceMetadata(RESOURCE, [])).toThrow(
-      'protectedResourceMetadata needs a resource URL and at least one authorization server URL.',
-    )
+    expect(error.code).toBe('server_error')
   })
 })

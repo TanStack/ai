@@ -1,5 +1,10 @@
 import { toolDefinition } from '@tanstack/ai'
-import { createMCPServer, promptDefinition } from '@tanstack/ai-mcp/server'
+import {
+  OAuthError,
+  OAuthErrorCode,
+  createMCPServer,
+  promptDefinition,
+} from '@tanstack/ai-mcp/server'
 import { z } from 'zod'
 
 /**
@@ -41,7 +46,19 @@ export const typedServer = createMCPServer({
   tools: [forecast, buildReport],
   prompts: [tripBrief],
   auth: {
-    verifyToken: async (token) =>
-      token === 'alice' || token === 'bob' ? { subject: token } : false,
+    verifier: {
+      async verifyAccessToken(token) {
+        if (token !== 'alice' && token !== 'bob') {
+          throw new OAuthError(OAuthErrorCode.InvalidToken, 'Unknown token')
+        }
+        return {
+          token,
+          clientId: 'e2e',
+          scopes: ['mcp'],
+          expiresAt: Math.floor(Date.now() / 1000) + 3600,
+          extra: { sub: token },
+        }
+      },
+    },
   },
 })

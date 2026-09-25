@@ -73,7 +73,8 @@
   "dependencies": {
     "@modelcontextprotocol/client": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
-    "@tanstack/ai": "workspace:^"
+    "@tanstack/ai": "workspace:^",
+    "jose": "^6.2.12"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.1.10",

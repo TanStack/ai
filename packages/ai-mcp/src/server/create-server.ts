@@ -12,14 +12,15 @@ import {
   inputRequired,
   inputResponse,
   isLegacyRequest,
+  requireBearerAuth,
 } from '@modelcontextprotocol/server'
 import type {
+  AuthInfo,
+  BearerAuthOptions,
   JsonSchemaType,
   McpRequestContext,
   ServerContext,
 } from '@modelcontextprotocol/server'
-import type { ResourceServerAuth } from './auth'
-import { authenticate } from './auth'
 import {
   ToolInputRequiredError,
   createServerToolContext,
@@ -34,7 +35,6 @@ import type { TaskStore } from './stores'
 // ponytail: idle sessions close only when a later request runs the sweep.
 // A server that gets no traffic keeps them until the next request.
 const sessionIdleMs = 30 * 60 * 1000
-const protectedResourcePath = '/.well-known/oauth-protected-resource'
 const inputKey = 'input'
 const sampleMaxTokens = 1024
 
@@ -88,7 +88,13 @@ export type MCPServerOptions = {
   resources?: ReadonlyArray<McpResource>
   prompts?: ReadonlyArray<McpPrompt>
   taskStore?: TaskStore
-  auth?: ResourceServerAuth
+  /**
+   * Bearer-token auth, in the shape the MCP SDK uses.
+   * `verifier` is an `OAuthTokenVerifier`. See `jwtVerifier` and
+   * `introspectionVerifier`. `requiredScopes` and `resourceMetadataUrl`
+   * are optional.
+   */
+  auth?: BearerAuthOptions
   sample?: (request: SampleRequest) => Promise<unknown>
   waitUntil?: (promise: Promise<unknown>) => void
 }
@@ -130,8 +136,10 @@ type LegacySessions = Map<string, LegacySession>
  * `options.resources` uses `resourceDefinition().read()`.
  * `options.prompts` uses `promptDefinition().render()`.
  * `options.taskStore` keeps task records. The default store is in memory.
- * `options.auth` checks the bearer token. A missing token gets a 401 response.
- * When auth names a subject, spec 2025 sessions and tasks belong to it.
+ * `options.auth` checks the bearer token with the SDK gate.
+ * A missing or bad token gets a 401. A token without a required scope gets a 403.
+ * Spec 2025 sessions and tasks belong to the caller: the `clientId` of the
+ * token plus its `sub` claim. A tool reads the token as `ctx.context.authInfo`.
  * Spec 2025 sessions live in this process. They close after 30 idle minutes.
  * `options.sample` is the model adapter for `ctx.context.sample` on spec 2026.
  * `options.waitUntil` receives the task promise so a worker can stay alive.
@@ -141,8 +149,8 @@ type LegacySessions = Map<string, LegacySession>
  * Export the result from one package and pass it to `createMCPClient({ server })` in another.
  * `fetch` serves tools, resources, and prompts.
  * It speaks spec `2026-07-28` and full spec 2025 sessions.
- * It does not serve `/.well-known/oauth-protected-resource`.
- * Mount `protectedResourceMetadata` on that path in the app.
+ * It does not serve the OAuth discovery documents. Mount
+ * `oauthMetadataResponse` at the app root for them.
  *
  * On spec 2025, a tool with `execution: 'task'` returns a task handle before
  * the work ends. Spec 2026-07-28 has no tasks, so that tool runs inline there.
@@ -182,6 +190,8 @@ export function createMCPServer<
   const resources = options.resources ?? []
   const prompts = options.prompts ?? []
   const hasTaskTool = tools.some((tool) => tool.execution === 'task')
+  const gate =
+    options.auth === undefined ? undefined : requireBearerAuth(options.auth)
 
   const modern = createMcpHandler(
     (ctx) =>
@@ -193,7 +203,7 @@ export function createMCPServer<
         taskStore,
         era: ctx.era === 'modern' ? '2026' : '2025',
         hasTaskTool,
-        owner: subjectOf(ctx),
+        owner: ownerOf(ctx.authInfo),
       }),
     { legacy: 'reject', keepAliveMs: 0 },
   )
@@ -209,24 +219,21 @@ export function createMCPServer<
      *
      * A spec 2026 request uses the per-request envelope.
      * A spec 2025 request uses the session id header.
-     * When `auth` is set, a missing or invalid bearer token returns 401.
-     * `/.well-known/oauth-protected-resource` returns 404.
+     * When `auth` is set, a missing or invalid bearer token returns 401,
+     * and a token without a required scope returns 403.
      *
      * @param request - The HTTP request to the MCP route
      */
     async fetch(request: Request) {
-      if (isProtectedResourcePath(request)) {
-        return new Response(null, { status: 404 })
-      }
       await closeIdleSessions(sessions)
 
-      let owner: string | undefined
-      const auth = options.auth
-      if (auth !== undefined) {
-        const result = await authenticate(request, auth)
-        if ('denied' in result) return result.denied
-        owner = result.subject
+      let authInfo: AuthInfo | undefined
+      if (gate !== undefined) {
+        const verdict = await gate(request)
+        if (verdict instanceof Response) return verdict
+        authInfo = verdict
       }
+      const owner = ownerOf(authInfo)
 
       const legacy = await isLegacyRequest(request)
       if (legacy) {
@@ -235,6 +242,7 @@ export function createMCPServer<
             openLegacySession(request, {
               sessions,
               owner,
+              authInfo,
               build: () =>
                 buildMcpServer({
                   options,
@@ -248,23 +256,14 @@ export function createMCPServer<
                 }),
             }),
           resume: (sessionId) =>
-            resumeLegacySession(request, sessionId, sessions, owner),
+            resumeLegacySession(request, sessionId, sessions, owner, authInfo),
         })
       }
 
-      // authInfo is a pass-through. It carries the subject to the factory.
+      // The SDK passes authInfo through to the factory and to each handler.
       return modern.fetch(
         request,
-        owner === undefined
-          ? undefined
-          : {
-              authInfo: {
-                token: '',
-                clientId: owner,
-                scopes: [],
-                extra: { subject: owner },
-              },
-            },
+        authInfo === undefined ? undefined : { authInfo },
       )
     },
   }
@@ -272,9 +271,14 @@ export function createMCPServer<
   return mcpServer
 }
 
-function subjectOf(ctx: McpRequestContext) {
-  const subject = ctx.authInfo?.extra?.subject
-  return typeof subject === 'string' ? subject : undefined
+// Sessions and tasks belong to one caller: the client id plus the subject.
+function ownerOf(authInfo: McpRequestContext['authInfo']) {
+  if (authInfo === undefined) return undefined
+  const subject = authInfo.extra?.sub
+  return JSON.stringify([
+    authInfo.clientId,
+    typeof subject === 'string' ? subject : null,
+  ])
 }
 
 async function closeIdleSessions(sessions: LegacySessions) {
@@ -285,13 +289,6 @@ async function closeIdleSessions(sessions: LegacySessions) {
     await session.transport.close().catch(() => undefined)
     await session.server.close().catch(() => undefined)
   }
-}
-
-function isProtectedResourcePath(request: Request) {
-  const path = new URL(request.url).pathname
-  const isExact = path === protectedResourcePath
-  const isChild = path.startsWith(`${protectedResourcePath}/`)
-  return isExact || isChild
 }
 
 function buildMcpServer(input: {
@@ -363,7 +360,7 @@ function registerServerTool(
     },
     async (args, sdkCtx) => {
       if (asTask) {
-        return runTaskTool(tool, args, input)
+        return runTaskTool(tool, args, input, sdkCtx.http?.authInfo)
       }
       const ctx = toolCallContext(input.era, sdkCtx, input.options.sample)
       try {
@@ -398,8 +395,9 @@ async function runTaskTool(
     taskStore: TaskStore
     owner: string | undefined
   },
+  authInfo: AuthInfo | undefined,
 ) {
-  const ctx = taskContext(input.options.sample)
+  const ctx = taskContext(input.options.sample, authInfo)
   const handle = await startTask(
     () => Promise.resolve(runTool(tool, args, ctx)),
     {
@@ -422,9 +420,13 @@ async function runTaskTool(
 
 // A task keeps running after tools/call answers with the task handle.
 // So it must not use that request: its signal, elicitation, or sampling.
-function taskContext(sample: MCPServerOptions['sample']) {
+function taskContext(
+  sample: MCPServerOptions['sample'],
+  authInfo: AuthInfo | undefined,
+) {
   return {
     context: {
+      authInfo,
       async requestInput(_request: ToolInputRequest): Promise<never> {
         throw new Error(
           'ctx.context.requestInput is not supported in an execution: "task" tool.',
@@ -462,6 +464,7 @@ function toolCallContext(
   sdkCtx: ServerContext,
   sample: MCPServerOptions['sample'],
 ) {
+  const authInfo = sdkCtx.http?.authInfo
   const hooks =
     era === '2025'
       ? createServerToolContext({
@@ -469,12 +472,14 @@ function toolCallContext(
           waitForInput: (request) => waitForInput(sdkCtx, request),
           clientSample: (request) => askClientToSample(sdkCtx, request),
           sample,
+          authInfo,
         })
       : createServerToolContext({
           era: '2026',
           inputAnswer: inputAnswer(sdkCtx),
           inputDeclined: inputDeclined(sdkCtx),
           sample,
+          authInfo,
         })
   return {
     context: hooks,
@@ -715,14 +720,15 @@ async function resumeLegacySession(
   sessionId: string,
   sessions: LegacySessions,
   owner: string | undefined,
+  authInfo: AuthInfo | undefined,
 ) {
   const session = sessions.get(sessionId)
-  // Another subject gets the same answer as an unknown id.
+  // Another caller gets the same answer as an unknown id.
   if (session === undefined || session.owner !== owner) {
     return sessionNotFound()
   }
   session.lastUsed = Date.now()
-  return session.transport.handleRequest(request)
+  return session.transport.handleRequest(request, { authInfo })
 }
 
 async function openLegacySession(
@@ -730,6 +736,7 @@ async function openLegacySession(
   input: {
     sessions: LegacySessions
     owner: string | undefined
+    authInfo: AuthInfo | undefined
     build: () => McpServer
   },
 ) {
@@ -752,7 +759,9 @@ async function openLegacySession(
   })
   try {
     await server.connect(transport)
-    return await transport.handleRequest(request)
+    return await transport.handleRequest(request, {
+      authInfo: input.authInfo,
+    })
   } finally {
     // A request that never opens a session must not keep the server.
     if (transport.sessionId === undefined) await server.close()

@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
+import { OAuthError, OAuthErrorCode } from '@modelcontextprotocol/server'
 import { toolDefinition } from '@tanstack/ai'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
@@ -74,7 +75,14 @@ function startAuthServer() {
     name: 'weather',
     version: '1.0.0',
     tools: [echoTool()],
-    auth: { verifyToken: async () => false },
+    auth: {
+      verifier: {
+        verifyAccessToken: () =>
+          Promise.reject(
+            new OAuthError(OAuthErrorCode.InvalidToken, 'Unknown token'),
+          ),
+      },
+    },
   })
   serveMCPStdio(server)
 }

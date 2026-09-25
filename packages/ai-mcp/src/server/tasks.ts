@@ -104,7 +104,7 @@ export async function startTask(
 
 /**
  * Returns the task record for a poll, or `null` when the id is absent.
- * The result is also `null` when `owner` is not the subject that
+ * The result is also `null` when `owner` is not the caller that
  * started the task.
  *
  * `task` is the spec 2025-11-25 `Task` that `tasks/get` returns.

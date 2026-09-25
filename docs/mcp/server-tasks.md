@@ -141,7 +141,7 @@ A task uses one status:
 
 If the tool function throws, the task keeps the text from that error in `statusMessage`. If that error has no text, the task keeps `The tool failed.`
 
-An unknown task id on `tasks/get` returns the error `Task not found`. When `auth` names a subject, a task belongs to the subject that started it. Another subject also gets `Task not found`. [MCP Server Auth](./server-auth) shows how to set the subject.
+An unknown task id on `tasks/get` returns the error `Task not found`. When the server has `auth`, a task belongs to the caller that started it: the `clientId` of the token plus its `sub` claim. Another caller also gets `Task not found`. [MCP Server Auth](./server-auth) shows how the verifier sets them.
 
 The host polls until the status is `completed` or `failed`. A TanStack AI host polls until the task ends.
 

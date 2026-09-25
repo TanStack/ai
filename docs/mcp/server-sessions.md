@@ -38,6 +38,6 @@ The server has no limit on the number of open sessions. Each session stays in me
 
 ## Sessions and auth
 
-When `auth` names a subject, the session belongs to that subject. A request from another subject gets 404, the same as an unknown id. [MCP Server Auth](./server-auth) shows how to set the subject.
+When the server has `auth`, the session belongs to the caller that opened it: the `clientId` of the token plus its `sub` claim. A request from another caller gets 404, the same as an unknown id. [MCP Server Auth](./server-auth) shows how the verifier sets them.
 
 A client on one instance opens a session, sends its requests, and gets its answers from that same instance.

@@ -173,6 +173,34 @@ On spec 2025, `ctx.context.sample` asks the MCP client.
 A tool with `execution: 'task'` returns a spec 2025 task handle.
 Spec 2026 has no tasks, so that tool runs inline there.
 
+### Require a bearer token
+
+The server is an OAuth resource server. Your authorization server issues the token.
+Pass `auth` with a `verifier`. It is the `OAuthTokenVerifier` type from the MCP SDK.
+`jwtVerifier` checks a JWT against the JWKS of the provider.
+`introspectionVerifier` checks an opaque token at an RFC 7662 endpoint.
+A missing or bad token returns 401. A token without a scope in `requiredScopes` returns 403.
+A tool reads the token as `ctx.context.authInfo`.
+Sessions and tasks belong to the `clientId` plus the `sub` claim of the token.
+Serve the OAuth discovery documents with `oauthMetadataResponse` at the app root.
+
+```typescript
+import { createMCPServer, jwtVerifier } from '@tanstack/ai-mcp/server'
+
+const server = createMCPServer({
+  name: 'notes',
+  version: '1.0.0',
+  auth: {
+    verifier: jwtVerifier({
+      jwksUrl: 'https://auth.example.com/.well-known/jwks.json',
+      issuer: 'https://auth.example.com/',
+      audience: 'https://mcp.example.com/mcp',
+    }),
+    requiredScopes: ['notes:read'],
+  },
+})
+```
+
 ### Call a `createMCPServer` server with its types
 
 For a deployed server, pass `typeof server` and a transport.

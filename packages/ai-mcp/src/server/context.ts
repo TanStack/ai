@@ -1,3 +1,5 @@
+import type { AuthInfo } from '@modelcontextprotocol/server'
+
 /**
  * One question for the user.
  * `message` is the text the user sees.
@@ -39,12 +41,14 @@ export type ServerToolContextOptions<TAnswer, TSample> =
       waitForInput: WaitForInput<TAnswer>
       clientSample: SampleModel<TSample>
       sample?: SampleModel<TSample>
+      authInfo?: AuthInfo
     }
   | {
       era: '2026'
       inputAnswer?: TAnswer
       inputDeclined?: boolean
       sample?: SampleModel<TSample>
+      authInfo?: AuthInfo
     }
 
 /**
@@ -132,6 +136,13 @@ export function createServerToolContext<TAnswer = unknown, TSample = unknown>(
 ) {
   let asked = false
   return {
+    /**
+     * The verified token of the caller, from the server `auth` option.
+     * `undefined` when the server has no `auth`, or for
+     * `createMCPClient({ server })`.
+     */
+    authInfo: options.authInfo,
+
     /**
      * Asks the user for a value.
      *
