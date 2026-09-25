@@ -1,5 +1,16 @@
 # @tanstack/openai-base
 
+## 0.11.1
+
+### Patch Changes
+
+- [#1365](https://github.com/TanStack/ai/pull/1365) [`790cb0a`](https://github.com/TanStack/ai/commit/790cb0a0d089c7d28756076488c9b24a92629848) - Responses API: stop replaying a turn that reasoned more than once as an unsendable request. A `ModelMessage` keeps reasoning and tool calls in two flat arrays, so `convertMessagesToInput` regrouped them as reasoning A, reasoning B, call A, call B; the Responses API needs a persisted `function_call` to sit directly after the reasoning item that produced it and rejected the whole request with `Item 'fc_...' of type 'function_call' was provided without its required 'reasoning' item: 'rs_...'`. Since the stored transcript keeps the regrouped order, every later turn on that thread failed the same way. Calls that can no longer be adjacent to their reasoning are now sent without their item id, so the API treats them as fresh items and stops requiring the pairing; `call_id` is untouched, so tool outputs still correlate. Calls with a single reasoning item (or none) keep their ids. A reasoning item id is also replayed at most once now, avoiding `Duplicate item found with id rs_...` when a provider mints the same id twice.
+
+- [#1427](https://github.com/TanStack/ai/pull/1427) [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088) - Structured output now reports a response that was cut off at the output cap (`finish_reason: "length"`) as a truncation error instead of a JSON parse error or a "no content" / "missing structured result" error. This covers `chat({ outputSchema })` in native combined mode (error code `max_tokens`), `structuredOutputStream()` in `openai-base` and `ai-openrouter` (`RUN_ERROR` with code `max_tokens`), and their non-stream `structuredOutput()`. A truncated document used to read as a schema failure; the error now says the token limit was reached.
+
+- Updated dependencies [[`54d39d3`](https://github.com/TanStack/ai/commit/54d39d30704bbdbdccea756af31530cc6713fc2e), [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb), [`74b5823`](https://github.com/TanStack/ai/commit/74b582305471eaf37a3b68595e60ed1a6f42d914), [`abb0169`](https://github.com/TanStack/ai/commit/abb0169bf96c38f59791450ce060d089a7fcd26e), [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088), [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b)]:
+  - @tanstack/ai@0.61.0
+
 ## 0.11.0
 
 ### Minor Changes

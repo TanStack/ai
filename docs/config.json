@@ -577,7 +577,7 @@
           "label": "Client Persistence",
           "to": "persistence/client-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "Generation Persistence",
@@ -1177,7 +1177,7 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "LLM Gateway",

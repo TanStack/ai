@@ -7,7 +7,7 @@ title: VoiceTrainingStatus
 type VoiceTrainingStatus = "ready" | "training" | "failed";
 ```
 
-Defined in: [packages/ai/src/types.ts:2709](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2709)
+Defined in: [packages/ai/src/types.ts:2772](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2772)
 
 Whether a created voice is usable.
 

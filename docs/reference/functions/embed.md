@@ -7,7 +7,7 @@ title: embed
 function embed<TAdapter>(options): Promise<EmbeddingResult>;
 ```
 
-Defined in: [packages/ai/src/activities/embed/index.ts:189](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/index.ts#L189)
+Defined in: [packages/ai/src/activities/embed/index.ts:190](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/embed/index.ts#L190)
 
 Embed activity - generates embedding vectors from text and image inputs.
 

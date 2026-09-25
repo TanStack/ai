@@ -284,6 +284,38 @@ describe('OpenAIBaseChatCompletionsTextAdapter.structuredOutputStream', () => {
   })
 
   describe('error paths', () => {
+    // Issue #1426: `chat({ outputSchema })` takes this path, so a response
+    // cut off at the output cap must say so, not report a parse error.
+    it.each([
+      ['truncated JSON', [deltaChunk('{"name":"A', 'length')]],
+      ['no content', [deltaChunk('', 'length')]],
+    ])(
+      'emits RUN_ERROR { code: "max_tokens" } on finish_reason=length (%s)',
+      async (_label, streamChunks) => {
+        setupStreamingMock(streamChunks)
+        const adapter = new TestAdapter()
+
+        const chunks = await collect(
+          adapter.structuredOutputStream!({
+            chatOptions: {
+              model: 'test-model',
+              messages: [{ role: 'user', content: 'extract' }],
+              logger: testLogger,
+            },
+            outputSchema: personSchema,
+          }),
+        )
+
+        const runError = chunks.find((c) => c.type === 'RUN_ERROR') as
+          | { type: 'RUN_ERROR'; code?: string; message?: string }
+          | undefined
+        expect(runError?.code).toBe('max_tokens')
+        expect(runError?.message).toMatch(
+          /cut off because the maximum token limit was reached/,
+        )
+      },
+    )
+
     it('emits RUN_ERROR { code: "empty-response" } when no content was produced', async () => {
       // Stream finishes with no text deltas at all (model returned nothing).
       setupStreamingMock([finishChunk()])

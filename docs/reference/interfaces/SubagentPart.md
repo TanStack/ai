@@ -3,7 +3,7 @@ id: SubagentPart
 title: SubagentPart
 ---
 
-Defined in: [packages/ai/src/types.ts:503](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L503)
+Defined in: [packages/ai/src/types.ts:519](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L519)
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: [packages/ai/src/types.ts:503](https://github.com/TanStack/ai/blob/m
 subagent: SubagentHandleData;
 ```
 
-Defined in: [packages/ai/src/types.ts:505](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L505)
+Defined in: [packages/ai/src/types.ts:521](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L521)
 
 ***
 
@@ -23,4 +23,4 @@ Defined in: [packages/ai/src/types.ts:505](https://github.com/TanStack/ai/blob/m
 type: "subagent";
 ```
 
-Defined in: [packages/ai/src/types.ts:504](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L504)
+Defined in: [packages/ai/src/types.ts:520](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L520)
