@@ -244,6 +244,26 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
     },
   )
 
+  it('Promise<T> path puts the full raw text on the parse error (#1485)', async () => {
+    const one = JSON.stringify({ ...validPerson, name: 'x'.repeat(150) })
+    const raw = `${one}\n\n${one}`
+    const { adapter } = createMockAdapter({
+      iterations: [textTurn(raw)],
+      supportsCombinedToolsAndSchema: true,
+    })
+
+    const error = await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'extract' }],
+      outputSchema: PersonSchema,
+    }).catch((e: unknown) => e)
+
+    expect(error).toMatchObject({
+      code: 'structured-output-parse-failed',
+      rawText: raw,
+    })
+  })
+
   it('emits a RUN_ERROR on the streaming path when the final-turn text is not valid JSON', async () => {
     const { adapter } = createMockAdapter({
       iterations: [textTurn('not-json-at-all')],
