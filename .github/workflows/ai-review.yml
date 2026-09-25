@@ -83,9 +83,7 @@ jobs:
             fail "invalid GitHub login"
           fi
           echo "machine_user=${MACHINE}" >> "${GITHUB_OUTPUT}"
-          echo "proceed=true" >> "${GITHUB_OUTPUT}"
       - name: Run review
-        if: steps.guard.outputs.proceed == 'true'
         run: pnpm ai-review
         env:
           AI_REVIEW_TOKEN: ${{ secrets.AI_REVIEW_TOKEN }}

@@ -142,57 +142,6 @@ describe('resolveReviewEvent', () => {
 })
 
 describe('parseReviewEvent', () => {
-  it('parses pull_request as auto', () => {
-    expect(
-      parseReviewEvent({
-        eventName: 'pull_request',
-        event: { pull_request: { number: 42 } },
-      }),
-    ).toEqual({
-      prNumber: 42,
-      mode: 'auto',
-      commentAuthor: null,
-      eventName: 'pull_request',
-    })
-  })
-
-  it('parses a pull_request labeled ai-review as manual', () => {
-    expect(
-      parseReviewEvent({
-        eventName: 'pull_request',
-        event: {
-          action: 'labeled',
-          label: { name: 'ai-review' },
-          sender: { login: 'alem' },
-          pull_request: { number: 42 },
-        },
-      }),
-    ).toEqual({
-      prNumber: 42,
-      mode: 'manual',
-      commentAuthor: 'alem',
-      eventName: 'pull_request',
-    })
-  })
-
-  it('parses a pull_request labeled with another name as auto', () => {
-    expect(
-      parseReviewEvent({
-        eventName: 'pull_request',
-        event: {
-          action: 'labeled',
-          label: { name: 'bug' },
-          pull_request: { number: 42 },
-        },
-      }),
-    ).toEqual({
-      prNumber: 42,
-      mode: 'auto',
-      commentAuthor: null,
-      eventName: 'pull_request',
-    })
-  })
-
   it('requires authenticated workflow_run resolution', () => {
     expect(() =>
       parseReviewEvent({ eventName: 'workflow_run', event: {} }),
@@ -265,9 +214,9 @@ describe('parseReviewEvent', () => {
     })
   })
 
-  it('throws on an unknown event name', () => {
-    expect(() => parseReviewEvent({ eventName: 'push', event: {} })).toThrow(
-      'Unknown GitHub event: push',
+  it.each(['push', 'pull_request'])('throws on the %s event', (eventName) => {
+    expect(() => parseReviewEvent({ eventName, event: {} })).toThrow(
+      `Unknown GitHub event: ${eventName}`,
     )
   })
 
@@ -290,14 +239,5 @@ describe('parseReviewEvent', () => {
         },
       }),
     ).toThrow('issue_comment is not on a pull request')
-  })
-
-  it('throws when pull_request is missing a number', () => {
-    expect(() =>
-      parseReviewEvent({
-        eventName: 'pull_request',
-        event: { pull_request: {} },
-      }),
-    ).toThrow('pull_request event is missing pull_request.number')
   })
 })

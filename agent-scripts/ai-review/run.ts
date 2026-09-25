@@ -36,12 +36,7 @@ import {
   isBotReviewComment,
   upsertReviewComment,
 } from './comments.ts'
-import {
-  isAiReviewLabelEvent,
-  isPullRequestLabeledEvent,
-  parseReviewEvent,
-  resolveReviewEvent,
-} from './event.ts'
+import { parseReviewEvent, resolveReviewEvent } from './event.ts'
 import { createReviewStreamLogger } from './log.ts'
 import {
   GitCommandError,
@@ -312,20 +307,6 @@ export async function runReviewJob(opts: {
     }
   }
 
-  if (
-    opts.eventName === 'pull_request' &&
-    isPullRequestLabeledEvent(opts.event) &&
-    !isAiReviewLabelEvent(opts.event)
-  ) {
-    return { skipped: true as const, reason: 'not-label' }
-  }
-
-  if (isAiReviewLabelEvent(opts.event)) {
-    if (!isRosterMaintainer(intent?.commentAuthor ?? null, opts.config)) {
-      return { skipped: true as const, reason: 'not-maintainer' }
-    }
-  }
-
   const { parsed, pr } = await resolveReviewEvent({
     eventName: opts.eventName,
     event: opts.event,
@@ -378,7 +359,7 @@ export async function runReviewJob(opts: {
       )
     } catch (error) {
       const missingLabel =
-        error instanceof Error && error.message.includes('HTTP 404')
+        error instanceof Error && error.message.includes('HTTP 404:')
       if (!missingLabel) throw error
     }
   }

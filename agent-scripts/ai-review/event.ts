@@ -1,8 +1,6 @@
 import type { GitHubClient } from '../../scripts/maintainer/github.ts'
 import { fetchPullRequest } from './pr.ts'
 
-export const AI_REVIEW_TRIGGER_LABEL = 'ai-review'
-
 /**
  * Resolve any trigger to `{ parsed, pr }`. A `workflow_run` is resolved through
  * authenticated run and pull request metadata, never the event payload.
@@ -114,11 +112,7 @@ export type ReviewEvent = {
   prNumber: number
   mode: 'auto' | 'manual'
   commentAuthor: string | null
-  eventName:
-    | 'pull_request'
-    | 'workflow_run'
-    | 'workflow_dispatch'
-    | 'issue_comment'
+  eventName: 'workflow_run' | 'workflow_dispatch' | 'issue_comment'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -148,68 +142,15 @@ function readCommentAuthor(event: unknown) {
   return user.login
 }
 
-function readSenderLogin(event: unknown) {
-  const sender = isRecord(event) ? event.sender : undefined
-  if (!isRecord(sender) || typeof sender.login !== 'string') {
-    return null
-  }
-  return sender.login
-}
-
-function readAction(event: unknown) {
-  return isRecord(event) && typeof event.action === 'string'
-    ? event.action
-    : null
-}
-
-function readEventLabelName(event: unknown) {
-  const label = isRecord(event) ? event.label : undefined
-  return isRecord(label) && typeof label.name === 'string' ? label.name : null
-}
-
-/** True when this `pull_request` event is someone adding the `ai-review` label. */
-export function isAiReviewLabelEvent(event: unknown) {
-  return (
-    readAction(event) === 'labeled' &&
-    readEventLabelName(event) === AI_REVIEW_TRIGGER_LABEL
-  )
-}
-
-/** True when this `pull_request` event is any label add. */
-export function isPullRequestLabeledEvent(event: unknown) {
-  return readAction(event) === 'labeled'
-}
-
 /**
  * Parse a GitHub Actions event into the PR number and auto vs manual mode.
  *
- * No workflow sends `pull_request` now. It stays for local runs.
  * Always throws for `workflow_run`. Use `resolveReviewEvent`.
- * Also throws if `eventName` is unknown, `pull_request.number` is missing,
- * `workflow_dispatch` has no valid `inputs.pr_number`, or `issue_comment`
- * is not on a pull request.
+ * Also throws if `eventName` is unknown, `workflow_dispatch` has no valid
+ * `inputs.pr_number`, or `issue_comment` is not on a pull request.
  */
 export function parseReviewEvent(input: { eventName: string; event: unknown }) {
   switch (input.eventName) {
-    case 'pull_request': {
-      const pullRequest = isRecord(input.event)
-        ? input.event.pull_request
-        : undefined
-      const prNumber = parsePrNumber(
-        isRecord(pullRequest) ? pullRequest.number : undefined,
-      )
-      if (prNumber === null) {
-        throw new Error('pull_request event is missing pull_request.number')
-      }
-      return {
-        prNumber,
-        mode: isAiReviewLabelEvent(input.event) ? 'manual' : 'auto',
-        commentAuthor: isAiReviewLabelEvent(input.event)
-          ? readSenderLogin(input.event)
-          : null,
-        eventName: 'pull_request',
-      } satisfies ReviewEvent
-    }
     case 'workflow_run':
       throw new Error('workflow_run requires authenticated resolution')
     case 'workflow_dispatch': {

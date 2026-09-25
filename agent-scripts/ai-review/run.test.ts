@@ -119,6 +119,7 @@ function createFakeGitHub(
     waitingRunIds?: Array<number>
     approveError?: string
     initialIssueLabels?: Array<string>
+    labelDeleteError?: string
   } = {},
 ) {
   const pull = options.pull ?? samplePull()
@@ -260,6 +261,10 @@ function createFakeGitHub(
       }
 
       if (method === 'DELETE' && path.startsWith(`${issueLabelsPath}/`)) {
+        if (options.labelDeleteError !== undefined)
+          throw new Error(
+            `GitHub REST DELETE ${path} → ${options.labelDeleteError}`,
+          )
         const name = decodeURIComponent(
           path.slice(`${issueLabelsPath}/`.length),
         )
@@ -344,8 +349,15 @@ async function unsafePolishReview() {
   }
 }
 
-function pullRequestEvent() {
-  return { pull_request: { number: NUMBER } }
+function workflowRunEvent() {
+  return {
+    action: 'completed',
+    workflow_run: {
+      id: 123,
+      conclusion: 'success',
+      pull_requests: [{ number: NUMBER }],
+    },
+  }
 }
 
 async function runJob(options: {
@@ -360,6 +372,7 @@ async function runJob(options: {
   waitingRunIds?: Array<number>
   approveError?: string
   initialIssueLabels?: Array<string>
+  labelDeleteError?: string
   sandboxSecrets?: Array<string>
   fetchFails?: boolean
   staleReadAfterPush?: boolean
@@ -371,6 +384,7 @@ async function runJob(options: {
     waitingRunIds: options.waitingRunIds,
     approveError: options.approveError,
     initialIssueLabels: options.initialIssueLabels,
+    labelDeleteError: options.labelDeleteError,
   })
   const git = createFakeRunner(options.gitImpl)
   const result = await runReviewJob({
@@ -378,8 +392,8 @@ async function runJob(options: {
     repo: REPO,
     token: TOKEN,
     config,
-    eventName: options.eventName ?? 'pull_request',
-    event: options.event ?? pullRequestEvent(),
+    eventName: options.eventName ?? 'workflow_run',
+    event: options.event ?? workflowRunEvent(),
     worktreeRoot: WORKTREE,
     repoRoot: WORKTREE,
     machineUserLogin: MACHINE,
@@ -452,48 +466,32 @@ describe('runReviewJob', () => {
       expect(result.comments).toEqual([])
     },
   )
-  it('does not repeat a paid review for status labels or an automatic replay', async () => {
-    const pull = samplePull({ labels: ['ai-review'] })
+  it('does not repeat a paid review for an automatic replay', async () => {
+    const pull = samplePull()
     let reviews = 0
     const review = async () => {
       reviews += 1
       return readyReview()
     }
-    const first = await runJob({
-      pull,
-      review,
-      event: {
-        action: 'labeled',
-        label: { name: 'ai-review' },
-        sender: { login: 'alem' },
-        pull_request: pull,
-      },
-    })
+    const first = await runJob({ pull, review })
     expect(first.result.skipped).toBe(false)
-    for (const label of ['ai-ready', 'secure', 'ai-needs-work']) {
-      const replay = await runJob({
-        pull,
-        review,
-        event: {
-          action: 'labeled',
-          label: { name: label },
-          sender: { login: MACHINE },
-          pull_request: pull,
-        },
-        initialIssueLabels: ['secure', 'ai-ready'],
-      })
-      expect(replay.result).toEqual({ skipped: true, reason: 'not-label' })
-      expect([...replay.issueLabels]).toEqual(['secure', 'ai-ready'])
-    }
-    const auto = await runJob({
+    const replay = await runJob({
       pull,
       review,
-      eventName: 'workflow_run',
       event: { workflow_run: { id: 123, pull_requests: [] } },
       alreadyReviewedSha: SHA,
     })
-    expect(auto.result.skipped).toBe(true)
+    expect(replay.result.skipped).toBe(true)
     expect(reviews).toBe(1)
+  })
+
+  it('throws when a stale label delete fails with a non-404 status', async () => {
+    await expect(
+      runJob({
+        labelDeleteError: 'HTTP 500: upstream said HTTP 404',
+        initialIssueLabels: ['secure'],
+      }),
+    ).rejects.toThrow('HTTP 500')
   })
 
   it.each(['base', 'headRepo', 'headRef'])(
@@ -642,6 +640,8 @@ describe('runReviewJob', () => {
 
   it('skips a pull request that does not target main', async () => {
     const { result, comments, gitCalls } = await runJob({
+      eventName: 'workflow_dispatch',
+      event: { inputs: { pr_number: NUMBER } },
       pull: samplePull({ baseRef: 'next' }),
     })
 
@@ -669,38 +669,6 @@ describe('runReviewJob', () => {
     expect(comments).toEqual([])
     expect(gitCalls).toEqual([])
   })
-
-  it('runs when the ai-review label is added to a maintainer PR', async () => {
-    const { result, comments } = await runJob({
-      pull: samplePull({ login: 'alem' }),
-      event: {
-        action: 'labeled',
-        label: { name: 'ai-review' },
-        sender: { login: 'alem' },
-        pull_request: samplePull(),
-      },
-      review: readyReview,
-    })
-
-    expect(result).toEqual({
-      skipped: false,
-      verdict: { verdict: 'ready', issues: [] },
-      label: 'ai-ready',
-      pushLanded: false,
-    })
-    expect(comments).toHaveLength(1)
-  })
-
-  function workflowRunEvent() {
-    return {
-      action: 'completed',
-      workflow_run: {
-        id: 123,
-        conclusion: 'success',
-        pull_requests: [{ number: NUMBER }],
-      },
-    }
-  }
 
   it('runs a workflow_run signal in auto mode', async () => {
     const { result, comments } = await runJob({
@@ -736,20 +704,6 @@ describe('runReviewJob', () => {
     })
 
     expect(result).toEqual({ skipped: true, reason: 'maintainer-author' })
-    expect(comments).toEqual([])
-    expect(gitCalls).toEqual([])
-  })
-
-  it('skips a labeled pull_request that is not the ai-review label', async () => {
-    const { result, comments, gitCalls } = await runJob({
-      event: {
-        action: 'labeled',
-        label: { name: 'bug' },
-        pull_request: samplePull(),
-      },
-    })
-
-    expect(result).toEqual({ skipped: true, reason: 'not-label' })
     expect(comments).toEqual([])
     expect(gitCalls).toEqual([])
   })
@@ -1019,22 +973,6 @@ describe('runReviewJob', () => {
     expect([...issueLabels]).toEqual([])
     expect(approvedRuns).toEqual([])
     expect(comments[0]?.body).toContain('The security check blocked')
-  })
-
-  it('skips a labeled ai-review event from a non-maintainer', async () => {
-    const { result, comments, approvedRuns } = await runJob({
-      event: {
-        action: 'labeled',
-        label: { name: 'ai-review' },
-        sender: { login: 'stranger' },
-        pull_request: samplePull(),
-      },
-      waitingRunIds: [101],
-    })
-
-    expect(result).toEqual({ skipped: true, reason: 'not-maintainer' })
-    expect(comments).toEqual([])
-    expect(approvedRuns).toEqual([])
   })
 
   it('does not leave secure when workflow approval fails', async () => {
