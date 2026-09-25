@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ChatClient } from '../src/chat-client'
 import { createMockConnectionAdapter, createTextChunks } from './test-utils'
-import type { StreamChunk } from '@tanstack/ai/client'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -88,53 +87,27 @@ describe('ChatClient stream processing', () => {
     expect(schedulerYield).not.toHaveBeenCalled()
   })
 
-  it('shares the processing budget across live and joined streams', async () => {
-    let releaseYield!: () => void
-    const schedulerYield = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          releaseYield = resolve
-        }),
-    )
+  it('does not carry hidden-page processing time into a visible page', async () => {
+    const page = { hidden: true }
+    vi.stubGlobal('document', page)
+    const schedulerYield = vi.fn(() => Promise.resolve())
     vi.stubGlobal('scheduler', { yield: schedulerYield })
     let time = 0
-    vi.spyOn(performance, 'now').mockImplementation(() => (time += 5))
-    const processed = vi.fn()
-    const chunk = (name: string): StreamChunk => ({
-      type: 'CUSTOM',
-      name,
-      timestamp: Date.now(),
-      value: null,
-    })
+    vi.spyOn(performance, 'now').mockImplementation(() => time)
     const client = new ChatClient({
-      threadId: 't1',
-      connection: {
-        subscribe: async function* () {
-          yield chunk('live-1')
-          yield chunk('live-2')
-        },
-        send: () => Promise.resolve(),
-        joinRun: async function* () {
-          yield chunk('joined')
-        },
+      connection: createMockConnectionAdapter({
+        chunks: createTextChunks('ab'),
+      }),
+      onChunk(chunk) {
+        // Each chunk costs 5 ms. The two text chunks fill one 8 ms budget
+        // while hidden; the page is visible for the final chunk only.
+        time += 5
+        if (chunk.type === 'RUN_FINISHED') page.hidden = false
       },
-      initialResumeSnapshot: {
-        resumeState: { threadId: 't1', runId: 'r1' },
-      },
-      onChunk: processed,
     })
 
-    client.subscribe()
-    client.attach()
-    try {
-      await vi.waitFor(() => expect(schedulerYield).toHaveBeenCalledTimes(1))
-      expect(processed).toHaveBeenCalledTimes(2)
+    await client.sendMessage('Hi')
 
-      releaseYield()
-      await vi.waitFor(() => expect(processed).toHaveBeenCalledTimes(3))
-      expect(schedulerYield).toHaveBeenCalledTimes(1)
-    } finally {
-      client.dispose()
-    }
+    expect(schedulerYield).not.toHaveBeenCalled()
   })
 })

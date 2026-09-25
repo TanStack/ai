@@ -247,7 +247,7 @@ describe('ChatClient auto-rejoin after reload', () => {
     void client
   })
 
-  it('yields after a full replay processing slice', async () => {
+  it('applies a replay in one batch without yielding', async () => {
     const schedulerYield = vi.fn(() => Promise.resolve())
     vi.stubGlobal('scheduler', { yield: schedulerYield })
     let time = 0
@@ -281,7 +281,7 @@ describe('ChatClient auto-rejoin after reload', () => {
         const text = assistant?.parts.find((part) => part.type === 'text')
         expect(text && 'content' in text && text.content).toBe('world')
       })
-      expect(schedulerYield).toHaveBeenCalled()
+      expect(schedulerYield).not.toHaveBeenCalled()
     } finally {
       client.dispose()
       now.mockRestore()

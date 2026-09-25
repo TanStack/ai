@@ -514,8 +514,6 @@ export class ChatClient<
   private continuationPending = false
   private subscriptionAbortController: AbortController | null = null
   private processingResolve: (() => void) | null = null
-  private chunkProcessingTime = 0
-  private chunkProcessingYield: Promise<void> | null = null
   /**
    * `connect()` adapters push the full HTTP body into the subscribe queue, then
    * wait until that queue is idle. After `send()` returns, every chunk from this
@@ -1929,42 +1927,24 @@ export class ChatClient<
       })
   }
 
+  /**
+   * Consume chunks from the connection subscription. Chunks are processed in
+   * order; the loop yields to the host after each processing budget.
+   */
   private async consumeSubscription(signal: AbortSignal): Promise<void> {
-    await this.consumeChunks(this.connection.subscribe(signal), signal)
-  }
-
-  /** Consume chunks in order against the client-wide processing budget. */
-  private async consumeChunks(
-    stream: AsyncIterable<StreamChunk>,
-    signal: AbortSignal,
-    beforeProcess?: (chunk: StreamChunk) => void,
-  ): Promise<void> {
+    const stream = this.connection.subscribe(signal)
+    let chunkProcessingTime = 0
     for await (const chunk of stream) {
       if (signal.aborted) break
-      const pendingYield = this.chunkProcessingYield
-      if (pendingYield) {
-        await pendingYield
-        if (signal.aborted) break
-      }
       const startedAt = performance.now()
-      beforeProcess?.(chunk)
       this.processIncomingChunk(chunk)
-      this.chunkProcessingTime += performance.now() - startedAt
-      if (
-        this.chunkProcessingTime >= STREAM_PROCESSING_BUDGET_MS &&
-        (typeof document === 'undefined' || !document.hidden)
-      ) {
-        this.chunkProcessingTime = 0
-        const processingYield = yieldToHost()
-        this.chunkProcessingYield = processingYield
-        try {
-          await processingYield
-        } finally {
-          if (this.chunkProcessingYield === processingYield) {
-            this.chunkProcessingYield = null
-          }
-        }
-      }
+      chunkProcessingTime += performance.now() - startedAt
+      if (chunkProcessingTime < STREAM_PROCESSING_BUDGET_MS) continue
+      chunkProcessingTime = 0
+      // Skip the yield when the page is hidden. Browsers clamp timers there,
+      // and that wait paces stream pull.
+      if (typeof document !== 'undefined' && document.hidden) continue
+      await yieldToHost()
     }
   }
 
@@ -1987,6 +1967,9 @@ export class ChatClient<
    * give up after {@link REJOIN_CONNECT_DEADLINE_MS} if no chunk arrives and
    * clear the dead pointer so it does not retry on the next load.
    *
+   * Replay chunks are processed WITHOUT the time-slice yield the live path uses,
+   * so the buffered prefix snaps in and only the genuinely-live tail streams at
+   * network speed — a reload looks like the run continued, not like it re-typed.
    */
   private resumeInFlightRun(runId: string): void {
     const joinRun = this.connection.joinRun
@@ -2015,20 +1998,18 @@ export class ChatClient<
         if (!attached) controller.abort()
       }, REJOIN_CONNECT_DEADLINE_MS)
       try {
-        await this.consumeChunks(
-          joinRun(runId, controller.signal),
-          controller.signal,
-          (chunk) => {
-            if (!attached) {
-              attached = true
-              clearTimeout(connectTimer)
-            }
-            if (!rebuilt && rebuildsAssistantMessage(chunk)) {
-              rebuilt = true
-              this.dropTrailingInFlightAssistant()
-            }
-          },
-        )
+        for await (const chunk of joinRun(runId, controller.signal)) {
+          if (controller.signal.aborted) break
+          if (!attached) {
+            attached = true
+            clearTimeout(connectTimer)
+          }
+          if (!rebuilt && rebuildsAssistantMessage(chunk)) {
+            rebuilt = true
+            this.dropTrailingInFlightAssistant()
+          }
+          this.processIncomingChunk(chunk)
+        }
         // Same contract as `streamResponse`: client tools may finish (and
         // queue a resume) while `isLoading` is still true. Wait for them
         // before teardown so `drainPostStreamActions` below sees the queue.
