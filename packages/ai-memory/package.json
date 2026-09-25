@@ -67,6 +67,12 @@
           "^build"
         ]
       },
+      "test:coverage": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      },
       "test:types": {
         "dependsOn": [
           "build",
