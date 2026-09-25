@@ -367,6 +367,52 @@ describe('ChatClient runtime context', () => {
     ).toMatchObject({ state: 'complete' })
   })
 
+  it('keeps non-JSON output of client tools that are not interrupts', async () => {
+    const firstChunks = createToolCallChunks([
+      { id: 'tc-legacy-plain', name: 'legacy_plain_tool', arguments: '{}' },
+      { id: 'tc-legacy-schema', name: 'legacy_schema_tool', arguments: '{}' },
+    ])
+    const secondChunks = createTextChunks('done', 'msg-legacy-output')
+    let callIndex = 0
+
+    const adapter: ConnectConnectionAdapter = {
+      async *connect(_messages, _data, abortSignal) {
+        const chunks = callIndex === 0 ? firstChunks : secondChunks
+        callIndex++
+        for (const chunk of chunks) {
+          if (abortSignal?.aborted) return
+          yield chunk
+        }
+      },
+    }
+
+    const plainTool = toolDefinition({
+      name: 'legacy_plain_tool',
+      description: 'Returns an object with an undefined field',
+    }).client(() => ({ ok: true, note: undefined }))
+    const schemaTool = toolDefinition({
+      name: 'legacy_schema_tool',
+      description: 'Returns an object with an undefined optional field',
+      outputSchema: z.object({ ok: z.boolean(), note: z.string().optional() }),
+    }).client(() => ({ ok: true, note: undefined }))
+
+    const client = new ChatClient({
+      connection: adapter,
+      tools: [plainTool, schemaTool],
+    })
+    await client.sendMessage('call legacy tools')
+
+    for (const toolCallId of ['tc-legacy-plain', 'tc-legacy-schema']) {
+      expect(findToolCallPart(client, toolCallId)).toMatchObject({
+        state: 'input-complete',
+        output: { ok: true },
+      })
+      expect(findToolResultPart(client, toolCallId)).toMatchObject({
+        state: 'complete',
+      })
+    }
+  })
+
   it('renders a client tool that throws an empty-message error as terminal "error" (issue #718)', async () => {
     const firstChunks = createToolCallChunks([
       {

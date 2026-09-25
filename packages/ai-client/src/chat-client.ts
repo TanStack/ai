@@ -2873,14 +2873,20 @@ export class ChatClient<
   ): Promise<void> {
     if (result.state !== 'output-error') {
       try {
-        result = {
-          ...result,
-          output:
-            clientTool?.outputSchema &&
-            isStandardSchema(clientTool.outputSchema)
-              ? await this.validateClientToolOutput(clientTool, result.output)
-              : cloneAndDeepFreezeJson(result.output),
+        let output =
+          clientTool?.outputSchema && isStandardSchema(clientTool.outputSchema)
+            ? await this.validateClientToolOutput(clientTool, result.output)
+            : result.output
+        // Only an interrupt resume needs JSON output. The legacy continuation
+        // keeps the raw value.
+        if (
+          this.interruptManager
+            .getDescriptors()
+            .some((interrupt) => interrupt.toolCallId === result.toolCallId)
+        ) {
+          output = cloneAndDeepFreezeJson(output)
         }
+        result = { ...result, output }
       } catch (error: any) {
         result = {
           ...result,
@@ -2954,7 +2960,7 @@ export class ChatClient<
         validation.issues.map((issue) => issue.message).join(', '),
       )
     }
-    return cloneAndDeepFreezeJson(validation.data)
+    return validation.data
   }
 
   /**

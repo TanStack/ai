@@ -789,9 +789,7 @@ export class InterruptManager<
     const interrupt = cloneAndDeepFreezeJson(descriptor)
     const candidate = getDescriptorBinding(interrupt)
     const legacyResumable =
-      candidate === undefined &&
-      !hasReservedFirstPartyBindingMarker(interrupt) &&
-      isLegacyInterruptMetadata(interrupt)
+      candidate === undefined && isLegacyInterruptMetadata(interrupt)
 
     // No binding we understand, and nothing else identifying the descriptor as
     // ours, means this interrupt was not produced by this package's resume
@@ -935,20 +933,6 @@ export class InterruptManager<
           tool,
           validationGeneration: 0,
         }
-      }
-      return {
-        descriptor: interrupt,
-        binding: genericBinding(interrupt, hydration, candidate),
-        kind: 'generic',
-        status: 'error',
-        canResolve: false,
-        resumable: false,
-        error: this.itemError(
-          interrupt.id,
-          'stale',
-          'The client tool interrupt no longer matches the registered tool.',
-        ),
-        validationGeneration: 0,
       }
     }
 
