@@ -75,7 +75,10 @@ test.describe('claude-code harness (gated live smoke)', () => {
 
     const finished = chunks.find((chunk) => chunk.type === 'RUN_FINISHED')
     expect(finished).toBeDefined()
-    expect((finished as { finishReason?: string }).finishReason).toBe('stop')
+    expect(
+      finished?.type === 'RUN_FINISHED' &&
+        finished.metadata?.tanstack?.finishReason,
+    ).toBe('stop')
 
     const text = chunks
       .filter((chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT')
