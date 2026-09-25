@@ -93,6 +93,8 @@ export function createSubagentSink(): SubagentSink {
 /** One child to start, or a suspended child to continue. */
 export interface SpawnEntry {
   name: string
+  /** The checked tool input for an agent with `inputSchema`. */
+  input?: unknown
   resume?: {
     subagentRunId: string
     /** The child's own messages from the interrupted run. */
@@ -248,6 +250,7 @@ function openAgentStream(
   return spawnAgentStream(
     agent,
     {
+      input: entry.input,
       messages: resumed?.messages ?? ctx.messages,
       ...(ctx.abortSignal ? { abortSignal: ctx.abortSignal } : {}),
       threadId: childThreadId(bag.sandbox, ctx.threadId, entry.name),
@@ -721,8 +724,10 @@ export function createSyntheticSubagentTools(
   return bag.agents.map((agent) => ({
     name: agent.name,
     description: agent.description,
+    ...(agent.inputSchema !== undefined && { inputSchema: agent.inputSchema }),
     [SUBAGENT_TOOL]: true,
-    execute: async (_input: unknown, context?: unknown) => {
+    // The tool loop checks `input` against `inputSchema` before this runs.
+    execute: async (input: unknown, context?: unknown) => {
       const toolContext = context as
         | {
             toolCallId?: string
@@ -736,17 +741,20 @@ export function createSyntheticSubagentTools(
           child.parentToolCallId !== undefined &&
           child.parentToolCallId === toolCallId,
       )
-      const entry: SpawnEntry = suspended
-        ? {
-            name: agent.name,
-            resume: {
-              subagentRunId: suspended.subagentRunId,
-              messages: suspended.messages,
-              entries: suspended.resume,
-              text: suspended.text,
-            },
-          }
-        : { name: agent.name }
+      // An agent without `inputSchema` still gets `{}` from the model. Its
+      // `ctx.input` stays undefined.
+      const entry: SpawnEntry = {
+        name: agent.name,
+        ...(agent.inputSchema !== undefined && { input }),
+        ...(suspended && {
+          resume: {
+            subagentRunId: suspended.subagentRunId,
+            messages: suspended.messages,
+            entries: suspended.resume,
+            text: suspended.text,
+          },
+        }),
+      }
       const sink = createSubagentSink()
       const link = linkAbort(parent.abortSignal)
       let subagentRunId = suspended?.subagentRunId ?? ''
