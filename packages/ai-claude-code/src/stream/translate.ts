@@ -572,9 +572,9 @@ export async function* translateSdkStream(
     } else if (event.type === 'content_block_delta') {
       if (
         event.delta.type === 'text_delta' &&
-        typeof event.delta.text === 'string' &&
         partialTextStarted &&
-        partialTextMessageId
+        partialTextMessageId &&
+        typeof event.delta.text === 'string'
       ) {
         partialTextContent += event.delta.text
         assistantTextForHarvest += event.delta.text
@@ -594,8 +594,8 @@ export async function* translateSdkStream(
         partialStructuredJson += event.delta.partial_json
       } else if (
         event.delta.type === 'thinking_delta' &&
-        typeof event.delta.thinking === 'string' &&
-        partialReasoningId
+        partialReasoningId &&
+        typeof event.delta.thinking === 'string'
       ) {
         yield {
           type: EventType.REASONING_MESSAGE_CONTENT,
@@ -686,8 +686,10 @@ export async function* translateSdkStream(
       // harness-internal and intentionally ignored.
     }
   } catch (error) {
-    // Pair partial tool starts with an end and a synthetic result before the
-    // adapter surfaces the error.
+    // The run is dying (abort or SDK failure). Close any half-streamed tool
+    // calls, then pair every started tool call with a synthetic result so the
+    // next request's pending-tool-call scan doesn't try to execute them. Then
+    // let the adapter surface the error as RUN_ERROR.
     yield* closePartialToolUses(true)
     yield* synthesizeUnresolvedResults()
     throw error
