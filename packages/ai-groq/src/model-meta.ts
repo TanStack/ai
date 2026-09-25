@@ -317,9 +317,6 @@ const QWEN3_32B = {
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
-/**
- * All supported Groq chat model identifiers.
- */
 const QWEN_QWEN3_8_27B = {
   name: 'qwen/qwen3.8-27b',
   context_window: 131_042,
@@ -341,6 +338,9 @@ const QWEN_QWEN3_8_27B = {
   },
 } as const satisfies ModelMeta<GroqTextProviderOptions>
 
+/**
+ * All supported Groq chat model identifiers.
+ */
 export const GROQ_CHAT_MODELS = [
   QWEN_QWEN3_8_27B.name,
   LLAMA_3_1_8B_INSTANT.name,

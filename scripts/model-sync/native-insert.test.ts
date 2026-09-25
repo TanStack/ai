@@ -3,6 +3,7 @@ import {
   addToStringLiteralArray,
   applyChatModelCatalogInserts,
   extractStringLiteralArrayValues,
+  insertConstants,
 } from './native-insert'
 
 const STUB = `const FOO = {
@@ -106,6 +107,32 @@ export type OpenAIModelInputModalitiesByName = {
 
     expect(result).toContain('[GPT6.name]: typeof GPT6.supports.tools')
     expect(result).toContain('GPT6.name,')
+  })
+})
+
+describe('insertConstants', () => {
+  it('keeps the JSDoc of the first export on that export', () => {
+    const stub = `const OLD = { name: 'old' }
+
+/**
+ * All supported chat model identifiers.
+ */
+export const CHAT_MODELS = [OLD.name] as const
+`
+    const result = insertConstants(stub, [`const NEW = { name: 'new' }`])
+    expect(result).toContain(
+      `const NEW = { name: 'new' }\n\n/**\n * All supported chat model identifiers.\n */\nexport const CHAT_MODELS`,
+    )
+    expect(result.indexOf('const OLD')).toBeLessThan(
+      result.indexOf('const NEW'),
+    )
+  })
+
+  it('inserts right before the export when it has no JSDoc', () => {
+    const result = insertConstants(`const A = 1\n\nexport const B = 2\n`, [
+      'const C = 3',
+    ])
+    expect(result).toBe(`const A = 1\n\nconst C = 3\n\nexport const B = 2\n`)
   })
 })
 

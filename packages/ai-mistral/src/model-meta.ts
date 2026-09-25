@@ -4,7 +4,6 @@ import type {
   MistralEmbedProviderOptions,
 } from './embedding/embedding-provider-options'
 
-/** Provider options for vision-capable Mistral models (pixtral-*). */
 const CODESTRAL_2508 = {
   name: 'codestral-2508',
   context_window: 256_000,
@@ -225,6 +224,7 @@ const MISTRAL_SMALL_2603 = {
   },
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
+/** Provider options for vision-capable Mistral models (pixtral-*). */
 export type MistralVisionProviderOptions = MistralTextProviderOptions
 
 /** Provider options for reasoning-capable Mistral models (magistral-*). */
