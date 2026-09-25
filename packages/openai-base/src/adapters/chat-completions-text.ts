@@ -277,7 +277,19 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       // rather than letting it cascade into a JSON-parse error on '' — the
       // root cause (the model returned no content for the structured request)
       // is then visible in logs.
-      const rawText = response.choices[0]?.message.content
+      const choice = response.choices[0]
+
+      // A response cut off at the output cap is a truncated JSON document —
+      // or, for reasoning models, no content at all once the budget went to
+      // reasoning. Report it as truncation before the empty-content and
+      // parse errors, which would read like a schema failure (issue #1426).
+      if (choice?.finish_reason === 'length') {
+        throw new Error(
+          `${this.name}.structuredOutput: the response was cut off because the maximum token limit was reached (finish_reason=length); raise the output token limit (max_completion_tokens or max_tokens, depending on the provider)`,
+        )
+      }
+
+      const rawText = choice?.message.content
       if (typeof rawText !== 'string' || rawText.length === 0) {
         throw new Error(
           `${this.name}.structuredOutput: response contained no content`,
@@ -351,6 +363,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     let hasClosedReasoning = false
     let stepId: string | undefined
     let lastModel: string | undefined
+    let finishReason: string | null = null
     let lastUsage:
       | OpenAI.Chat.Completions.ChatCompletionChunk['usage']
       | undefined
@@ -491,6 +504,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
         const choice = chunk.choices[0]
         if (!choice) continue
+        if (choice.finish_reason) finishReason = choice.finish_reason
 
         const deltaContent = choice.delta.content
         if (deltaContent) {
@@ -532,6 +546,22 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
         }
+      }
+
+      // Same truncation check as `structuredOutput()`: report the token limit
+      // before the empty-content and parse errors (issue #1426).
+      if (finishReason === 'length') {
+        const message = `${this.name}.structuredOutputStream: the response was cut off because the maximum token limit was reached (finish_reason=length); raise the output token limit (max_completion_tokens or max_tokens, depending on the provider)`
+        yield {
+          type: EventType.RUN_ERROR,
+          runId: aguiState.runId,
+          model: lastModel || chatOptions.model,
+          timestamp: Date.now(),
+          message,
+          code: 'max_tokens',
+          error: { message, code: 'max_tokens' },
+        }
+        return
       }
 
       if (accumulatedContent.length === 0) {

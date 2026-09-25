@@ -3,7 +3,7 @@ id: ReasoningMessageStartEvent
 title: ReasoningMessageStartEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1654](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1654)
+Defined in: [packages/ai/src/types.ts:1670](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1670)
 
 Emitted when a reasoning message starts.
 

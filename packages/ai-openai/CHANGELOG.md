@@ -1,5 +1,17 @@
 # @tanstack/ai-openai
 
+## 0.24.1
+
+### Patch Changes
+
+- [#1428](https://github.com/TanStack/ai/pull/1428) [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb) - Forward summarize maxLength through OpenAI-compatible adapters using the token-limit key for their API, regardless of the summarize wrapper name. Keep explicit caller limits unchanged.
+
+- [#1467](https://github.com/TanStack/ai/pull/1467) [`dfd9f3a`](https://github.com/TanStack/ai/commit/dfd9f3a0bdc4ad1a43c49d4291625cc4953d1e04) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`54d39d3`](https://github.com/TanStack/ai/commit/54d39d30704bbdbdccea756af31530cc6713fc2e), [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb), [`74b5823`](https://github.com/TanStack/ai/commit/74b582305471eaf37a3b68595e60ed1a6f42d914), [`790cb0a`](https://github.com/TanStack/ai/commit/790cb0a0d089c7d28756076488c9b24a92629848), [`abb0169`](https://github.com/TanStack/ai/commit/abb0169bf96c38f59791450ce060d089a7fcd26e), [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088), [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b)]:
+  - @tanstack/ai@0.61.0
+  - @tanstack/openai-base@0.11.1
+
 ## 0.24.0
 
 ### Minor Changes
