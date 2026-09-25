@@ -1264,6 +1264,7 @@ describe('StreamProcessor', () => {
     it.each([
       ['throws on serialization', { task: 'list', count: 1n }],
       ['serializes to undefined', () => 'list'],
+      ['is null', null],
     ])(
       'keeps the streamed arguments and input when TOOL_CALL_END.input %s',
       (_case, input) => {

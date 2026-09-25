@@ -185,10 +185,11 @@ function interruptBatchHasGeneric(interrupts: Array<Interrupt>): boolean {
  * The canonical arguments string for a `TOOL_CALL_END.input`, or `undefined`
  * when JSON cannot carry it: `JSON.stringify` returns `undefined` (despite
  * its declared type) for a top-level function or symbol and throws on BigInt
- * and circular references.
+ * and circular references. `null` is not tool arguments either, so it also
+ * keeps the streamed value instead of writing `arguments = "null"`.
  */
 function serializeToolInput(input: unknown): string | undefined {
-  if (input === undefined) return undefined
+  if (input === undefined || input === null) return undefined
   try {
     const serialized: unknown = JSON.stringify(input)
     return typeof serialized === 'string' ? serialized : undefined
