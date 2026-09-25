@@ -102,7 +102,7 @@ import { s3Skills } from './s3-skills'
 runSkillSourceConformance(() => s3Skills(makeTestBucket()), 's3')
 ```
 
-It checks the things that break in production: a missing skill throws rather than returning empty, resources load while a path like `../../etc/passwd` is rejected, `revision()` is stable across identical content, and concurrent `list()` calls stay consistent. `vitest` is an optional peer dependency for this entry point.
+It checks the things that break in production: a missing skill throws rather than returning empty, resources load while a path like `../../etc/passwd` is rejected, `revision()` is stable across identical content, and concurrent `list()` calls stay consistent. The optional parts of the contract are only checked when you implement them — the resource cases need both `listResources` and `readResource`, and the revision case needs `revision` — so a source that cannot represent them is skipped rather than failed. `vitest` is an optional peer dependency for this entry point.
 
 ## Documentation
 
