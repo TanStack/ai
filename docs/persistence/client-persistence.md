@@ -67,18 +67,16 @@ pointer. On the next load `useChat` reads it and:
 
 Replay rebuilds reasoning, tool activity, and text from the durable log, including runs that emit reasoning before their first tool or text event. The completed activity remains in the transcript sent with the next message.
 
-### Activity messages
+### AG-UI activity rows
 
-After a reload, look at `messages` for `role: 'activity'` rows.
+AG-UI activity events show as `role: 'activity'` rows in `messages`.
 
-A client adapter stores each of those rows as a `UIMessage` with the same `id`
-and content. The next `sendMessage` does not send them as model input.
+- A client storage adapter keeps each row with the same `id` and content.
+- `persistence: true` restores the rows from the server only when the server
+  has an `activities` store. See
+  [AG-UI activity rows on reload](./chat-persistence#ag-ui-activity-rows-on-reload).
 
-`persistence: true` stores activity in client JSON. The server `MessageStore`
-does not store activity. An optional `activities` store does.
-
-A reload that hydrates from the server restores those rows only when that
-store is present.
+The next `sendMessage` does not send activity rows as model input.
 
 ### Handle restored client tools
 
