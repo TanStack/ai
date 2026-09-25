@@ -3969,12 +3969,13 @@ class TextEngine<
 
         if (chunk.type === EventType.RUN_ERROR) {
           // RunErrorEvent already exposes `message` and `code` after narrowing.
+          // A native stream has no adapter error to capture, but its RUN_ERROR
+          // can carry the provider's error body as `rawEvent` (#1005).
+          const cause = fallbackAdapterError ?? chunk.rawEvent
           this.finalizationError = {
             message: chunk.message,
             ...(chunk.code ? { code: chunk.code } : {}),
-            ...(fallbackAdapterError !== undefined
-              ? { cause: fallbackAdapterError }
-              : {}),
+            ...(cause !== undefined ? { cause } : {}),
           }
         }
 
