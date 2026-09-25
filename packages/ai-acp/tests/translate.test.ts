@@ -4,7 +4,7 @@ import {
   translateAcpStream,
 } from '../src/stream/translate'
 import type { AcpStreamEvent, TranslateContext } from '../src/stream/translate'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 const SESSION_ID_EVENT = 'test.session-id'
 const PLAN_EVENT = 'test.plan'
@@ -34,8 +34,8 @@ async function* fromArray(
 async function collect(
   events: Array<AcpStreamEvent>,
   ctx: TranslateContext = makeCtx(),
-): Promise<Array<StreamChunk>> {
-  const chunks: Array<StreamChunk> = []
+): Promise<Array<AdapterYieldChunk>> {
+  const chunks: Array<AdapterYieldChunk> = []
   for await (const chunk of translateAcpStream(fromArray(events), ctx)) {
     chunks.push(chunk)
   }
@@ -432,7 +432,7 @@ describe('translateAcpStream', () => {
       throw new Error('process died')
     }
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     await expect(async () => {
       for await (const chunk of translateAcpStream(failing(), makeCtx())) {
         chunks.push(chunk)

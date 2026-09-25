@@ -34,7 +34,12 @@
  *   - AGENTS.md is written universally by bootstrap (grok reads it natively),
  *     so it is NOT rewritten here.
  */
-import { isSecretRef, resolveGitSkillDir } from '@tanstack/ai-sandbox'
+import {
+  discoverSkillDirs,
+  isSecretRef,
+  resolveGitSkillDir,
+  resolveHarnessCwd,
+} from '@tanstack/ai-sandbox'
 import type {
   BearerRef,
   HostToolBridge,
@@ -47,12 +52,6 @@ import type {
 /** POSIX single-quote escape for embedding a value in a shell command. */
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
-}
-
-/** Last path segment of a `gitSkill` clone dir, used as the skills-dir name. */
-function basenameOf(path: string): string {
-  const segments = path.split('/').filter((segment) => segment !== '')
-  return segments[segments.length - 1] ?? path
 }
 
 /** True when `value` is a `bearer(ref)` marker created by `@tanstack/ai-sandbox`. */
@@ -262,17 +261,25 @@ async function projectGitSkills(
       await handle.fs.mkdir(skillsDir)
       madeDir = true
     }
+    // Discover over virtual `/workspace` paths (handle.fs remaps). Remap only
+    // for shell `ln`/`cp`, where absolute paths must match the real workdir.
     const source = skill.into ?? resolveGitSkillDir(projection.root, skill)
-    const target = `${skillsDir}/${basenameOf(source)}`
-    const lnCmd = `ln -s ${shellQuote(source)} ${shellQuote(target)}`
-    const result = await handle.process.exec(lnCmd, { cwd: projection.root })
-    if (result.exitCode !== 0) {
-      const cpCmd = `cp -r ${shellQuote(source)} ${shellQuote(target)}`
-      const copied = await handle.process.exec(cpCmd, { cwd: projection.root })
-      if (copied.exitCode !== 0) {
-        console.warn(
-          `[grok-build] failed to link gitSkill "${skill.repo}" into ${target}: ${copied.stderr.trim()}`,
-        )
+    const discovered = await discoverSkillDirs(handle, source)
+    for (const { name, dir } of discovered) {
+      const target = resolveHarnessCwd(handle, `${skillsDir}/${name}`)
+      const realDir = resolveHarnessCwd(handle, dir)
+      const lnCmd = `ln -s ${shellQuote(realDir)} ${shellQuote(target)}`
+      const result = await handle.process.exec(lnCmd, { cwd: projection.root })
+      if (result.exitCode !== 0) {
+        const cpCmd = `cp -r ${shellQuote(realDir)} ${shellQuote(target)}`
+        const copied = await handle.process.exec(cpCmd, {
+          cwd: projection.root,
+        })
+        if (copied.exitCode !== 0) {
+          console.warn(
+            `[grok-build] failed to link gitSkill "${skill.repo}" into ${target}: ${copied.stderr.trim()}`,
+          )
+        }
       }
     }
   }

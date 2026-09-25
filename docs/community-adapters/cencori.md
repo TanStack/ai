@@ -17,9 +17,18 @@ The Cencori adapter provides access to 14+ AI providers (OpenAI, Anthropic, Goog
 
 ## Installation
 
-```bash
-npm install @cencori/ai-sdk
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @cencori/ai-sdk
+vue: @cencori/ai-sdk
+solid: @cencori/ai-sdk
+svelte: @cencori/ai-sdk
+preact: @cencori/ai-sdk
+angular: @cencori/ai-sdk
+vanilla: @cencori/ai-sdk
+octane: @cencori/ai-sdk
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 

@@ -283,4 +283,4 @@ The `onCustomEvent` callback is available through `ChatClient` from `@tanstack/a
 (eventType: string, data: unknown, context: { toolCallId?: string }) => void
 ```
 
-See [Code Mode](./code-mode) for setting up the server side, and [Code Mode with Skills](./code-mode-with-skills) for adding persistent skill libraries.
+See [Code Mode](./code-mode) for setting up the server side, and [Code Mode with Snippets](./code-mode-with-snippets) for adding persistent snippet libraries.

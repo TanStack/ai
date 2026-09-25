@@ -15,7 +15,8 @@ The structured-outputs guide has moved to its own top-level section, split by wh
 - **[Overview](../structured-outputs/overview)** — what structured output is, schema library options, provider support, and "which page do I read?"
 - **[One-Shot Extraction](../structured-outputs/one-shot)** — single prompt in, single typed object out. Use this when you don't need streaming or chat history.
 - **[Streaming UIs](../structured-outputs/streaming)** — `useChat({ outputSchema })` with `partial` and `final` populating a UI field by field.
-- **[Multi-Turn Chat](../structured-outputs/multi-turn)** — every assistant turn carries its own typed `StructuredOutputPart`, history stays renderable, and `messages[i].parts.find(p => p.type === "structured-output").data` is typed by your schema.
+- **[Multi-Turn Chat](../structured-outputs/multi-turn)** — each successfully completed structured-output run adds a typed response to message history, and `messages[i].parts.find(p => p.type === "structured-output").data` is typed by your schema.
 - **[With Tools](../structured-outputs/with-tools)** — combining `outputSchema` with the agent loop, including pause/resume for server-tool approvals and client-tool invocations.
+- **[Harness Agents](../structured-outputs/harnesses)** — a coding agent in a sandbox inspects files, then returns a typed object.
 
 > **Note:** This URL is kept for backward compatibility. New content lives under `/structured-outputs/*` — update existing bookmarks when you can.

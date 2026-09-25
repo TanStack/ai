@@ -1,3 +1,23 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
 # @tanstack/ai-groq
 
 Groq adapter for TanStack AI
@@ -72,6 +92,7 @@ const adapter = createGroqText('llama-3.3-70b-versatile', 'gsk_api_key')
 - ✅ Structured output (JSON Schema)
 - ✅ Function/tool calling
 - ✅ Multimodal input (text + images for vision models)
+- ✅ Summarization (`groqSummarize`)
 - ❌ Embeddings (not supported by Groq)
 - ❌ Image generation (not supported by Groq)
 

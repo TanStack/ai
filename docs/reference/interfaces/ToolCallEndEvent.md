@@ -3,98 +3,52 @@ id: ToolCallEndEvent
 title: ToolCallEndEvent
 ---
 
-# Interface: ToolCallEndEvent
-
-Defined in: [packages/ai/src/types.ts:1175](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1175)
+Defined in: [packages/ai/src/types.ts:1354](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1354)
 
 Emitted when a tool call completes.
 
-@ag-ui/core provides: `toolCallId`
-TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`, `result?`
+@ag-ui/core provides: `toolCallId`, `subagentRunId?`
 
 ## Extends
 
-- `ToolCallEndEvent`
-
-## Indexable
-
-```ts
-[k: string]: unknown
-```
+- `Omit`\<`AGUIToolCallEndEvent`, `"type"`\>
 
 ## Properties
 
 ### input?
 
 ```ts
-optional input: unknown;
+optional input?: unknown;
 ```
 
-Defined in: [packages/ai/src/types.ts:1186](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1186)
+Defined in: [packages/ai/src/types.ts:1357](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1357)
 
-Final parsed input arguments (TanStack AI internal)
+Parsed tool arguments when the adapter already parsed them.
 
 ***
 
-### model?
+### metadata?
 
 ```ts
-optional model: string;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1177](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1177)
+Defined in: [packages/ai/src/types.ts:1358](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1358)
 
-Model identifier for multi-model support
+Extra information attached to this event.
+
+#### Overrides
+
+```ts
+Omit.metadata
+```
 
 ***
 
-### result?
+### type
 
 ```ts
-optional result: 
-  | string
-  | ContentPart<unknown, unknown, unknown, unknown, unknown>[];
+type: "TOOL_CALL_END";
 ```
 
-Defined in: [packages/ai/src/types.ts:1188](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1188)
-
-Tool execution result (TanStack AI internal)
-
-***
-
-### state?
-
-```ts
-optional state: ToolOutputState;
-```
-
-Defined in: [packages/ai/src/types.ts:1190](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1190)
-
-Tool execution output state (TanStack AI internal)
-
-***
-
-### toolCallName?
-
-```ts
-optional toolCallName: string;
-```
-
-Defined in: [packages/ai/src/types.ts:1179](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1179)
-
-Name of the tool that completed
-
-***
-
-### ~~toolName?~~
-
-```ts
-optional toolName: string;
-```
-
-Defined in: [packages/ai/src/types.ts:1184](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1184)
-
-#### Deprecated
-
-Use `toolCallName` instead.
-Kept for backward compatibility.
+Defined in: [packages/ai/src/types.ts:1355](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1355)

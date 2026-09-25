@@ -45,6 +45,10 @@ const stream = chat({
 })
 ```
 
+The factory is what selects native provider behavior, not the public name. A plain function named `web_search`, `google_search`, or `code_execution` stays a custom function. Do not hand-build `{ name: 'web_search', metadata: ... }` and expect a native payload.
+
+You can put a factory tool and your own function in the same `chat({ tools })` call if the names differ. Tool names in one `tools` array must be unique. If you pass both `webSearchTool()` and your own function named `web_search`, `chat()` throws `DuplicateToolNameError` before it talks to the provider.
+
 ## Multi-turn persistence
 
 Provider tools run on the provider's own infrastructure, so their results
@@ -85,6 +89,8 @@ const followUp = chat({
 
 The search/fetch call surfaces as a provider-executed `tool-call` part on the
 assistant message; the agent loop never tries to run it client-side.
+
+OpenAI `applyPatchTool`, `localShellTool`, and `shellTool({ environment: { type: "local" } })` are different. The model returns the call, and your app runs it. See [OpenAI adapter](../adapters/openai.md#applypatchtool).
 
 ## Type-level guard
 

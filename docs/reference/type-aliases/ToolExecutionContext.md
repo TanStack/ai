@@ -3,13 +3,11 @@ id: ToolExecutionContext
 title: ToolExecutionContext
 ---
 
-# Type Alias: ToolExecutionContext\<TContext\>
-
 ```ts
 type ToolExecutionContext<TContext> = RuntimeContextField<TContext> & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:531](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L531)
+Defined in: [packages/ai/src/types.ts:686](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L686)
 
 Context passed to tool execute functions, providing capabilities like
 emitting custom events during execution.
@@ -19,17 +17,17 @@ emitting custom events during execution.
 ### abortSignal?
 
 ```ts
-optional abortSignal: AbortSignal;
+optional abortSignal?: AbortSignal;
 ```
 
 Abort signal for the current chat run. Aborts when the run's
 `abortController` fires (or middleware aborts). Long-running tools —
 e.g. MCP `callTool` — should forward this to cancel in-flight work.
 
-### emitCustomEvent()
+### emitCustomEvent
 
 ```ts
-emitCustomEvent: (eventName, value) => void;
+emitCustomEvent: (eventName, value, options?) => void;
 ```
 
 Emit a custom event during tool execution.
@@ -48,6 +46,13 @@ Name of the custom event
 `Record`\<`string`, `any`\>
 
 Event payload value
+
+##### options?
+
+[`EmitCustomEventOptions`](../interfaces/EmitCustomEventOptions.md)
+
+Pass `{ batch: true }` to keep this event in the
+  durability batch instead of flushing it immediately
 
 #### Returns
 
@@ -68,7 +73,7 @@ const tool = toolDefinition({ ... }).server(async (args, context) => {
 ### toolCallId?
 
 ```ts
-optional toolCallId: string;
+optional toolCallId?: string;
 ```
 
 The ID of the tool call being executed

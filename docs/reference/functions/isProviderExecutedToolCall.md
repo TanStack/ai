@@ -3,8 +3,6 @@ id: isProviderExecutedToolCall
 title: isProviderExecutedToolCall
 ---
 
-# Function: isProviderExecutedToolCall()
-
 ```ts
 function isProviderExecutedToolCall(toolCall): boolean;
 ```
@@ -19,9 +17,11 @@ calls must not be routed to client-side execution and are already "complete".
 
 ### toolCall
 
-\{
-`metadata?`: `unknown`;
-\} | `null` | `undefined`
+  \| \{
+  `metadata?`: `unknown`;
+\}
+  \| `null`
+  \| `undefined`
 
 ## Returns
 

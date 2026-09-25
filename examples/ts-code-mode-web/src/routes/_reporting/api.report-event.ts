@@ -69,7 +69,7 @@ export const Route = createFileRoute('/_reporting/api/report-event' as any)({
 
         const { createIsolateDriver } =
           await import('@/lib/create-isolate-driver')
-        const driver = await createIsolateDriver('node')
+        const driver = await createIsolateDriver()
         const effects: UIEffect[] = []
         const uiUpdates: UIUpdate[] = []
         const calledBindings: string[] = []

@@ -41,6 +41,50 @@ export type {
   OpenRouterImageModelSizeByName,
 } from './image/image-provider-options'
 
+// Rerank adapter - document reranking via OpenRouter's /v1/rerank endpoint
+export {
+  OpenRouterRerankAdapter,
+  createOpenRouterRerank,
+  openRouterRerank,
+  type OpenRouterRerankConfig,
+} from './adapters/rerank'
+export {
+  OPENROUTER_RERANK_MODELS,
+  type OpenRouterRerankModel,
+  type KnownOpenRouterRerankModel,
+  type OpenRouterRerankProviderOptions,
+} from './rerank/rerank-provider-options'
+
+// Evaluate adapter - typed decisions via OpenRouter's /api/alpha/decisions endpoint
+export {
+  OpenRouterEvaluateAdapter,
+  createOpenRouterDecider,
+  openRouterDecider,
+  type OpenRouterEvaluateConfig,
+} from './adapters/evaluate'
+export {
+  OPENROUTER_EVALUATE_MODELS,
+  type OpenRouterEvaluateModel,
+  type KnownOpenRouterEvaluateModel,
+  type OpenRouterEvaluateProviderOptions,
+} from './evaluate/evaluate-provider-options'
+
+// Video adapter - for async video generation (POST /api/v1/videos)
+export {
+  OpenRouterVideoAdapter,
+  createOpenRouterVideo,
+  openRouterVideo,
+  type OpenRouterVideoConfig,
+} from './adapters/video'
+export type {
+  OpenRouterVideoModel,
+  OpenRouterVideoProviderOptions,
+  OpenRouterVideoModelProviderOptionsByName,
+  OpenRouterVideoModelSizeByName,
+  OpenRouterVideoModelInputModalitiesByName,
+  OpenRouterVideoModelDurationByName,
+} from './video/video-provider-options'
+
 // ============================================================================
 // Type Exports
 // ============================================================================
@@ -50,6 +94,7 @@ export type {
   OpenRouterModelInputModalitiesByName,
   OpenRouterChatModelToolCapabilitiesByName,
 } from './model-meta'
+export { OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS } from './model-meta'
 export type {
   OpenRouterTextMetadata,
   OpenRouterImageMetadata,
@@ -57,6 +102,7 @@ export type {
   OpenRouterVideoMetadata,
   OpenRouterDocumentMetadata,
   OpenRouterMessageMetadataByModality,
+  OpenRouterResponsesToolCallMetadata,
 } from './message-types'
 export type {
   WebPlugin,

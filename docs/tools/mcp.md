@@ -19,11 +19,33 @@ keywords:
 
 > MCP tool execution is **server-side only**. The `createMCPClient` call lives in a server route (or serverless function) — never in browser code.
 
+## Server MCP and WebMCP
+
+Server MCP and WebMCP solve different problems.
+
+| Integration | Where it runs | What it does |
+|---|---|---|
+| Server MCP | Your server route | Connects TanStack `chat()` to tools, resources, and prompts from an MCP server. |
+| WebMCP | The browser page | Exposes executable client tools to a browser agent through `document.modelContext`. |
+
+WebMCP calls return directly to the browser agent. They do not become tool results in a TanStack chat run.
+
+See [WebMCP Tools](./webmcp) to expose browser actions. If your server needs MCP server tools, continue with this guide.
+
 ## Installation
 
-```bash
-pnpm add @tanstack/ai-mcp @modelcontextprotocol/sdk
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-mcp @modelcontextprotocol/sdk
+vue: @tanstack/ai-mcp @modelcontextprotocol/sdk
+solid: @tanstack/ai-mcp @modelcontextprotocol/sdk
+svelte: @tanstack/ai-mcp @modelcontextprotocol/sdk
+preact: @tanstack/ai-mcp @modelcontextprotocol/sdk
+angular: @tanstack/ai-mcp @modelcontextprotocol/sdk
+vanilla: @tanstack/ai-mcp @modelcontextprotocol/sdk
+octane: @tanstack/ai-mcp @modelcontextprotocol/sdk
+
+<!-- ::end:tabs -->
 
 ## Quick Start
 
@@ -235,16 +257,21 @@ const tools = await mcp.tools()
 // tools: ServerTool[]  — args typed unknown at compile time
 ```
 
-> **Task-based tools are excluded.** Tools that declare
-> `execution.taskSupport: 'required'` (the experimental MCP tasks feature)
-> can only run through the SDK's `tasks/callToolStream` flow, which
-> `@tanstack/ai-mcp` does not support yet — plain `callTool` is rejected by
-> the server with `-32600`. Discovery skips them so the model is never
-> offered a tool that cannot succeed.
+> **Task-based tools are supported.** Tools that declare
+> `execution.taskSupport: 'required'` automatically run through the MCP SDK's
+> experimental `tasks/callToolStream` flow. TanStack AI waits through task
+> status updates and returns the terminal result to the model. Tools declaring
+> `taskSupport: 'optional'` continue to use ordinary `callTool` execution.
+> Task execution needs the server to declare the tasks capability for
+> `tools/call`; a server that lists a task-required tool without it is
+> skipped by auto-discovery (the tool could never be invoked).
+>
+> If the chat run aborts, TanStack AI stops waiting for the task and sends a
+> best-effort `tasks/cancel` for a remote task the server has already created.
 
 ### Mode 2 — Explicit definitions (`client.tools([...defs])`)
 
-Pass TanStack `toolDefinition()` instances to get full TypeScript types and Zod validation. Only the named tools are returned (allowlist). `MCPToolNotFoundError` is thrown if a name isn't on the server, and `MCPTaskRequiredToolError` if the named tool requires task-based execution (see the Mode 1 note).
+Pass TanStack `toolDefinition()` instances to get full TypeScript types and Zod validation. Only the named tools are returned (allowlist). `MCPToolNotFoundError` is thrown if a name isn't on the server. Task-required tools use the same automatic task execution described in Mode 1.
 
 ```ts
 import { toolDefinition } from '@tanstack/ai'
@@ -270,6 +297,113 @@ const tools = await mcp.tools([searchDef])
 Run the CLI against a live server to generate per-server `interface` types, then pass the generated type as a generic — tool names are narrowed to the server's literal names and pool config keys are compile-checked, with zero runtime overhead. (Tool *arguments* stay untyped on the discovery path — combine with Mode 2 for typed args.)
 
 > See [MCP Type Generation](./mcp-codegen) for the full `mcp.config.ts` setup, the `generate` CLI, and how to wire the generated types into `createMCPClient` and `createMCPClients`.
+
+## Tool Titles & Annotations
+
+MCP servers can ship display and behavior metadata alongside each tool: a human-readable `title` and a set of `annotations` hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`, plus a legacy `annotations.title`). `@tanstack/ai-mcp` forwards all of it onto each discovered tool's `metadata.mcp`, on **both** the auto-discovery and explicit-definition paths, so you can label tools in your UI and decide which ones need a confirmation step.
+
+| `metadata.mcp` field | Value |
+|---|---|
+| `title` | `string` — display name, resolved with the spec's precedence: the tool's `title` → `annotations.title` → `name`. Always set. |
+| `annotations` | The server's `annotations` object, forwarded verbatim. Absent when the server declares none. |
+| `serverToolName` | `string` — server-native (unprefixed) tool name. |
+| `serverId` | The client's `prefix` (undefined when there is none). |
+| `uiResourceUri` | [MCP Apps](../mcp/apps) widget link, when the tool declares one. |
+
+The block is typed, so just read it. `tools()` returns `McpServerTool`s — a plain `ServerTool` (it still drops straight into `chat({ tools })`) whose `metadata.mcp` is statically known to be present and shaped like the table above. No annotation, no cast, and a misspelled field is a compile error:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const url = 'https://my-mcp-server.example.com/mcp'
+
+// Trust comes from YOUR configuration — an allowlist of servers you operate or
+// have vetted — never from anything the server itself sends.
+const trustedServers = new Set(['https://my-mcp-server.example.com/mcp'])
+const serverIsTrusted = trustedServers.has(url)
+
+const mcp = await createMCPClient({ transport: { type: 'http', url } })
+
+const tools = (await mcp.tools()).map((tool) => {
+  const meta = tool.metadata.mcp
+  const advertisedReadOnly = meta.annotations?.readOnlyHint === true
+  return {
+    ...tool,
+    // Approval is the default. A hint may only relax it for a server whose
+    // trust you established independently; on any other server the same hint
+    // is a label/recommendation and changes nothing about approval.
+    needsApproval: !(serverIsTrusted && advertisedReadOnly),
+  }
+})
+```
+
+> **Annotations are advisory, never a security boundary.** The MCP spec is explicit that every field — including `title` — is a hint that may not faithfully describe what the tool actually does, and a malicious or compromised server can claim anything (`readOnlyHint: true` on a tool that deletes records). Do not use them as the security boundary for an untrusted server: never let a hint alone waive approval, sandboxing, or authorization. On a server you have independently established as trusted, a hint may *relax* a confirmation step, as above; everywhere else, treat annotations as display labels and recommendations only — surface `readOnlyHint` as a badge (see the UI example below) rather than acting on it.
+
+Titles are display-only: they never change the tool `name` sent to the model, and a `prefix` still applies to the name (`wx_get_weather`), not to the title.
+
+`McpToolMetadata` and `McpServerTool` are both exported if you need to name the shapes in your own signatures (`ToolAnnotations` too, re-exported from the MCP SDK). You don't need them just to read the block.
+
+To label tools in your UI, expose the forwarded metadata from a server route — the MCP client itself must stay server-side:
+
+```ts ignore
+// src/routes/api.mcp-tools.ts
+import { createFileRoute } from '@tanstack/react-router'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+export const Route = createFileRoute('/api/mcp-tools')({
+  server: {
+    handlers: {
+      GET: async () => {
+        await using mcp = await createMCPClient({
+          transport: { type: 'http', url: process.env.MCP_URL! },
+        })
+        const catalog = (await mcp.tools()).map((tool) => ({
+          name: tool.name,
+          // `title` is always set — the fallback chain already ran.
+          title: tool.metadata.mcp.title,
+          description: tool.description,
+          readOnly: tool.metadata.mcp.annotations?.readOnlyHint === true,
+        }))
+        return Response.json({ tools: catalog })
+      },
+    },
+  },
+})
+```
+
+```tsx
+// src/components/ToolCatalog.tsx
+import { useEffect, useState } from 'react'
+
+interface ToolSummary {
+  name: string
+  title: string
+  description?: string
+  readOnly: boolean
+}
+
+export function ToolCatalog() {
+  const [tools, setTools] = useState<Array<ToolSummary>>([])
+
+  useEffect(() => {
+    fetch('/api/mcp-tools')
+      .then((res) => res.json())
+      .then((body: { tools: Array<ToolSummary> }) => setTools(body.tools))
+  }, [])
+
+  return (
+    <ul>
+      {tools.map((tool) => (
+        <li key={tool.name}>
+          {/* Server-declared title, with the hint driving the badge */}
+          <strong>{tool.title}</strong> {tool.readOnly ? '(read-only)' : '(writes)'}
+          <div>{tool.description}</div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+```
 
 ## Multi-Server Pool
 
@@ -484,6 +618,6 @@ The Quick Start above hands tools to `chat()` manually via `tools: await mcp.too
 | `MCPConnectionError` | `createMCPClient` fails to connect, or a method is called after `close()` |
 | `DuplicateToolNameError` | Two tools have the same name within one client or across the pool |
 | `MCPToolNotFoundError` | A `toolDefinition` name passed to `tools([...defs])` is not found on the server |
-| `MCPTaskRequiredToolError` | A `toolDefinition` passed to `tools([...defs])` names a tool that requires task-based execution (`execution.taskSupport: 'required'`) — such tools are also excluded from `tools()` auto-discovery |
+| `MCPTaskRequiredToolError` | A task-required tool was bound via `tools([...defs])` or called via `callTool()` but the server does not declare the tasks capability for `tools/call`, so the call could never execute |
 
 For the `MCPDuplicateToolNameError` thrown when merging tools from multiple sources inside a `chat({ mcp })` run, see [Managed MCP with `chat()`](./mcp-managed#tool-name-collisions).

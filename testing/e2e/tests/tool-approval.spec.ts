@@ -10,7 +10,7 @@ import {
 import { providersFor } from './test-matrix'
 
 for (const provider of providersFor('tool-approval')) {
-  test.describe(`${provider} — tool-approval`, () => {
+  test.describe(`${provider} - tool-approval`, () => {
     test('shows approval prompt and completes on approve', async ({
       page,
       testId,

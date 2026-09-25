@@ -3,11 +3,13 @@ id: ImagePart
 title: ImagePart
 ---
 
-# Interface: ImagePart\<TMetadata\>
+Defined in: [packages/ai/src/types.ts:274](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L274)
 
-Defined in: [packages/ai/src/types.ts:248](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L248)
+Image content part for multimodal messages. AG-UI `ImagePart` with typed metadata.
 
-Image content part for multimodal messages.
+## Extends
+
+- `ImagePart`
 
 ## Type Parameters
 
@@ -22,31 +24,15 @@ Provider-specific metadata type (e.g., OpenAI's detail level)
 ### metadata?
 
 ```ts
-optional metadata: TMetadata;
+optional metadata?: TMetadata;
 ```
 
-Defined in: [packages/ai/src/types.ts:253](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L253)
+Defined in: [packages/ai/src/types.ts:276](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L276)
 
 Provider-specific metadata (e.g., OpenAI's detail: 'auto' | 'low' | 'high')
 
-***
-
-### source
+#### Overrides
 
 ```ts
-source: ContentPartSource;
+AGUIImagePart.metadata
 ```
-
-Defined in: [packages/ai/src/types.ts:251](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L251)
-
-Source of the image content
-
-***
-
-### type
-
-```ts
-type: "image";
-```
-
-Defined in: [packages/ai/src/types.ts:249](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L249)

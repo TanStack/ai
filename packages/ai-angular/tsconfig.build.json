@@ -5,7 +5,8 @@
     "declaration": true,
     "declarationMap": false,
     "emitDecoratorMetadata": false,
-    "experimentalDecorators": false
+    "experimentalDecorators": false,
+    "paths": {}
   },
   "angularCompilerOptions": {
     "compilationMode": "partial",

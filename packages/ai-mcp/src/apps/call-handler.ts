@@ -127,10 +127,12 @@ function buildRegistry(clients: McpAppClientsInput): AppRegistry {
   const add = (info: {
     transport: McpServerDescriptor['transport']
     prefix: string | undefined
+    clientOptions?: McpServerDescriptor['clientOptions']
   }) => {
     const descriptor: McpServerDescriptor = {
       transport: info.transport,
       prefix: info.prefix,
+      ...(info.clientOptions ? { clientOptions: info.clientOptions } : {}),
     }
     total += 1
     const key = info.prefix
@@ -234,6 +236,9 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
     const client = await createMCPClient({
       transport: descriptor.transport,
       prefix: descriptor.prefix,
+      ...(descriptor.clientOptions
+        ? { clientOptions: descriptor.clientOptions }
+        : {}),
     })
 
     try {

@@ -1,15 +1,13 @@
 import type {
   BetaContextManagementConfig,
+  BetaMessageParam,
   BetaToolChoiceAny,
   BetaToolChoiceAuto,
   BetaToolChoiceTool,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 import type { CacheControlEphemeral } from '@anthropic-ai/sdk/resources'
 import type { AnthropicContainerSkill, AnthropicTool } from '../tools/index'
-import type {
-  MessageParam,
-  TextBlockParam,
-} from '@anthropic-ai/sdk/resources/messages'
+import type { TextBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
 /**
  * Per-prompt metadata Anthropic understands on `systemPrompts` entries.
@@ -38,6 +36,22 @@ export interface AnthropicSystemPromptMetadata {
    *
    * @see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
    */
+  cache_control?: CacheControlEphemeral
+}
+
+/**
+ * Top-level prompt-caching control.
+ *
+ * Anthropic's Messages API accepts `cache_control` as a request-level
+ * parameter: it auto-places the breakpoint on the last cacheable block of the
+ * rendered prompt (`tools` → `system` → `messages`). Use this when you don't
+ * need per-block placement; for a breakpoint on a specific system prompt, use
+ * the structured `systemPrompts` form with
+ * {@link AnthropicSystemPromptMetadata} instead.
+ *
+ * @see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
+ */
+export interface AnthropicCacheControlOptions {
   cache_control?: CacheControlEphemeral
 }
 
@@ -288,7 +302,8 @@ Required range: x >= 0
   max_tokens?: number
 }
 
-export type ExternalTextProviderOptions = AnthropicContainerOptions &
+export type ExternalTextProviderOptions = AnthropicCacheControlOptions &
+  AnthropicContainerOptions &
   AnthropicContextManagementOptions &
   AnthropicMCPOptions &
   AnthropicServiceTierOptions &
@@ -303,7 +318,7 @@ export type ExternalTextProviderOptions = AnthropicContainerOptions &
 export interface InternalTextProviderOptions extends ExternalTextProviderOptions {
   model: string
 
-  messages: Array<MessageParam>
+  messages: Array<BetaMessageParam>
 
   /**
    * The maximum number of tokens to generate before stopping.  This parameter only specifies the absolute maximum number of tokens to generate.

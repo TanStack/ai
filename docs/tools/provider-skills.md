@@ -18,9 +18,9 @@ Provider Skills are hosted, provider-managed capability bundles that the model
 loads on demand and runs inside the provider's server-side sandbox. You
 reference them by a skill ID; the provider handles installation and execution.
 
-> **Not to be confused with `@tanstack/ai-code-mode-skills`**, which are
-> locally-generated TypeScript functions evaluated client-side. Provider Skills
-> run entirely on the provider's infrastructure.
+> **Not to be confused with `@tanstack/ai-code-mode-snippets`**, whose snippets
+> are TypeScript functions your application generates and runs in its own Code Mode sandbox (a local JS isolate). Provider
+> Skills run entirely on the provider's infrastructure.
 
 Skills are **inert without an execution tool**. The execution tool activates the
 sandbox; skills are additional bundles that run inside it:
@@ -35,13 +35,45 @@ the rest.
 
 ---
 
+## Portable vs hosted skills
+
+There are two ways to give a model skills in TanStack AI, and they solve
+different problems:
+
+- **Portable skills** ([`withSkills`](../skills/agent-skills)) render a catalog
+  and let the model call `load_skill`. They run on any tool-calling model, need
+  no server sandbox, and read `SKILL.md` from a folder, a bundle, or your own
+  store. Reach for these first.
+- **Hosted (provider) skills**, this page, run inside the provider's server-side
+  sandbox and are referenced by ID. They are non-portable and require an
+  execution tool, but the provider does the running.
+
+Use hosted skills when you need the provider's sandbox (running code, producing
+files). Use portable skills for everything else.
+
+The two do not mix in one `chat()` call. If you attach hosted skills to a
+`code_execution` or `shell` tool and also add `withSkills`, the middleware
+throws: the model would see two catalogs and two protocols. Pick one delivery
+mode per call.
+
+---
+
 ## Anthropic: skills via `codeExecutionTool`
 
 ### 1. Install the package
 
-```bash
-npm install @tanstack/ai-anthropic
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-anthropic
+vue: @tanstack/ai-anthropic
+solid: @tanstack/ai-anthropic
+svelte: @tanstack/ai-anthropic
+preact: @tanstack/ai-anthropic
+angular: @tanstack/ai-anthropic
+vanilla: @tanstack/ai-anthropic
+octane: @tanstack/ai-anthropic
+
+<!-- ::end:tabs -->
 
 ### 2. Add the `codeExecutionTool` with skills
 
@@ -111,9 +143,18 @@ not support the shell tool.
 
 ### 1. Install the package
 
-```bash
-npm install @tanstack/ai-openai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-openai
+vue: @tanstack/ai-openai
+solid: @tanstack/ai-openai
+svelte: @tanstack/ai-openai
+preact: @tanstack/ai-openai
+angular: @tanstack/ai-openai
+vanilla: @tanstack/ai-openai
+octane: @tanstack/ai-openai
+
+<!-- ::end:tabs -->
 
 ### 2. Add the `shellTool` with skills
 
@@ -172,6 +213,8 @@ handled by `codeExecutionTool` or `shellTool`.
 
 ## Related pages
 
+- [Portable Agent Skills](../skills/agent-skills) — the provider-agnostic
+  alternative: a catalog plus `load_skill`, on any tool-calling model.
 - [Provider Tools](./provider-tools.md) — all native provider tools and the
   type-level guard that prevents pairing a tool with an unsupported model.
 - [Anthropic adapter → `codeExecutionTool`](../adapters/anthropic.md#codeexecutiontool)

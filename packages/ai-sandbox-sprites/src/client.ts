@@ -574,7 +574,7 @@ export class SpritesClient implements SpritesClientLike {
     // The global (undici) WebSocket accepts a `headers` constructor option at
     // runtime, but the WHATWG type only declares `(url, protocols?)`, so the two
     // constructor signatures don't structurally overlap — bridge via `unknown`.
-    // eslint-disable-next-line no-restricted-syntax -- undici headers option not in the DOM WebSocket type
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- undici headers option not in the DOM WebSocket type
     const WebSocketCtor = WebSocket as unknown as WsCtor
     const ws = new WebSocketCtor(url, { headers: this.headers() })
     ws.binaryType = 'arraybuffer'

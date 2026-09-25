@@ -28,16 +28,20 @@ keep `OPENAI_API_KEY` / `OPENAI_MODEL` on the server.
 
 If you are starting from scratch, create an Expo app first:
 
-```bash
-npx create-expo-app@latest my-ai-chat
-```
+<!-- ::start:tabs variant="package-manager" mode="local-install" -->
+
+react: create-expo-app@latest my-ai-chat
+
+<!-- ::end:tabs -->
 
 Install TanStack AI, the React hook package, the OpenAI adapter for your
 server, and Hono for the example backend:
 
-```bash
-pnpm add @tanstack/ai @tanstack/ai-react @tanstack/ai-openai hono @hono/node-server zod
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openai hono @hono/node-server zod
+
+<!-- ::end:tabs -->
 
 If your Expo app lives in a workspace, run the command from the app package or
 use your workspace filter.
@@ -110,8 +114,13 @@ OPENAI_MODEL=gpt-5.2
 Run the Hono server before starting the native app. For a TypeScript-only
 example, install `tsx` and add a script:
 
+<!-- ::start:tabs variant="package-manager" mode="dev-install" -->
+
+react: tsx
+
+<!-- ::end:tabs -->
+
 ```bash
-pnpm add -D tsx
 pnpm pkg set scripts.dev:server="tsx server.ts"
 pnpm dev:server
 ```

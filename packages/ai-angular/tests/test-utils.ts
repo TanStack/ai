@@ -1,18 +1,53 @@
 import { Component } from '@angular/core'
-import { getTestBed, TestBed } from '@angular/core/testing'
+import { TestBed, getTestBed } from '@angular/core/testing'
 import {
   BrowserDynamicTestingModule,
   platformBrowserDynamicTesting,
 } from '@angular/platform-browser-dynamic/testing'
 import { injectChat } from '../src/inject-chat'
-import type { InjectChatOptions } from '../src/types'
-import type { InjectChatResult } from '../src/types'
+import type { InjectChatOptions, InjectChatResult } from '../src/types'
 
 export {
   createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
 } from '../../ai-client/tests/test-utils'
+
+export function createInterruptResumeSnapshot() {
+  const pendingInterrupts = [
+    {
+      id: 'staged-interrupt',
+      reason: 'confirmation',
+      metadata: {
+        'tanstack:interruptBinding': {
+          kind: 'generic' as const,
+          interruptId: 'staged-interrupt',
+          interruptedRunId: 'run-1',
+          generation: 1,
+          responseSchemaHash: 'none',
+        },
+      },
+    },
+    {
+      id: 'invalid-interrupt',
+      reason: 'confirmation',
+      metadata: {
+        'tanstack:interruptBinding': {
+          kind: 'generic' as const,
+          interruptId: 'invalid-interrupt',
+          interruptedRunId: 'run-1',
+          generation: 1,
+          responseSchemaHash: 'none',
+        },
+      },
+    },
+  ]
+
+  return {
+    resumeState: { threadId: 'thread-1', runId: 'run-1' },
+    pendingInterrupts,
+  }
+}
 
 // Ensure TestBed is initialized in this module's scope, regardless of whether
 // the setup file's initialization was in a different module context (possible

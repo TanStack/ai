@@ -112,4 +112,54 @@ test.describe('mcp — server tool discovery + execution in chat()', () => {
     expect(events.some((e) => e.type === 'RUN_ERROR')).toBe(false)
     expect(events.some((e) => e.type === 'RUN_FINISHED')).toBe(true)
   })
+
+  test('clientOptions reaches the SDK client — a custom validator changes the outcome', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    // Same server, same fixture, one flag: the route installs a
+    // `jsonSchemaValidator` that refuses everything via `clientOptions`.
+    //
+    // The mock server's `get_guitar_price` declares an `outputSchema` and
+    // returns `structuredContent` the SDK's default AJV provider accepts, so a
+    // `clientOptions` that was dropped on the floor would leave this run
+    // identical to the test above. It is not: the tool call fails validation.
+    //
+    // That option is how an edge runtime installs a validator that does not
+    // compile schemas with `new Function`, which AJV does and Cloudflare
+    // Workers forbid.
+    const res = await request.post('/api/mcp-test', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        threadId: `mcp-opts-thread-${testId}`,
+        runId: `mcp-opts-run-${testId}`,
+        state: {},
+        messages: [
+          {
+            id: 'mcp-opts-msg-1',
+            role: 'user',
+            content: '[mcp] how much is the strat guitar',
+          },
+        ],
+        tools: [],
+        context: [],
+        forwardedProps: { testId, aimockPort, rejectStructuredOutput: true },
+      },
+    })
+
+    const body = await res.text()
+    const events = parseSse(body)
+
+    const toolResult = events.find((e) => e.type === 'TOOL_CALL_RESULT')
+    expect(toolResult, 'expected a TOOL_CALL_RESULT event').toBeTruthy()
+    const resultStr = JSON.stringify(toolResult?.content ?? '')
+
+    expect(resultStr).toContain('rejected by the injected validator')
+    // The other half of the proof: the payload the default validator accepts
+    // never reaches the tool result. Asserted on the tool result rather than the
+    // whole transcript — the aimock fixture's final answer is a recorded script
+    // that names the price whether or not the tool succeeded.
+    expect(resultStr).not.toContain('1999')
+  })
 })

@@ -84,9 +84,12 @@ export const Route = createFileRoute('/api/chat')({
 
 Install the optional peer dependency:
 
-```bash
-pnpm add @mcp-ui/client
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @mcp-ui/client
+preact: @mcp-ui/client
+
+<!-- ::end:tabs -->
 
 Then render each `ui-resource` part from the assistant message.
 
@@ -150,9 +153,12 @@ For widgets that need to call tools or send prompts back to the model, you wire 
 
 ### Installation
 
-```bash
-pnpm add @tanstack/ai-mcp @tanstack/ai-client @mcp-ui/client
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-mcp @tanstack/ai-client @mcp-ui/client
+preact: @tanstack/ai-mcp @tanstack/ai-client @mcp-ui/client
+
+<!-- ::end:tabs -->
 
 ### Server — the call handler route
 
@@ -299,7 +305,7 @@ export function Chat() {
   const bridge = useMcpAppBridge({
     threadId,
     callEndpoint: '/api/mcp-apps/call',
-    chat: { sendMessage: async (content) => void sendMessage({ content }) },
+    chat: { sendMessage: (content, body) => sendMessage(content, { body }) },
     // Opt in to link navigation — absent means links are blocked.
     onLink: (url) => window.open(url, '_blank', 'noopener'),
   })
@@ -419,7 +425,11 @@ import type { CreateMcpAppBridgeOptions } from '@tanstack/ai-client'
 const options: CreateMcpAppBridgeOptions = {
   threadId: 'weather-chat', // identifies the thread for the call handler
   callEndpoint: '/api/mcp-apps/call', // POST route mounting createMcpAppCallHandler
-  chat: { sendMessage: async (text) => console.log(text) }, // prompt-intent path
+  chat: {
+    sendMessage: async (content, body) => {
+      console.log(content, body)
+    },
+  }, // prompt-intent path
   fetchImpl: fetch, // optional; injectable for testing
   onLink: (url) => window.open(url, '_blank'), // absent → link is dropped (warned), openLink returns { isError: true }
 }
@@ -446,7 +456,7 @@ function useBridge(threadId: string) {
   return useMcpAppBridge({
     threadId,
     callEndpoint: '/api/mcp-apps/call',
-    chat: { sendMessage: async (content) => void sendMessage({ content }) },
+    chat: { sendMessage: (content, body) => sendMessage(content, { body }) },
     onLink: (url) => window.open(url, '_blank', 'noopener'),
   })
 }

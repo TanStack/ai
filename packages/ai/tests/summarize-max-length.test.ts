@@ -75,6 +75,26 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
     expect(opts?.['maxTokens']).toBeUndefined()
   })
 
+  it('Groq adapter receives maxLength as max_completion_tokens', async () => {
+    const { textAdapter, lastModelOptions } = createRecordingTextAdapter()
+    const adapter = new ChatStreamSummarizeAdapter(
+      textAdapter,
+      'llama-3.3-70b-versatile',
+      'groq',
+    )
+
+    await adapter.summarize({
+      model: 'llama-3.3-70b-versatile',
+      text: 'hi',
+      maxLength: 256,
+      logger,
+    })
+
+    const opts = lastModelOptions()
+    expect(opts?.['max_completion_tokens']).toBe(256)
+    expect(opts?.['maxTokens']).toBeUndefined()
+  })
+
   it('Ollama adapter receives maxLength AND the temperature default nested under options', async () => {
     const { textAdapter, lastModelOptions } = createRecordingTextAdapter()
     const adapter = new ChatStreamSummarizeAdapter(
@@ -153,4 +173,39 @@ describe('ChatStreamSummarizeAdapter — maxLength reaches the wrapped adapter u
     // The drop must be surfaced, not silent.
     expect(warnings.some((w) => w.includes('maxLength=128'))).toBe(true)
   })
+
+  for (const stream of [false, true]) {
+    it.each([undefined, 0, 41])(
+      `preserves a custom token limit %s (stream=${stream})`,
+      async (limit) => {
+        const { textAdapter, lastModelOptions } = createRecordingTextAdapter()
+        const adapter = new ChatStreamSummarizeAdapter(
+          { ...textAdapter, maxTokensKey: 'custom_output_cap' },
+          'some-model',
+        )
+        const modelOptions =
+          limit === undefined ? {} : { custom_output_cap: limit }
+        const options = {
+          model: 'some-model',
+          text: 'hi',
+          maxLength: 73,
+          modelOptions,
+          logger,
+        }
+
+        if (stream) {
+          for await (const _chunk of adapter.summarizeStream(options)) {
+            // Drain the stream to record the forwarded options.
+          }
+        } else {
+          await adapter.summarize(options)
+        }
+
+        expect(lastModelOptions()?.custom_output_cap).toBe(limit ?? 73)
+        expect(modelOptions).toEqual(
+          limit === undefined ? {} : { custom_output_cap: limit },
+        )
+      },
+    )
+  }
 })

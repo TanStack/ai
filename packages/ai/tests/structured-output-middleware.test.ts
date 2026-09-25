@@ -13,10 +13,10 @@ import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
 import { createMockAdapter, ev } from './test-utils'
 import type {
-  RunFinishedEvent,
   StreamChunk,
   StructuredOutputCompleteEvent,
   StructuredOutputStartEvent,
+  TokenUsage,
 } from '../src/types'
 import type {
   ChatMiddleware,
@@ -123,7 +123,7 @@ type Recorder = Array<{ chatOptions: unknown; outputSchema: unknown }>
  *  No `as X` casts. */
 function buildStructuredStream(
   value: Person,
-  usage?: RunFinishedEvent['usage'],
+  usage?: TokenUsage,
 ): Array<StreamChunk> {
   return [
     ev.runStarted('mock-run', 'mock-thread'),
@@ -139,7 +139,7 @@ function buildStructuredStream(
 function makeAdapter(opts: {
   agentIterations?: Array<Array<StreamChunk>>
   structuredValue?: Person
-  structuredRunFinishedUsage?: RunFinishedEvent['usage']
+  structuredRunFinishedUsage?: TokenUsage
   structuredOutputThrows?: Error
   noNativeStructuredOutputStream?: boolean
   recordStructuredCalls?: Recorder

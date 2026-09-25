@@ -1,14 +1,20 @@
 /**
- * Fetches models from the OpenRouter API and writes them to openrouter.models.json.
+ * Fetches models from the OpenRouter API and writes them to openrouter.models.json
+ * and openrouter.video-models.json.
  *
  * Usage:
  *   pnpm tsx scripts/fetch-openrouter-models.ts
  *
+ * Video generation models do NOT appear in the plain `GET /api/v1/models`
+ * listing — they live behind the dedicated `GET /api/v1/videos/models`
+ * endpoint, so this script fetches both and writes each to its own JSON file.
+ *
  * The output is plain JSON so a malicious or compromised upstream response
  * cannot smuggle executable code into the build (JSON.stringify cannot produce
- * a JS expression). The committed wrapper at `openrouter.models.ts` re-exports
- * this JSON typed as `Array<OpenRouterModel>` so consumers don't need to know
- * where the data lives.
+ * a JS expression). The committed wrappers at `openrouter.models.ts` /
+ * `openrouter.video-models.ts` re-export the JSON typed as
+ * `Array<OpenRouterModel>` / `Array<OpenRouterVideoApiModel>` so consumers
+ * don't need to know where the data lives.
  */
 
 import { writeFile } from 'node:fs/promises'
@@ -17,7 +23,9 @@ import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const OUTPUT_PATH = resolve(__dirname, 'openrouter.models.json')
+const VIDEO_OUTPUT_PATH = resolve(__dirname, 'openrouter.video-models.json')
 const API_URL = 'https://openrouter.ai/api/v1/models'
+const VIDEO_API_URL = 'https://openrouter.ai/api/v1/videos/models'
 
 interface ApiModel {
   id: string
@@ -80,9 +88,37 @@ function isValidModel(model: ApiModel): boolean {
   return true
 }
 
-async function main() {
-  console.log(`Fetching models from ${API_URL}...`)
-  const response = await fetch(API_URL, {
+interface VideoApiModel {
+  id: string
+  name: string
+  supported_durations: Array<number> | null
+  supported_resolutions: Array<string> | null
+  supported_aspect_ratios: Array<string> | null
+  supported_frame_images: Array<string> | null
+  supported_sizes: Array<string> | null
+  generate_audio: boolean | null
+  seed: boolean | null
+  pricing_skus?: Record<string, string> | null
+  allowed_passthrough_parameters?: Array<string>
+}
+
+function isValidVideoModel(model: VideoApiModel): boolean {
+  if (typeof model.id !== 'string' || typeof model.name !== 'string') {
+    return false
+  }
+  const arrayOrNull = (v: unknown) => v === null || Array.isArray(v)
+  return (
+    arrayOrNull(model.supported_durations) &&
+    arrayOrNull(model.supported_resolutions) &&
+    arrayOrNull(model.supported_aspect_ratios) &&
+    arrayOrNull(model.supported_frame_images) &&
+    arrayOrNull(model.supported_sizes)
+  )
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  console.log(`Fetching models from ${url}...`)
+  const response = await fetch(url, {
     signal: AbortSignal.timeout(30_000),
   })
 
@@ -92,7 +128,11 @@ async function main() {
     )
   }
 
-  const json = (await response.json()) as { data: Array<ApiModel> }
+  return (await response.json()) as T
+}
+
+async function main() {
+  const json = await fetchJson<{ data: Array<ApiModel> }>(API_URL)
   const allModels = json.data
 
   const validModels = allModels.filter(isValidModel)
@@ -112,6 +152,27 @@ async function main() {
   )
   console.log(`Fetched ${validModels.length} models`)
   console.log(`Written to ${OUTPUT_PATH}`)
+
+  const videoJson = await fetchJson<{ data: Array<VideoApiModel> }>(
+    VIDEO_API_URL,
+  )
+  const validVideoModels = videoJson.data.filter(isValidVideoModel)
+  const skippedVideo = videoJson.data.length - validVideoModels.length
+  if (skippedVideo > 0) {
+    console.log(
+      `Skipped ${skippedVideo} video models with malformed fields (id, name, supported_* arrays)`,
+    )
+  }
+
+  validVideoModels.sort((a, b) => a.id.localeCompare(b.id))
+
+  await writeFile(
+    VIDEO_OUTPUT_PATH,
+    JSON.stringify(validVideoModels, null, 2) + '\n',
+    'utf-8',
+  )
+  console.log(`Fetched ${validVideoModels.length} video models`)
+  console.log(`Written to ${VIDEO_OUTPUT_PATH}`)
 }
 
 main().catch((error) => {

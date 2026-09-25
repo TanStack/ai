@@ -11,6 +11,14 @@ export {
   type GrokTextProviderOptions,
 } from './adapters/text'
 
+// Files adapter - upload to the xAI Files API and reference by public URL
+export {
+  GrokFilesAdapter,
+  createGrokFiles,
+  grokFiles,
+  type GrokFilesConfig,
+} from './adapters/files'
+
 // Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
 export {
   createGrokSummarize,
@@ -27,7 +35,8 @@ export {
   type GrokImageConfig,
 } from './adapters/image'
 export type {
-  GrokImageProviderOptions,
+  GrokImagineImageProviderOptions,
+  GrokImagineImage2ProviderOptions,
   GrokImageModelProviderOptionsByName,
 } from './image/image-provider-options'
 
@@ -43,7 +52,11 @@ export {
   getGrokVideoDurationOptions,
 } from './video/video-provider-options'
 export type {
+  GrokVideoMode,
+  GrokVideoBaseProviderOptions,
+  GrokVideoSourceProviderOptions,
   GrokVideoProviderOptions,
+  GrokVideoRuntimeOptions,
   GrokVideoModelProviderOptionsByName,
   GrokVideoModelSizeByName,
   GrokVideoModelDurationByName,
@@ -88,6 +101,7 @@ export type {
   ResolveProviderOptions,
   ResolveInputModalities,
   GrokChatModel,
+  GrokVertexChatModel,
   GrokImageModel,
   GrokVideoModel,
   GrokTTSModel,
@@ -96,11 +110,13 @@ export type {
 } from './model-meta'
 export {
   GROK_CHAT_MODELS,
+  GROK_VERTEX_CHAT_MODELS,
   GROK_IMAGE_MODELS,
   GROK_VIDEO_MODELS,
   GROK_TTS_MODELS,
   GROK_TRANSCRIPTION_MODELS,
   GROK_REALTIME_MODELS,
+  GROK_DEFAULT_REALTIME_MODEL,
 } from './model-meta'
 export type {
   GrokTextMetadata,

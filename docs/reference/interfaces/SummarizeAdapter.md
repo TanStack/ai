@@ -3,8 +3,6 @@ id: SummarizeAdapter
 title: SummarizeAdapter
 ---
 
-# Interface: SummarizeAdapter\<TModel, TProviderOptions\>
-
 Defined in: [packages/ai/src/activities/summarize/adapter.ts:28](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/summarize/adapter.ts#L28)
 
 Summarize adapter interface with pre-resolved generics.
@@ -84,7 +82,7 @@ Adapter name identifier
 
 ***
 
-### summarize()
+### summarize
 
 ```ts
 summarize: (options) => Promise<SummarizationResult>;
@@ -106,10 +104,10 @@ Summarize the given text
 
 ***
 
-### summarizeStream()?
+### summarizeStream?
 
 ```ts
-optional summarizeStream: (options) => AsyncIterable<AGUIEvent>;
+optional summarizeStream?: (options) => AsyncIterable<AGUIEvent>;
 ```
 
 Defined in: [packages/ai/src/activities/summarize/adapter.ts:58](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/summarize/adapter.ts#L58)

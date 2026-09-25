@@ -6,10 +6,15 @@
  * factory branches between the Converse adapter (DEFAULT), the Chat Completions
  * adapter (`api: 'chat'`), and the Responses adapter (`api: 'responses'`).
  */
+
 import { BedrockTextAdapter } from './adapters/text'
 import { BedrockResponsesTextAdapter } from './adapters/responses-text'
 import { BedrockConverseTextAdapter } from './adapters/converse-text'
-import { BEDROCK_CHAT_MODELS, BEDROCK_RESPONSES_MODELS } from './model-meta'
+import {
+  BEDROCK_CHAT_MODELS,
+  BEDROCK_CONVERSE_MODELS,
+  BEDROCK_RESPONSES_MODELS,
+} from './model-meta'
 import type { BedrockTextConfig } from './adapters/text'
 import type { BedrockResponsesConfig } from './adapters/responses-text'
 import type { BedrockConverseConfig } from './adapters/converse-text'
@@ -38,6 +43,12 @@ type AnyBedrockAdapter =
   | BedrockTextAdapter<BedrockChatModels>
   | BedrockResponsesTextAdapter<BedrockResponsesModels>
 
+/** Any catalog id the branching factory can receive. */
+type BedrockFactoryModel =
+  | BedrockConverseModels
+  | BedrockChatModels
+  | BedrockResponsesModels
+
 /** Cast-free runtime guard: is this model in the Responses-capable subset? */
 function isResponsesModel(model: string): model is BedrockResponsesModels {
   return BEDROCK_RESPONSES_MODELS.some((m) => m === model)
@@ -46,6 +57,11 @@ function isResponsesModel(model: string): model is BedrockResponsesModels {
 /** Cast-free runtime guard: is this model in the Chat-capable subset? */
 function isChatModel(model: string): model is BedrockChatModels {
   return BEDROCK_CHAT_MODELS.some((m) => m === model)
+}
+
+/** Cast-free runtime guard: is this model in the Converse-capable subset? */
+function isConverseModel(model: string): model is BedrockConverseModels {
+  return BEDROCK_CONVERSE_MODELS.some((m) => m === model)
 }
 
 /** Strip the `api` discriminator from a config without an unused-var lint error. */
@@ -64,7 +80,7 @@ function stripApi<T extends { api?: unknown }>(config: T): Omit<T, 'api'> {
  * Default path → Converse adapter; opt-in via `api: 'chat'` or `api: 'responses'`.
  */
 function build(
-  model: BedrockConverseModels,
+  model: BedrockFactoryModel,
   config?: BedrockClientConfig & { api?: 'converse' | 'chat' | 'responses' },
 ): AnyBedrockAdapter {
   if (config?.api === 'responses') {
@@ -86,7 +102,12 @@ function build(
     }
     return new BedrockTextAdapter(stripApi(config), model)
   }
-  // Default + explicit 'converse'
+  if (!isConverseModel(model)) {
+    throw new Error(
+      `Model "${model}" is not available on the Bedrock Converse API. ` +
+        `Converse-capable models: ${BEDROCK_CONVERSE_MODELS.join(', ')}.`,
+    )
+  }
   return new BedrockConverseTextAdapter(config ? stripApi(config) : {}, model)
 }
 
@@ -107,7 +128,7 @@ export function createBedrockText<TModel extends BedrockResponsesModels>(
   config: BedrockResponsesApiConfig,
 ): BedrockResponsesTextAdapter<TModel>
 export function createBedrockText(
-  model: BedrockConverseModels,
+  model: BedrockFactoryModel,
   apiKey: string,
   config?:
     | BedrockConverseApiConfig
@@ -132,7 +153,7 @@ export function bedrockText<TModel extends BedrockResponsesModels>(
   config: BedrockResponsesApiConfig,
 ): BedrockResponsesTextAdapter<TModel>
 export function bedrockText(
-  model: BedrockConverseModels,
+  model: BedrockFactoryModel,
   config?:
     | BedrockConverseApiConfig
     | BedrockChatApiConfig
@@ -161,6 +182,19 @@ export {
   createBedrockConverse,
   type BedrockConverseConfig,
 } from './adapters/converse-text'
+export {
+  BedrockEmbeddingAdapter,
+  bedrockEmbedding,
+  createBedrockEmbedding,
+  type BedrockEmbeddingConfig,
+} from './adapters/embedding'
+export type {
+  BedrockCohereEmbeddingInputType,
+  BedrockCohereEmbeddingProviderOptions,
+  BedrockEmbeddingProviderOptions,
+  BedrockTitanImageEmbeddingProviderOptions,
+  BedrockTitanTextEmbeddingProviderOptions,
+} from './embedding/embedding-provider-options'
 export type { BedrockConverseProviderOptions } from './converse/provider-options'
 export {
   resolveBedrockAuth,
@@ -173,6 +207,10 @@ export {
   BEDROCK_CHAT_MODELS,
   BEDROCK_RESPONSES_MODELS,
   BEDROCK_CONVERSE_MODELS,
+  BEDROCK_EMBEDDING_MODELS,
+  type BedrockEmbeddingModel,
+  type BedrockEmbeddingModelProviderOptionsByName,
+  type BedrockEmbeddingModelInputModalitiesByName,
   type BedrockChatModels,
   type BedrockResponsesModels,
   type BedrockConverseModels,

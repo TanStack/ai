@@ -3,13 +3,11 @@ id: chat
 title: chat
 ---
 
-# Function: chat()
-
 ```ts
-function chat<TAdapter, TSchema, TStream, TTools, TMiddleware>(options): TextActivityResult<TSchema, TStream>;
+function chat<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware, TAgents>(options): TextActivityResult<TSchema, TStream, TTools>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/index.ts:2686](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L2686)
+Defined in: [packages/ai/src/activities/chat/index.ts:4949](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L4949)
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 
@@ -36,41 +34,51 @@ This activity supports four modes:
 ### TTools
 
 `TTools` *extends* 
-  \| (
+  \| readonly (
   \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
   \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
   \| `undefined` = 
-  \| (
+  \| readonly (
   \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
   \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
   \| `undefined`
+
+### TInterrupts
+
+`TInterrupts` *extends* readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[] = \[\]
+
+### TContext
+
+`TContext` = `unknown`
 
 ### TMiddleware
 
-`TMiddleware` *extends* 
-  \| [`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`any`\>[]
-  \| `undefined` = 
-  \| [`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`any`\>[]
-  \| `undefined`
+`TMiddleware` *extends* `unknown`[] \| `undefined` = `undefined`
+
+### TAgents
+
+`TAgents` *extends* readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[]\>[] = readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[]\>[]
 
 ## Parameters
 
 ### options
 
-`TextActivityOptionsWithContext`\<`TAdapter`, `TSchema`, `TStream`, `TTools`, `TMiddleware`\>
+`TextActivityOptionsWithContext`\<`TAdapter`, `TSchema`, `TStream`, `TTools`, `TInterrupts`, `TContext`, `TMiddleware`, `TAgents`\>
 
 ## Returns
 
-`TextActivityResult`\<`TSchema`, `TStream`\>
+`TextActivityResult`\<`TSchema`, `TStream`, `TTools`\>
 
 ## Examples
+
+**Full agentic text (streaming with tools)**
 
 ```ts
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
 for await (const chunk of chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'What is the weather?' }],
   tools: [weatherTool]
 })) {
@@ -80,29 +88,35 @@ for await (const chunk of chat({
 }
 ```
 
+**One-shot text (streaming without tools)**
+
 ```ts
 for await (const chunk of chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Hello!' }]
 })) {
   console.log(chunk)
 }
 ```
 
+**Non-streaming text (stream: false)**
+
 ```ts
 const text = await chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Hello!' }],
   stream: false
 })
 // text is a string with the full response
 ```
 
+**Agentic structured output (tools + structured response)**
+
 ```ts
 import { z } from 'zod'
 
 const result = await chat({
-  adapter: openaiText('gpt-4o'),
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
   tools: [researchTool, analyzeTool],
   outputSchema: z.object({

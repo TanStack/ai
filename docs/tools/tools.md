@@ -66,6 +66,8 @@ const inputSchema = z.object({
 });
 ```
 
+> **Note:** For OpenAI-compatible providers, an omitted `.optional()` tool field is absent when your tool runs. A `.nullable()` field keeps `null`.
+
 ### Option 2: JSON Schema Objects
 
 For cases where you already have JSON Schema definitions or prefer not to use Zod, you can pass raw JSON Schema objects directly:
@@ -90,6 +92,8 @@ const inputSchema: JSONSchema = {
 ```
 
 > **Note:** When using JSON Schema, TypeScript infers `unknown` for input/output types (it cannot derive types from a JSON Schema at compile time), so you must narrow or cast `args` before use. Zod schemas are recommended for full type safety.
+
+> **Tip:** Type safety from Zod schemas extends beyond tool execution. When you pass `.client()` tools to `useChat`, a check on `part.name` narrows `part.input` and `part.output`. See [Type-safe tool call events](../chat/stream-events#type-safe-tool-call-events).
 
 ## Tool Definition
 
@@ -426,6 +430,10 @@ const importData = importDataDef.server<ImportContext>(async (input, { context, 
   return { imported: rows.length };
 });
 ```
+
+Each `emitCustomEvent` call flushes through durability immediately, so the
+client can show progress while the tool still runs. Pass `{ batch: true }`
+only for a high-volume stream. See [Custom Events](../protocol/custom-events).
 
 See [Server Tools](./server-tools) for the full runtime-context pattern.
 

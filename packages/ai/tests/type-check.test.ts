@@ -1,20 +1,26 @@
 /**
- * Type-level tests for TextActivityOptions
+ * Type-level tests for TextActivityOptions and ChatStream
  * These should fail to compile if the types are incorrect
  */
 
-import { describe, it, expectTypeOf } from 'vitest'
+import { describe, expectTypeOf, it } from 'vitest'
+import { z } from 'zod'
 import {
+  chat,
   createChatOptions,
   createToolRegistry,
   mergeAgentTools,
   toolDefinition,
 } from '../src'
 import { ToolCallManager } from '../src/activities/chat/tools/tool-calls'
+import type { ChatStream, KnownCustomEvent } from '../src'
 import type { TextAdapter } from '../src/activities/chat/adapter'
 import type { ChatMiddleware } from '../src'
 
-// Mock adapter for testing - simulates OpenAI adapter
+// ===========================
+// Mock adapter (inline — needed for typeof in generic args)
+// ===========================
+
 type MockAdapter = TextAdapter<
   'test-model',
   { validOption: string; anotherOption?: number },
@@ -36,6 +42,8 @@ const mockAdapter = {
     providerOptions: {} as { validOption: string; anotherOption?: number },
     inputModalities: ['text', 'image'] as const,
     messageMetadataByModality: {
+      // These `as unknown` casts are necessary — TextAdapter requires all 5
+      // modality keys but the mock doesn't have real metadata types for them.
       text: undefined as unknown,
       image: undefined as unknown,
       audio: undefined as unknown,
@@ -50,9 +58,39 @@ const mockAdapter = {
   structuredOutput: async () => ({ data: {}, rawText: '{}' }),
 } satisfies MockAdapter
 
+// ===========================
+// Tool definitions for type tests
+// ===========================
+
+const weatherTool = toolDefinition({
+  name: 'get_weather',
+  description: 'Get weather',
+  inputSchema: z.object({
+    location: z.string(),
+    unit: z.enum(['celsius', 'fahrenheit']).optional(),
+  }),
+  outputSchema: z.object({
+    temperature: z.number(),
+    conditions: z.string(),
+  }),
+})
+
+const searchTool = toolDefinition({
+  name: 'search',
+  description: 'Search the web',
+  inputSchema: z.object({
+    query: z.string(),
+  }),
+})
+
+type ChatStreamChunk = ChatStream extends AsyncIterable<infer C> ? C : never
+
+// ===========================
+// TextActivityOptions type checking (pre-existing)
+// ===========================
+
 describe('TextActivityOptions type checking', () => {
   it('should allow valid options', () => {
-    // This should type-check successfully
     const options = createChatOptions({
       adapter: mockAdapter,
       messages: [{ role: 'user', content: 'Hello' }],
@@ -62,7 +100,7 @@ describe('TextActivityOptions type checking', () => {
       },
     })
 
-    expectTypeOf(options.adapter).toMatchTypeOf<MockAdapter>()
+    expectTypeOf(options.adapter).toExtend<MockAdapter>()
   })
 
   it('should reject invalid properties on createChatOptions', () => {
@@ -186,9 +224,15 @@ describe('TextActivityOptions type checking', () => {
       context: { userId: 'u-1', tenantId: 't-1' },
     })
 
-    expectTypeOf<NonNullable<typeof options.context>>().toEqualTypeOf<
-      ToolContext & MiddlewareContext
-    >()
+    // The returned `context` is required (not `... | undefined`): createChatOptions
+    // required it on input, so it must preserve that on output. If it were optional,
+    // this fails — `ToolContext & MiddlewareContext | undefined` does not extend the
+    // non-optional target.
+    expectTypeOf(options.context).toExtend<ToolContext & MiddlewareContext>()
+
+    // The regression this guards: the documented pattern of spreading the pre-built
+    // options into chat(), which requires a defined context for these typed consumers.
+    chat({ ...options, messages: [{ role: 'user', content: 'Hello' }] })
 
     createChatOptions({
       adapter: mockAdapter,
@@ -420,7 +464,7 @@ describe('TextActivityOptions type checking', () => {
     registry.add(tool)
 
     const [registeredTool] = registry.getTools()
-    expectTypeOf(registeredTool).toMatchTypeOf<typeof tool | undefined>()
+    expectTypeOf(registeredTool).toExtend<typeof tool | undefined>()
 
     createChatOptions({
       adapter: mockAdapter,
@@ -436,5 +480,148 @@ describe('TextActivityOptions type checking', () => {
       // @ts-expect-error - registry tools still require AppContext
       context: {},
     })
+  })
+})
+
+// ===========================
+// chat() return type integration
+// ===========================
+
+describe('chat() return type', () => {
+  it('should return Promise<string> when stream: false, regardless of tools', () => {
+    type Result = ReturnType<
+      typeof chat<typeof mockAdapter, undefined, false, [typeof weatherTool]>
+    >
+
+    expectTypeOf<Result>().toEqualTypeOf<Promise<string>>()
+  })
+
+  it('should return Promise<inferred schema> when outputSchema is provided without explicit stream', () => {
+    // Per issue #526, schema-bearing calls default to Promise<T>.
+    // Only explicit `stream: true` opts into StructuredOutputStream.
+    const schema = z.object({ summary: z.string() })
+    type Result = ReturnType<
+      typeof chat<
+        typeof mockAdapter,
+        typeof schema,
+        boolean,
+        [typeof weatherTool]
+      >
+    >
+
+    expectTypeOf<Result>().toEqualTypeOf<Promise<{ summary: string }>>()
+  })
+
+  it('stream: true without outputSchema is ChatStream', () => {
+    const stream = chat({
+      adapter: mockAdapter,
+      messages: [],
+      tools: [weatherTool, searchTool],
+    })
+    expectTypeOf(stream).toEqualTypeOf<ChatStream>()
+  })
+})
+
+// ===========================
+// createChatOptions() preserves TTools
+// ===========================
+
+describe('createChatOptions() tool type preservation', () => {
+  it('should preserve specific tool types through options helper', () => {
+    const opts = createChatOptions({
+      adapter: mockAdapter,
+      tools: [weatherTool, searchTool],
+    })
+
+    type ToolsType = Exclude<typeof opts.tools, undefined>
+
+    // Use union check — tuple ordering is not guaranteed across TS versions
+    expectTypeOf<ToolsType[number]['name']>().toEqualTypeOf<
+      'get_weather' | 'search'
+    >()
+  })
+})
+
+// ===========================
+// ChatStream: tagged custom events
+// ===========================
+
+describe('ChatStream tagged custom event narrowing', () => {
+  it('should narrow approval-requested CUSTOM event payload', () => {
+    type Chunk = ChatStreamChunk
+    type Approval = Extract<
+      Chunk,
+      { type: 'CUSTOM'; name: 'approval-requested' }
+    >
+
+    expectTypeOf<Approval['value']>().toEqualTypeOf<{
+      toolCallId: string
+      toolName: string
+      input: unknown
+      approval: { id: string; needsApproval: true }
+    }>()
+  })
+
+  it('should narrow tool-input-available CUSTOM event payload', () => {
+    type Chunk = ChatStreamChunk
+    type ToolInput = Extract<
+      Chunk,
+      { type: 'CUSTOM'; name: 'tool-input-available' }
+    >
+
+    expectTypeOf<ToolInput['value']>().toEqualTypeOf<{
+      toolCallId: string
+      toolName: string
+      input: unknown
+    }>()
+  })
+
+  it('should narrow structured-output.start CUSTOM event payload', () => {
+    type Chunk = ChatStreamChunk
+    type Start = Extract<
+      Chunk,
+      { type: 'CUSTOM'; name: 'structured-output.start' }
+    >
+
+    expectTypeOf<Start['value']>().toEqualTypeOf<{ messageId: string }>()
+  })
+
+  it('should narrow structured-output.complete CUSTOM event payload', () => {
+    type Chunk = ChatStreamChunk
+    type Complete = Extract<
+      Chunk,
+      { type: 'CUSTOM'; name: 'structured-output.complete' }
+    >
+
+    expectTypeOf<Complete['value']>().toEqualTypeOf<{
+      object: unknown
+      raw: string
+      reasoning?: string
+    }>()
+  })
+
+  it('should narrow CustomEvent to KnownCustomEvent', () => {
+    type Chunk = ChatStreamChunk
+    type Custom = Extract<Chunk, { type: 'CUSTOM' }>
+    expectTypeOf<Custom['name']>().toEqualTypeOf<KnownCustomEvent['name']>()
+    type Approval = Extract<Custom, { name: 'approval-requested' }>
+    expectTypeOf<Approval['value']['toolCallId']>().toEqualTypeOf<string>()
+  })
+
+  it('should not poison `value` to any across the CUSTOM union', () => {
+    type Chunk = ChatStreamChunk
+    type Approval = Extract<
+      Chunk,
+      { type: 'CUSTOM'; name: 'approval-requested' }
+    >
+
+    expectTypeOf<Approval['value']>().not.toBeAny()
+  })
+})
+
+describe('ChatStream runtime access (kiira parity)', () => {
+  it('full union should allow reading chunk.type (common property)', () => {
+    type C = ChatStreamChunk
+    expectTypeOf<C['type']>().not.toBeNever()
   })
 })

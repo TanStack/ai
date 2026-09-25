@@ -1695,7 +1695,6 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         border: 1px solid ${t(colors.gray[200], colors.darkGray[600])};
         border-radius: ${border.radius.sm};
         background: ${t(colors.white, colors.darkGray[900])};
-        min-height: 260px;
         max-height: 420px;
         overflow: auto;
         padding: ${size[2]} ${size[2]} ${size[2]} ${size[5]};
@@ -1896,6 +1895,118 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         font-size: ${fontSize.xs};
         line-height: 1.4;
         padding: 0 ${size[3]};
+      `,
+    },
+    // MemoryPanel component styles
+    memoryPanel: {
+      container: css`
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        flex-direction: column;
+        gap: ${size[4]};
+        overflow-y: auto;
+        padding: ${size[4]};
+      `,
+      toolbar: css`
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: ${size[3]};
+      `,
+      scopeControls: css`
+        display: flex;
+        align-items: center;
+        gap: ${size[2]};
+        min-width: 0;
+      `,
+      scopeSelect: css`
+        max-width: 220px;
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.white, colors.darkGray[800])};
+        color: ${t(colors.gray[900], colors.gray[100])};
+        font-family: ${fontFamily.mono};
+        font-size: ${fontSize.xs};
+        padding: ${size[1]} ${size[2]};
+      `,
+      clearButton: css`
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.gray[50], colors.darkGray[700])};
+        color: ${t(colors.gray[700], colors.gray[200])};
+        cursor: pointer;
+        font-size: ${fontSize.xs};
+        padding: ${size[1]} ${size[2]};
+        &:hover {
+          border-color: ${t(colors.blue[300], colors.blue[700])};
+        }
+      `,
+      empty: css`
+        color: ${t(colors.gray[500], colors.gray[500])};
+        font-size: ${fontSize.sm};
+        padding: ${size[4]};
+        text-align: center;
+      `,
+      section: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[2]};
+      `,
+      sectionTitle: css`
+        color: ${t(colors.gray[600], colors.gray[300])};
+        font-size: ${fontSize.xs};
+        font-weight: ${font.weight.semibold};
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      `,
+      sectionEmpty: css`
+        color: ${t(colors.gray[500], colors.gray[500])};
+        font-size: ${fontSize.xs};
+      `,
+      list: css`
+        display: flex;
+        flex-direction: column;
+        gap: ${size[1]};
+      `,
+      row: css`
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        border: 1px solid ${t(colors.gray[200], colors.darkGray[700])};
+        border-radius: ${border.radius.sm};
+        background: ${t(colors.white, colors.darkGray[800])};
+        padding: ${size[2]};
+      `,
+      rowError: css`
+        border-color: ${t(colors.red[300], colors.red[700])};
+        background: ${t(colors.red[50], colors.red[900] + '20')};
+      `,
+      rowHeader: css`
+        display: flex;
+        align-items: center;
+        gap: ${size[2]};
+        font-size: ${fontSize.xs};
+        color: ${t(colors.gray[500], colors.gray[400])};
+      `,
+      badge: css`
+        border-radius: ${border.radius.xs};
+        background: ${t(colors.blue[50], colors.blue[900] + '30')};
+        color: ${t(colors.blue[700], colors.blue[300])};
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+        padding: 1px 6px;
+      `,
+      time: css`
+        margin-left: auto;
+        font-family: ${fontFamily.mono};
+        font-size: 10px;
+      `,
+      rowText: css`
+        color: ${t(colors.gray[900], colors.gray[100])};
+        font-size: ${fontSize.sm};
+        white-space: pre-wrap;
+        word-break: break-word;
       `,
     },
     // ConversationDetails component styles
@@ -2458,7 +2569,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         gap: ${size[3]};
         align-items: start;
         & > * {
-          min-height: 280px;
+          max-height: 420px;
           border: 1px solid oklch(0.28 0.03 260);
           border-radius: 6px;
           background: oklch(0.18 0.02 260);
@@ -3522,7 +3633,6 @@ const stylesFactory = (theme: 'light' | 'dark') => {
       `,
       stepJsonPanel: css`
         margin: ${size[1.5]} ${size[3]};
-        min-height: 280px;
         max-height: 520px;
         overflow: auto;
         padding: ${size[2]} ${size[2]} ${size[2]} ${size[5]};
@@ -3540,6 +3650,7 @@ const stylesFactory = (theme: 'light' | 'dark') => {
         grid-template-columns: repeat(2, minmax(320px, 1fr));
         gap: ${size[3]};
         align-items: start;
+        padding-left: ${size[3]};
         padding-right: ${size[3]};
         @media (max-width: 760px) {
           grid-template-columns: 1fr;

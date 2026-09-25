@@ -3,9 +3,7 @@ id: UIResourceEvent
 title: UIResourceEvent
 ---
 
-# Interface: UIResourceEvent
-
-Defined in: [packages/ai/src/types.ts:1373](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1373)
+Defined in: [packages/ai/src/types.ts:1499](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1499)
 
 Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
  a UIResourcePart on the assistant UIMessage. Never enters model input.
@@ -14,27 +12,21 @@ Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
 
 - [`CustomEvent`](CustomEvent.md)
 
-## Indexable
-
-```ts
-[k: string]: unknown
-```
-
 ## Properties
 
-### model?
+### metadata?
 
 ```ts
-optional model: string;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1298](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1298)
+Defined in: [packages/ai/src/types.ts:1416](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1416)
 
-Model identifier for multi-model support
+Extra information attached to this event.
 
 #### Inherited from
 
-[`CustomEvent`](CustomEvent.md).[`model`](CustomEvent.md#model)
+[`CustomEvent`](CustomEvent.md).[`metadata`](CustomEvent.md#metadata)
 
 ***
 
@@ -44,7 +36,10 @@ Model identifier for multi-model support
 name: "ui-resource";
 ```
 
-Defined in: [packages/ai/src/types.ts:1374](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1374)
+Defined in: [packages/ai/src/types.ts:1500](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1500)
+
+What this custom event is. Required: without it a consumer cannot route
+the value.
 
 #### Overrides
 
@@ -54,18 +49,34 @@ CustomEvent.name
 
 ***
 
+### type
+
+```ts
+type: "CUSTOM";
+```
+
+Defined in: [packages/ai/src/types.ts:1415](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1415)
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`type`](CustomEvent.md#type)
+
+***
+
 ### value
 
 ```ts
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1375](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1375)
+Defined in: [packages/ai/src/types.ts:1501](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1501)
+
+The payload. Any JSON value, and required.
 
 #### meta?
 
 ```ts
-optional meta: Record<string, unknown>;
+optional meta?: Record<string, unknown>;
 ```
 
 #### resource
@@ -77,7 +88,7 @@ resource: object;
 ##### resource.blob?
 
 ```ts
-optional blob: string;
+optional blob?: string;
 ```
 
 ##### resource.mimeType
@@ -89,7 +100,7 @@ mimeType: string;
 ##### resource.text?
 
 ```ts
-optional text: string;
+optional text?: string;
 ```
 
 ##### resource.uri
@@ -101,7 +112,7 @@ uri: string;
 #### serverId?
 
 ```ts
-optional serverId: string;
+optional serverId?: string;
 ```
 
 #### toolCallId

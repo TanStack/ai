@@ -3,20 +3,19 @@ id: chatParamsFromRequest
 title: chatParamsFromRequest
 ---
 
-# Function: chatParamsFromRequest()
-
 ```ts
 function chatParamsFromRequest(req): Promise<{
-  aguiContext: object[];
-  context: object[];
+  aguiContext: Context[];
+  context: Context[];
   forwardedProps: Record<string, unknown>;
   messages: (
+     | UIMessage<unknown>
      | ModelMessage<
      | string
      | ContentPart<unknown, unknown, unknown, unknown, unknown>[]
-     | null>
-    | UIMessage<unknown>)[];
+    | null>)[];
   parentRunId?: string;
+  resume?: RunAgentResumeItem[];
   runId: string;
   state: unknown;
   threadId: string;
@@ -24,7 +23,7 @@ function chatParamsFromRequest(req): Promise<{
 }>;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:134](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L134)
+Defined in: [packages/ai/src/utilities/chat-params.ts:282](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L282)
 
 Read an HTTP `Request`, parse its JSON body, and validate it as an
 AG-UI `RunAgentInput` — collapsing the standard `req.json()` +
@@ -57,16 +56,17 @@ with try/catch and return the caught Response yourself, or use
 ## Returns
 
 `Promise`\<\{
-  `aguiContext`: `object`[];
-  `context`: `object`[];
+  `aguiContext`: `Context`[];
+  `context`: `Context`[];
   `forwardedProps`: `Record`\<`string`, `unknown`\>;
   `messages`: (
+     \| [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>
      \| [`ModelMessage`](../interfaces/ModelMessage.md)\<
      \| `string`
      \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`, `unknown`\>[]
-     \| `null`\>
-    \| [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>)[];
+    \| `null`\>)[];
   `parentRunId?`: `string`;
+  `resume?`: [`RunAgentResumeItem`](../type-aliases/RunAgentResumeItem.md)[];
   `runId`: `string`;
   `state`: `unknown`;
   `threadId`: `string`;

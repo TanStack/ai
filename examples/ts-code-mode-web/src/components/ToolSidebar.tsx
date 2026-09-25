@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
+  AlertTriangle,
   ChevronDown,
   ChevronRight,
   Code2,
@@ -15,7 +16,7 @@ export interface LLMTool {
 }
 
 // Isolate VM options
-export type IsolateVM = 'node' | 'quickjs' | 'cloudflare'
+export type IsolateVM = 'node' | 'quickjs' | 'quickjs-bun' | 'cloudflare'
 
 export interface IsolateVMOption {
   id: IsolateVM
@@ -101,6 +102,13 @@ export const DEFAULT_ISOLATE_VM_OPTIONS: Array<IsolateVMOption> = [
     id: 'quickjs',
     name: 'QuickJS',
     description: 'Lightweight JavaScript engine',
+    available: true,
+  },
+  {
+    id: 'quickjs-bun',
+    name: 'QuickJS Bun',
+    description:
+      'Native QuickJS via bun:ffi — requires running the server with Bun; falls back to QuickJS (WASM) on a Node server',
     available: true,
   },
   {
@@ -400,12 +408,63 @@ interface IsolateVMSectionProps {
   defaultOpen?: boolean
 }
 
+type ServerRuntimeInfo = {
+  isBun: boolean
+  runtime: 'bun' | 'node'
+}
+
 export function IsolateVMSection({
   selectedVM,
   onVMChange,
   options = DEFAULT_ISOLATE_VM_OPTIONS,
   defaultOpen = true,
 }: IsolateVMSectionProps) {
+  const [serverRuntime, setServerRuntime] = useState<
+    ServerRuntimeInfo | null | 'error'
+  >(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/runtime')
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data: unknown = await res.json()
+        if (
+          typeof data !== 'object' ||
+          data === null ||
+          !('isBun' in data) ||
+          typeof (data as { isBun: unknown }).isBun !== 'boolean'
+        ) {
+          throw new Error('Invalid runtime response')
+        }
+        const isBun = (data as { isBun: boolean }).isBun
+        if (!cancelled) {
+          setServerRuntime({
+            isBun,
+            runtime: isBun ? 'bun' : 'node',
+          })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setServerRuntime('error')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const showBunFallbackWarning =
+    selectedVM === 'quickjs-bun' &&
+    serverRuntime !== null &&
+    serverRuntime !== 'error' &&
+    !serverRuntime.isBun
+
+  const showBunActive =
+    selectedVM === 'quickjs-bun' &&
+    serverRuntime !== null &&
+    serverRuntime !== 'error' &&
+    serverRuntime.isBun
+
   return (
     <CollapsibleSection
       title="Isolate VM"
@@ -433,6 +492,36 @@ export function IsolateVMSection({
       <p className="mt-2 text-xs text-gray-500">
         {options.find((o) => o.id === selectedVM)?.description}
       </p>
+      {showBunFallbackWarning && (
+        <div
+          role="alert"
+          className="mt-2 flex gap-2 rounded-lg border border-amber-500/40 bg-amber-950/50 px-2.5 py-2 text-xs text-amber-100"
+        >
+          <AlertTriangle
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400"
+            aria-hidden
+          />
+          <div className="space-y-1">
+            <p className="font-medium text-amber-200">
+              Server is not Bun — using QuickJS (WASM) fallback
+            </p>
+            <p className="text-amber-100/80 leading-relaxed">
+              The native <code className="text-amber-50">bun:ffi</code> driver
+              only loads when the app server process has a global{' '}
+              <code className="text-amber-50">Bun</code>. Right now the server
+              reports <code className="text-amber-50">node</code>, so selections
+              of QuickJS Bun silently fall back to the WASM driver (which is
+              less reliable for multi-tool sandbox runs). Start the example
+              under a real Bun server process to exercise the native driver.
+            </p>
+          </div>
+        </div>
+      )}
+      {showBunActive && (
+        <p className="mt-2 text-xs text-emerald-400/90">
+          Server runtime is Bun — native QuickJS Bun driver will be used.
+        </p>
+      )}
     </CollapsibleSection>
   )
 }

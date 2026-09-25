@@ -6,20 +6,40 @@ import {
   applyHookEvent,
   clearHookRegistry,
   createHookRegistryState,
+  markHookViewed,
   removeSavedFixture,
   replaceSavedFixtures,
-  setActiveHook,
 } from './hook-registry'
 import {
   createClientToolCallMessage,
   shouldSkipClientAssistantPlaceholder,
 } from './message-event-utils'
+import {
+  applyMemoryEvent,
+  applyMemorySnapshot,
+  clearMemoryRegistry,
+  createMemoryRegistryState,
+} from './memory-registry'
+import {
+  applyCompactionEvent,
+  clearCompactionRegistry,
+  createCompactionRegistryState,
+} from './compaction-registry'
+import {
+  applySkillsSnapshot,
+  clearSkillsRegistry,
+  createSkillsRegistryState,
+} from './skills-registry'
 import type { ContentPartSource, TokenUsage } from '@tanstack/ai'
 import type {
+  ContentPart,
   DevtoolsToolFixtureApplyEvent,
   RunLifecycleEvent,
 } from '@tanstack/ai-event-client'
 import type { HookRegistryState, ToolFixtureRecord } from './hook-registry'
+import type { MemoryRegistryState } from './memory-registry'
+import type { CompactionRegistryState } from './compaction-registry'
+import type { SkillsRegistryState } from './skills-registry'
 import type { ParentComponent } from 'solid-js'
 
 interface MessagePart {
@@ -33,7 +53,7 @@ interface MessagePart {
     | 'video'
     | 'document'
     | 'structured-output'
-  content?: string
+  content?: string | Array<ContentPart>
   status?: 'streaming' | 'complete' | 'error'
   raw?: string
   partial?: unknown
@@ -154,6 +174,8 @@ export interface MiddlewareEvent {
 export interface Iteration {
   /** The requestId this iteration belongs to (unique per chat() call) */
   requestId?: string
+  /** The chat run. A subagent run is `<parentRunId>:<subagentRunId>`. */
+  runId?: string
   index: number
   messageId: string
   startedAt: number
@@ -227,6 +249,9 @@ interface AIStoreState {
   conversations: Record<string, Conversation>
   activeConversationId: string | null
   hooks: HookRegistryState
+  memory: MemoryRegistryState
+  compaction: CompactionRegistryState
+  skills: SkillsRegistryState
 }
 
 interface AIContextValue {
@@ -234,6 +259,9 @@ interface AIContextValue {
   clearAllConversations: () => void
   selectConversation: (id: string) => void
   clearHooks: () => void
+  clearMemory: () => void
+  clearCompaction: () => void
+  clearSkills: () => void
   selectHook: (id: string | null) => void
   saveToolFixture: (fixture: ToolFixtureRecord) => void
   deleteToolFixture: (fixtureId: string) => void
@@ -255,6 +283,9 @@ export const AIProvider: ParentComponent = (props) => {
     conversations: {},
     activeConversationId: null,
     hooks: createHookRegistryState(),
+    memory: createMemoryRegistryState(),
+    compaction: createCompactionRegistryState(),
+    skills: createSkillsRegistryState(),
   })
 
   const streamToConversation = new Map<string, string>()
@@ -641,13 +672,43 @@ export const AIProvider: ParentComponent = (props) => {
     )
   }
 
-  function selectHook(id: string | null) {
+  function clearMemory() {
     setState(
-      'hooks',
-      produce((hooks: HookRegistryState) => {
-        setActiveHook(hooks, id)
+      'memory',
+      produce((memory: MemoryRegistryState) => {
+        clearMemoryRegistry(memory)
       }),
     )
+  }
+
+  function clearCompaction() {
+    setState(
+      'compaction',
+      produce((compaction: CompactionRegistryState) => {
+        clearCompactionRegistry(compaction)
+      }),
+    )
+  }
+
+  function clearSkills() {
+    setState(
+      'skills',
+      produce((skills: SkillsRegistryState) => {
+        clearSkillsRegistry(skills)
+      }),
+    )
+  }
+
+  function selectHook(id: string | null) {
+    setState('hooks', 'activeHookId', id)
+    if (id) {
+      setState(
+        'hooks',
+        produce((hooks: HookRegistryState) => {
+          markHookViewed(hooks, id)
+        }),
+      )
+    }
   }
 
   function saveToolFixture(fixture: ToolFixtureRecord) {
@@ -1183,6 +1244,56 @@ export const AIProvider: ParentComponent = (props) => {
           'hooks',
           produce((hooks: HookRegistryState) => {
             applyHookEvent(hooks, 'hook:state-snapshot', e.payload)
+          }),
+        )
+      }),
+    )
+
+    // Memory: the 5 `memory:*` operation events feed the timeline; `memory:snapshot`
+    // replaces the per-scope stored-state view. Keyed by composite scope
+    // (tenantId/userId/threadId).
+    type MemoryEventInput = Parameters<typeof applyMemoryEvent>[1]
+    const recordMemoryEvent = (
+      type: MemoryEventInput['type'],
+      payload: object,
+    ) => {
+      setState(
+        'memory',
+        produce((memory: MemoryRegistryState) => {
+          applyMemoryEvent(memory, { ...payload, type } as MemoryEventInput)
+        }),
+      )
+    }
+
+    cleanupFns.push(
+      aiEventClient.on('memory:retrieve:started', (e) => {
+        recordMemoryEvent('retrieve:started', e.payload)
+      }),
+      aiEventClient.on('memory:retrieve:completed', (e) => {
+        recordMemoryEvent('retrieve:completed', e.payload)
+      }),
+      aiEventClient.on('memory:persist:started', (e) => {
+        recordMemoryEvent('persist:started', e.payload)
+      }),
+      aiEventClient.on('memory:persist:completed', (e) => {
+        recordMemoryEvent('persist:completed', e.payload)
+      }),
+      aiEventClient.on('memory:error', (e) => {
+        recordMemoryEvent('error', e.payload)
+      }),
+      aiEventClient.on('memory:snapshot', (e) => {
+        setState(
+          'memory',
+          produce((memory: MemoryRegistryState) => {
+            applyMemorySnapshot(memory, e.payload)
+          }),
+        )
+      }),
+      aiEventClient.on('skills:snapshot', (e) => {
+        setState(
+          'skills',
+          produce((skills: SkillsRegistryState) => {
+            applySkillsSnapshot(skills, e.payload)
           }),
         )
       }),
@@ -2707,6 +2818,7 @@ export const AIProvider: ParentComponent = (props) => {
 
         const newIteration: Iteration = {
           requestId,
+          ...(e.payload.runId ? { runId: e.payload.runId } : {}),
           index: iteration,
           messageId,
           startedAt: e.payload.timestamp,
@@ -2893,6 +3005,90 @@ export const AIProvider: ParentComponent = (props) => {
             arr.push(mwEvent)
           }),
         )
+      }),
+    )
+
+    const recordCompactionLifecycle = (
+      kind: 'started' | 'state' | 'ended',
+      hookName: 'onCompactStart' | 'onCompact' | 'onCompactEnd',
+      payload: {
+        timestamp: number
+        requestId?: string
+        streamId?: string
+        clientId?: string
+        hookId?: string
+        threadId?: string
+        runId?: string
+        eventId?: string
+        before?: number
+        after?: number
+        messagesBefore?: number
+        messagesAfter?: number
+        reusedCheckpoint?: boolean
+        maxTokens?: number
+        strategyKey?: string
+        durationMs?: number
+        dropped?: CompactionRegistryState['events'][number]['dropped']
+        result?: CompactionRegistryState['events'][number]['result']
+      },
+    ) => {
+      setState(
+        'compaction',
+        produce((compaction: CompactionRegistryState) => {
+          applyCompactionEvent(compaction, kind, payload)
+        }),
+      )
+
+      const { requestId, streamId, clientId } = payload
+      const conversationId =
+        (clientId && state.conversations[clientId] ? clientId : undefined) ||
+        (streamId ? streamToConversation.get(streamId) : undefined) ||
+        (requestId ? requestToConversation.get(requestId) : undefined)
+      if (!conversationId || !state.conversations[conversationId]) return
+
+      const conv = state.conversations[conversationId]
+      const iterIndex = findLatestIterationIndex(conv, requestId)
+      if (iterIndex < 0) return
+
+      const mwEvent: MiddlewareEvent = {
+        id: `mw-cmp-${kind}-${Date.now()}-${Math.random()}`,
+        middlewareName: 'compaction',
+        hookName,
+        timestamp: payload.timestamp,
+        hasTransform: kind === 'state',
+        configChanges: {
+          before: payload.before,
+          after: payload.after,
+          messagesBefore: payload.messagesBefore,
+          messagesAfter: payload.messagesAfter,
+          reusedCheckpoint: payload.reusedCheckpoint,
+          maxTokens: payload.maxTokens,
+          strategyKey: payload.strategyKey,
+          durationMs: payload.durationMs,
+        },
+      }
+
+      setState(
+        'conversations',
+        conversationId,
+        'iterations',
+        iterIndex,
+        'middlewareEvents',
+        produce((arr: Array<MiddlewareEvent>) => {
+          arr.push(mwEvent)
+        }),
+      )
+    }
+
+    cleanupFns.push(
+      aiEventClient.on('compaction:started', (e) => {
+        recordCompactionLifecycle('started', 'onCompactStart', e.payload)
+      }),
+      aiEventClient.on('compaction:state', (e) => {
+        recordCompactionLifecycle('state', 'onCompact', e.payload)
+      }),
+      aiEventClient.on('compaction:ended', (e) => {
+        recordCompactionLifecycle('ended', 'onCompactEnd', e.payload)
       }),
     )
 
@@ -3226,6 +3422,39 @@ export const AIProvider: ParentComponent = (props) => {
       }),
     )
 
+    // Voice creation shares the speech bucket — same family. Like the other
+    // activity buckets beside it, this is recorded state: nothing renders
+    // `speechEvents` yet.
+    for (const voiceEvent of [
+      'voice:request:started',
+      'voice:request:completed',
+      'voice:request:error',
+      'voice:usage',
+    ] as const) {
+      cleanupFns.push(
+        aiEventClient.on(voiceEvent, (e) => {
+          const { requestId, clientId, timestamp } = e.payload
+
+          let conversationId = clientId
+          if (!conversationId || !state.conversations[conversationId]) {
+            conversationId = `voice-${requestId}`
+            getOrCreateConversation(
+              conversationId,
+              'server',
+              `Voice (${requestId.substring(0, 8)})`,
+            )
+          }
+
+          addActivityEvent(conversationId, 'speechEvents', {
+            id: requestId,
+            name: voiceEvent,
+            timestamp,
+            payload: e.payload,
+          })
+        }),
+      )
+    }
+
     cleanupFns.push(
       aiEventClient.on('transcription:request:started', (e) => {
         const { requestId, clientId, timestamp } = e.payload
@@ -3402,6 +3631,9 @@ export const AIProvider: ParentComponent = (props) => {
     clearAllConversations,
     selectConversation,
     clearHooks,
+    clearMemory,
+    clearCompaction,
+    clearSkills,
     selectHook,
     saveToolFixture,
     deleteToolFixture,

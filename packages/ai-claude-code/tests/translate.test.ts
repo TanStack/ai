@@ -4,7 +4,7 @@ import type {
   AgentSdkMessage,
   SdkRawStreamEvent,
 } from '../src/stream/sdk-types'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 function makeContext() {
   let id = 0
@@ -26,12 +26,12 @@ async function* fromArray(
 
 async function collect(
   messages: Array<AgentSdkMessage>,
-): Promise<Array<StreamChunk>> {
-  const chunks: Array<StreamChunk> = []
-  for await (const chunk of translateSdkStream(
-    fromArray(messages),
-    makeContext(),
-  )) {
+  context: ReturnType<typeof makeContext> & {
+    expectStructuredOutput?: boolean
+  } = makeContext(),
+): Promise<Array<AdapterYieldChunk>> {
+  const chunks: Array<AdapterYieldChunk> = []
+  for await (const chunk of translateSdkStream(fromArray(messages), context)) {
     chunks.push(chunk)
   }
   return chunks
@@ -43,6 +43,7 @@ const init: AgentSdkMessage = {
   session_id: 'sess-abc',
   model: 'claude-opus-4-6',
   tools: ['Bash', 'Read'],
+  skills: ['repo-search'],
   cwd: '/tmp',
 }
 
@@ -164,8 +165,20 @@ describe('translateSdkStream', () => {
         sessionId: 'sess-abc',
         model: 'claude-opus-4-6',
         tools: ['Bash', 'Read'],
+        skills: ['repo-search'],
       },
     })
+  })
+
+  it('uses an empty skill list when the SDK init message omits skills', async () => {
+    const { skills: _skills, ...initWithoutSkills } = init
+    const chunks = await collect([
+      initWithoutSkills,
+      assistantText('hi'),
+      resultSuccess,
+    ])
+    const custom = chunks.find((c) => c.type === 'CUSTOM')
+    expect(custom).toMatchObject({ value: { skills: [] } })
   })
 
   it('maps usage onto RUN_FINISHED including cache token details', async () => {
@@ -579,12 +592,12 @@ describe('translateSdkStream', () => {
       streamEvent({
         type: 'content_block_start',
         index: 0,
-        content_block: { type: 'redacted_thinking', data: 'opaque' },
+        content_block: { type: 'redacted_thinking' },
       }),
       streamEvent({
         type: 'content_block_delta',
         index: 0,
-        delta: { type: 'signature_delta', signature: 'opaque' },
+        delta: { type: 'signature_delta' },
       }),
       blockStop(0),
       resultSuccess,
@@ -611,7 +624,7 @@ describe('translateSdkStream', () => {
       throw new Error('aborted')
     }
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     await expect(async () => {
       for await (const chunk of translateSdkStream(throwing(), makeContext())) {
         chunks.push(chunk)
@@ -654,7 +667,7 @@ describe('translateSdkStream', () => {
       throw new Error('aborted')
     }
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     await expect(async () => {
       for await (const chunk of translateSdkStream(throwing(), makeContext())) {
         chunks.push(chunk)
@@ -706,5 +719,253 @@ describe('translateSdkStream', () => {
       toolCallId: 'toolu_z',
       input: {},
     })
+  })
+
+  it('emits structured-output events from result.structured_output when expected', async () => {
+    const resultWithObject: AgentSdkMessage = {
+      type: 'result',
+      subtype: 'success',
+      result: 'done',
+      usage,
+      structured_output: { summary: 'ok' },
+    }
+    const chunks = await collect(
+      [init, assistantText('Looking around.'), resultWithObject],
+      { ...makeContext(), expectStructuredOutput: true },
+    )
+    const start = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.start',
+    )
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(start).toBeDefined()
+    expect(complete).toBeDefined()
+    if (complete?.type === 'CUSTOM') {
+      expect(complete.value).toEqual(
+        expect.objectContaining({
+          object: { summary: 'ok' },
+          raw: JSON.stringify({ summary: 'ok' }),
+        }),
+      )
+    }
+    expect(chunks.some((c) => c.type === 'TEXT_MESSAGE_CONTENT')).toBe(true)
+    expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
+  })
+
+  it('harvests StructuredOutput tool input when result.structured_output is missing', async () => {
+    const report = {
+      name: 'TanStack AI',
+      oneLiner: 'Type-safe AI SDK',
+    }
+    const chunks = await collect(
+      [
+        init,
+        assistantText('I have enough to compile the report.'),
+        {
+          type: 'assistant',
+          message: {
+            id: 'msg-so',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'toolu_so',
+                name: 'StructuredOutput',
+                input: report,
+              },
+            ],
+          },
+          parent_tool_use_id: null,
+        },
+        {
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'toolu_so',
+                content: 'ok',
+              },
+            ],
+          },
+          parent_tool_use_id: null,
+        },
+        resultSuccess,
+      ],
+      { ...makeContext(), expectStructuredOutput: true },
+    )
+
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete).toBeDefined()
+    if (complete?.type === 'CUSTOM') {
+      expect(complete.value).toEqual(
+        expect.objectContaining({
+          object: report,
+          raw: JSON.stringify(report),
+        }),
+      )
+    }
+    expect(
+      chunks.some(
+        (c) =>
+          c.type === 'TOOL_CALL_START' &&
+          'toolCallName' in c &&
+          c.toolCallName === 'StructuredOutput',
+      ),
+    ).toBe(false)
+    expect(chunks.some((c) => c.type === 'TOOL_CALL_RESULT')).toBe(false)
+  })
+
+  it('does not let an empty StructuredOutput tool wipe a captured object', async () => {
+    const report = { name: 'TanStack AI', oneLiner: 'SDK' }
+    const chunks = await collect(
+      [
+        init,
+        {
+          type: 'assistant',
+          message: {
+            id: 'msg-so-1',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'toolu_so_full',
+                name: 'StructuredOutput',
+                input: report,
+              },
+            ],
+          },
+          parent_tool_use_id: null,
+        },
+        {
+          type: 'assistant',
+          message: {
+            id: 'msg-so-2',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'toolu_so_empty',
+                name: 'StructuredOutput',
+                input: {},
+              },
+            ],
+          },
+          parent_tool_use_id: null,
+        },
+        resultSuccess,
+      ],
+      { ...makeContext(), expectStructuredOutput: true },
+    )
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete?.type === 'CUSTOM' && complete.value).toEqual(
+      expect.objectContaining({ object: report }),
+    )
+  })
+
+  it('harvests StructuredOutput from streamed input_json_delta', async () => {
+    const report = { name: 'TanStack AI', oneLiner: 'SDK' }
+    const chunks = await collect(
+      [
+        init,
+        {
+          type: 'stream_event',
+          event: { type: 'message_start', message: { id: 'msg-p' } },
+          parent_tool_use_id: null,
+        },
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_start',
+            index: 0,
+            content_block: {
+              type: 'tool_use',
+              id: 'toolu_stream',
+              name: 'StructuredOutput',
+              input: {},
+            },
+          },
+          parent_tool_use_id: null,
+        },
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: {
+              type: 'input_json_delta',
+              partial_json: JSON.stringify(report),
+            },
+          },
+          parent_tool_use_id: null,
+        },
+        {
+          type: 'stream_event',
+          event: { type: 'content_block_stop', index: 0 },
+          parent_tool_use_id: null,
+        },
+        resultSuccess,
+      ],
+      { ...makeContext(), expectStructuredOutput: true },
+    )
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete?.type === 'CUSTOM' && complete.value).toEqual(
+      expect.objectContaining({ object: report }),
+    )
+    expect(chunks.some((c) => c.type.startsWith('TOOL_CALL_'))).toBe(false)
+  })
+
+  it('parses JSON from assistant text when the StructuredOutput tool is missing', async () => {
+    const report = { name: 'TanStack AI', oneLiner: 'SDK' }
+    const chunks = await collect(
+      [init, assistantText(JSON.stringify(report)), resultSuccess],
+      { ...makeContext(), expectStructuredOutput: true },
+    )
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete?.type === 'CUSTOM' && complete.value).toEqual(
+      expect.objectContaining({ object: report }),
+    )
+  })
+
+  it('does not emit structured-output events when the flag is off', async () => {
+    const resultWithObject: AgentSdkMessage = {
+      type: 'result',
+      subtype: 'success',
+      result: 'done',
+      usage,
+      structured_output: { summary: 'ok' },
+    }
+    const chunks = await collect([
+      init,
+      assistantText('Looking around.'),
+      resultWithObject,
+    ])
+    expect(
+      chunks.some(
+        (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+      ),
+    ).toBe(false)
+  })
+
+  it('maps error_max_structured_output_retries to RUN_ERROR', async () => {
+    const failed: AgentSdkMessage = {
+      type: 'result',
+      subtype: 'error_max_structured_output_retries',
+      errors: ['schema retries exhausted'],
+      usage,
+    }
+    const chunks = await collect([init, failed])
+    const err = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(err).toBeDefined()
+    if (err?.type === 'RUN_ERROR') {
+      expect(err.message).toContain('schema retries exhausted')
+    }
   })
 })

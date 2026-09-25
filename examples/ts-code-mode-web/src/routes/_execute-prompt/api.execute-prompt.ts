@@ -28,7 +28,7 @@ let cachedDriver: IsolateDriver | null = null
 async function getDriver(): Promise<IsolateDriver> {
   if (!cachedDriver) {
     const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
-    cachedDriver = await createIsolateDriver('node')
+    cachedDriver = await createIsolateDriver()
   }
   return cachedDriver
 }

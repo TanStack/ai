@@ -2,8 +2,15 @@ import { expectTypeOf } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import type { MCPClient } from '../src/client'
-import type { MappedServerTools, ServerDescriptor } from '../src/types'
+import type { MCPClients } from '../src/pool'
+import type {
+  MappedServerTools,
+  McpServerTool,
+  McpToolMetadata,
+  ServerDescriptor,
+} from '../src/types'
 import type { ServerTool } from '@tanstack/ai'
+import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 
 interface WeatherServer extends ServerDescriptor {
   tools: { get_weather: { input: { city: string }; output: string } }
@@ -38,3 +45,35 @@ const getWeather = toolDefinition({
 })
 const bound = await client.tools([getWeather])
 expectTypeOf(bound).toEqualTypeOf<MappedServerTools<[typeof getWeather]>>()
+
+// `metadata.mcp` is typed on EVERY tools() path, so a consumer reads the
+// server's title / annotations with no annotation, no optional chaining on
+// `metadata`, and no cast.
+expectTypeOf(discovered).items.toHaveProperty('metadata').toExtend<{
+  mcp: McpToolMetadata
+}>()
+expectTypeOf(bound).items.toHaveProperty('metadata').toExtend<{
+  mcp: McpToolMetadata
+}>()
+expectTypeOf(defaultDiscovered).items.toHaveProperty('metadata').toExtend<{
+  mcp: McpToolMetadata
+}>()
+
+declare const pool: MCPClients
+const pooled = await pool.tools()
+expectTypeOf(pooled).items.toHaveProperty('metadata').toExtend<{
+  mcp: McpToolMetadata
+}>()
+
+// The whole point: these resolve without help, and a misspelling is an error.
+expectTypeOf(discovered[0]!.metadata.mcp.title).toEqualTypeOf<string>()
+expectTypeOf(discovered[0]!.metadata.mcp.serverToolName).toEqualTypeOf<string>()
+expectTypeOf(discovered[0]!.metadata.mcp.annotations).toEqualTypeOf<
+  ToolAnnotations | undefined
+>()
+// @ts-expect-error — `annotaions` is not a field of McpToolMetadata.
+discovered[0]!.metadata.mcp.annotaions
+
+// An McpServerTool still drops into anything that wants a plain ServerTool
+// (e.g. `chat({ tools })`) — the metadata guarantee only narrows.
+expectTypeOf<McpServerTool>().toExtend<ServerTool>()

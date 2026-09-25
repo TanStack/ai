@@ -10,6 +10,9 @@ const config = defineConfig({
 
     globals: true,
     environment: 'node',
+    // In-sandbox adapter tests spawn a real local-process sandbox.
+    // Under Nx parallel load the default 5s budget is too tight.
+    testTimeout: 30_000,
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
@@ -30,7 +33,7 @@ const config = defineConfig({
 export default mergeConfig(
   config,
   tanstackViteConfig({
-    entry: ['./src/index.ts'],
+    entry: ['./src/index.ts', './src/byok.ts'],
     srcDir: './src',
     cjs: false,
   }),

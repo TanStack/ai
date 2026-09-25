@@ -13,15 +13,24 @@ keywords:
   - adapter
 ---
 
-The fal.ai adapter provides access to 600+ models on the fal.ai platform for image, video, audio, speech, and transcription. Unlike text-focused adapters, the fal adapter is **media-focused** — it supports `generateImage()`, `generateVideo()`, `generateAudio()`, `generateSpeech()`, and `generateTranscription()` but does not support `chat()` or tools.
+The fal.ai adapter provides access to 600+ models on the fal.ai platform for image, video, live, audio, speech, and transcription. Unlike text-focused adapters, the fal adapter is **media-focused**. It supports `generateImage()`, `generateVideo()`, `generateLiveVideo()`, `generateAudio()`, `generateSpeech()`, and `generateTranscription()`. It does not support `chat()` or tools.
 
 For a full working example, see the [fal.ai example app](https://github.com/TanStack/ai/tree/main/examples/ts-react-media).
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-fal
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-fal
+vue: @tanstack/ai-fal
+solid: @tanstack/ai-fal
+svelte: @tanstack/ai-fal
+preact: @tanstack/ai-fal
+angular: @tanstack/ai-fal
+vanilla: @tanstack/ai-fal
+octane: @tanstack/ai-fal
+
+<!-- ::end:tabs -->
 
 ## Type Safety with String Literals
 
@@ -138,7 +147,7 @@ const result = await generateImage({
 
 ## Image Size Options
 
-The fal adapter supports a flexible `size` paramater that maps either to `image_size` or to `aspect_ratio` and `resolution` parameters:
+The fal adapter supports a flexible `size` parameter that maps either to `image_size` or to `aspect_ratio` and `resolution` parameters:
 
 |  | `size` | Maps To |
 |--------|---------|---------|
@@ -160,7 +169,7 @@ size: "landscape_16_9"
 
 ## Video Generation (Experimental)
 
-> **Note:** Video generation is an experimental feature and may change in future releases. In particular, this version of the adapter does not map the duration paramater
+> **Note:** Video generation is an experimental feature and may change in future releases.
 
 Video generation uses a queue-based workflow: submit a job, poll for status, then retrieve the video URL when complete.
 
@@ -184,9 +193,7 @@ const job = await generateVideo({
   adapter,
   prompt: "A timelapse of a flower blooming",
   size: "16:9",
-  modelOptions: {
-    duration: "5",
-  },
+  duration: "5",
 });
 
 // 2. Poll for status
@@ -207,13 +214,44 @@ import { falVideo } from "@tanstack/ai-fal";
 const job = await generateVideo({
   adapter: falVideo("fal-ai/kling-video/v2.6/pro/image-to-video"),
   prompt: "Animate this scene with gentle wind",
+  duration: "5",
   modelOptions: {
     start_image_url: "https://example.com/image.jpg",
     generate_audio: true,
-    duration: "5",
   },
 });
 ```
+
+`duration` is typed per model from `@fal-ai/client`'s `EndpointTypeMap`. Popular models also implement `availableDurations()` / `snapDuration()` for UI sliders:
+
+| Model | `duration` type | `availableDurations()` |
+| --- | --- | --- |
+| `fal-ai/kling-video/v1.6/{standard,pro}/text-to-video`, `fal-ai/kling-video/v2.6/pro/{text,image}-to-video` | `'5' \| '10'` | discrete |
+| `fal-ai/kling-video/v3/pro/{text,image}-to-video` | `'3'` … `'15'` | discrete |
+| `fal-ai/pika/v2.2/text-to-video` | `'5' \| '10'` | discrete |
+| `fal-ai/ltx-2.3/{text,image}-to-video` (+ `/fast`) | `'6' \| '8' \| '10'` | discrete |
+| `fal-ai/luma-dream-machine/ray-2` | `'5s' \| '9s'` | discrete |
+| `fal-ai/veo3.1`, `fal-ai/veo3.1/fast` (+ `/image-to-video`), `fal-ai/veo3` (+ `/image-to-video`) | `'4s' \| '6s' \| '8s'` | discrete |
+| `fal-ai/wan-25-preview/text-to-video` | `'2'` … `'15'` | discrete |
+| `fal-ai/minimax/video-01` | not accepted | `{ kind: 'none' }` |
+| `fal-ai/hunyuan-video-v1.5/text-to-video` | not accepted (`num_frames`) | `{ kind: 'none' }` |
+
+```typescript
+import { generateVideo } from "@tanstack/ai";
+import { falVideo } from "@tanstack/ai-fal";
+
+const adapter = falVideo("fal-ai/veo3.1");
+adapter.availableDurations(); // { kind: 'discrete', values: ['4s', '6s', '8s'] }
+adapter.snapDuration(7); // '6s'
+
+await generateVideo({
+  adapter,
+  prompt: "A timelapse of a city skyline at dusk",
+  duration: adapter.snapDuration(7),
+});
+```
+
+Uncurated models still type `duration` from the SDK when the endpoint declares the field, but `availableDurations()` returns `{ kind: 'none' }` until they are added to the runtime map.
 
 ## Text-to-Speech
 
@@ -358,6 +396,12 @@ const sfx = await generateAudio({
 | `fal-ai/ltx-2/text-to-video/fast` | Text-to-Video | Fast text-to-video |
 | `fal-ai/ltx-2/image-to-video/fast` | Image-to-Video | Fast image-to-video animation |
 
+### Live Models
+
+| Model | Mode | Description |
+|-------|------|-------------|
+| `minimax/h3-max/director` | Live | Steerable live stream. Use `falLiveVideo()` with `generateLiveVideo()`. |
+
 ### Text-to-Speech Models
 
 | Model | Description |
@@ -434,6 +478,19 @@ Creates a fal.ai video adapter using the `FAL_KEY` environment variable or an ex
 - `config.proxyUrl?` - Proxy URL for client-side usage
 
 **Returns:** A `FalVideoAdapter` instance for use with `generateVideo()` and `getVideoJobStatus()`.
+
+### `falLiveVideo(model, config?)`
+
+Creates a fal.ai live-video adapter for H3 Max Director. `generateLiveVideo()` returns the WMA app id on `result.model` (`fal-ai/minimax-h3-max-director`). Open that id with `wma(live.model)` through a server proxy that attaches `FAL_KEY`. Do not send `live.token` as `Key` credentials. Call `allowedFalLiveVideoProxyTarget()` in the proxy so it forwards only WMA `/ice`, `/session`, `/session/heartbeat`, and Director `/ice`.
+
+**Parameters:**
+
+- `model` - `"minimax/h3-max/director"`
+- `config.apiKey?` - Your fal.ai API key (falls back to `FAL_KEY` env var)
+
+**Returns:** A `FalLiveVideoAdapter` instance for use with `generateLiveVideo()`.
+
+See [Live Generation](../media/live-generation) for the browser connect step.
 
 ### `falSpeech(model, config?)`
 

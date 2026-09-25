@@ -7,16 +7,33 @@ import {
   mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
-import { ollamaText } from '@tanstack/ai-ollama'
-import { anthropicText } from '@tanstack/ai-anthropic'
-import { geminiText } from '@tanstack/ai-gemini'
-import { geminiTextInteractions } from '@tanstack/ai-gemini/experimental'
-import { openRouterText } from '@tanstack/ai-openrouter'
-import { grokText } from '@tanstack/ai-grok'
-import { groqText } from '@tanstack/ai-groq'
-import { bedrockText } from '@tanstack/ai-bedrock'
+import { OPENAI_CHAT_MODELS, createOpenaiChat } from '@tanstack/ai-openai'
+import { openaiByok } from '@tanstack/ai-openai/byok'
+import { OllamaTextModels, ollamaText } from '@tanstack/ai-ollama'
+import { ANTHROPIC_MODELS, createAnthropicChat } from '@tanstack/ai-anthropic'
+import { anthropicByok } from '@tanstack/ai-anthropic/byok'
+import { GEMINI_MODELS, createGeminiChat } from '@tanstack/ai-gemini'
+import { geminiByok } from '@tanstack/ai-gemini/byok'
+import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
+import { createOpenRouterText } from '@tanstack/ai-openrouter'
+import { OPENROUTER_CHAT_MODELS } from '@tanstack/ai-openrouter/model-meta'
+import { openrouterByok } from '@tanstack/ai-openrouter/byok'
+import { GROK_CHAT_MODELS, createGrokText } from '@tanstack/ai-grok'
+import { grokByok } from '@tanstack/ai-grok/byok'
+import { GROQ_CHAT_MODELS, createGroqText } from '@tanstack/ai-groq'
+import { groqByok } from '@tanstack/ai-groq/byok'
+import { createCloudflareText } from '@tanstack/ai-cloudflare'
+import {
+  cloudflareAccountByok,
+  cloudflareByok,
+} from '@tanstack/ai-cloudflare/byok'
+import { BEDROCK_CONVERSE_MODELS, bedrockText } from '@tanstack/ai-bedrock'
+import { BYTEPLUS_CHAT_MODELS, createBytePlusText } from '@tanstack/ai-byteplus'
+import { byteplusByok } from '@tanstack/ai-byteplus/byok'
+import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
+import { z } from 'zod'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
+import type { ByokProvider } from '@tanstack/ai/byok'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -31,17 +48,103 @@ import {
   searchGuitars,
   type ServerRuntimeContext,
 } from '@/lib/guitar-tools'
+import { viaCloudflareGateway } from '@/lib/cloudflare-gateway'
 
-type Provider =
-  | 'openai'
-  | 'anthropic'
-  | 'gemini'
-  | 'gemini-interactions'
-  | 'ollama'
-  | 'grok'
-  | 'groq'
-  | 'openrouter'
-  | 'bedrock'
+/**
+ * Client-supplied provider + model, validated once per request. An unknown
+ * provider falls back to OpenAI and an unknown model falls back to that
+ * provider's default, so arbitrary client strings never reach an adapter.
+ * The parsed `model` is narrowed to each adapter's literal model union.
+ */
+const modelSelectionSchema = z
+  .discriminatedUnion('provider', [
+    z.object({
+      provider: z.literal('openai'),
+      model: z.enum(OPENAI_CHAT_MODELS).catch('gpt-5.2'),
+    }),
+    z.object({
+      provider: z.literal('anthropic'),
+      model: z.enum(ANTHROPIC_MODELS).catch('claude-sonnet-4-6'),
+    }),
+    z.object({
+      provider: z.literal('gemini'),
+      model: z.enum(GEMINI_MODELS).catch('gemini-3.1-pro-preview'),
+    }),
+    z.object({
+      provider: z.literal('gemini-interactions'),
+      model: z.enum(GEMINI_MODELS).catch('gemini-3.1-pro-preview'),
+    }),
+    z.object({
+      provider: z.literal('ollama'),
+      model: z.enum(OllamaTextModels).catch('gpt-oss:20b'),
+    }),
+    z.object({
+      provider: z.literal('grok'),
+      model: z.enum(GROK_CHAT_MODELS).catch('grok-build-0.1'),
+    }),
+    z.object({
+      provider: z.literal('groq'),
+      model: z.enum(GROQ_CHAT_MODELS).catch('openai/gpt-oss-120b'),
+    }),
+    z.object({
+      provider: z.literal('openrouter'),
+      model: z.enum(OPENROUTER_CHAT_MODELS).catch('openai/gpt-5.1'),
+    }),
+    z.object({
+      provider: z.literal('bedrock'),
+      model: z
+        .enum(BEDROCK_CONVERSE_MODELS)
+        .catch('us.anthropic.claude-haiku-4-5-20251001-v1:0'),
+    }),
+    z.object({
+      provider: z.literal('byteplus'),
+      model: z.enum(BYTEPLUS_CHAT_MODELS).catch('seed-2-0-lite-260428'),
+    }),
+    z.object({
+      provider: z.literal('cloudflare'),
+      model: z.string().catch('@cf/zai-org/glm-5.3-flash'),
+    }),
+  ])
+  .catch({ provider: 'openai', model: 'gpt-5.2' })
+
+type ModelSelection = z.infer<typeof modelSelectionSchema>
+type Provider = ModelSelection['provider']
+
+const BYOK_PROVIDERS: Partial<Record<Provider, ByokProvider>> = {
+  openai: openaiByok,
+  anthropic: anthropicByok,
+  gemini: geminiByok,
+  openrouter: openrouterByok,
+  groq: groqByok,
+  grok: grokByok,
+  byteplus: byteplusByok,
+  cloudflare: cloudflareByok,
+}
+
+function chatByokProvider(provider: Provider): ByokProvider | undefined {
+  if (provider === 'gemini-interactions') return geminiByok
+  return BYOK_PROVIDERS[provider]
+}
+
+function resolveByokApiKey(
+  request: Request,
+  provider: Provider,
+):
+  | { missing: false; apiKey: string | null }
+  | { missing: true; provider: ByokProvider } {
+  const byokProvider = chatByokProvider(provider)
+  if (!byokProvider) return { missing: false, apiKey: null }
+  const apiKey = getByokKey(request, byokProvider)
+  if (!apiKey) return { missing: true, provider: byokProvider }
+  return { missing: false, apiKey }
+}
+
+function requireApiKey(apiKey: string | null): string {
+  if (!apiKey) {
+    throw new Error('API key is required')
+  }
+  return apiKey
+}
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -208,17 +311,11 @@ export const Route = createFileRoute('/api/tanchat')({
           )
         }
 
-        // Extract provider and model from forwardedProps (sent by the client).
-        // Provider must be allowlisted against adapterConfig (validated below)
-        // to avoid SSRF/runtime crashes from arbitrary client-supplied strings.
-        const requestedProvider =
-          typeof params.forwardedProps.provider === 'string'
-            ? params.forwardedProps.provider
-            : 'openai'
-        const model: string =
-          typeof params.forwardedProps.model === 'string'
-            ? params.forwardedProps.model
-            : 'gpt-4o'
+        // Validate the client-supplied provider + model (see the schema).
+        const selection = modelSelectionSchema.parse({
+          provider: params.forwardedProps.provider,
+          model: params.forwardedProps.model,
+        })
         const runtimeContext: ServerRuntimeContext = {
           userId: readForwardedString(
             params.forwardedProps.runtimeUserId,
@@ -248,104 +345,139 @@ export const Route = createFileRoute('/api/tanchat')({
             ? params.forwardedProps.previousInteractionId
             : undefined
 
-        // Pre-define typed adapter configurations with full type inference
-        // Model is passed to the adapter factory function for type-safe autocomplete
-        const adapterConfig: Record<
-          Provider,
-          () => { adapter: AnyTextAdapter }
-        > = {
-          anthropic: () =>
-            createChatOptions({
-              adapter: anthropicText(
-                (model || 'claude-sonnet-4-6') as 'claude-sonnet-4-6',
-              ),
-            }),
-          openrouter: () =>
-            createChatOptions({
-              adapter: openRouterText(
-                (model || 'openai/gpt-5.1') as 'openai/gpt-5.1',
-              ),
-              modelOptions: {
-                reasoning: {
-                  effort: 'medium',
+        // Build typed adapter options from the validated selection. Each case
+        // sees `model` narrowed to that adapter's model union.
+        const buildChatOptions = (
+          { provider, model }: ModelSelection,
+          apiKey: string | null,
+          cloudflareAccountId: string | null,
+        ): { adapter: AnyTextAdapter } => {
+          switch (provider) {
+            case 'anthropic':
+              return createChatOptions({
+                adapter: createAnthropicChat(
+                  model,
+                  requireApiKey(apiKey),
+                  viaCloudflareGateway('anthropic'),
+                ),
+              })
+            case 'openrouter':
+              return createChatOptions({
+                adapter: createOpenRouterText(model, requireApiKey(apiKey)),
+                modelOptions: {
+                  reasoning: {
+                    effort: 'medium',
+                  },
                 },
-              },
-            }),
-          gemini: () =>
-            createChatOptions({
-              adapter: geminiText(
-                (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
-              ),
-              modelOptions: {
-                thinkingConfig: {
-                  includeThoughts: true,
-                  thinkingBudget: 100,
+              })
+            case 'gemini':
+              return createChatOptions({
+                adapter: createGeminiChat(model, requireApiKey(apiKey)),
+                modelOptions: {
+                  thinkingConfig: {
+                    includeThoughts: true,
+                    thinkingBudget: 100,
+                  },
                 },
-              },
-            }),
-          'gemini-interactions': () =>
-            createChatOptions({
-              adapter: geminiTextInteractions(
-                (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
-              ),
-              modelOptions: {
-                previous_interaction_id: previousInteractionId,
-                store: true,
-              },
-            }),
-          grok: () =>
-            createChatOptions({
-              adapter: grokText(
-                (model || 'grok-build-0.1') as 'grok-build-0.1',
-              ),
-              modelOptions: {},
-            }),
-          groq: () =>
-            createChatOptions({
-              adapter: groqText(
-                (model || 'openai/gpt-oss-120b') as 'openai/gpt-oss-120b',
-              ),
-            }),
-          bedrock: () =>
-            createChatOptions({
-              // Default Converse API. Auth is 'auto' (BEDROCK_API_KEY /
-              // AWS_BEARER_TOKEN_BEDROCK, then the SigV4 credential chain) unless
-              // BEDROCK_AUTH=sigv4 forces SigV4 via the AWS credential chain
-              // (env vars or `aws configure` profile). Region defaults to us-east-1.
-              adapter: bedrockText(
-                (model ||
-                  'us.anthropic.claude-haiku-4-5-20251001-v1:0') as 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
-                {
+              })
+            case 'gemini-interactions':
+              return createChatOptions({
+                adapter: createGeminiTextInteractions(
+                  model,
+                  requireApiKey(apiKey),
+                ),
+                modelOptions: {
+                  previous_interaction_id: previousInteractionId,
+                  store: true,
+                },
+              })
+            case 'grok':
+              return createChatOptions({
+                adapter: createGrokText(model, requireApiKey(apiKey)),
+                modelOptions: {},
+              })
+            case 'groq':
+              return createChatOptions({
+                adapter: createGroqText(
+                  model,
+                  requireApiKey(apiKey),
+                  viaCloudflareGateway('groq'),
+                ),
+              })
+            case 'bedrock':
+              return createChatOptions({
+                // Default Converse API. Auth is 'auto' (BEDROCK_API_KEY /
+                // AWS_BEARER_TOKEN_BEDROCK, then the SigV4 credential chain) unless
+                // BEDROCK_AUTH=sigv4 forces SigV4 via the AWS credential chain
+                // (env vars or `aws configure` profile). Region defaults to us-east-1.
+                adapter: bedrockText(model, {
                   region: process.env.AWS_REGION || 'us-east-1',
                   ...(process.env.BEDROCK_AUTH === 'sigv4' && {
                     auth: 'sigv4' as const,
                   }),
+                }),
+              })
+            case 'byteplus':
+              return createChatOptions({
+                // BytePlus ModelArk. Keys are region-isolated — an EU key will
+                // not work against the Asia-Pacific host.
+                adapter: createBytePlusText(model, requireApiKey(apiKey)),
+              })
+            case 'cloudflare':
+              return createChatOptions({
+                // Workers AI over REST. Account id and token both come from
+                // BYOK, with CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_API_TOKEN as
+                // the env fallback. With CLOUDFLARE_AI_GATEWAY_ID set,
+                // requests (including `provider/model` ids such as
+                // openai/gpt-5.5) go through that AI Gateway.
+                adapter: createCloudflareText(model, {
+                  accountId: requireApiKey(cloudflareAccountId),
+                  apiKey: requireApiKey(apiKey),
+                  ...(process.env.CLOUDFLARE_AI_GATEWAY_ID && {
+                    gateway: { id: process.env.CLOUDFLARE_AI_GATEWAY_ID },
+                  }),
+                }),
+              })
+            case 'ollama':
+              return createChatOptions({
+                adapter: ollamaText(model),
+                modelOptions: { think: 'low', options: { top_k: 1 } },
+              })
+            case 'openai':
+              return createChatOptions({
+                adapter: createOpenaiChat(
+                  model,
+                  requireApiKey(apiKey),
+                  viaCloudflareGateway('openai'),
+                ),
+                modelOptions: {
+                  prompt_cache_key: 'user-session-12345',
+                  prompt_cache_retention: '24h',
                 },
-              ),
-            }),
-          ollama: () =>
-            createChatOptions({
-              adapter: ollamaText((model || 'gpt-oss:20b') as 'gpt-oss:20b'),
-              modelOptions: { think: 'low', options: { top_k: 1 } },
-            }),
-          openai: () =>
-            createChatOptions({
-              adapter: openaiText((model || 'gpt-5.2') as 'gpt-5.2'),
-              modelOptions: {
-                prompt_cache_key: 'user-session-12345',
-                prompt_cache_retention: '24h',
-              },
-            }),
+              })
+          }
         }
 
         try {
-          // Allowlist provider against adapterConfig keys; fall back to openai.
-          const provider: Provider =
-            requestedProvider in adapterConfig
-              ? (requestedProvider as Provider)
-              : 'openai'
+          const provider: Provider = selection.provider
+          const resolvedKey = resolveByokApiKey(request, provider)
+          if (resolvedKey.missing) {
+            return byokMissing(resolvedKey.provider)
+          }
           // Get typed adapter options using createChatOptions pattern
-          const options = adapterConfig[provider]()
+          // Cloudflare needs a second BYOK value: the account the token belongs to.
+          const cloudflareAccountId =
+            provider === 'cloudflare'
+              ? getByokKey(request, cloudflareAccountByok)
+              : null
+          if (provider === 'cloudflare' && !cloudflareAccountId) {
+            return byokMissing(cloudflareAccountByok)
+          }
+          const options = buildChatOptions(
+            selection,
+            resolvedKey.apiKey,
+            cloudflareAccountId,
+          )
 
           // All providers (including gemini-interactions) get the full
           // server-tool set merged with whatever client-side tools the

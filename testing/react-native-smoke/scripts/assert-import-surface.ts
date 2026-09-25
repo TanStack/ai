@@ -27,7 +27,7 @@ const providerSdkPackages = new Set([
 ])
 
 const forbiddenPackages = new Set([
-  '@tanstack/ai-react-ui',
+  '@tanstack/ai-react/ui',
   '@tanstack/react-ai-devtools',
   '@tanstack/solid-ai-devtools',
   'react-dom',
@@ -37,7 +37,7 @@ const forbiddenPackages = new Set([
 ])
 
 const providerPackagePattern =
-  /^@tanstack\/ai-(anthropic|elevenlabs|fal|gemini|grok|groq|ollama|openai|openrouter)(?:\/|$)/
+  /^@tanstack\/ai-(anthropic|byteplus|elevenlabs|fal|gemini|grok|groq|ollama|openai|openrouter)(?:\/|$)/
 
 const forbiddenPackagePrefixes = ['@vue/']
 const builtins = new Set(

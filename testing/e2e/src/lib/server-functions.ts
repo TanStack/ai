@@ -7,7 +7,11 @@ import {
   generateVideo,
   getVideoJobStatus,
 } from '@tanstack/ai'
-import type { MediaPrompt, TranscriptionResponseFormat } from '@tanstack/ai'
+import type {
+  MediaPrompt,
+  TranscriptionResponseFormat,
+  TTSTurn,
+} from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 import {
   createAudioAdapter,
@@ -52,13 +56,17 @@ export const generateImageFn = createServerFn({ method: 'POST' })
 export const generateSpeechFn = createServerFn({ method: 'POST' })
   .inputValidator(
     (data: {
-      text: string
+      text?: string
+      turns?: Array<TTSTurn>
+      timestamps?: boolean
       voice?: string
       provider: Provider
       aimockPort?: number
       testId?: string
     }) => {
-      if (!data.text.trim()) throw new Error('Text is required')
+      if (!data.turns?.length && !data.text?.trim()) {
+        throw new Error('Text or turns is required')
+      }
       if (!data.provider) throw new Error('Provider is required')
       return data
     },
@@ -70,11 +78,20 @@ export const generateSpeechFn = createServerFn({ method: 'POST' })
       data.aimockPort,
       data.testId,
     )
-    return generateSpeech({
-      adapter,
-      text: data.text,
-      voice: data.voice,
-    })
+    // `text` and `turns` are mutually exclusive in the activity's options, so
+    // the branch is what makes the call type-check rather than cosmetic.
+    return data.turns
+      ? generateSpeech({
+          adapter,
+          turns: data.turns,
+          timestamps: data.timestamps,
+        })
+      : generateSpeech({
+          adapter,
+          text: data.text ?? '',
+          voice: data.voice,
+          timestamps: data.timestamps,
+        })
   })
 
 export const generateTranscriptionFn = createServerFn({ method: 'POST' })

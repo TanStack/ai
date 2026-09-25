@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest'
 import { startOpencodeServerInSandbox } from '../src/process/sandbox-server'
 import { opencodeText } from '../src/index'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 import type { SandboxHandle, SpawnHandle } from '@tanstack/ai-sandbox'
 
 const noopLogger = {
@@ -60,9 +60,9 @@ function mockSandbox(stdout: Array<string>): SandboxHandle {
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }
@@ -94,6 +94,12 @@ describe('startOpencodeServerInSandbox', () => {
 })
 
 describe('opencode adapter', () => {
+  it('opts into combined event-source structured output', () => {
+    const adapter = opencodeText('anthropic/claude-sonnet-4-5')
+    expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
+    expect(adapter.combinedStructuredOutputSource()).toBe('event')
+  })
+
   it('requires a sandbox capability', async () => {
     const adapter = opencodeText('anthropic/claude-sonnet-4-5')
     const result = await collect(

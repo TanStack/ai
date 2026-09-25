@@ -120,3 +120,20 @@ it('omits depth for depth: "full" and uses N for a number', async () => {
     expect(numeric.command).toContain('--depth 50')
   }
 })
+
+// git clone fails when the parent of `dir` does not exist. gitSkill clones
+// into `<root>/.tanstack-skills/<name>`, so the parent must be created first.
+// Issue #1081 item 2.
+it('creates the clone parent directory before git clone', async () => {
+  const { process, calls } = recordingProcess()
+  const git = createExecBackedGit(process, '/workspace')
+  await git.clone({
+    url: 'https://github.com/owner/skills-pack',
+    dir: '/workspace/.tanstack-skills/skills-pack',
+  })
+  expect(calls[0]?.command).toBe("mkdir -p '/workspace/.tanstack-skills'")
+  expect(calls[1]?.command).toContain('git clone')
+  expect(calls[1]?.command).toContain(
+    "'/workspace/.tanstack-skills/skills-pack'",
+  )
+})

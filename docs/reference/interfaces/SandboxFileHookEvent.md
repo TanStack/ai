@@ -3,9 +3,7 @@ id: SandboxFileHookEvent
 title: SandboxFileHookEvent
 ---
 
-# Interface: SandboxFileHookEvent
-
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:28](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L28)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:42](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L42)
 
 The file event a sandbox hook receives: the serializable [SandboxFileEvent](SandboxFileEvent.md)
  plus lazy, git-backed content accessors. Accessors compute on call, so a hook
@@ -18,13 +16,13 @@ The file event a sandbox hook receives: the serializable [SandboxFileEvent](Sand
 
 ## Properties
 
-### after()
+### after
 
 ```ts
 after: () => Promise<string>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:32](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L32)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:46](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L46)
 
 Current content (`''` when the event is a delete).
 
@@ -34,13 +32,13 @@ Current content (`''` when the event is a delete).
 
 ***
 
-### before()
+### before
 
 ```ts
 before: () => Promise<string>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:30](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L30)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:44](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L44)
 
 Content at the session baseline (`''` for a new file or non-git workspace).
 
@@ -50,13 +48,13 @@ Content at the session baseline (`''` for a new file or non-git workspace).
 
 ***
 
-### diff()
+### diff
 
 ```ts
 diff: () => Promise<string>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:34](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L34)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:48](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L48)
 
 Unified patch vs the session baseline (synthesized add-patch when non-git).
 
@@ -72,7 +70,7 @@ Unified patch vs the session baseline (synthesized add-patch when non-git).
 path: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:20](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L20)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:34](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L34)
 
 Absolute path inside the sandbox (under the workspace root).
 
@@ -88,7 +86,7 @@ Absolute path inside the sandbox (under the workspace root).
 timestamp: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:21](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L21)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:35](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L35)
 
 #### Inherited from
 
@@ -102,7 +100,7 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:21](https://git
 type: "create" | "change" | "delete";
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:18](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L18)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:32](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L32)
 
 #### Inherited from
 

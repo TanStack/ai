@@ -336,7 +336,6 @@ describe('Tool Type Narrowing', () => {
     client.updateOptions({
       // @ts-expect-error - updateOptions cannot swap in tools outside TTools
       tools: clientTools(otherRequiredContextTool),
-      context: { tenantId: 'tenant-1' },
     })
   })
 

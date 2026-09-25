@@ -35,28 +35,101 @@ Tools you pass to Code Mode are converted to typed function stubs that appear in
 
 ### Secure sandboxing
 
-Generated code runs in an isolated environment (V8 isolate, QuickJS WASM, or Cloudflare Worker) with no access to the host file system, network, or process. The sandbox has configurable timeouts and memory limits.
+Generated code runs in an isolated environment (V8 isolate, QuickJS WASM, native QuickJS on Bun, Cloudflare Worker, or Daytona sandbox) with no access to the host file system, network, or process. The sandbox has configurable timeouts and memory limits.
 
 ## Getting Started
 
 ### 1. Install packages
 
-```bash
-pnpm add @tanstack/ai @tanstack/ai-code-mode zod
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-code-mode zod
+vue: @tanstack/ai @tanstack/ai-code-mode zod
+solid: @tanstack/ai @tanstack/ai-code-mode zod
+svelte: @tanstack/ai @tanstack/ai-code-mode zod
+preact: @tanstack/ai @tanstack/ai-code-mode zod
+angular: @tanstack/ai @tanstack/ai-code-mode zod
+vanilla: @tanstack/ai @tanstack/ai-code-mode zod
+octane: @tanstack/ai @tanstack/ai-code-mode zod
+
+<!-- ::end:tabs -->
 
 Pick an isolate driver:
 
-```bash
-# Node.js — fastest, uses V8 isolates (requires native compilation)
-pnpm add @tanstack/ai-isolate-node
+Node.js (V8 isolates, native compile):
 
-# QuickJS WASM — no native deps, works in browsers and edge runtimes
-pnpm add @tanstack/ai-isolate-quickjs
+<!-- ::start:tabs variant="package-manager" mode="install" -->
 
-# Cloudflare Workers — run on the edge
-pnpm add @tanstack/ai-isolate-cloudflare
-```
+react: @tanstack/ai-isolate-node
+vue: @tanstack/ai-isolate-node
+solid: @tanstack/ai-isolate-node
+svelte: @tanstack/ai-isolate-node
+preact: @tanstack/ai-isolate-node
+angular: @tanstack/ai-isolate-node
+vanilla: @tanstack/ai-isolate-node
+octane: @tanstack/ai-isolate-node
+
+<!-- ::end:tabs -->
+
+QuickJS WASM (browsers and edge, no native deps):
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-quickjs
+vue: @tanstack/ai-isolate-quickjs
+solid: @tanstack/ai-isolate-quickjs
+svelte: @tanstack/ai-isolate-quickjs
+preact: @tanstack/ai-isolate-quickjs
+angular: @tanstack/ai-isolate-quickjs
+vanilla: @tanstack/ai-isolate-quickjs
+octane: @tanstack/ai-isolate-quickjs
+
+<!-- ::end:tabs -->
+
+QuickJS Bun (native QuickJS via bun:ffi):
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-quickjs-bun
+vue: @tanstack/ai-isolate-quickjs-bun
+solid: @tanstack/ai-isolate-quickjs-bun
+svelte: @tanstack/ai-isolate-quickjs-bun
+preact: @tanstack/ai-isolate-quickjs-bun
+angular: @tanstack/ai-isolate-quickjs-bun
+vanilla: @tanstack/ai-isolate-quickjs-bun
+octane: @tanstack/ai-isolate-quickjs-bun
+
+<!-- ::end:tabs -->
+
+Cloudflare Workers:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-cloudflare
+vue: @tanstack/ai-isolate-cloudflare
+solid: @tanstack/ai-isolate-cloudflare
+svelte: @tanstack/ai-isolate-cloudflare
+preact: @tanstack/ai-isolate-cloudflare
+angular: @tanstack/ai-isolate-cloudflare
+vanilla: @tanstack/ai-isolate-cloudflare
+octane: @tanstack/ai-isolate-cloudflare
+
+<!-- ::end:tabs -->
+
+Daytona sandboxes:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-daytona @daytona/sdk
+vue: @tanstack/ai-isolate-daytona @daytona/sdk
+solid: @tanstack/ai-isolate-daytona @daytona/sdk
+svelte: @tanstack/ai-isolate-daytona @daytona/sdk
+preact: @tanstack/ai-isolate-daytona @daytona/sdk
+angular: @tanstack/ai-isolate-daytona @daytona/sdk
+vanilla: @tanstack/ai-isolate-daytona @daytona/sdk
+octane: @tanstack/ai-isolate-daytona @daytona/sdk
+
+<!-- ::end:tabs -->
 
 ### 2. Define tools
 
@@ -151,7 +224,7 @@ const { tool, systemPrompt } = createCodeMode({
   tools,           // Array<ServerTool | ToolDefinition> — required, at least one
   timeout,         // number — execution timeout in ms (default: 30000)
   memoryLimit,     // number — memory limit in MB (default: 128, Node + QuickJS drivers)
-  getSkillBindings, // () => Promise<Record<string, ToolBinding>> — optional dynamic bindings
+  getSnippetBindings, // () => Promise<Record<string, ToolBinding>> — optional dynamic bindings
 });
 ```
 
@@ -163,7 +236,7 @@ const { tool, systemPrompt } = createCodeMode({
 | `tools` | `Array<ServerTool \| ToolDefinition>` | Tools exposed as `external_*` functions. Must have `.server()` implementations |
 | `timeout` | `number` | Execution timeout in milliseconds (default: 30000) |
 | `memoryLimit` | `number` | Memory limit in MB (default: 128). Supported by Node and QuickJS drivers |
-| `getSkillBindings` | `() => Promise<Record<string, ToolBinding>>` | Optional function returning additional bindings at execution time |
+| `getSnippetBindings` | `() => Promise<Record<string, ToolBinding>>` | Optional function returning additional bindings at execution time |
 
 The tool returns a `CodeModeToolResult`:
 
@@ -210,7 +283,9 @@ interface IsolateDriver {
 |---------|-----------------|-------------|
 | `@tanstack/ai-isolate-node` | `createNodeIsolateDriver()` | Node.js |
 | `@tanstack/ai-isolate-quickjs` | `createQuickJSIsolateDriver()` | Node.js, browser, edge |
+| `@tanstack/ai-isolate-quickjs-bun` | `createQuickJSBunIsolateDriver()` | Bun |
 | `@tanstack/ai-isolate-cloudflare` | `createCloudflareIsolateDriver()` | Cloudflare Workers |
+| `@tanstack/ai-isolate-daytona` | `createDaytonaIsolateDriver()` | Daytona sandboxes |
 
 For full configuration options for each driver, see [Isolate Drivers](./code-mode-isolates.md).
 
@@ -226,7 +301,7 @@ These utilities are used internally and are exported for custom pipelines:
 
 For a full comparison of drivers with all configuration options, see [Isolate Drivers](./code-mode-isolates.md).
 
-In brief: use the **Node driver** for server-side Node.js (fastest, V8 JIT), **QuickJS** for browsers or portable edge deployments (no native deps), and the **Cloudflare driver** when you deploy to Cloudflare Workers.
+In brief: use the **Node driver** for server-side Node.js (fastest, V8 JIT), **QuickJS** for browsers or portable edge deployments (no native deps), **QuickJS Bun** for Bun servers (native QuickJS via `bun:ffi`), the **Cloudflare driver** when you deploy to Cloudflare Workers, and the **Daytona driver** when you want execution inside a full remote Linux sandbox.
 
 ## Custom Events
 
@@ -291,5 +366,5 @@ pnpm eval -- --no-judge      # skip Anthropic-based judging
 ## Next Steps
 
 - [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
-- [Code Mode with Skills](./code-mode-with-skills) — Add persistent, reusable skill libraries
-- [Isolate Drivers](./code-mode-isolates) — Compare Node, QuickJS, and Cloudflare sandbox runtimes
+- [Code Mode with Snippets](./code-mode-with-snippets) — Add persistent, reusable snippet libraries
+- [Isolate Drivers](./code-mode-isolates) — Compare Node, QuickJS, QuickJS Bun, Cloudflare, and Daytona sandbox runtimes

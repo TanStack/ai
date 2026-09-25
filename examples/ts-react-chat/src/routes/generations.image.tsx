@@ -4,14 +4,79 @@ import { useGenerateImage } from '@tanstack/ai-react'
 import type { UseGenerateImageReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { resolveMediaPrompt } from '@tanstack/ai'
-import { generateImageFn, generateImageStreamFn } from '../lib/server-fns'
+import type { StreamChunk } from '@tanstack/ai'
+import {
+  generateImageFn,
+  generateImageStreamFn,
+  getImageHydrationFn,
+  joinImageRunFn,
+} from '../lib/server-fns'
+
+// This page shows server-driven persistence (`persistence: true`) on every
+// transport. Streaming uses the HTTP connection's built-in GET hydrate/join.
+// Direct and Server Fn have no GET route, so they pass `hydrateGeneration` /
+// `joinRun` as options (backed by companion server functions). All three write
+// run records + image bytes into the same SQLite stores, and restored images
+// render from `/api/artifacts`.
+
+/**
+ * Parse an SSE `Response` from a server function into StreamChunks — the same
+ * shape `GenerationClient` uses when a fetcher returns `toServerSentEventsResponse`.
+ * Needed for `joinRun`, which expects an `AsyncIterable` rather than a Response.
+ */
+async function* chunksFromSseResponse(
+  response: Response,
+  signal?: AbortSignal,
+): AsyncGenerator<StreamChunk> {
+  if (!response.ok) {
+    throw new Error(
+      `HTTP error! status: ${response.status} ${response.statusText}`,
+    )
+  }
+  const reader = response.body?.getReader()
+  if (!reader) return
+  const decoder = new TextDecoder()
+  let buffer = ''
+  try {
+    while (!signal?.aborted) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) {
+        if (!line.startsWith('data:')) continue
+        const raw = line.slice(5)
+        const data = raw.startsWith(' ') ? raw.slice(1) : raw
+        if (!data || data === '[DONE]') continue
+        try {
+          yield JSON.parse(data) as StreamChunk
+        } catch {
+          // skip malformed chunk
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
+const IMAGE_THREAD = {
+  streaming: 'image:streaming',
+  direct: 'image:direct',
+  'server-fn': 'image:server-fn',
+} as const
 
 function StreamingImageGeneration() {
   const [prompt, setPrompt] = useState('')
   const [numberOfImages, setNumberOfImages] = useState(1)
 
   const hookReturn = useGenerateImage({
+    threadId: IMAGE_THREAD.streaming,
     connection: fetchServerSentEvents('/api/generate/image'),
+    // Server-driven: the browser caches nothing. On mount the hook issues a
+    // `GET /api/generate/image?threadId=…`, answered by `reconstructGeneration`.
+    persistence: true,
   })
 
   return (
@@ -28,12 +93,22 @@ function StreamingImageGeneration() {
 function DirectImageGeneration() {
   const [prompt, setPrompt] = useState('')
   const [numberOfImages, setNumberOfImages] = useState(1)
+  const threadId = IMAGE_THREAD.direct
 
   const hookReturn = useGenerateImage({
+    threadId,
     fetcher: (input) =>
       generateImageFn({
-        data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
+        data: {
+          ...input,
+          prompt: resolveMediaPrompt(input.prompt).text,
+          threadId,
+        },
       }),
+    // No GET route on a server function — supply the hydrate handler yourself.
+    hydrateGeneration: (id) => getImageHydrationFn({ data: id }),
+    // Direct is non-streaming, so there is no in-flight stream to rejoin.
+    persistence: true,
   })
 
   return (
@@ -50,12 +125,24 @@ function DirectImageGeneration() {
 function ServerFnImageGeneration() {
   const [prompt, setPrompt] = useState('')
   const [numberOfImages, setNumberOfImages] = useState(1)
+  const threadId = IMAGE_THREAD['server-fn']
 
   const hookReturn = useGenerateImage({
+    threadId,
     fetcher: (input) =>
       generateImageStreamFn({
-        data: { ...input, prompt: resolveMediaPrompt(input.prompt).text },
+        data: {
+          ...input,
+          prompt: resolveMediaPrompt(input.prompt).text,
+          threadId,
+        },
       }),
+    hydrateGeneration: (id) => getImageHydrationFn({ data: id }),
+    joinRun: async function* (runId, signal) {
+      const response = await joinImageRunFn({ data: runId })
+      yield* chunksFromSseResponse(response as Response, signal)
+    },
+    persistence: true,
   })
 
   return (
@@ -181,7 +268,8 @@ function ImageGenerationPage() {
           <div>
             <h2 className="text-xl font-semibold">Image Generation</h2>
             <p className="text-sm text-gray-400 mt-1">
-              Generate images using OpenAI's image models
+              Generate images using xAI&apos;s Grok Imagine models. All three
+              modes persist runs + image bytes server-side — reload to restore.
             </p>
           </div>
           <div className="flex gap-1 bg-gray-900/50 rounded-lg p-1">

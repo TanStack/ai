@@ -3,9 +3,7 @@ id: MediaInputMetadata
 title: MediaInputMetadata
 ---
 
-# Interface: MediaInputMetadata
-
-Defined in: [packages/ai/src/types.ts:1687](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1687)
+Defined in: [packages/ai/src/types.ts:1957](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1957)
 
 Metadata convention for image / video / audio inputs to media generation.
 Carried on `ImagePart.metadata` / `VideoPart.metadata` / `AudioPart.metadata`
@@ -16,10 +14,10 @@ when used as conditioning inputs to `generateImage()` or `generateVideo()`.
 ### role?
 
 ```ts
-optional role: MediaInputRole;
+optional role?: MediaInputRole;
 ```
 
-Defined in: [packages/ai/src/types.ts:1689](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1689)
+Defined in: [packages/ai/src/types.ts:1959](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1959)
 
 Optional role hint disambiguating the part's intent for the adapter
 
@@ -28,10 +26,10 @@ Optional role hint disambiguating the part's intent for the adapter
 ### tag?
 
 ```ts
-optional tag: string;
+optional tag?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1698](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1698)
+Defined in: [packages/ai/src/types.ts:1968](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1968)
 
 Optional user-defined label for this input (e.g. `'woman-in-red-dress'`).
 **Informational only** — adapters never read it and the SDK never

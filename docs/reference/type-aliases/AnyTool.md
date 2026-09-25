@@ -3,20 +3,18 @@ id: AnyTool
 title: AnyTool
 ---
 
-# Type Alias: AnyTool
-
 ```ts
 type AnyTool = Omit<Tool<any, any, any, any>, "execute"> & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:721](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L721)
+Defined in: [packages/ai/src/types.ts:882](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L882)
 
 ## Type Declaration
 
-### execute()?
+### execute?
 
 ```ts
-optional execute: (args, context?) => any;
+optional execute?: (args, context?) => any;
 ```
 
 #### Parameters

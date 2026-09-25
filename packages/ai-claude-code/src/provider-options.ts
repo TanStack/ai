@@ -27,4 +27,10 @@ export interface ClaudeCodeTextProviderOptions {
   disallowedTools?: Array<string>
   /** Per-call override of the harness working directory. */
   cwd?: string
+  /**
+   * `'api-key'` (default) injects `ANTHROPIC_API_KEY`.
+   * `'host'` uses `claude login`.
+   * Not inferred from the sandbox.
+   */
+  authMode?: 'host' | 'api-key'
 }

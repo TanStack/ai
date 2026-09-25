@@ -150,10 +150,28 @@ describe('OpenRouter Image Adapter', () => {
     })
   })
 
-  it('generates multiple images', async () => {
+  it('throws for numberOfImages > 1 (the pathway returns exactly one image)', async () => {
+    mockSend = vi.fn()
+
+    const adapter = createAdapter()
+
+    // Verified live: OpenRouter's chat-completions image pathway ignores any
+    // count key in image_config and always returns one image — passing the
+    // count through would silently under-deliver.
+    await expect(
+      adapter.generateImages({
+        model: 'google/gemini-2.5-flash-image',
+        prompt: 'A cute robot mascot',
+        numberOfImages: 2,
+        logger: testLogger,
+      }),
+    ).rejects.toThrow(/one image per request/)
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  it('accepts numberOfImages: 1 without sending a count key', async () => {
     const mockResponse = createMockImageResponse([
       { url: 'https://example.com/image1.png' },
-      { url: 'https://example.com/image2.png' },
     ])
 
     mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
@@ -163,19 +181,14 @@ describe('OpenRouter Image Adapter', () => {
     const result = await adapter.generateImages({
       model: 'google/gemini-2.5-flash-image',
       prompt: 'A cute robot mascot',
-      numberOfImages: 2,
+      numberOfImages: 1,
       logger: testLogger,
     })
 
     const callArgs = mockSend.mock.calls[0]![0].chatRequest
-    expect(callArgs.imageConfig).toMatchObject({
-      numberOfImages: 2,
-    })
+    expect(callArgs.imageConfig).not.toHaveProperty('numberOfImages')
     expect(callArgs.imageConfig).not.toHaveProperty('n')
-
-    expect(result.images).toHaveLength(2)
-    expect(result.images[0]!.url).toBe('https://example.com/image1.png')
-    expect(result.images[1]!.url).toBe('https://example.com/image2.png')
+    expect(result.images).toHaveLength(1)
   })
 
   it('handles base64 image responses', async () => {
@@ -242,6 +255,70 @@ describe('OpenRouter Image Adapter', () => {
     expect(callArgs.imageConfig).toMatchObject({
       aspect_ratio: '1:1',
     })
+  })
+
+  it("normalizes the '×' size separator before the aspect-ratio lookup", async () => {
+    const mockResponse = createMockImageResponse([
+      { url: 'https://example.com/image.png' },
+    ])
+
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter()
+
+    await adapter.generateImages({
+      model: 'google/gemini-2.5-flash-image',
+      prompt: 'A portrait image',
+      size: '832×1248',
+      logger: testLogger,
+    })
+
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
+    expect(callArgs.imageConfig).toMatchObject({
+      aspect_ratio: '2:3',
+    })
+  })
+
+  it('throws for sizes outside the aspect-ratio table instead of dropping them', async () => {
+    mockSend = vi.fn()
+
+    const adapter = createAdapter()
+
+    await expect(
+      adapter.generateImages({
+        model: 'google/gemini-2.5-flash-image',
+        prompt: 'A weirdly sized image',
+        size: '512x512',
+        logger: testLogger,
+      }),
+    ).rejects.toThrow(/unsupported image size '512x512'/)
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  it('passes strength through to image_config', async () => {
+    const mockResponse = createMockImageResponse([
+      { url: 'https://example.com/image.png' },
+    ])
+
+    mockSend = vi.fn().mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter()
+
+    await adapter.generateImages({
+      model: 'google/gemini-2.5-flash-image',
+      prompt: [
+        {
+          type: 'image',
+          source: { type: 'url', value: 'https://example.com/source.png' },
+        },
+        { type: 'text', content: 'Repaint in watercolor' },
+      ],
+      modelOptions: { strength: 0.35 },
+      logger: testLogger,
+    })
+
+    const callArgs = mockSend.mock.calls[0]![0].chatRequest
+    expect(callArgs.imageConfig).toMatchObject({ strength: 0.35 })
   })
 
   it('propagates SDK errors without rewrapping', async () => {

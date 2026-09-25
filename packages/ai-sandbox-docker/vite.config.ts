@@ -10,6 +10,8 @@ const config = defineConfig({
 
     globals: true,
     environment: 'node',
+    // makeGitRepo + sbx create under Nx parallel load exceeds vitest's 5s default.
+    testTimeout: 30_000,
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',

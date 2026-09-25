@@ -32,7 +32,17 @@ export default function JavaScriptVM({
   const [isCollapsed, setIsCollapsed] = useState(false)
   const prevExecutingRef = useRef(isExecuting)
 
-  // Auto-collapse when execution completes (with delay)
+  const hasFailureEvent = events.some(
+    (e) =>
+      e.eventType === 'code_mode:external_error' ||
+      (e.eventType === 'code_mode:execution_finished' &&
+        typeof e.data === 'object' &&
+        e.data !== null &&
+        (e.data as { success?: unknown }).success === false),
+  )
+
+  // Auto-collapse when execution completes successfully (with delay).
+  // Keep open on failures so the finish/error event stays visible.
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null
 
@@ -40,12 +50,11 @@ export default function JavaScriptVM({
       const wasExecuting = prevExecutingRef.current
       const isComplete = !isExecuting
 
-      if (wasExecuting && isComplete && events.length > 0) {
-        // Delay auto-collapse by 3 seconds so user can see the events
+      if (wasExecuting && isComplete && events.length > 0 && !hasFailureEvent) {
         timeoutId = setTimeout(() => {
           setIsCollapsed(true)
         }, 3000)
-      } else if (isExecuting) {
+      } else if (isExecuting || hasFailureEvent) {
         setIsCollapsed(false)
       }
     }
@@ -54,7 +63,7 @@ export default function JavaScriptVM({
     return () => {
       if (timeoutId) clearTimeout(timeoutId)
     }
-  }, [isExecuting, userControlled, events.length])
+  }, [isExecuting, userControlled, events.length, hasFailureEvent])
 
   // Auto-scroll to bottom when new events arrive
   useEffect(() => {
@@ -97,6 +106,17 @@ export default function JavaScriptVM({
     }
     if (eventType === 'code_mode:external_error') {
       return <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+    }
+    if (eventType === 'code_mode:execution_finished') {
+      const ok =
+        typeof data === 'object' &&
+        data !== null &&
+        (data as { success?: unknown }).success === true
+      return ok ? (
+        <Terminal className="w-3.5 h-3.5 text-green-400" />
+      ) : (
+        <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+      )
     }
     return <Terminal className="w-3.5 h-3.5 text-cyan-400" />
   }
@@ -181,6 +201,35 @@ export default function JavaScriptVM({
       return (
         <span className={colorClass}>
           <span className="text-gray-500">📝</span> {message}
+        </span>
+      )
+    }
+
+    if (eventType === 'code_mode:execution_finished') {
+      const success = typedData.success === true
+      const durationMs = typedData.durationMs as number | undefined
+      const phase = typedData.phase as string | undefined
+      const err = typedData.error as
+        | { name?: string; message?: string }
+        | undefined
+      if (success) {
+        return (
+          <span className="text-green-300">
+            <span className="text-gray-500">✓</span> Finished
+            {phase ? ` · ${phase}` : ''}
+            {durationMs !== undefined ? ` · ${durationMs}ms` : ''}
+          </span>
+        )
+      }
+      return (
+        <span className="text-red-300">
+          <span className="text-gray-500">✗</span> Failed
+          {phase ? ` · phase=${phase}` : ''}
+          {durationMs !== undefined ? ` · ${durationMs}ms` : ''}
+          {err?.name ? ` · ${err.name}` : ''}
+          {err?.message ? (
+            <span className="text-red-400">: {err.message}</span>
+          ) : null}
         </span>
       )
     }

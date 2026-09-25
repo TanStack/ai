@@ -20,7 +20,7 @@ import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
 import { collectChunks, createMockAdapter } from './test-utils'
-import type { StreamChunk } from '../src/types'
+import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
 
 const PersonSchema = z.object({
   name: z.string(),
@@ -30,7 +30,7 @@ type Person = z.infer<typeof PersonSchema>
 
 const validPerson: Person = { name: 'Jane Roe', age: 31 }
 
-function textTurn(json: string): Array<StreamChunk> {
+function textTurn(json: string): Array<AdapterYieldChunk> {
   const ts = Date.now()
   return [
     {
@@ -165,6 +165,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
     const runFinished = chunks.filter((c) => c.type === EventType.RUN_FINISHED)
     expect(runStarted.length).toBe(1)
     expect(runFinished.length).toBe(1)
+    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
   })
 
   it('Promise<T> path skips finalization and returns the validated typed value', async () => {
@@ -206,6 +207,43 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
     ).rejects.toThrow()
   })
 
+  // #1426: a final turn cut off at the output cap is a truncation, not a
+  // schema failure, whether it holds partial JSON or no text at all.
+  it.each([
+    ['truncated JSON', '{"name":"Ja'],
+    ['no text', ''],
+  ])(
+    'reports finishReason=length as the token limit (%s)',
+    async (_label, json) => {
+      const turn = textTurn(json)
+        .filter((c) => json || c.type !== EventType.TEXT_MESSAGE_CONTENT)
+        .map((c) =>
+          c.type === EventType.RUN_FINISHED
+            ? { ...c, finishReason: 'length' as const }
+            : c,
+        )
+      const { adapter } = createMockAdapter({
+        iterations: [turn],
+        supportsCombinedToolsAndSchema: true,
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'extract' }],
+          outputSchema: PersonSchema,
+          stream: true,
+        }),
+      )
+
+      const runError = chunks.find((c) => c.type === EventType.RUN_ERROR) as
+        | { code?: string; message?: string }
+        | undefined
+      expect(runError?.code).toBe('max_tokens')
+      expect(runError?.message).toMatch(/maximum token limit was reached/)
+    },
+  )
+
   it('emits a RUN_ERROR on the streaming path when the final-turn text is not valid JSON', async () => {
     const { adapter } = createMockAdapter({
       iterations: [textTurn('not-json-at-all')],
@@ -226,6 +264,7 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
       | undefined
     expect(runError).toBeDefined()
     expect(runError!.code).toBe('structured-output-parse-failed')
+    expect(chunks.some((c) => c.type === EventType.RUN_FINISHED)).toBe(false)
 
     // No structured-output.complete on the parse-failure path.
     const complete = chunks.find(

@@ -1,0 +1,98 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/brand/fonts/BricolageGrotesque-Bold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('/brand/fonts/Inter-latin.woff2') format('woff2');
+}
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque', Inter, sans-serif;
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root,
+.dark {
+  --radius: 0.75rem;
+  --background: #111111;
+  --foreground: #eeebd4;
+  --card: #1a1a1a;
+  --card-foreground: #eeebd4;
+  --popover: #1a1a1a;
+  --popover-foreground: #eeebd4;
+  --primary: #e06e49;
+  --primary-foreground: #111111;
+  --secondary: #2a2622;
+  --secondary-foreground: #eeebd4;
+  --muted: #2a2622;
+  --muted-foreground: #aea691;
+  --accent: #2a2622;
+  --accent-foreground: #eeebd4;
+  --destructive: #e06e49;
+  --border: rgb(238 235 212 / 12%);
+  --input: rgb(238 235 212 / 14%);
+  --ring: #e06e49;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply m-0 bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    font-weight: 300;
+    background-image:
+      radial-gradient(
+        1200px 600px at 80% -10%,
+        rgb(224 110 73 / 12%),
+        transparent 55%
+      ),
+      radial-gradient(
+        800px 400px at -10% 110%,
+        rgb(238 235 212 / 6%),
+        transparent 50%
+      );
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 700;
+  }
+}

@@ -41,7 +41,11 @@ import {
 import { claudeCodeText } from '../src/index'
 import type { AddressInfo } from 'node:net'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { AnyTool, CapabilityContext, StreamChunk } from '@tanstack/ai'
+import type {
+  AdapterYieldChunk,
+  AnyTool,
+  CapabilityContext,
+} from '@tanstack/ai'
 import type {
   ProvisionedBridge,
   SandboxHandle,
@@ -159,9 +163,9 @@ function capabilityContextWith(
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }

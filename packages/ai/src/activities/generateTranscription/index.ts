@@ -9,12 +9,20 @@ import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
+  applyGenerationResultTransforms,
   createGenerationContext,
+  runGenerationAbort,
   runGenerationError,
   runGenerationFinish,
   runGenerationStart,
   runGenerationUsage,
 } from '../middleware/run'
+import {
+  abortReasonMessage,
+  createActivityAbortControls,
+  isActivityAbortError,
+  raceWithAbort,
+} from '../../utilities/activity-abort'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware/types'
@@ -39,10 +47,11 @@ export const kind = 'transcription' as const
 /**
  * Extract provider options from a TranscriptionAdapter via ~types.
  */
-export type TranscriptionProviderOptions<TAdapter> =
-  TAdapter extends TranscriptionAdapter<any, any>
-    ? TAdapter['~types']['providerOptions']
-    : object
+export type TranscriptionProviderOptions<TAdapter> = TAdapter extends {
+  '~types': { providerOptions: infer P extends object }
+}
+  ? P
+  : object
 
 // ===========================
 // Activity Options Type
@@ -94,6 +103,22 @@ export interface TranscriptionActivityOptions<
    * `GenerationMiddleware` contract for a custom backend.
    */
   middleware?: Array<GenerationMiddleware>
+  /** Stable conversation/thread id for correlating this run when persisted. */
+  threadId?: string
+  /** Stable run id for correlating this run when persisted. */
+  runId?: string
+  /**
+   * Maximum duration of this activity invocation in milliseconds.
+   * No SDK-wide default — choose a value suitable for the provider and job.
+   * Composed with {@link abortSignal}; the first abort wins.
+   */
+  timeout?: number
+  /**
+   * Caller cancellation signal (request disconnects, job/runtime cancellation).
+   * Composed with {@link timeout} into an effective signal forwarded to the
+   * adapter. Request-specific — not stored on global provider client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 // ===========================
@@ -171,8 +196,15 @@ export function generateTranscription<
   options: TranscriptionActivityOptions<TAdapter, TStream>,
 ): TranscriptionActivityResult<TStream> {
   if (options.stream) {
-    return streamGenerationResult(() =>
-      runGenerateTranscription(options),
+    return streamGenerationResult(
+      // Only `runId` is taken from the resolved wire identity. `threadId` stays
+      // the CALLER's: `streamGenerationResult` mints one for the RUN_* chunks
+      // when none was passed, and spreading that over the options would hand
+      // middleware a thread id known to nobody, which persistence would then
+      // file the run under. Matches `generateVideo`.
+      (resolved) =>
+        runGenerateTranscription({ ...options, runId: resolved.runId }),
+      options,
     ) as TranscriptionActivityResult<TStream>
   }
 
@@ -197,12 +229,20 @@ async function runGenerateTranscription<
     stream: _stream,
     debug: _debug,
     middleware,
+    threadId,
+    runId,
+    timeout,
+    abortSignal: callerAbortSignal,
     ...rest
   } = options
   const model = adapter.model
   const requestId = createId('transcription')
   const startTime = Date.now()
   const logger: InternalLogger = resolveDebugOption(options.debug)
+  const abortControls = createActivityAbortControls({
+    timeout,
+    abortSignal: callerAbortSignal,
+  })
   const providerName =
     (adapter as { name?: string; provider?: string }).provider ??
     (adapter as { name?: string }).name ??
@@ -214,6 +254,14 @@ async function runGenerateTranscription<
     provider: adapter.name,
     model,
     modelOptions: rest.modelOptions,
+    artifactInputs: {
+      audio: rest.audio,
+      language: rest.language,
+      prompt: rest.prompt,
+      responseFormat: rest.responseFormat,
+    },
+    threadId,
+    runId,
     createId,
   })
 
@@ -236,7 +284,17 @@ async function runGenerateTranscription<
   })
 
   try {
-    const result = await adapter.transcribe({ ...rest, model, logger })
+    const rawResult = await raceWithAbort(
+      adapter.transcribe({
+        ...rest,
+        model,
+        logger,
+        ...(abortControls.signal ? { abortSignal: abortControls.signal } : {}),
+      }),
+      abortControls.signal,
+    )
+    abortControls.clear()
+    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
     const duration = Date.now() - startTime
 
     aiEventClient.emit('transcription:request:completed', {
@@ -263,6 +321,7 @@ async function runGenerateTranscription<
 
     return result
   } catch (error) {
+    abortControls.clear()
     const duration = Date.now() - startTime
     const err = error as Error
     aiEventClient.emit('transcription:request:error', {
@@ -274,10 +333,17 @@ async function runGenerateTranscription<
       modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
       timestamp: Date.now(),
     })
-    await runGenerationError(middleware, mwCtx, {
-      error,
-      duration,
-    })
+    if (isActivityAbortError(error, abortControls.signal)) {
+      await runGenerationAbort(middleware, mwCtx, {
+        reason: abortReasonMessage(error, abortControls.signal),
+        duration,
+      })
+    } else {
+      await runGenerationError(middleware, mwCtx, {
+        error,
+        duration,
+      })
+    }
     logger.errors('generateTranscription activity failed', {
       error,
       source: 'generateTranscription',

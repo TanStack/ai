@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { startHostToolBridge } from '../src/tool-bridge'
+import { hostForSandbox, startHostToolBridge } from '../src/tool-bridge'
 import type { HostToolBridge } from '../src/tool-bridge'
 import type { AnyTool } from '@tanstack/ai'
 
@@ -27,6 +27,15 @@ function tool(name: string, execute: (args: unknown) => unknown): AnyTool {
 }
 
 describe('startHostToolBridge', () => {
+  it('rejects when the listener cannot start', async () => {
+    await expect(
+      startHostToolBridge([], {
+        hostForSandbox: '127.0.0.1',
+        bindAddress: 'not a valid host',
+      }),
+    ).rejects.toMatchObject({ code: 'ENOTFOUND' })
+  })
+
   it('serves chat() tools over MCP and proxies calls to the host', async () => {
     let calledWith: unknown
     bridge = await startHostToolBridge(
@@ -86,5 +95,17 @@ describe('startHostToolBridge', () => {
     const transport = new StreamableHTTPClientTransport(new URL(bridge.url))
     await expect(client.connect(transport)).rejects.toThrow()
     await client.close().catch(() => {})
+  })
+})
+
+describe('hostForSandbox', () => {
+  it('uses host.docker.internal for docker and sbx', () => {
+    expect(hostForSandbox('docker')).toBe('host.docker.internal')
+    expect(hostForSandbox('sbx')).toBe('host.docker.internal')
+  })
+
+  it('uses loopback for other providers', () => {
+    expect(hostForSandbox('local-process')).toBe('127.0.0.1')
+    expect(hostForSandbox('daytona')).toBe('127.0.0.1')
   })
 })

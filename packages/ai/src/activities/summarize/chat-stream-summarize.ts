@@ -1,13 +1,57 @@
 import { EventType } from '@ag-ui/core'
 import { toRunErrorPayload } from '../error-payload'
 import { MAX_TOKENS_KEYS } from '../../utilities/sampling-keys'
+import { rebuildTokenUsage } from '../../utilities/ag-ui-usage'
+import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
+import { tanstackMetadata } from '../../utilities/merge-metadata'
+import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
 import { BaseSummarizeAdapter } from './adapter'
 import type {
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
   TextOptions,
+  TokenUsage,
 } from '../../types'
+
+function consumeSpecSummarizeChunk(
+  chunk: StreamChunk,
+  state: { summary: string; model: string; usage: TokenUsage },
+): void {
+  if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+    if (chunk.delta) state.summary += chunk.delta
+    return
+  }
+
+  const tanstack = tanstackMetadata(chunk)
+  if (
+    (chunk.type === EventType.RUN_STARTED ||
+      chunk.type === EventType.RUN_FINISHED ||
+      chunk.type === EventType.TEXT_MESSAGE_START) &&
+    typeof tanstack?.model === 'string'
+  ) {
+    state.model = tanstack.model
+  }
+
+  if (chunk.type === EventType.RUN_FINISHED) {
+    const rebuilt = rebuildTokenUsage(chunk.usage, tanstack?.usage)
+    if (rebuilt) state.usage = rebuilt
+  }
+}
+
+function throwRunError(
+  chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
+): never {
+  const message =
+    typeof chunk.message === 'string' && chunk.message.length > 0
+      ? chunk.message
+      : 'Summarization failed'
+  const err = new Error(message)
+  if (typeof chunk.code === 'string') {
+    ;(err as Error & { code?: string }).code = chunk.code
+  }
+  throw err
+}
 
 /**
  * Minimal contract for a text adapter that supports `chatStream`. Lets
@@ -21,7 +65,9 @@ import type {
  * `SummarizationOptions<TProviderOptions>` on the wrapper itself.
  */
 export interface ChatStreamCapable {
-  chatStream: (options: TextOptions<any>) => AsyncIterable<StreamChunk>
+  /** Native token-limit option for adapters whose provider name is user-defined. */
+  readonly maxTokensKey?: string
+  chatStream: (options: TextOptions<any>) => AsyncIterable<AdapterYieldChunk>
 }
 
 /**
@@ -38,6 +84,7 @@ export interface ChatStreamCapable {
  * - Groq: `max_completion_tokens`
  * - Gemini: `maxOutputTokens`
  * - OpenRouter: `maxCompletionTokens`
+ * - LLM Gateway: `max_tokens`
  * - Ollama: nested `options.num_predict` (no entry — see `applyMaxLength`)
  */
 const MAX_TOKENS_KEY_BY_ADAPTER: Record<string, string> = {
@@ -47,6 +94,11 @@ const MAX_TOKENS_KEY_BY_ADAPTER: Record<string, string> = {
   groq: 'max_completion_tokens',
   gemini: 'maxOutputTokens',
   openrouter: 'maxCompletionTokens',
+  // LLM Gateway exposes an OpenAI-compatible Chat Completions surface whose
+  // only output cap is `max_tokens` — it does not read `max_completion_tokens`.
+  llmgateway: 'max_tokens',
+  // Workers AI's OpenAI-compatible Chat Completions surface reads `max_tokens`.
+  cloudflare: 'max_tokens',
 }
 
 /**
@@ -101,8 +153,8 @@ function applyDefaultTemperature(
 
 /**
  * Resolve `maxLength` to the provider-native max-output-tokens key for the
- * given summarize-adapter `name` (this wrapper's OWN `name`, not the wrapped
- * text adapter's) and merge it into a working copy of the caller's
+ * wrapped text adapter's explicit key, falling back to this wrapper's `name`,
+ * and merge it into a working copy of the caller's
  * `modelOptions`. The caller always wins: if they already set any recognised
  * token-limit key (flat or, for Ollama, nested `options.num_predict`), the
  * default is left untouched. Unknown/unrecognised adapter names fall back to
@@ -122,10 +174,11 @@ function applyMaxLength(
   adapterName: string,
   maxLength: number,
   modelOptions: Record<string, unknown>,
+  maxTokensKey?: string,
 ): Record<string, unknown> {
   const merged: Record<string, unknown> = { ...modelOptions }
 
-  if (adapterName === 'ollama') {
+  if (adapterName === 'ollama' && maxTokensKey === undefined) {
     // Honor a caller-set limit in either shape: a recognised flat key (e.g.
     // left over from a migration) or the nested `options.num_predict`.
     const callerSetFlatLimit = KNOWN_MAX_TOKENS_KEYS.some(
@@ -145,12 +198,12 @@ function applyMaxLength(
     return merged
   }
 
-  const key = MAX_TOKENS_KEY_BY_ADAPTER[adapterName]
+  const key = maxTokensKey ?? MAX_TOKENS_KEY_BY_ADAPTER[adapterName]
   if (key === undefined) return merged
 
-  const callerSetLimit = KNOWN_MAX_TOKENS_KEYS.some(
-    (k) => typeof merged[k] === 'number',
-  )
+  const callerSetLimit =
+    typeof merged[key] === 'number' ||
+    KNOWN_MAX_TOKENS_KEYS.some((k) => typeof merged[k] === 'number')
   if (callerSetLimit) return merged
 
   merged[key] = maxLength
@@ -197,10 +250,12 @@ export class ChatStreamSummarizeAdapter<
   ): Promise<SummarizationResult> {
     const systemPrompt = this.buildSummarizationPrompt(options)
 
-    let summary = ''
     const id = this.generateId()
-    let model = options.model
-    let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+    const state = {
+      summary: '',
+      model: options.model,
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    }
 
     options.logger.request(
       `activity=summarize provider=${this.name} model=${options.model} text-length=${options.text.length} maxLength=${options.maxLength ?? 'unset'}`,
@@ -208,41 +263,15 @@ export class ChatStreamSummarizeAdapter<
     )
 
     try {
-      for await (const chunk of this.textAdapter.chatStream(
+      for await (const raw of this.textAdapter.chatStream(
         this.buildTextOptions(options, systemPrompt),
       )) {
-        if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-          if (chunk.content) {
-            summary = chunk.content
-          } else if (chunk.delta) {
-            // Append delta only when present — a content-less chunk with no
-            // delta would otherwise concat literal `'undefined'`.
-            summary += chunk.delta
-          }
-          model = chunk.model || model
-        }
-        if (chunk.type === 'RUN_FINISHED') {
-          if (chunk.usage) {
-            usage = chunk.usage
-          }
-        }
-        // Surface failures: the underlying chatStream emits RUN_ERROR instead
-        // of throwing, so without this branch summarize() would return an
-        // empty summary and pretend a failed run succeeded.
-        if (chunk.type === 'RUN_ERROR') {
-          const message =
-            (chunk.error && typeof chunk.error.message === 'string'
-              ? chunk.error.message
-              : null) ?? 'Summarization failed'
-          const code =
-            chunk.error && typeof chunk.error.code === 'string'
-              ? chunk.error.code
-              : undefined
-          const err = new Error(message)
-          if (code) {
-            ;(err as Error & { code?: string }).code = code
-          }
-          throw err
+        for (const chunk of normalizeStreamChunk(raw as AdapterYieldChunk)) {
+          // Surface failures: the underlying chatStream emits RUN_ERROR instead
+          // of throwing, so without this branch summarize() would return an
+          // empty summary and pretend a failed run succeeded.
+          if (chunk.type === EventType.RUN_ERROR) throwRunError(chunk)
+          consumeSpecSummarizeChunk(chunk, state)
         }
       }
     } catch (error: unknown) {
@@ -255,7 +284,12 @@ export class ChatStreamSummarizeAdapter<
       throw error
     }
 
-    return { id, model, summary, usage }
+    return {
+      id,
+      model: state.model,
+      summary: state.summary,
+      usage: state.usage,
+    }
   }
 
   override async *summarizeStream(
@@ -269,46 +303,45 @@ export class ChatStreamSummarizeAdapter<
     )
 
     const id = this.generateId()
-    let summary = ''
-    let model = options.model
-    let usage: SummarizationResult['usage'] = {
-      promptTokens: 0,
-      completionTokens: 0,
-      totalTokens: 0,
+    const state = {
+      summary: '',
+      model: options.model,
+      usage: {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+      } satisfies SummarizationResult['usage'],
     }
 
     try {
-      for await (const chunk of this.textAdapter.chatStream(
+      for await (const raw of this.textAdapter.chatStream(
         this.buildTextOptions(options, systemPrompt),
       )) {
-        // Accumulate the same way `summarize()` does so consumers see deltas
-        // AND the terminal `generation:result` event below carries the same
-        // final summary that non-streaming returns.
-        if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-          if (chunk.content) {
-            summary = chunk.content
-          } else if (chunk.delta) {
-            summary += chunk.delta
-          }
-          if (chunk.model) model = chunk.model
-        }
+        for (const chunk of normalizeStreamChunk(raw as AdapterYieldChunk)) {
+          // Accumulate the same way `summarize()` does so consumers see deltas
+          // AND the terminal `generation:result` event below carries the same
+          // final summary that non-streaming returns.
+          consumeSpecSummarizeChunk(chunk, state)
 
-        // Emit the GenerationClient-shaped result event just before the
-        // terminal RUN_FINISHED so subscribers (useSummarize) populate
-        // `result` before flipping `status` to success.
-        if (chunk.type === 'RUN_FINISHED') {
-          if (chunk.usage) usage = chunk.usage
-          if (chunk.model) model = chunk.model
-          yield {
-            type: EventType.CUSTOM,
-            name: 'generation:result',
-            value: { id, model, summary, usage } satisfies SummarizationResult,
-            model,
-            timestamp: Date.now(),
+          // Emit the GenerationClient-shaped result event just before the
+          // terminal RUN_FINISHED so subscribers (useSummarize) populate
+          // `result` before flipping `status` to success.
+          if (chunk.type === EventType.RUN_FINISHED) {
+            yield {
+              type: EventType.CUSTOM,
+              name: 'generation:result',
+              value: {
+                id,
+                model: state.model,
+                summary: state.summary,
+                usage: state.usage,
+              } satisfies SummarizationResult,
+              timestamp: Date.now(),
+            }
           }
-        }
 
-        yield chunk
+          yield chunk
+        }
       }
     } catch (error: unknown) {
       options.logger.errors(`${this.name}.summarizeStream fatal`, {
@@ -342,17 +375,24 @@ export class ChatStreamSummarizeAdapter<
     working = applyDefaultTemperature(this.name, 0.3, working)
     // `maxLength` must reach the wire under the provider-native token key (it
     // differs per provider, and no adapter reads a generic `maxTokens`).
-    // Resolve it from this summarize adapter's `name` (the constructor arg,
-    // not the wrapped text adapter's name), never overriding a caller-supplied
-    // token limit.
+    // Prefer the wrapped adapter's explicit key, then this wrapper's name,
+    // never overriding a caller-supplied token limit.
     if (options.maxLength !== undefined) {
-      if (!isKnownMaxTokensAdapter(this.name)) {
+      if (
+        this.textAdapter.maxTokensKey === undefined &&
+        !isKnownMaxTokensAdapter(this.name)
+      ) {
         options.logger.warn(
           `summarize: maxLength=${options.maxLength} could not be mapped to a provider token key for adapter name "${this.name}" — it was dropped from modelOptions (the prompt still asks the model to stay under it). Construct ChatStreamSummarizeAdapter with a recognised provider name to forward the cap.`,
           { provider: this.name },
         )
       }
-      working = applyMaxLength(this.name, options.maxLength, working)
+      working = applyMaxLength(
+        this.name,
+        options.maxLength,
+        working,
+        this.textAdapter.maxTokensKey,
+      )
     }
     const modelOptions = working as TProviderOptions
 
@@ -362,6 +402,11 @@ export class ChatStreamSummarizeAdapter<
       systemPrompts: [systemPrompt],
       modelOptions,
       logger: options.logger,
+      // Forward the run identity so the wrapped chat stamps it onto RUN_STARTED
+      // (chat uses `runId` as its `runIdOverride`). Conditional spreads keep the
+      // fields absent when unset, under `exactOptionalPropertyTypes`.
+      ...(options.runId !== undefined ? { runId: options.runId } : {}),
+      ...(options.threadId !== undefined ? { threadId: options.threadId } : {}),
     }
   }
 

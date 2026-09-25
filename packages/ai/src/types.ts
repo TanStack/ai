@@ -5,10 +5,13 @@ import type {
 import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
 import type { CapabilityContext } from './activities/chat/middleware/capabilities'
+import type { InterruptSubmissionError } from './interrupts'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
 import type {
+  BilledUsage,
+  BillingUnit,
   CompletionTokensDetails,
   PromptTokensDetails,
   ProviderUsageDetails,
@@ -16,31 +19,66 @@ import type {
   UsageCostBreakdown,
 } from '@tanstack/ai-event-client'
 import type {
+  ActivityDeltaEvent as AGUIActivityDeltaEvent,
+  ActivitySnapshotEvent as AGUIActivitySnapshotEvent,
+  AudioPart as AGUIAudioPart,
   BaseEvent as AGUIBaseEvent,
+  ContentPart as AGUIContentPart,
   CustomEvent as AGUICustomEvent,
+  DataSource as AGUIDataSource,
+  DocumentPart as AGUIDocumentPart,
+  FileSource as AGUIFileSource,
+  ImagePart as AGUIImagePart,
+  Interrupt as AGUIInterrupt,
   MessagesSnapshotEvent as AGUIMessagesSnapshotEvent,
   ReasoningEncryptedValueEvent as AGUIReasoningEncryptedValueEvent,
   ReasoningEndEvent as AGUIReasoningEndEvent,
+  RawEvent as AGUIRawEvent,
+  ReasoningMessageChunkEvent as AGUIReasoningMessageChunkEvent,
   ReasoningMessageContentEvent as AGUIReasoningMessageContentEvent,
   ReasoningMessageEndEvent as AGUIReasoningMessageEndEvent,
   ReasoningMessageStartEvent as AGUIReasoningMessageStartEvent,
   ReasoningStartEvent as AGUIReasoningStartEvent,
+  ResumeEntry as AGUIResumeEntry,
   RunErrorEvent as AGUIRunErrorEvent,
   RunFinishedEvent as AGUIRunFinishedEvent,
+  RunFinishedOutcome as AGUIRunFinishedOutcome,
   RunStartedEvent as AGUIRunStartedEvent,
   StateDeltaEvent as AGUIStateDeltaEvent,
   StateSnapshotEvent as AGUIStateSnapshotEvent,
   StepFinishedEvent as AGUIStepFinishedEvent,
   StepStartedEvent as AGUIStepStartedEvent,
+  SubagentErrorEvent as AGUISubagentErrorEvent,
+  SubagentFinishedEvent as AGUISubagentFinishedEvent,
+  SubagentFinishedSuspendedOutcome as AGUISubagentFinishedSuspendedOutcome,
+  SubagentInfo as AGUISubagentInfo,
+  SubagentRunId as AGUISubagentRunId,
+  SubagentStartedEvent as AGUISubagentStartedEvent,
+  TextMessageChunkEvent as AGUITextMessageChunkEvent,
   TextMessageContentEvent as AGUITextMessageContentEvent,
   TextMessageEndEvent as AGUITextMessageEndEvent,
   TextMessageStartEvent as AGUITextMessageStartEvent,
+  ToolCall as AGUIToolCall,
   ToolCallArgsEvent as AGUIToolCallArgsEvent,
+  ToolCallChunkEvent as AGUIToolCallChunkEvent,
   ToolCallEndEvent as AGUIToolCallEndEvent,
   ToolCallResultEvent as AGUIToolCallResultEvent,
   ToolCallStartEvent as AGUIToolCallStartEvent,
+  UrlSource as AGUIUrlSource,
+  VideoPart as AGUIVideoPart,
   EventType,
 } from '@ag-ui/core'
+import type {
+  SpecTokenUsage,
+  TokenUsageLeftover,
+} from './utilities/ag-ui-usage'
+import type { SubagentWireInfo } from './utilities/subagent-wire'
+
+// Re-export ProviderTool so the type is reachable from `@tanstack/ai`'s root
+// entry via `export * from './types'` without forcing the subpath import.
+// The canonical declaration lives in `./tools/provider-tool` alongside its
+// runtime helper `brandProviderTool`.
+export type { ProviderTool } from './tools/provider-tool'
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -147,13 +185,11 @@ export type InferSchemaType<T> =
       ? TInput
       : unknown
 
-export interface ToolCall<TMetadata = unknown> {
-  id: string
-  type: 'function'
-  function: {
-    name: string
-    arguments: string // JSON string
-  }
+/** AG-UI `ToolCall` with typed metadata. `function.arguments` is a JSON string. */
+export interface ToolCall<TMetadata = unknown> extends Omit<
+  AGUIToolCall,
+  'metadata'
+> {
   /** Provider-specific metadata to carry through the tool call lifecycle.
    * Typed per-adapter via `TToolCallMetadata`. For example,
    * `@tanstack/ai-gemini` sets this to `{ thoughtSignature?: string }`. */
@@ -185,106 +221,84 @@ export interface ProviderExecutedToolMetadata {
 // ============================================================================
 
 /**
- * Supported input modality types for multimodal content.
- * - 'text': Plain text content
- * - 'image': Image content (base64 or URL)
- * - 'audio': Audio content (base64 or URL)
- * - 'video': Video content (base64 or URL)
- * - 'document': Document content like PDFs (base64 or URL)
+ * Supported input modality types for multimodal content: the `type` of each
+ * AG-UI `ContentPart` (text, image, audio, video, document).
  */
-export type Modality = 'text' | 'image' | 'audio' | 'video' | 'document'
+export type Modality = AGUIContentPart['type']
 
 /**
- * Source specification for inline data content (base64).
- * Requires a mimeType to ensure providers receive proper content type information.
+ * Inline base64 content. AG-UI `DataSource`: `mimeType` is required.
  */
-export interface ContentPartDataSource {
+export interface ContentPartDataSource extends AGUIDataSource {}
+
+/**
+ * URL-referenced content. AG-UI `UrlSource`: `mimeType` is optional.
+ */
+export interface ContentPartUrlSource extends AGUIUrlSource {}
+
+/**
+ * A provider-issued file handle (Files API). AG-UI `FileSource`: the handle
+ * is opaque, do not fetch or parse it.
+ *
+ * The media is uploaded once via a `files` adapter (`openaiFiles()`,
+ * `anthropicFiles()`, `geminiFiles()`, `grokFiles()`, `falFiles()`) and
+ * referenced here by the returned handle instead of re-sending base64 or a
+ * public URL on each request. Only the provider that minted a handle can
+ * resolve it. Adapters that cannot consume file handles at all are rejected
+ * by the activity-layer preflight before mapping starts.
+ */
+export interface ContentPartFileSource<
+  TProvider extends string = string,
+> extends AGUIFileSource {
   /**
-   * Indicates this is inline data content.
+   * The adapter name of the provider that issued the handle (`'openai'`,
+   * `'gemini'`, ...), the same id TanStack reports as the usage provider.
+   * When present, an adapter rejects a handle another provider issued.
    */
-  type: 'data'
-  /**
-   * The base64-encoded content value.
-   */
-  value: string
-  /**
-   * The MIME type of the content (e.g., 'image/png', 'audio/wav').
-   * Required for data sources to ensure proper handling by providers.
-   */
-  mimeType: string
+  provider?: TProvider
 }
 
 /**
- * Source specification for URL-based content.
- * mimeType is optional as it can often be inferred from the URL or response headers.
+ * Where a media part's bytes come from: inline data, a URL, or a provider
+ * file handle. Same members as AG-UI `PartSource`.
  */
-export interface ContentPartUrlSource {
-  /**
-   * Indicates this is URL-referenced content.
-   */
-  type: 'url'
-  /**
-   * HTTP(S) URL or data URI pointing to the content.
-   */
-  value: string
-  /**
-   * Optional MIME type hint for cases where providers can't infer it from the URL.
-   */
-  mimeType?: string
-}
+export type ContentPartSource =
+  | ContentPartDataSource
+  | ContentPartUrlSource
+  | ContentPartFileSource
 
 /**
- * Source specification for multimodal content.
- * Discriminated union supporting both inline data (base64) and URL-based content.
- * - For 'data' sources: mimeType is required
- * - For 'url' sources: mimeType is optional
- */
-export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
-
-/**
- * Image content part for multimodal messages.
+ * Image content part for multimodal messages. AG-UI `ImagePart` with typed metadata.
  * @template TMetadata - Provider-specific metadata type (e.g., OpenAI's detail level)
  */
-export interface ImagePart<TMetadata = unknown> {
-  type: 'image'
-  /** Source of the image content */
-  source: ContentPartSource
+export interface ImagePart<TMetadata = unknown> extends AGUIImagePart {
   /** Provider-specific metadata (e.g., OpenAI's detail: 'auto' | 'low' | 'high') */
   metadata?: TMetadata
 }
 
 /**
- * Audio content part for multimodal messages.
+ * Audio content part for multimodal messages. AG-UI `AudioPart` with typed metadata.
  * @template TMetadata - Provider-specific metadata type
  */
-export interface AudioPart<TMetadata = unknown> {
-  type: 'audio'
-  /** Source of the audio content */
-  source: ContentPartSource
+export interface AudioPart<TMetadata = unknown> extends AGUIAudioPart {
   /** Provider-specific metadata (e.g., format, sample rate) */
   metadata?: TMetadata
 }
 
 /**
- * Video content part for multimodal messages.
+ * Video content part for multimodal messages. AG-UI `VideoPart` with typed metadata.
  * @template TMetadata - Provider-specific metadata type
  */
-export interface VideoPart<TMetadata = unknown> {
-  type: 'video'
-  /** Source of the video content */
-  source: ContentPartSource
+export interface VideoPart<TMetadata = unknown> extends AGUIVideoPart {
   /** Provider-specific metadata (e.g., duration, resolution) */
   metadata?: TMetadata
 }
 
 /**
- * Document content part for multimodal messages (e.g., PDFs).
+ * Document content part for multimodal messages (e.g., PDFs). AG-UI `DocumentPart` with typed metadata.
  * @template TMetadata - Provider-specific metadata type (e.g., Anthropic's media_type)
  */
-export interface DocumentPart<TMetadata = unknown> {
-  type: 'document'
-  /** Source of the document content */
-  source: ContentPartSource
+export interface DocumentPart<TMetadata = unknown> extends AGUIDocumentPart {
   /** Provider-specific metadata (e.g., media_type for PDFs) */
   metadata?: TMetadata
 }
@@ -356,6 +370,30 @@ export interface ModelMessage<
   toolCalls?: Array<ToolCall>
   toolCallId?: string
   thinking?: Array<{ content: string; signature?: string }>
+  /** Error reported by an AG-UI tool message. */
+  error?: string
+  /** Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`. */
+  metadata?: Record<string, any>
+  /**
+   * Completed structured output represented by this assistant message.
+   * `content` remains the provider-facing JSON text; this field preserves the
+   * typed UI part across persistence and message conversion.
+   */
+  structuredOutput?: StructuredOutputPart
+  /**
+   * Optional stable message id. Providers ignore it; it exists so a persisted
+   * transcript can retain the streaming `messageId` and survive the
+   * persist → hydrate round-trip. When present, `modelMessagesToUIMessages`
+   * reuses it instead of generating a fresh id, so a hydrated message keeps the
+   * same identity as its live stream — which is what lets a mid-stream reload
+   * resume the SAME message bubble in place (see `@tanstack/ai-persistence`).
+   */
+  id?: string
+  /**
+   * Optional message creation timestamp. When present, message converters
+   * preserve it across persist → hydrate round-trips.
+   */
+  createdAt?: Date
 }
 
 /**
@@ -399,10 +437,14 @@ export interface ToolCallPart<TMetadata = unknown> {
 
 export interface ToolResultPart {
   type: 'tool-result'
+  id?: string
+  name?: string
   toolCallId: string
   content: string | Array<ContentPart>
   state: ToolResultState
   error?: string // Error message if state is "error"
+  metadata?: Record<string, unknown>
+  createdAt?: Date
 }
 
 export interface ThinkingPart {
@@ -448,6 +490,37 @@ export interface StructuredOutputPart<TData = unknown> {
   errorMessage?: string
 }
 
+export type SubagentStatus = 'running' | 'finished' | 'error' | 'suspended'
+
+/**
+ * One child invocation as the client sees it. AG-UI `SubagentInfo` names the
+ * child; the other AG-UI fields come from its `SUBAGENT_STARTED`,
+ * `SUBAGENT_FINISHED` and `SUBAGENT_ERROR` events. `id` is the AG-UI
+ * `subagentRunId`. `status`, `parentRunId` and `messages` are client state the
+ * spec does not model.
+ */
+export interface SubagentHandleData
+  extends
+    AGUISubagentInfo,
+    Pick<
+      AGUISubagentStartedEvent,
+      'parentSubagentRunId' | 'parentToolCallId' | 'metadata'
+    > {
+  id: AGUISubagentRunId
+  status: SubagentStatus
+  /** The parent chat run that started this child. */
+  parentRunId?: string
+  /** Interrupts this child raised, while `status` is `'suspended'`. */
+  interruptIds?: AGUISubagentFinishedSuspendedOutcome['interruptIds']
+  messages: Array<UIMessage>
+  error?: Pick<AGUISubagentErrorEvent, 'message' | 'code'>
+}
+
+export interface SubagentPart {
+  type: 'subagent'
+  subagent: SubagentHandleData
+}
+
 export interface UIResourcePart {
   type: 'ui-resource'
   /** The ui:// resource object in MCP-native shape — fed straight to the renderer. */
@@ -476,6 +549,56 @@ export type MessagePart<TData = unknown> =
   | ThinkingPart
   | StructuredOutputPart<TData>
   | UIResourcePart
+  | SubagentPart
+
+/**
+ * Shape of `metadata.tanstack` on a message.
+ * `createdAt` is an ISO-8601 string.
+ */
+export interface TanStackMessageMetadata {
+  createdAt?: string
+  model?: string
+  /** Parent chat run that produced this assistant message. */
+  runId?: string
+  /** Card data on a child wire message. See `uiMessagesToWire`. */
+  subagent?: SubagentWireInfo
+  /** Thinking signature for a `role: 'reasoning'` fan-out message. */
+  signature?: string
+  /** Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignature). */
+  toolCallMetadata?: Record<string, unknown>
+  toolResult?: {
+    id?: string
+    createdAt?: string
+    content?: Array<ContentPart>
+  }
+  structuredOutput?: {
+    status?: 'streaming' | 'complete' | 'error'
+    partial?: unknown
+    data?: unknown
+    raw?: string
+    reasoning?: string
+    errorMessage?: string
+  }
+  uiResources?: Array<UIResourcePart>
+}
+
+/**
+ * Shape of `metadata.tanstack` on run events.
+ */
+export interface TanStackRunMetadata {
+  model?: string
+  finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
+  /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
+  usage?: TokenUsageLeftover
+  interruptErrors?: ReadonlyArray<InterruptSubmissionError>
+  threadId?: string
+  runId?: string
+  sessionId?: string
+  index?: number
+  state?: ToolOutputState
+  /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
+  input?: unknown
+}
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
@@ -489,6 +612,13 @@ export interface UIMessage<TData = unknown> {
   role: 'system' | 'user' | 'assistant'
   parts: Array<MessagePart<TData>>
   createdAt?: Date
+  /** Optional AG-UI sender name. Converters preserve it across wire and persist. */
+  name?: string
+  /**
+   * Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
+   * User keys stay at the top.
+   */
+  metadata?: Record<string, any>
 }
 
 export type InputModalitiesTypes = {
@@ -534,6 +664,22 @@ type RuntimeContextField<TContext> =
       }
 
 /**
+ * Options for a single `emitCustomEvent` call, on both the tool-execution and
+ * middleware contexts.
+ */
+export interface EmitCustomEventOptions {
+  /**
+   * Keep this event in the durability batch with later chunks.
+   * CUSTOM events flush as soon as they are emitted, so a progress
+   * indicator can render at emit time. Pass `{ batch: true }` for a
+   * high-volume stream that should share appends with later output.
+   * `process.stdout`, `process.stderr`, `sandbox.file`, and
+   * `sandbox.file.diff` already batch.
+   */
+  batch?: boolean
+}
+
+/**
  * Context passed to tool execute functions, providing capabilities like
  * emitting custom events during execution.
  */
@@ -553,6 +699,8 @@ export type ToolExecutionContext<TContext = unknown> =
      *
      * @param eventName - Name of the custom event
      * @param value - Event payload value
+     * @param options - Pass `{ batch: true }` to keep this event in the
+     *   durability batch instead of flushing it immediately
      *
      * @example
      * ```ts
@@ -565,12 +713,16 @@ export type ToolExecutionContext<TContext = unknown> =
      * })
      * ```
      */
-    emitCustomEvent: (eventName: string, value: Record<string, any>) => void
+    emitCustomEvent: (
+      eventName: string,
+      value: Record<string, any>,
+      options?: EmitCustomEventOptions,
+    ) => void
   }
 
 export type ToolExecuteFunction<
-  TInput extends SchemaInput = SchemaInput,
-  TOutput extends SchemaInput = SchemaInput,
+  TInput extends SchemaInput | undefined = SchemaInput,
+  TOutput extends SchemaInput | undefined = SchemaInput,
   TContext = unknown,
 > = undefined extends TContext
   ? (
@@ -596,8 +748,8 @@ export type ToolExecuteFunction<
  * @see https://standardschema.dev/json-schema
  */
 export interface Tool<
-  TInput extends SchemaInput = SchemaInput,
-  TOutput extends SchemaInput = SchemaInput,
+  TInput extends SchemaInput | undefined = SchemaInput,
+  TOutput extends SchemaInput | undefined = SchemaInput,
   TName extends string = string,
   TContext = unknown,
 > {
@@ -831,12 +983,24 @@ export interface ResponseFormat<TData = any> {
  * State passed to agent loop strategy for determining whether to continue
  */
 export interface AgentLoopState {
-  /** Current iteration count (0-indexed) */
+  /** Current iteration count (0-indexed). One iteration = one model turn. */
   iterationCount: number
   /** Current messages array */
   messages: Array<ModelMessage>
   /** Finish reason from the last response */
   finishReason: string | null
+  /**
+   * Cumulative tool calls counted so far in this run (model-emitted during the
+   * agent loop, including ones skipped by middleware, and pending tools from
+   * the inbound message list when resumed). Not a recount of full message
+   * history; not model turns.
+   */
+  toolCallCount: number
+  /**
+   * Tool calls in the most recent batch — a live model turn or a
+   * pending/resume batch (0 when the last phase produced no tool calls).
+   */
+  lastTurnToolCallCount: number
 }
 
 /**
@@ -847,8 +1011,10 @@ export interface AgentLoopState {
  *
  * @example
  * ```typescript
- * // Continue for up to 5 iterations
+ * // Continue for up to 5 iterations (model turns, not tool calls)
  * const strategy: AgentLoopStrategy = ({ iterationCount }) => iterationCount < 5;
+ * // Cap total tool calls across the run (or use middleware onShouldContinue)
+ * const byTools: AgentLoopStrategy = ({ toolCallCount }) => toolCallCount < 20;
  * ```
  */
 export type AgentLoopStrategy = (state: AgentLoopState) => boolean
@@ -919,10 +1085,13 @@ export interface TextOptions<
    *    `supportsCombinedToolsAndSchema(modelOptions) === true`. The adapter
    *    should then wire the schema into the upstream request (e.g.
    *    `response_format: { type: 'json_schema', ... }`, `text.format`,
-   *    `output_format`) alongside any `tools`. The model's natural final
-   *    turn carries the schema-constrained JSON text and the engine
-   *    harvests it from the agent loop without a separate finalization
-   *    round-trip.
+   *    `output_format`, `--json-schema`) alongside any `tools`.
+   *
+   *    How the engine then takes the object depends on
+   *    `combinedStructuredOutputSource()`:
+   *    - `'text'` (default): the final-turn assistant text is the JSON.
+   *    - `'event'`: the adapter emits `structured-output.complete` during
+   *      `chatStream`. Accumulated prose is not parsed.
    *
    *    Adapters that did NOT declare the capability never see this field
    *    populated — the engine instead invokes `structuredOutput` /
@@ -978,6 +1147,21 @@ export interface TextOptions<
    * Surfaced for observability/middleware; not consumed by the LLM call.
    */
   parentRunId?: string
+  /**
+   * AG-UI subagent run id when this chat runs as a child of another run.
+   * A child `chat()` passes `ctx.subagentRunId`. Middleware reads it as
+   * `ctx.subagentRunId`. Absent on a top-level run.
+   */
+  subagentRunId?: string
+
+  /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
+  state?: unknown
+
+  /**
+   * AG-UI interrupt resume responses supplied by the client on a follow-up run.
+   * A first-party generic item carries the original request in `metadata`.
+   */
+  resume?: Array<RunAgentResumeItem>
 
   /**
    * Middleware capability context for this run. The engine populates it with
@@ -1025,14 +1209,12 @@ export type StreamChunkType = AGUIEventType
 
 /**
  * Base structure for AG-UI events.
- * Extends @ag-ui/core BaseEvent with TanStack AI additions.
+ * Extends @ag-ui/core BaseEvent. TanStack extras ride in `metadata`.
  *
  * @ag-ui/core provides: `type`, `timestamp?`, `rawEvent?`
- * TanStack AI adds: `model?`
  */
 export interface BaseAGUIEvent extends AGUIBaseEvent {
-  /** Model identifier for multi-model support */
-  model?: string
+  metadata?: Record<string, any>
 }
 
 // ============================================================================
@@ -1044,16 +1226,14 @@ export interface BaseAGUIEvent extends AGUIBaseEvent {
  * This is the first event in any streaming response.
  *
  * @ag-ui/core provides: `threadId`, `runId`, `parentRunId?`, `input?`
- * TanStack AI adds: `model?`
  */
-export interface RunStartedEvent extends AGUIRunStartedEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface RunStartedEvent extends AGUIRunStartedEvent {}
 
 // Re-export the canonical usage types (defined in `@tanstack/ai-event-client`)
 // so `@tanstack/ai` consumers keep importing them from here unchanged.
 export type {
+  BilledUsage,
+  BillingUnit,
   CompletionTokensDetails,
   PromptTokensDetails,
   ProviderUsageDetails,
@@ -1068,189 +1248,136 @@ export type {
  */
 export type UsageTotals = TokenUsage
 
+export type Interrupt = AGUIInterrupt
+
+export type RunFinishedOutcome = AGUIRunFinishedOutcome
+
+export type RunAgentResumeItem = AGUIResumeEntry & {
+  /** AG-UI resume metadata. First-party generic requests ride here. */
+  metadata?: Record<string, unknown>
+}
+
 /**
  * Emitted when a run completes successfully.
  *
- * @ag-ui/core provides: `threadId`, `runId`, `result?`
- * TanStack AI adds: `model?`, `finishReason?`, `usage?`
+ * @ag-ui/core provides: `threadId`, `runId`, `result?`, `outcome?`
+ * Spec `usage[]` is provider/model token counts. TanStack leftovers live in
+ * `metadata.tanstack`.
  */
-export interface RunFinishedEvent extends AGUIRunFinishedEvent {
-  /** Model identifier for multi-model support */
+export interface RunFinishedEvent extends Pick<
+  AGUIRunFinishedEvent,
+  'threadId' | 'runId' | 'result' | 'outcome' | 'timestamp' | 'rawEvent'
+> {
+  type: EventType.RUN_FINISHED
+  usage?: Array<SpecTokenUsage> | TokenUsage
+  /** Restored on the client from `metadata.tanstack`. */
   model?: string
-  /** Why the generation stopped */
+  /** Restored on the client from `metadata.tanstack`. */
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
-  /** Token usage statistics with optional detailed breakdowns and provider-reported cost. */
-  usage?: TokenUsage
+  metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 
 /**
  * Emitted when an error occurs during a run.
  *
  * @ag-ui/core provides: `message`, `code?`
- * TanStack AI adds: `model?`, `error?` (deprecated nested form)
+ * Spec `usage[]` is provider/model token counts. Interrupt errors live in
+ * `metadata.tanstack.interruptErrors`.
  */
-export interface RunErrorEvent extends AGUIRunErrorEvent {
-  /** Model identifier for multi-model support */
+export interface RunErrorEvent extends Pick<
+  AGUIRunErrorEvent,
+  'message' | 'code' | 'timestamp' | 'rawEvent'
+> {
+  type: EventType.RUN_ERROR
+  usage?: Array<SpecTokenUsage> | TokenUsage
+  /** Restored on the client from `metadata.tanstack`. */
+  threadId?: string
+  /** Restored on the client from `metadata.tanstack`. */
+  runId?: string
+  /** Restored on the client from `metadata.tanstack`. */
   model?: string
-  /**
-   * @deprecated Use top-level `message` and `code` fields instead.
-   * Kept for backward compatibility.
-   */
-  error?:
-    | {
-        message: string
-        code?: string | undefined
-      }
-    | undefined
+  /** Nested payload kept for in-process / durability consumers. */
+  error?: { message: string; code?: string }
+  metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 
 /**
  * Emitted when a text message starts.
  *
  * @ag-ui/core provides: `messageId`, `role?`, `name?`
- * TanStack AI adds: `model?`
  */
-export interface TextMessageStartEvent extends AGUITextMessageStartEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface TextMessageStartEvent extends AGUITextMessageStartEvent {}
 
 /**
  * Emitted when text content is generated (streaming tokens).
  *
  * @ag-ui/core provides: `messageId`, `delta`
- * TanStack AI adds: `model?`, `content?` (accumulated)
  */
-export interface TextMessageContentEvent extends AGUITextMessageContentEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-  /** Full accumulated content so far (TanStack AI internal, for debugging) */
-  content?: string
-}
+export interface TextMessageContentEvent extends AGUITextMessageContentEvent {}
 
 /**
  * Emitted when a text message completes.
  *
  * @ag-ui/core provides: `messageId`
- * TanStack AI adds: `model?`
  */
-export interface TextMessageEndEvent extends AGUITextMessageEndEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface TextMessageEndEvent extends AGUITextMessageEndEvent {}
 
 /**
  * Emitted when a tool call starts.
  *
- * @ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
- * TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `metadata?`
+ * @ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`,
+ * `subagentRunId?`
  */
-export interface ToolCallStartEvent extends AGUIToolCallStartEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-  /**
-   * @deprecated Use `toolCallName` instead (from @ag-ui/core spec).
-   * Kept for backward compatibility.
-   */
-  toolName: string
-  /** Index for parallel tool calls */
-  index?: number
-  /** Provider-specific metadata to carry into the ToolCall.
-   * Untyped at the event layer because events flow through a discriminated
-   * union that does not survive generics; adapters cast it to their typed
-   * `TToolCallMetadata` shape when emitting. */
-  metadata?: Record<string, unknown>
+export interface ToolCallStartEvent extends Omit<
+  AGUIToolCallStartEvent,
+  'type'
+> {
+  type: 'TOOL_CALL_START'
+  /** Alias of `toolCallName`. Kept so existing stream readers still compile. */
+  toolName?: string
+  /** Provider-specific metadata to carry into the ToolCall. */
+  metadata?: Record<string, any>
 }
 
 /**
  * Emitted when tool call arguments are streaming.
  *
  * @ag-ui/core provides: `toolCallId`, `delta`
- * TanStack AI adds: `model?`, `args?` (accumulated)
  */
-export interface ToolCallArgsEvent extends AGUIToolCallArgsEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-  /** Full accumulated arguments so far (TanStack AI internal) */
-  args?: string
-}
+export interface ToolCallArgsEvent extends AGUIToolCallArgsEvent {}
 
 /**
  * Emitted when a tool call completes.
  *
- * @ag-ui/core provides: `toolCallId`
- * TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`, `result?`
+ * @ag-ui/core provides: `toolCallId`, `subagentRunId?`
  */
-export interface ToolCallEndEvent extends AGUIToolCallEndEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-  /** Name of the tool that completed */
-  toolCallName?: string
-  /**
-   * @deprecated Use `toolCallName` instead.
-   * Kept for backward compatibility.
-   */
-  toolName?: string
-  /** Final parsed input arguments (TanStack AI internal) */
+export interface ToolCallEndEvent extends Omit<AGUIToolCallEndEvent, 'type'> {
+  type: 'TOOL_CALL_END'
+  /** Parsed tool arguments when the adapter already parsed them. */
   input?: unknown
-  /** Tool execution result (TanStack AI internal) */
-  result?: string | Array<ContentPart>
-  /** Tool execution output state (TanStack AI internal) */
-  state?: ToolOutputState
+  metadata?: Record<string, any>
 }
 
 /**
  * Emitted when a tool call result is available.
  *
  * @ag-ui/core provides: `messageId`, `toolCallId`, `content`, `role?`
- * TanStack AI adds: `model?`
  */
-export interface ToolCallResultEvent extends AGUIToolCallResultEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-  /** Tool execution output state (TanStack AI internal) */
-  state?: ToolOutputState
-}
+export interface ToolCallResultEvent extends AGUIToolCallResultEvent {}
 
 /**
  * Emitted when a thinking/reasoning step starts.
  *
  * @ag-ui/core provides: `stepName`
- * TanStack AI adds: `model?`, `stepId?` (deprecated alias), `stepType?`
  */
-export interface StepStartedEvent extends AGUIStepStartedEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-  /**
-   * @deprecated Use `stepName` instead (from @ag-ui/core spec).
-   * Kept for backward compatibility.
-   */
-  stepId?: string
-  /** Type of step (e.g., 'thinking', 'planning') */
-  stepType?: string
-}
+export interface StepStartedEvent extends AGUIStepStartedEvent {}
 
 /**
  * Emitted when a thinking/reasoning step finishes.
  *
  * @ag-ui/core provides: `stepName`
- * TanStack AI adds: `model?`, `stepId?` (deprecated alias), `delta?`, `content?`
  */
-export interface StepFinishedEvent extends AGUIStepFinishedEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-  /**
-   * @deprecated Use `stepName` instead (from @ag-ui/core spec).
-   * Kept for backward compatibility.
-   */
-  stepId?: string
-  /** Incremental thinking content (TanStack AI internal) */
-  delta?: string
-  /** Full accumulated thinking content (TanStack AI internal) */
-  content?: string
-  /** Provider signature for the thinking block */
-  signature?: string
-}
+export interface StepFinishedEvent extends AGUIStepFinishedEvent {}
 
 /**
  * Emitted to provide a snapshot of all messages in a conversation.
@@ -1259,52 +1386,34 @@ export interface StepFinishedEvent extends AGUIStepFinishedEvent {
  * MessagesSnapshot specifically delivers the conversation transcript.
  *
  * @ag-ui/core provides: `messages` (as @ag-ui/core Message[])
- * TanStack AI adds: `model?`
  *
  * Note: The `messages` field uses the @ag-ui/core Message type.
  * Use converters to transform to/from TanStack UIMessage format.
  */
-export interface MessagesSnapshotEvent extends AGUIMessagesSnapshotEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface MessagesSnapshotEvent extends AGUIMessagesSnapshotEvent {}
 
 /**
  * Emitted to provide a full state snapshot.
  *
  * @ag-ui/core provides: `snapshot` (any)
- * TanStack AI adds: `model?`, `state?` (deprecated alias for snapshot)
  */
-export interface StateSnapshotEvent extends AGUIStateSnapshotEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-  /**
-   * @deprecated Use `snapshot` instead (from @ag-ui/core spec).
-   * Kept for backward compatibility.
-   */
-  state?: Record<string, unknown>
-}
+export interface StateSnapshotEvent extends AGUIStateSnapshotEvent {}
 
 /**
  * Emitted to provide an incremental state update.
  *
  * @ag-ui/core provides: `delta` (any[] - JSON Patch RFC 6902)
- * TanStack AI adds: `model?`
  */
-export interface StateDeltaEvent extends AGUIStateDeltaEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface StateDeltaEvent extends AGUIStateDeltaEvent {}
 
 /**
  * Custom event for extensibility.
  *
- * @ag-ui/core provides: `name`, `value`
- * TanStack AI adds: `model?`
+ * @ag-ui/core provides: `name`, `value`, `subagentRunId?`
  */
-export interface CustomEvent extends AGUICustomEvent {
-  /** Model identifier for multi-model support */
-  model?: string
+export interface CustomEvent extends Omit<AGUICustomEvent, 'type'> {
+  type: 'CUSTOM'
+  metadata?: Record<string, any>
 }
 
 /**
@@ -1352,6 +1461,10 @@ export interface StructuredOutputStartEvent extends CustomEvent {
  * (the agent-loop branch of `runStreamingStructuredOutputImpl` in
  * `activities/chat/index.ts` forwards CUSTOM events from `TextEngine.run()`).
  */
+/**
+ * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
+ * compatibility event remains readable until 1.0.
+ */
 export interface ApprovalRequestedEvent extends CustomEvent {
   name: 'approval-requested'
   value: {
@@ -1367,6 +1480,10 @@ export interface ApprovalRequestedEvent extends CustomEvent {
  * pauses to let the caller run the tool client-side — `structured-output.complete`
  * will not fire for that run. Shape fixed by the agent-loop forwarding in
  * `runStreamingStructuredOutputImpl` in `activities/chat/index.ts`.
+ */
+/**
+ * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
+ * compatibility event remains readable until 1.0.
  */
 export interface ToolInputAvailableEvent extends CustomEvent {
   name: 'tool-input-available'
@@ -1439,20 +1556,25 @@ export interface CodeModeExternalErrorEvent extends CustomEvent {
   name: 'code_mode:external_error'
   value: { function: string; error: string; duration: number }
 }
-export interface CodeModeSkillCallEvent extends CustomEvent {
-  name: 'code_mode:skill_call'
-  value: { skill: string; input: unknown; timestamp: number }
+export interface CodeModeSnippetCallEvent extends CustomEvent {
+  name: 'code_mode:snippet_call'
+  value: { snippet: string; input: unknown; timestamp: number }
 }
-export interface CodeModeSkillResultEvent extends CustomEvent {
-  name: 'code_mode:skill_result'
-  value: { skill: string; result: unknown; duration: number; timestamp: number }
+export interface CodeModeSnippetResultEvent extends CustomEvent {
+  name: 'code_mode:snippet_result'
+  value: {
+    snippet: string
+    result: unknown
+    duration: number
+    timestamp: number
+  }
 }
-export interface CodeModeSkillErrorEvent extends CustomEvent {
-  name: 'code_mode:skill_error'
-  value: { skill: string; error: string; duration: number; timestamp: number }
+export interface CodeModeSnippetErrorEvent extends CustomEvent {
+  name: 'code_mode:snippet_error'
+  value: { snippet: string; error: string; duration: number; timestamp: number }
 }
-export interface SkillRegisteredEvent extends CustomEvent {
-  name: 'skill:registered'
+export interface SnippetRegisteredEvent extends CustomEvent {
+  name: 'snippet:registered'
   value: { id: string; name: string; description: string; timestamp: number }
 }
 
@@ -1471,10 +1593,10 @@ export type KnownCustomEvent =
   | CodeModeExternalCallEvent
   | CodeModeExternalResultEvent
   | CodeModeExternalErrorEvent
-  | CodeModeSkillCallEvent
-  | CodeModeSkillResultEvent
-  | CodeModeSkillErrorEvent
-  | SkillRegisteredEvent
+  | CodeModeSnippetCallEvent
+  | CodeModeSnippetResultEvent
+  | CodeModeSnippetErrorEvent
+  | SnippetRegisteredEvent
   | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent
   | ApprovalRequestedEvent
@@ -1492,11 +1614,15 @@ export type ChatStream = AsyncIterable<
 /**
  * Public type for streams returned by `chat({ outputSchema, stream: true })`.
  *
- * Yields all standard `StreamChunk` lifecycle events plus the three tagged
- * `CUSTOM` events the orchestrator can emit through this path:
+ * Yields all standard `StreamChunk` lifecycle events plus the typed
+ * structured-output `CUSTOM` event emitted through this path:
  * - `structured-output.complete` — terminal event with typed `value.object: T`
- * - `approval-requested` — server tool needs approval (pauses the run)
- * - `tool-input-available` — client tool invocation (pauses the run)
+ *
+ * User-actionable waits, such as tool approval and client tool input, are
+ * represented by `RUN_FINISHED.outcome.type === 'interrupt'` in current core
+ * streams. Legacy `approval-requested` and `tool-input-available` custom
+ * events may still be consumed for replay and backward compatibility, but
+ * they are not the current source of truth for waits.
  *
  * Each variant has a literal `name`, so a single discriminated narrow gives
  * you a typed `value` with no helper or cast:
@@ -1505,8 +1631,6 @@ export type ChatStream = AsyncIterable<
  * for await (const chunk of stream) {
  *   if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
  *     chunk.value.object // typed as T
- *   } else if (chunk.type === 'CUSTOM' && chunk.name === 'approval-requested') {
- *     chunk.value.toolCallId // typed as string
  *   }
  * }
  * ```
@@ -1535,67 +1659,61 @@ export type StructuredOutputStream<T = unknown> = AsyncIterable<
  * Emitted when reasoning starts for a message.
  *
  * @ag-ui/core provides: `messageId`
- * TanStack AI adds: `model?`
  */
-export interface ReasoningStartEvent extends AGUIReasoningStartEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface ReasoningStartEvent extends AGUIReasoningStartEvent {}
 
 /**
  * Emitted when a reasoning message starts.
  *
  * @ag-ui/core provides: `messageId`, `role` ("reasoning")
- * TanStack AI adds: `model?`
  */
-export interface ReasoningMessageStartEvent extends AGUIReasoningMessageStartEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface ReasoningMessageStartEvent extends AGUIReasoningMessageStartEvent {}
 
 /**
  * Emitted when reasoning message content is generated.
  *
  * @ag-ui/core provides: `messageId`, `delta`
- * TanStack AI adds: `model?`
  */
-export interface ReasoningMessageContentEvent extends AGUIReasoningMessageContentEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface ReasoningMessageContentEvent extends AGUIReasoningMessageContentEvent {}
 
 /**
  * Emitted when a reasoning message ends.
  *
  * @ag-ui/core provides: `messageId`
- * TanStack AI adds: `model?`
  */
-export interface ReasoningMessageEndEvent extends AGUIReasoningMessageEndEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface ReasoningMessageEndEvent extends AGUIReasoningMessageEndEvent {}
 
 /**
  * Emitted when reasoning ends for a message.
  *
  * @ag-ui/core provides: `messageId`
- * TanStack AI adds: `model?`
  */
-export interface ReasoningEndEvent extends AGUIReasoningEndEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface ReasoningEndEvent extends AGUIReasoningEndEvent {}
 
 /**
  * Emitted for encrypted reasoning values.
  *
  * @ag-ui/core provides: `subtype`, `entityId`, `encryptedValue`
- * TanStack AI adds: `model?`
  */
-export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValueEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValueEvent {}
+
+/** AG-UI 1.0 ActivitySnapshotEvent shape. */
+export interface ActivitySnapshotEvent extends AGUIActivitySnapshotEvent {}
+
+/** AG-UI 1.0 ActivityDeltaEvent shape. */
+export interface ActivityDeltaEvent extends AGUIActivityDeltaEvent {}
+
+/** AG-UI 1.0 RawEvent shape. */
+export interface RawEvent extends AGUIRawEvent {}
+
+/** AG-UI 1.0 TextMessageChunkEvent shape. */
+export interface TextMessageChunkEvent extends AGUITextMessageChunkEvent {}
+
+/** AG-UI 1.0 ToolCallChunkEvent shape. */
+export interface ToolCallChunkEvent extends AGUIToolCallChunkEvent {}
+
+/** AG-UI 1.0 ReasoningMessageChunkEvent shape. */
+export interface ReasoningMessageChunkEvent extends AGUIReasoningMessageChunkEvent {}
 
 // ============================================================================
 // AG-UI Event Union
@@ -1605,6 +1723,12 @@ export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValu
  * Union of all AG-UI events.
  */
 export type AGUIEvent =
+  | ActivitySnapshotEvent
+  | ActivityDeltaEvent
+  | RawEvent
+  | TextMessageChunkEvent
+  | ToolCallChunkEvent
+  | ReasoningMessageChunkEvent
   | RunStartedEvent
   | RunFinishedEvent
   | RunErrorEvent
@@ -1627,12 +1751,67 @@ export type AGUIEvent =
   | ReasoningMessageEndEvent
   | ReasoningEndEvent
   | ReasoningEncryptedValueEvent
+  | SubagentStartedEvent
+  | SubagentFinishedEvent
+  | SubagentErrorEvent
+
+/**
+ * A child agent started. The later chunks for that child carry the same
+ * `subagentRunId`.
+ *
+ * @ag-ui/core provides: `subagentRunId`, `name`, `description?`,
+ * `parentSubagentRunId?`, `parentToolCallId?`, `parentMessageId?`, `metadata?`
+ */
+export interface SubagentStartedEvent extends AGUISubagentStartedEvent {}
+
+/**
+ * A child agent's segment of this run ended.
+ *
+ * @ag-ui/core provides: `subagentRunId`, `result?`, `outcome?`
+ */
+export interface SubagentFinishedEvent extends AGUISubagentFinishedEvent {}
+
+/**
+ * A child agent failed. The parent run can continue.
+ *
+ * @ag-ui/core provides: `subagentRunId`, `message`, `code?`
+ */
+export interface SubagentErrorEvent extends AGUISubagentErrorEvent {}
 
 /**
  * Chunk returned by the SDK during streaming chat completions.
  * Uses the AG-UI protocol event format.
  */
 export type StreamChunk = AGUIEvent
+
+/**
+ * Discriminated union of the orchestrator-tagged `CUSTOM` events. Each variant
+ * has a literal `name`, so a single narrow on `chunk.name` yields a typed
+ * `value` with no helper or cast:
+ *
+ * ```ts
+ * if (chunk.type === 'CUSTOM' && chunk.name === 'approval-requested') {
+ *   chunk.value.toolCallId // typed as string
+ * }
+ * ```
+ *
+ * The `StructuredOutputCompleteEvent` value is parameterized by `T`, which
+ * the chat orchestrator narrows to the schema's inferred type after Standard
+ * Schema validation. Adapters always emit it with `T = unknown`.
+ *
+ * Caveat: tools can emit arbitrary user-defined custom events via the
+ * `emitCustomEvent(name, value)` context API. Those flow through the stream
+ * at runtime but are intentionally absent from this union — including a bare
+ * `CustomEvent` (whose `value: any` would poison the union) would collapse
+ * `chunk.value` back to `any` after the narrow. If you rely on
+ * `emitCustomEvent`, branch on `CUSTOM` outside the literal-`name` narrows
+ * or cast the chunk to `StreamChunk` to recover the wider shape.
+ */
+export type TaggedCustomEvent<T = unknown> =
+  | StructuredOutputStartEvent
+  | StructuredOutputCompleteEvent<T>
+  | ApprovalRequestedEvent
+  | ToolInputAvailableEvent
 
 // Simple streaming format for basic text completions
 // Converted to StreamChunk format by convertTextCompletionStream()
@@ -1656,16 +1835,98 @@ export interface SummarizationOptions<
   /** Provider-specific options forwarded by the summarize() activity. */
   modelOptions?: TProviderOptions
   /**
+   * Run identity forwarded from the summarize() activity. When set, the
+   * streaming adapter stamps it onto the emitted `RUN_STARTED` (via the wrapped
+   * chat), so a delivery-durable route keys the run's log by the same id the
+   * client rejoins with — making a mid-run reload resumable, like the media
+   * activities. Optional and non-breaking: adapters that ignore it just mint
+   * their own.
+   */
+  runId?: string
+  threadId?: string
+  /**
    * Internal logger threaded from the summarize() entry point. Adapters must
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
    */
   logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 export interface SummarizationResult {
   id: string
   model: string
   summary: string
+  usage: TokenUsage
+}
+
+// ============================================================================
+// Rerank Types
+// ============================================================================
+
+/**
+ * Options passed to a {@link RerankAdapter}. Documents reach the adapter
+ * already serialized to strings — the `rerank()` activity stringifies object
+ * documents and maps results back to the original elements, so adapters never
+ * deal with the caller's document type.
+ */
+export interface RerankOptions<
+  TProviderOptions extends object = Record<string, unknown>,
+> {
+  model: string
+  /** The search query documents are scored against. */
+  query: string
+  /** Documents to rerank, pre-serialized to strings by the activity. */
+  documents: Array<string>
+  /** Return only the top N results. Passed through to the provider. */
+  topN?: number
+  /** Provider-specific options forwarded by the rerank() activity. */
+  modelOptions?: TProviderOptions
+  /** Forwarded to the provider request for cancellation. */
+  abortSignal?: AbortSignal
+  /**
+   * Internal logger threaded from the rerank() entry point. Adapters must call
+   * logger.request() before the provider call and logger.errors() in catch
+   * blocks.
+   */
+  logger: InternalLogger
+}
+
+/**
+ * Provider-level rerank result. Adapters return scored indices into the
+ * (serialized) `documents` array plus usage — never the documents themselves.
+ * The activity attaches the original documents.
+ */
+export interface RerankAdapterResult {
+  id: string
+  /** Scored results, highest relevance first, as indices into `documents`. */
+  ranking: Array<{ index: number; score: number }>
+  usage: TokenUsage
+}
+
+/**
+ * Public result of the `rerank()` activity, generic over the caller's document
+ * element type so `document` / `rerankedDocuments` carry the original values
+ * (strings or objects), not their serialized form.
+ */
+export interface RerankResult<TDocument = string> {
+  id: string
+  model: string
+  /** Scored results, highest relevance first. */
+  ranking: Array<{ index: number; score: number; document: TDocument }>
+  /** The documents reordered by relevance — `ranking.map(r => r.document)`. */
+  rerankedDocuments: Array<TDocument>
+  /**
+   * Usage for the request. Rerank typically bills in provider-defined "search
+   * units" (`usage.billed = { quantity, unit: 'units' }`) rather than tokens.
+   * Some providers (e.g. OpenRouter) may also report `totalTokens` and `cost`.
+   * Cohere reports only search units and leaves the token counts at 0.
+   * The deprecated `unitsBilled` field is still populated for compatibility.
+   */
   usage: TokenUsage
 }
 
@@ -1797,6 +2058,12 @@ export interface ImageGenerationOptions<
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
    */
   logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**
@@ -1816,6 +2083,50 @@ export type GeneratedMediaSource =
       b64Json: string
       url?: never
     }
+
+export type PersistedArtifactRole = 'input' | 'output'
+
+export type PersistedArtifactActivity =
+  | 'image'
+  | 'audio'
+  | 'tts'
+  | 'video'
+  | 'transcription'
+
+export interface PersistedArtifactRef {
+  role: PersistedArtifactRole
+  artifactId: string
+  threadId: string
+  runId: string
+  name: string
+  mimeType: string
+  size: number
+  createdAt: string
+  /**
+   * Where these bytes were fetched FROM — the provider's original result URL,
+   * or a caller-supplied prompt URL when `allowInputUrl` opted that in. Usually
+   * expiring, and provenance only: serve from {@link PersistedArtifactRef.url}
+   * instead.
+   */
+  sourceUrl?: string
+  /**
+   * Durable app-origin URL that serves this artifact's persisted bytes (your
+   * `GET` route around `retrieveArtifact` / `retrieveBlob`). Stamped by
+   * `withGenerationPersistence`'s `artifactUrl` option, so clients render and
+   * restore durable media from your own origin rather than the provider's
+   * expiring link.
+   */
+  url?: string
+  source: {
+    activity: PersistedArtifactActivity
+    path: string
+    provider: string
+    model: string
+    mediaType?: 'image' | 'audio' | 'video' | 'document' | 'json'
+    jobId?: string
+    expiresAt?: string
+  }
+}
 
 /**
  * A single generated image
@@ -1837,6 +2148,8 @@ export interface ImageGenerationResult {
   images: Array<GeneratedImage>
   /** Token usage information (if available) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -1864,6 +2177,12 @@ export interface AudioGenerationOptions<
    * catch blocks.
    */
   logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**
@@ -1888,6 +2207,8 @@ export interface AudioGenerationResult {
   audio: GeneratedAudio
   /** Token usage information (if available) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -1931,6 +2252,12 @@ export interface VideoGenerationOptions<
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
    */
   logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**
@@ -1943,6 +2270,12 @@ export interface VideoJobResult {
   jobId: string
   /** Model used for generation */
   model: string
+  /**
+   * Durable artifact references, when generation persistence with an artifact +
+   * blob store is wired. A submission has no video yet, so this only carries
+   * refs for persisted prompt INPUTS (e.g. a start frame).
+   */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 /**
@@ -1975,9 +2308,186 @@ export interface VideoUrlResult {
   expiresAt?: Date
   /**
    * Usage information for the completed generation, when the adapter can report
-   * it. For usage-based providers (e.g. fal) this carries `unitsBilled` — the
-   * real billed quantity — so consumers can compute exact cost.
+   * it. For usage-based providers (e.g. fal) this carries `billed` — the real
+   * billed quantity paired with its unit — so consumers can compute exact cost.
    */
+  usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
+}
+
+// ============================================================================
+// World Generation Types (Experimental)
+// ============================================================================
+
+/**
+ * Options for world generation (live session or finished job).
+ *
+ * @experimental World generation is an experimental feature and may change.
+ */
+export interface WorldGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for world generation */
+  model: string
+  /** Natural-language description of the world or scene */
+  prompt: string
+  /**
+   * Provider-specific options. Live adapters (Reactor) use mint fields here.
+   * Job adapters (World Labs) use image/video inputs, `wait`, and poll.
+   * Reactor resolution/seed/audio are browser `sendCommand` fields, not
+   * token-mint fields.
+   */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateWorld() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
+}
+
+/**
+ * Assets from a finished world job. Live session adapters omit this.
+ * URLs are often signed CDN links. They can expire and may need a proxy
+ * to fetch from a browser.
+ *
+ * @experimental World generation is an experimental feature and may change.
+ */
+export interface WorldGenerationAssets {
+  /** Auto-generated scene description */
+  caption?: string
+  /** Preview image URL */
+  thumbnailUrl?: string
+  splats?: {
+    /** Quality-key map of splat URLs (`100k`, `500k`, `full_res`, …) */
+    spzUrls?: Record<string, string>
+    metricScaleFactor?: number
+    groundPlaneOffset?: number
+  }
+  mesh?: {
+    colliderMeshUrl?: string
+    hqMeshUrl?: string
+    fullResMeshUrl?: string
+  }
+  imagery?: {
+    panoUrl?: string
+  }
+}
+
+/**
+ * Result of world generation. JSON-serializable so a server route can return
+ * it to a browser.
+ *
+ * Live adapters (Reactor): `status: 'ready'` with `token` and token
+ * `expiresAt`. The browser uses `token` + `model` to open the session.
+ *
+ * Job adapters (World Labs): `status: 'ready'` with viewer `url` and
+ * `worldId`, or `status: 'waiting'` with `operationId` and no `url`.
+ * `expiresAt` on a job is operation expiry, not a session token.
+ *
+ * @experimental World generation is an experimental feature and may change.
+ */
+export interface WorldGenerationResult {
+  /** Unique identifier for this generation */
+  id: string
+  /** Model used for generation (provider connect slug or model id) */
+  model: string
+  /** Short-lived session token for a live client connection */
+  token?: string
+  /**
+   * Expiry as milliseconds since epoch. Live adapters: session token.
+   * Job adapters: operation expiry when the provider sends it.
+   */
+  expiresAt?: number
+  /** Prompt used to generate the world, or the prompt the client should send */
+  prompt: string
+  /** Status after the server half finishes */
+  status: 'ready' | 'waiting'
+  /** Provider session id, when the adapter created one */
+  sessionId?: string
+  /** Viewer URL for a finished world job (not an asset download URL) */
+  url?: string
+  /** Provider world id for a finished or in-progress job */
+  worldId?: string
+  /** Provider operation id for a long-running world job */
+  operationId?: string
+  /** Assets when a world job has finished and the provider returned them */
+  assets?: WorldGenerationAssets
+  /** Token usage / billing, when the adapter can report it */
+  usage?: TokenUsage
+}
+
+// ============================================================================
+// Live Generation Types (Experimental)
+// ============================================================================
+
+/**
+ * Options for live generation (prompt-steerable video sessions).
+ *
+ * @experimental Live generation is an experimental feature and may change.
+ */
+export interface LiveVideoGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for live generation */
+  model: string
+  /** Natural-language description of the shot or scene */
+  prompt: string
+  /**
+   * Provider mint options. For fal live this is `tokenDuration`. Reactor
+   * resolution/seed/audio are browser `sendCommand` fields.
+   */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateLiveVideo() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
+}
+
+/**
+ * Result of live generation. JSON-serializable so a server route can return
+ * it to a browser.
+ *
+ * Reactor: connect with `token` and `model` (the connect slug).
+ * fal: `model` is the WMA app id. Open `wma(model)` through a server proxy
+ * that attaches `FAL_KEY`. Do not send `token` as Key credentials.
+ *
+ * @experimental Live generation is an experimental feature and may change.
+ */
+export interface LiveVideoGenerationResult {
+  /** Unique identifier for this generation */
+  id: string
+  /**
+   * Connect id for the browser client. Reactor: `reactor/helios`.
+   * fal: WMA app id `fal-ai/minimax-h3-max-director`.
+   */
+  model: string
+  /** Short-lived session token. Reactor uses this to connect. fal does not. */
+  token: string
+  /** Token expiry as milliseconds since epoch */
+  expiresAt: number
+  /** Prompt the client should send when it starts the session */
+  prompt: string
+  /** Session status after the server half finishes */
+  status: 'ready' | 'waiting'
+  /** Provider session id, when the adapter created one */
+  sessionId?: string
+  /** Token usage / billing, when the adapter can report it */
   usage?: TokenUsage
 }
 
@@ -1986,14 +2496,80 @@ export interface VideoUrlResult {
 // ============================================================================
 
 /**
+ * One turn of a multi-voice dialogue request.
+ *
+ * Providers that expose a dedicated dialogue endpoint (ElevenLabs
+ * `textToDialogue`, Gemini multi-speaker) take these natively instead of a
+ * single `text` + `voice` pair.
+ */
+export interface TTSTurn {
+  /** The text this voice speaks. */
+  text: string
+  /** Provider voice id (ElevenLabs) or voice name (Gemini) for this turn. */
+  voice: string
+}
+
+/**
+ * Timings for the generated audio, returned when `timestamps: true` was
+ * requested and the adapter declares `capabilities.timestamps`.
+ *
+ * Granularity differs per provider — ElevenLabs reports characters, BytePlus
+ * reports words — so `unit` says which, and the three arrays are parallel.
+ * All times are **seconds**; adapters convert.
+ */
+export interface TTSAlignment {
+  /** Granularity of each entry. */
+  unit: 'character' | 'word'
+  /** Entry text, in audio order. */
+  texts: Array<string>
+  /** Start of each entry in seconds. Same length as `texts`. */
+  startSeconds: Array<number>
+  /** End of each entry in seconds. Same length as `texts`. */
+  endSeconds: Array<number>
+}
+
+/**
+ * A stretch of audio attributable to one turn (multi-voice) or one utterance
+ * (single voice). This is what tells a consumer which turn is where.
+ */
+export interface TTSSegment {
+  /** Start of the segment in seconds. */
+  startSeconds: number
+  /** End of the segment in seconds. */
+  endSeconds: number
+  /** Index into the request's `turns`, when the provider reports it. */
+  turnIndex?: number
+  /** Voice heard in this segment, when the provider reports it. */
+  voice?: string
+  /** Text spoken in this segment, when the provider reports it. */
+  text?: string
+}
+
+/**
  * Options for text-to-speech generation.
  * These are the common options supported across providers.
  */
 export interface TTSOptions<TProviderOptions extends object = object> {
   /** The model to use for TTS generation */
   model: string
-  /** The text to convert to speech */
+  /**
+   * The text to convert to speech. When the caller passed `turns`, the
+   * activity fills this with the turn texts joined by newlines so adapters
+   * that only read `text` still receive the full script.
+   */
   text: string
+  /**
+   * Multi-voice dialogue turns, when the caller asked for dialogue. Only
+   * adapters that declare `capabilities.maxSpeakers` ever see this — the
+   * activity rejects `turns` for the rest.
+   */
+  turns?: Array<TTSTurn>
+  /**
+   * Ask for `alignment` / `segments` on the result. Rejected by the activity
+   * unless the adapter declares `capabilities.timestamps`, because on some
+   * providers this is a different endpoint rather than free metadata.
+   */
+  timestamps?: boolean
   /** The voice to use for generation */
   voice?: string
   /** The output audio format */
@@ -2008,6 +2584,12 @@ export interface TTSOptions<TProviderOptions extends object = object> {
    * catch blocks.
    */
   logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**
@@ -2022,12 +2604,192 @@ export interface TTSResult {
   audio: string
   /** Audio format of the generated audio */
   format: string
-  /** Duration of the audio in seconds, if available */
+  /** Duration of the audio file in seconds, if available */
   duration?: number
+  /**
+   * Character- or word-level timings, present when `timestamps: true` was
+   * requested. Use this rather than `duration` to find where *speech* ends.
+   */
+  alignment?: TTSAlignment
+  /**
+   * Per-turn (or per-utterance) spans of the audio, present when
+   * `timestamps: true` was requested and the provider reports segmentation.
+   */
+  segments?: Array<TTSSegment>
   /** Content type of the audio (e.g., 'audio/mp3') */
   contentType?: string
   /** Token usage information (if provided by the adapter) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
+}
+
+// ============================================================================
+// Voice Catalog Types
+// ============================================================================
+
+/**
+ * Where a voice in a provider's catalog came from.
+ *
+ * `'premade'` is the provider's own stock catalog. `'generated'` and
+ * `'cloned'` are voices the account made, which is what `generateVoice()`
+ * produces. `'professional'` covers a provider's curated or paid tiers.
+ */
+export type VoiceOrigin = 'premade' | 'generated' | 'cloned' | 'professional'
+
+/** One voice from a provider's catalog. */
+export interface CatalogVoice {
+  /** Pass this to `generateSpeech()` as `voice` */
+  voiceId: string
+  /** Display name, when the provider stores one */
+  name?: string
+  /** Where the voice came from */
+  origin?: VoiceOrigin
+  /** Provider description of the voice */
+  description?: string
+  /** URL of a sample, when the provider hosts one */
+  previewUrl?: string
+  /** Provider labels, such as accent, age, or use case */
+  labels?: Record<string, string>
+}
+
+/** Options for listing a provider's voices. */
+export interface ListVoicesOptions {
+  /**
+   * Restrict the result to voices of these origins. Adapters filter server
+   * side when the provider supports it, and in memory otherwise.
+   */
+  origins?: Array<VoiceOrigin>
+  /**
+   * Effective abort signal. Adapters forward this to the provider SDK when
+   * supported.
+   */
+  abortSignal?: AbortSignal
+}
+
+/** Result of listing a provider's voices. */
+export interface ListVoicesResult {
+  /** The voices available to this account */
+  voices: Array<CatalogVoice>
+}
+
+// ============================================================================
+// Voice Creation Types
+// ============================================================================
+
+/**
+ * Options for creating a voice.
+ *
+ * Providers create voices in one of two ways, and some support both:
+ * - **design** — synthesize a brand new voice from a text {@link prompt}.
+ * - **clone** — derive a voice from {@link referenceAudio} of a real speaker.
+ *
+ * At least one of `prompt` / `referenceAudio` is required; which ones an
+ * adapter accepts depends on the model. An adapter may require both — the
+ * only adapter today, `elevenlabsVoiceDesign`, always needs `prompt` and
+ * takes `referenceAudio` as an additional design reference.
+ */
+export interface VoiceGenerationOptions<
+  TProviderOptions extends object = object,
+> {
+  /** The model to use for voice creation */
+  model: string
+  /** Text description of the voice to create, for design-capable models */
+  prompt?: string
+  /**
+   * Reference audio of the speaker to clone - base64 string, base64 data URL,
+   * File, Blob, or ArrayBuffer. For clone-capable models. Remote URLs are not
+   * accepted; read the file and pass the bytes.
+   */
+  referenceAudio?: string | File | Blob | ArrayBuffer
+  /**
+   * Name to store the voice under in the provider's voice library. Providers
+   * differ on what this implies — ElevenLabs only persists a designed voice
+   * when a name is given. Read {@link GeneratedVoice.saved} to find out what
+   * actually happened.
+   */
+  name?: string
+  /** Human-readable description stored alongside the voice */
+  description?: string
+  /** Model-specific options for voice creation */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the generateVoice() entry point. Adapters
+   * must call logger.request() before the SDK call and logger.errors() in
+   * catch blocks.
+   */
+  logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific - never store on a global client config.
+   */
+  abortSignal?: AbortSignal
+}
+
+/**
+ * A single voice produced by {@link VoiceGenerationOptions}.
+ */
+export interface GeneratedVoice {
+  /**
+   * The provider's voice identifier. Pass it straight back as the `voice`
+   * option on `generateSpeech()`.
+   */
+  voiceId: string
+  /** Base64-encoded preview audio, when the provider returns one */
+  audio?: string
+  /** Audio format of the preview (e.g. 'mp3') */
+  format?: string
+  /** Content type of the preview (e.g. 'audio/mpeg') */
+  contentType?: string
+  /** Duration of the preview in seconds, if available */
+  duration?: number
+  /** Language of the preview, if reported */
+  language?: string
+  /**
+   * Whether the voice is persisted in the provider's voice library. Unsaved
+   * voices are previews and generally expire.
+   */
+  saved: boolean
+  /**
+   * Whether the voice can be used in `generateSpeech()` yet. Required so a
+   * caller never has to guess: every adapter states it outright.
+   */
+  status: VoiceTrainingStatus
+}
+
+/**
+ * Whether a created voice is usable.
+ *
+ * - `'ready'` — usable in `generateSpeech()` now. Every adapter today returns
+ *   this, because they all finish the voice inside `generateVoice()`.
+ * - `'training'` — the provider accepted the request but is still building
+ *   the voice, so it is not usable yet. Reserved for providers that train
+ *   asynchronously; no adapter returns it yet, and reading the state back
+ *   will land with the first adapter that needs it.
+ * - `'failed'` — the provider finished without producing a usable voice.
+ */
+export type VoiceTrainingStatus = 'ready' | 'training' | 'failed'
+
+/**
+ * Result of voice creation.
+ *
+ * Design models typically return several candidates to choose between; clone
+ * models return exactly one.
+ */
+export interface VoiceResult {
+  /** Unique identifier for the generation */
+  id: string
+  /** Model used for generation */
+  model: string
+  /** The voices produced, best-first when the provider ranks them */
+  voices: Array<GeneratedVoice>
+  /** The line spoken in the previews, when the provider generated one */
+  previewText?: string
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -2066,6 +2828,12 @@ export interface TranscriptionOptions<
    * in catch blocks.
    */
   logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**
@@ -2116,6 +2884,121 @@ export interface TranscriptionResult {
   segments?: Array<TranscriptionSegment>
   /** Word-level timestamps, if available */
   words?: Array<TranscriptionWord>
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
+}
+
+// ============================================================================
+// Embedding Types
+// ============================================================================
+
+/**
+ * Input modalities an embedding model can accept. Unlike
+ * {@link MediaPromptModality}, `'text'` is listed explicitly because
+ * text-only embedding models are the common case and the modality list
+ * drives compile-time narrowing of {@link EmbeddingInputItem}.
+ */
+export type EmbeddingModality = 'text' | 'image'
+
+/**
+ * Per-model map from model name to the input modalities it accepts, used as
+ * an adapter type parameter (`TModelInputModalitiesByName`). Models absent
+ * from the map fall back to the unconstrained {@link EmbeddingInputItem}.
+ */
+export type EmbeddingModelInputModalitiesByName = Record<
+  string,
+  ReadonlyArray<EmbeddingModality>
+>
+
+/**
+ * A fused multi-part embedding item: all parts are embedded together into a
+ * single vector (e.g. a product photo plus its caption). Written as a nested
+ * array of content parts — the same `Array<ContentPart>` convention chat
+ * messages use — so a fused item is visually distinct from the top-level
+ * `input` list, where each element produces its own vector. Supported by
+ * multimodal embedding models such as Cohere embed-v4 and Amazon Titan
+ * Multimodal.
+ */
+export type EmbeddingContentParts = Array<TextPart | ImagePart>
+
+/**
+ * One embeddable item, producing exactly one vector. A bare string is
+ * shorthand for a text part; a nested {@link EmbeddingContentParts} array
+ * fuses its parts into a single vector. Note that a bare array at the top
+ * level of `input` is the *list of items* (one vector each) — fuse by
+ * nesting, e.g. `input: [[textPart, imagePart]]`.
+ */
+export type EmbeddingInputItem =
+  | string
+  | TextPart
+  | ImagePart
+  | EmbeddingContentParts
+
+/** Maps an embedding modality to the item types it admits. @internal */
+interface EmbeddingItemByModality {
+  text: TextPart
+  image: ImagePart | EmbeddingContentParts
+}
+
+/**
+ * Embedding item type narrowed to the modalities a specific model supports.
+ * `EmbeddingInputItemFor<'text'>` (a text-only model) is `string | TextPart`;
+ * `'text' | 'image'` additionally admits image parts and fused
+ * {@link EmbeddingContentParts} arrays. Used by the activity option types
+ * together with the adapter's per-model modality map so unsupported inputs
+ * fail at compile time.
+ */
+export type EmbeddingInputItemFor<
+  TModalities extends EmbeddingModality = EmbeddingModality,
+> = string | TextPart | EmbeddingItemByModality[TModalities]
+
+/**
+ * Options for embedding generation, as received by adapters. The `embed()`
+ * entry point normalizes a single input item to an array before calling the
+ * adapter, so `input` is always an array here.
+ */
+export interface EmbeddingOptions<TProviderOptions extends object = object> {
+  /** The model to use for embedding generation */
+  model: string
+  /** The items to embed — one vector per item */
+  input: Array<EmbeddingInputItem>
+  /**
+   * Requested output dimensionality. Adapters for models with fixed
+   * dimensions throw a clear runtime error when this is set.
+   */
+  dimensions?: number
+  /** Model-specific options for embedding generation */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the embed() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch
+   * blocks.
+   */
+  logger: InternalLogger
+}
+
+/**
+ * A single embedding vector.
+ */
+export interface Embedding {
+  /** The embedding vector */
+  vector: Array<number>
+  /** Position of the source item in the (normalized) input array */
+  index: number
+}
+
+/**
+ * Result of embedding generation.
+ */
+export interface EmbeddingResult {
+  /** Unique identifier for the generation */
+  id: string
+  /** Model used for generation */
+  model: string
+  /** One embedding per input item, in input order */
+  embeddings: Array<Embedding>
   /** Token usage information (if provided by the adapter) */
   usage?: TokenUsage
 }

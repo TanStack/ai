@@ -1,0 +1,25 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[generic-after-tools] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "inspect_review",
+            "arguments": "{\"reviewId\":\"review-4\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[generic-after-tools] run test",
+        "sequenceIndex": 1
+      },
+      "response": { "content": "AFTER_TOOLS_RESOLVED" }
+    }
+  ]
+}

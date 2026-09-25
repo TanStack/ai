@@ -35,6 +35,7 @@ import { config as loadDotenv } from 'dotenv'
 import {
   StreamProcessor,
   chat,
+  fromSpecTokenUsage,
   generateMessageId,
   maxIterations,
   normalizeToUIMessage,
@@ -826,9 +827,16 @@ async function main() {
             ttftMs = Date.now() - t0
           }
           if (chunk.type === 'RUN_FINISHED' && chunk.usage) {
-            promptTokens += chunk.usage.promptTokens
-            completionTokens += chunk.usage.completionTokens
-            totalTokens += chunk.usage.totalTokens
+            // Usage is now either the spec `usage[]` array or a TokenUsage.
+            // Normalize both to TokenUsage before summing.
+            const usage = Array.isArray(chunk.usage)
+              ? fromSpecTokenUsage(chunk.usage)
+              : chunk.usage
+            if (usage) {
+              promptTokens += usage.promptTokens
+              completionTokens += usage.completionTokens
+              totalTokens += usage.totalTokens
+            }
           }
         }),
       )

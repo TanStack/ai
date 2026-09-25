@@ -59,7 +59,22 @@ export interface BootstrapShell {
 export interface BootstrapShellOptions {
   /** Working directory to start the shell in (passed as ProcessOptions.cwd). */
   cwd?: string
+  /**
+   * Belt-and-braces deadline for a single `run()` to see its sentinel. The
+   * primary termination condition is the stdout stream ending (see
+   * {@link createBootstrapShell}); this only catches a shell that is alive,
+   * silent, and never going to answer. Generous by default because setup steps
+   * legitimately run for a long time (`npm install`, image pulls).
+   */
+  commandTimeoutMs?: number
 }
+
+/** Default {@link BootstrapShellOptions.commandTimeoutMs} — 30 minutes. */
+const DEFAULT_COMMAND_TIMEOUT_MS = 30 * 60 * 1000
+
+/** Race marker for the per-command deadline. A symbol cannot collide with a
+ *  literal stdout line (a line of text `'timeout'` would). */
+const TIMED_OUT = Symbol('bootstrap-shell-timeout')
 
 /**
  * Spawn one `sh` process and return a {@link BootstrapShell} that drives it
@@ -87,18 +102,35 @@ export async function createBootstrapShell(
    * the iterator open. Buffer chunks into lines manually.
    */
   const lineBuffer: Array<string> = []
-  let pending: Array<(line: string) => void> = []
+  // `null` means "the stdout stream ended" — distinct from an empty line, which
+  // `sh` emits constantly. Collapsing the two is what let a dead shell feed an
+  // infinite supply of `''` into a sentinel-hunting loop.
+  let pending: Array<(line: string | null) => void> = []
   let streamDone = false
+  let streamError: unknown
 
   /** Feed the stdout async-iterable into the shared line queue. */
   async function drainStdout(): Promise<void> {
     let partial = ''
-    for await (const chunk of proc.stdout) {
-      partial += chunk
-      const parts = partial.split('\n')
-      // All but the last element are complete lines.
-      for (let i = 0; i < parts.length - 1; i++) {
-        const line = parts[i] as string
+    try {
+      for await (const chunk of proc.stdout) {
+        partial += chunk
+        const parts = partial.split('\n')
+        // All but the last element are complete lines.
+        for (let i = 0; i < parts.length - 1; i++) {
+          const line = parts[i] as string
+          const resolver = pending.shift()
+          if (resolver !== undefined) {
+            resolver(line)
+          } else {
+            lineBuffer.push(line)
+          }
+        }
+        partial = parts[parts.length - 1] as string
+      }
+      // Flush any trailing partial line.
+      if (partial.length > 0) {
+        const line = partial
         const resolver = pending.shift()
         if (resolver !== undefined) {
           resolver(line)
@@ -106,39 +138,40 @@ export async function createBootstrapShell(
           lineBuffer.push(line)
         }
       }
-      partial = parts[parts.length - 1] as string
-    }
-    // Flush any trailing partial line.
-    if (partial.length > 0) {
-      const line = partial
-      const resolver = pending.shift()
-      if (resolver !== undefined) {
-        resolver(line)
-      } else {
-        lineBuffer.push(line)
+    } catch (error) {
+      // A throw while iterating stdout (transport reset, provider stream error)
+      // must NOT leave waiters parked on a promise nobody resolves. Record it so
+      // `run()` can name the cause, and fall through to the `finally` that
+      // unblocks everyone.
+      streamError = error
+    } finally {
+      streamDone = true
+      // Unblock any remaining waiters with the end-of-stream marker.
+      for (const resolver of pending) {
+        resolver(null)
       }
+      pending = []
     }
-    streamDone = true
-    // Resolve any remaining waiters with an empty sentinel so they unblock.
-    for (const resolver of pending) {
-      resolver('')
-    }
-    pending = []
   }
 
-  // Start draining immediately; do NOT await — runs concurrently.
+  /*
+   * Start draining immediately; do NOT await — runs concurrently. The `try/catch`
+   * inside `drainStdout` means this promise never rejects, so there is no
+   * unhandled rejection while nothing is awaiting it, and `dispose()` can await
+   * it unconditionally.
+   */
   const drainPromise = drainStdout()
 
-  /** Read the next line from the shared queue. */
-  function nextLine(): Promise<string> {
+  /** Read the next line from the shared queue, or `null` once stdout ended. */
+  function nextLine(): Promise<string | null> {
     const buffered = lineBuffer.shift()
     if (buffered !== undefined) {
       return Promise.resolve(buffered)
     }
     if (streamDone) {
-      return Promise.resolve('')
+      return Promise.resolve(null)
     }
-    return new Promise<string>((resolve) => {
+    return new Promise<string | null>((resolve) => {
       pending.push(resolve)
     })
   }
@@ -162,18 +195,53 @@ export async function createBootstrapShell(
 
     const outputLines: Array<string> = []
 
-    // Read lines until we find the sentinel.
-    for (;;) {
-      const line = await nextLine()
-      if (line.startsWith(`${sentinel} `)) {
-        const codeStr = line.slice(sentinel.length + 1).trim()
-        const exitCode = parseInt(codeStr, 10)
-        return {
-          exitCode: Number.isFinite(exitCode) ? exitCode : 1,
-          stdout: outputLines.join('\n'),
+    /*
+     * Read lines until we find the sentinel — but the wait MUST be able to end
+     * without one. `sh` can exit before it ever prints the sentinel (a missing
+     * binary, an OOM kill, the provider reaping the sandbox mid-bootstrap), and
+     * a loop whose only exit is the sentinel then spins on end-of-stream
+     * forever, pushing into `outputLines` until the host process dies of memory
+     * exhaustion. Two independent terminators:
+     *   1. `nextLine()` yields `null` the moment stdout is done — the real fix,
+     *      it fires as soon as the shell is gone.
+     *   2. A deadline, for a shell that stays alive and simply never answers.
+     */
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const deadline = new Promise<typeof TIMED_OUT>((resolve) => {
+      timer = setTimeout(
+        () => resolve(TIMED_OUT),
+        opts.commandTimeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS,
+      )
+    })
+
+    try {
+      for (;;) {
+        const line = await Promise.race([nextLine(), deadline])
+        if (line === TIMED_OUT) {
+          throw new Error(
+            `bootstrap shell: timed out after ${
+              opts.commandTimeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS
+            }ms waiting for the sentinel of command: ${command}`,
+          )
         }
+        if (line === null) {
+          throw new Error(
+            `bootstrap shell: the shell exited before the sentinel was printed; command: ${command}`,
+            streamError === undefined ? undefined : { cause: streamError },
+          )
+        }
+        if (line.startsWith(`${sentinel} `)) {
+          const codeStr = line.slice(sentinel.length + 1).trim()
+          const exitCode = parseInt(codeStr, 10)
+          return {
+            exitCode: Number.isFinite(exitCode) ? exitCode : 1,
+            stdout: outputLines.join('\n'),
+          }
+        }
+        outputLines.push(line)
       }
-      outputLines.push(line)
+    } finally {
+      clearTimeout(timer)
     }
   }
 

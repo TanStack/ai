@@ -39,6 +39,30 @@ describe('createOllamaClient', () => {
     }) as unknown as { config: { headers: Record<string, string> } }
     expect(client.config.headers).toEqual({ Authorization: 'Bearer xyz' })
   })
+
+  it('maps baseURL and defaultHeaders onto host and headers', () => {
+    const client = createOllamaClient({
+      baseURL: 'https://gw.example/ollama',
+      defaultHeaders: { 'X-Gateway': 'yes' },
+    }) as unknown as {
+      config: { host: string; headers: Record<string, string> }
+    }
+    expect(client.config.host).toBe('https://gw.example/ollama')
+    expect(client.config.headers).toEqual({ 'X-Gateway': 'yes' })
+  })
+
+  it('lets baseURL and defaultHeaders win over host and headers', () => {
+    const client = createOllamaClient({
+      host: 'https://old.example',
+      headers: { a: '1', b: 'old' },
+      baseURL: 'https://new.example',
+      defaultHeaders: { b: 'new' },
+    }) as unknown as {
+      config: { host: string; headers: Record<string, string> }
+    }
+    expect(client.config.host).toBe('https://new.example')
+    expect(client.config.headers).toEqual({ b: 'new' })
+  })
 })
 
 describe('getOllamaHostFromEnv', () => {

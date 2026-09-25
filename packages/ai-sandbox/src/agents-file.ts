@@ -11,6 +11,7 @@
  * file by name (CLAUDE.md for Claude Code, GEMINI.md for Gemini CLI, …).
  * We write a single authoritative AGENTS.md and point each name at it.
  */
+import { walkSkillDirs } from '@tanstack/ai-skills'
 import type { SandboxHandle } from './contracts'
 import type { WorkspaceSkill } from './workspace'
 
@@ -41,6 +42,43 @@ export function resolveGitSkillDir(
     ? rawBasename.slice(0, -4)
     : rawBasename
   return `${root}/.tanstack-skills/${basename}`
+}
+
+/** A folder that contains `SKILL.md`, ready to project under a harness skills dir. */
+export interface DiscoveredSkillDir {
+  name: string
+  dir: string
+}
+
+function basenameOf(path: string): string {
+  const segments = path.split('/').filter((segment) => segment !== '')
+  return segments[segments.length - 1] ?? path
+}
+
+/**
+ * Find every skill folder under a cloned `gitSkill` repo.
+ *
+ * A skill folder is a directory that contains `SKILL.md`. Nested packs
+ * (`skills/foo/SKILL.md`) are returned as `{ name: 'foo', dir: '…/skills/foo' }`.
+ * A flat clone with `SKILL.md` at the root is returned as one entry named
+ * after the clone. If no `SKILL.md` is found, the clone itself is returned
+ * so existing basename projection still works.
+ *
+ * The tree walk itself is the shared `walkSkillDirs` from `@tanstack/ai-skills`
+ * (parameterized over an injected lister — here `handle.fs.list`). The
+ * empty→clone-dir fallback is kept here because it is correct for harness
+ * projection but wrong for a skills catalog, so it must not live in the shared
+ * helper.
+ */
+export async function discoverSkillDirs(
+  handle: SandboxHandle,
+  cloneDir: string,
+): Promise<Array<DiscoveredSkillDir>> {
+  const found = await walkSkillDirs((dir) => handle.fs.list(dir), cloneDir)
+  if (found.length === 0) {
+    return [{ name: basenameOf(cloneDir), dir: cloneDir }]
+  }
+  return found
 }
 
 /** Format workspace scripts as a `## Workspace scripts` markdown section. */

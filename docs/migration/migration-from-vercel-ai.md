@@ -17,8 +17,6 @@ keywords:
   - agent loop
 ---
 
-# Migration from Vercel AI SDK
-
 This guide helps you migrate from the Vercel AI SDK (`ai` + `@ai-sdk/*`) to TanStack AI. Both libraries cover the same problem space — LLM calls, streaming, tool use, structured output, framework hooks — but TanStack AI uses a different architecture with enhanced type safety, tree-shakeable adapters, an isomorphic tool system, and a first-class middleware pipeline.
 
 The "Before" examples target **AI SDK v5 and v6**. Older v4 naming is called out inline where it differs.
@@ -41,6 +39,7 @@ TanStack AI provides several advantages:
 | `@ai-sdk/openai` | `@tanstack/ai-openai` |
 | `@ai-sdk/anthropic` | `@tanstack/ai-anthropic` |
 | `@ai-sdk/google` | `@tanstack/ai-gemini` |
+| `@ai-sdk/google-vertex` | `@tanstack/ai-vertex` (Gemini), `@tanstack/ai-anthropic/vertex` (Claude), `@tanstack/ai-grok/vertex` (Grok), and `@tanstack/ai-mistral/vertex` (Mistral) |
 | `@ai-sdk/react` | `@tanstack/ai-react` |
 | `@ai-sdk/vue` | `@tanstack/ai-vue` |
 | `@ai-sdk/solid` | `@tanstack/ai-solid` |
@@ -52,16 +51,26 @@ TanStack AI provides several advantages:
 
 ### Before (Vercel AI SDK)
 
-```bash
-# v5+ (framework hook lives in @ai-sdk/react)
-npm install ai @ai-sdk/react @ai-sdk/openai @ai-sdk/anthropic
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: ai @ai-sdk/react @ai-sdk/openai @ai-sdk/anthropic
+
+<!-- ::end:tabs -->
 
 ### After (TanStack AI)
 
-```bash
-npm install @tanstack/ai @tanstack/ai-react @tanstack/ai-openai @tanstack/ai-anthropic
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openai @tanstack/ai-anthropic
+vue: @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai @tanstack/ai-anthropic
+solid: @tanstack/ai @tanstack/ai-solid @tanstack/ai-openai @tanstack/ai-anthropic
+svelte: @tanstack/ai @tanstack/ai-svelte @tanstack/ai-openai @tanstack/ai-anthropic
+preact: @tanstack/ai @tanstack/ai-preact @tanstack/ai-openai @tanstack/ai-anthropic
+angular: @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai @tanstack/ai-anthropic
+vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-openai @tanstack/ai-anthropic
+octane: @tanstack/ai @tanstack/ai-octane @tanstack/ai-openai @tanstack/ai-anthropic octane
+
+<!-- ::end:tabs -->
 
 ## Server-Side Migration
 
@@ -1028,7 +1037,12 @@ generateImage({ model: openai.image('dall-e-3'), ... })
 #### After (TanStack AI)
 
 ```typescript ignore
-import { openaiText, openaiImage, openaiSpeech } from '@tanstack/ai-openai'
+import {
+  openaiText,
+  openaiImage,
+  openaiSpeech,
+  openaiEmbedding,
+} from '@tanstack/ai-openai'
 
 // Chat
 chat({ adapter: openaiText('gpt-4o'), ... })
@@ -1039,7 +1053,8 @@ generateImage({ adapter: openaiImage('dall-e-3'), ... })
 // Text to speech
 generateSpeech({ adapter: openaiSpeech('tts-1'), ... })
 
-// Embeddings: Use OpenAI SDK directly or your vector DB's built-in support
+// Embeddings
+embed({ adapter: openaiEmbedding('text-embedding-3-small'), ... })
 ```
 
 ### Anthropic
@@ -1405,23 +1420,51 @@ const text = await streamToText(stream)
 
 For structured (non-streaming) output — the `generateObject` equivalent — pass `outputSchema` instead; see [Structured Output](#structured-output).
 
+## Embeddings
+
+Vercel's `embed` and `embedMany` both map to TanStack AI's single `embed()` function — `input` accepts one item or an array, and the result always carries one vector per input item.
+
+### Before (Vercel AI SDK)
+
+```typescript
+import { embed, embedMany } from 'ai'
+import { openai } from '@ai-sdk/openai'
+
+const { embedding } = await embed({
+  model: openai.embedding('text-embedding-3-small'),
+  value: 'Hello, world!',
+})
+
+const { embeddings } = await embedMany({
+  model: openai.embedding('text-embedding-3-small'),
+  values: ['one', 'two'],
+})
+```
+
+### After (TanStack AI)
+
+```typescript
+import { embed } from '@tanstack/ai'
+import { openaiEmbedding } from '@tanstack/ai-openai'
+
+const single = await embed({
+  adapter: openaiEmbedding('text-embedding-3-small'),
+  input: 'Hello, world!',
+})
+const vector = single.embeddings[0]?.vector
+
+const batch = await embed({
+  adapter: openaiEmbedding('text-embedding-3-small'),
+  input: ['one', 'two'],
+})
+const vectors = batch.embeddings.map((e) => e.vector)
+```
+
+TanStack AI's `embed()` additionally supports multimodal (text + image) inputs for models like Cohere embed-v4.0 and Amazon Titan Multimodal — see the [Embeddings guide](../embeddings.md).
+
 ## Features Not Yet Covered
 
 A few AI SDK features don't have direct TanStack AI equivalents today:
-
-### Embeddings
-
-TanStack AI doesn't include embeddings. Use your provider's SDK directly, or the built-in embedding support most vector DBs already offer:
-
-```typescript
-import OpenAI from 'openai'
-
-const openaiClient = new OpenAI()
-const result = await openaiClient.embeddings.create({
-  model: 'text-embedding-3-small',
-  input: 'Hello, world!',
-})
-```
 
 ### Partial object streaming (`streamObject().elementStream` / `partialObjectStream`)
 

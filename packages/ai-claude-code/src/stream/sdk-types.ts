@@ -14,6 +14,7 @@ export interface SdkInitMessage {
   session_id: string
   model: string
   tools: Array<string>
+  skills?: Array<string>
   cwd?: string
 }
 
@@ -60,12 +61,22 @@ export type SdkRawStreamEvent =
   | {
       type: 'content_block_start'
       index: number
-      content_block: { type: string; [key: string]: unknown }
+      content_block: {
+        type: string
+        id?: string
+        name?: string
+        input?: unknown
+      }
     }
   | {
       type: 'content_block_delta'
       index: number
-      delta: { type: string; [key: string]: unknown }
+      delta: {
+        type: string
+        text?: string
+        thinking?: string
+        partial_json?: string
+      }
     }
   | { type: 'content_block_stop'; index: number }
   | { type: 'message_delta' }

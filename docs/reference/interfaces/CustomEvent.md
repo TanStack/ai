@@ -3,18 +3,15 @@ id: CustomEvent
 title: CustomEvent
 ---
 
-# Interface: CustomEvent
-
-Defined in: [packages/ai/src/types.ts:1296](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1296)
+Defined in: [packages/ai/src/types.ts:1414](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1414)
 
 Custom event for extensibility.
 
-@ag-ui/core provides: `name`, `value`
-TanStack AI adds: `model?`
+@ag-ui/core provides: `name`, `value`, `subagentRunId?`
 
 ## Extends
 
-- `CustomEvent`
+- `Omit`\<`AGUICustomEvent`, `"type"`\>
 
 ## Extended by
 
@@ -32,25 +29,35 @@ TanStack AI adds: `model?`
 - [`CodeModeExternalCallEvent`](CodeModeExternalCallEvent.md)
 - [`CodeModeExternalResultEvent`](CodeModeExternalResultEvent.md)
 - [`CodeModeExternalErrorEvent`](CodeModeExternalErrorEvent.md)
-- [`CodeModeSkillCallEvent`](CodeModeSkillCallEvent.md)
-- [`CodeModeSkillResultEvent`](CodeModeSkillResultEvent.md)
-- [`CodeModeSkillErrorEvent`](CodeModeSkillErrorEvent.md)
-- [`SkillRegisteredEvent`](SkillRegisteredEvent.md)
-
-## Indexable
-
-```ts
-[k: string]: unknown
-```
+- [`CodeModeSnippetCallEvent`](CodeModeSnippetCallEvent.md)
+- [`CodeModeSnippetResultEvent`](CodeModeSnippetResultEvent.md)
+- [`CodeModeSnippetErrorEvent`](CodeModeSnippetErrorEvent.md)
+- [`SnippetRegisteredEvent`](SnippetRegisteredEvent.md)
 
 ## Properties
 
-### model?
+### metadata?
 
 ```ts
-optional model: string;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1298](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1298)
+Defined in: [packages/ai/src/types.ts:1416](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1416)
 
-Model identifier for multi-model support
+Extra information attached to this event.
+
+#### Overrides
+
+```ts
+Omit.metadata
+```
+
+***
+
+### type
+
+```ts
+type: "CUSTOM";
+```
+
+Defined in: [packages/ai/src/types.ts:1415](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1415)

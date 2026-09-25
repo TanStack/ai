@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiRunRouteImport } from './routes/api.run'
+import { Route as ApiRunCancelRouteImport } from './routes/api.run.cancel'
+import { Route as ApiRunActiveRouteImport } from './routes/api.run.active'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +24,47 @@ const ApiRunRoute = ApiRunRouteImport.update({
   path: '/api/run',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRunCancelRoute = ApiRunCancelRouteImport.update({
+  id: '/cancel',
+  path: '/cancel',
+  getParentRoute: () => ApiRunRoute,
+} as any)
+const ApiRunActiveRoute = ApiRunActiveRouteImport.update({
+  id: '/active',
+  path: '/active',
+  getParentRoute: () => ApiRunRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/api/run': typeof ApiRunRoute
+  '/api/run': typeof ApiRunRouteWithChildren
+  '/api/run/active': typeof ApiRunActiveRoute
+  '/api/run/cancel': typeof ApiRunCancelRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/api/run': typeof ApiRunRoute
+  '/api/run': typeof ApiRunRouteWithChildren
+  '/api/run/active': typeof ApiRunActiveRoute
+  '/api/run/cancel': typeof ApiRunCancelRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/api/run': typeof ApiRunRoute
+  '/api/run': typeof ApiRunRouteWithChildren
+  '/api/run/active': typeof ApiRunActiveRoute
+  '/api/run/cancel': typeof ApiRunCancelRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/run'
+  fullPaths: '/' | '/api/run' | '/api/run/active' | '/api/run/cancel'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/run'
-  id: '__root__' | '/' | '/api/run'
+  to: '/' | '/api/run' | '/api/run/active' | '/api/run/cancel'
+  id: '__root__' | '/' | '/api/run' | '/api/run/active' | '/api/run/cancel'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ApiRunRoute: typeof ApiRunRoute
+  ApiRunRoute: typeof ApiRunRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +83,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRunRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/run/cancel': {
+      id: '/api/run/cancel'
+      path: '/cancel'
+      fullPath: '/api/run/cancel'
+      preLoaderRoute: typeof ApiRunCancelRouteImport
+      parentRoute: typeof ApiRunRoute
+    }
+    '/api/run/active': {
+      id: '/api/run/active'
+      path: '/active'
+      fullPath: '/api/run/active'
+      preLoaderRoute: typeof ApiRunActiveRouteImport
+      parentRoute: typeof ApiRunRoute
+    }
   }
 }
 
+interface ApiRunRouteChildren {
+  ApiRunActiveRoute: typeof ApiRunActiveRoute
+  ApiRunCancelRoute: typeof ApiRunCancelRoute
+}
+
+const ApiRunRouteChildren: ApiRunRouteChildren = {
+  ApiRunActiveRoute: ApiRunActiveRoute,
+  ApiRunCancelRoute: ApiRunCancelRoute,
+}
+
+const ApiRunRouteWithChildren =
+  ApiRunRoute._addFileChildren(ApiRunRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ApiRunRoute: ApiRunRoute,
+  ApiRunRoute: ApiRunRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

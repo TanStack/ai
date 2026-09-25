@@ -11,7 +11,7 @@ export const Route = createFileRoute('/devtools-route-b')({
 function DevtoolsRouteB() {
   const search = Route.useSearch()
   const routeBChat = useChat({
-    id: 'devtools-route-b:chat',
+    threadId: 'devtools-route-b:chat',
     connection: fetchServerSentEvents('/api/chat'),
     body: {
       provider: 'openai',

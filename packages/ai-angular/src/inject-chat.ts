@@ -13,15 +13,22 @@ import {
 import { toReactive } from './internal/to-reactive'
 import type {
   AnyClientTool,
+  InterruptDefinition,
   InferSchemaType,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
   StreamChunk,
 } from '@tanstack/ai'
 import type {
   ChatClientState,
+  ResolvableChatInterrupt,
+  ChatInterruptState,
+  ChatResumeState,
   ConnectionStatus,
   InferredClientContext,
+  QueuedMessage,
+  SendMessageOptions,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
 import type {
@@ -32,19 +39,24 @@ import type {
   UIMessage,
 } from './types'
 
-let nextId = 0
+const EMPTY_INTERRUPTS = Object.freeze([])
+const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
 export function injectChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
 >(
   options: InjectChatOptions<
     TTools,
     TSchema,
-    TContext
-  > = {} as InjectChatOptions<TTools, TSchema, TContext>,
-): InjectChatResult<TTools, TSchema> {
+    TContext,
+    TInterrupts
+  > = {} as InjectChatOptions<TTools, TSchema, TContext, TInterrupts>,
+): InjectChatResult<TTools, TSchema, TInterrupts> {
   assertInInjectionContext(injectChat)
 
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
@@ -52,17 +64,25 @@ export function injectChat<
 
   const destroyRef = inject(DestroyRef)
   const injector = inject(Injector)
-  const clientId = options.id || `injectChat-${nextId++}`
 
   const messages = signal<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
   )
   const isLoading = signal(false)
+  const hasOlderMessages = signal(false)
   const error = signal<Error | undefined>(undefined)
   const status = signal<ChatClientState>('ready')
   const isSubscribed = signal(false)
   const connectionStatus = signal<ConnectionStatus>('disconnected')
   const sessionGenerating = signal(false)
+  const queue = signal<Array<QueuedMessage>>([])
+  const runId = signal<string | null>(null)
+  const interruptState = signal<ChatInterruptState<TTools, TInterrupts>>({
+    interrupts: EMPTY_INTERRUPTS,
+    pendingInterrupts: EMPTY_INTERRUPTS,
+    interruptErrors: EMPTY_INTERRUPT_ERRORS,
+    resuming: false,
+  })
 
   // Reactive option sources. Plain values become constant computeds.
   const bodySource =
@@ -75,26 +95,46 @@ export function injectChat<
     options.context !== undefined ? toReactive(options.context) : undefined
   const liveSource =
     options.live !== undefined ? toReactive(options.live) : undefined
+  const toolsSource =
+    options.tools !== undefined ? toReactive(options.tools) : undefined
 
   const transport = options.connection
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  const client = new ChatClient<TTools, TContext>({
+  const client = new ChatClient<TTools, TContext, TInterrupts>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
-    id: clientId,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(options.persistence !== undefined && {
-      persistence: options.persistence,
+    ...(typeof options.threadId === 'string' && options.persistence === true
+      ? {
+          persistence: true,
+          threadId: options.threadId,
+          ...(options.history !== undefined && {
+            history: options.history,
+          }),
+        }
+      : typeof options.threadId === 'string' && options.persistence
+        ? {
+            persistence: options.persistence,
+            threadId: options.threadId,
+          }
+        : {
+            ...(options.threadId !== undefined && {
+              threadId: options.threadId,
+            }),
+          }),
+    ...(options.initialResumeSnapshot !== undefined && {
+      initialResumeSnapshot: options.initialResumeSnapshot,
     }),
     ...(bodySource !== undefined && { body: bodySource() }),
-    ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(forwardedPropsSource !== undefined && {
       forwardedProps: forwardedPropsSource(),
     }),
+    ...(options.byok !== undefined && { byok: options.byok }),
+    byokProvider: () => options.byokProvider?.(),
     ...(contextSource !== undefined && { context: contextSource() }),
     devtools: {
       ...options.devtools,
@@ -106,22 +146,49 @@ export function injectChat<
     onChunk: (chunk: StreamChunk) => options.onChunk?.(chunk),
     onFinish: (message) => options.onFinish?.(message),
     onError: (err) => options.onError?.(err),
-    tools: options.tools,
+    onRunIdChange: (nextRunId) => runId.set(nextRunId),
+    // No `onResumeStateChange`: the run identity is surfaced as the `runId`
+    // signal (via `onRunIdChange`) and pending interrupts arrive through
+    // `onInterruptStateChange`, so there is nothing left for it to do — and it
+    // is not a public option here, matching the other framework packages.
+    onInterruptStateChange: (nextInterruptState, context) => {
+      interruptState.set(nextInterruptState)
+      options.onInterruptStateChange?.(nextInterruptState, context)
+    },
+    tools: toolsSource?.(),
+    ...(options.interrupts !== undefined && {
+      interrupts: options.interrupts,
+    }),
     onCustomEvent: (eventType, data, context) =>
       options.onCustomEvent?.(eventType, data, context),
     ...(options.streamProcessor !== undefined && {
       streamProcessor: options.streamProcessor,
     }),
-    onMessagesChange: (m: Array<UIMessage<TTools>>) => messages.set(m),
+    onMessagesChange: (m: Array<UIMessage<TTools>>) => {
+      messages.set(m)
+      hasOlderMessages.set(client.getHasOlderMessages())
+    },
     onLoadingChange: (v: boolean) => isLoading.set(v),
     onStatusChange: (v: ChatClientState) => status.set(v),
     onErrorChange: (v: Error | undefined) => error.set(v),
     onSubscriptionChange: (v: boolean) => isSubscribed.set(v),
     onConnectionStatusChange: (v: ConnectionStatus) => connectionStatus.set(v),
     onSessionGeneratingChange: (v: boolean) => sessionGenerating.set(v),
+    ...(options.queue !== undefined && { queue: options.queue }),
+    onQueueChange: (nextQueue: Array<QueuedMessage>) => queue.set(nextQueue),
   })
 
   messages.set(client.getMessages())
+  interruptState.set(client.getInterruptState())
+  hasOlderMessages.set(client.getHasOlderMessages())
+
+  // START TAILING HERE, not in the constructor. A client is idle until something
+  // attaches it, so a client that gets built and thrown away never opens a
+  // connection — an unreachable stream would hold one of the browser's ~6
+  // connections per origin until the page reloaded. `inject*` runs in an injection
+  // context tied to the consumer's lifetime, and `destroyRef.onDestroy` below is the
+  // matching `detach`.
+  client.attach()
 
   // Sync reactive body / forwardedProps / context to the client.
   if (bodySource || forwardedPropsSource || contextSource) {
@@ -142,6 +209,11 @@ export function injectChat<
     )
   }
 
+  // Sync reactive tools to the client.
+  if (toolsSource) {
+    effect(() => client.updateOptions({ tools: toolsSource() }), { injector })
+  }
+
   // Subscribe / unsubscribe based on reactive `live`.
   if (liveSource) {
     effect(
@@ -156,9 +228,19 @@ export function injectChat<
     )
   }
 
-  afterNextRender(() => client.mountDevtools(), { injector })
+  afterNextRender(
+    () => {
+      client.mountDevtools()
+      // Delivery-durability resume is transparent: the resumable SSE
+      // connection adapter reattaches via the browser's native Last-Event-ID
+      // on reconnect. No client-side auto-resume wiring is needed.
+    },
+    { injector },
+  )
 
   destroyRef.onDestroy(() => {
+    // Release the connection first: the counterpart of the `attach` above.
+    client.detach()
     if (liveSource?.()) {
       client.unsubscribe()
     } else {
@@ -203,14 +285,22 @@ export function injectChat<
     return part.data as Final
   })
 
-  const sendMessage = async (content: string | MultimodalContent) => {
-    await client.sendMessage(content)
+  const sendMessage = async (
+    content: string | MultimodalContent,
+    sendOptions?: SendMessageOptions,
+  ) => {
+    await client.sendMessage(content, undefined, sendOptions)
   }
+  const cancelQueued = (id: string) => client.cancelQueued(id)
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
     await client.append(message)
   }
   const reload = async () => {
     await client.reload()
+  }
+  const loadOlderMessages = async () => {
+    await client.loadOlderMessages()
+    hasOlderMessages.set(client.getHasOlderMessages())
   }
   const stop = () => client.stop()
   const clear = () => client.clear()
@@ -231,15 +321,42 @@ export function injectChat<
   }) => {
     await client.addToolApprovalResponse(response)
   }
+  const interrupts = computed(() => interruptState().interrupts)
+  const pendingInterrupts = computed(() => interruptState().interrupts)
+  const interruptErrors = computed(() => interruptState().interruptErrors)
+  const resuming = computed(() => interruptState().resuming)
+  const resolveInterrupts = (
+    resolution:
+      | boolean
+      | ((
+          interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+        ) => undefined),
+  ) => {
+    if (typeof resolution === 'boolean') {
+      client.resolveInterrupts(resolution)
+    } else {
+      client.resolveInterrupts(resolution)
+    }
+  }
+  const cancelInterrupts = () => client.cancelInterrupts()
+  const retryInterrupts = () => client.retryInterrupts()
+  const resumeInterruptsUnsafe = (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => client.resumeInterruptsUnsafe(resumeItems, state)
 
-  // eslint-disable-next-line no-restricted-syntax -- return shape diverges from conditional InjectChatResult<TTools, TSchema>; TS can't structurally narrow the TSchema-gated partial/final signals
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- return shape diverges from conditional InjectChatResult<TTools, TSchema>; TS can't structurally narrow the TSchema-gated partial/final signals
   return {
     messages: messages.asReadonly(),
     sendMessage,
+    queue: queue.asReadonly(),
+    cancelQueued,
     append,
     reload,
     stop,
     isLoading: isLoading.asReadonly(),
+    hasOlderMessages: hasOlderMessages.asReadonly(),
+    loadOlderMessages,
     error: error.asReadonly(),
     status: status.asReadonly(),
     isSubscribed: isSubscribed.asReadonly(),
@@ -249,7 +366,16 @@ export function injectChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
+    runId: runId.asReadonly(),
+    interrupts,
+    pendingInterrupts,
+    interruptErrors,
+    resuming,
+    resolveInterrupts,
+    cancelInterrupts,
+    retryInterrupts,
+    resumeInterruptsUnsafe,
     partial,
     final,
-  } as unknown as InjectChatResult<TTools, TSchema>
+  } as unknown as InjectChatResult<TTools, TSchema, TInterrupts>
 }

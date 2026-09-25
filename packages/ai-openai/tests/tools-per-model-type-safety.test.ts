@@ -45,8 +45,11 @@ const userTool = toolDefinition({
 }).server(async ({ msg }) => msg)
 
 describe('OpenAI per-model tool gating', () => {
-  it('gpt-5.2 accepts the full tool superset', () => {
-    const adapter = openaiText('gpt-5.2')
+  // One literal `it` per model so `openaiText('<id>')` is checked against that
+  // model's tool capabilities alone — not a union of every row in a table.
+  function assertFullToolSuperset<
+    TAdapter extends ReturnType<typeof openaiText>,
+  >(adapter: TAdapter) {
     typedTools(adapter, [
       userTool,
       webSearchTool({ type: 'web_search' }),
@@ -71,6 +74,34 @@ describe('OpenAI per-model tool gating', () => {
       shellTool(),
       applyPatchTool(),
     ])
+  }
+
+  it('gpt-5.2 accepts the full tool superset', () => {
+    assertFullToolSuperset(openaiText('gpt-5.2'))
+  })
+
+  it('gpt-5.6 accepts the full tool superset', () => {
+    assertFullToolSuperset(openaiText('gpt-5.6'))
+  })
+
+  it('gpt-5.6-sol accepts the full tool superset', () => {
+    assertFullToolSuperset(openaiText('gpt-5.6-sol'))
+  })
+
+  it('gpt-5.6-terra accepts the full tool superset', () => {
+    assertFullToolSuperset(openaiText('gpt-5.6-terra'))
+  })
+
+  it('gpt-5.6-luna accepts the full tool superset', () => {
+    assertFullToolSuperset(openaiText('gpt-5.6-luna'))
+  })
+
+  it('gpt-5.5 accepts the full tool superset', () => {
+    assertFullToolSuperset(openaiText('gpt-5.5'))
+  })
+
+  it('gpt-5.5-pro accepts the full tool superset', () => {
+    assertFullToolSuperset(openaiText('gpt-5.5-pro'))
   })
 
   it('gpt-3.5-turbo rejects every provider tool; user-defined tool is still accepted', () => {

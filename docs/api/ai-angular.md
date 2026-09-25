@@ -19,9 +19,60 @@ Angular signal-based bindings for TanStack AI, providing convenient Angular bind
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-angular
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+angular: @tanstack/ai-angular
+
+<!-- ::end:tabs -->
+
+## `injectRegisterWebMCPTools(tools, options?)`
+
+Register executable client tools for the current Angular injection owner. Angular removes them when it destroys that owner.
+
+For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+
+```typescript
+import { Component } from "@angular/core";
+import {
+  injectRegisterWebMCPTools,
+  type InjectRegisterWebMCPToolsOptions,
+} from "@tanstack/ai-angular";
+import { searchProducts } from "./tools";
+
+const tools = [searchProducts];
+const options: InjectRegisterWebMCPToolsOptions<typeof tools> = {
+  onError(error) {
+    console.error(error);
+  },
+};
+
+@Component({ selector: "app-products", standalone: true, template: "" })
+export class ProductsComponent {
+  registration = injectRegisterWebMCPTools(tools, options);
+}
 ```
+
+`InjectRegisterWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The injectable owns the registration signal.
+
+The `context` field is required when a tool declares a required runtime context. Call this function only in an Angular injection context.
+
+## `injectPageWebMCPTools(options?)`
+
+Read the WebMCP tools on the page as client tools. The signal starts empty and updates when the page adds or removes a tool. Pass the signal to `injectChat` as `tools`. Call it in an injection context.
+
+```ts
+import { Component } from "@angular/core";
+import { injectPageWebMCPTools } from "@tanstack/ai-angular";
+
+@Component({ selector: "app-page-tools", standalone: true, template: "" })
+export class PageTools {
+  pageTools = injectPageWebMCPTools({
+    filter: (tool) => tool.origin === location.origin,
+  });
+}
+```
+
+`filter` skips a tool when it returns `false`. `onError` gets a failed WebMCP read. For a complete guide, see [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
 
 ## `injectChat(options?)`
 
@@ -50,12 +101,13 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 
 - `connection` - Connection adapter (required, or use `fetcher`)
 - `fetcher?` - Direct async function for one-shot generation (alternative to `connection`)
-- `tools?` - Array of client tool implementations (with `.client()` method)
+- `tools?` - Array of client tool implementations (with `.client()` method). Reactive: pass a `Signal` or getter to change the tools after the chat is created.
 - `initialMessages?` - Initial messages array
-- `id?` - Unique identifier for this chat instance
-- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
+- `threadId?` - The only identity for this chat. Required when persistence is on. If omitted, minted after mount.
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field. Reactive — accepts a plain value, an Angular `Signal`, or a zero-arg getter; changes sync automatically via `effect`
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire. Reactive (same forms as `forwardedProps`)
+- `byok?` - Optional BYOK keyring from `defineByok`. On each send the client prepares the resolved provider and stamps `x-byok-*` request headers. Keys never go in the body
+- `byokProvider?` - Optional function that returns the provider slug for this chat. If it returns a slug, only that key is prepared and sent. Otherwise the merged `provider` from `forwardedProps`, `body`, and per-call `sendMessage` `body` is used. Later sources win. If no slug resolves, the send throws instead of attaching every stored key
 - `context?` - Typed client-local runtime context passed to client tool implementations. Reactive (same forms). This value is not serialized to the server
 - `live?` - Enable live subscription mode (auto-subscribes/unsubscribes). Reactive (same forms)
 - `outputSchema?` - Standard-schema-compatible schema (Zod, Valibot, ArkType, or JSON Schema). When provided, adds typed `partial` and `final` signals to the return value
@@ -65,6 +117,7 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 - `onChunk?` - Callback when stream chunk is received
 - `onFinish?` - Callback when response finishes
 - `onError?` - Callback when error occurs
+- `onInterruptStateChange?` - Callback when interrupt state changes; context source is `hydrate` for restored state and `live` for streamed or client-initiated updates
 - `onCustomEvent?` - Callback for custom stream events
 - `streamProcessor?` - Stream processing configuration
 
@@ -90,12 +143,19 @@ import type {
   DeepPartial,
 } from "@tanstack/ai-angular";
 import type { ModelMessage, InferSchemaType } from "@tanstack/ai/client";
-import type { ChatClientState, ConnectionStatus } from "@tanstack/ai-client";
+import type {
+  ChatClientState,
+  ConnectionStatus,
+  SendMessageOptions,
+} from "@tanstack/ai-client";
 type TSchema = any;
 
 interface InjectChatResult {
   messages: Signal<UIMessage[]>;
-  sendMessage: (content: string | MultimodalContent) => Promise<void>;
+  sendMessage: (
+    content: string | MultimodalContent,
+    options?: SendMessageOptions,
+  ) => Promise<void>;
   append: (message: ModelMessage | UIMessage) => Promise<void>;
   addToolResult: (result: {
     toolCallId: string;
@@ -125,6 +185,32 @@ interface InjectChatResult {
 ```
 
 **Note:** All reactive state (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`) is exposed as read-only Angular `Signal`s. Read them by calling them as functions (e.g., `chat.messages()`, `chat.isLoading()`). Cleanup is automatic via `DestroyRef.onDestroy`.
+
+## `injectByok(client)`
+
+Subscribe to a `ByokClient` snapshot in Angular. Call it in an injection context. The return value is a read-only `Signal`.
+
+```typescript
+import { Component } from "@angular/core";
+import { injectByok } from "@tanstack/ai-angular";
+import { byok } from "./byok";
+
+@Component({
+  selector: "app-key-status",
+  standalone: true,
+  template: `<p>{{ last4() }}</p>`,
+})
+export class KeyStatusComponent {
+  snapshot = injectByok(byok);
+
+  last4() {
+    const openai = this.snapshot().status.openai;
+    return openai && "masked" in openai ? openai.masked : "No key";
+  }
+}
+```
+
+`snapshot()` has `status`, `locked`, and `prompt`. Call `byok.update(provider, value)` from your own UI to save a key. See [Bring Your Own Key](../advanced/byok).
 
 ## Connection Adapters
 
@@ -380,9 +466,9 @@ export class CustomGenerationComponent {
 }
 ```
 
-**Options:** `connection?`, `fetcher?`, `id?`, `body?` (reactive), `devtools?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
+**Options:** `connection?`, `fetcher?`, `threadId?`, `body?` (reactive), `devtools?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
 
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset` — all reactive state is a read-only `Signal<T>`.
+**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `runId`. All reactive state is a read-only `Signal<T>`.
 
 ### `injectGenerateImage(options)`
 

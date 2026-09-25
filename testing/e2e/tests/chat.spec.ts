@@ -7,6 +7,9 @@ import {
 } from './helpers'
 import { providersFor } from './test-matrix'
 
+// The server conversion test in this spec does not call a provider HTTP
+// endpoint, so it intentionally does not configure aimock.
+
 for (const provider of providersFor('chat')) {
   test.describe(`${provider} — chat`, () => {
     test('sends a message and receives a streaming response', async ({
@@ -52,6 +55,154 @@ for (const provider of providersFor('chat')) {
     })
   })
 }
+
+test('preserves UI message IDs at the server conversion boundary', async ({
+  request,
+}) => {
+  const response = await request.post('/api/message-ids', {
+    data: {
+      messages: [
+        {
+          id: 'user-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Hello' }],
+        },
+        {
+          id: 'assistant-1',
+          role: 'assistant',
+          parts: [
+            { type: 'text', content: 'Let me check.' },
+            {
+              type: 'tool-call',
+              id: 'tool-1',
+              name: 'getWeather',
+              arguments: '{}',
+              state: 'input-complete',
+            },
+            {
+              type: 'tool-result',
+              id: 'result-1',
+              name: 'getWeather',
+              toolCallId: 'tool-1',
+              content: [{ type: 'text', content: '{"temp":72}' }],
+              state: 'complete',
+              metadata: { source: 'e2e' },
+              createdAt: '2026-08-20T00:00:00.000Z',
+            },
+          ],
+        },
+      ],
+    },
+  })
+
+  expect(response.ok()).toBe(true)
+  const { modelMessages, wireMessages, snapshots, mergedSnapshots } =
+    await response.json()
+
+  expect(modelMessages).toEqual([
+    { id: 'user-1', role: 'user', content: 'Hello' },
+    {
+      id: 'assistant-1',
+      role: 'assistant',
+      content: 'Let me check.',
+      toolCalls: [
+        {
+          id: 'tool-1',
+          type: 'function',
+          function: { name: 'getWeather', arguments: '{}' },
+        },
+      ],
+    },
+    {
+      id: 'result-1',
+      role: 'tool',
+      name: 'getWeather',
+      content: [{ type: 'text', content: '{"temp":72}' }],
+      toolCallId: 'tool-1',
+      metadata: { source: 'e2e' },
+      createdAt: '2026-08-20T00:00:00.000Z',
+    },
+  ])
+  expect(wireMessages).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ role: 'assistant', id: 'assistant-1' }),
+      expect.objectContaining({
+        role: 'tool',
+        toolCallId: 'tool-1',
+        id: 'result-1',
+        metadata: {
+          source: 'e2e',
+          tanstack: {
+            toolResult: {
+              id: 'result-1',
+              createdAt: '2026-08-20T00:00:00.000Z',
+              content: [{ type: 'text', content: '{"temp":72}' }],
+            },
+          },
+        },
+      }),
+    ]),
+  )
+  expect(snapshots).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'tool-result',
+            id: 'result-1',
+            content: [{ type: 'text', content: '{"temp":72}' }],
+            metadata: { source: 'e2e' },
+          }),
+        ]),
+      }),
+    ]),
+  )
+  const mergedAssistant = mergedSnapshots.find(
+    (message: { id?: string }) => message.id === 'assistant-1',
+  )
+  expect(mergedAssistant?.parts).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        type: 'tool-result',
+        id: 'result-1',
+        content: [{ type: 'text', content: '{"temp":72}' }],
+        metadata: { source: 'e2e' },
+        createdAt: '2026-08-20T00:00:00.000Z',
+      }),
+    ]),
+  )
+})
+
+test('rejects malformed JSON at the server conversion boundary', async ({
+  request,
+}) => {
+  const response = await request.post('/api/message-ids', {
+    data: '{',
+    headers: { 'Content-Type': 'application/json' },
+  })
+
+  expect(response.status()).toBe(400)
+})
+
+test('rejects invalid message parts at the server conversion boundary', async ({
+  request,
+}) => {
+  const response = await request.post('/api/message-ids', {
+    data: {
+      messages: [
+        {
+          id: 'user-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 42 }],
+        },
+      ],
+    },
+  })
+
+  expect(response.status()).toBe(400)
+})
 
 test.describe('openai chat persistence', () => {
   test('persists chat messages across browser reload with localStorage', async ({

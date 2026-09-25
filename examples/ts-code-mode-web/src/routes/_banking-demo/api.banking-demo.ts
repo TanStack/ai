@@ -186,13 +186,13 @@ let codeModeCache: {
 async function getCodeModeTools() {
   if (!codeModeCache) {
     const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
-    const driver = await createIsolateDriver('node')
+    const driver = await createIsolateDriver()
     const { tool, systemPrompt } = createCodeMode({
       driver,
       tools: allTools,
       timeout: 60000,
       memoryLimit: 128,
-      getSkillBindings: async () => createReportBindings(),
+      getSnippetBindings: async () => createReportBindings(),
     })
     codeModeCache = { tool, systemPrompt }
   }

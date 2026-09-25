@@ -4,6 +4,9 @@ export type Provider =
   | 'openai'
   | 'anthropic'
   | 'gemini'
+  | 'vertex'
+  | 'vertex-grok'
+  | 'vertex-mistral'
   | 'ollama'
   | 'grok'
   | 'groq'
@@ -11,9 +14,17 @@ export type Provider =
   | 'bedrock-responses'
   | 'openrouter'
   | 'openrouter-responses'
+  | 'vercel-gateway'
+  | 'vercel-gateway-responses'
+  | 'lovable'
+  | 'lovable-responses'
   | 'openai-compatible'
+  | 'openai-compatible-legacy'
   | 'mistral'
+  | 'byteplus'
   | 'elevenlabs'
+  | 'llmgateway'
+  | 'cloudflare'
 
 export type Feature =
   | 'chat'
@@ -30,25 +41,32 @@ export type Feature =
   | 'agentic-structured'
   | 'agentic-structured-stream'
   | 'multimodal-image'
+  | 'multimodal-document'
   | 'multimodal-structured'
   | 'summarize'
   | 'summarize-stream'
+  | 'embedding'
   | 'image-gen'
   | 'image-to-image'
   | 'audio-gen'
   | 'sound-effects'
   | 'tts'
+  | 'voice-design'
   | 'transcription'
   | 'transcription-diarization'
   | 'video-gen'
   | 'image-to-video'
   | 'interactions-video'
   | 'stateful-interactions'
+  | 'video-understanding'
 
 export const ALL_PROVIDERS: Provider[] = [
   'openai',
   'anthropic',
   'gemini',
+  'vertex',
+  'vertex-grok',
+  'vertex-mistral',
   'ollama',
   'grok',
   'groq',
@@ -56,9 +74,17 @@ export const ALL_PROVIDERS: Provider[] = [
   'bedrock-responses',
   'openrouter',
   'openrouter-responses',
+  'vercel-gateway',
+  'vercel-gateway-responses',
+  'lovable',
+  'lovable-responses',
   'openai-compatible',
+  'openai-compatible-legacy',
   'mistral',
+  'byteplus',
   'elevenlabs',
+  'llmgateway',
+  'cloudflare',
 ]
 
 export const ALL_FEATURES: Feature[] = [
@@ -76,18 +102,22 @@ export const ALL_FEATURES: Feature[] = [
   'agentic-structured',
   'agentic-structured-stream',
   'multimodal-image',
+  'multimodal-document',
   'multimodal-structured',
   'summarize',
   'summarize-stream',
+  'embedding',
   'image-gen',
   'image-to-image',
   'audio-gen',
   'sound-effects',
   'tts',
+  'voice-design',
   'transcription',
   'transcription-diarization',
   'video-gen',
   'image-to-video',
   'interactions-video',
   'stateful-interactions',
+  'video-understanding',
 ]

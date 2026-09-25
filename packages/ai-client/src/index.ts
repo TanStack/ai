@@ -6,8 +6,28 @@ export type {
   InferAudioRecordingOutput,
 } from './audio-recorder'
 export { ChatClient } from './chat-client'
+export { InterruptManager } from './interrupt-manager'
+export type {
+  InterruptManagerHydration,
+  InterruptManagerOptions,
+  InterruptManagerSubmission,
+} from './interrupt-manager'
 export { createMcpAppBridge } from './mcp-app-bridge'
 export type { McpAppBridge, CreateMcpAppBridgeOptions } from './mcp-app-bridge'
+export {
+  getWebMCPTools,
+  registerWebMCPTools,
+  subscribeWebMCPTools,
+} from './web-mcp-tools'
+export type {
+  GetWebMCPToolsOptions,
+  RegisterWebMCPToolsOptions,
+  SubscribeWebMCPToolsOptions,
+  WebMCPPageTool,
+  WebMCPToolAnnotations,
+  WebMCPToolOptions,
+  WebMCPToolOptionsByName,
+} from './web-mcp-tools'
 export { RealtimeClient } from './realtime-client'
 export { GenerationClient } from './generation-client'
 export { VideoGenerationClient } from './video-generation-client'
@@ -20,10 +40,34 @@ export type {
   ToolResultPart,
   ThinkingPart,
   StructuredOutputPart,
+  SubagentPart,
+  SubagentPartOf,
+  SubagentHandle,
+  SubagentHandleOf,
+  SubagentHandles,
+  SubagentClientAgent,
+  SubagentStatus,
   // Client configuration types
   ChatClientPersistence,
+  ChatPersistedState,
+  ChatPersistenceOption,
+  ChatPersistenceOptions,
+  ChatStorageAdapter,
   ChatClientOptions,
+  ChatPendingInterrupt,
+  BoundInterruptBase,
+  BoundInterrupts,
+  ChatInterrupt,
+  ChatInterruptState,
+  GenericAGUIInterrupt,
+  GenericInterrupt,
+  RegisteredGenericInterrupt,
+  ResolvableChatInterrupt,
+  UnboundInterrupt,
+  InterruptItemStatus,
+  ToolApprovalInterrupt,
   ClientContextOptionFromTools,
+  ChatResumeState,
   ChatRequestBody,
   InferChatMessages,
   InferredClientContext,
@@ -35,12 +79,20 @@ export type {
   ChatTransport,
   DistributedOmit,
   MultimodalContent,
+  QueuedMessage,
+  WhenBusy,
+  QueueBusyReason,
+  QueueConfig,
+  QueueStrategy,
+  QueueOption,
+  SendMessageOptions,
 } from './types'
 // Generation client types
 export type {
   InferGenerationOutput,
   InferGenerationOutputFromReturn,
   GenerationClientState,
+  GenerationPersistenceOptions,
   GenerationClientOptions,
   GenerationFetcher,
   GenerationFetcherOptions,
@@ -54,10 +106,31 @@ export type {
   TranscriptionGenerateInput,
   SummarizeGenerateInput,
   VideoGenerateInput,
+  GenerationRestoredResult,
 } from './generation-types'
 export { GENERATION_EVENTS } from './generation-types'
+// Per-activity result reconstruction mappers (used by the framework hooks to
+// repaint a typed `result` on restore)
+export {
+  reconstructImageResult,
+  reconstructAudioResult,
+  reconstructSpeechResult,
+  reconstructTranscriptionResult,
+  reconstructSummarizeResult,
+} from './generation-reconstruct'
 export { UnsupportedResponseStreamError } from './response-stream'
 export { clientTools, createChatClientOptions } from './types'
+// Web storage adapters for durable chat persistence (messages + resume snapshot)
+export {
+  localStoragePersistence,
+  sessionStoragePersistence,
+  indexedDBPersistence,
+  StorageUnavailableError,
+} from './storage-adapters'
+export type {
+  WebStoragePersistenceOptions,
+  IndexedDBPersistenceOptions,
+} from './storage-adapters'
 export {
   createAIDevtoolsGenerationPreview,
   type AIDevtoolsClientMetadata,
@@ -72,7 +145,15 @@ export type {
   ExtractToolInput,
   ExtractToolOutput,
 } from './tool-types'
-export type { AnyClientTool } from '@tanstack/ai/client'
+export type {
+  AnyClientTool,
+  Interrupt,
+  PersistedArtifactActivity,
+  PersistedArtifactRef,
+  PersistedArtifactRole,
+  RunAgentResumeItem,
+  RunFinishedOutcome,
+} from '@tanstack/ai/client'
 export type {
   RealtimeAdapter,
   RealtimeConnection,
@@ -87,12 +168,20 @@ export {
   xhrHttpStream,
   stream,
   rpcStream,
+  webSocket,
   StreamTruncatedError,
+  DurableStreamIncompleteError,
+  StreamReconnectLimitError,
   type ConnectConnectionAdapter,
   type ConnectionAdapter,
+  type GenerationHydrationResult,
   type FetchConnectionOptions,
+  type ReconnectOptions,
+  type ResumableConnectConnectionAdapter,
   type RunAgentInputContext,
+  type StreamConnectionHandlers,
   type SubscribeConnectionAdapter,
+  type WebSocketConnectionOptions,
   type XhrConnectionOptions,
 } from './connection-adapters'
 

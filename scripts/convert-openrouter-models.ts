@@ -9,7 +9,10 @@
 
 import { writeFile } from 'node:fs/promises'
 import { models } from './openrouter.models'
+import { videoModels as videoApiModels } from './openrouter.video-models'
 import type { OpenRouterModel } from './openrouter.models'
+import type { OpenRouterVideoApiModel } from './openrouter.video-models'
+import { toModelConstName } from './model-sync/ids'
 
 type InputModality = 'text' | 'image' | 'audio' | 'video' | 'document'
 
@@ -45,7 +48,25 @@ const perModelInputModalities: Record<string, string> = {}
 
 const imageModels = new Set<string>([])
 const chatModels = new Set<string>([])
+const combinedToolsAndSchemaModels = new Set<string>([])
 const videoModels = new Set<string>([])
+
+/**
+ * Catalog ids whose `supported_parameters` include `structured_outputs`, `tools`
+ * and `tool_choice` — OpenRouter can run strict json_schema output together with
+ * tools in one request ("combined mode", #836). Derived from the catalog on every
+ * sync; never hand-edit (#1163).
+ */
+function generateCombinedToolsAndSchemaModelsSet(): string {
+  return `/**
+ * Generated: chat models whose catalog \`supported_parameters\` include
+ * \`structured_outputs\`, \`tools\` and \`tool_choice\` (combined tools + outputSchema mode).
+ */
+export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
+  new Set<string>([\n${Array.from(combinedToolsAndSchemaModels)
+    .map((id) => `    ${id},`)
+    .join('\n')}\n  ])`
+}
 
 function generateChatModelsArray(): string {
   const modelIds = Array.from(chatModels)
@@ -88,13 +109,55 @@ function generateImageModelsArray(): string {
 }
 
 function generateVideoModelsArray(): string {
-  const modelIds = Array.from(videoModels)
-  if (modelIds.length === 0) {
+  // Video generation models come from the dedicated `GET /api/v1/videos/models`
+  // endpoint (openrouter.video-models.json) — they don't appear in the plain
+  // models listing. Models the main listing reports with a `video` output
+  // modality (none today) are merged in for completeness.
+  const ids = new Set(videoApiModels.map((m) => `'${m.id}'`))
+  for (const constRef of videoModels) ids.add(constRef)
+  if (ids.size === 0) {
     return ''
   }
-  return `export const OPENROUTER_VIDEO_MODELS = [\n${modelIds
+  return `export const OPENROUTER_VIDEO_MODELS = [\n${Array.from(ids)
     .map((id) => `  ${id},`)
     .join('\n')}\n] as const`
+}
+
+function videoMetaLiteral(value: Array<number | string> | null): string {
+  if (value === null) return 'null'
+  return `[${value
+    .map((v) => (typeof v === 'number' ? `${v}` : `'${v}'`))
+    .join(', ')}]`
+}
+
+/**
+ * Per-model capability metadata for the dedicated video generation API.
+ * `@tanstack/ai-openrouter/src/video/video-provider-options.ts` derives the
+ * per-model provider-option and size types from this const, and the video
+ * adapter validates sizes / durations / frame roles against it at runtime.
+ */
+function generateVideoModelMeta(): string {
+  if (videoApiModels.length === 0) {
+    return ''
+  }
+  const entries = videoApiModels.map((m: OpenRouterVideoApiModel) => {
+    const lines = [
+      `  '${m.id}': {`,
+      `    name: '${m.name.replace(/'/g, "\\'")}',`,
+      `    durations: ${videoMetaLiteral(m.supported_durations)},`,
+      `    resolutions: ${videoMetaLiteral(m.supported_resolutions)},`,
+      `    aspectRatios: ${videoMetaLiteral(m.supported_aspect_ratios)},`,
+      `    frameImages: ${videoMetaLiteral(m.supported_frame_images)},`,
+      `    sizes: ${videoMetaLiteral(m.supported_sizes)},`,
+      `    generateAudio: ${m.generate_audio},`,
+      `    seed: ${m.seed},`,
+      `  },`,
+    ]
+    return lines.join('\n')
+  })
+  return `export const OPENROUTER_VIDEO_MODEL_META = {\n${entries.join(
+    '\n',
+  )}\n} as const`
 }
 
 function createPerModelModelOptions(): string {
@@ -143,30 +206,7 @@ function generateModelMetaString(model: OpenRouterModel): string {
   const outputModalities = model.architecture.output_modalities
     .map(mapInputModality)
     .filter((m): m is InputModality => m !== null)
-  // OpenRouter uses `~prefix/name` to denote routing aliases (e.g.
-  // `~anthropic/claude-haiku-latest`). The model ID itself is preserved as a
-  // string literal so users can pass it to `chat({ model: ... })`. The leading
-  // `~` is mapped to `_` only for the derived constant name so it's a valid
-  // JavaScript identifier.
-  const constName = model.id
-    .replaceAll('~', '_')
-    .replaceAll('/', '-')
-    .replaceAll('-', '_')
-    .replaceAll('.', '_')
-    .replaceAll(':', '_')
-    .toUpperCase()
-  // Safety net: if a future OpenRouter ID quirk produces a non-identifier
-  // constant name, fail loudly here instead of letting prettier choke on the
-  // generated file later in the pipeline.
-  if (!/^[A-Z_][A-Z0-9_]*$/.test(constName)) {
-    throw new Error(
-      `Generated constant name is not a valid JS identifier: ${JSON.stringify(
-        constName,
-      )} (from OpenRouter model.id ${JSON.stringify(
-        model.id,
-      )}). Extend the constName sanitiser to handle this case.`,
-    )
-  }
+  const constName = toModelConstName(model.id)
   // Ensure at least 'text' is present
   if (!inputModalities.includes('text')) {
     inputModalities.unshift('text')
@@ -177,6 +217,14 @@ function generateModelMetaString(model: OpenRouterModel): string {
   )
   if (outputModalities.includes('text') && !isNonChat) {
     chatModels.add(`${constName}.id`)
+    const params = new Set(model.supported_parameters ?? [])
+    if (
+      params.has('structured_outputs') &&
+      params.has('tools') &&
+      params.has('tool_choice')
+    ) {
+      combinedToolsAndSchemaModels.add(`${constName}.id`)
+    }
   }
   if (outputModalities.includes('image')) {
     imageModels.add(`${constName}.id`)
@@ -226,6 +274,7 @@ function generateModelMetaString(model: OpenRouterModel): string {
     'include_reasoning',
     'verbosity',
     'web_search_options',
+    'prediction',
   ])
 
   // Build the object as a formatted string
@@ -294,9 +343,8 @@ function generateModelMetaString(model: OpenRouterModel): string {
   return lines.join('\n')
 }
 
-function convertModels(models: Array<OpenRouterModel>): string {
-  const modelStrings = models.map(generateModelMetaString)
-  return modelStrings.join('\n')
+function convertModels(sourceModels: Array<OpenRouterModel>): string {
+  return sourceModels.map(generateModelMetaString).join('\n')
 }
 
 // ============================================================
@@ -309,7 +357,8 @@ function convertModels(models: Array<OpenRouterModel>): string {
 
 console.log('// Generated ModelMeta entries:')
 console.log('')
-const file = `
+const file = `// AUTO-GENERATED by scripts/convert-openrouter-models.ts from scripts/openrouter.models.json
+// (\`pnpm generate:models\`). Do not edit by hand — every block here is rewritten on sync.
 import type { OpenRouterBaseOptions, OpenRouterCommonOptions } from './text/text-provider-options'
   
 ${convertModels(models)}
@@ -322,7 +371,10 @@ ${generateChatModelsArray()}
 
 ${generateChatToolCapabilitiesType()}
 ${generateVideoModelsArray()}
+${generateVideoModelMeta()}
 ${generateImageModelsArray()}
+
+${generateCombinedToolsAndSchemaModelsSet()}
 `
 console.log(file)
 writeFile('packages/ai-openrouter/src/model-meta.ts', file).then(() => {

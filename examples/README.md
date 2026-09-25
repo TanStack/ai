@@ -6,11 +6,126 @@ This directory contains comprehensive examples demonstrating TanStack AI across 
 
 Choose an example based on your use case:
 
+- **Want the smallest React + Start chat?** → [Basic Chat](#basic-chat)
+- **Want an image from a prompt?** → [Generate Image](#generate-image)
+- **Want a table that fills as JSON streams?** → [Streaming Structured Table](#streaming-structured-table)
+- **Want typed ticket routing?** → [Evaluate](#evaluate)
+- **Want a blog desk with three agents?** → [Subagents](#subagents)
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
+- **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
 - **Multi-User TypeScript chat app?** → [Group Chat (ts-group-chat)](#group-chat-ts-group-chat)
+- **Polyglot AG-UI backends (Go/Rust/PHP/Zig/Bash/Python)?** → [AG-UI Polyglot Echo (ag-ui)](#ag-ui-polyglot-echo-ag-ui)
 
 ## TypeScript Examples
+
+### Basic Chat
+
+A slim TanStack Start chat. One provider (OpenRouter). You paste your own key.
+
+**Path:** `examples/react/basic-chat`
+
+**Getting Started:**
+
+```bash
+pnpm --filter basic-chat dev
+```
+
+Open http://localhost:3100. Paste an OpenRouter key. Send a message.
+
+📖 [Full Documentation](react/basic-chat/README.md)
+
+---
+
+### Generate Image
+
+A slim TanStack Start image app. One provider (OpenRouter). You paste your own key.
+
+**Path:** `examples/react/generate-image`
+
+**Getting Started:**
+
+```bash
+pnpm --filter generate-image dev
+```
+
+Open http://localhost:3100. Paste an OpenRouter key. Type a prompt. Click Generate.
+
+📖 [Full Documentation](react/generate-image/README.md)
+
+---
+
+### Streaming Structured Table
+
+A slim TanStack Start app. One schema. `chat({ outputSchema, stream: true })` fills a table as JSON streams in.
+
+**Path:** `examples/react/streaming-structured-table`
+
+**Getting Started:**
+
+```bash
+pnpm --filter streaming-structured-table dev
+```
+
+Open http://localhost:3100. Paste an OpenRouter key. Send `Compare 6 JavaScript frameworks`.
+
+📖 [Full Documentation](react/streaming-structured-table/README.md)
+
+---
+
+### Subagents
+
+A slim TanStack Start chat. Three named agents: researcher, SEO, and writer. Jev picks the agents for each turn. Research and SEO run together, and the writer runs after them. The UI shows a nested card for each.
+
+**Path:** `examples/react/subagents`
+
+**Getting Started:**
+
+```bash
+pnpm --filter subagents dev
+```
+
+Open http://localhost:3100. Paste an OpenRouter key. Ask for research, SEO titles, or a draft.
+
+📖 [Full Documentation](react/subagents/README.md)
+
+---
+
+### Persisted subagents
+
+The blog desk from the subagents example, with a saved chat. A refresh keeps the messages and the cards. A refresh during a run continues that run.
+
+**Path:** `examples/react/subagents-persisted`
+
+**Getting Started:**
+
+```bash
+pnpm --filter subagents-persisted dev
+```
+
+Open http://localhost:3105. Paste an OpenRouter key. Send a prompt. Then refresh the page.
+
+📖 [Full Documentation](react/subagents-persisted/README.md)
+
+---
+
+### Evaluate
+
+A slim TanStack Start app. Paste a support ticket. Jev answers queue, urgency, and refund.
+
+**Path:** `examples/react/evaluate`
+
+**Getting Started:**
+
+```bash
+pnpm --filter evaluate dev
+```
+
+Open http://localhost:3100. Add a key in `.env`. Pick a provider. Click Submit.
+
+📖 [Full Documentation](react/evaluate/README.md)
+
+---
 
 ### TanStack Chat (ts-react-chat)
 
@@ -93,6 +208,56 @@ Open `http://localhost:4000` in multiple browser tabs to test multi-user functio
 
 ---
 
+### Reranking (ts-react-rerank)
+
+A single-page app that reorders a fixed set of support articles by relevance to
+a query, showing the original order and the reranked order side by side.
+
+**Tech Stack:**
+
+- TanStack Start (full-stack React framework)
+- `@tanstack/ai` (the `rerank()` activity)
+- `@tanstack/ai-cohere` (Cohere rerank adapter)
+- `@tanstack/ai-openrouter` (OpenRouter rerank adapter)
+
+**Features:**
+
+- ✅ One `rerank()` call, two providers behind a dropdown
+- ✅ Object documents — the original typed object comes back on each result
+- ✅ Relevance scores and original position per document
+- ✅ `topN` control and search-unit usage reporting
+- ✅ API keys stay on the server
+
+**Getting Started:**
+
+```bash
+cd examples/ts-react-rerank
+pnpm install
+cp .env.example .env
+# Add COHERE_API_KEY and/or OPENROUTER_API_KEY — you only need the one you pick
+pnpm dev
+```
+
+📖 [Full Documentation](ts-react-rerank/README.md)
+
+---
+
+### World generation (ts-react-media)
+
+The media example has a **World** tab. Pick a Reactor model for a live
+steerable stream, or a Marble model for a finished 3D World Labs world.
+
+```bash
+cd examples/ts-react-media
+pnpm install
+pnpm dev
+```
+
+Open the World tab. Paste a Reactor key (`REACTOR_API_KEY`) or a World Labs
+key (`WORLDLABS_API_KEY`).
+
+---
+
 ### Vanilla Chat
 
 A framework-free chat application using pure JavaScript and `@tanstack/ai-client`.
@@ -119,6 +284,45 @@ pnpm start
 ```
 
 📖 [Full Documentation](vanilla-chat/README.md)
+
+---
+
+### AG-UI Polyglot Echo (ag-ui)
+
+A React SPA that connects to **Go, Rust, PHP, Zig, Bash, and Python chat servers** over the AG-UI SSE protocol, with each backend streaming OpenAI or Anthropic completions. Toolchain detection writes `public/servers.json`; unavailable backends show setup instructions in the UI.
+
+**Tech Stack:**
+
+- React + Vite (SPA)
+- `@tanstack/ai-react` + `@tanstack/ai-react/ui`
+- Go chat server (`net/http`, `:8001`)
+- Rust chat server (Axum, `:8002`)
+- PHP chat server (built-in server + curl, `:8003`)
+- Zig chat server (stdlib HTTP, `:8004`)
+- Bash chat server (socat + curl + jq, `:8005`)
+- Python chat server (stdlib HTTP + urllib, `:8006`)
+
+**Features:**
+
+- ✅ Backend picker (Go | Rust | PHP | Zig | Bash | Python)
+- ✅ Toolchain-gated `dev:all` + `servers.json` availability
+- ✅ Setup instructions when a runtime is missing (or disabled via `AGUI_DISABLE_SERVERS`)
+- ✅ Provider picker (OpenAI | Anthropic)
+- ✅ Hand-rolled AG-UI SSE in six languages
+- ✅ Streaming LLM responses via env API keys
+
+**Getting Started:**
+
+```bash
+cd examples/ag-ui
+pnpm install
+cp .env.example .env
+pnpm dev:all
+```
+
+Install whichever backends you want to run locally (Go, Rust, PHP, Zig, Bash, Python) plus provider API keys. The Bash server uses Bash 4+, curl, jq, and socat (`brew install bash jq socat`). To simulate missing runtimes: `AGUI_DISABLE_SERVERS=php,zig,bash,python pnpm dev:all`.
+
+📖 [Full Documentation](ag-ui/README.md)
 
 ---
 

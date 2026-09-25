@@ -1,5 +1,5 @@
 ---
-title: Observability
+title: Observability (Advanced)
 id: observability
 order: 10
 description: "Run server-side hooks on every file the agent touches, log sandbox internals, and watch a workspace outside a chat() run."
@@ -11,7 +11,7 @@ debug logging, and the low-level watcher you can drive outside a `chat()` run.
 
 ## File-event hooks
 
-Listen to files being created, changed, or deleted inside a sandbox — for
+Listen to files being created, changed or deleted inside a sandbox, for
 example to watch what the agent edits as it works. The watcher is
 provider-agnostic: it uses native OS watching where the provider supports it
 (local-process) and falls back to a portable `find` poll everywhere else (Docker
@@ -69,12 +69,12 @@ const auditMiddleware = defineChatMiddleware({
 
 Both hook groups fire **server-side** and are independent of the stream: the
 engine automatically emits one `CUSTOM` [`sandbox.file`](./events#custom-events)
-event per change regardless of whether you register any hooks — so the client
+event per change regardless of whether you register any hooks, so the client
 can react to the same edits without extra middleware.
 
 ## Reading content and diffs in hooks
 
-The event every hook receives isn't just `{ type, path, timestamp }` — it also
+The event every hook receives is more than `{ type, path, timestamp }`. It also
 carries lazy, git-backed accessors for the file's content:
 
 ```ts
@@ -88,7 +88,7 @@ interface SandboxFileHookEvent {
 }
 ```
 
-Reach for `diff()` to show what the agent changed — no need to hand-roll a
+Reach for `diff()` to show what the agent changed. There is no need to hand-roll a
 `git diff` yourself:
 
 ```ts
@@ -125,7 +125,7 @@ const auditMiddleware = defineChatMiddleware({
 });
 ```
 
-**Lazy — path-only hooks pay nothing.** `before()`, `after()`, and `diff()`
+**Lazy, path-only hooks pay nothing.** `before()`, `after()`, and `diff()`
 are methods, not fields: each one only reads the file or shells out to `git`
 when you call it. A hook that only reads `e.path` / `e.type` (like the
 catch-all logger in [Sandbox-scoped hooks](#sandbox-scoped-hooks) above)
@@ -136,16 +136,16 @@ never touches the filesystem or spawns a process.
 workspace isn't a git repo, or has no commits yet). Every `before()` and
 `diff()` call for the rest of the session diffs against that same fixed
 baseline, so `onFileChange` always reports the file's **cumulative** change
-since the run started — not just the delta since the watcher's last poll.
+since the run started, not just the delta since the watcher's last poll.
 `after()` always reads the file's current on-disk content, independent of
 the baseline. None of the three accessors throw: a deleted file resolves
 `after()` to `''` (it still has `before()`); a new file resolves `before()`
 to `''` (it still has `after()`); a non-git workspace resolves **both**
 `before()` and `after()` to `''` and makes `diff()` fall back to a
-synthesized add-patch built from `after()` — except for a `delete` event in
+synthesized add-patch built from `after()`, except for a `delete` event in
 a non-git workspace, where there's nothing to synthesize and `diff()`
-resolves to `''`. In a git workspace, a file git **isn't tracking yet** — one
-the agent just created, and every later edit to it — diffs empty because
+resolves to `''`. In a git workspace, a file git **is not tracking yet** (one the
+agent just created) and every later edit to it diff empty because
 `git diff` ignores untracked files, so `diff()` falls back to that same
 synthesized add-patch whenever the file is absent at the baseline. A file the
 agent creates (and keeps editing) therefore never streams an empty diff, while
@@ -154,8 +154,8 @@ A **git-ignored** file (e.g. a `.env` or a credentials file) is the exception:
 the file event still fires so you're notified it changed, but `diff()` returns
 `''` so its contents are never surfaced in the diff feed.
 
-Every git/exec/fs failure behind these accessors — and behind the `find`-poll
-watcher — still falls back to `''` (or preserves the last snapshot), but is
+Every git, exec and fs failure behind these accessors, and behind the `find`-poll
+watcher, still falls back to `''` (or preserves the last snapshot), but is
 **logged first** so a failure is observable rather than a silent empty value:
 real anomalies (a failed `git diff`, an unreadable file, a `find` poll that
 exits non-zero, a lost git baseline) under the `errors` category (on by
@@ -181,8 +181,8 @@ const sandbox = defineSandbox({
 
 ## Debugging
 
-To log sandbox internals — watcher start/stop, event dispatch, lifecycle
-transitions — pass the `sandbox` debug category to `chat()`:
+To log sandbox internals (watcher start and stop, event dispatch, lifecycle
+transitions) pass the `sandbox` debug category to `chat()`:
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -223,6 +223,6 @@ await watcher.stop()
 
 ## Related
 
-- [Events](./events) — the `CUSTOM` event stream the client reads.
-- [Lifecycle & Snapshots](./lifecycle) — when sandboxes are created and torn down.
-- [Tools](./tools) — bridged host tools that surface as tool-call chunks.
+- [Events](./events): the `CUSTOM` event stream the client reads.
+- [Lifecycle & Snapshots](./lifecycle): when sandboxes are created and torn down.
+- [Tools](./tools): bridged host tools that surface as tool-call chunks.

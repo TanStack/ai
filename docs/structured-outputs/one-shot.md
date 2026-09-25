@@ -17,7 +17,7 @@ You have unstructured input — a paragraph of text, a freeform user prompt, the
 
 By the end of this guide you'll have a working `chat({ outputSchema })` call returning a fully-typed result, know how to describe fields so the model fills them correctly, and have a pattern for handling validation errors.
 
-> **Note:** If you want to stream the result field-by-field into a UI, you want [Streaming UIs](./streaming) instead. If you want users to iterate on the object across multiple turns, you want [Multi-Turn Chat](./multi-turn). This page is for the single-extraction case.
+> **Note:** If you want to stream the result field-by-field into a UI, you want [Streaming UIs](./streaming) instead. If you want users to iterate on the object across multiple turns, you want [Multi-Turn Chat](./multi-turn). If the model must inspect files in a sandbox first, you want [Harness Agents](./harnesses). This page is for the single-extraction case.
 
 ## Basic Usage
 

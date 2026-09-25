@@ -16,7 +16,11 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { SandboxCapability } from '@tanstack/ai-sandbox'
 import { acpCompatible, acpCompatibleText, buildAcpPrompt } from '../src/index'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { CapabilityContext, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type {
+  AdapterYieldChunk,
+  CapabilityContext,
+  ModelMessage,
+} from '@tanstack/ai'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
 const require = createRequire(import.meta.url)
@@ -27,7 +31,10 @@ const SDK_URL = pathToFileURL(require.resolve('@agentclientprotocol/sdk')).href
  * params it received, and reports the given protocol version (defaults to the
  * SDK's `PROTOCOL_VERSION`).
  */
-function fakeAcpAgent(protocolVersionExpr = 'PROTOCOL_VERSION'): string {
+function fakeAcpAgent(
+  protocolVersionExpr = 'PROTOCOL_VERSION',
+  reply = 'pong',
+): string {
   return `
 import { AgentSideConnection, ndJsonStream, PROTOCOL_VERSION } from ${JSON.stringify(SDK_URL)}
 import { Readable, Writable } from 'node:stream'
@@ -54,7 +61,7 @@ new AgentSideConnection((conn) => ({
     writeFileSync('acp-prompt.txt', JSON.stringify(params))
     await conn.sessionUpdate({
       sessionId: params.sessionId,
-      update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'pong' } },
+      update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: ${JSON.stringify(reply)} } },
     })
     return { stopReason: 'end_turn' }
   },
@@ -98,14 +105,14 @@ function capabilityContextWith(handle: SandboxHandle): CapabilityContext {
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }
 
-function textOf(chunks: Array<StreamChunk>): string {
+function textOf(chunks: Array<AdapterYieldChunk>): string {
   return chunks
     .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
     .map((c) => (c as { delta?: string }).delta ?? '')
@@ -156,6 +163,15 @@ describe('acpCompatible config validation', () => {
       /needs either a "command" or an "openTransport"/,
     )
   })
+
+  it('opts into combined event-source structured output', () => {
+    const adapter = acpCompatibleText('pi-fast', {
+      name: 'pi',
+      command: () => 'node fake-acp-agent.mjs',
+    })
+    expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
+    expect(adapter.combinedStructuredOutputSource()).toBe('event')
+  })
 })
 
 describe('acpCompatible in-sandbox adapter (stdio)', () => {
@@ -190,6 +206,59 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
     expect((sessionEvent as { value?: { sessionId?: string } }).value).toEqual({
       sessionId: 'sess-1',
     })
+
+    await sbx.destroy()
+  })
+
+  it('still auto-generates a runId when none is supplied (non-durable, unchanged behavior)', async () => {
+    // This adapter does not journal, so `resolveDurableRunId` is routed
+    // through with `durable: false` (see `packages/ai-sandbox/src/durability.ts`
+    // and the Phase 3 plan's Task 5) purely so it inherits the enforcement
+    // once journaling lands, not to change today's behavior. Assert the
+    // fallback still fires: a generated, non-empty `runId` on `RUN_STARTED`.
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-acp-agent.mjs', FAKE_ACP_AGENT)
+
+    const chunks = await collect(
+      acpCompatibleText('pi-fast', {
+        name: 'pi',
+        command: () => 'node fake-acp-agent.mjs',
+      }).chatStream({
+        model: 'pi-fast',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+      }),
+    )
+
+    const runStarted = chunks[0] as { type: string; runId?: string }
+    expect(runStarted.type).toBe('RUN_STARTED')
+    expect(typeof runStarted.runId).toBe('string')
+    expect(runStarted.runId?.length).toBeGreaterThan(0)
+
+    await sbx.destroy()
+  })
+
+  it('passes a caller-supplied runId through unchanged', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-acp-agent.mjs', FAKE_ACP_AGENT)
+
+    const chunks = await collect(
+      acpCompatibleText('pi-fast', {
+        name: 'pi',
+        command: () => 'node fake-acp-agent.mjs',
+      }).chatStream({
+        model: 'pi-fast',
+        runId: 'caller-supplied-run-id',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+      }),
+    )
+
+    const runStarted = chunks[0] as { type: string; runId?: string }
+    expect(runStarted.type).toBe('RUN_STARTED')
+    expect(runStarted.runId).toBe('caller-supplied-run-id')
 
     await sbx.destroy()
   })
@@ -308,6 +377,85 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
     }
     expect(error).toBeDefined()
     expect(error.message).toMatch(/protocol version/i)
+
+    await sbx.destroy()
+  })
+
+  it('parses the last assistant text as structured output', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write(
+      '/workspace/fake-acp-agent.mjs',
+      fakeAcpAgent('PROTOCOL_VERSION', '{"ok":true}'),
+    )
+
+    const chunks = await collect(
+      acpCompatibleText('pi-fast', {
+        name: 'pi',
+        command: () => 'node fake-acp-agent.mjs',
+      }).chatStream({
+        model: 'pi-fast',
+        messages: [{ role: 'user', content: 'report' }],
+        outputSchema: {
+          type: 'object',
+          properties: { ok: { type: 'boolean' } },
+          required: ['ok'],
+        },
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+      }),
+    )
+
+    const completeIndex = chunks.findIndex(
+      (chunk) =>
+        chunk.type === 'CUSTOM' &&
+        (chunk as { name?: string }).name === 'structured-output.complete',
+    )
+    const finishedIndex = chunks.findIndex(
+      (chunk) => chunk.type === 'RUN_FINISHED',
+    )
+    const complete = chunks[completeIndex] as
+      | { value?: { object?: unknown } }
+      | undefined
+    expect(complete?.value?.object).toEqual({ ok: true })
+    expect(completeIndex).toBeGreaterThan(-1)
+    expect(finishedIndex).toBeGreaterThan(completeIndex)
+
+    const prompt = JSON.parse(
+      await sbx.fs.read('/workspace/acp-prompt.txt'),
+    ) as { prompt?: Array<{ text?: string }> }
+    const promptText = prompt.prompt?.map((part) => part.text ?? '').join('')
+    expect(promptText).toMatch(/JSON object/i)
+
+    await sbx.destroy()
+  })
+
+  it('emits a parse error when the last assistant text is not JSON', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-acp-agent.mjs', FAKE_ACP_AGENT)
+
+    const chunks = await collect(
+      acpCompatibleText('pi-fast', {
+        name: 'pi',
+        command: () => 'node fake-acp-agent.mjs',
+      }).chatStream({
+        model: 'pi-fast',
+        messages: [{ role: 'user', content: 'report' }],
+        outputSchema: {
+          type: 'object',
+          properties: { ok: { type: 'boolean' } },
+          required: ['ok'],
+        },
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+      }),
+    )
+
+    const error = chunks.find((chunk) => chunk.type === 'RUN_ERROR') as {
+      code?: string
+      message?: string
+    }
+    expect(error?.code).toBe('structured-output-parse-failed')
+    expect(error?.message).toMatch(/pong/)
 
     await sbx.destroy()
   })

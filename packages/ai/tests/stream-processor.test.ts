@@ -3,7 +3,15 @@ import {
   StreamProcessor,
   createReplayStream,
 } from '../src/activities/chat/stream/processor'
+import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
+import {
+  ev as chatEv,
+  clientTool,
+  collectChunks,
+  createMockAdapter,
+  serverTool,
+} from './test-utils'
 import type { Mock } from 'vitest'
 import type { StreamProcessorEvents } from '../src/activities/chat/stream/processor'
 import type { ChunkStrategy } from '../src/activities/chat/stream/types'
@@ -15,6 +23,8 @@ import type {
   UIMessage,
 } from '../src/types'
 import type { Message as AGUIMessage } from '@ag-ui/core'
+import { aguiSnapshotMessageToUIMessage } from '../src/activities/chat/messages'
+import { uiMessagesToWire } from '../src/utilities/ag-ui-wire'
 
 // ============================================================================
 // Helpers
@@ -54,26 +64,18 @@ const ev = {
     chunk(EventType.TEXT_MESSAGE_CONTENT, { messageId, delta }),
   textEnd: (messageId = 'msg-1') =>
     chunk(EventType.TEXT_MESSAGE_END, { messageId }),
-  toolStart: (toolCallId: string, toolCallName: string, index?: number) =>
+  toolStart: (toolCallId: string, toolCallName: string, _index?: number) =>
     chunk(EventType.TOOL_CALL_START, {
       toolCallId,
       toolCallName,
-      toolName: toolCallName,
-      ...(index !== undefined ? { index } : {}),
     }),
   toolArgs: (toolCallId: string, delta: string) =>
     chunk(EventType.TOOL_CALL_ARGS, { toolCallId, delta }),
   toolEnd: (
     toolCallId: string,
-    toolCallName: string,
-    opts?: { input?: unknown; result?: string },
-  ) =>
-    chunk(EventType.TOOL_CALL_END, {
-      toolCallId,
-      toolCallName,
-      toolName: toolCallName,
-      ...opts,
-    }),
+    _toolCallName?: string,
+    _opts?: { input?: unknown; result?: string },
+  ) => chunk(EventType.TOOL_CALL_END, { toolCallId }),
   runFinished: (
     finishReason:
       | 'stop'
@@ -83,13 +85,26 @@ const ev = {
       | null = 'stop',
     runId = 'run-1',
     threadId = 'thread-1',
-  ) => chunk(EventType.RUN_FINISHED, { runId, threadId, finishReason }),
+  ) =>
+    chunk(EventType.RUN_FINISHED, {
+      runId,
+      threadId,
+      metadata: { tanstack: { finishReason } },
+    }),
   runError: (message: string, runId = 'run-1') =>
-    chunk(EventType.RUN_ERROR, { message, runId, error: { message } }),
-  stepStarted: (stepId = 'step-1', stepType = 'thinking') =>
-    chunk(EventType.STEP_STARTED, { stepId, stepType }),
-  stepFinished: (delta: string, stepId = 'step-1') =>
-    chunk(EventType.STEP_FINISHED, { stepId, delta }),
+    chunk(EventType.RUN_ERROR, { message, runId }),
+  stepStarted: (stepName = 'step-1', _stepType = 'thinking') =>
+    chunk(EventType.STEP_STARTED, { stepName }),
+  stepFinished: (_delta: string, stepName = 'step-1') =>
+    chunk(EventType.STEP_FINISHED, { stepName }),
+  reasoningContent: (delta: string, messageId = 'r-1') =>
+    chunk(EventType.REASONING_MESSAGE_CONTENT, { messageId, delta }),
+  toolResult: (toolCallId: string, content: string, messageId?: string) =>
+    chunk(EventType.TOOL_CALL_RESULT, {
+      toolCallId,
+      content,
+      messageId: messageId ?? `result-${toolCallId}`,
+    }),
   custom: (name: string, value?: unknown) =>
     chunk(EventType.CUSTOM, { name, value }),
 }
@@ -121,6 +136,31 @@ function spyEvents(): MockedEvents {
 // ============================================================================
 
 describe('StreamProcessor', () => {
+  it('normalizes nested dates on snapshot existing tool-result parts', () => {
+    const message = aguiSnapshotMessageToUIMessage({
+      id: 'a1',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-result',
+          toolCallId: 'tc1',
+          content: 'ok',
+          state: 'complete',
+          createdAt: '2026-08-20T00:00:00.000Z',
+        },
+        {
+          type: 'tool-result',
+          toolCallId: 'tc2',
+          content: 'bad',
+          state: 'complete',
+          createdAt: 'not-a-date',
+        },
+      ],
+    } as unknown as AGUIMessage)
+    const parts = message.parts.filter((part) => part.type === 'tool-result')
+    expect(parts[0]?.createdAt).toEqual(new Date('2026-08-20T00:00:00.000Z'))
+    expect(parts[1]).not.toHaveProperty('createdAt')
+  })
   // ==========================================================================
   // Constructor and options
   // ==========================================================================
@@ -215,6 +255,73 @@ describe('StreamProcessor', () => {
       expect(processor.getMessages()).toHaveLength(1)
     })
 
+    describe('prependMessages', () => {
+      it('inserts older messages in front', () => {
+        const events = spyEvents()
+        const processor = new StreamProcessor({ events })
+        processor.setMessages([
+          {
+            id: 'm2',
+            role: 'user',
+            parts: [{ type: 'text', content: 'two' }],
+          },
+        ])
+        events.onMessagesChange.mockClear()
+
+        processor.prependMessages([
+          {
+            id: 'm1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'one' }],
+          },
+          {
+            id: 'm2',
+            role: 'user',
+            parts: [{ type: 'text', content: 'dup' }],
+          },
+        ])
+
+        const messages = processor.getMessages()
+        expect(messages.map((message) => message.id)).toEqual(['m1', 'm2'])
+        expect(messages[1]!.parts[0]).toEqual({
+          type: 'text',
+          content: 'two',
+        })
+        expect(events.onMessagesChange).toHaveBeenCalledTimes(1)
+      })
+
+      it('skips duplicate ids in the prepend list and keeps existing messages', () => {
+        const processor = new StreamProcessor()
+        processor.setMessages([
+          {
+            id: 'm1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'kept' }],
+          },
+        ])
+
+        processor.prependMessages([
+          {
+            id: 'm1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'first-dup' }],
+          },
+          {
+            id: 'm1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'second-dup' }],
+          },
+        ])
+
+        const messages = processor.getMessages()
+        expect(messages.map((message) => message.id)).toEqual(['m1'])
+        expect(messages[0]!.parts[0]).toEqual({
+          type: 'text',
+          content: 'kept',
+        })
+      })
+    })
+
     it('addUserMessage with string content', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
@@ -247,6 +354,21 @@ describe('StreamProcessor', () => {
       const processor = new StreamProcessor()
       const msg = processor.addUserMessage('Hello', 'custom-id-42')
       expect(msg.id).toBe('custom-id-42')
+    })
+
+    it('addUserMessage stores metadata on the user UIMessage', () => {
+      const processor = new StreamProcessor()
+      const msg = processor.addUserMessage('Hello', 'u1', {
+        author: { id: 'user-42', name: 'Dana' },
+      })
+
+      expect(msg.id).toBe('u1')
+      expect(msg.metadata).toEqual({
+        author: { id: 'user-42', name: 'Dana' },
+      })
+      expect(processor.getMessages()[0]!.metadata).toEqual({
+        author: { id: 'user-42', name: 'Dana' },
+      })
     })
 
     it('clearMessages should remove all messages and reset assistantMessageId', () => {
@@ -293,6 +415,457 @@ describe('StreamProcessor', () => {
       expect(modelMsgs.length).toBeGreaterThanOrEqual(2)
       expect(modelMsgs[0]!.role).toBe('user')
       expect(modelMsgs[1]!.role).toBe('assistant')
+    })
+  })
+
+  // ==========================================================================
+  // Message metadata (AG-UI)
+  // ==========================================================================
+  describe('message metadata', () => {
+    const createdAtIso = '2026-08-20T00:00:00.000Z'
+
+    it('TEXT_MESSAGE_START/CONTENT/END deep-merge tanstack and keep sibling keys', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        ...ev.textStart('msg-1'),
+        metadata: { tanstack: { model: 'gpt-5.5' } },
+      })
+      processor.processChunk({
+        ...ev.textContent('Hello', 'msg-1'),
+        metadata: { author: { id: 'user-42', name: 'Dana' } },
+      })
+      processor.processChunk({
+        ...ev.textEnd('msg-1'),
+        metadata: { tanstack: { createdAt: createdAtIso } },
+      })
+
+      const msg = processor.getMessages()[0]!
+      expect(msg.metadata).toEqual({
+        author: { id: 'user-42', name: 'Dana' },
+        tanstack: { model: 'gpt-5.5', createdAt: createdAtIso },
+      })
+      expect(msg.createdAt).toBeInstanceOf(Date)
+      expect(msg.createdAt?.toISOString()).toBe(createdAtIso)
+    })
+
+    it('ignores invalid tanstack.createdAt timestamps', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        ...ev.textStart('msg-1'),
+        metadata: { tanstack: { createdAt: 'not-a-date' } },
+      })
+      processor.processChunk(ev.textContent('Hello', 'msg-1'))
+      processor.processChunk(ev.textEnd('msg-1'))
+
+      const msg = processor.getMessages()[0]!
+      expect(msg.createdAt).toBeInstanceOf(Date)
+      expect(Number.isNaN(msg.createdAt!.getTime())).toBe(false)
+    })
+
+    it('RUN_FINISHED metadata does not merge onto the assistant message', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        ...ev.textStart('msg-1'),
+        metadata: { tanstack: { model: 'gpt-5.5' } },
+      })
+      processor.processChunk(ev.textContent('Hello', 'msg-1'))
+      processor.processChunk({
+        type: EventType.RUN_FINISHED,
+        threadId: 'thread-1',
+        runId: 'run-1',
+        metadata: {
+          author: { id: 'run' },
+          tanstack: { finishReason: 'stop' },
+        },
+      })
+
+      const msg = processor.getMessages()[0]!
+      expect(msg.metadata).toEqual({ tanstack: { model: 'gpt-5.5' } })
+    })
+
+    it('MESSAGES_SNAPSHOT keeps per-message metadata and ignores event-level metadata', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          metadata: { source: 'event' },
+          messages: [
+            {
+              id: 'u1',
+              role: 'user',
+              content: 'Hello',
+              metadata: { author: { id: 'user-42', name: 'Dana' } },
+            },
+            {
+              id: 'a1',
+              role: 'assistant',
+              content: 'Hi',
+              metadata: {
+                tanstack: { model: 'gpt-5.5', createdAt: createdAtIso },
+              },
+            },
+          ],
+        }),
+      )
+
+      const [user, assistant] = processor.getMessages()
+      expect(user!.metadata).toEqual({
+        author: { id: 'user-42', name: 'Dana' },
+      })
+      expect(assistant!.metadata).toEqual({
+        tanstack: { model: 'gpt-5.5', createdAt: createdAtIso },
+      })
+      expect(user!.metadata).not.toHaveProperty('source')
+      expect(assistant!.metadata).not.toHaveProperty('source')
+      expect(assistant!.createdAt).toBeInstanceOf(Date)
+      expect(assistant!.createdAt?.toISOString()).toBe(createdAtIso)
+    })
+
+    it('MESSAGES_SNAPSHOT restores structured-output and ui-resource parts', () => {
+      const processor = new StreamProcessor()
+      const uiResource = {
+        type: 'ui-resource' as const,
+        resource: {
+          uri: 'ui://widget/todos',
+          mimeType: 'text/html',
+          text: '<div>todos</div>',
+        },
+        toolCallId: 'tc-1',
+        toolName: 'getTodos',
+      }
+
+      processor.processChunk(
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              content: '{"ok":true}',
+              metadata: {
+                tanstack: {
+                  structuredOutput: {
+                    status: 'complete',
+                    raw: '{"ok":true}',
+                    partial: { ok: true },
+                    data: { ok: true },
+                  },
+                  uiResources: [uiResource],
+                },
+              },
+            },
+          ],
+        }),
+      )
+
+      expect(processor.getMessages()[0]?.parts).toEqual([
+        {
+          type: 'structured-output',
+          status: 'complete',
+          raw: '{"ok":true}',
+          partial: { ok: true },
+          data: { ok: true },
+        },
+        uiResource,
+      ])
+    })
+
+    it('MESSAGES_SNAPSHOT ignores a malformed ui-resource without throwing', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              content: 'ok',
+              name: 'Ada',
+              metadata: {
+                tanstack: {
+                  uiResources: [{ type: 'ui-resource' }],
+                },
+              },
+            },
+          ],
+        }),
+      )
+
+      const restored = processor.getMessages()[0]
+      expect(restored?.name).toBe('Ada')
+      expect(restored?.parts).toEqual([{ type: 'text', content: 'ok' }])
+    })
+
+    it('MESSAGES_SNAPSHOT does not duplicate restored ui-resource parts', () => {
+      const processor = new StreamProcessor()
+      const uiResource = {
+        type: 'ui-resource' as const,
+        resource: {
+          uri: 'ui://widget/todos',
+          mimeType: 'text/html',
+          text: '<div>todos</div>',
+        },
+        toolCallId: 'tc-1',
+        toolName: 'getTodos',
+      }
+
+      processor.processChunk(
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              parts: [uiResource],
+              metadata: {
+                tanstack: {
+                  uiResources: [
+                    { ...uiResource, resource: { ...uiResource.resource } },
+                  ],
+                },
+              },
+            },
+          ],
+        }),
+      )
+
+      expect(processor.getMessages()[0]?.parts).toEqual([uiResource])
+    })
+
+    it('snapshot that omits user metadata keeps in-memory user metadata', () => {
+      const processor = new StreamProcessor()
+      processor.addUserMessage('Hello', 'u1', {
+        author: { id: 'user-42', name: 'Dana' },
+      })
+
+      processor.processChunk(
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [{ id: 'u1', role: 'user', content: 'Hello' }],
+        }),
+      )
+
+      expect(processor.getMessages()[0]!.metadata).toEqual({
+        author: { id: 'user-42', name: 'Dana' },
+      })
+    })
+
+    it('restores per-tool fields from a messages snapshot', () => {
+      const processor = new StreamProcessor()
+      processor.processChunk(
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'r1',
+              role: 'tool',
+              toolCallId: 'c1',
+              content: '1',
+              name: 'one',
+              metadata: { n: 1 },
+            },
+            {
+              id: 'r2',
+              role: 'tool',
+              toolCallId: 'c2',
+              content: '2',
+              name: 'two',
+              metadata: { n: 2 },
+            },
+          ],
+        }),
+      )
+      const results = processor
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'tool-result')
+      expect(results).toMatchObject([
+        { id: 'r1', name: 'one', metadata: { n: 1 } },
+        { id: 'r2', name: 'two', metadata: { n: 2 } },
+      ])
+    })
+
+    it('TOOL_CALL_START spec metadata lands on ToolCallPart, not parent UIMessage', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_START, {
+          toolCallId: 'tc-1',
+          toolCallName: 'search',
+          metadata: { thoughtSignature: 'sig-1', providerExecuted: true },
+        }),
+      )
+
+      const msg = processor.getMessages()[0]!
+      const toolCall = msg.parts.find(
+        (part): part is ToolCallPart => part.type === 'tool-call',
+      )
+      expect(toolCall?.metadata).toEqual({
+        thoughtSignature: 'sig-1',
+        providerExecuted: true,
+      })
+      expect(msg.metadata).toBeUndefined()
+    })
+
+    it('REASONING_ENCRYPTED_VALUE tool-call signature lands on process() toolCalls', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_START, {
+          toolCallId: 'tc-1',
+          toolCallName: 'search',
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_ARGS, {
+          toolCallId: 'tc-1',
+          delta: '{"q":"hi"}',
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_END, { toolCallId: 'tc-1' }),
+      )
+      processor.processChunk({
+        type: EventType.REASONING_ENCRYPTED_VALUE,
+        subtype: 'tool-call',
+        entityId: 'tc-1',
+        encryptedValue: 'sig-2',
+      })
+      processor.processChunk(ev.runFinished('stop'))
+
+      expect(processor.getState().toolCalls.get('tc-1')?.metadata).toEqual({
+        thoughtSignature: 'sig-2',
+      })
+    })
+  })
+
+  // ==========================================================================
+  // RESULT-only tools + REASONING-only thinking
+  // ==========================================================================
+  describe('RESULT-only tools and REASONING-only thinking', () => {
+    it('ARGS + spec END (no result) + TOOL_CALL_RESULT builds input from ARGS and output from RESULT', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
+      processor.processChunk(ev.toolArgs('tc-1', '{"city":"NYC"}'))
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_END, { toolCallId: 'tc-1' }),
+      )
+      processor.processChunk(ev.toolResult('tc-1', '{"temp":72}'))
+
+      const toolCall = processor
+        .getMessages()[0]!
+        .parts.find((part): part is ToolCallPart => part.type === 'tool-call')
+      expect(toolCall?.input).toEqual({ city: 'NYC' })
+      expect(toolCall?.output).toEqual({ temp: 72 })
+      expect(toolCall?.state).toBe('complete')
+    })
+
+    it('STEP_FINISHED thinking is ignored when REASONING_MESSAGE_CONTENT already applied', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.reasoningContent('think-a'))
+      processor.processChunk(ev.stepFinished('think-b'))
+
+      const thinking = processor
+        .getMessages()[0]!
+        .parts.find((part) => part.type === 'thinking')
+      expect(thinking).toBeDefined()
+      expect((thinking as { content: string }).content).toBe('think-a')
+    })
+
+    it('STEP_FINISHED alone does not create a thinking part', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.stepFinished('think-a'))
+
+      expect(
+        processor
+          .getMessages()
+          .some((message) =>
+            message.parts.some((part) => part.type === 'thinking'),
+          ),
+      ).toBe(false)
+    })
+
+    it('RUN_FINISHED finishReason comes from metadata.tanstack.finishReason', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(
+        chunk(EventType.RUN_FINISHED, {
+          threadId: 'thread-1',
+          runId: 'run-1',
+          metadata: { tanstack: { finishReason: 'stop' } },
+        }),
+      )
+
+      expect(processor.getState().finishReason).toBe('stop')
+    })
+
+    it('TOOL_CALL_RESULT with metadata.tanstack.state output-error marks tool-call state error', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
+      processor.processChunk(ev.toolArgs('tc-1', '{}'))
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_END, { toolCallId: 'tc-1' }),
+      )
+      processor.processChunk({
+        ...ev.toolResult('tc-1', '{"error":"boom"}'),
+        metadata: { tanstack: { state: 'output-error' } },
+      })
+
+      const toolCall = processor
+        .getMessages()[0]!
+        .parts.find((part): part is ToolCallPart => part.type === 'tool-call')
+      expect(toolCall?.state).toBe('error')
+    })
+
+    it('TEXT_MESSAGE_START metadata.tanstack.model survives a content delta leftover', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        ...ev.textStart('msg-1'),
+        metadata: { tanstack: { model: 'gpt-5.5' } },
+      })
+      processor.processChunk({
+        ...ev.textContent('Hi', 'msg-1'),
+        metadata: { tanstack: { content: 'Hello Hi' } },
+      })
+
+      const msg = processor.getMessages()[0]!
+      expect(msg.metadata).toEqual({ tanstack: { model: 'gpt-5.5' } })
+    })
+
+    it('TEXT_MESSAGE_START metadata.tanstack.model survives a TOOL_CALL_RESULT output-error', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        ...ev.textStart('msg-1'),
+        metadata: { tanstack: { model: 'gpt-5.5' } },
+      })
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_START, {
+          toolCallId: 'tc-1',
+          toolCallName: 'getWeather',
+          parentMessageId: 'msg-1',
+        }),
+      )
+      processor.processChunk(ev.toolArgs('tc-1', '{}'))
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_END, { toolCallId: 'tc-1' }),
+      )
+      processor.processChunk({
+        ...ev.toolResult('tc-1', '{"error":"boom"}'),
+        metadata: { tanstack: { state: 'output-error' } },
+      })
+
+      const msg = processor.getMessages()[0]!
+      expect(msg.metadata).toEqual({ tanstack: { model: 'gpt-5.5' } })
+      const toolCall = msg.parts.find(
+        (part): part is ToolCallPart => part.type === 'tool-call',
+      )
+      expect(toolCall?.state).toBe('error')
     })
   })
 
@@ -349,8 +922,8 @@ describe('StreamProcessor', () => {
       const result = await processor.process(
         streamOf(
           ev.runStarted(),
-          ev.stepFinished('Let me think'),
-          ev.stepFinished('...'),
+          ev.reasoningContent('Let me think'),
+          ev.reasoningContent('...'),
           ev.textStart(),
           ev.textContent('Answer'),
           ev.textEnd(),
@@ -523,37 +1096,15 @@ describe('StreamProcessor', () => {
       )
     })
 
-    it('should use chunk.input as canonical parsed arguments (existing test preserved)', () => {
+    it('parses part.input from TOOL_CALL_ARGS', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
       processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
       processor.processChunk(
-        ev.toolEnd('tc-1', 'getWeather', {
-          input: { city: 'NYC', unit: 'celsius' },
-        }),
+        ev.toolArgs('tc-1', '{"city":"NYC","unit":"celsius"}'),
       )
-
-      const state = processor.getState()
-      const toolCall = state.toolCalls.get('tc-1')
-      expect(toolCall?.state).toBe('input-complete')
-      expect(toolCall?.parsedArguments).toEqual({
-        city: 'NYC',
-        unit: 'celsius',
-      })
-    })
-
-    it('populates part.input from TOOL_CALL_END.input when no args were streamed', () => {
-      const processor = new StreamProcessor()
-      processor.prepareAssistantMessage()
-
-      // Adapter skips TOOL_CALL_ARGS and only sends parsed input on END.
-      processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
-      processor.processChunk(
-        ev.toolEnd('tc-1', 'getWeather', {
-          input: { city: 'NYC', unit: 'celsius' },
-        }),
-      )
+      processor.processChunk(ev.toolEnd('tc-1'))
       processor.finalizeStream()
 
       const toolCallPart = processor
@@ -561,27 +1112,6 @@ describe('StreamProcessor', () => {
         .parts.find((p) => p.type === 'tool-call') as ToolCallPart
       expect(toolCallPart.state).toBe('input-complete')
       expect(toolCallPart.input).toEqual({ city: 'NYC', unit: 'celsius' })
-    })
-
-    it('part.input reflects TOOL_CALL_END.input when it diverges from streamed args', () => {
-      const processor = new StreamProcessor()
-      processor.prepareAssistantMessage()
-
-      // Args stream one value, then END provides a canonical (coerced) input
-      // that differs. The rendered part must reflect the END override, not the
-      // stale accumulated-args parse.
-      processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
-      processor.processChunk(ev.toolArgs('tc-1', '{"city":"nyc"}'))
-      processor.processChunk(
-        ev.toolEnd('tc-1', 'getWeather', { input: { city: 'NYC' } }),
-      )
-      processor.finalizeStream()
-
-      const toolCallPart = processor
-        .getMessages()[0]!
-        .parts.find((p) => p.type === 'tool-call') as ToolCallPart
-      expect(toolCallPart.state).toBe('input-complete')
-      expect(toolCallPart.input).toEqual({ city: 'NYC' })
     })
 
     it('should default tool call index to toolCalls.size when index is not provided', () => {
@@ -596,13 +1126,13 @@ describe('StreamProcessor', () => {
       expect(state.toolCalls.get('tc-2')?.index).toBe(1)
     })
 
-    it('should use provided index when available', () => {
+    it('ignores TOOL_CALL_START index extra and uses toolCalls.size', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
       processor.processChunk(ev.toolStart('tc-1', 'toolA', 5))
 
-      expect(processor.getState().toolCalls.get('tc-1')?.index).toBe(5)
+      expect(processor.getState().toolCalls.get('tc-1')?.index).toBe(0)
     })
   })
 
@@ -681,6 +1211,177 @@ describe('StreamProcessor', () => {
   // Text-tool interleaving
   // ==========================================================================
   describe('text-tool interleaving', () => {
+    // GitHub issue #1017: TEXT_MESSAGE_CONTENT between two TOOL_CALL_ARGS
+    // deltas used to force-complete the call from a lenient partial-JSON
+    // parse of truncated arguments. TOOL_CALL_END then no-oped because the
+    // call was already input-complete, so `input` stayed silently wrong
+    // while `arguments` held the full JSON.
+    describe('text interleaved between tool-call args (#1017)', () => {
+      const ARGS_HEAD = '{"templateIds":["mock-gsk-e'
+      const ARGS_TAIL = 'fimosfermin"]}'
+      const FULL_ARGS = ARGS_HEAD + ARGS_TAIL
+      const FULL_INPUT = { templateIds: ['mock-gsk-efimosfermin'] }
+      const CORRUPTED_INPUT = { templateIds: ['mock-gsk-e'] }
+
+      const feed = (...chunks: Array<StreamChunk>) => {
+        const processor = new StreamProcessor()
+        processor.prepareAssistantMessage()
+        for (const chunk of chunks) processor.processChunk(chunk)
+        return processor
+      }
+
+      const settle = (processor: StreamProcessor) => {
+        processor.processChunk(ev.runFinished('stop'))
+        processor.finalizeStream()
+        return processor
+      }
+
+      const toolCallParts = (processor: StreamProcessor) =>
+        processor
+          .getMessages()
+          .flatMap((m) => m.parts)
+          .filter((p): p is ToolCallPart => p.type === 'tool-call')
+
+      const toolCallPart = (processor: StreamProcessor, id?: string) => {
+        const parts = toolCallParts(processor)
+        return id === undefined ? parts[0] : parts.find((p) => p.id === id)
+      }
+
+      it('does not publish a truncated partial-JSON parse as input after interleaved text', () => {
+        const processor = feed(
+          ev.runStarted(),
+          ev.toolStart('tc-1', 'offerTemplates'),
+          ev.toolArgs('tc-1', ARGS_HEAD),
+          ev.textContent('Let me look those up. '),
+          ev.toolArgs('tc-1', ARGS_TAIL),
+          ev.toolEnd('tc-1', 'offerTemplates'),
+        )
+        settle(processor)
+
+        const part = toolCallPart(processor)
+        expect(part?.state).toBe('input-complete')
+        expect(part?.arguments).toBe(FULL_ARGS)
+        expect(part?.input).not.toEqual(CORRUPTED_INPUT)
+        expect(part?.input).toEqual(FULL_INPUT)
+      })
+
+      it('never surfaces a lenient parse of truncated args as input', () => {
+        const processor = feed(
+          ev.runStarted(),
+          ev.toolStart('tc-1', 'offerTemplates'),
+          ev.toolArgs('tc-1', ARGS_HEAD),
+          ev.textContent('Let me look those up. '),
+        )
+
+        const during = toolCallPart(processor)
+        expect(during?.input).not.toEqual(CORRUPTED_INPUT)
+        expect(during?.input).toBeUndefined()
+
+        processor.processChunk(ev.toolEnd('tc-1', 'offerTemplates'))
+        settle(processor)
+
+        const part = toolCallPart(processor)
+        expect(part?.state).toBe('input-complete')
+        expect(part?.arguments).toBe(ARGS_HEAD)
+        expect(part?.input).toBeUndefined()
+      })
+
+      it('leaves the call streaming through interleaved text so TOOL_CALL_END can still run', () => {
+        const processor = feed(
+          ev.runStarted(),
+          ev.toolStart('tc-1', 'offerTemplates'),
+          ev.toolArgs('tc-1', ARGS_HEAD),
+          ev.textContent('Let me look those up. '),
+        )
+
+        expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+          'input-streaming',
+        )
+        expect(toolCallPart(processor)?.state).toBe('input-streaming')
+        expect(toolCallPart(processor)?.input).toBeUndefined()
+      })
+
+      it('RUN_FINISHED safety net completes full args when TOOL_CALL_END is missing', () => {
+        const processor = feed(
+          ev.runStarted(),
+          ev.toolStart('tc-1', 'offerTemplates'),
+          ev.toolArgs('tc-1', ARGS_HEAD),
+          ev.textContent('Let me look those up. '),
+          ev.toolArgs('tc-1', ARGS_TAIL),
+        )
+        settle(processor)
+
+        const part = toolCallPart(processor)
+        expect(part?.state).toBe('input-complete')
+        expect(part?.arguments).toBe(FULL_ARGS)
+        expect(part?.input).toEqual(FULL_INPUT)
+      })
+
+      it('uses TOOL_CALL_END.input as canonical after interleaved text', () => {
+        const processor = feed(
+          ev.runStarted(),
+          ev.toolStart('tc-1', 'offerTemplates'),
+          ev.toolArgs('tc-1', ARGS_HEAD),
+          ev.textContent('Let me look those up. '),
+          ev.toolArgs('tc-1', ARGS_TAIL),
+          ev.toolEnd('tc-1', 'offerTemplates', { input: FULL_INPUT }),
+        )
+        settle(processor)
+
+        const part = toolCallPart(processor)
+        expect(part?.state).toBe('input-complete')
+        expect(part?.input).toEqual(FULL_INPUT)
+        expect(
+          processor.getState().toolCalls.get('tc-1')?.parsedArguments,
+        ).toEqual(FULL_INPUT)
+      })
+
+      it('repairs multiple parallel tool calls with interleaved text', () => {
+        const processor = feed(
+          ev.runStarted(),
+          ev.toolStart('tc-1', 'offerTemplates'),
+          ev.toolArgs('tc-1', ARGS_HEAD),
+          ev.toolStart('tc-2', 'getWeather'),
+          ev.toolArgs('tc-2', '{"city":"New '),
+          ev.textContent('Working on it. '),
+          ev.toolArgs('tc-1', ARGS_TAIL),
+          ev.toolArgs('tc-2', 'York"}'),
+          ev.toolEnd('tc-1', 'offerTemplates'),
+          ev.toolEnd('tc-2', 'getWeather'),
+        )
+        settle(processor)
+
+        const first = toolCallPart(processor, 'tc-1')
+        expect(first?.state).toBe('input-complete')
+        expect(first?.arguments).toBe(FULL_ARGS)
+        expect(first?.input).toEqual(FULL_INPUT)
+
+        const second = toolCallPart(processor, 'tc-2')
+        expect(second?.state).toBe('input-complete')
+        expect(second?.arguments).toBe('{"city":"New York"}')
+        expect(second?.input).toEqual({ city: 'New York' })
+      })
+
+      it('still completes after a full text block between arg deltas', () => {
+        const processor = feed(
+          ev.runStarted(),
+          ev.toolStart('tc-1', 'offerTemplates'),
+          ev.toolArgs('tc-1', ARGS_HEAD),
+          ev.textStart(),
+          ev.textContent('Let me look those up. '),
+          ev.textEnd(),
+          ev.toolArgs('tc-1', ARGS_TAIL),
+          ev.toolEnd('tc-1', 'offerTemplates'),
+        )
+        settle(processor)
+
+        const part = toolCallPart(processor)
+        expect(part?.state).toBe('input-complete')
+        expect(part?.arguments).toBe(FULL_ARGS)
+        expect(part?.input).toEqual(FULL_INPUT)
+      })
+    })
+
     it('should reset segment text accumulation on TEXT_MESSAGE_START (existing test preserved)', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
@@ -712,10 +1413,7 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.toolEnd('call_1', 'getWeather'))
       processor.processChunk(ev.runFinished('tool_calls'))
 
-      // TextEngine executes tool, yields result
-      processor.processChunk(
-        ev.toolEnd('call_1', 'getWeather', { result: '{"temp":"72F"}' }),
-      )
+      processor.processChunk(ev.toolResult('call_1', '{"temp":"72F"}'))
 
       // Second adapter stream: more text (same message)
       processor.processChunk(ev.textStart())
@@ -771,12 +1469,12 @@ describe('StreamProcessor', () => {
   // Thinking/reasoning
   // ==========================================================================
   describe('thinking/reasoning', () => {
-    it('should accumulate STEP_FINISHED deltas into thinking content', () => {
+    it('should accumulate REASONING_MESSAGE_CONTENT deltas into thinking content', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
-      processor.processChunk(ev.stepFinished('Let me think'))
-      processor.processChunk(ev.stepFinished(' about this...'))
+      processor.processChunk(ev.reasoningContent('Let me think'))
+      processor.processChunk(ev.reasoningContent(' about this...'))
 
       const messages = processor.getMessages()
       expect(messages).toHaveLength(1)
@@ -790,8 +1488,8 @@ describe('StreamProcessor', () => {
       processor.prepareAssistantMessage()
 
       processor.processChunk(ev.runStarted())
-      processor.processChunk(ev.stepFinished('Let me think'))
-      processor.processChunk(ev.stepFinished(' about this...'))
+      processor.processChunk(ev.reasoningContent('Let me think'))
+      processor.processChunk(ev.reasoningContent(' about this...'))
       processor.processChunk(ev.textStart())
       processor.processChunk(ev.textContent("Here's my answer."))
       processor.processChunk(ev.textEnd())
@@ -817,7 +1515,7 @@ describe('StreamProcessor', () => {
 
       expect(processor.getMessages()).toHaveLength(0)
 
-      processor.processChunk(ev.stepFinished('thinking...'))
+      processor.processChunk(ev.reasoningContent('thinking...'))
 
       expect(processor.getMessages()).toHaveLength(1)
       expect(
@@ -829,9 +1527,9 @@ describe('StreamProcessor', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
-      processor.processChunk(ev.stepFinished('A'))
-      processor.processChunk(ev.stepFinished('B'))
-      processor.processChunk(ev.stepFinished('C'))
+      processor.processChunk(ev.reasoningContent('A'))
+      processor.processChunk(ev.reasoningContent('B'))
+      processor.processChunk(ev.reasoningContent('C'))
 
       // Only one thinking part, not three (same default stepId)
       const parts = processor.getMessages()[0]!.parts
@@ -845,35 +1543,26 @@ describe('StreamProcessor', () => {
       processor.prepareAssistantMessage()
 
       processor.processChunk(ev.stepStarted('step-1'))
-      processor.processChunk({
-        ...ev.stepFinished('First thought', 'step-1'),
-        signature: 'sig-step-1',
-      } as StreamChunk)
-      processor.processChunk(ev.stepFinished(' continued', 'step-1'))
+      processor.processChunk(ev.reasoningContent('First thought'))
+      processor.processChunk(ev.reasoningContent(' continued'))
 
       processor.processChunk(ev.stepStarted('step-2'))
-      processor.processChunk({
-        ...ev.stepFinished('Second thought', 'step-2'),
-        signature: 'sig-step-2',
-      } as StreamChunk)
+      processor.processChunk(ev.reasoningContent('Second thought'))
 
       const parts = processor.getMessages()[0]!.parts
       const thinkingParts = parts.filter((p) => p.type === 'thinking')
       expect(thinkingParts).toHaveLength(2)
       expect((thinkingParts[0] as any).content).toBe('First thought continued')
       expect((thinkingParts[0] as any).stepId).toBe('step-1')
-      expect((thinkingParts[0] as any).signature).toBe('sig-step-1')
       expect((thinkingParts[1] as any).content).toBe('Second thought')
       expect((thinkingParts[1] as any).stepId).toBe('step-2')
-      expect((thinkingParts[1] as any).signature).toBe('sig-step-2')
     })
 
-    it('should handle STEP_FINISHED without prior STEP_STARTED (backward compat)', () => {
+    it('should handle REASONING_MESSAGE_CONTENT without prior STEP_STARTED', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
-      // No STEP_STARTED, just STEP_FINISHED with a stepId
-      processor.processChunk(ev.stepFinished('thinking...', 'auto-step'))
+      processor.processChunk(ev.reasoningContent('thinking...', 'auto-step'))
 
       const parts = processor.getMessages()[0]!.parts
       const thinkingParts = parts.filter((p) => p.type === 'thinking')
@@ -888,9 +1577,9 @@ describe('StreamProcessor', () => {
 
       processor.processChunk(ev.runStarted())
       processor.processChunk(ev.stepStarted('step-1'))
-      processor.processChunk(ev.stepFinished('First. ', 'step-1'))
+      processor.processChunk(ev.reasoningContent('First. '))
       processor.processChunk(ev.stepStarted('step-2'))
-      processor.processChunk(ev.stepFinished('Second.', 'step-2'))
+      processor.processChunk(ev.reasoningContent('Second.'))
       processor.processChunk(ev.textStart())
       processor.processChunk(ev.textContent('Answer'))
       processor.processChunk(ev.textEnd())
@@ -918,13 +1607,13 @@ describe('StreamProcessor', () => {
 
       // 3. STEP_STARTED arrives again — takes active-id branch. It MUST
       //    clear pendingThinkingStepId, otherwise the stale 'step-a'
-      //    value will be consumed by the next STEP_FINISHED.
+      //    value will be consumed by the next REASONING_MESSAGE_CONTENT.
       processor.processChunk(ev.stepStarted('step-b'))
 
-      // 4. STEP_FINISHED for step-b. If pendingThinkingStepId still held
-      //    'step-a', handleStepFinishedEvent would promote it to
-      //    state.currentThinkingStepId and attribute 'contentB' to step-a.
-      processor.processChunk(ev.stepFinished('contentB', 'step-b'))
+      // 4. REASONING_MESSAGE_CONTENT for step-b. If pendingThinkingStepId
+      //    still held 'step-a', consumePendingThinkingStep would promote it
+      //    and attribute 'contentB' to step-a.
+      processor.processChunk(ev.reasoningContent('contentB'))
 
       const parts = processor.getMessages()[0]!.parts
       const thinkingParts = parts.filter((p) => p.type === 'thinking')
@@ -944,18 +1633,14 @@ describe('StreamProcessor', () => {
   // Tool results
   // ==========================================================================
   describe('tool results', () => {
-    it('should update tool-call part output field when TOOL_CALL_END has a result (existing test)', () => {
+    it('should update tool-call part output field when TOOL_CALL_RESULT arrives', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
       processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
       processor.processChunk(ev.toolArgs('tc-1', '{"city":"NYC"}'))
-      processor.processChunk(
-        ev.toolEnd('tc-1', 'getWeather', {
-          input: { city: 'NYC' },
-          result: '{"temp":72}',
-        }),
-      )
+      processor.processChunk(ev.toolEnd('tc-1', 'getWeather'))
+      processor.processChunk(ev.toolResult('tc-1', '{"temp":72}'))
 
       const messages = processor.getMessages()
       const toolCallPart = messages[0]?.parts.find(
@@ -996,12 +1681,8 @@ describe('StreamProcessor', () => {
       processor.prepareAssistantMessage()
 
       processor.processChunk(ev.toolStart('tc-1', 'getText'))
-      processor.processChunk(
-        ev.toolEnd('tc-1', 'getText', {
-          input: {},
-          result: 'plain text result',
-        }),
-      )
+      processor.processChunk(ev.toolEnd('tc-1', 'getText', { input: {} }))
+      processor.processChunk(ev.toolResult('tc-1', 'plain text result'))
 
       const toolCallPart = processor
         .getMessages()[0]
@@ -1184,6 +1865,174 @@ describe('StreamProcessor', () => {
         input: { action: 'delete' },
         approvalId: 'approval-1',
       })
+    })
+
+    it('should handle approval interrupts on RUN_FINISHED', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.toolStart('tc-1', 'dangerousTool'))
+      processor.processChunk(ev.toolArgs('tc-1', '{"action":"delete"}'))
+      processor.processChunk({
+        ...ev.runFinished('tool_calls'),
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            {
+              id: 'approval-1',
+              reason: 'tool_call',
+              toolCallId: 'tc-1',
+              metadata: {
+                kind: 'approval',
+                toolName: 'dangerousTool',
+                input: { action: 'delete' },
+              },
+            },
+          ],
+        },
+      })
+
+      const toolCallPart = processor
+        .getMessages()[0]!
+        .parts.find((p) => p.type === 'tool-call') as ToolCallPart
+      expect(toolCallPart.state).toBe('approval-requested')
+      expect(toolCallPart.approval).toEqual({
+        id: 'approval-1',
+        needsApproval: true,
+      })
+      expect(events.onApprovalRequest).toHaveBeenCalledWith({
+        toolCallId: 'tc-1',
+        toolName: 'dangerousTool',
+        input: { action: 'delete' },
+        approvalId: 'approval-1',
+      })
+    })
+
+    it('should handle client tool interrupts on RUN_FINISHED', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.toolStart('tc-1', 'clientSearch'))
+      processor.processChunk(ev.toolArgs('tc-1', '{"query":"test"}'))
+      processor.processChunk({
+        ...ev.runFinished('tool_calls'),
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            {
+              id: 'client_tool_tc-1',
+              reason: 'tanstack:client_tool_execution',
+              toolCallId: 'tc-1',
+              metadata: {
+                kind: 'client_tool',
+                toolName: 'clientSearch',
+                input: { query: 'test' },
+              },
+            },
+          ],
+        },
+      })
+
+      expect(events.onToolCall).toHaveBeenCalledWith({
+        toolCallId: 'tc-1',
+        toolName: 'clientSearch',
+        input: { query: 'test' },
+      })
+    })
+
+    it('does not auto-run client tools when a generic interrupt shares the batch', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.toolStart('tc-1', 'clientSearch'))
+      processor.processChunk(ev.toolArgs('tc-1', '{"query":"test"}'))
+      processor.processChunk({
+        ...ev.runFinished('tool_calls'),
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            {
+              id: 'generic-1',
+              reason: 'review_required',
+              message: 'Review the plan',
+              metadata: {
+                'tanstack:interruptBinding': {
+                  v: 1,
+                  kind: 'generic',
+                  interruptId: 'generic-1',
+                  definitionId: 'review-plan',
+                  key: 'one',
+                  batchIndex: 0,
+                },
+              },
+            },
+            {
+              id: 'client_tool_tc-1',
+              reason: 'tanstack:client_tool_execution',
+              toolCallId: 'tc-1',
+              metadata: {
+                kind: 'client_tool',
+                toolName: 'clientSearch',
+                input: { query: 'test' },
+              },
+            },
+          ],
+        },
+      })
+
+      expect(events.onToolCall).not.toHaveBeenCalled()
+    })
+
+    it('should deliver client tool interrupt before stream end for mixed tool streams', async () => {
+      const order: Array<string> = []
+      const events = spyEvents()
+      events.onToolCall.mockImplementation(() => {
+        order.push('tool-call')
+      })
+      events.onStreamEnd.mockImplementation(() => {
+        order.push('stream-end')
+      })
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            chatEv.runStarted(),
+            chatEv.toolStart('call_server', 'searchTools'),
+            chatEv.toolArgs('call_server', '{"query":"hello"}'),
+            chatEv.toolStart('call_client', 'showNotification'),
+            chatEv.toolArgs('call_client', '{"message":"done"}'),
+            chatEv.runFinished('tool_calls'),
+          ],
+        ],
+      })
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Search and notify' }],
+        tools: [
+          serverTool('searchTools', () => ({ results: ['a', 'b'] })),
+          clientTool('showNotification'),
+        ],
+      })
+      const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      for (const streamChunk of chunks) {
+        processor.processChunk(streamChunk)
+      }
+
+      expect(events.onToolCall).toHaveBeenCalledWith({
+        toolCallId: 'call_client',
+        toolName: 'showNotification',
+        input: { message: 'done' },
+      })
+      expect(order).toEqual(['tool-call'])
     })
 
     it('addToolApprovalResponse should approve a tool call', () => {
@@ -1416,9 +2265,8 @@ describe('StreamProcessor', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
       processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
-      processor.processChunk(
-        ev.toolEnd('tc-1', 'getWeather', { input: {}, result: '{"temp":72}' }),
-      )
+      processor.processChunk(ev.toolEnd('tc-1', 'getWeather', { input: {} }))
+      processor.processChunk(ev.toolResult('tc-1', '{"temp":72}'))
 
       expect(processor.areAllToolsComplete()).toBe(true)
     })
@@ -1456,9 +2304,8 @@ describe('StreamProcessor', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
       processor.processChunk(ev.toolStart('tc-1', 'getWeather'))
-      processor.processChunk(
-        ev.toolEnd('tc-1', 'getWeather', { input: {}, result: '{"temp":72}' }),
-      )
+      processor.processChunk(ev.toolEnd('tc-1', 'getWeather', { input: {} }))
+      processor.processChunk(ev.toolResult('tc-1', '{"temp":72}'))
       processor.processChunk(ev.toolStart('tc-2', 'getTime'))
       processor.processChunk(ev.toolEnd('tc-2', 'getTime', { input: {} }))
 
@@ -1532,15 +2379,7 @@ describe('StreamProcessor', () => {
       // No message yet
       expect(processor.getMessages()).toHaveLength(0)
 
-      processor.processChunk({
-        type: 'STEP_FINISHED',
-        stepName: 'step-1',
-        stepId: 'step-1',
-        model: 'test',
-        timestamp: Date.now(),
-        delta: 'thinking...',
-        content: 'thinking...',
-      } as StreamChunk)
+      processor.processChunk(ev.reasoningContent('thinking...'))
 
       // Now the message exists with thinking content
       expect(processor.getMessages()).toHaveLength(1)
@@ -1585,22 +2424,11 @@ describe('StreamProcessor', () => {
   // Edge cases
   // ==========================================================================
   describe('edge cases', () => {
-    it('TOOL_CALL_START with only the deprecated `toolName` field should still produce a named tool-call part (issue #532)', () => {
+    it('TOOL_CALL_START uses spec toolCallName for the part name', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
-      // Some chunk producers (notably the agent loop's continuation re-emit
-      // before the fix) only set the deprecated alias `toolName`. The
-      // processor must fall back to it so the resulting tool-call part has
-      // a defined `name` — otherwise the next outbound request fails with
-      // `tool_use.name: String should have at least 1 character` at Anthropic.
-      processor.processChunk({
-        type: 'TOOL_CALL_START',
-        timestamp: Date.now(),
-        toolCallId: 'tc-1',
-        toolName: 'legacyTool',
-        // toolCallName intentionally omitted
-      } as any)
+      processor.processChunk(ev.toolStart('tc-1', 'legacyTool'))
 
       const state = processor.getState()
       expect(state.toolCalls.get('tc-1')?.name).toBe('legacyTool')
@@ -1692,10 +2520,7 @@ describe('StreamProcessor', () => {
         'input-complete',
       )
 
-      // Second TOOL_CALL_END with result still processes the result
-      processor.processChunk(
-        ev.toolEnd('tc-1', 'getWeather', { result: '{"temp":72}' }),
-      )
+      processor.processChunk(ev.toolResult('tc-1', '{"temp":72}'))
 
       // Should have added tool-result part
       const resultPart = processor
@@ -1914,13 +2739,14 @@ describe('StreamProcessor', () => {
       )
     })
 
-    it('onThinkingUpdate should fire for each STEP_FINISHED delta with stepId', () => {
+    it('onThinkingUpdate should fire for each REASONING_MESSAGE_CONTENT delta with stepId', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
       processor.prepareAssistantMessage()
 
-      processor.processChunk(ev.stepFinished('Thinking'))
-      processor.processChunk(ev.stepFinished(' more'))
+      processor.processChunk(ev.stepStarted('step-1'))
+      processor.processChunk(ev.reasoningContent('Thinking'))
+      processor.processChunk(ev.reasoningContent(' more'))
 
       const msgId = processor.getCurrentAssistantMessageId()!
       expect(events.onThinkingUpdate).toHaveBeenCalledTimes(2)
@@ -2041,6 +2867,51 @@ describe('StreamProcessor', () => {
 
       await StreamProcessor.replay(recording, { events })
       expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+    })
+
+    it('replay should consume legacy approval-requested CUSTOM chunks after RUN_FINISHED', async () => {
+      const events = spyEvents()
+      const recording = {
+        version: '1.0' as const,
+        timestamp: Date.now(),
+        chunks: [
+          { chunk: ev.runStarted(), timestamp: Date.now(), index: 0 },
+          {
+            chunk: ev.toolStart('tc-1', 'dangerousTool'),
+            timestamp: Date.now(),
+            index: 1,
+          },
+          {
+            chunk: ev.toolArgs('tc-1', '{"action":"delete"}'),
+            timestamp: Date.now(),
+            index: 2,
+          },
+          {
+            chunk: ev.runFinished('tool_calls'),
+            timestamp: Date.now(),
+            index: 3,
+          },
+          {
+            chunk: ev.custom('approval-requested', {
+              toolCallId: 'tc-1',
+              toolName: 'dangerousTool',
+              input: { action: 'delete' },
+              approval: { id: 'approval-1', needsApproval: true },
+            }),
+            timestamp: Date.now(),
+            index: 4,
+          },
+        ],
+      }
+
+      await StreamProcessor.replay(recording, { events })
+
+      expect(events.onApprovalRequest).toHaveBeenCalledWith({
+        toolCallId: 'tc-1',
+        toolName: 'dangerousTool',
+        input: { action: 'delete' },
+        approvalId: 'approval-1',
+      })
     })
   })
 
@@ -2172,7 +3043,9 @@ describe('StreamProcessor', () => {
       expect(state.toolCalls.size).toBe(1)
       expect(state.toolCallOrder).toEqual(['tc-1'])
       expect(state.finishReason).toBe('tool_calls')
-      expect(state.done).toBe(true)
+      expect(state.done).toBe(false)
+      processor.finalizeStream()
+      expect(processor.getState().done).toBe(true)
     })
 
     it('should return independent copies (mutations do not affect internal state)', () => {
@@ -2702,7 +3575,9 @@ describe('StreamProcessor', () => {
 
       const messages = processor.getMessages()
       // The detached tool message is anchored into the assistant turn rather
-      // than left as a standalone message.
+      // than left as a standalone message. Sibling tool-result content is also
+      // folded onto the tool-call (state complete + output) so server tools
+      // match the client-tool UI shape after MESSAGES_SNAPSHOT.
       expect(messages).toHaveLength(2)
       expect(messages[0]?.role).toBe('user')
       expect(messages[1]?.id).toBe('a1')
@@ -2714,15 +3589,139 @@ describe('StreamProcessor', () => {
           name: 'getWeather',
           arguments: '{"loc":"Berlin"}',
           input: { loc: 'Berlin' },
-          state: 'input-complete',
+          state: 'complete',
+          output: { temp: 72 },
         },
         {
           type: 'tool-result',
+          id: 't1',
           toolCallId: 'tc-1',
           content: '{"temp":72}',
           state: 'complete',
         },
       ])
+    })
+
+    it('anchors a tool message that also has a valid UI resource', () => {
+      const processor = new StreamProcessor()
+      const uiResource = {
+        type: 'ui-resource' as const,
+        resource: {
+          uri: 'ui://widget/weather',
+          mimeType: 'text/html',
+          text: '<div>72</div>',
+        },
+        toolCallId: 'tc-1',
+        toolName: 'getWeather',
+      }
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: 'Checking.',
+            toolCalls: [
+              {
+                id: 'tc-1',
+                type: 'function',
+                function: { name: 'getWeather', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            id: 't1',
+            role: 'tool',
+            content: '{"temp":72}',
+            toolCallId: 'tc-1',
+            metadata: { tanstack: { uiResources: [uiResource] } },
+          },
+        ],
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe('a1')
+      expect(messages[0]?.parts).toContainEqual(uiResource)
+      expect(messages[0]?.parts).toContainEqual(
+        expect.objectContaining({
+          type: 'tool-result',
+          id: 't1',
+          toolCallId: 'tc-1',
+          content: '{"temp":72}',
+          state: 'complete',
+        }),
+      )
+    })
+
+    it('keeps one UI resource through repeated wire snapshot round trips', () => {
+      const processor = new StreamProcessor()
+      const uiResource = {
+        type: 'ui-resource' as const,
+        resource: {
+          uri: 'ui://widget/weather',
+          mimeType: 'text/html',
+          text: '<div>72</div>',
+        },
+        toolCallId: 'tc-1',
+        toolName: 'getWeather',
+      }
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: 'Checking.',
+            toolCalls: [
+              {
+                id: 'tc-1',
+                type: 'function',
+                function: { name: 'getWeather', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            id: 't1',
+            role: 'tool',
+            content: '{"temp":72}',
+            toolCallId: 'tc-1',
+            metadata: { tanstack: { uiResources: [uiResource] } },
+          },
+        ],
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      for (let cycle = 0; cycle < 2; cycle++) {
+        const messages = JSON.parse(
+          JSON.stringify(uiMessagesToWire(processor.getMessages())),
+        ) as Array<AGUIMessage>
+        processor.processChunk({
+          type: EventType.MESSAGES_SNAPSHOT,
+          messages,
+          timestamp: Date.now(),
+        } as unknown as StreamChunk)
+
+        const assistant = processor
+          .getMessages()
+          .find((message) =>
+            message.parts.some(
+              (part) => part.type === 'tool-call' && part.id === 'tc-1',
+            ),
+          )
+        expect(assistant).toBeDefined()
+        expect(
+          assistant?.parts.filter((part) => part.type === 'ui-resource'),
+        ).toEqual([uiResource])
+        expect(
+          assistant?.parts.filter(
+            (part) => part.type === 'tool-result' && part.toolCallId === 'tc-1',
+          ),
+        ).toHaveLength(1)
+      }
     })
 
     it('should preserve an in-flight tool-call part the snapshot omits so addToolResult still works (#859)', () => {
@@ -2873,6 +3872,7 @@ describe('StreamProcessor', () => {
       expect(resultsIn(1)).toEqual([
         {
           type: 'tool-result',
+          id: 't1',
           toolCallId: 'tc-1',
           content: '{"temp":72}',
           state: 'complete',
@@ -2882,6 +3882,7 @@ describe('StreamProcessor', () => {
       expect(resultsIn(2)).toEqual([
         {
           type: 'tool-result',
+          id: 't2',
           toolCallId: 'tc-2',
           content: '{"temp":65}',
           state: 'complete',
@@ -2992,6 +3993,57 @@ describe('StreamProcessor', () => {
       expect(warn).not.toHaveBeenCalled()
 
       warn.mockRestore()
+    })
+
+    it('should fold tool-result content into tool-call output on MESSAGES_SNAPSHOT (server tools)', () => {
+      // Regression: client-tool interrupt path emits MESSAGES_SNAPSHOT from
+      // ModelMessages. Snapshot conversion rebuilds tool-call parts as
+      // `input-complete` without `output`, wiping the complete/output state
+      // the client already applied from TOOL_CALL_END/RESULT. After
+      // reconciliation, server tools must match the client-tool UI shape:
+      // tool-call.state === 'complete' with output populated from tool-result.
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          { id: 'u1', role: 'user', content: '[sequence] run' },
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: 'Fetching.',
+            toolCalls: [
+              {
+                id: 'tc-fetch',
+                type: 'function',
+                function: {
+                  name: 'fetch_data',
+                  arguments: '{"source":"api"}',
+                },
+              },
+            ],
+          },
+          {
+            id: 't1',
+            role: 'tool',
+            content: '{"source":"api","data":[1,2,3,4,5]}',
+            toolCallId: 'tc-fetch',
+          },
+        ],
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      const fetchCall = processor
+        .getMessages()
+        .flatMap((m) => m.parts)
+        .find(
+          (p): p is ToolCallPart =>
+            p.type === 'tool-call' && p.name === 'fetch_data',
+        )
+      expect(fetchCall).toMatchObject({
+        state: 'complete',
+        output: { source: 'api', data: [1, 2, 3, 4, 5] },
+      })
     })
 
     it('should warn when a snapshot tool-result has no recoverable tool-call', () => {
@@ -3125,6 +4177,64 @@ describe('StreamProcessor', () => {
           content: 'It is sunny.',
         },
       ])
+    })
+
+    it('should not drop the first TEXT_MESSAGE_CONTENT delta in a tool-first flow (#1247)', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_START, {
+          toolCallId: 'tc-1',
+          toolCallName: 'lookupWeather',
+          toolName: 'lookupWeather',
+          parentMessageId: 'anthropic-msg-1',
+        }),
+      )
+      processor.processChunk(ev.toolArgs('tc-1', '{"location":"Berlin"}'))
+      processor.processChunk(ev.toolEnd('tc-1', 'lookupWeather'))
+
+      processor.processChunk(
+        chunk(EventType.TEXT_MESSAGE_START, {
+          messageId: 'anthropic-msg-1',
+          role: 'assistant' as const,
+        }),
+      )
+      // Two deltas: the bug only surfaces once a second delta arrives after
+      // the tool-first message's real TEXT_MESSAGE_START.
+      processor.processChunk(ev.textContent('It is ', 'anthropic-msg-1'))
+      processor.processChunk(ev.textContent('sunny.', 'anthropic-msg-1'))
+      processor.processChunk(ev.textEnd('anthropic-msg-1'))
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      const textParts = messages[0]?.parts.filter((p) => p.type === 'text')
+      expect(textParts).toEqual([{ type: 'text', content: 'It is sunny.' }])
+    })
+
+    it('should not drop the first TEXT_MESSAGE_CONTENT delta when the text starts before the tool call (#1247)', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_START, {
+          toolCallId: 'tc-1',
+          toolCallName: 'lookupWeather',
+          toolName: 'lookupWeather',
+          parentMessageId: 'msg-1',
+        }),
+      )
+      processor.processChunk(ev.toolArgs('tc-1', '{"location":"Berlin"}'))
+      processor.processChunk(ev.toolEnd('tc-1', 'lookupWeather'))
+      // Two deltas again: the first is the one that goes missing, and only
+      // once a second arrives to displace it.
+      processor.processChunk(ev.textContent('It is '))
+      processor.processChunk(ev.textContent('sunny.'))
+      processor.processChunk(ev.textEnd())
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      const textParts = messages[0]?.parts.filter((p) => p.type === 'text')
+      expect(textParts).toEqual([{ type: 'text', content: 'It is sunny.' }])
     })
   })
 
@@ -3299,6 +4409,36 @@ describe('StreamProcessor', () => {
       warn.mockRestore()
     })
 
+    it('should preserve an AG-UI tool error in a snapshot', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          {
+            id: 'tool-msg',
+            role: 'tool',
+            toolCallId: 'call-1',
+            content: '{"error":"boom"}',
+            error: 'boom',
+          },
+        ],
+        timestamp: Date.now(),
+      })
+
+      expect(processor.getMessages()[0]?.parts).toContainEqual({
+        type: 'tool-result',
+        id: 'tool-msg',
+        toolCallId: 'call-1',
+        content: '{"error":"boom"}',
+        state: 'error',
+        error: 'boom',
+      })
+
+      warn.mockRestore()
+    })
+
     it('should not throw when accessing parts.find() on snapshot-normalized messages', () => {
       // Directly reproduces the TypeError: Cannot read properties of undefined
       // (reading 'find') crash that occurred in the onToolCallStateChange devtools
@@ -3323,7 +4463,6 @@ describe('StreamProcessor', () => {
           type: EventType.TOOL_CALL_START,
           toolCallId: 'tc-1',
           toolCallName: 'getWeather',
-          toolName: 'getWeather',
           parentMessageId: 'snap-asst',
           timestamp: Date.now(),
         })
@@ -3591,6 +4730,84 @@ describe('StreamProcessor', () => {
       expect(processor.getState().done).toBe(true)
     })
 
+    it('appends leftover reasoning after a stop RUN_FINISHED onto the same thinking part', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.stepStarted('step-1'))
+      processor.processChunk(
+        ev.reasoningContent(
+          'The user is asking for a beginner guitar recommen.',
+        ),
+      )
+      processor.processChunk(ev.runFinished('stop'))
+      processor.processChunk(ev.reasoningContent(' $1,299.'))
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      const thinkingParts = messages[0]!.parts.filter(
+        (part) => part.type === 'thinking',
+      )
+      expect(thinkingParts).toHaveLength(1)
+      const thinkingPart = thinkingParts[0]
+      if (thinkingPart?.type !== 'thinking') {
+        throw new Error('expected a thinking part')
+      }
+      expect(thinkingPart.content).toBe(
+        'The user is asking for a beginner guitar recommen. $1,299.',
+      )
+    })
+
+    it('flushes leftover text after a stop RUN_FINISHED and fires onStreamEnd once', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(ev.textContent('Hello', 'msg-1'))
+      processor.processChunk(ev.runFinished('stop'))
+
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(processor.getState().done).toBe(true)
+
+      processor.processChunk(ev.textContent(' world', 'msg-1'))
+      expect(processor.getState().done).toBe(false)
+      processor.processChunk(ev.textEnd('msg-1'))
+      processor.finalizeStream()
+
+      const textPart = processor
+        .getMessages()[0]!
+        .parts.find((part) => part.type === 'text')
+      if (textPart?.type !== 'text') {
+        throw new Error('expected a text part')
+      }
+      expect(textPart.content).toBe('Hello world')
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(processor.getState().done).toBe(true)
+    })
+
+    it('does not fire onStreamEnd on a sequential tool_calls terminal', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+
+      processor.processChunk(ev.runStarted('run-1'))
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(ev.textContent('calling', 'msg-1'))
+      processor.processChunk(ev.runFinished('tool_calls', 'run-1'))
+
+      expect(events.onStreamEnd).not.toHaveBeenCalled()
+      expect(processor.getState().done).toBe(false)
+
+      processor.processChunk(ev.runStarted('run-2'))
+      processor.processChunk(ev.textContent(' done', 'msg-1'))
+      processor.processChunk(ev.runFinished('stop', 'run-2'))
+
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(processor.getState().done).toBe(true)
+    })
+
     it('single run should finalize normally (backward compat)', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
@@ -3644,6 +4861,8 @@ describe('StreamProcessor', () => {
       expect(processor.getState().toolCalls.get('tc-a')?.state).toBe(
         'input-complete',
       )
+      expect(processor.getState().done).toBe(false)
+      processor.finalizeStream()
       expect(processor.getState().done).toBe(true)
     })
 
@@ -3963,14 +5182,6 @@ describe('StreamProcessor', () => {
           delta: 'Thinking...',
         }),
       )
-      processor.processChunk(
-        chunk(EventType.STEP_FINISHED, {
-          stepName: 'step-1',
-          stepId: 'step-1',
-          content: 'Thinking...',
-          signature: 'sig-step-1',
-        }),
-      )
 
       const thinkingParts = processor
         .getMessages()[0]!
@@ -3979,7 +5190,6 @@ describe('StreamProcessor', () => {
       expect(thinkingParts).toHaveLength(1)
       expect((thinkingParts[0] as any).stepId).toBe('step-1')
       expect((thinkingParts[0] as any).content).toBe('Thinking...')
-      expect((thinkingParts[0] as any).signature).toBe('sig-step-1')
     })
 
     it('should handle REASONING events without errors when no matching message', () => {
@@ -4102,7 +5312,7 @@ describe('StreamProcessor', () => {
           toolCallId: 'tc-1',
           content: '{"error":"boom"}',
           role: 'tool',
-          state: 'output-error',
+          metadata: { tanstack: { state: 'output-error' } },
         }),
       )
 
@@ -4135,7 +5345,7 @@ describe('StreamProcessor', () => {
           toolCallId: 'tc-1',
           content: '{"error":"boom"}',
           role: 'tool',
-          state: 'output-error',
+          metadata: { tanstack: { state: 'output-error' } },
         }),
       )
       // RUN_FINISHED runs the completeAllToolCalls safety net
@@ -4196,6 +5406,51 @@ describe('StreamProcessor', () => {
       expect((sop as any).status).toBe('complete')
       expect((sop as any).data).toEqual({ name: 'Alice' })
       expect((sop as any).raw).toBe('{"name":"Alice"}')
+    })
+
+    it('attaches a late structured-output.complete to the open assistant when the event uses a new messageId', () => {
+      const processor = new StreamProcessor()
+      const report = {
+        name: 'TanStack AI',
+        oneLiner: 'Type-safe AI SDK',
+      }
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.toolStart('toolu_1', 'Read'))
+      processor.processChunk(ev.toolEnd('toolu_1', 'Read'))
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        ev.textContent('I have enough to produce the report.', 'msg-1'),
+      )
+      processor.processChunk(ev.textEnd('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'so-fresh-id' },
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.complete',
+          value: {
+            object: report,
+            raw: JSON.stringify(report),
+            messageId: 'so-fresh-id',
+          },
+        }),
+      )
+      processor.processChunk(ev.runFinished('stop'))
+
+      const assistants = processor
+        .getMessages()
+        .filter((m) => m.role === 'assistant')
+      expect(assistants).toHaveLength(1)
+      const sop = assistants[0]!.parts.find(
+        (p) => p.type === 'structured-output',
+      )
+      expect(sop).toBeDefined()
+      expect((sop as { status: string }).status).toBe('complete')
+      expect((sop as { data: unknown }).data).toEqual(report)
     })
 
     it('progressively populates partial as JSON deltas arrive', () => {
@@ -4403,13 +5658,13 @@ describe('StreamProcessor', () => {
       processor.processChunk(
         chunk(EventType.TEXT_MESSAGE_CONTENT, {
           messageId: 'msg-1',
-          content: '{"name":',
+          delta: '{"name":',
         }),
       )
       processor.processChunk(
         chunk(EventType.TEXT_MESSAGE_CONTENT, {
           messageId: 'msg-1',
-          content: '{"name":"Alice"}',
+          delta: '"Alice"}',
         }),
       )
 

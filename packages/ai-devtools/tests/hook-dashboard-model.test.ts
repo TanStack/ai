@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   createHookDashboardSummary,
   getHookDisplayName,
+  getHookIdentityLabel,
+  getHookIdentitySubtitle,
   groupHooksByCategory,
   isHookRunning,
   visibleHooks,
@@ -84,6 +86,24 @@ describe('hook dashboard model', () => {
     expect(
       getHookDisplayName(createHook('chat-2', 'useChat', 'chat', 21)),
     ).toBe('useChat')
+  })
+
+  it('prefers threadId as the identity label over the registry id', () => {
+    const withThread = {
+      ...createHook('image-1', 'useGenerateImage', 'image', 10),
+      threadId: 'product-7-hero',
+    }
+    const ephemeral = createHook('gen-random', 'useGenerateImage', 'image', 11)
+
+    expect(getHookIdentityLabel(withThread)).toBe('product-7-hero')
+    expect(getHookIdentityLabel(ephemeral)).toBe('gen-random')
+    expect(getHookIdentitySubtitle(withThread)).toBe('product-7-hero')
+    expect(
+      getHookIdentitySubtitle({
+        ...withThread,
+        displayName: 'Hero image',
+      }),
+    ).toBe('useGenerateImage - product-7-hero')
   })
 
   it('returns all hooks from visible dashboard lists', () => {

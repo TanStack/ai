@@ -1,4 +1,8 @@
-import { normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  isFileSource,
+  normalizeSystemPrompts,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import type {
   ContentPart,
   ContentPartDataSource,
@@ -72,8 +76,10 @@ function documentFormat(
   }
 }
 
-function stringContent(content: string | null | Array<ContentPart>): string {
-  if (content === null) return ''
+function stringContent(
+  content: string | null | undefined | Array<ContentPart>,
+): string {
+  if (content === null || content === undefined) return ''
   if (typeof content === 'string') return content
   return content
     .filter((p): p is TextPart => p.type === 'text')
@@ -106,6 +112,7 @@ function contentPartToBlock(part: ContentPart, docIndex: number): ContentBlock {
 
   if (isImagePart(part)) {
     const { source } = part
+    if (isFileSource(source)) throw unsupportedFileSourceError('bedrock')
     if (!isDataSource(source)) {
       throw new Error(
         'Bedrock Converse requires inline image bytes; URL image sources are not supported.',
@@ -121,6 +128,7 @@ function contentPartToBlock(part: ContentPart, docIndex: number): ContentBlock {
 
   if (isDocumentPart(part)) {
     const { source } = part
+    if (isFileSource(source)) throw unsupportedFileSourceError('bedrock')
     if (!isDataSource(source)) {
       throw new Error(
         'Bedrock Converse requires inline document bytes; URL document sources are not supported.',

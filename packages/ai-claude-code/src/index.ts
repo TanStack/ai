@@ -2,6 +2,7 @@ export { ClaudeCodeTextAdapter, claudeCodeText } from './adapters/text'
 export type {
   ClaudeCodeTextConfig,
   ClaudeCodePermissionMode,
+  ClaudeCodeSettingSource,
 } from './adapters/text'
 export type { ClaudeCodeTextProviderOptions } from './provider-options'
 export { CLAUDE_CODE_MODELS } from './model-meta'

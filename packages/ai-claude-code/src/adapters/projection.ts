@@ -11,7 +11,9 @@
  *   - gitSkill repos → linked under `.claude/skills/<basename>`.
  *   - agentSkill     → no reliable claude primitive pulls a public skill by
  *                      bare name, so we warn and skip rather than invent one.
- *   - plugins        → `claude plugin install <name>` (best-effort).
+ *   - plugins        → `claude plugin install <name> --scope project`
+ *                      (best-effort; project scope so the adapter's default
+ *                      `--setting-sources project` loads it).
  *
  * The secret-bearing `.mcp.json` is (re)written on EVERY call, re-resolving
  * secrets each time, so claude always reads current values and a snapshot can
@@ -24,7 +26,12 @@
  * CLI. Where claude has no clean primitive (agentSkill by bare name) we no-op
  * with a warning instead of fabricating a command.
  */
-import { isSecretRef, resolveGitSkillDir } from '@tanstack/ai-sandbox'
+import {
+  discoverSkillDirs,
+  isSecretRef,
+  resolveGitSkillDir,
+  resolveHarnessCwd,
+} from '@tanstack/ai-sandbox'
 import type {
   BearerRef,
   SandboxHandle,
@@ -36,12 +43,6 @@ import type {
 /** POSIX single-quote escape for embedding a value in a shell command. */
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
-}
-
-/** Last path segment of a `gitSkill` clone dir, used as the skills-dir name. */
-function basenameOf(path: string): string {
-  const segments = path.split('/').filter((segment) => segment !== '')
-  return segments[segments.length - 1] ?? path
 }
 
 /** True when `value` is a `bearer(ref)` marker created by `@tanstack/ai-sandbox`. */
@@ -135,17 +136,25 @@ async function projectGitSkills(
       await handle.fs.mkdir(skillsDir)
       madeDir = true
     }
+    // Discover over virtual `/workspace` paths (handle.fs remaps). Remap only
+    // for shell `ln`/`cp`, where absolute paths must match the real workdir.
     const source = skill.into ?? resolveGitSkillDir(projection.root, skill)
-    const target = `${skillsDir}/${basenameOf(source)}`
-    const lnCmd = `ln -s ${shellQuote(source)} ${shellQuote(target)}`
-    const result = await handle.process.exec(lnCmd, { cwd: projection.root })
-    if (result.exitCode !== 0) {
-      const cpCmd = `cp -r ${shellQuote(source)} ${shellQuote(target)}`
-      const copied = await handle.process.exec(cpCmd, { cwd: projection.root })
-      if (copied.exitCode !== 0) {
-        console.warn(
-          `[claude-code] failed to link gitSkill "${skill.repo}" into ${target}: ${copied.stderr.trim()}`,
-        )
+    const discovered = await discoverSkillDirs(handle, source)
+    for (const { name, dir } of discovered) {
+      const target = resolveHarnessCwd(handle, `${skillsDir}/${name}`)
+      const realDir = resolveHarnessCwd(handle, dir)
+      const lnCmd = `ln -s ${shellQuote(realDir)} ${shellQuote(target)}`
+      const result = await handle.process.exec(lnCmd, { cwd: projection.root })
+      if (result.exitCode !== 0) {
+        const cpCmd = `cp -r ${shellQuote(realDir)} ${shellQuote(target)}`
+        const copied = await handle.process.exec(cpCmd, {
+          cwd: projection.root,
+        })
+        if (copied.exitCode !== 0) {
+          console.warn(
+            `[claude-code] failed to link gitSkill "${skill.repo}" into ${target}: ${copied.stderr.trim()}`,
+          )
+        }
       }
     }
   }
@@ -169,16 +178,17 @@ function projectAgentSkills(projection: WorkspaceProjection): void {
 }
 
 /**
- * Install each declared plugin via `claude plugin install <name>`. Plugin
- * installs are best-effort: a failure (no marketplace, network, …) warns but
- * never throws, so a missing plugin can't break the run.
+ * Install each declared plugin via `claude plugin install <name>` at project
+ * scope (user scope is not read under the default `--setting-sources project`).
+ * Plugin installs are best-effort: a failure (no marketplace, network, …) warns
+ * but never throws, so a missing plugin can't break the run.
  */
 async function projectPlugins(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
 ): Promise<void> {
   for (const name of projection.plugins) {
-    const cmd = `claude plugin install ${shellQuote(name)}`
+    const cmd = `claude plugin install ${shellQuote(name)} --scope project`
     try {
       const result = await handle.process.exec(cmd, { cwd: projection.root })
       if (result.exitCode !== 0) {

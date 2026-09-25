@@ -3,8 +3,6 @@ id: ChunkRecording
 title: ChunkRecording
 ---
 
-# Interface: ChunkRecording
-
 Defined in: [packages/ai/src/activities/chat/stream/types.ts:100](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L100)
 
 Recording format for replay testing
@@ -42,7 +40,7 @@ timestamp: number;
 ### model?
 
 ```ts
-optional model: string;
+optional model?: string;
 ```
 
 Defined in: [packages/ai/src/activities/chat/stream/types.ts:103](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L103)
@@ -52,7 +50,7 @@ Defined in: [packages/ai/src/activities/chat/stream/types.ts:103](https://github
 ### provider?
 
 ```ts
-optional provider: string;
+optional provider?: string;
 ```
 
 Defined in: [packages/ai/src/activities/chat/stream/types.ts:104](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L104)
@@ -62,7 +60,7 @@ Defined in: [packages/ai/src/activities/chat/stream/types.ts:104](https://github
 ### result?
 
 ```ts
-optional result: ProcessorResult;
+optional result?: ProcessorResult;
 ```
 
 Defined in: [packages/ai/src/activities/chat/stream/types.ts:110](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L110)

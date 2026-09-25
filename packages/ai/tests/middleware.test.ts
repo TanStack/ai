@@ -1,6 +1,11 @@
 /* eslint-disable @typescript-eslint/require-await */
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
+import { tanstackMetadata } from '../src/utilities/merge-metadata'
+import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
+import { defineInterrupt } from '../src/interrupt-definition'
+import { EventType } from '../src/types'
 import {
   collectChunks,
   createMockAdapter,
@@ -92,6 +97,150 @@ describe('chat() middleware', () => {
 
       expect(onError).toHaveBeenCalledOnce()
       expect(onFinish).not.toHaveBeenCalled()
+    })
+
+    it('should call onError when an adapter emits RUN_ERROR', async () => {
+      const onError = vi.fn()
+      const onFinish = vi.fn()
+      const review = defineInterrupt({
+        id: 'review',
+        responseSchema: z.object({ approved: z.boolean() }),
+      })
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            {
+              ...ev.runError('Provider failed'),
+              code: 'provider_error',
+            },
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          messages: [{ role: 'user', content: 'Hi' }],
+          middleware: [
+            defineChatMiddleware({
+              onInterruptBoundary(ctx) {
+                if (ctx.phase !== 'afterModel') return
+                return {
+                  interrupts: [
+                    review.interrupt({
+                      key: 'review',
+                      reason: 'review',
+                      message: 'Review the response',
+                    }),
+                  ],
+                }
+              },
+            }),
+            { name: 'test', onError, onFinish },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(chunks).toContainEqual(
+        expect.objectContaining({
+          type: EventType.RUN_ERROR,
+          message: 'Provider failed',
+          code: 'provider_error',
+        }),
+      )
+      expect(chunks).not.toContainEqual(
+        expect.objectContaining({
+          type: EventType.RUN_FINISHED,
+          outcome: expect.objectContaining({ type: 'interrupt' }),
+        }),
+      )
+      expect(onError).toHaveBeenCalledOnce()
+      expect(onError.mock.calls[0]![1].error).toMatchObject({
+        message: 'Provider failed',
+        code: 'provider_error',
+      })
+      expect(onFinish).not.toHaveBeenCalled()
+    })
+
+    it('yields emitCustomEvent chunks during onConfig before adapter chunks', async () => {
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Hello'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const middleware: ChatMiddleware = {
+        name: 'live-emit',
+        async onConfig(ctx) {
+          if (ctx.phase !== 'beforeModel') return
+          ctx.emitCustomEvent('test:started', { ok: true })
+          await gate
+          ctx.emitCustomEvent('test:ended', { ok: true })
+        },
+      }
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [middleware],
+      }) as AsyncIterable<StreamChunk>
+      const iter = stream[Symbol.asyncIterator]()
+
+      const beforeText: Array<StreamChunk> = []
+      while (true) {
+        const next = await iter.next()
+        expect(next.done).toBe(false)
+        const chunk = next.value
+        expect(chunk).toBeDefined()
+        if (!chunk) break
+        expect(chunk.type).not.toBe(EventType.TEXT_MESSAGE_CONTENT)
+        beforeText.push(chunk)
+        if (chunk.type === EventType.CUSTOM && chunk.name === 'test:started') {
+          break
+        }
+      }
+
+      expect(
+        beforeText.some((chunk) => chunk.type === EventType.RUN_STARTED),
+      ).toBe(true)
+
+      release()
+
+      const rest: Array<StreamChunk> = []
+      while (true) {
+        const next = await iter.next()
+        if (next.done) break
+        rest.push(next.value)
+      }
+
+      const endedIndex = rest.findIndex(
+        (chunk) =>
+          chunk.type === EventType.CUSTOM && chunk.name === 'test:ended',
+      )
+      const textIndex = rest.findIndex(
+        (chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT,
+      )
+      expect(endedIndex).toBeGreaterThanOrEqual(0)
+      expect(textIndex).toBeGreaterThan(endedIndex)
+
+      const started = [...beforeText, ...rest].filter(
+        (chunk) => chunk.type === EventType.RUN_STARTED,
+      )
+      expect(started).toHaveLength(1)
     })
 
     it('should call exactly one terminal hook per run', async () => {
@@ -325,6 +474,124 @@ describe('chat() middleware', () => {
         'TEXT_MESSAGE_END',
         'RUN_FINISHED',
       ])
+    })
+
+    it('onChunk sees adapter extras; the public stream does not', async () => {
+      const seen: Array<{
+        finishReason?: unknown
+        model?: unknown
+      }> = []
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textContent('Hello'),
+            {
+              type: EventType.RUN_FINISHED,
+              runId: 'run-1',
+              threadId: 'thread-1',
+              timestamp: Date.now(),
+              finishReason: 'stop',
+              model: 'gpt-5.5',
+              usage: {
+                promptTokens: 1,
+                completionTokens: 2,
+                totalTokens: 3,
+              },
+            },
+          ],
+        ],
+      })
+
+      const middleware: ChatMiddleware = {
+        name: 'extras',
+        onChunk: (_ctx, chunk) => {
+          if (chunk.type !== 'RUN_FINISHED') return
+          const extra = chunk as {
+            finishReason?: unknown
+            model?: unknown
+          }
+          seen.push({
+            finishReason: extra.finishReason,
+            model: extra.model,
+          })
+        },
+      }
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [middleware],
+      })
+      const publicChunks = await collectChunks(
+        stream as AsyncIterable<StreamChunk>,
+      )
+      const finished = publicChunks.find(
+        (chunk) => chunk.type === 'RUN_FINISHED',
+      )
+      if (finished === undefined) {
+        throw new Error('expected RUN_FINISHED')
+      }
+
+      expect(seen).toEqual([{ finishReason: 'stop', model: 'gpt-5.5' }])
+      expect(finished).not.toHaveProperty('finishReason')
+      expect(finished).not.toHaveProperty('model')
+      expect(tanstackMetadata(finished)?.finishReason).toBe('stop')
+      expect(tanstackMetadata(finished)?.model).toBe('gpt-5.5')
+      expect(finished.usage).toEqual({
+        promptTokens: 1,
+        completionTokens: 2,
+        totalTokens: 3,
+      })
+    })
+
+    it('onChunk does not see REASONING_ENCRYPTED_VALUE from STEP_FINISHED.signature', async () => {
+      const onChunkTypes: Array<string> = []
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.stepStarted('think'),
+            {
+              type: EventType.STEP_FINISHED,
+              stepName: 'think',
+              timestamp: Date.now(),
+              signature: 'sig-1',
+            },
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const middleware: ChatMiddleware = {
+        name: 'signature-order',
+        onChunk: (_ctx, chunk) => {
+          onChunkTypes.push(chunk.type)
+        },
+      }
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [middleware],
+      })
+      const publicChunks = await collectChunks(
+        stream as AsyncIterable<StreamChunk>,
+      )
+
+      expect(onChunkTypes).toEqual([
+        'RUN_STARTED',
+        'STEP_STARTED',
+        'STEP_FINISHED',
+        'RUN_FINISHED',
+      ])
+      expect(
+        publicChunks.some(
+          (chunk) => chunk.type === 'REASONING_ENCRYPTED_VALUE',
+        ),
+      ).toBe(true)
     })
 
     it('should allow chunk transformation', async () => {
@@ -1259,16 +1526,21 @@ describe('chat() middleware', () => {
 
       const middleware: ChatMiddleware = {
         name: 'tool-injector',
-        onConfig: (_ctx, config) => ({
-          tools: [
-            ...config.tools,
-            {
-              name: 'addedTool',
-              description: 'Added by middleware',
-              execute: addedToolExecute,
-            },
-          ],
-        }),
+        onConfig: (_ctx, config) => {
+          if (config.tools.some((tool) => tool.name === 'addedTool')) {
+            return
+          }
+          return {
+            tools: [
+              ...config.tools,
+              {
+                name: 'addedTool',
+                description: 'Added by middleware',
+                execute: addedToolExecute,
+              },
+            ],
+          }
+        },
       }
 
       const stream = chat({
@@ -2220,16 +2492,21 @@ describe('chat() middleware', () => {
 
       const middleware: ChatMiddleware = {
         name: 'tool-injector',
-        onConfig: (_ctx, config) => ({
-          tools: [
-            ...config.tools,
-            {
-              name: 'injectedTool',
-              description: 'Injected by middleware',
-              execute: injectedToolExecute,
-            },
-          ],
-        }),
+        onConfig: (_ctx, config) => {
+          if (config.tools.some((tool) => tool.name === 'injectedTool')) {
+            return
+          }
+          return {
+            tools: [
+              ...config.tools,
+              {
+                name: 'injectedTool',
+                description: 'Injected by middleware',
+                execute: injectedToolExecute,
+              },
+            ],
+          }
+        },
       }
 
       const stream = chat({

@@ -9,17 +9,31 @@ import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
+  applyGenerationResultTransforms,
   createGenerationContext,
+  runGenerationAbort,
   runGenerationError,
   runGenerationFinish,
   runGenerationStart,
   runGenerationUsage,
 } from '../middleware/run'
+import {
+  abortReasonMessage,
+  createActivityAbortControls,
+  isActivityAbortError,
+  raceWithAbort,
+} from '../../utilities/activity-abort'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware/types'
-import type { TTSAdapter } from './adapter'
-import type { StreamChunk, TTSResult } from '../../types'
+import type { TTSAdapter, TTSCapabilities } from './adapter'
+import type {
+  ListVoicesOptions,
+  ListVoicesResult,
+  StreamChunk,
+  TTSResult,
+  TTSTurn,
+} from '../../types'
 
 // ===========================
 // Activity Kind
@@ -35,10 +49,11 @@ export const kind = 'tts' as const
 /**
  * Extract provider options from a TTSAdapter via ~types.
  */
-export type TTSProviderOptions<TAdapter> =
-  TAdapter extends TTSAdapter<any, any>
-    ? TAdapter['~types']['providerOptions']
-    : object
+export type TTSProviderOptions<TAdapter> = TAdapter extends {
+  '~types': { providerOptions: infer P extends object }
+}
+  ? P
+  : object
 
 // ===========================
 // Activity Options Type
@@ -51,16 +66,46 @@ export type TTSProviderOptions<TAdapter> =
  * @template TAdapter - The TTS adapter type
  * @template TStream - Whether to stream the output
  */
-export interface TTSActivityOptions<
+export type TTSActivityOptions<
+  TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
+  TStream extends boolean = false,
+> = TTSActivityOptionsBase<TAdapter, TStream> &
+  (
+    | {
+        /** The text to convert to speech */
+        text: string
+        turns?: undefined
+      }
+    | {
+        text?: undefined
+        /**
+         * Multi-voice dialogue turns, one per line of the script. Mutually
+         * exclusive with `text`.
+         *
+         * Only adapters that declare `capabilities.maxSpeakers` accept these
+         * (ElevenLabs 10 voices, Gemini 2); anything else throws before the
+         * request leaves the process.
+         */
+        turns: Array<TTSTurn>
+      }
+  )
+
+/** Shared half of {@link TTSActivityOptions} — everything except text/turns. */
+interface TTSActivityOptionsBase<
   TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,
 > {
   /** The TTS adapter to use (must be created with a model) */
   adapter: TAdapter & { kind: typeof kind }
-  /** The text to convert to speech */
-  text: string
   /** The voice to use for generation */
   voice?: string
+  /**
+   * Ask for `alignment` (character/word timings) and `segments` (per-turn
+   * spans) on the result. Only adapters that declare
+   * `capabilities.timestamps` accept it — on ElevenLabs it is a different
+   * endpoint, on BytePlus a different request flag, so it cannot be inferred.
+   */
+  timestamps?: boolean
   /** The output audio format */
   format?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
   /** The speed of the generated audio (0.25 to 4.0) */
@@ -87,6 +132,22 @@ export interface TTSActivityOptions<
    * `GenerationMiddleware` contract for a custom backend.
    */
   middleware?: Array<GenerationMiddleware>
+  /** Stable conversation/thread id for correlating this run when persisted. */
+  threadId?: string
+  /** Stable run id for correlating this run when persisted. */
+  runId?: string
+  /**
+   * Maximum duration of this activity invocation in milliseconds.
+   * No SDK-wide default — choose a value suitable for the provider and job.
+   * Composed with {@link abortSignal}; the first abort wins.
+   */
+  timeout?: number
+  /**
+   * Caller cancellation signal (request disconnects, job/runtime cancellation).
+   * Composed with {@link timeout} into an effective signal forwarded to the
+   * adapter. Request-specific — not stored on global provider client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 // ===========================
@@ -103,6 +164,57 @@ export type TTSActivityResult<TStream extends boolean = false> =
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+/**
+ * Validate the text/turns/timestamps trio against what the adapter declares,
+ * and return the `text` every adapter receives.
+ *
+ * For a dialogue request that text is the turn scripts joined by newlines:
+ * dialogue-aware adapters read `turns` and ignore it, but it keeps `text`
+ * non-optional on the adapter contract and gives the devtools event and the
+ * artifact inputs something truthful to show.
+ */
+function resolveSpeechText(
+  adapter: { name: string; capabilities?: TTSCapabilities },
+  input: { text?: string; turns?: Array<TTSTurn>; timestamps?: boolean },
+): string {
+  const { text, turns, timestamps } = input
+
+  if (timestamps && !adapter.capabilities?.timestamps) {
+    throw new Error(
+      `${adapter.name} cannot return timestamps. Drop \`timestamps: true\` — the result would have no alignment to read.`,
+    )
+  }
+
+  if (turns) {
+    if (text !== undefined) {
+      throw new Error(
+        'generateSpeech() takes either `text` or `turns`, not both.',
+      )
+    }
+    if (turns.length === 0) {
+      throw new Error('generateSpeech() `turns` must not be empty.')
+    }
+    const maxSpeakers = adapter.capabilities?.maxSpeakers
+    if (maxSpeakers === undefined) {
+      throw new Error(
+        `${adapter.name} cannot generate dialogue. Pass \`text\` (and \`voice\`) instead of \`turns\`.`,
+      )
+    }
+    const speakers = new Set(turns.map((turn) => turn.voice)).size
+    if (speakers > maxSpeakers) {
+      throw new Error(
+        `${adapter.name} accepts at most ${maxSpeakers} distinct voice${maxSpeakers === 1 ? '' : 's'} per request; received ${speakers}.`,
+      )
+    }
+    return turns.map((turn) => turn.text).join('\n')
+  }
+
+  if (text === undefined) {
+    throw new Error('generateSpeech() requires either `text` or `turns`.')
+  }
+  return text
 }
 
 // ===========================
@@ -144,8 +256,14 @@ export function generateSpeech<
   TStream extends boolean = false,
 >(options: TTSActivityOptions<TAdapter, TStream>): TTSActivityResult<TStream> {
   if (options.stream) {
-    return streamGenerationResult(() =>
-      runGenerateSpeech(options),
+    return streamGenerationResult(
+      // Only `runId` is taken from the resolved wire identity. `threadId` stays
+      // the CALLER's: `streamGenerationResult` mints one for the RUN_* chunks
+      // when none was passed, and spreading that over the options would hand
+      // middleware a thread id known to nobody, which persistence would then
+      // file the run under. Matches `generateVideo`.
+      (resolved) => runGenerateSpeech({ ...options, runId: resolved.runId }),
+      options,
     ) as TTSActivityResult<TStream>
   }
   return runGenerateSpeech(options) as TTSActivityResult<TStream>
@@ -162,12 +280,21 @@ async function runGenerateSpeech<
     stream: _stream,
     debug: _debug,
     middleware,
+    threadId,
+    runId,
+    timeout,
+    abortSignal: callerAbortSignal,
     ...rest
   } = options
   const model = adapter.model
+  const text = resolveSpeechText(adapter, rest)
   const requestId = createId('speech')
   const startTime = Date.now()
   const logger: InternalLogger = resolveDebugOption(options.debug)
+  const abortControls = createActivityAbortControls({
+    timeout,
+    abortSignal: callerAbortSignal,
+  })
   const providerName =
     (adapter as { name?: string; provider?: string }).provider ??
     (adapter as { name?: string }).name ??
@@ -179,6 +306,14 @@ async function runGenerateSpeech<
     provider: adapter.name,
     model,
     modelOptions: rest.modelOptions,
+    artifactInputs: {
+      text,
+      voice: rest.voice,
+      format: rest.format,
+      speed: rest.speed,
+    },
+    threadId,
+    runId,
     createId,
   })
 
@@ -188,7 +323,7 @@ async function runGenerateSpeech<
     requestId,
     provider: adapter.name,
     model,
-    text: rest.text,
+    text,
     voice: rest.voice,
     format: rest.format,
     speed: rest.speed,
@@ -202,7 +337,18 @@ async function runGenerateSpeech<
   })
 
   try {
-    const result = await adapter.generateSpeech({ ...rest, model, logger })
+    const rawResult = await raceWithAbort(
+      adapter.generateSpeech({
+        ...rest,
+        text,
+        model,
+        logger,
+        ...(abortControls.signal ? { abortSignal: abortControls.signal } : {}),
+      }),
+      abortControls.signal,
+    )
+    abortControls.clear()
+    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
     const duration = Date.now() - startTime
 
     aiEventClient.emit('speech:request:completed', {
@@ -241,6 +387,7 @@ async function runGenerateSpeech<
 
     return result
   } catch (error) {
+    abortControls.clear()
     const duration = Date.now() - startTime
     const err = error as Error
     aiEventClient.emit('speech:request:error', {
@@ -252,16 +399,70 @@ async function runGenerateSpeech<
       modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
       timestamp: Date.now(),
     })
-    await runGenerationError(middleware, mwCtx, {
-      error,
-      duration,
-    })
+    if (isActivityAbortError(error, abortControls.signal)) {
+      await runGenerationAbort(middleware, mwCtx, {
+        reason: abortReasonMessage(error, abortControls.signal),
+        duration,
+      })
+    } else {
+      await runGenerationError(middleware, mwCtx, {
+        error,
+        duration,
+      })
+    }
     logger.errors('generateSpeech activity failed', {
       error,
       source: 'generateSpeech',
     })
     throw error
   }
+}
+
+// ===========================
+// Voice Catalog
+// ===========================
+
+/**
+ * Options for {@link listVoices}.
+ */
+export interface ListVoicesActivityOptions<
+  TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
+> extends ListVoicesOptions {
+  /** The speech adapter whose catalog to read */
+  adapter: TAdapter & { kind: typeof kind }
+}
+
+/**
+ * List the voices an account can pass to `generateSpeech()`.
+ *
+ * Only providers with a per-account catalog implement this. A provider whose
+ * voices are a fixed list publishes that list as a const in its package, so
+ * import it from there rather than calling this.
+ *
+ * @example Find the voices you created
+ * ```ts
+ * import { listVoices } from '@tanstack/ai'
+ * import { elevenlabsSpeech } from '@tanstack/ai-elevenlabs'
+ *
+ * const { voices } = await listVoices({
+ *   adapter: elevenlabsSpeech('eleven_v3'),
+ *   origins: ['generated', 'cloned'],
+ * })
+ * ```
+ */
+export async function listVoices<
+  TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
+>(options: ListVoicesActivityOptions<TAdapter>): Promise<ListVoicesResult> {
+  const { adapter, ...rest } = options
+
+  const list = adapter.listVoices
+  if (!list) {
+    throw new Error(
+      `The ${adapter.name} speech adapter has no per-account voice catalog to list. Its voices are a fixed set — import the voice list or union its package exports instead (for example \`GeminiTTSVoices\` from @tanstack/ai-gemini, or the \`OpenAITTSVoice\` union from @tanstack/ai-openai).`,
+    )
+  }
+
+  return await list.call(adapter, rest)
 }
 
 // ===========================
@@ -281,5 +482,10 @@ export function createSpeechOptions<
 }
 
 // Re-export adapter types
-export type { TTSAdapter, TTSAdapterConfig, AnyTTSAdapter } from './adapter'
+export type {
+  TTSAdapter,
+  TTSAdapterConfig,
+  TTSCapabilities,
+  AnyTTSAdapter,
+} from './adapter'
 export { BaseTTSAdapter } from './adapter'

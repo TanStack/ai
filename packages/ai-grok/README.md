@@ -1,3 +1,23 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
 # @tanstack/ai-grok
 
 Grok (xAI) adapter for TanStack AI
@@ -67,10 +87,10 @@ const adapter = grokImage()
 
 const result = await generateImages({
   adapter,
-  model: 'grok-2-image-1212',
+  model: 'grok-imagine-image-2.0',
   prompt: 'A beautiful sunset over mountains',
   numberOfImages: 1,
-  size: '1024x1024',
+  size: '16:9',
 })
 
 console.log(result.images[0].url)

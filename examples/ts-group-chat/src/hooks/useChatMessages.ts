@@ -1,182 +1,189 @@
-import { useState, useEffect, useCallback } from 'react'
-import type { ChatAPI } from './useChatConnection'
+import { useCallback, useEffect, useState } from 'react'
+import type { RefObject } from 'react'
+import type { RpcStub } from 'capnweb'
+import type {
+  ChatApi,
+  ChatMessage,
+  ChatNotification,
+  ChatRoomState,
+} from '../../chat-server/chat-api'
+import type { ChatNotifier } from '@/lib/chat-notifier'
 
-export interface ChatMessage {
-  id: string
-  username: string
-  message: string
-  timestamp: string
-  type?: 'message' | 'user_joined' | 'user_left' | 'welcome'
+export type { ChatMessage, ChatRoomState }
+
+function notificationToMessage(notification: ChatNotification): ChatMessage {
+  return {
+    id: notification.id || Math.random().toString(36).slice(2, 11),
+    username: notification.username || 'System',
+    message: notification.message,
+    timestamp: notification.timestamp || new Date().toISOString(),
+    type: notification.type,
+  }
 }
 
-export interface ChatState {
-  onlineUsers: string[]
-  messages: ChatMessage[]
+function formatError(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    return String(error.message)
+  }
+  return String(error)
 }
 
 export function useChatMessages(
-  api: ChatAPI | null,
+  api: RpcStub<ChatApi> | null,
+  apiRef: RefObject<RpcStub<ChatApi> | null>,
+  notifier: ChatNotifier | null,
   isConnected: boolean,
   username: string | null,
 ) {
-  const [chatState, setChatState] = useState<ChatState>({
+  const getApi = useCallback(() => apiRef.current ?? api, [api, apiRef])
+  const [chatState, setChatState] = useState<ChatRoomState>({
     onlineUsers: [],
     messages: [],
   })
 
-  const [isPolling, setIsPolling] = useState(false)
   const [isJoined, setIsJoined] = useState(false)
 
-  // Poll for new messages
-  const pollMessages = useCallback(async () => {
-    if (!api || !isConnected || !username || isPolling) {
-      return
-    }
+  useEffect(() => {
+    if (!notifier) return
 
-    try {
-      setIsPolling(true)
-      const newMessages = await api.pollMessages()
-
-      if (newMessages.length > 0) {
-        setChatState((prev) => ({
-          ...prev,
-          messages: [...prev.messages, ...newMessages].slice(-100), // Keep last 100 messages
-        }))
+    return notifier.addHandler((notification: ChatNotification) => {
+      // Status / sync events — not chat lines
+      if (
+        notification.type === 'todos_updated' ||
+        notification.type === 'claude_mode_changed' ||
+        notification.type === 'claude_responding' ||
+        notification.type === 'claude_idle'
+      ) {
+        return
       }
-    } catch (error) {
-      console.error('Error polling messages:', error)
-    } finally {
-      setIsPolling(false)
-    }
-  }, [api, isConnected, username, isPolling])
 
-  // Update chat state from server
-  const updateChatState = useCallback(async () => {
-    if (!api || !isConnected) return
+      setChatState((prev) => {
+        const nextMessages = [
+          ...prev.messages,
+          notificationToMessage(notification),
+        ]
 
-    try {
-      const state = await api.getChatState()
-      setChatState(state)
-    } catch (error) {
-      console.error('Error updating chat state:', error)
-    }
-  }, [api, isConnected])
+        return {
+          onlineUsers: notification.onlineUsers ?? prev.onlineUsers,
+          messages: nextMessages.slice(-100),
+        }
+      })
+    })
+  }, [notifier])
 
-  // Send a message
   const sendMessage = useCallback(
     async (messageText: string) => {
-      if (!api || !messageText.trim()) {
+      const activeApi = getApi()
+      if (!activeApi || !messageText.trim()) {
         return { success: false, error: 'Cannot send empty message' }
       }
 
+      if (!isJoined) {
+        return { success: false, error: 'Still joining the chat room…' }
+      }
+
       try {
-        await api.sendMessage(messageText)
+        await activeApi.sendMessage(messageText)
         return { success: true }
       } catch (error) {
-        console.error('Error sending message:', error)
+        console.error('Error sending message:', formatError(error), error)
         return {
           success: false,
-          error:
-            error instanceof Error ? error.message : 'Failed to send message',
+          error: formatError(error) || 'Failed to send message',
         }
       }
     },
-    [api],
+    [getApi, isJoined],
   )
 
-  // Join chat
   const joinChat = useCallback(
     async (chatUsername: string) => {
-      if (!api) return { success: false, error: 'Not connected' }
+      const activeApi = getApi()
+      if (!activeApi) return { success: false, error: 'Not connected' }
 
       try {
-        const result = await api.joinChat(chatUsername, () => {
-          // Notification callback - not used in polling approach
-        })
+        await activeApi.leaveChat()
+        const result = await activeApi.joinChat(chatUsername)
 
-        // Load initial state
         setChatState({
-          onlineUsers: result.onlineUsers || [],
-          messages: result.recentMessages || [],
+          onlineUsers: result.onlineUsers,
+          messages: result.recentMessages,
         })
+        setIsJoined(true)
 
         return { success: true }
       } catch (error) {
-        console.error('Error joining chat:', error)
+        console.error('Error joining chat:', formatError(error), error)
+        setIsJoined(false)
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to join chat',
+          error: formatError(error) || 'Failed to join chat',
         }
       }
     },
-    [api],
+    [getApi],
   )
 
-  // Leave chat
   const leaveChat = useCallback(async () => {
-    if (!api) return
+    const activeApi = getApi()
+    if (!activeApi) return
 
     try {
-      await api.leaveChat()
+      await activeApi.leaveChat()
       setChatState({ onlineUsers: [], messages: [] })
+      setIsJoined(false)
     } catch (error) {
-      console.error('Error leaving chat:', error)
+      console.error('Error leaving chat:', formatError(error), error)
     }
-  }, [api])
+  }, [getApi])
 
-  // Auto-join when username is provided
   useEffect(() => {
-    if (!api || !isConnected || !username || isJoined) return
+    const activeApi = getApi()
+    if (!activeApi || !isConnected) return
 
-    const autoJoin = async () => {
+    // Object flag so cancellation stays visible across sync RpcStub awaits.
+    const cancelled: { current: boolean } = { current: false }
+
+    const switchPersona = async () => {
+      setIsJoined(false)
+
       try {
-        const result = await api.joinChat(username, () => {})
+        // Always leave first so the previous persona is removed from the room.
+        await activeApi.leaveChat()
+
+        if (!username) {
+          if (!cancelled.current) {
+            setChatState({ onlineUsers: [], messages: [] })
+          }
+          return
+        }
+
+        const result = await activeApi.joinChat(username)
+        if (cancelled.current) return
+
         setChatState({
-          onlineUsers: result.onlineUsers || [],
-          messages: result.recentMessages || [],
+          onlineUsers: result.onlineUsers,
+          messages: result.recentMessages,
         })
         setIsJoined(true)
       } catch (error) {
-        console.error('Error auto-joining chat:', error)
-      }
-    }
-
-    autoJoin()
-  }, [api, isConnected, username, isJoined])
-
-  // Auto-leave when username is cleared
-  useEffect(() => {
-    if (!username && isJoined && api) {
-      const autoLeave = async () => {
-        try {
-          await api.leaveChat()
-          setIsJoined(false)
-          setChatState({ onlineUsers: [], messages: [] })
-        } catch (error) {
-          console.error('Error auto-leaving chat:', error)
+        if (!cancelled.current) {
+          console.error(
+            'Error switching chat persona:',
+            formatError(error),
+            error,
+          )
         }
       }
-      autoLeave()
     }
-  }, [username, isJoined, api])
 
-  // Set up polling interval when connected and joined
-  useEffect(() => {
-    if (!isConnected || !username || !isJoined) return
+    void switchPersona()
 
-    const interval = setInterval(pollMessages, 1000) // Poll every second
-
-    return () => clearInterval(interval)
-  }, [isConnected, username, isJoined, pollMessages])
-
-  // Update chat state periodically to get online users
-  useEffect(() => {
-    if (!isConnected || !username || !isJoined) return
-
-    const interval = setInterval(updateChatState, 5000) // Update every 5 seconds
-
-    return () => clearInterval(interval)
-  }, [isConnected, username, isJoined, updateChatState])
+    return () => {
+      cancelled.current = true
+    }
+  }, [api, getApi, isConnected, username])
 
   return {
     chatState,

@@ -3,8 +3,6 @@ id: BatchStrategy
 title: BatchStrategy
 ---
 
-# Class: BatchStrategy
-
 Defined in: [packages/ai/src/activities/chat/stream/strategies.ts:34](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/strategies.ts#L34)
 
 Batch Strategy - emit every N chunks
@@ -19,14 +17,14 @@ Useful for reducing UI update frequency
 ### Constructor
 
 ```ts
-new BatchStrategy(batchSize): BatchStrategy;
+new BatchStrategy(batchSize?): BatchStrategy;
 ```
 
 Defined in: [packages/ai/src/activities/chat/stream/strategies.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/strategies.ts#L37)
 
 #### Parameters
 
-##### batchSize
+##### batchSize?
 
 `number` = `5`
 

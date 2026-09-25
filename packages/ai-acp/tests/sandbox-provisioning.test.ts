@@ -31,7 +31,7 @@ import {
   workspaceMcpServers,
 } from '../src/adapters/projection'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { CapabilityContext, StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk, CapabilityContext } from '@tanstack/ai'
 import type {
   SandboxHandle,
   SecretRef,
@@ -146,14 +146,14 @@ function ctxWith(
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }
 
-function textOf(chunks: Array<StreamChunk>): string {
+function textOf(chunks: Array<AdapterYieldChunk>): string {
   return chunks
     .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
     .map((c) => (c as { delta?: string }).delta ?? '')
@@ -212,7 +212,7 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
   async function runPermission(opts: {
     permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
     permissions?: 'headless' | 'interactive'
-  }): Promise<Array<StreamChunk>> {
+  }): Promise<Array<AdapterYieldChunk>> {
     const sbx = await provider.create({})
     await sbx.fs.write('/workspace/perm-agent.mjs', PERMISSION_AGENT)
     const adapter = acpCompatibleText('probe', {
@@ -335,6 +335,47 @@ describe('workspace skill projection', () => {
     expect(await sbx.fs.read('/workspace/.pi/skills/my-skill/SKILL.md')).toBe(
       'hi',
     )
+    await sbx.destroy()
+  })
+
+  // Nested packs (skills/foo/SKILL.md) must be copied by the skill folder
+  // name, not the clone basename. Issue #1081 item 3.
+  it('copies each nested SKILL.md folder by its skill name', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write(
+      '/workspace/.tanstack-skills/skills-pack/skills/foo/SKILL.md',
+      'foo-skill',
+    )
+    await sbx.fs.write(
+      '/workspace/.tanstack-skills/skills-pack/skills/bar/SKILL.md',
+      'bar-skill',
+    )
+
+    const projection: WorkspaceProjection = {
+      skills: [
+        gitSkill({
+          repo: 'owner/skills-pack',
+          into: '/workspace/.tanstack-skills/skills-pack',
+        }),
+      ],
+      plugins: [],
+      resolveSecret: () => '',
+      markerPath: '/workspace/.tanstack-projected-nested',
+      root: '/workspace',
+    }
+
+    await projectAcpWorkspace(sbx, projection, {
+      skillsDir: '.pi/skills',
+      harnessName: 'pi',
+    })
+
+    expect(await sbx.fs.read('/workspace/.pi/skills/foo/SKILL.md')).toBe(
+      'foo-skill',
+    )
+    expect(await sbx.fs.read('/workspace/.pi/skills/bar/SKILL.md')).toBe(
+      'bar-skill',
+    )
+    expect(await sbx.fs.exists('/workspace/.pi/skills/skills-pack')).toBe(false)
     await sbx.destroy()
   })
 })

@@ -1,5 +1,6 @@
 import Dockerode from 'dockerode'
 import { DOCKER_CAPS, DockerHandle } from './handle'
+import type { DockerLogger } from './handle'
 import type {
   SandboxCapabilities,
   SandboxCreateInput,
@@ -28,6 +29,14 @@ export interface DockerSandboxConfig {
   hostGateway?: boolean
   /** Remove the container on destroy (vs. just stop). Defaults to true. */
   removeOnDestroy?: boolean
+  /**
+   * Sink for non-fatal teardown diagnostics — a container-side kill that was
+   * refused, or a process that survived it. Teardown never throws, so without a
+   * logger such a failure is silent and this provider's
+   * `killableProcesses: true` claim cannot be checked. `@tanstack/ai`'s
+   * `InternalLogger` satisfies this shape as-is.
+   */
+  logger?: DockerLogger
 }
 
 const DEFAULT_WORKDIR = '/workspace'
@@ -116,6 +125,7 @@ class DockerProvider implements SandboxProvider {
         workdir: this.workdir,
         forkFactory: this.forkFactory,
         removeOnDestroy: this.config.removeOnDestroy ?? true,
+        logger: this.config.logger,
       })
       // Ensure the workspace dir exists.
       await handle.fs.mkdir(this.workdir)
@@ -156,6 +166,7 @@ class DockerProvider implements SandboxProvider {
       workdir: this.workdir,
       forkFactory: this.forkFactory,
       removeOnDestroy: this.config.removeOnDestroy ?? true,
+      logger: this.config.logger,
     })
   }
 

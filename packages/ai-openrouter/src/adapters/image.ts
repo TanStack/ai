@@ -1,5 +1,9 @@
 import { OpenRouter } from '@openrouter/sdk'
-import { resolveMediaPrompt } from '@tanstack/ai'
+import {
+  isFileSource,
+  resolveMediaPrompt,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import {
   getOpenRouterApiKeyFromEnv,
@@ -46,11 +50,31 @@ const SIZE_TO_ASPECT_RATIO: Record<string, string> = {
 }
 
 /**
+ * Resolve a requested size to the aspect ratio OpenRouter's chat-completions
+ * image pathway understands (`image_config.aspect_ratio`). The pathway has
+ * no free-form size field, so a size outside the mapping table cannot be
+ * expressed — throw rather than silently generating at the default 1:1.
+ * Accepts the multiplication sign ('×') as a separator for tolerance.
+ */
+function sizeToAspectRatio(size: string | undefined): string | undefined {
+  if (!size) return undefined
+  const normalized = size.replace('×', 'x')
+  const aspectRatio = SIZE_TO_ASPECT_RATIO[normalized]
+  if (!aspectRatio) {
+    throw new Error(
+      `openrouter: unsupported image size '${size}'. Supported sizes: ${Object.keys(SIZE_TO_ASPECT_RATIO).join(', ')}.`,
+    )
+  }
+  return aspectRatio
+}
+
+/**
  * Convert a TanStack ImagePart into the URL string accepted by OpenRouter's
  * `image_url` content parts: public URLs pass through, data sources become
  * base64 data URIs.
  */
 function imagePartToUrl(part: ImagePart<MediaInputMetadata>): string {
+  if (isFileSource(part.source)) throw unsupportedFileSourceError('openrouter')
   if (part.source.type === 'url') return part.source.value
   return `data:${part.source.mimeType};base64,${part.source.value}`
 }
@@ -90,8 +114,16 @@ export class OpenRouterImageAdapter<
     }
 
     const { model, numberOfImages, size, modelOptions, logger } = options
-    // Use provided aspect_ratio or derive from size
-    const aspectRatio = size ? SIZE_TO_ASPECT_RATIO[size] : undefined
+    // OpenRouter's chat-completions image pathway returns exactly one image
+    // per request and ignores any count key in image_config (verified
+    // against the live API), so reject multi-image requests instead of
+    // silently under-delivering.
+    if (numberOfImages !== undefined && numberOfImages > 1) {
+      throw new Error(
+        `openrouter: the chat-completions image pathway generates one image per request (numberOfImages: ${numberOfImages}). Make multiple requests instead.`,
+      )
+    }
+    const aspectRatio = sizeToAspectRatio(size)
 
     // Image-conditioned generation: map the prompt parts 1:1 onto
     // chat-completions content parts, preserving the interleaved order —
@@ -136,9 +168,11 @@ export class OpenRouterImageAdapter<
         ],
         modalities: ['image'],
         stream: false,
-        // OpenRouter filters out invalid config per provider specifications
+        // The SDK serializes this record verbatim as `image_config`, so keys
+        // must match the HTTP API's documented snake_case fields — miskeyed
+        // entries are silently ignored by the gateway (verified live:
+        // `aspect_ratio` changes output dimensions, `aspectRatio` does not).
         imageConfig: {
-          ...(numberOfImages ? { numberOfImages } : {}),
           ...(aspectRatio
             ? {
                 aspect_ratio: aspectRatio,
@@ -147,6 +181,11 @@ export class OpenRouterImageAdapter<
           ...(modelOptions?.image_size
             ? {
                 image_size: modelOptions.image_size,
+              }
+            : {}),
+          ...(modelOptions?.strength !== undefined
+            ? {
+                strength: modelOptions.strength,
               }
             : {}),
         },

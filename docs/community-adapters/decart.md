@@ -15,9 +15,18 @@ The Decart adapter provides access to Decart's image and video generation models
 
 ## Installation
 
-```bash
-npm install @decartai/tanstack-ai-adapter
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @decartai/tanstack-ai-adapter
+vue: @decartai/tanstack-ai-adapter
+solid: @decartai/tanstack-ai-adapter
+svelte: @decartai/tanstack-ai-adapter
+preact: @decartai/tanstack-ai-adapter
+angular: @decartai/tanstack-ai-adapter
+vanilla: @decartai/tanstack-ai-adapter
+octane: @decartai/tanstack-ai-adapter
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 

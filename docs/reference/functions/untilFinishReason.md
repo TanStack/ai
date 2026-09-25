@@ -3,13 +3,11 @@ id: untilFinishReason
 title: untilFinishReason
 ---
 
-# Function: untilFinishReason()
-
 ```ts
 function untilFinishReason(stopReasons): AgentLoopStrategy;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agent-loop-strategies.ts:41](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agent-loop-strategies.ts#L41)
+Defined in: [packages/ai/src/activities/chat/agent-loop-strategies.ts:47](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agent-loop-strategies.ts#L47)
 
 Creates a strategy that continues until a specific finish reason is encountered
 

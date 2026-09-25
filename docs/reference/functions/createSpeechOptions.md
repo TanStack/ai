@@ -3,13 +3,11 @@ id: createSpeechOptions
 title: createSpeechOptions
 ---
 
-# Function: createSpeechOptions()
-
 ```ts
 function createSpeechOptions<TAdapter, TStream>(options): TTSActivityOptions<TAdapter, TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateSpeech/index.ts:274](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/index.ts#L274)
+Defined in: [packages/ai/src/activities/generateSpeech/index.ts:475](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateSpeech/index.ts#L475)
 
 Create typed options for the generateSpeech() function without executing.
 

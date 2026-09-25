@@ -1,9 +1,14 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import type {
   RunFinishedEvent,
+  TanStackRunMetadata,
   UsageCostBreakdown,
   TokenUsage,
 } from '../src/types'
+import type {
+  SpecTokenUsage,
+  TokenUsageLeftover,
+} from '../src/utilities/ag-ui-usage'
 import type {
   FinishInfo,
   UsageInfo,
@@ -34,13 +39,16 @@ describe('usage cost type surface', () => {
     >()
   })
 
-  it('RunFinishedEvent.usage carries cost/costDetails', () => {
-    expectTypeOf<
-      NonNullable<RunFinishedEvent['usage']>['cost']
-    >().toEqualTypeOf<number | undefined>()
-    expectTypeOf<
-      NonNullable<RunFinishedEvent['usage']>['costDetails']
-    >().toEqualTypeOf<UsageCostBreakdown | undefined>()
+  it('RunFinishedEvent.usage is TokenUsage or spec usage[]', () => {
+    expectTypeOf<NonNullable<RunFinishedEvent['usage']>>().toEqualTypeOf<
+      Array<SpecTokenUsage> | TokenUsage
+    >()
+  })
+
+  it('metadata.tanstack.usage is leftover fields only', () => {
+    expectTypeOf<TanStackRunMetadata['usage']>().toEqualTypeOf<
+      TokenUsageLeftover | undefined
+    >()
   })
 
   it('UsageInfo (onUsage) carries cost/costDetails', () => {

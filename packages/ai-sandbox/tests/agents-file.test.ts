@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { writeAgentsFile } from '../src/agents-file'
+import { discoverSkillDirs, writeAgentsFile } from '../src/agents-file'
 import type { ExecResult, SandboxHandle } from '../src/contracts'
 
 interface FsWriteCall {
@@ -37,6 +37,7 @@ function makeFakeHandle(
       ports: false,
       backgroundProcesses: false,
       writableStdin: true,
+      killableProcesses: true,
       snapshots: false,
       networkPolicy: false,
       durableFilesystem: false,
@@ -138,5 +139,85 @@ describe('writeAgentsFile', () => {
     // GEMINI.md must NOT be written because ln succeeded.
     const geminiCopy = fsWrites.find((w) => w.path === `${root}/GEMINI.md`)
     expect(geminiCopy).toBeUndefined()
+  })
+})
+
+describe('discoverSkillDirs', () => {
+  function listingHandle(
+    tree: Record<string, Array<{ name: string; type: 'file' | 'dir' }>>,
+  ): SandboxHandle {
+    const { handle } = makeFakeHandle()
+    handle.fs.list = (dir) => {
+      const entries = tree[dir] ?? []
+      return Promise.resolve(
+        entries.map((entry) => ({
+          name: entry.name,
+          path: `${dir}/${entry.name}`,
+          type: entry.type,
+        })),
+      )
+    }
+    return handle
+  }
+
+  it('returns nested SKILL.md folders by their folder name', async () => {
+    const handle = listingHandle({
+      '/workspace/.tanstack-skills/skills-pack': [
+        { name: 'skills', type: 'dir' },
+        { name: 'README.md', type: 'file' },
+      ],
+      '/workspace/.tanstack-skills/skills-pack/skills': [
+        { name: 'foo', type: 'dir' },
+        { name: 'bar', type: 'dir' },
+      ],
+      '/workspace/.tanstack-skills/skills-pack/skills/foo': [
+        { name: 'SKILL.md', type: 'file' },
+      ],
+      '/workspace/.tanstack-skills/skills-pack/skills/bar': [
+        { name: 'SKILL.md', type: 'file' },
+      ],
+    })
+
+    await expect(
+      discoverSkillDirs(handle, '/workspace/.tanstack-skills/skills-pack'),
+    ).resolves.toEqual([
+      {
+        name: 'foo',
+        dir: '/workspace/.tanstack-skills/skills-pack/skills/foo',
+      },
+      {
+        name: 'bar',
+        dir: '/workspace/.tanstack-skills/skills-pack/skills/bar',
+      },
+    ])
+  })
+
+  it('returns the clone itself when SKILL.md sits at the root', async () => {
+    const handle = listingHandle({
+      '/workspace/.tanstack-skills/my-skill': [
+        { name: 'SKILL.md', type: 'file' },
+        { name: 'scripts', type: 'dir' },
+      ],
+    })
+
+    await expect(
+      discoverSkillDirs(handle, '/workspace/.tanstack-skills/my-skill'),
+    ).resolves.toEqual([
+      { name: 'my-skill', dir: '/workspace/.tanstack-skills/my-skill' },
+    ])
+  })
+
+  it('falls back to the clone basename when no SKILL.md is found', async () => {
+    const handle = listingHandle({
+      '/workspace/.tanstack-skills/empty-pack': [
+        { name: 'README.md', type: 'file' },
+      ],
+    })
+
+    await expect(
+      discoverSkillDirs(handle, '/workspace/.tanstack-skills/empty-pack'),
+    ).resolves.toEqual([
+      { name: 'empty-pack', dir: '/workspace/.tanstack-skills/empty-pack' },
+    ])
   })
 })

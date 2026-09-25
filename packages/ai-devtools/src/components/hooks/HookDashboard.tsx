@@ -4,6 +4,7 @@ import { useStyles } from '../../styles/use-styles'
 import { getHookUnseenEventCount } from '../../store/hook-registry'
 import {
   getHookDisplayName,
+  getHookIdentitySubtitle,
   groupHooksByCategory,
   isHookRunning,
   visibleHooks,
@@ -54,8 +55,9 @@ export const HookDashboard: Component = () => {
 
   const handleSelect = (hook: HookRecord) => {
     selectHook(hook.id)
-    if (state.conversations[hook.id]) {
-      selectConversation(hook.id)
+    const conversationId = hook.id || hook.clientId || hook.threadId
+    if (conversationId && state.conversations[conversationId]) {
+      selectConversation(conversationId)
     }
   }
 
@@ -244,9 +246,7 @@ export const HookDashboard: Component = () => {
                               </Show>
                             </div>
                             <span class={styles().hookDashboard.rowId}>
-                              <Show when={hook.displayName} fallback={hook.id}>
-                                {hook.hookName} - {hook.id}
-                              </Show>
+                              {getHookIdentitySubtitle(hook)}
                             </span>
                           </div>
                           <div class={styles().hookDashboard.rowMeta}>

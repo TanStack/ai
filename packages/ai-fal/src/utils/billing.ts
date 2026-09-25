@@ -74,9 +74,10 @@ export function takeBillableUnits(
 /**
  * Build a {@link TokenUsage} carrying fal's billed quantity. Media generation has
  * no tokens, so the token fields are zero and the real billing signal rides on
- * `unitsBilled` — mirroring how the duration-billed transcription adapters
- * surface `durationSeconds`. Returns `undefined` when no units were captured so
- * callers can omit `usage` entirely.
+ * `billed`, denominated in `'units'` — fal's priced unit is endpoint-defined
+ * (its pricing page maps each endpoint to a unit price), so the count is opaque
+ * by design. Returns `undefined` when no units were captured so callers can
+ * omit `usage` entirely.
  */
 export function buildFalUsage(
   unitsBilled: number | undefined,
@@ -86,6 +87,7 @@ export function buildFalUsage(
     promptTokens: 0,
     completionTokens: 0,
     totalTokens: 0,
+    billed: { quantity: unitsBilled, unit: 'units' },
     unitsBilled,
   }
 }

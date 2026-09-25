@@ -14,6 +14,7 @@ export type SpeechProviderId =
   | 'fal'
   | 'grok'
   | 'elevenlabs'
+  | 'byteplus'
 
 export interface SpeechProviderConfig {
   id: SpeechProviderId
@@ -87,6 +88,19 @@ export const SPEECH_PROVIDERS: ReadonlyArray<SpeechProviderConfig> = [
     ],
     placeholder: 'Enter text to synthesize with ElevenLabs…',
   },
+  {
+    id: 'byteplus',
+    label: 'BytePlus Seed Speech',
+    model: 'seed-audio-1.0',
+    // Voice ids ("speakers") encode language, gender, character and TTS
+    // generation. The full roster lives at
+    // https://docs.byteplus.com/en/docs/byteplusvoice/voicelist; this is the
+    // adapter's default. Output formats: wav | mp3 | pcm | ogg_opus.
+    voices: [
+      { id: 'en_female_stokie_uranus_bigtts', label: 'Stokie (EN female)' },
+    ],
+    placeholder: 'Enter text for BytePlus Seed Speech…',
+  },
 ]
 
 export type TranscriptionProviderId =
@@ -95,6 +109,7 @@ export type TranscriptionProviderId =
   | 'fal'
   | 'grok'
   | 'elevenlabs'
+  | 'byteplus'
 
 export interface TranscriptionProviderConfig {
   id: TranscriptionProviderId
@@ -146,6 +161,13 @@ export const TRANSCRIPTION_PROVIDERS: ReadonlyArray<TranscriptionProviderConfig>
       model: 'scribe_v1',
       description:
         'ElevenLabs Scribe with diarization, keyterm biasing, and PII redaction.',
+    },
+    {
+      id: 'byteplus',
+      label: 'BytePlus Seed ASR',
+      model: 'seed-asr',
+      description:
+        'BytePlus Seed Speech ASR with utterance and word-level timestamps.',
     },
   ]
 
@@ -300,8 +322,11 @@ export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
   {
     id: 'elevenlabs-music',
     label: 'ElevenLabs Music',
-    model: 'music_v1',
-    models: [{ id: 'music_v1', label: 'Music v1' }],
+    model: 'music_v2_5',
+    models: [
+      { id: 'music_v2_5', label: 'Music v2.5' },
+      { id: 'music_v2', label: 'Music v2' },
+    ],
     description:
       'ElevenLabs Music — free-form prompts or structured composition plans.',
     placeholder: 'An upbeat synthwave track with driving drums and arpeggios',
@@ -333,10 +358,7 @@ export const AUDIO_PROVIDERS: ReadonlyArray<AudioProviderConfig> = [
     id: 'elevenlabs-sfx',
     label: 'ElevenLabs SFX',
     model: 'eleven_text_to_sound_v2',
-    models: [
-      { id: 'eleven_text_to_sound_v2', label: 'Text-to-Sound v2' },
-      { id: 'eleven_text_to_sound_v1', label: 'Text-to-Sound v1' },
-    ],
+    models: [{ id: 'eleven_text_to_sound_v2', label: 'Text-to-Sound v2' }],
     description:
       'ElevenLabs text-to-sound for short effects, 0.5–30 seconds per clip.',
     placeholder: 'A whoosh followed by a deep bass impact',

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
-import { EventType, summarize } from '@tanstack/ai'
+import { EventType, generateImage, summarize } from '@tanstack/ai'
 import { createGrokText, grokText } from '../src/adapters/text'
 import { createGrokImage, grokImage } from '../src/adapters/image'
 import { createGrokSummarize, grokSummarize } from '../src/adapters/summarize'
@@ -11,7 +11,7 @@ import {
   grokWebSearchTool,
   grokXSearchTool,
 } from '../src/tools'
-import type { StreamChunk, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 
 const testLogger = resolveDebugOption(false)
 
@@ -105,7 +105,13 @@ describe('Grok adapters', () => {
   })
 
   it('exposes only the supported xAI Responses chat models', () => {
-    expect(GROK_CHAT_MODELS).toEqual(['grok-build-0.1', 'grok-4.3'])
+    expect(GROK_CHAT_MODELS).toEqual([
+      'grok-4.7',
+      'grok-4.5',
+      'grok-4.6',
+      'grok-build-0.1',
+      'grok-4.3',
+    ])
   })
 
   describe('Text adapter', () => {
@@ -150,7 +156,7 @@ describe('Grok adapters', () => {
         max_output_tokens: 128,
       }
 
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         model: 'grok-build-0.1',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -206,7 +212,7 @@ describe('Grok adapters', () => {
       const adapter = createGrokText('grok-build-0.1', 'test-api-key')
       const mockCreate = injectMockResponsesClient(adapter, [])
 
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         model: 'grok-build-0.1',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -422,18 +428,18 @@ describe('Grok adapters', () => {
 
   describe('Image adapter', () => {
     it('creates an image adapter with explicit API key', () => {
-      const adapter = createGrokImage('grok-2-image-1212', 'test-api-key')
+      const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('image')
       expect(adapter.name).toBe('grok')
-      expect(adapter.model).toBe('grok-2-image-1212')
+      expect(adapter.model).toBe('grok-imagine-image')
     })
 
     it('creates an image adapter from environment variable', () => {
       vi.stubEnv('XAI_API_KEY', 'env-api-key')
 
-      const adapter = grokImage('grok-2-image-1212')
+      const adapter = grokImage('grok-imagine-image')
 
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('image')
@@ -442,8 +448,43 @@ describe('Grok adapters', () => {
     it('throws if XAI_API_KEY is not set when using grokImage', () => {
       vi.stubEnv('XAI_API_KEY', '')
 
-      expect(() => grokImage('grok-2-image-1212')).toThrow(
+      expect(() => grokImage('grok-imagine-image')).toThrow(
         'XAI_API_KEY is required',
+      )
+    })
+
+    it('rejects grok-2-image-1212 before calling the API', async () => {
+      const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
+      const mockGenerate = vi.fn()
+      ;(adapter as any).client = { images: { generate: mockGenerate } }
+
+      await expect(
+        adapter.generateImages({
+          // The id is no longer in the model union.
+          model: 'grok-2-image-1212' as 'grok-imagine-image',
+          prompt: 'a red circle',
+          logger: testLogger,
+        }),
+      ).rejects.toThrow('Unknown image model: grok-2-image-1212')
+      expect(mockGenerate).not.toHaveBeenCalled()
+    })
+
+    it('sends an Imagine prompt longer than 4000 characters', async () => {
+      const adapter = createGrokImage('grok-imagine-image', 'test-api-key')
+      const mockGenerate = vi.fn().mockResolvedValue({
+        data: [{ url: 'https://example.com/out.png' }],
+      })
+      ;(adapter as any).client = { images: { generate: mockGenerate } }
+      const prompt = 'a'.repeat(4001)
+
+      await adapter.generateImages({
+        model: 'grok-imagine-image',
+        prompt,
+        logger: testLogger,
+      })
+
+      expect(mockGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({ model: 'grok-imagine-image', prompt }),
       )
     })
 
@@ -469,6 +510,31 @@ describe('Grok adapters', () => {
         }),
       )
       expect(mockGenerate.mock.calls[0]![0]).not.toHaveProperty('size')
+    })
+
+    it('passes the 2.0-only quality option through for grok-imagine-image-2.0', async () => {
+      const adapter = createGrokImage('grok-imagine-image-2.0', 'test-api-key')
+      const mockGenerate = vi.fn().mockResolvedValue({
+        data: [{ url: 'https://example.com/out.png' }],
+      })
+      ;(adapter as any).client = { images: { generate: mockGenerate } }
+
+      // Via the public generateImage() entry point so the per-model provider
+      // options map is exercised: `quality` only type-checks on the 2.0 model.
+      await generateImage({
+        adapter,
+        prompt: 'A skyline',
+        size: '16:9',
+        modelOptions: { quality: 'low' },
+      })
+
+      expect(mockGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'grok-imagine-image-2.0',
+          aspect_ratio: '16:9',
+          quality: 'low',
+        }),
+      )
     })
   })
 

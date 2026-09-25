@@ -38,6 +38,11 @@ Guard models: `meta-llama/llama-guard-4-12b`, `meta-llama/llama-prompt-guard-2-8
 ## Provider-Specific modelOptions
 
 ```typescript
+import { chat } from '@tanstack/ai'
+import { groqText } from '@tanstack/ai-groq'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 chat({
   adapter: groqText('llama-3.3-70b-versatile'),
   messages,
@@ -49,9 +54,7 @@ chat({
     // Response format
     response_format: {
       type: 'json_schema',
-      json_schema: {
-        /* ... */
-      },
+      json_schema: { name: 'answer', schema: {/* JSON Schema */} },
     },
     // Sampling
     temperature: 0.7,
@@ -69,11 +72,9 @@ chat({
     // Citations
     citation_options: 'enabled',
     // Documents for context
-    documents: [{ text: '...' }],
+    documents: [{ source: { type: 'text', text: '...' } }],
     // Search settings (for web search tool)
-    search_settings: {
-      /* SearchSettings */
-    },
+    search_settings: {/* SearchSettings */},
     // Service tier
     service_tier: 'auto', // 'auto' | 'on_demand' | 'flex' | 'performance'
     // Metadata

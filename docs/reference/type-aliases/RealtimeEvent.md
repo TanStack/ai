@@ -3,8 +3,6 @@ id: RealtimeEvent
 title: RealtimeEvent
 ---
 
-# Type Alias: RealtimeEvent
-
 ```ts
 type RealtimeEvent = 
   | "status_change"
@@ -14,9 +12,11 @@ type RealtimeEvent =
   | "tool_call"
   | "message_complete"
   | "interrupted"
-  | "error";
+  | "error"
+  | "go_away"
+  | "usage";
 ```
 
-Defined in: [packages/ai/src/realtime/types.ts:240](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L240)
+Defined in: [packages/ai/src/realtime/types.ts:243](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L243)
 
 Events emitted by the realtime connection

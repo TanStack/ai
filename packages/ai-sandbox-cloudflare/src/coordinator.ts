@@ -22,23 +22,39 @@
  * runtime-verified in this repo.
  */
 import { DurableObject } from 'cloudflare:workers'
-import { EventType } from '@tanstack/ai'
-import { RunController, isTerminalRunStatus } from '@tanstack/ai-sandbox'
+import { EventType, isTerminalRunStatus } from '@tanstack/ai'
+// The PORTABLE run driver: this coordinator is a platform binding of core's
+// `RunController`, not a driver of its own. The DO run log backs both of the
+// driver's seams through the adapters in './durability' — `runLogStore` for
+// the lifecycle record, `runLogStream` for the per-run event log — and the
+// vocabulary is core's throughout (historical `done`/`error` records are
+// migrated on read; see './run-log').
+import { RunController } from '@tanstack/ai-sandbox'
+import { runLogStore, runLogStream } from './durability'
+import { hasInFlightCallback } from './coordinator-callbacks'
 import { DurableObjectRunEventLog } from './run-log-do'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
-import type { RunRecord } from '@tanstack/ai-sandbox'
+import type { RunLogRecord } from './run-log'
 
-/** Re-arm window for the liveness watchdog while a run is in flight (ms). */
+/** Upper bound on the watchdog check interval while a run is in flight (ms). */
 const WATCHDOG_MS = 30_000
 
-/**
- * How long a non-terminal run may go without ANY new event before the watchdog
- * presumes the orchestrator driving it is dead (eviction that lost the
- * `waitUntil` promise, an uncaught fault, a hung container) and fails the run so
- * tailing clients stop waiting forever. Generous so a legitimately slow agent
- * step (a long tool call that emits no chunks) is not killed prematurely.
- */
-const WATCHDOG_STALL_MS = 5 * 60_000
+/** Default permitted period without persisted run activity (ms). */
+const DEFAULT_STALL_TIMEOUT_MS = 5 * 60_000
+
+/** @internal Shared validation for direct subclasses and the eager factory path. */
+export function normalizeStallTimeoutMs(
+  stallTimeoutMs: number | false | undefined,
+): number | false {
+  if (stallTimeoutMs === undefined) return DEFAULT_STALL_TIMEOUT_MS
+  if (stallTimeoutMs === false) return false
+  if (!Number.isSafeInteger(stallTimeoutMs) || stallTimeoutMs <= 0) {
+    throw new TypeError(
+      'stallTimeoutMs must be a positive safe integer or false',
+    )
+  }
+  return stallTimeoutMs
+}
 
 /** What the Worker hands the coordinator to start a run. */
 export interface StartRunInput {
@@ -99,11 +115,20 @@ export abstract class SandboxCoordinator<
    * running — double-delivering events and racing the persisted cursor.
    */
   private readonly pumping = new WeakSet<WebSocket>()
+  private readonly stallTimeoutMs: number | false
 
-  constructor(ctx: DurableObjectState, env: TEnv) {
+  constructor(
+    ctx: DurableObjectState,
+    env: TEnv,
+    stallTimeoutMs?: number | false,
+  ) {
     super(ctx, env)
+    this.stallTimeoutMs = normalizeStallTimeoutMs(stallTimeoutMs)
     this.log = new DurableObjectRunEventLog(ctx.storage)
-    this.controller = new RunController(this.log)
+    this.controller = new RunController({
+      runs: runLogStore(this.log),
+      durability: (runId) => runLogStream(this.log, { runId }),
+    })
   }
 
   // ===========================================================================
@@ -144,7 +169,12 @@ export abstract class SandboxCoordinator<
 
   async startRun(input: StartRunInput): Promise<{ runId: string }> {
     const existing = await this.log.get(input.runId)
-    if (existing) return { runId: input.runId } // idempotent re-trigger
+    if (existing) {
+      if (!isTerminalRunStatus(existing.status)) await this.armWatchdog()
+      return { runId: input.runId }
+    }
+
+    await this.armWatchdog()
 
     // Open the run BEFORE building the stream. `pipeToRunLog`'s never-rejects
     // guarantee only covers failures AFTER the stream is handed to it — a throw
@@ -162,7 +192,7 @@ export abstract class SandboxCoordinator<
         type: EventType.RUN_ERROR,
         message,
       })
-      await this.log.finish(input.runId, 'error', { message })
+      await this.log.finish(input.runId, 'failed', { message })
       this.onRunSettled(input.runId)
       return { runId: input.runId }
     }
@@ -172,15 +202,20 @@ export abstract class SandboxCoordinator<
       threadId: input.threadId,
       stream,
     })
-    // Keep the instance alive until the run is terminal; `pipeToRunLog` never
-    // rejects (failures land in the log), so no `.catch` is needed.
-    this.ctx.waitUntil(done.finally(() => this.onRunSettled(input.runId)))
-    await this.ctx.storage.setAlarm(Date.now() + WATCHDOG_MS)
+    // Keep the instance alive until the run is terminal. `pipeToRunLog` never
+    // rejects (failures land in the log), but this must not DEPEND on that:
+    // `.finally` adopts a rejection, which would hand `waitUntil` a rejected
+    // promise. Two-argument `then` settles fulfilled either way while still
+    // running the settle hook.
+    const settle = (): void => this.onRunSettled(input.runId)
+    this.ctx.waitUntil(done.then(settle, settle))
     return { runId: input.runId }
   }
 
-  async status(runId: string): Promise<RunRecord | null> {
-    return this.controller.status(runId)
+  async status(runId: string): Promise<RunLogRecord | null> {
+    // Straight off the log (not `controller.status`) so the answer keeps the
+    // log-level fields (`lastSeq`) a reconnecting client resumes from.
+    return this.log.get(runId)
   }
 
   // ===========================================================================
@@ -244,7 +279,11 @@ export abstract class SandboxCoordinator<
     this.pumping.add(socket)
     const done = (async () => {
       try {
-        for await (const event of this.controller.attach(runId, { fromSeq })) {
+        // The tail reads the log directly by seq — the client wire protocol
+        // (`?lastSeq`, `{seq, chunk}` frames) is seq-based, and `log.read` is
+        // the seq-cursor surface. Core's `controller.attach` serves consumers
+        // that speak opaque `StreamDurability` offsets instead.
+        for await (const event of this.log.read(runId, { fromSeq })) {
           socket.send(JSON.stringify(event))
           socket.serializeAttachment({
             runId,
@@ -300,39 +339,58 @@ export abstract class SandboxCoordinator<
   // ===========================================================================
 
   override async alarm(): Promise<void> {
+    // A previously configured alarm may still be delivered once after watchdogs
+    // are disabled. It must self-extinguish before reading storage or entering a
+    // catch path that could re-arm it. Deliberately do not call deleteAlarm().
+    if (this.stallTimeoutMs === false) return
+
     try {
-      const runs = await this.ctx.storage.list<RunRecord>({ prefix: 'rec:' })
-      const now = Date.now()
+      // Through the log (not a raw `rec:` list) so legacy records are migrated
+      // on the way out — the storage layout is the log's private concern.
+      const runs = await this.log.list()
+      const cutoff = Date.now() - this.stallTimeoutMs
       let active = false
-      for (const record of runs.values()) {
+      for (const record of runs) {
         if (isTerminalRunStatus(record.status)) continue
-        if (now - record.updatedAt > WATCHDOG_STALL_MS) {
-          // No progress for too long — the driver is presumed dead. Fail the run
-          // so tailing clients stop waiting forever (the whole point of the
-          // watchdog; without this a stuck run sits at `running` indefinitely).
-          await this.failStalledRun(record.runId)
-        } else {
+        if (
+          hasInFlightCallback(this, record.runId) ||
+          record.updatedAt >= cutoff
+        ) {
           active = true
+          continue
         }
+
+        // Re-check and terminalize atomically against the same strict cutoff.
+        // A callback touch or normal completion racing this alarm wins cleanly.
+        const finished = await this.failStalledRun(record.runId, cutoff)
+        if (finished) this.onRunSettled(record.runId)
+        else active = true
       }
-      if (active) await this.ctx.storage.setAlarm(Date.now() + WATCHDOG_MS)
+      if (active) await this.armWatchdog()
     } catch (error) {
       // Never let the watchdog die silently: a transient storage error must not
       // permanently disable liveness detection. Re-arm and try again next tick.
       console.error('[sandbox-coordinator] watchdog alarm failed:', error)
-      await this.ctx.storage.setAlarm(Date.now() + WATCHDOG_MS)
+      await this.armWatchdog()
     }
   }
 
-  /** Mark a stalled (orchestrator-presumed-dead) run as a terminal error. */
-  private async failStalledRun(runId: string): Promise<void> {
-    const message = 'run watchdog: no progress; orchestrator presumed dead'
-    try {
-      await this.log.append(runId, { type: EventType.RUN_ERROR, message })
-    } catch {
-      // The run may have just reached terminal concurrently; finish is idempotent.
+  /** Arm without allowing a new run to postpone an earlier pending check. */
+  private async armWatchdog(): Promise<void> {
+    if (this.stallTimeoutMs === false) return
+    const next = Date.now() + Math.min(WATCHDOG_MS, this.stallTimeoutMs)
+    const pending = await this.ctx.storage.getAlarm()
+    if (pending === null || pending > next) {
+      await this.ctx.storage.setAlarm(next)
     }
-    await this.log.finish(runId, 'error', { message })
-    this.onRunSettled(runId)
+  }
+
+  /** Mark a strictly stale run as a terminal error if it still qualifies. */
+  private failStalledRun(runId: string, cutoff: number): Promise<boolean> {
+    const message = 'run watchdog: no progress; orchestrator presumed dead'
+    return this.log.finishIfStale(runId, cutoff, {
+      type: EventType.RUN_ERROR,
+      message,
+    })
   }
 }

@@ -3,9 +3,7 @@ id: UIMessage
 title: UIMessage
 ---
 
-# Interface: UIMessage\<TData\>
-
-Defined in: [packages/ai/src/types.ts:478](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L478)
+Defined in: [packages/ai/src/types.ts:610](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L610)
 
 UIMessage - Domain-specific message format optimized for building chat UIs
 Contains parts that can be text, tool calls, or tool results. Generic over
@@ -24,10 +22,10 @@ consumer side without manual casts.
 ### createdAt?
 
 ```ts
-optional createdAt: Date;
+optional createdAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:482](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L482)
+Defined in: [packages/ai/src/types.ts:614](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L614)
 
 ***
 
@@ -37,7 +35,32 @@ Defined in: [packages/ai/src/types.ts:482](https://github.com/TanStack/ai/blob/m
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:479](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L479)
+Defined in: [packages/ai/src/types.ts:611](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L611)
+
+***
+
+### metadata?
+
+```ts
+optional metadata?: Record<string, any>;
+```
+
+Defined in: [packages/ai/src/types.ts:621](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L621)
+
+Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
+User keys stay at the top.
+
+***
+
+### name?
+
+```ts
+optional name?: string;
+```
+
+Defined in: [packages/ai/src/types.ts:616](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L616)
+
+Optional AG-UI sender name. Converters preserve it across wire and persist.
 
 ***
 
@@ -47,14 +70,14 @@ Defined in: [packages/ai/src/types.ts:479](https://github.com/TanStack/ai/blob/m
 parts: MessagePart<TData>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:481](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L481)
+Defined in: [packages/ai/src/types.ts:613](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L613)
 
 ***
 
 ### role
 
 ```ts
-role: "user" | "assistant" | "system";
+role: "assistant" | "user" | "system";
 ```
 
-Defined in: [packages/ai/src/types.ts:480](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L480)
+Defined in: [packages/ai/src/types.ts:612](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L612)

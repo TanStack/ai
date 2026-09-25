@@ -62,16 +62,68 @@ describe('convertMessagesToModelMessages — AG-UI dedup pre-pass', () => {
     expect(toolMessages[0]?.toolCallId).toBe('tc1')
   })
 
-  it('drops AG-UI reasoning messages (no ModelMessage equivalent today)', () => {
+  it('drops a lone AG-UI reasoning row that is not followed by an assistant', () => {
     const messages = [
       { role: 'reasoning', content: 'thinking...' } as unknown as ModelMessage,
       { role: 'user', content: 'hi' } as ModelMessage,
     ]
 
     const result = convertMessagesToModelMessages(messages)
-    expect(result.find((m) => (m as any).role === 'reasoning')).toBeUndefined()
     expect(result).toHaveLength(1)
     expect(result[0]?.role).toBe('user')
+  })
+
+  it('keeps reasoning encryptedValue when content is empty', () => {
+    const result = convertMessagesToModelMessages([
+      {
+        role: 'reasoning',
+        content: '',
+        encryptedValue: 'sig-empty',
+      } as unknown as ModelMessage,
+      {
+        role: 'assistant',
+        content: null,
+        toolCalls: [
+          {
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'lookup', arguments: '{}' },
+          },
+        ],
+      },
+    ])
+    expect(result[0]?.thinking).toEqual([
+      { content: '', signature: 'sig-empty' },
+    ])
+  })
+
+  it('attaches reasoning encryptedValue as thinking signature on the next assistant', () => {
+    const result = convertMessagesToModelMessages([
+      {
+        role: 'reasoning',
+        content: 'pondering',
+        encryptedValue: 'sig-1',
+      } as unknown as ModelMessage,
+      { role: 'assistant', content: 'answer' },
+    ])
+    expect(result).toHaveLength(1)
+    expect(result[0]?.thinking).toEqual([
+      { content: 'pondering', signature: 'sig-1' },
+    ])
+  })
+
+  it('reads tanstack.signature when encryptedValue is missing', () => {
+    const result = convertMessagesToModelMessages([
+      {
+        role: 'reasoning',
+        content: 'pondering',
+        metadata: { tanstack: { signature: 'sig-old' } },
+      } as unknown as ModelMessage,
+      { role: 'assistant', content: 'answer' },
+    ])
+    expect(result[0]?.thinking).toEqual([
+      { content: 'pondering', signature: 'sig-old' },
+    ])
   })
 
   it('drops AG-UI activity messages', () => {
@@ -83,6 +135,34 @@ describe('convertMessagesToModelMessages — AG-UI dedup pre-pass', () => {
     const result = convertMessagesToModelMessages(messages)
     expect(result).toHaveLength(1)
     expect(result[0]?.role).toBe('user')
+  })
+
+  it('keeps TanStack user content parts and their metadata identity', () => {
+    const metadata = new Map([['kind', 'typed']])
+    const providerBytes = new Uint8Array([1, 2, 3])
+    const part = {
+      type: 'text' as const,
+      content: 'hi',
+      metadata: { metadata, providerBytes },
+    }
+    const result = convertMessagesToModelMessages([
+      { role: 'user', content: [part] },
+    ])
+    expect(result).toHaveLength(1)
+    expect(result[0]?.content).toEqual([part])
+    const content = result[0]?.content
+    if (!Array.isArray(content)) throw new Error('expected content parts')
+    expect(content[0]).toBe(part)
+  })
+
+  it('rewrites AG-UI user `{ text }` parts to TanStack `{ content }`', () => {
+    const result = convertMessagesToModelMessages([
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'hello' }],
+      } as unknown as ModelMessage,
+    ])
+    expect(result[0]?.content).toBe('hello')
   })
 
   it('collapses AG-UI developer messages to system role', () => {
@@ -138,20 +218,69 @@ describe('convertMessagesToModelMessages — AG-UI dedup pre-pass', () => {
     // Metadata round-trips so the adapter can replay the server tool blocks.
     expect(assistant?.toolCalls?.[0]?.metadata).toMatchObject(metadata)
   })
+
+  it('preserves approval-requested tool calls as assistant toolCalls', () => {
+    const messages: Array<UIMessage> = [
+      {
+        id: 'assistant-approval',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'call_1',
+            name: 'dangerousTool',
+            arguments: '{"action":"delete"}',
+            input: { action: 'delete' },
+            state: 'approval-requested',
+            approval: {
+              id: 'approval_call_1',
+              needsApproval: true,
+            },
+          },
+        ],
+      },
+    ]
+
+    expect(convertMessagesToModelMessages(messages)).toEqual([
+      {
+        id: 'assistant-approval',
+        role: 'assistant',
+        content: null,
+        toolCalls: [
+          {
+            id: 'call_1',
+            type: 'function',
+            function: {
+              name: 'dangerousTool',
+              arguments: '{"action":"delete"}',
+            },
+          },
+        ],
+      },
+    ])
+  })
 })
 
 describe('convertMessagesToModelMessages — MCP Apps ui-resource exclusion', () => {
-  // Invariant: a rendered ui:// widget (MCP Apps) is a client-only presentation
-  // part and must NEVER round-trip into model input on the next turn. The widget
-  // is untrusted, sandboxed HTML — leaking it into conversation history is both
-  // token bloat and a prompt-injection vector. This pins the invariant by its
-  // observable effect: neither the resource uri nor its HTML body may appear in
-  // the produced ModelMessages, so any impl that pushed the widget into model
-  // content (instead of dropping it in buildAssistantMessages) fails here.
-  it('excludes a ui-resource part from the produced model messages', () => {
+  // Invariant: a rendered ui:// widget (MCP Apps) is untrusted sandboxed HTML.
+  // It must never enter model *content* or toolCalls (next-turn LLM input).
+  // Persistence still needs the widget, so it lives only under
+  // metadata.tanstack.uiResources and is lifted back into UI parts on hydrate.
+  it('excludes a ui-resource part from model content', () => {
     const WIDGET_URI = 'ui://weather/widget'
     const WIDGET_HTML = '<script>alert(1)</script><b>72°F</b>'
-    const messages = [
+    const uiResource = {
+      type: 'ui-resource' as const,
+      resource: {
+        uri: WIDGET_URI,
+        mimeType: 'text/html',
+        text: WIDGET_HTML,
+      },
+      serverId: 'weather',
+      toolCallId: 'tc1',
+      toolName: 'getWeather',
+    }
+    const messages: Array<UIMessage> = [
       {
         id: 'a1',
         role: 'assistant',
@@ -170,33 +299,24 @@ describe('convertMessagesToModelMessages — MCP Apps ui-resource exclusion', ()
             content: '{"tempF":72}',
             state: 'complete',
           },
-          {
-            type: 'ui-resource',
-            resource: {
-              uri: WIDGET_URI,
-              mimeType: 'text/html',
-              text: WIDGET_HTML,
-            },
-            serverId: 'weather',
-            toolCallId: 'tc1',
-            toolName: 'getWeather',
-          },
+          uiResource,
         ],
-      } as UIMessage,
+      },
     ]
 
     const result = convertMessagesToModelMessages(messages)
+    const assistant = result.find((msg) => msg.role === 'assistant')
+    const content = JSON.stringify(assistant?.content ?? null)
+    const toolCalls = JSON.stringify(assistant?.toolCalls ?? [])
 
-    // Nothing the widget carried (its uri OR its HTML body) may appear anywhere
-    // in the serialized model messages — neither as a string content nor inside
-    // a ContentPart[]. These two are the load-bearing assertions: they fail if a
-    // broken impl pushes the resource into model content.
-    const serialized = JSON.stringify(result)
-    expect(serialized).not.toContain(WIDGET_URI)
-    expect(serialized).not.toContain(WIDGET_HTML)
-
-    // The legitimate text + tool flow still survives the conversion.
-    expect(serialized).toContain('Here is the weather')
-    expect(result.some((m) => m.role === 'tool')).toBe(true)
+    expect(content).not.toContain(WIDGET_URI)
+    expect(content).not.toContain(WIDGET_HTML)
+    expect(toolCalls).not.toContain(WIDGET_URI)
+    expect(toolCalls).not.toContain(WIDGET_HTML)
+    expect(assistant?.metadata).toMatchObject({
+      tanstack: { uiResources: [uiResource] },
+    })
+    expect(content).toContain('Here is the weather')
+    expect(result.some((msg) => msg.role === 'tool')).toBe(true)
   })
 })

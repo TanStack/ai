@@ -1,4 +1,7 @@
-export { makeStructuredOutputCompatible } from './utils/schema-converter'
+export {
+  makeStructuredOutputCompatible,
+  makeStructuredOutputCompatibleWithMap,
+} from './utils/schema-converter'
 export {
   buildChatCompletionsUsage,
   buildResponsesUsage,
@@ -11,7 +14,10 @@ export {
   convertToolsToChatCompletionsFormat,
   type ChatCompletionFunctionTool,
 } from './adapters/chat-completions-tool-converter'
-export { OpenAIBaseResponsesTextAdapter } from './adapters/responses-text'
+export {
+  OpenAIBaseResponsesTextAdapter,
+  type OpenAIResponsesToolCallMetadata,
+} from './adapters/responses-text'
 export {
   convertFunctionToolToResponsesFormat,
   convertToolsToResponsesFormat,

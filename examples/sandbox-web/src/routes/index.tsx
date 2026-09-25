@@ -1,42 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { AlertTriangle, ExternalLink, Send, Server, Square } from 'lucide-react'
+import {
+  AlertTriangle,
+  ExternalLink,
+  Plus,
+  Send,
+  Server,
+  Square,
+} from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { EventType } from '@tanstack/ai'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import {
-  GROK_MODEL_OPTIONS,
-  GROK_PROTOCOL_OPTIONS,
-  GROK_TRANSPORT_OPTIONS,
-  HARNESS_OPTIONS,
-  HARNESS_SESSION_ID_EVENT,
-  PROVIDER_OPTIONS,
-  isGrokModel,
-  isGrokProtocol,
-  isGrokTransport,
-  isHarness,
-  isProvider,
-} from '../sandbox-options'
-import type {
-  GrokBuildModel,
-  GrokBuildProtocol,
-  GrokTransport,
-  HarnessName,
-  ProviderName,
-} from '../sandbox-options'
+  fetchServerSentEvents,
+  localStoragePersistence,
+  useChat,
+} from '@tanstack/ai-react'
 import type { StreamChunk } from '@tanstack/ai'
 import type { UIMessage } from '@tanstack/ai-react'
 
-function readHarnessSessionId(
-  chunk: StreamChunk,
-  harness: HarnessName,
-): string | undefined {
+/** CUSTOM event Claude Code emits so follow-up runs can resume its session. */
+const CLAUDE_CODE_SESSION_ID_EVENT = 'claude-code.session-id'
+
+function readSessionId(chunk: StreamChunk): string | undefined {
   if (chunk.type !== EventType.CUSTOM) return undefined
-  if (chunk.name !== HARNESS_SESSION_ID_EVENT[harness]) return undefined
+  if (chunk.name !== CLAUDE_CODE_SESSION_ID_EVENT) return undefined
   const value = chunk.value
   if (value === null || typeof value !== 'object' || !('sessionId' in value)) {
     return undefined
@@ -292,39 +283,56 @@ function Messages({
   )
 }
 
+const THREAD_KEY = 'sandbox-web:threadId'
+
+function loadOrCreateThreadId(): string {
+  try {
+    const stored = localStorage.getItem(THREAD_KEY)
+    if (stored !== null && stored !== '') return stored
+  } catch {
+    // Unreadable storage — fall through to a fresh thread.
+  }
+  return crypto.randomUUID()
+}
+
 function SandboxAgentPage() {
-  // One sandbox per thread. Switching either picker starts a FRESH thread (a new
-  // sandbox is needed for a different harness/provider) and clears the chat.
-  const [threadId, setThreadId] = useState(() => crypto.randomUUID())
-  const [harness, setHarness] = useState<HarnessName>('grok')
-  const [provider, setProvider] = useState<ProviderName>('docker')
-  const [grokModel, setGrokModel] = useState<GrokBuildModel>('composer-2.5')
-  const [grokProtocol, setGrokProtocol] = useState<GrokBuildProtocol>('acp')
-  const [grokTransport, setGrokTransport] = useState<GrokTransport>('auto')
+  // Loaded in an effect so SSR never touches localStorage, and the chat mounts
+  // exactly once with its durable identity. A stable threadId is what lets a
+  // reload restore this thread — and rejoin its in-flight run — instead of
+  // starting over.
+  const [threadId, setThreadId] = useState<string | null>(null)
+  useEffect(() => setThreadId(loadOrCreateThreadId()), [])
+  if (!threadId) return null
+  return <SandboxAgentChat initialThreadId={threadId} />
+}
+
+function SandboxAgentChat({ initialThreadId }: { initialThreadId: string }) {
+  // One sandbox per thread (`reuse: 'thread'`). "New thread" starts fresh.
+  const [threadId, setThreadId] = useState(initialThreadId)
   const [harnessSessionId, setHarnessSessionId] = useState<string | undefined>()
   const [input, setInput] = useState('')
 
-  // Memoized so the body identity only changes on a real thread/picker switch.
+  // Memoized so the body identity only changes on a real thread switch.
   const body = useMemo(
     () => ({
       threadId,
-      harness,
-      provider,
       ...(harnessSessionId ? { sessionId: harnessSessionId } : {}),
-      ...(harness === 'grok' ? { grokModel, grokProtocol, grokTransport } : {}),
     }),
-    [
-      threadId,
-      harness,
-      provider,
-      harnessSessionId,
-      grokModel,
-      grokProtocol,
-      grokTransport,
-    ],
+    [threadId, harnessSessionId],
   )
 
+  // Persist the durable identity so a reload comes back to the same thread.
+  useEffect(() => {
+    localStorage.setItem(THREAD_KEY, threadId)
+  }, [threadId])
+
   const { messages, sendMessage, isLoading, stop, error, clear } = useChat({
+    // Stable across reloads. With client persistence below, a reload restores
+    // the transcript AND auto-rejoins an in-flight run: the persisted resume
+    // pointer makes the client `joinRun` it (a `GET /api/run?offset=-1&runId=…`),
+    // which replays the delivery log and takes the detached run over.
+    threadId,
+    persistence: localStoragePersistence(),
     connection: fetchServerSentEvents('/api/run', {
       // Surface the server's JSON `{ error }` on 4xx instead of a bare status code.
       fetchClient: async (url, init) => {
@@ -349,28 +357,35 @@ function SandboxAgentPage() {
     }),
     body,
     onChunk: (chunk) => {
-      const sessionId = readHarnessSessionId(chunk, harness)
+      const sessionId = readSessionId(chunk)
       if (sessionId !== undefined) setHarnessSessionId(sessionId)
     },
   })
 
-  function changeHarness(next: HarnessName) {
-    if (next === harness || isLoading) return
+  /** Fresh thread → fresh sandbox and a clean chat. */
+  function newThread() {
+    if (isLoading) return
     clear()
     setHarnessSessionId(undefined)
-    setHarness(next)
-    setThreadId(crypto.randomUUID())
-  }
-
-  function changeProvider(next: ProviderName) {
-    if (next === provider || isLoading) return
-    clear()
-    setHarnessSessionId(undefined)
-    setProvider(next)
     setThreadId(crypto.randomUUID())
   }
 
   const waiting = sandboxWaitKind(isLoading, messages)
+
+  /**
+   * A real cancel, not just a closed stream. `stop()` alone aborts the local
+   * read — on a durable run that is indistinguishable from a refresh, so the
+   * agent would keep working (and billing). The endpoint records intent and
+   * destroys the sandbox.
+   */
+  function stopRun() {
+    stop()
+    void fetch('/api/run/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ threadId }),
+    })
+  }
 
   function send(text: string) {
     const content = text.trim()
@@ -390,93 +405,16 @@ function SandboxAgentPage() {
           </span>
         </div>
         <div className="ml-auto flex items-center gap-2 text-sm">
-          <select
-            value={harness}
-            onChange={(e) => {
-              if (isHarness(e.target.value)) changeHarness(e.target.value)
-            }}
+          <span className="text-xs text-gray-500">opus-4.8 on docker</span>
+          <button
+            onClick={newThread}
             disabled={isLoading}
-            title="Which coding agent runs in the sandbox"
-            className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-white disabled:opacity-50"
+            title="Start a fresh thread (new sandbox, clean chat)"
+            className="flex items-center gap-1 rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-white transition-colors hover:border-indigo-500/40 disabled:opacity-50"
           >
-            {HARNESS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={provider}
-            onChange={(e) => {
-              if (isProvider(e.target.value)) changeProvider(e.target.value)
-            }}
-            disabled={isLoading}
-            title="Where the sandbox runs"
-            className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-white disabled:opacity-50"
-          >
-            {PROVIDER_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          {harness === 'grok' && (
-            <>
-              <select
-                value={grokModel}
-                onChange={(e) => {
-                  if (isGrokModel(e.target.value)) {
-                    setGrokModel(e.target.value)
-                  }
-                }}
-                disabled={isLoading}
-                title="Grok Build model"
-                className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-white disabled:opacity-50"
-              >
-                {GROK_MODEL_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={grokProtocol}
-                onChange={(e) => {
-                  if (isGrokProtocol(e.target.value)) {
-                    setGrokProtocol(e.target.value)
-                  }
-                }}
-                disabled={isLoading}
-                title="Grok Build wire protocol"
-                className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-white disabled:opacity-50"
-              >
-                {GROK_PROTOCOL_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              {grokProtocol === 'acp' && (
-                <select
-                  value={grokTransport}
-                  onChange={(e) => {
-                    if (isGrokTransport(e.target.value)) {
-                      setGrokTransport(e.target.value)
-                    }
-                  }}
-                  disabled={isLoading}
-                  title="ACP transport (auto picks stdio vs WebSocket)"
-                  className="rounded-md border border-indigo-500/20 bg-gray-800 px-2 py-1 text-white disabled:opacity-50"
-                >
-                  {GROK_TRANSPORT_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </>
-          )}
+            <Plus className="h-3.5 w-3.5" />
+            New thread
+          </button>
           <span className="font-mono text-indigo-300">
             thread {threadId.slice(0, 8)}
           </span>
@@ -502,7 +440,7 @@ function SandboxAgentPage() {
             {isLoading && (
               <div className="flex items-center justify-center">
                 <button
-                  onClick={stop}
+                  onClick={stopRun}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                 >
                   <Square className="w-4 h-4 fill-current" />

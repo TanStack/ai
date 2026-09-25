@@ -2,6 +2,14 @@
 
 Thanks for contributing! This guide covers everything you need to get from a fresh clone to a merged PR.
 
+## Before you start
+
+- Search the [open and closed issues](https://github.com/TanStack/ai/issues?q=is%3Aissue) and [open and closed pull requests](https://github.com/TanStack/ai/pulls?q=is%3Apr) before starting work to avoid duplicating an existing report or contribution.
+- Keep each pull request focused on one change or topic. Pull requests that combine unrelated changes will be closed with a request to split them into separately reviewable contributions.
+- Every pull request must follow the [TanStack AI pull request template](.github/pull_request_template.md). Write a concise description that clearly explains what changed and why, and complete the template without removing or bypassing its required sections.
+- You may use AI tools to help generate code, but you remain responsible for understanding, testing, and verifying every submitted change. Do not submit unreviewed, low-quality, or irrelevant generated code.
+- Do not mass-submit unrelated or low-quality AI-generated pull requests. We treat that behavior as spam and may close the pull requests, block the contributor, and report the GitHub account.
+
 ## Prerequisites
 
 - **pnpm**: 11.9.0 or newer. Use the version pinned in `packageManager` (`pnpm@11.9.0`).
@@ -29,7 +37,8 @@ testing/                # Internal test harnesses — NOT published
 examples/               # Example apps (React, Solid, Vue, Svelte, vanilla)
 codemods/               # Internal codemods (not published)
 docs/                   # Documentation source
-scripts/                # Repo-level scripts (doc generation, model sync, link verification)
+scripts/                # Repo-level scripts (doc generation, model sync, link verification, maintainer sweep)
+agent-scripts/          # Repo GitHub agents (PR review bot)
 ```
 
 - Direct children of `packages/` are public packages (published to npm).
@@ -38,6 +47,29 @@ scripts/                # Repo-level scripts (doc generation, model sync, link v
 - The package manager is **pnpm** with workspace + catalog protocols.
 
 For deeper architecture details (adapter system, isomorphic tools, framework integrations), see `CLAUDE.md` at the repo root.
+
+## Syncing model metadata
+
+`pnpm generate:models` is the maintainer command behind the daily **Sync Model Metadata** workflow (branch `automated/sync-models`). It:
+
+1. Fetches OpenRouter, Vercel AI Gateway, and Lovable AI Gateway catalogs.
+2. Regenerates `packages/ai-openrouter/src/model-meta.ts` and the Vercel Gateway model list.
+3. Inserts **new** native-provider models into `packages/ai-openai`, `ai-anthropic`, `ai-gemini`, and `ai-grok`.
+4. Writes a patch changeset for the packages that changed.
+
+Rules the generator follows:
+
+- Keep OpenRouter routing aliases (ids that start with `~`) in the OpenRouter catalog. Users can pass `chat({ model: '~anthropic/claude-haiku-latest' })`. The generated constant name maps `~` to `_`.
+- Do **not** copy those aliases into native provider files (`ai-openai`, `ai-anthropic`, `ai-gemini`, `ai-grok`). Those adapters only accept the provider's own ids.
+- For a new native-provider model, write id, modalities, and pricing. Infer features from OpenRouter `supported_parameters` when that field exists. Do **not** copy another model's tool list (`computer_use`, `google_search`, `x_search`, and similar).
+- Anthropic first-party ids use dashes (`claude-fable-5-1`). OpenRouter uses dots (`claude-fable-5.1`). The generator hyphenates Anthropic ids on insert. Do not copy the dotted OpenRouter slug into `ai-anthropic`.
+- Write a row in the provider's `*ChatModelToolCapabilitiesByName` map for every new chat model, even when `supports.tools` is still `[]`. Missing that row makes `ResolveToolCapabilities` fall back to `readonly []`.
+- For new Anthropic models, infer the provider-options mix from the catalog: no sampling parameters → `AnthropicMaxTokensOptions`; `reasoning.mandatory` → `AnthropicAdaptiveOnlyThinkingOptions` plus `AnthropicOutputConfigOptions`.
+- Leave curated tools and flags on existing models alone. Edit those by hand after the sync PR opens.
+
+Do not rebase or hand-edit `automated/sync-models`. The next scheduled run force-pushes that branch from `main`. Merge generator fixes to `main` first, then let the workflow rebuild the sync PR.
+
+The workflow pushes with `GITHUB_TOKEN`, so GitHub does not start Test / E2E on that push. After a sync, a maintainer with write access can run the PR checks from the Actions tab, or push an empty commit to `automated/sync-models`.
 
 ## Day-to-day commands
 
@@ -59,6 +91,18 @@ All commands are run from the repo root. Nx handles affected detection and cachi
 | E2E with Playwright UI        | `pnpm test:e2e:ui`  |
 
 Working on a single package? `cd packages/<pkg>` and use its scripts directly (`pnpm test:lib`, `pnpm test:types`, etc.).
+
+## Generate a React playground
+
+You need a TanStack Start chat app to try a feature. Do not copy `examples/ts-react-chat`. Run the generator.
+
+1. From the repo root, run `pnpm nx g @tanstack/workspace-plugin:react-app <name>`.
+2. Run `pnpm install`.
+3. Copy `examples/<name>/.env.example` to `examples/<name>/.env.local` and add a key.
+4. Run `pnpm --filter <name> dev` (port 3100).
+5. Change the index route for the feature. If the server must change, change `/api/chat`.
+
+Do not commit the new example unless you mean to keep it as a lasting example.
 
 ## TypeScript configuration
 
@@ -101,9 +145,22 @@ Tests are included in typecheck. `vite.config.ts` / `vitest.config.ts` are not �
 
 Run the suite locally with `pnpm test:e2e`. Record real LLM fixtures with `OPENAI_API_KEY=sk-... pnpm --filter @tanstack/ai-e2e record`.
 
-## Changesets
+## Documentation (required when relevant)
 
-Any change that ships in a published package requires a changeset. Examples, internal test harnesses, codemods, and docs do not.
+If the change is user-facing, update `docs/` in the same PR. Do not ship the code now and the docs later.
+
+User-facing means a caller can see or do something new or different:
+
+- New or changed public API (exports, types, flags, env vars)
+- New or changed behaviour
+- New adapter capability
+- Changed defaults, errors, or documented contracts
+
+Skip docs only when nothing user-facing changed (CI, internal tests, same-behaviour refactors, agent files). Write that reason in the PR body.
+
+## Changesets (required on the PR)
+
+Any PR that changes a published package MUST include a changeset file on that PR. Run this before you open the PR:
 
 ```bash
 pnpm changeset
@@ -114,6 +171,10 @@ Pick the affected packages and the bump type:
 - **patch**: bug fix, internal refactor, perf, docs in package, no API change.
 - **minor**: new public API, new opt-in behaviour, backwards-compatible enhancement.
 - **major**: breaking change to a published API surface. Coordinate with maintainers first.
+
+Do not add the changeset after review as a follow-up. It belongs in the first push of the PR.
+
+Skip a changeset only when the PR does not change published packages (docs, CI, examples, testing, contributing). Tick the docs/CI/dev-only box on the PR template.
 
 The defensive `ignore` list in `.changeset/config.json` blocks accidental publication from examples/testing/codemods even if `"private": true` is ever dropped.
 
@@ -126,22 +187,35 @@ The defensive `ignore` list in `.changeset/config.json` blocks accidental public
 ## Pull request flow
 
 1. Push your branch and open a PR against `main`.
-2. CI runs: `pnpm test:pr` (sherif workspace check, knip dead-code, docs link verification, ESLint, unit tests, typecheck, build artifacts, build) + the full E2E suite.
-3. Address review comments.
-4. A maintainer merges. Releases are cut via Changesets — your changeset entry lands in the next release.
+2. Fill the PR template. Tick **docs** and **changeset** honestly, or say why you skipped them.
+3. CI runs: `pnpm test:pr` (sherif workspace check, knip dead-code, docs link verification, ESLint, unit tests, typecheck, build artifacts, build) + the full E2E suite.
+4. Address review comments.
+5. A maintainer merges. Releases are cut via Changesets. Your changeset entry lands in the next release.
 
-The PR template lists the steps. The `Test plan` section is required — describe how a reviewer can verify your change.
+### Automated Grok review
+
+A Grok agent comments on open, non-draft PRs. The first lines of that comment say it is automated. It is not a maintainer review.
+
+The bot sets exactly one of these labels:
+
+- `ai-rejected` — the change is not useful, or it does not fix the claimed bug.
+- `ai-needs-work` — the review listed fixes, but they are not on the branch yet (often a fork with maintainer edits off).
+- `ai-ready` — the bot thinks a maintainer can merge after they Approve.
+
+The bot never GitHub-approves and never merges. The `ready-to-merge` label still means a human approval plus green CI.
+
+If the bot pushes, it only commits bugs and suggestions the review listed. Maintainers start a new run with a `/ai-review` comment, or from Actions (`workflow_dispatch`).
 
 ## Adding a new provider adapter
 
 The pattern lives in `packages/ai-openai/`, `packages/ai-anthropic/`, `packages/ai-gemini/`, etc. New core adapters typically:
 
-1. Create `packages/ai-<provider>/` with `package.json`, `tsconfig.json`, `src/`, `tests/`, `README.md`. Copy structure from an existing adapter.
+1. Create `packages/ai-<provider>/` with `package.json`, `tsconfig.json`, `src/`, `tests/`, `README.md`. Copy structure from an existing adapter. The README must start with the TanStack AI `<picture>` banner from `packages/ai/README.md` (`https://tanstack.com/api/readme/ai.png`). Do not use `media/header_ai.png`.
 2. Implement tree-shakeable adapter exports under `src/adapters/` (`text.ts`, `embed.ts`, `summarize.ts`, etc.).
 3. Add `model-meta.ts` so per-model type safety works.
 4. Wire the provider into `testing/e2e/feature-support.ts` and `testing/e2e/test-matrix.ts`. Existing provider-coverage tests pick it up automatically.
 5. Record fixtures (`OPENAI_API_KEY=... pnpm --filter @tanstack/ai-e2e record`) — or write deterministic ones by hand. **No real API keys at test time.**
-6. Add a `pnpm changeset` entry.
+6. Update `docs/` for the adapter, and add a `pnpm changeset` entry on the same PR.
 
 If you're building a community/third-party adapter that lives outside this repo, follow `docs/community-adapters/guide.md` instead.
 
@@ -152,7 +226,7 @@ If you're building a community/third-party adapter that lives outside this repo,
 
 ## Reporting issues / getting help
 
-- Bugs: open a GitHub issue with a minimal repro (the bug report template in `.github/issue_template/bug_report.yml` walks you through it).
+- Bugs: first search the [open and closed issues](https://github.com/TanStack/ai/issues?q=is%3Aissue), then use the [bug report template](https://github.com/TanStack/ai/issues/new?template=bug_report.yml) with a minimal reproduction if the bug has not already been reported.
 - Questions / discussions: [TanStack Discord](https://tlinz.com/discord).
 - Security: follow the disclosure process in `SECURITY.md` (if applicable) or email the maintainers directly.
 

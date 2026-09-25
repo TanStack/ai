@@ -137,7 +137,7 @@ export interface WorkspaceDefinition {
   /**
    * Typed secret references. The underlying values are injected into the
    * sandbox env at create/resume — NEVER written to snapshots, the
-   * SandboxStore, or the event log.
+   * SandboxInstanceStore, or the event log.
    */
   secrets?: Secrets
   /** Workspace root inside the sandbox. Defaults to `/workspace`. */

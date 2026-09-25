@@ -1,20 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { translateThreadEvents } from '../src/stream/translate'
 import type { GrokBuildStreamEvent } from '../src/stream/sdk-types'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 async function collect(
   events: Array<GrokBuildStreamEvent>,
-): Promise<Array<StreamChunk>> {
+  expectStructuredOutput = false,
+): Promise<Array<AdapterYieldChunk>> {
   async function* source() {
     for (const event of events) yield event
   }
-  const out: Array<StreamChunk> = []
+  let n = 0
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of translateThreadEvents(source(), {
     model: 'grok-build',
     runId: 'run-1',
     threadId: 'thread-1',
-    genId: () => 'gen-id',
+    genId: () => `gen-${++n}`,
+    ...(expectStructuredOutput ? { expectStructuredOutput: true } : {}),
   })) {
     out.push(chunk)
   }
@@ -55,6 +58,46 @@ describe('translateThreadEvents (native grok streaming-json)', () => {
           (c as { name?: string }).name === 'grok-build.session-id',
       ),
     ).toBe(true)
+  })
+
+  it('emits structured-output events from accumulated text when expected', async () => {
+    const chunks = await collect(
+      [
+        { type: 'text', data: '{"ok":true}' },
+        {
+          type: 'end',
+          stopReason: 'EndTurn',
+          sessionId: 'sess-so',
+          requestId: 'req-1',
+        },
+      ],
+      true,
+    )
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete).toBeDefined()
+    if (complete?.type === 'CUSTOM') {
+      expect(complete.value).toEqual(
+        expect.objectContaining({ object: { ok: true } }),
+      )
+    }
+  })
+
+  it('emits RUN_ERROR when expected structured text is not JSON', async () => {
+    const chunks = await collect(
+      [
+        { type: 'text', data: 'not json' },
+        {
+          type: 'end',
+          stopReason: 'EndTurn',
+          sessionId: 'sess-so',
+          requestId: 'req-1',
+        },
+      ],
+      true,
+    )
+    expect(chunks.some((c) => c.type === 'RUN_ERROR')).toBe(true)
   })
 
   it('surfaces native error events as RUN_ERROR', async () => {

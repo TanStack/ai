@@ -13,6 +13,8 @@ import {
 
 type Mode = 'hooks' | 'server-fn'
 
+// Persist each variant's lightweight resume snapshot across reloads.
+
 interface AudioOutput {
   url: string
   contentType?: string
@@ -74,16 +76,20 @@ function AudioGenerationForm({
   const hookOptions = useMemo(() => {
     if (mode === 'hooks') {
       return {
+        threadId: `audio:${mode}:${config.id}`,
         connection: fetchServerSentEvents('/api/generate/audio'),
         body: { provider: config.id, model: selectedModel },
+        persistence: true,
         onResult: toAudioOutput,
       }
     }
     return {
+      threadId: `audio:${mode}:${config.id}`,
       fetcher: (input: { prompt: string; duration?: number }) =>
         generateAudioFn({
           data: { ...input, provider: config.id, model: selectedModel },
         }),
+      persistence: true,
       onResult: toAudioOutput,
     }
   }, [mode, config.id, selectedModel])

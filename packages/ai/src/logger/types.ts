@@ -29,7 +29,7 @@ export interface Logger {
  */
 export interface DebugCategories {
   /**
-   * Raw chunks/frames received from a provider SDK (OpenAI, Anthropic, Gemini, Ollama, Grok, Groq, OpenRouter, fal, ElevenLabs). Emitted inside every streaming adapter's chunk loop.
+   * Raw chunks/frames received from a provider SDK (OpenAI, Anthropic, Gemini, Ollama, Grok, Groq, OpenRouter, fal, ElevenLabs, BytePlus). Emitted inside every streaming adapter's chunk loop.
    */
   provider?: boolean
   /**

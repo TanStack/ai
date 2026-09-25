@@ -15,9 +15,15 @@ keywords:
   - react hooks
 ---
 
-# Generation Hooks
-
 TanStack AI provides framework hooks for every generation type: image, audio, speech, transcription, summarization, and video. Each hook connects to a server endpoint and manages loading, error, and result state for you.
+
+> **Surviving reloads and dropped connections:** every generation hook takes the
+> same `persistence` option `useChat` does, so a long run's status and result
+> come back after a page reload or a dropped connection. It restores by
+> `threadId`, which for a generation names the slot successive runs fill
+> (`product-7-hero`) rather than a conversation. See
+> [Id map](../persistence/id-map). Setup is in
+> [Generation Persistence](../persistence/generation-persistence).
 
 ## Overview
 
@@ -33,7 +39,7 @@ Generation hooks share a consistent API across all media types:
 | `useGenerateVideo` | `VideoGenerateInput` | `VideoGenerateResult` |
 | `useGeneration` | Generic `TInput` | Generic `TResult` |
 
-Every hook returns the same core shape: `generate`, `result`, `isLoading`, `error`, `status`, `stop`, and `reset`. You provide either a `connection` (streaming transport) or a `fetcher` (direct async call).
+Every hook returns the same core shape: `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, and `runId` (the id of the job in flight, or `null`). You provide either a `connection` (streaming transport) or a `fetcher` (direct async call).
 
 ## Server Setup
 
@@ -59,11 +65,13 @@ export async function POST(req: Request) {
 }
 ```
 
-The same pattern applies to all generation types -- swap `generateImage` for `generateSpeech`, `generateTranscription`, `summarize`, or `generateVideo`. See the individual media guides for server-side details.
+The same pattern applies to image, speech, transcription, summarize, and video. Live and world generation mint a session token. Connect in the browser. See [Live Generation](./live-generation) and [World Generation](./world-generation).
 
 ## useGenerateImage
 
 Trigger image generation and render the results.
+
+For a React + Start walkthrough with OpenRouter, open [Generate Image](../tutorials/generate-image).
 
 ```tsx
 import { useGenerateImage, fetchServerSentEvents } from '@tanstack/ai-react'
@@ -113,6 +121,90 @@ The `generate` function accepts an `ImageGenerateInput`:
 | `numberOfImages` | `number` | Number of images to generate |
 | `size` | `string` | Image size in WIDTHxHEIGHT format (e.g., `"1024x1024"`) |
 | `modelOptions` | `Record<string, any>` | Model-specific options |
+
+## useGenerateAudio
+
+Generate music or sound effects from a text prompt.
+
+When you use a `fetcher`, spread `options.headers` onto the POST. Pass `byok` so those headers include `x-byok-*` keys.
+
+```tsx
+import { useGenerateAudio } from '@tanstack/ai-react'
+import { defineByok, defaultByokStorage } from '@tanstack/ai-client/byok'
+
+const byok = defineByok({ storage: defaultByokStorage() })
+
+function AudioGenerator() {
+  const { generate, result, isLoading, error } = useGenerateAudio({
+    byok,
+    byokProvider: () => 'fal',
+    fetcher: async (input, options) => {
+      return fetch('/api/generate/audio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+        body: JSON.stringify(input),
+        signal: options?.signal,
+      })
+    },
+  })
+
+  return (
+    <div>
+      <button
+        onClick={() => generate({ prompt: 'An upbeat electronic track' })}
+        disabled={isLoading}
+      >
+        {isLoading ? 'Generating...' : 'Generate'}
+      </button>
+      {error && <p>Error: {error.message}</p>}
+      {result?.audio.url && <audio src={result.audio.url} controls />}
+    </div>
+  )
+}
+```
+
+Server: read the header (or env), then run `generateAudio`.
+
+```typescript
+import { generateAudio, toServerSentEventsResponse } from '@tanstack/ai'
+import { falAudio } from '@tanstack/ai-fal'
+import { falByok } from '@tanstack/ai-fal/byok'
+import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
+
+export async function POST(request: Request) {
+  const apiKey = getByokKey(request, falByok)
+  if (!apiKey) return byokMissing(falByok)
+
+  const body: unknown = await request.json()
+  if (typeof body !== 'object' || body === null || !('prompt' in body)) {
+    return new Response('Bad request', { status: 400 })
+  }
+  const prompt = body.prompt
+  if (typeof prompt !== 'string') {
+    return new Response('Bad request', { status: 400 })
+  }
+
+  const stream = generateAudio({
+    adapter: falAudio('fal-ai/minimax-music/v2.6', { apiKey }),
+    prompt,
+    stream: true,
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+The `generate` function accepts an `AudioGenerateInput`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `prompt` | `string` | Text description of the desired audio (required) |
+| `duration` | `number` | Desired duration in seconds |
+| `modelOptions` | `Record<string, any>` | Model-specific options |
+
+See [Bring Your Own Key](../advanced/byok) for `defineByok` and a save UI.
 
 ## useGenerateSpeech
 
@@ -389,7 +481,9 @@ function EmbeddingGenerator() {
 |--------|------|-------------|
 | `connection` | `ConnectConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
 | `fetcher` | `GenerationFetcher<TInput, TResult>` | Direct async function (no streaming protocol needed) |
-| `id` | `string` | Unique identifier for this generation instance |
+| `byok` | `ByokClient` | Optional keyring. Keys go in `x-byok-*` headers, never the body |
+| `byokProvider` | `() => ProviderId \| undefined` | Optional provider slug. If it returns a slug, only that key is sent. Otherwise `body.provider`. If no slug resolves, generate throws |
+| `threadId` | `string` | Stable scope for this generation. Required when `persistence` is on. Optional for ephemeral runs. |
 | `body` | `Record<string, any>` | Additional body parameters sent with connection requests |
 | `onResult` | `(result: TResult) => TOutput \| null \| void` | Transform or react to results |
 | `onError` | `(error: Error) => void` | Error callback |
@@ -432,6 +526,7 @@ All generation hooks are available across React, Vue, and Svelte with the same c
 | Generation Type | React (`@tanstack/ai-react`) | Vue (`@tanstack/ai-vue`) | Svelte (`@tanstack/ai-svelte`) |
 |----------------|------------------------------|--------------------------|-------------------------------|
 | Image | `useGenerateImage` | `useGenerateImage` | `createGenerateImage` |
+| Audio | `useGenerateAudio` | `useGenerateAudio` | `createGenerateAudio` |
 | Speech | `useGenerateSpeech` | `useGenerateSpeech` | `createGenerateSpeech` |
 | Transcription | `useTranscription` | `useTranscription` | `createTranscription` |
 | Summarization | `useSummarize` | `useSummarize` | `createSummarize` |

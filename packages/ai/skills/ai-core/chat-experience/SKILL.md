@@ -9,13 +9,15 @@ description: >
   NOT Vercel AI SDK — uses chat() not streamText().
 type: sub-skill
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.42.0'
 sources:
   - 'TanStack/ai:docs/getting-started/quick-start.md'
   - 'TanStack/ai:docs/chat/streaming.md'
   - 'TanStack/ai:docs/chat/connection-adapters.md'
   - 'TanStack/ai:docs/chat/thinking-content.md'
   - 'TanStack/ai:docs/advanced/multimodal-content.md'
+  - 'TanStack/ai:docs/resumable-streams/overview.md'
+  - 'TanStack/ai:docs/persistence/client-persistence.md'
 ---
 
 # Chat Experience
@@ -26,7 +28,7 @@ This skill builds on ai-core. Read it first for critical rules.
 
 ### Server: API Route (TanStack Start)
 
-```typescript
+```typescript ignore
 // src/routes/api.chat.ts
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
@@ -41,7 +43,7 @@ export const Route = createFileRoute('/api/chat')({
         const { messages } = body
 
         const stream = chat({
-          adapter: openaiText('gpt-5.2'),
+          adapter: openaiText('gpt-5.5'),
           messages,
           systemPrompts: ['You are a helpful assistant.'],
           abortController,
@@ -56,7 +58,7 @@ export const Route = createFileRoute('/api/chat')({
 
 ### Client: React Component
 
-```typescript
+```tsx
 // src/routes/index.tsx
 import { useState } from 'react'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
@@ -134,19 +136,34 @@ Server returns a streaming SSE Response; client parses it automatically.
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 
-const stream = chat({
-  adapter: anthropicText('claude-sonnet-4-5'),
-  messages,
-  modelOptions: {
-    temperature: 0.7,
-    max_tokens: 2000, // Anthropic-native key
-  },
-  systemPrompts: ['You are a helpful assistant.'],
-  abortController,
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const abortController = new AbortController()
 
-return toServerSentEventsResponse(stream, { abortController })
+  const stream = chat({
+    adapter: anthropicText('claude-opus-5'),
+    messages,
+    modelOptions: {
+      temperature: 0.7,
+      max_tokens: 2000, // Anthropic-native key
+    },
+    systemPrompts: ['You are a helpful assistant.'],
+    abortController,
+  })
+
+  return toServerSentEventsResponse(stream, { abortController })
+}
 ```
+
+To make the SSE response resumable (reconnect after a drop/refresh without
+re-running the provider), pass a delivery-durability adapter:
+`toServerSentEventsResponse(stream, { durability: { adapter: memoryStream(request) } })`
+(`memoryStream` from `@tanstack/ai` is process-local, for dev/tests) or
+`durableStream(request, { server })` from `@tanstack/ai-durable-stream`
+(Durable Streams protocol, production). Each SSE event gets an opaque
+adapter-owned `id:`; `fetchServerSentEvents` auto-reconnects with
+`Last-Event-ID` and exposes `joinRun(runId)` to replay a run from the start.
+See `docs/resumable-streams/overview.md`.
 
 **Client:**
 
@@ -155,7 +172,7 @@ import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
 const { messages, sendMessage, isLoading, error, stop, status } = useChat({
   connection: fetchServerSentEvents('/api/chat'),
-  body: { provider: 'anthropic', model: 'claude-sonnet-4-5' },
+  body: { provider: 'anthropic', model: 'claude-opus-5' },
   onFinish: (message) => {
     console.log('Response complete:', message.id)
   },
@@ -174,7 +191,7 @@ The `status` field tracks the chat lifecycle: `'ready'` | `'submitted'` | `'stre
 
 Models with extended thinking (Claude, Gemini) emit `ThinkingPart` in the message parts array.
 
-```typescript
+```tsx
 import type { UIMessage } from '@tanstack/ai-react'
 
 function MessageRenderer({ message }: { message: UIMessage }) {
@@ -187,7 +204,9 @@ function MessageRenderer({ message }: { message: UIMessage }) {
             .some((p) => p.type === 'text')
           return (
             <details key={i} open={!isComplete}>
-              <summary>{isComplete ? 'Thought process' : 'Thinking...'}</summary>
+              <summary>
+                {isComplete ? 'Thought process' : 'Thinking...'}
+              </summary>
               <pre>{part.content}</pre>
             </details>
           )
@@ -215,18 +234,25 @@ function MessageRenderer({ message }: { message: UIMessage }) {
 Server-side, enable thinking via `modelOptions` on the adapter:
 
 ```typescript
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { geminiText } from '@tanstack/ai-gemini'
 
-const stream = chat({
-  adapter: geminiText('gemini-2.5-flash'),
-  messages,
-  modelOptions: {
-    thinkingConfig: {
-      includeThoughts: true,
-      thinkingBudget: 100,
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  const stream = chat({
+    adapter: geminiText('gemini-3.8-flash'),
+    messages,
+    modelOptions: {
+      thinkingConfig: {
+        includeThoughts: true,
+        thinkingLevel: 'HIGH', // Gemini 3.x; Gemini 2.x uses thinkingBudget
+      },
     },
-  },
-})
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ### 3. Sending Multimodal Content (Images)
@@ -268,15 +294,32 @@ function sendImageUrl(text: string, imageUrl: string) {
 
 Render image parts in received messages:
 
-```typescript
-if (part.type === 'image') {
+```tsx
+import type { UIMessage } from '@tanstack/ai-react'
+
+function ImagePart({ part }: { part: UIMessage['parts'][number] }) {
+  if (part.type !== 'image') return null
+  // A provider file handle is an opaque id, so the browser cannot load it.
+  if (part.source.type === 'file') return null
   const src =
     part.source.type === 'url'
       ? part.source.value
       : `data:${part.source.mimeType};base64,${part.source.value}`
-  return <img key={i} src={src} alt="Attached image" />
+  return <img src={src} alt="Attached image" />
 }
 ```
+
+For media reused across turns, upload once via a provider Files adapter
+(`openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, `grokFiles()`,
+`falFiles()`) and send a `{ type: 'file' }` source built with
+`fileSourceFromHandle(handle)` instead of re-sending base64 each request. The
+source is `{ type: 'file', value, provider }`: an opaque handle and the adapter
+that issued it. A different provider (or one without Files API support at all)
+rejects it with a clear error before any request is sent.
+The source crosses the chat wire, so the browser can put it straight into the
+`sendMessage` content. Import `fileSourceFromHandle` from the browser-safe
+`@tanstack/ai/client` entry. See `ai-core/adapter-configuration/SKILL.md` §7
+and `docs/advanced/files-api.md`.
 
 ### 4. Sending Audio Messages (Browser Recording)
 
@@ -316,13 +359,18 @@ Use `toHttpResponse` + `fetchHttpStream` for newline-delimited JSON instead of S
 import { chat, toHttpResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
-const stream = chat({
-  adapter: openaiText('gpt-5.2'),
-  messages,
-  abortController,
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const abortController = new AbortController()
 
-return toHttpResponse(stream, { abortController })
+  const stream = chat({
+    adapter: openaiText('gpt-5.6'),
+    messages,
+    abortController,
+  })
+
+  return toHttpResponse(stream, { abortController })
+}
 ```
 
 **Client:**
@@ -337,6 +385,13 @@ const { messages, sendMessage } = useChat({
 
 The only difference is swapping `toServerSentEventsResponse` / `fetchServerSentEvents`
 for `toHttpResponse` / `fetchHttpStream`. Everything else stays identical.
+
+This includes resumability: pass the same `durability` adapter to
+`toHttpResponse(stream, { durability: { adapter: memoryStream(request) } })` and
+each NDJSON line becomes an `{ id, chunk }` envelope. `fetchHttpStream`
+auto-reconnects with `Last-Event-ID`, de-dupes the replayed prefix, and exposes
+`joinRun(runId)` — the same guarantees as resumable SSE. The XHR adapters
+(`xhrServerSentEvents` / `xhrHttpStream`) are resumable too.
 
 ### 6. MCP Tool Discovery via `chat({ mcp })`
 
@@ -377,37 +432,173 @@ clients across calls.
 **Server-side example:**
 
 ```typescript
-import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-export const Route = createFileRoute('/api/chat')({
-  server: {
-    handlers: {
-      POST: async ({ request }) => {
-        const { messages } = await request.json()
+export async function POST(request: Request) {
+  const { messages } = await request.json()
 
-        const mcpClient = await createMCPClient({
-          transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
-        })
+  const mcpClient = await createMCPClient({
+    transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  })
 
-        const stream = chat({
-          adapter: openaiText('gpt-5.5'),
-          messages,
-          mcp: {
-            clients: [mcpClient],
-            connection: 'keep-alive', // chat() won't close it — reuse across requests
-          },
-        })
-
-        return toServerSentEventsResponse(stream)
-        // connection: 'keep-alive' — chat() never closes mcpClient; it stays open for reuse across runs.
-      },
+  const stream = chat({
+    adapter: openaiText('gpt-5.6'),
+    messages,
+    mcp: {
+      clients: [mcpClient],
+      connection: 'keep-alive', // chat() won't close it — reuse across requests
     },
-  },
+  })
+
+  return toServerSentEventsResponse(stream)
+  // connection: 'keep-alive' — chat() never closes mcpClient; it stays open for reuse across runs.
+}
+```
+
+### 7. Queueing Messages Sent While Streaming
+
+By default, a `sendMessage` call that arrives while a stream is in flight is
+**queued** and sent automatically once the run settles **successfully** —
+this is a behavior change: such sends used to be silently dropped. Configure
+it with the `queue` option on `useChat`:
+
+```typescript
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+
+const { messages, queue, sendMessage, cancelQueued, isLoading } = useChat({
+  connection: fetchServerSentEvents('/api/chat'),
+  queue: { whenBusy: 'queue', drain: 'fifo', maxSize: 5, onOverflow: 'reject' },
 })
 ```
+
+- **`whenBusy`** — `'queue'` (default) holds the message until a successful
+  settle; `'drop'` ignores the send (never appears in `queue`/`messages`);
+  `'interrupt'` aborts the current stream and sends immediately (unlike
+  `stop()`, does **not** flush already-queued items — they drain after the
+  interrupting send **succeeds**).
+- **`drain`** — `'fifo'` (default) sends queued items one at a time in
+  order; `'batch'` merges everything queued into a single send once the
+  run settles successfully.
+- **`maxSize`** / **`onOverflow`** — cap the queue length; `'reject'`
+  (default) silently ignores overflow sends (does not throw),
+  `'drop-oldest'` evicts the oldest queued item to make room.
+
+The top-level `queue` option also accepts a plain `WhenBusy` string
+shorthand (e.g. `queue: 'interrupt'`) or a `QueueStrategy` function for
+per-send action control. Strategy form always drains FIFO. Actions use
+the `WhenBusy` type.
+
+**Drain vs flush:** queued messages auto-send only after a **successful**
+settle. They are **discarded** on stream error/abort of the active
+generation, `stop()`, `clear()`, `unsubscribe()`, and `reload()`.
+`interrupt` does not flush.
+
+`queue: Array<QueuedMessage>` (`{ id, content, createdAt }`) is separate
+from `messages` — render pending sends distinctly and cancel with
+`cancelQueued(id)`:
+
+```tsx
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+
+function QueuedMessages() {
+  const { queue, cancelQueued } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+  })
+
+  return (
+    <div>
+      {queue.map((q) => (
+        <div key={q.id}>
+          {typeof q.content === 'string' ? q.content : '[attachment]'}
+          <button onClick={() => cancelQueued(q.id)}>Cancel</button>
+        </div>
+      ))}
+    </div>
+  )
+}
+```
+
+Override the configured policy for a single send with the second argument
+to `sendMessage`:
+
+```typescript
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+
+const { sendMessage } = useChat({
+  connection: fetchServerSentEvents('/api/chat'),
+})
+
+sendMessage('Never mind, do this instead', { whenBusy: 'interrupt' })
+```
+
+### 8. Browser-Refresh Durability (client persistence)
+
+By default a `ChatClient` / `useChat` keeps messages in memory only, so a full
+page reload loses the conversation. The optional `persistence` option (a
+`ChatClientPersistence` adapter) fixes this from the client side: it stores one
+combined record — `{ messages, resume? }` (`ChatPersistedState`) — per chat `id`,
+so a reload restores the transcript **and** rehydrates any pending interrupt /
+rejoins a run that was still streaming. No manual `initialMessages` + `onFinish`
+boilerplate.
+
+Three storage adapters ship from `@tanstack/ai-client`:
+`localStoragePersistence` (survives reloads and browser restarts),
+`sessionStoragePersistence` (scoped to the tab), and `indexedDBPersistence`
+(async, structured-clone storage — no codec needed for `Date`/`Map`/etc.).
+Give the chat a stable `threadId` so the reload finds the same record.
+Persistence keys on `threadId`; the storage adapters are re-exported from each
+framework package, so a single import works:
+
+```typescript
+import {
+  useChat,
+  fetchServerSentEvents,
+  localStoragePersistence,
+} from '@tanstack/ai-react'
+
+// Defaults to the ChatPersistedState shape and a JSON codec, so no type
+// argument or serialize/deserialize is needed. indexedDBPersistence stores via
+// structured clone (a Date round-trips exactly).
+const persistence = localStoragePersistence()
+
+function Chat() {
+  const { messages, sendMessage } = useChat({
+    threadId: 'support-chat',
+    connection: fetchServerSentEvents('/api/chat'),
+    persistence,
+  })
+  // ...render messages, call sendMessage(text)
+}
+```
+
+**Keep large transcripts off the client.** `persistence` also accepts `true`
+(server-authoritative): the client caches nothing, and on mount it hydrates the
+thread from the server by `threadId` (transcript plus a cursor to any run still
+generating). An adapter is client-authoritative; `true` leaves history on the
+server and needs a connection with a `hydrate` handler plus a server GET
+endpoint (`reconstructChat`), since the delivery log only holds one run.
+
+**Mid-stream reload rejoin.** If the run was still streaming when the page
+reloaded, the client re-attaches instead of showing a frozen half-reply — but
+only when the connection is **resumable**: a delivery-durability-backed route
+that records the stream and exposes a GET replay handler (see
+`docs/resumable-streams/overview.md` and Pattern 1's `durability` adapter). Given
+that, `useChat` finds the persisted in-flight run on load and auto-rejoins it via
+`joinRun`, replaying from the server's log so the reply finishes where it left
+off. No extra client code beyond the resumable connection.
+
+**Every framework, no extra code.** Durability rides the existing `persistence`
+option, so it works identically in `@tanstack/ai-react`, `-solid`, `-vue`,
+`-svelte`, `-angular`, and `-preact` — pass `persistence` (and a stable
+`threadId`, which is the chat's identity) to the framework's `useChat` /
+`createChat` / `injectChat`; nothing is framework-specific.
+
+> **Client vs. server durability.** This is the client (per-browser) half.
+> The authoritative, multi-user, server-side copy is the `withPersistence`
+> middleware — see ai-core/middleware/SKILL.md. The two are independent; use
+> both for instant reload restore plus a durable record of record.
 
 ## Common Mistakes
 
@@ -417,63 +608,100 @@ export const Route = createFileRoute('/api/chat')({
 // WRONG
 import { streamText } from 'ai'
 import { openai } from '@ai-sdk/openai'
-const result = streamText({ model: openai('gpt-4o'), messages })
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+const result = streamText({ model: openai('gpt-5.6'), messages })
+```
+
+```typescript
 // CORRECT
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-const stream = chat({ adapter: openaiText('gpt-5.2'), messages })
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+const stream = chat({ adapter: openaiText('gpt-5.6'), messages })
 ```
 
 ### b. CRITICAL: Using Vercel createOpenAI() provider pattern
 
 ```typescript
 // WRONG
+import { streamText } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
-const openai = createOpenAI({ apiKey })
-streamText({ model: openai('gpt-4o'), messages })
 
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
+streamText({ model: openai('gpt-5.6'), messages })
+```
+
+```typescript
 // CORRECT
 import { openaiText } from '@tanstack/ai-openai'
 import { chat } from '@tanstack/ai'
-chat({ adapter: openaiText('gpt-5.2'), messages })
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+chat({ adapter: openaiText('gpt-5.6'), messages })
 ```
 
 ### c. CRITICAL: Using monolithic openai() instead of openaiText()
 
-```typescript
-// WRONG
+```typescript ignore
+// WRONG — `openai()` is no longer exported from @tanstack/ai-openai
 import { openai } from '@tanstack/ai-openai'
-chat({ adapter: openai(), model: 'gpt-5.2', messages })
-
-// CORRECT
-import { openaiText } from '@tanstack/ai-openai'
-chat({ adapter: openaiText('gpt-5.2'), messages })
+chat({ adapter: openai(), model: 'gpt-5.6', messages })
 ```
 
-The monolithic `openai()` adapter is deprecated. Use tree-shakeable adapters:
+```typescript
+// CORRECT
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+chat({ adapter: openaiText('gpt-5.6'), messages })
+```
+
+The monolithic `openai()` adapter no longer exists. Use tree-shakeable adapters:
 `openaiText()`, `openaiImage()`, `openaiSpeech()`, etc.
 
 ### d. HIGH: Using toResponseStream instead of toServerSentEventsResponse
 
-```typescript
-// WRONG
+```typescript ignore
+// WRONG — toResponseStream does not exist
 import { toResponseStream } from '@tanstack/ai'
 return toResponseStream(stream, { abortController })
+```
 
+```typescript
 // CORRECT
-import { toServerSentEventsResponse } from '@tanstack/ai'
-return toServerSentEventsResponse(stream, { abortController })
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const abortController = new AbortController()
+  const stream = chat({
+    adapter: openaiText('gpt-5.6'),
+    messages,
+    abortController,
+  })
+  return toServerSentEventsResponse(stream, { abortController })
+}
 ```
 
 ### e. HIGH: Passing model as separate parameter to chat()
 
-```typescript
+```typescript ignore
 // WRONG
-chat({ adapter: openaiText(), model: 'gpt-5.2', messages })
+chat({ adapter: openaiText(), model: 'gpt-5.6', messages })
+```
 
+```typescript
 // CORRECT
-chat({ adapter: openaiText('gpt-5.2'), messages })
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+chat({ adapter: openaiText('gpt-5.6'), messages })
 ```
 
 The model is passed to the adapter factory, not to `chat()`.
@@ -484,22 +712,30 @@ Sampling options (`temperature`, token limits, `top_p`/`topP`) are **not**
 top-level fields on `chat()`. They live inside `modelOptions` using the
 provider's native key.
 
-```typescript
+```typescript ignore
 // WRONG — temperature/maxTokens are not root options
 chat({ adapter, messages, temperature: 0.7, maxTokens: 1000 })
 
 // WRONG — there is no `options` field either
 chat({ adapter, messages, options: { temperature: 0.7, maxTokens: 1000 } })
+```
 
+```typescript
 // CORRECT — inside modelOptions, provider-native keys (OpenAI shown)
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 chat({
-  adapter,
+  adapter: openaiText('gpt-5.6'),
   messages,
   modelOptions: { temperature: 0.7, max_output_tokens: 1000 },
 })
 ```
 
-`temperature` is universal across providers; token limits use provider-native
+`temperature` works on most models (Claude 5 models reject sampling
+parameters; see ai-core/adapter-configuration/SKILL.md). Token limits use provider-native
 keys (`max_output_tokens` for OpenAI, `max_tokens` for Anthropic/Grok,
 `maxOutputTokens` for Gemini, `max_completion_tokens` for Groq,
 `maxCompletionTokens` for OpenRouter, and `num_predict` nested under
@@ -507,19 +743,26 @@ keys (`max_output_tokens` for OpenAI, `max_tokens` for Anthropic/Grok,
 
 ### g. HIGH: Using providerOptions instead of modelOptions
 
-```typescript
+```typescript ignore
 // WRONG
 chat({
   adapter,
   messages,
-  providerOptions: { responseFormat: { type: 'json_object' } },
+  providerOptions: { text: { format: { type: 'json_object' } } },
 })
+```
 
-// CORRECT
+```typescript
+// CORRECT — provider-native option under modelOptions (OpenAI Responses shown)
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
 chat({
-  adapter,
+  adapter: openaiText('gpt-5.6'),
   messages,
-  modelOptions: { responseFormat: { type: 'json_object' } },
+  modelOptions: { text: { format: { type: 'json_object' } } },
 })
 ```
 
@@ -527,23 +770,44 @@ chat({
 
 ```typescript
 // WRONG
-const readable = new ReadableStream({
-  async start(controller) {
-    const encoder = new TextEncoder()
-    for await (const chunk of stream) {
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
-    }
-    controller.enqueue(encoder.encode('data: [DONE]\n\n'))
-    controller.close()
-  },
-})
-return new Response(readable, {
-  headers: { 'Content-Type': 'text/event-stream' },
-})
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
 
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const stream = chat({ adapter: openaiText('gpt-5.6'), messages })
+
+  const readable = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder()
+      for await (const chunk of stream) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
+      }
+      controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+      controller.close()
+    },
+  })
+  return new Response(readable, {
+    headers: { 'Content-Type': 'text/event-stream' },
+  })
+}
+```
+
+```typescript
 // CORRECT
-import { toServerSentEventsResponse } from '@tanstack/ai'
-return toServerSentEventsResponse(stream, { abortController })
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+  const abortController = new AbortController()
+  const stream = chat({
+    adapter: openaiText('gpt-5.6'),
+    messages,
+    abortController,
+  })
+  return toServerSentEventsResponse(stream, { abortController })
+}
 ```
 
 `toServerSentEventsResponse` handles SSE formatting, abort signals,
@@ -551,8 +815,8 @@ error events (RUN_ERROR), and correct headers automatically.
 
 ### i. HIGH: Implementing custom onEnd/onFinish callbacks instead of middleware
 
-```typescript
-// WRONG
+```typescript ignore
+// WRONG — chat() has no onEnd/onFinish option
 chat({
   adapter,
   messages,
@@ -560,9 +824,14 @@ chat({
     trackAnalytics(result)
   },
 })
+```
 
+```typescript
 // CORRECT
+import { chat } from '@tanstack/ai'
 import type { ChatMiddleware } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { trackAnalytics, trackTokens } from './analytics'
 
 const analytics: ChatMiddleware = {
   name: 'analytics',
@@ -574,7 +843,8 @@ const analytics: ChatMiddleware = {
   },
 }
 
-chat({ adapter, messages, middleware: [analytics] })
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+chat({ adapter: openaiText('gpt-5.6'), messages, middleware: [analytics] })
 ```
 
 `chat()` has no `onEnd`/`onFinish` option. Use `middleware` for lifecycle events.
@@ -586,7 +856,9 @@ See also: ai-core/middleware/SKILL.md.
 // WRONG
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { useChat } from '@tanstack/ai-react'
+```
 
+```typescript
 // CORRECT
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 ```
@@ -602,9 +874,15 @@ exceptions. The `useChat` hook surfaces these via the `error` state and
 check for `RUN_ERROR` chunks:
 
 ```typescript
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+const stream = chat({ adapter: openaiText('gpt-5.6'), messages })
+
 for await (const chunk of stream) {
   if (chunk.type === 'RUN_ERROR') {
-    console.error('Stream error:', chunk.error.message)
+    console.error('Stream error:', chunk.message)
     break
   }
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
@@ -620,3 +898,4 @@ If not handled, the UI appears to hang with no feedback.
 - See also: **ai-core/tool-calling/SKILL.md** -- Most chats include tools
 - See also: **ai-core/adapter-configuration/SKILL.md** -- Adapter choice affects available features
 - See also: **ai-core/middleware/SKILL.md** -- Use middleware for analytics and lifecycle events
+- See also: **`@tanstack/ai-persistence` skills** (`skills/ai-persistence/SKILL.md` in that package) -- Server + client state persistence, store contracts, adapter recipes (deeper than Pattern 8)

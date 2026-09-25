@@ -10,13 +10,17 @@ import { useState, useEffect, useRef } from 'react'
 interface ExecutionResultProps {
   result?: unknown
   error?: string
-  logs?: string[]
+  errorName?: string
+  errorStack?: string
+  logs?: Array<string>
   status: 'running' | 'success' | 'error'
 }
 
 export default function ExecutionResult({
   result,
   error,
+  errorName,
+  errorStack,
   logs,
   status,
 }: ExecutionResultProps) {
@@ -25,20 +29,18 @@ export default function ExecutionResult({
   const [isCollapsed, setIsCollapsed] = useState(false)
   const prevStatusRef = useRef(status)
 
-  // Auto-collapse when status changes from running to complete (with delay)
+  // Auto-collapse success only — keep errors expanded so the failure is visible
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null
 
     if (!userControlled) {
       const wasRunning = prevStatusRef.current === 'running'
-      const isComplete = status === 'success' || status === 'error'
 
-      if (wasRunning && isComplete) {
-        // Delay auto-collapse by 3 seconds so user can see the result
+      if (wasRunning && status === 'success') {
         timeoutId = setTimeout(() => {
           setIsCollapsed(true)
         }, 3000)
-      } else if (status === 'running') {
+      } else if (status === 'running' || status === 'error') {
         setIsCollapsed(false)
       }
     }
@@ -54,7 +56,12 @@ export default function ExecutionResult({
     setIsCollapsed(!isCollapsed)
   }
 
-  const hasContent = (logs && logs.length > 0) || error || result !== undefined
+  const hasContent =
+    (logs && logs.length > 0) ||
+    error ||
+    errorName ||
+    errorStack ||
+    result !== undefined
 
   return (
     <div
@@ -97,7 +104,9 @@ export default function ExecutionResult({
           }`}
         >
           {status === 'error'
-            ? 'Execution Failed'
+            ? errorName
+              ? `Execution Failed · ${errorName}`
+              : 'Execution Failed'
             : status === 'success'
               ? 'Execution Complete'
               : 'Executing...'}
@@ -129,9 +138,36 @@ export default function ExecutionResult({
             </div>
           )}
 
-          {error && (
-            <div className="bg-red-900/50 border border-red-700 rounded p-3 text-sm text-red-200">
-              <strong>Error:</strong> {error}
+          {(error || errorName) && (
+            <div className="bg-red-900/50 border border-red-700 rounded p-3 text-sm text-red-200 space-y-2">
+              {errorName && (
+                <div>
+                  <span className="text-red-400/80 text-xs uppercase tracking-wide">
+                    Name
+                  </span>
+                  <div className="font-mono text-red-100">{errorName}</div>
+                </div>
+              )}
+              {error && (
+                <div>
+                  <span className="text-red-400/80 text-xs uppercase tracking-wide">
+                    Message
+                  </span>
+                  <div className="font-mono text-red-100 whitespace-pre-wrap">
+                    {error}
+                  </div>
+                </div>
+              )}
+              {errorStack && (
+                <div>
+                  <span className="text-red-400/80 text-xs uppercase tracking-wide">
+                    Stack
+                  </span>
+                  <pre className="mt-1 font-mono text-[11px] text-red-200/90 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
+                    {errorStack}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
 

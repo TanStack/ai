@@ -10,12 +10,16 @@
  * stream into its translated output — so events interleave live while the agent
  * runs (e.g. code mode's `code_mode:console` logs during a long execution).
  */
-import { EventType } from '@tanstack/ai'
-import type { StreamChunk } from '@tanstack/ai'
+import { EventType, withTanstackMetadata } from '@tanstack/ai'
+import type { EmitCustomEventOptions, StreamChunk } from '@tanstack/ai'
 
 export interface BridgeEventChannel {
   /** Pass as the bridge's `emitCustomEvent`; buffers a CUSTOM chunk for the stream. */
-  emitCustomEvent: (eventName: string, value: Record<string, unknown>) => void
+  emitCustomEvent: (
+    eventName: string,
+    value: Record<string, unknown>,
+    options?: EmitCustomEventOptions,
+  ) => void
   /** Live CUSTOM-chunk stream; ends after {@link close} once drained. */
   stream: AsyncIterable<StreamChunk>
   /** Stop the stream (call when the run's main output is done). */
@@ -48,17 +52,24 @@ export function createBridgeEventChannel(meta: {
   }
 
   return {
-    emitCustomEvent(eventName, value) {
+    emitCustomEvent(eventName, value, options) {
       if (closed) return
-      buffer.push({
-        type: EventType.CUSTOM,
-        name: eventName,
-        value,
-        timestamp: Date.now(),
-        model: meta.model,
-        ...(meta.threadId !== undefined && { threadId: meta.threadId }),
-        ...(meta.runId !== undefined && { runId: meta.runId }),
-      })
+      buffer.push(
+        withTanstackMetadata(
+          {
+            type: EventType.CUSTOM,
+            name: eventName,
+            value,
+            timestamp: Date.now(),
+          },
+          {
+            model: meta.model,
+            ...(meta.threadId !== undefined ? { threadId: meta.threadId } : {}),
+            ...(meta.runId !== undefined ? { runId: meta.runId } : {}),
+            ...(options?.batch === true ? { batch: true } : {}),
+          },
+        ) as StreamChunk,
+      )
       notify?.()
     },
     close() {

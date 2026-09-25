@@ -1,20 +1,11 @@
 // Core chat business logic and data structures
+import type { ChatMessage, ChatRoomState } from './chat-api.js'
 
-export interface ChatMessage {
-  id: string
-  username: string
-  message: string
-  timestamp: string
-}
-
-export interface ChatState {
-  onlineUsers: Array<string>
-  messages: Array<ChatMessage>
-}
+export type { ChatMessage, ChatRoomState }
 
 // Core chat business logic class
 export class ChatLogic {
-  private chatState: ChatState = {
+  private chatState: ChatRoomState = {
     onlineUsers: [],
     messages: [],
   }
@@ -32,6 +23,51 @@ export class ChatLogic {
     this.onUserJoined = callbacks?.onUserJoined
     this.onUserLeft = callbacks?.onUserLeft
     this.onMessageSent = callbacks?.onMessageSent
+  }
+
+  addUserSync(username: string) {
+    if (!this.chatState.onlineUsers.includes(username)) {
+      this.chatState.onlineUsers.push(username)
+      console.log(`✅ ${username} joined the chat`)
+
+      if (this.onUserJoined) {
+        void this.onUserJoined(username)
+      }
+    }
+  }
+
+  removeUserSync(username: string) {
+    const index = this.chatState.onlineUsers.indexOf(username)
+    if (index > -1) {
+      this.chatState.onlineUsers.splice(index, 1)
+      console.log(`👋 ${username} left the chat`)
+
+      if (this.onUserLeft) {
+        void this.onUserLeft(username)
+      }
+    }
+  }
+
+  sendMessageSync(username: string, messageText: string): ChatMessage {
+    const message: ChatMessage = {
+      id: Math.random().toString(36).substr(2, 9),
+      username,
+      message: messageText,
+      timestamp: new Date().toISOString(),
+    }
+
+    this.chatState.messages.push(message)
+    if (this.chatState.messages.length > 100) {
+      this.chatState.messages = this.chatState.messages.slice(-100)
+    }
+
+    console.log(`💬 ${username}: ${messageText}`)
+
+    if (this.onMessageSent) {
+      void this.onMessageSent(message)
+    }
+
+    return message
   }
 
   async addUser(username: string) {
@@ -98,7 +134,7 @@ export class ChatLogic {
     return message
   }
 
-  getChatState(): ChatState {
+  getChatState(): ChatRoomState {
     return {
       onlineUsers: [...this.chatState.onlineUsers],
       messages: [...this.chatState.messages],

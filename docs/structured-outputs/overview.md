@@ -57,8 +57,10 @@ Every adapter handles structured output through its provider's native API:
 | Google Gemini | `responseSchema` |
 | Ollama | JSON mode with schema |
 | OpenRouter / Grok / Groq | `response_format` with `json_schema` |
+| Claude Code / Codex | Native schema flag on the same harness turn (`--json-schema` / `--output-schema`) |
+| OpenCode / Grok Build / ACP compatible | Same-turn prompt-and-parse |
 
-The provider-specific details are handled for you — the same `chat({ outputSchema })` call works across all of them.
+The provider-specific details are handled for you. The same `chat({ outputSchema })` call works across all of them. For a coding agent in a sandbox, see [Harness Agents](./harnesses).
 
 ### Anthropic schema complexity limits
 
@@ -75,14 +77,16 @@ Anthropic's exact limits change over time and aren't all published, so we delibe
 
 ## Which page do I read?
 
-Pick the journey that matches what you're building. The four guides under "Structured Outputs" cover non-overlapping use cases — read the one that fits, not all of them.
+Pick the journey that matches what you're building. The guides under Structured Outputs cover separate use cases. Read the one that fits.
 
 | You want to… | Read |
 |---|---|
 | Extract one structured object from a single prompt — and consume it server-side (script, endpoint, CLI) or in a browser via `final` | [One-Shot Extraction](./one-shot) |
 | Build a UI that fills in field-by-field as the model streams (progressive form, live card, typewriter preview) | [Streaming UIs](./streaming) |
+| Walk through a Start app that fills a table from streamed rows | [Streaming Structured Table](../tutorials/streaming-structured-table) |
 | Let users iterate on a structured object across multiple turns — each turn produces a new typed object and history stays renderable | [Multi-Turn Chat](./multi-turn) |
 | Combine structured output with tool calls (agent loop that runs tools first, then returns a typed object) | [With Tools](./with-tools) |
+| Ask a coding agent in a sandbox to inspect files, then return a typed object | [Harness Agents](./harnesses) |
 
 The streaming and multi-turn paths both build on `useChat({ outputSchema })`. The "with tools" path layers on top of either. Pick the one that describes your shipping shape — start there, follow the cross-links when you need a piece of another story.
 
@@ -110,10 +114,14 @@ exactly once at the end of the entire run.
 > - Anthropic Claude 4.5+
 > - Gemini 3.x
 > - Grok 4.x family
+> - OpenRouter, when every routed model is in
+>   `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS` (see the
+>   [OpenRouter adapter](../adapters/openrouter.md#tools-and-structured-output-together))
 >
 > **Adapters without native combined-mode support** (Anthropic 4.4-, Gemini
-> 2.x, Grok 2/3, Groq, Ollama, OpenRouter) keep the legacy finalization
-> path and the `'structuredOutput'` phase fires as before.
+> 2.x, Grok 2/3, Groq, Ollama, and OpenRouter models outside that set) keep
+> the legacy finalization path and the `'structuredOutput'` phase fires as
+> before.
 
 ### Observing structured-output chunks
 

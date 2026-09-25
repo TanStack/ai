@@ -3,6 +3,7 @@ import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
+import { openAIModelRejectsSamplingParams } from '../model-meta'
 import type {
   OPENAI_CHAT_MODELS,
   OpenAIChatModel,
@@ -91,6 +92,11 @@ export class OpenAITextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'openai' as const
+  // OpenAI's Responses endpoint consumes `file_id` references issued by its
+  // Files API (`openaiFiles()`). The default is undefined (unsupported) so
+  // compatible subclasses of the openai-base adapter (Grok, Bedrock, custom)
+  // — which have no such surface — fail closed in preflight.
+  override readonly supportsFileSources = true
 
   constructor(config: OpenAITextConfig, model: TModel) {
     super(model, 'openai', new OpenAI(config))
@@ -133,10 +139,32 @@ export class OpenAITextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    return {
+    const request: Omit<ResponseCreateParams, 'stream'> = {
       ...baseRequest,
       ...(tools && tools.length > 0 && { tools }),
     }
+
+    // Reasoning models 400 on `temperature`/`top_p`. Callers (and the summarize
+    // adapter's low-temperature default) can't know a given model rejects them,
+    // so drop the pair here — stripping only ever averts a guaranteed 400, never
+    // changes an otherwise-valid request.
+    if (openAIModelRejectsSamplingParams(options.model)) {
+      delete request.temperature
+      delete request.top_p
+    }
+
+    // Reasoning models pair each function_call with a reasoning item. Request
+    // the encrypted blob so convertMessagesToInput can replay it. Pre-5 chat
+    // models do not emit those items, so leave include unset for them.
+    // Callers can still set include in modelOptions.
+    if (
+      request.include === undefined &&
+      openAIModelRejectsSamplingParams(options.model)
+    ) {
+      request.include = ['reasoning.encrypted_content']
+    }
+
+    return request
   }
 }
 

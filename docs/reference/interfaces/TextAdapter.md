@@ -3,8 +3,6 @@ id: TextAdapter
 title: TextAdapter
 ---
 
-# Interface: TextAdapter\<TModel, TProviderOptions, TInputModalities, TMessageMetadataByModality, TToolCapabilities, TToolCallMetadata, TSystemPromptMetadata\>
-
 Defined in: [packages/ai/src/activities/chat/adapter.ts:67](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L67)
 
 Text adapter interface with pre-resolved generics.
@@ -62,7 +60,7 @@ Generic parameters:
 ~types: object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:95](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L95)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:104](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L104)
 
 **`Internal`**
 
@@ -106,13 +104,13 @@ toolCapabilities: TToolCapabilities;
 
 ***
 
-### chatStream()
+### chatStream
 
 ```ts
-chatStream: (options) => AsyncIterable<AGUIEvent>;
+chatStream: (options) => AsyncIterable<AdapterYieldChunk>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L107)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:116](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L116)
 
 Stream text completions from the model
 
@@ -124,7 +122,36 @@ Stream text completions from the model
 
 #### Returns
 
-`AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>
+`AsyncIterable`\<[`AdapterYieldChunk`](../type-aliases/AdapterYieldChunk.md)\>
+
+***
+
+### combinedStructuredOutputSource?
+
+```ts
+optional combinedStructuredOutputSource?: (modelOptions?) => "text" | "event";
+```
+
+Defined in: [packages/ai/src/activities/chat/adapter.ts:183](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L183)
+
+Where native-combined structured output is taken from.
+
+- `'text'` (default when omitted): the agent loop's accumulated
+  assistant text is schema JSON. The engine parses it after the loop.
+  HTTP adapters use this.
+- `'event'`: the adapter emits `structured-output.complete` during
+  `chatStream`. The engine must not parse accumulated prose. Harness
+  adapters use this.
+
+#### Parameters
+
+##### modelOptions?
+
+`TProviderOptions`
+
+#### Returns
+
+`"text"` \| `"event"`
 
 ***
 
@@ -167,7 +194,7 @@ Provider name identifier (e.g., 'openai', 'anthropic')
 ### requires?
 
 ```ts
-readonly optional requires: readonly CapabilityHandle[];
+readonly optional requires?: readonly CapabilityHandle[];
 ```
 
 Defined in: [packages/ai/src/activities/chat/adapter.ts:90](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L90)
@@ -180,13 +207,13 @@ this is the declaration/validation surface only.
 
 ***
 
-### structuredOutput()
+### structuredOutput
 
 ```ts
 structuredOutput: (options) => Promise<StructuredOutputResult<unknown>>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:119](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L119)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:128](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L128)
 
 Generate structured output using the provider's native structured output API.
 This method uses stream: false and sends the JSON schema to the provider
@@ -208,13 +235,13 @@ Promise with the raw data (validation is done in the chat function)
 
 ***
 
-### structuredOutputStream()?
+### structuredOutputStream?
 
 ```ts
-optional structuredOutputStream: (options) => AsyncIterable<AGUIEvent>;
+optional structuredOutputStream?: (options) => AsyncIterable<AdapterYieldChunk>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:136](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L136)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:146](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L146)
 
 Stream structured output using the provider's native streaming structured
 output API (stream + response_format json_schema in a single request).
@@ -226,7 +253,8 @@ activity layer synthesizes a stream around the non-streaming
 Implementations must emit standard AG-UI lifecycle events (RUN_STARTED,
 TEXT_MESSAGE_*, RUN_FINISHED) carrying raw JSON text deltas, plus a final
 `CUSTOM` event named `structured-output.complete` whose `value` is
-`{ object, raw, reasoning? }`.
+`{ object, raw, reasoning? }`. Events must be timestamped when emitted so
+their timestamps follow stream order.
 
 #### Parameters
 
@@ -236,17 +264,17 @@ TEXT_MESSAGE_*, RUN_FINISHED) carrying raw JSON text deltas, plus a final
 
 #### Returns
 
-`AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>
+`AsyncIterable`\<[`AdapterYieldChunk`](../type-aliases/AdapterYieldChunk.md)\>
 
 ***
 
-### supportsCombinedToolsAndSchema()?
+### supportsCombinedToolsAndSchema?
 
 ```ts
-optional supportsCombinedToolsAndSchema: (modelOptions?) => boolean;
+optional supportsCombinedToolsAndSchema?: (modelOptions?) => boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:159](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L159)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:169](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L169)
 
 Declares whether the adapter supports combining `tools` and a
 schema-constrained final answer in a single streaming request.
@@ -275,3 +303,19 @@ answer per-request. Most adapters can return a constant.
 #### Returns
 
 `boolean`
+
+***
+
+### supportsFileSources?
+
+```ts
+readonly optional supportsFileSources?: boolean;
+```
+
+Defined in: [packages/ai/src/activities/chat/adapter.ts:99](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L99)
+
+Declares that this adapter can consume `{ type: 'file' }` content sources
+(provider Files API references). `chat()` rejects file sources in preflight
+for adapters that don't declare this, so an adapter written before the
+file arm existed fails closed instead of silently mis-mapping a reference
+onto its URL/data branch.

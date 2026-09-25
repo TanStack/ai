@@ -451,7 +451,7 @@ export default function App() {
     clear,
     sessionGenerating,
   } = useChat({
-    id: `rn-recipe-book-${transport}`,
+    threadId: `rn-recipe-book-${transport}`,
     connection,
   })
 

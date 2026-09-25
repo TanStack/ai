@@ -3,15 +3,13 @@ id: Logger
 title: Logger
 ---
 
-# Interface: Logger
-
 Defined in: [packages/ai/src/logger/types.ts:4](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L4)
 
 Pluggable logger interface consumed by every `@tanstack/ai` activity when `debug` is enabled. Supply a custom implementation via `debug: { logger }` on `chat()`, `summarize()`, `generateImage()`, etc. The four methods correspond to log levels: use `debug` for chunk-level diagnostic output, `info`/`warn` for notable events, `error` for caught exceptions.
 
 ## Properties
 
-### debug()
+### debug
 
 ```ts
 debug: (message, meta?) => void;
@@ -39,7 +37,7 @@ Structured data forwarded to the underlying logger. Loggers like pino will prese
 
 ***
 
-### error()
+### error
 
 ```ts
 error: (message, meta?) => void;
@@ -67,7 +65,7 @@ Structured data forwarded to the underlying logger. Loggers like pino will prese
 
 ***
 
-### info()
+### info
 
 ```ts
 info: (message, meta?) => void;
@@ -95,7 +93,7 @@ Structured data forwarded to the underlying logger. Loggers like pino will prese
 
 ***
 
-### warn()
+### warn
 
 ```ts
 warn: (message, meta?) => void;

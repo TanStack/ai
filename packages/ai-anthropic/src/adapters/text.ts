@@ -1,7 +1,13 @@
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  EventType,
+  fileReferenceFor,
+  isFileSource,
+  normalizeSystemPrompts,
+} from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
+import { getAnthropicProviderToolKind } from '../tools/anthropic-provider-tool'
 import {
   readCodeExecutionConfig,
   readCodeExecutionSkills,
@@ -29,20 +35,25 @@ import type {
 } from '@tanstack/ai/adapters'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
-  Base64ImageSource,
-  Base64PDFSource,
-  ContentBlockParam,
-  DocumentBlockParam,
-  ImageBlockParam,
   ServerToolUseBlockParam,
   TextBlockParam,
   ThinkingBlockParam,
   ToolUseBlockParam,
-  URLImageSource,
-  URLPDFSource,
   WebFetchToolResultBlockParam,
   WebSearchToolResultBlockParam,
 } from '@anthropic-ai/sdk/resources/messages'
+import type {
+  BetaBase64ImageSource,
+  BetaBase64PDFSource,
+  BetaContentBlockParam,
+  BetaFileDocumentSource,
+  BetaFileImageSource,
+  BetaImageBlockParam,
+  BetaRequestDocumentBlock,
+  BetaTextBlockParam,
+  BetaURLImageSource,
+  BetaURLPDFSource,
+} from '@anthropic-ai/sdk/resources/beta/messages'
 import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta'
 import type {
@@ -50,7 +61,7 @@ import type {
   ContentPart,
   Modality,
   ModelMessage,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 import type {
@@ -64,7 +75,10 @@ import type {
   AnthropicMessageMetadataByModality,
   AnthropicTextMetadata,
 } from '../message-types'
-import type { AnthropicClientConfig } from '../utils/client'
+import type {
+  AnthropicClientConfig,
+  AnthropicMessagesClient,
+} from '../utils/client'
 
 /**
  * The block type carried by an Anthropic provider-executed (server) tool's
@@ -144,10 +158,26 @@ function buildServerToolResultBlock(
 }
 
 /**
+ * True when any message carries a provider file-handle source, so the request
+ * must send the Files API beta header.
+ */
+export function messagesHaveFileSource(messages: Array<ModelMessage>): boolean {
+  return messages.some(
+    (message) =>
+      Array.isArray(message.content) &&
+      message.content.some(
+        (part) => 'source' in part && isFileSource(part.source),
+      ),
+  )
+}
+
+/**
  * Computes the `betas` array for a Messages request. Unions:
  * - `interleaved-thinking-2025-05-14` when interleaved thinking is enabled,
  * - `code-execution-2025-08-25` when a `code_execution` tool is present,
- * - `skills-2025-10-02` when that tool carries skills.
+ * - `skills-2025-10-02` when that tool carries skills,
+ * - `context-management-2025-06-27` when `context_management` is set,
+ * - `files-api-2025-04-14` when a message references an uploaded file handle.
  * Returns `undefined` when none apply (so the call site omits `betas`).
  */
 export function computeAnthropicBetas(
@@ -158,10 +188,15 @@ export function computeAnthropicBetas(
           type?: 'enabled' | 'disabled' | 'adaptive'
           budget_tokens?: number
         }
+        context_management?: unknown | null
+        mcp_servers?: ReadonlyArray<unknown>
       }
     | undefined,
+  hasFileSource = false,
 ): Array<AnthropicBeta> | undefined {
   const betas = new Set<AnthropicBeta>()
+
+  if (hasFileSource) betas.add('files-api-2025-04-14')
 
   const useInterleavedThinking =
     modelOptions?.thinking?.type === 'enabled' &&
@@ -169,9 +204,26 @@ export function computeAnthropicBetas(
     modelOptions.thinking.budget_tokens > 0
   if (useInterleavedThinking) betas.add('interleaved-thinking-2025-05-14')
 
+  // Context editing requires the beta header; the body field alone is not
+  // enough (issue #1074). `null` is a typed "unset" — do not enable the beta.
+  if (modelOptions?.context_management != null) {
+    betas.add('context-management-2025-06-27')
+  }
+
+  // The MCP connector needs its beta header as well (same shape as #1074);
+  // an empty array is a typed "unset" — do not enable the beta.
+  // ponytail: 2025-04-04 matches the `mcp_servers` shape we type
+  // (`tool_configuration` on each server). 2025-11-20 needs an `mcp_toolset`
+  // in `tools` for every server, which this adapter does not send yet.
+  if (modelOptions?.mcp_servers && modelOptions.mcp_servers.length > 0) {
+    betas.add('mcp-client-2025-04-04')
+  }
+
   // Code-execution beta is version-aware: select from the FIRST code_execution
   // tool's config type.
-  const codeExecTool = tools?.find((t) => t.name === 'code_execution')
+  const codeExecTool = tools?.find(
+    (tool) => getAnthropicProviderToolKind(tool) === 'code_execution',
+  )
   if (codeExecTool) {
     const cfgType = readCodeExecutionConfig(codeExecTool)?.type
     // Each code_execution tool version pairs with a specific beta. Known
@@ -188,9 +240,9 @@ export function computeAnthropicBetas(
   // container-lift, which lifts skills from any code_execution tool that
   // carries them (not just the first).
   const hasSkills = tools?.some(
-    (t) =>
-      t.name === 'code_execution' &&
-      (readCodeExecutionSkills(t)?.length ?? 0) > 0,
+    (tool) =>
+      getAnthropicProviderToolKind(tool) === 'code_execution' &&
+      (readCodeExecutionSkills(tool)?.length ?? 0) > 0,
   )
   if (hasSkills) betas.add('skills-2025-10-02')
 
@@ -201,6 +253,10 @@ export function computeAnthropicBetas(
  * Configuration for Anthropic text adapter
  */
 export interface AnthropicTextConfig extends AnthropicClientConfig {}
+
+export type AnthropicTextAdapterConfig =
+  | AnthropicTextConfig
+  | { client: AnthropicMessagesClient }
 
 /**
  * Anthropic-specific provider options for text/chat
@@ -234,6 +290,24 @@ type ResolveToolCapabilities<TModel extends string> =
     ? NonNullable<AnthropicChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
+type SdkAnthropicMessagesClient = {
+  beta: {
+    messages: Pick<Anthropic_SDK['beta']['messages'], 'create'>
+  }
+}
+
+/**
+ * Restore the package SDK's precise overloads at the adapter boundary.
+ * Alternative clients may use a separate Anthropic 0.x SDK whose declarations
+ * drift while implementing the same Messages protocol at runtime.
+ */
+function asSdkAnthropicMessagesClient(
+  client: AnthropicMessagesClient,
+): SdkAnthropicMessagesClient {
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- The public callable deliberately erases version-specific SDK overloads; restore this package's SDK type at the internal boundary.
+  return client as unknown as SdkAnthropicMessagesClient
+}
+
 // ===========================
 // Adapter Implementation
 // ===========================
@@ -265,17 +339,22 @@ export class AnthropicTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'anthropic' as const
+  // Consumes `file_id` sources issued by anthropicFiles() (Files API beta).
+  override readonly supportsFileSources = true
 
-  private readonly client: Anthropic_SDK
+  private readonly client: SdkAnthropicMessagesClient
 
-  constructor(config: AnthropicTextConfig, model: TModel) {
+  constructor(config: AnthropicTextAdapterConfig, model: TModel) {
     super({}, model)
-    this.client = createAnthropicClient(config)
+    this.client =
+      'client' in config
+        ? asSdkAnthropicMessagesClient(config.client)
+        : createAnthropicClient(config)
   }
 
   async *chatStream(
     options: TextOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { logger } = options
     try {
       const requestParams = this.mapCommonOptionsToAnthropic(options)
@@ -287,7 +366,11 @@ export class AnthropicTextAdapter<
 
       // `betas` is attached at the call site rather than in the shared mapper
       // because the beta set depends on both the tools and the modelOptions.
-      const betas = computeAnthropicBetas(options.tools, options.modelOptions)
+      const betas = computeAnthropicBetas(
+        options.tools,
+        options.modelOptions,
+        messagesHaveFileSource(options.messages),
+      )
 
       // `client.beta.messages` is Anthropic's permanent staging surface, not a
       // sunset path: it's a superset of `client.messages` that additionally
@@ -377,6 +460,7 @@ export class AnthropicTextAdapter<
       const betas = computeAnthropicBetas(
         chatOptions.tools,
         chatOptions.modelOptions,
+        messagesHaveFileSource(chatOptions.messages),
       )
       // Make non-streaming request with tool_choice forced to our structured output tool
       const response = await this.client.beta.messages.create(
@@ -455,6 +539,7 @@ export class AnthropicTextAdapter<
     const validProviderOptions: Partial<InternalTextProviderOptions> = {}
     if (modelOptions) {
       const validKeys: Array<keyof AnthropicTextProviderOptions> = [
+        'cache_control',
         'container',
         'context_management',
         'effort',
@@ -574,7 +659,7 @@ export class AnthropicTextAdapter<
     // canonical path for skills; `modelOptions.container.skills` is deprecated.
     const toolSkills = options.tools
       ?.map((tool) =>
-        tool.name === 'code_execution'
+        getAnthropicProviderToolKind(tool) === 'code_execution'
           ? readCodeExecutionSkills(tool)
           : undefined,
       )
@@ -617,7 +702,7 @@ export class AnthropicTextAdapter<
 
   private convertContentPartToAnthropic(
     part: ContentPart,
-  ): TextBlockParam | ImageBlockParam | DocumentBlockParam {
+  ): BetaTextBlockParam | BetaImageBlockParam | BetaRequestDocumentBlock {
     switch (part.type) {
       case 'text': {
         const metadata = part.metadata as AnthropicTextMetadata | undefined
@@ -630,44 +715,76 @@ export class AnthropicTextAdapter<
 
       case 'image': {
         const metadata = part.metadata as AnthropicImageMetadata | undefined
-        const imageSource: Base64ImageSource | URLImageSource =
-          part.source.type === 'data'
-            ? {
-                type: 'base64',
-                data: part.source.value,
-                media_type: part.source.mimeType as
-                  | 'image/jpeg'
-                  | 'image/png'
-                  | 'image/gif'
-                  | 'image/webp',
-              }
-            : {
-                type: 'url',
-                url: part.source.value,
-              }
+        let imageSource:
+          | BetaBase64ImageSource
+          | BetaURLImageSource
+          | BetaFileImageSource
+        if (isFileSource(part.source)) {
+          imageSource = {
+            type: 'file',
+            file_id: fileReferenceFor(part.source, this.name),
+          }
+        } else if (part.source.type === 'data') {
+          imageSource = {
+            type: 'base64',
+            data: part.source.value,
+            media_type: part.source.mimeType as
+              | 'image/jpeg'
+              | 'image/png'
+              | 'image/gif'
+              | 'image/webp',
+          }
+        } else {
+          imageSource = {
+            type: 'url',
+            url: part.source.value,
+          }
+        }
         return {
           type: 'image',
           source: imageSource,
-          ...metadata,
+          ...(metadata?.cache_control !== undefined && {
+            cache_control: metadata.cache_control,
+          }),
         }
       }
       case 'document': {
         const metadata = part.metadata as AnthropicDocumentMetadata | undefined
-        const docSource: Base64PDFSource | URLPDFSource =
-          part.source.type === 'data'
-            ? {
-                type: 'base64',
-                data: part.source.value,
-                media_type: part.source.mimeType as 'application/pdf',
-              }
-            : {
-                type: 'url',
-                url: part.source.value,
-              }
+        const title = metadata?.title ?? metadata?.filename
+        let docSource:
+          | BetaBase64PDFSource
+          | BetaURLPDFSource
+          | BetaFileDocumentSource
+        if (isFileSource(part.source)) {
+          docSource = {
+            type: 'file',
+            file_id: fileReferenceFor(part.source, this.name),
+          }
+        } else if (part.source.type === 'data') {
+          docSource = {
+            type: 'base64',
+            data: part.source.value,
+            media_type: part.source.mimeType as 'application/pdf',
+          }
+        } else {
+          docSource = {
+            type: 'url',
+            url: part.source.value,
+          }
+        }
         return {
           type: 'document',
           source: docSource,
-          ...metadata,
+          ...(metadata?.cache_control !== undefined && {
+            cache_control: metadata.cache_control,
+          }),
+          ...(metadata?.citations !== undefined && {
+            citations: metadata.citations,
+          }),
+          ...(metadata?.context !== undefined && {
+            context: metadata.context,
+          }),
+          ...(title !== undefined && { title }),
         }
       }
       case 'audio':
@@ -714,7 +831,7 @@ export class AnthropicTextAdapter<
       }
 
       if (role === 'assistant' && message.toolCalls?.length) {
-        const contentBlocks: Array<ContentBlockParam> = []
+        const contentBlocks: Array<BetaContentBlockParam> = []
 
         this.appendThinkingBlocks(contentBlocks, message.thinking)
 
@@ -776,7 +893,7 @@ export class AnthropicTextAdapter<
       }
 
       if (role === 'assistant') {
-        const contentBlocks: Array<ContentBlockParam> = []
+        const contentBlocks: Array<BetaContentBlockParam> = []
         this.appendThinkingBlocks(contentBlocks, message.thinking)
 
         if (Array.isArray(message.content)) {
@@ -828,7 +945,7 @@ export class AnthropicTextAdapter<
   }
 
   private appendThinkingBlocks(
-    contentBlocks: Array<ContentBlockParam>,
+    contentBlocks: Array<BetaContentBlockParam>,
     thinkingParts: ModelMessage['thinking'],
   ): void {
     if (!thinkingParts?.length) return
@@ -913,7 +1030,7 @@ export class AnthropicTextAdapter<
     options: TextOptions<AnthropicTextProviderOptions>,
     genId: () => string,
     logger: InternalLogger,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const model = options.model
     let accumulatedContent = ''
     let accumulatedThinking = ''
@@ -1466,6 +1583,23 @@ export function createAnthropicChat<
   ResolveInputModalities<TModel>
 > {
   return new AnthropicTextAdapter({ apiKey, ...config }, model)
+}
+
+/**
+ * Creates an Anthropic chat adapter with an injected Messages client.
+ * Type resolution happens here at the call site.
+ */
+export function createAnthropicChatWithClient<
+  TModel extends (typeof ANTHROPIC_MODELS)[number],
+>(
+  model: TModel,
+  client: AnthropicMessagesClient,
+): AnthropicTextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>
+> {
+  return new AnthropicTextAdapter({ client }, model)
 }
 
 /**

@@ -3,75 +3,53 @@ id: ToolCallStartEvent
 title: ToolCallStartEvent
 ---
 
-# Interface: ToolCallStartEvent
-
-Defined in: [packages/ai/src/types.ts:1139](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1139)
+Defined in: [packages/ai/src/types.ts:1331](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1331)
 
 Emitted when a tool call starts.
 
-@ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
-TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `metadata?`
+@ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`,
+`subagentRunId?`
 
 ## Extends
 
-- `ToolCallStartEvent`
-
-## Indexable
-
-```ts
-[k: string]: unknown
-```
+- `Omit`\<`AGUIToolCallStartEvent`, `"type"`\>
 
 ## Properties
-
-### index?
-
-```ts
-optional index: number;
-```
-
-Defined in: [packages/ai/src/types.ts:1148](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1148)
-
-Index for parallel tool calls
-
-***
 
 ### metadata?
 
 ```ts
-optional metadata: Record<string, unknown>;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1153](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1153)
+Defined in: [packages/ai/src/types.ts:1339](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1339)
 
 Provider-specific metadata to carry into the ToolCall.
-Untyped at the event layer because events flow through a discriminated
-union that does not survive generics; adapters cast it to their typed
-`TToolCallMetadata` shape when emitting.
+
+#### Overrides
+
+```ts
+Omit.metadata
+```
 
 ***
 
-### model?
+### toolName?
 
 ```ts
-optional model: string;
+optional toolName?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1141](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1141)
+Defined in: [packages/ai/src/types.ts:1337](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1337)
 
-Model identifier for multi-model support
+Alias of `toolCallName`. Kept so existing stream readers still compile.
 
 ***
 
-### ~~toolName~~
+### type
 
 ```ts
-toolName: string;
+type: "TOOL_CALL_START";
 ```
 
-Defined in: [packages/ai/src/types.ts:1146](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1146)
-
-#### Deprecated
-
-Use `toolCallName` instead (from @ag-ui/core spec).
-Kept for backward compatibility.
+Defined in: [packages/ai/src/types.ts:1335](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1335)

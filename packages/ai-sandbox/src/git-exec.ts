@@ -72,6 +72,13 @@ export function createExecBackedGit(
           ? ''
           : `--depth ${resolvedDepth} --single-branch `
 
+      // `git clone` does not create missing parents. gitSkill clones into
+      // `<root>/.tanstack-skills/<name>`, so create that parent first.
+      const parentSlash = target.lastIndexOf('/')
+      if (parentSlash > 0) {
+        await process.exec(`mkdir -p ${q(target.slice(0, parentSlash))}`)
+      }
+
       if (auth?.token) {
         await process.exec(
           `git -c credential.helper=${q(CREDENTIAL_HELPER)} clone ${refArg}${depthArg}-- ${q(url)} ${q(target)}`,

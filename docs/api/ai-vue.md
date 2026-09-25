@@ -15,11 +15,78 @@ keywords:
 
 Vue composables for TanStack AI, providing convenient Vue 3 bindings for the headless client.
 
+For a typed headless chat UI, see [Vue Chat UI](../ui/vue).
+
 ## Installation
 
-```bash
-npm install @tanstack/ai-vue
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+vue: @tanstack/ai-vue
+
+<!-- ::end:tabs -->
+
+## `useRegisterWebMCPTools(tools, options?)`
+
+Register executable client tools for the current Vue scope. Vue removes them when the scope is disposed.
+
+For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+
+```vue
+<script setup lang="ts">
+import {
+  useRegisterWebMCPTools,
+  type UseRegisterWebMCPToolsOptions,
+} from "@tanstack/ai-vue";
+import { searchProducts } from "./tools";
+
+const tools = [searchProducts];
+const options: UseRegisterWebMCPToolsOptions<typeof tools> = {
+  onError(error) {
+    console.error(error);
+  },
+};
+
+useRegisterWebMCPTools(tools, options);
+</script>
 ```
+
+`UseRegisterWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The composable owns the registration signal.
+
+The `context` field is required when a tool declares a required runtime context.
+
+## `usePageWebMCPTools(options?)`
+
+Read the WebMCP tools on the page as client tools. The ref starts empty and updates when the page adds or removes a tool. Pass the ref to `useChat` as `tools`.
+
+```ts
+import { usePageWebMCPTools } from "@tanstack/ai-vue";
+
+export function useSameOriginPageTools() {
+  return usePageWebMCPTools({
+    filter: (tool) => tool.origin === location.origin,
+  });
+}
+```
+
+`filter` skips a tool when it returns `false`. `onError` gets a failed WebMCP read. For a complete guide, see [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
+
+## `createChatHook(options)`
+
+Bind `chatOptions` once at module scope. Call `useChat()` in the screen to create the instance. Per-call overrides may set `threadId`, `initialMessages`, `live`, and `forwardedProps`. They must not change `tools`, `interrupts`, or `outputSchema`.
+
+```ts
+import { createChatHook, fetchServerSentEvents } from "@tanstack/ai-vue";
+
+const chatOptions = {
+  connection: fetchServerSentEvents("/api/chat"),
+};
+
+const { useChat } = createChatHook(chatOptions);
+
+const chat = useChat({ threadId: "support-1" });
+```
+
+`useChat(chatOptions)` from this package still works when you want to pass the full object at the call site. Rename the bound composable if both are in one file: `const { useChat: useSupportChat } = createChatHook(chatOptions)`.
 
 ## `useChat(options?)`
 
@@ -68,18 +135,20 @@ const { messages, sendMessage, isLoading, error, addToolApprovalResponse } =
 Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state callbacks):
 
 - `connection` - Connection adapter (required)
-- `tools?` - Array of client tool implementations (with `.client()` method)
+- `tools?` - Array of client tool implementations (with `.client()` method). Pass a ref or getter to change the tools after the chat is created.
 - `initialMessages?` - Initial messages array
-- `id?` - Unique identifier for this chat instance
-- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
+- `threadId?` - The only identity for this chat. Required when persistence is on. If omitted, minted after mount.
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (reactive -- changes are synced automatically via `watch`)
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire (reactive)
+- `byok?` - Optional BYOK keyring from `defineByok`. On each send the client prepares the resolved provider and stamps `x-byok-*` request headers. Keys never go in the body
+- `byokProvider?` - Optional function that returns the provider slug for this chat. If it returns a slug, only that key is prepared and sent. Otherwise the merged `provider` from `forwardedProps`, `body`, and per-call `sendMessage` `body` is used. Later sources win. If no slug resolves, the send throws instead of attaching every stored key
 - `context?` - Typed client-local runtime context passed to client tool implementations (reactive). This value is not serialized to the server
 - `live?` - Enable live subscription mode (auto-subscribes/unsubscribes)
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received
 - `onFinish?` - Callback when response finishes
 - `onError?` - Callback when error occurs
+- `onInterruptStateChange?` - Callback when interrupt state changes; context source is `hydrate` for restored state and `live` for streamed or client-initiated updates
 - `onCustomEvent?` - Callback for custom stream events
 - `streamProcessor?` - Stream processing configuration
 
@@ -95,11 +164,15 @@ import type {
   MultimodalContent,
   ChatClientState,
   ConnectionStatus,
+  SendMessageOptions,
 } from "@tanstack/ai-client";
 
 interface UseChatReturn {
   messages: DeepReadonly<ShallowRef<UIMessage[]>>;
-  sendMessage: (content: string | MultimodalContent) => Promise<void>;
+  sendMessage: (
+    content: string | MultimodalContent,
+    options?: SendMessageOptions,
+  ) => Promise<void>;
   append: (message: ModelMessage | UIMessage) => Promise<void>;
   addToolResult: (result: {
     toolCallId: string;
@@ -126,6 +199,21 @@ interface UseChatReturn {
 ```
 
 **Note:** Reactive state (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`) is wrapped in `DeepReadonly<ShallowRef<T>>`. In `<script setup>` read the underlying value with `.value` (e.g., `messages.value`); in `<template>` Vue auto-unwraps the ref, so use the bare name (e.g., `v-for="m in messages"`). Cleanup is automatic via `onScopeDispose`.
+
+## `useByok(client)`
+
+Subscribe to a `ByokClient` snapshot in Vue. The return value is a `DeepReadonly<ShallowRef<ByokSnapshot>>`.
+
+```typescript
+import { useByok } from "@tanstack/ai-vue";
+import { byok } from "./byok";
+
+const snapshot = useByok(byok);
+const openai = snapshot.value.status.openai;
+const last4 = openai && "masked" in openai ? openai.masked : "No key";
+```
+
+`snapshot.value` has `status`, `locked`, and `prompt`. Call `byok.update(provider, value)` from your own UI to save a key. See [Bring Your Own Key](../advanced/byok).
 
 ## Connection Adapters
 
@@ -314,9 +402,9 @@ const { generate, result, isLoading, error, status, stop, reset } =
   });
 ```
 
-**Options:** `connection?`, `fetcher?`, `id?`, `body?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
+**Options:** `connection?`, `fetcher?`, `threadId?`, `body?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
 
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset` -- all reactive state is `DeepReadonly<ShallowRef<T>>`.
+**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `runId` -- all reactive state is `DeepReadonly<ShallowRef<T>>`.
 
 ### `useGenerateImage(options)`
 

@@ -17,6 +17,9 @@ export const providers: Provider[] = [
   'openai',
   'anthropic',
   'gemini',
+  'vertex',
+  'vertex-grok',
+  'vertex-mistral',
   'ollama',
   'groq',
   'grok',
@@ -24,9 +27,17 @@ export const providers: Provider[] = [
   'bedrock-responses',
   'openrouter',
   'openrouter-responses',
+  'vercel-gateway',
+  'vercel-gateway-responses',
+  'lovable',
+  'lovable-responses',
   'openai-compatible',
+  'openai-compatible-legacy',
   'mistral',
+  'byteplus',
   'elevenlabs',
+  'llmgateway',
+  'cloudflare',
 ]
 
 export { isSupported }

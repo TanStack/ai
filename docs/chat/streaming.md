@@ -2,7 +2,7 @@
 title: Streaming
 id: streaming-responses
 order: 2
-description: "Stream AI responses in real time with TanStack AI — async iterable chunks, chunk strategies, and partial JSON for responsive chat UIs."
+description: "Show AI tokens in the UI as they arrive. Server stream, client useChat, cancel, and callbacks."
 keywords:
   - tanstack ai
   - streaming
@@ -10,208 +10,135 @@ keywords:
   - real-time ai
   - async iterable
   - chunks
-  - partial json
+  - useChat
 ---
 
-TanStack AI supports streaming responses for real-time chat experiences. Streaming allows you to display responses as they're generated, rather than waiting for the complete response.
+You send a message. The UI sits still until the model is done. That wait feels broken.
 
-## How Streaming Works
+Stream the reply. Tokens show up as the model writes them.
 
-When you use `chat()`, it returns an async iterable stream of chunks:
+## 1. Send the stream from the server
 
-```typescript
-import { chat } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-
-const stream = chat({
-  adapter: openaiText("gpt-5.5"),
-  messages: [{ role: "user", content: "Hello!" }],
-});
-
-// Stream contains chunks as they arrive
-for await (const chunk of stream) {
-  console.log(chunk); // Process each chunk
-}
-```
-
-## Server-Side Streaming
-
-Convert the stream to an HTTP response using `toServerSentEventsResponse`:
+Call `chat()`. Then wrap the result with `toServerSentEventsResponse`:
 
 ```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
 
   const stream = chat({
-    adapter: openaiText("gpt-5.5"),
+    adapter: openaiText("gpt-5.6"),
     messages,
+    threadId,
+    runId,
   });
 
-  // Convert to HTTP response with proper headers
   return toServerSentEventsResponse(stream);
 }
 ```
 
-## Client-Side Streaming
+`chatParamsFromRequest` reads the AG-UI body that `useChat` sends. If the body is invalid, it throws a `Response` with status 400. If your framework does not map a thrown `Response` to HTTP 400, catch it and return it.
 
-The `useChat` hook automatically handles streaming:
+## 2. Render with `useChat`
 
-```typescript
+```tsx
+import { useState } from "react";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
-const { messages, sendMessage, isLoading } = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
-});
+export function Chat() {
+  const [input, setInput] = useState("");
+  const { messages, sendMessage, isLoading, stop } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+  });
 
-// Messages update in real-time as chunks arrive
-messages.forEach((message) => {
-  // Message content updates incrementally
-});
-```
-
-## Stream Events (AG-UI Protocol)
-
-TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction) for streaming. Stream events contain different types of data:
-
-### AG-UI Events
-
-- **RUN_STARTED** - Emitted when a run begins
-- **TEXT_MESSAGE_START/CONTENT/END** - Text content streaming lifecycle
-- **TOOL_CALL_START/ARGS/END** - Tool invocation lifecycle
-- **STEP_STARTED/STEP_FINISHED** - Thinking/reasoning steps
-- **CUSTOM** - Namespaced extension events (sandbox file changes, Code Mode progress, structured-output completion, and your own `emitCustomEvent` calls) — see the [Custom Events Reference](../protocol/custom-events) for the full typed taxonomy and how to narrow `chunk.value` with a plain `if`
-- **RUN_FINISHED** - Run completion with finish reason and usage
-- **RUN_ERROR** - Error occurred during the run
-
-> **Tip:** Some models expose their internal reasoning as thinking content that streams before the response. See [Thinking & Reasoning](./thinking-content).
-
-### Thinking Chunks
-
-Adapters emit reasoning as both the canonical `REASONING_MESSAGE_*` events and the older `STEP_STARTED` / `STEP_FINISHED` events. Rather than parsing those raw events yourself, read the reconciled `ThinkingPart` from `message.parts` — the stream processor merges both event families into a single part for you:
-
-```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-
-const { messages } = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
-});
-
-for (const message of messages) {
-  for (const part of message.parts) {
-    if (part.type === "thinking") {
-      console.log("Thinking:", part.content); // Accumulated thinking content
-    }
-  }
+  return (
+    <>
+      {messages.map((message) => (
+        <div key={message.id}>
+          {message.parts.map((part, index) =>
+            part.type === "text" ? <p key={index}>{part.content}</p> : null,
+          )}
+        </div>
+      ))}
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (input.trim() === "") {
+            return;
+          }
+          sendMessage(input);
+          setInput("");
+        }}
+      >
+        <input
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+        />
+        {isLoading ? (
+          <button type="button" onClick={stop}>
+            Stop
+          </button>
+        ) : (
+          <button type="submit">Send</button>
+        )}
+      </form>
+    </>
+  );
 }
 ```
 
-Thinking content is automatically converted to `ThinkingPart` in `UIMessage` objects. It is UI-only and excluded from messages sent back to the model. See [Thinking & Reasoning](./thinking-content) for the full rendering pattern.
+`messages` updates as chunks arrive. `isLoading` is `true` while the run is in flight.
 
-## Connection Adapters
+The same pattern works in every UI framework. See [Quick Start](../getting-started/quick-start).
 
-TanStack AI provides connection adapters for different streaming protocols:
+If SSE is blocked, pick another transport on [Connection Adapters](./connection-adapters).
 
-### Server-Sent Events (SSE)
+## 3. Cancel a run
 
-```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+Call `stop()`. The client aborts the fetch.
 
-const { messages } = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
-});
-```
-
-### HTTP Stream
+Pass the same `AbortController` to `chat()` and `toServerSentEventsResponse` so the server stops the model too:
 
 ```typescript
-import { useChat, fetchHttpStream } from "@tanstack/ai-react";
-
-const { messages } = useChat({
-  connection: fetchHttpStream("/api/chat"),
-});
-```
-
-### Custom Stream
-
-For a fully custom request, use the `fetcher` transport. The fetcher receives the request input plus an `AbortSignal`, and returns a `Response` (whose SSE body the client parses) or an `AsyncIterable<StreamChunk>`. It may return that value synchronously, as a `Promise`, or as an `async function*`:
-
-```typescript
-import { useChat } from "@tanstack/ai-react";
-
-const { messages } = useChat({
-  fetcher: ({ messages, data }, { signal }) =>
-    fetch("/api/chat", {
-      method: "POST",
-      body: JSON.stringify({ messages, ...data }),
-      signal,
-    }),
-});
-```
-
-> **Note:** The lower-level `stream()` connection adapter takes a factory that must return an `AsyncIterable<StreamChunk>` **synchronously** (e.g. a generator) — it does not accept an `async (...) => {...}` function that returns a `Promise`. Prefer the `fetcher` transport above unless you specifically need the connection adapter.
-
-## Monitoring Stream Progress
-
-You can monitor stream progress with callbacks:
-
-```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-
-const { messages } = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
-  onChunk: (chunk) => {
-    console.log("Received chunk:", chunk);
-  },
-  onFinish: (message) => {
-    console.log("Stream finished:", message);
-  },
-});
-```
-
-## Cancelling Streams
-
-Cancel ongoing streams:
-
-```typescript
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-
-const { stop } = useChat({
-  connection: fetchServerSentEvents("/api/chat"),
-});
-
-// Cancel the current stream
-stop();
-```
-
-Calling `stop()` aborts the underlying fetch; the resulting `AbortError` is expected and normal. This differs from a connection being cut mid-line: a truncated stream throws a `StreamTruncatedError` and moves the client into its `error` state. See [Connection Adapters](./connection-adapters) for the underlying behavior.
-
-On the server, pass an `AbortController` to `toServerSentEventsResponse(stream, { abortController })` so the chat run is cancelled when the client disconnects:
-
-```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
-  const { messages } = await request.json();
-  const stream = chat({ adapter: openaiText("gpt-5.5"), messages });
-
+  const { messages, threadId, runId } = await chatParamsFromRequest(request);
   const abortController = new AbortController();
+
+  const stream = chat({
+    adapter: openaiText("gpt-5.6"),
+    messages,
+    threadId,
+    runId,
+    abortController,
+  });
+
   return toServerSentEventsResponse(stream, { abortController });
 }
 ```
 
-## Best Practices
+`AbortError` from `stop()` is expected. Pending client-tool work for that turn does not resume. A later `addToolResult()` for that turn is ignored.
 
-1. **Handle loading states** - Use `isLoading` to show loading indicators
-2. **Handle errors** - Check `error` state for stream failures
-3. **Cancel on unmount** - Clean up streams when components unmount
-4. **Optimize rendering** - Batch updates if needed for performance
-5. **Show progress** - Display partial content as it streams
+A dropped connection mid-line throws `StreamTruncatedError`. The client then moves to `error`. See [Connection Adapters](./connection-adapters).
 
-## Next Steps
+## Later
 
-- [Connection Adapters](./connection-adapters) - Learn about different connection types
-- [API Reference](../api/ai) - Explore streaming APIs
+- **No HTTP.** Iterate `chat()` yourself. Branch on `chunk.type === "TEXT_MESSAGE_CONTENT"`. Then read `chunk.delta`.
+- **Callbacks.** `onChunk` fires on each event. `onFinish` fires with the completed message.
+- **Send while a reply is in flight.** Messages wait in `queue` by default. See [Message Queue](./queueing).
+- **Event types, thread ids, and tool parts.** See [Stream Events](./stream-events).
+- **Thinking tokens or a refresh mid-stream.** See [Thinking and Reasoning](./thinking-content) and [Resumable Streams](../resumable-streams/overview).
+
+Send a message. Text grows in the UI as tokens arrive.

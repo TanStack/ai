@@ -1,6 +1,11 @@
 import { EventType, buildBaseUsage } from '@tanstack/ai'
+import {
+  parseJsonFromAssistantText,
+  structuredOutputCompleteChunk,
+  structuredOutputStartChunk,
+} from '@tanstack/ai/adapter-internals'
 import { GrokThoughtRouter } from './thought-router'
-import type { StreamChunk, TokenUsage } from '@tanstack/ai'
+import type { AdapterYieldChunk, TokenUsage } from '@tanstack/ai'
 import type {
   GrokBuildStreamEvent,
   GrokBuildThreadItem,
@@ -23,6 +28,8 @@ export interface TranslateContext {
   onSessionId?: (sessionId: string) => void
   /** Called for each raw harness event, for logging. */
   onThreadEvent?: (event: GrokBuildStreamEvent) => void
+  /** Parse accumulated assistant text as schema JSON at run end. */
+  expectStructuredOutput?: boolean
 }
 
 /**
@@ -117,7 +124,7 @@ function isNativeEvent(
 
 function* finalizeThoughtRouter(
   router: GrokThoughtRouter | null,
-): Generator<StreamChunk> {
+): Generator<AdapterYieldChunk> {
   if (router) yield* router.finalize()
 }
 
@@ -136,7 +143,7 @@ function isLegacyEvent(event: GrokBuildStreamEvent): boolean {
 export async function* translateThreadEvents(
   events: AsyncIterable<GrokBuildStreamEvent>,
   ctx: TranslateContext,
-): AsyncIterable<StreamChunk> {
+): AsyncIterable<AdapterYieldChunk> {
   const {
     model,
     runId,
@@ -153,6 +160,7 @@ export async function* translateThreadEvents(
   let assistantMessageId: string | null = null
   let reasoningMessageId: string | null = null
   let thoughtRouter: GrokThoughtRouter | null = null
+  let assistantText = ''
 
   const unresolvedToolCalls = new Set<string>()
   const openedToolItems = new Set<string>()
@@ -168,7 +176,7 @@ export async function* translateThreadEvents(
     return thoughtRouter
   }
 
-  function* startRun(): Generator<StreamChunk> {
+  function* startRun(): Generator<AdapterYieldChunk> {
     if (runStarted) return
     runStarted = true
     yield {
@@ -181,7 +189,7 @@ export async function* translateThreadEvents(
     }
   }
 
-  function* finishRun(usage?: GrokBuildUsage): Generator<StreamChunk> {
+  function* finishRun(usage?: GrokBuildUsage): Generator<AdapterYieldChunk> {
     if (runFinished) return
     runFinished = true
     yield {
@@ -196,7 +204,7 @@ export async function* translateThreadEvents(
     }
   }
 
-  function* closeReasoning(): Generator<StreamChunk> {
+  function* closeReasoning(): Generator<AdapterYieldChunk> {
     if (reasoningMessageId === null) return
     yield {
       type: EventType.REASONING_MESSAGE_END,
@@ -213,7 +221,7 @@ export async function* translateThreadEvents(
     reasoningMessageId = null
   }
 
-  function* closeAssistant(): Generator<StreamChunk> {
+  function* closeAssistant(): Generator<AdapterYieldChunk> {
     if (assistantMessageId === null) return
     yield {
       type: EventType.TEXT_MESSAGE_END,
@@ -226,7 +234,7 @@ export async function* translateThreadEvents(
 
   function* handleNative(
     event: Extract<GrokBuildStreamEvent, { type: 'thought' | 'text' | 'end' }>,
-  ): Generator<StreamChunk> {
+  ): Generator<AdapterYieldChunk> {
     yield* startRun()
 
     switch (event.type) {
@@ -255,12 +263,45 @@ export async function* translateThreadEvents(
           model,
           timestamp: now(),
         }
+        assistantText += event.data
         break
       }
       case 'end': {
         yield* getThoughtRouter().finalize()
         yield* closeReasoning()
         yield* closeAssistant()
+        if (ctx.expectStructuredOutput === true) {
+          try {
+            const object = parseJsonFromAssistantText(assistantText)
+            const messageId = genId()
+            yield structuredOutputStartChunk({
+              messageId,
+              model,
+              threadId,
+              runId,
+            })
+            yield structuredOutputCompleteChunk({
+              messageId,
+              model,
+              threadId,
+              runId,
+              object,
+              raw: assistantText,
+            })
+          } catch (error: unknown) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : 'Failed to parse structured output'
+            yield {
+              type: EventType.RUN_ERROR,
+              model,
+              timestamp: now(),
+              message,
+              error: { message },
+            }
+          }
+        }
         if (event.sessionId) {
           onSessionId?.(event.sessionId)
           yield {
@@ -278,7 +319,7 @@ export async function* translateThreadEvents(
     }
   }
 
-  function* synthesizeUnresolvedResults(): Generator<StreamChunk> {
+  function* synthesizeUnresolvedResults(): Generator<AdapterYieldChunk> {
     for (const toolCallId of unresolvedToolCalls) {
       yield {
         type: EventType.TOOL_CALL_RESULT,
@@ -292,7 +333,7 @@ export async function* translateThreadEvents(
     unresolvedToolCalls.clear()
   }
 
-  function* openToolCall(item: ToolItem): Generator<StreamChunk> {
+  function* openToolCall(item: ToolItem): Generator<AdapterYieldChunk> {
     if (openedToolItems.has(item.id)) return
     openedToolItems.add(item.id)
     const toolCallName = toolNameForItem(item)
@@ -328,7 +369,7 @@ export async function* translateThreadEvents(
 
   function* handleItemCompleted(
     item: GrokBuildThreadItem,
-  ): Generator<StreamChunk> {
+  ): Generator<AdapterYieldChunk> {
     if (item.type === 'agent_message') {
       const messageId = item.id
       yield {

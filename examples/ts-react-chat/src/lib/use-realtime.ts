@@ -21,7 +21,7 @@ const getRealtimeTokenFn = createServerFn({ method: 'POST' })
     if (data.provider === 'openai') {
       return realtimeToken({
         adapter: openaiRealtimeToken({
-          model: 'gpt-realtime',
+          model: 'gpt-realtime-2.1',
         }),
       })
     }
@@ -42,7 +42,7 @@ const getRealtimeTokenFn = createServerFn({ method: 'POST' })
 
     if (data.provider === 'grok') {
       return realtimeToken({
-        adapter: grokRealtimeToken({ model: 'grok-voice-fast-1.0' }),
+        adapter: grokRealtimeToken({ model: 'grok-voice-think-fast-2.0' }),
       })
     }
 

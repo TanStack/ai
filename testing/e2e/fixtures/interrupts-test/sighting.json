@@ -1,0 +1,20 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[sighting] run test", "sequenceIndex": 0 },
+      "response": {
+        "content": "I need approval to log this field sighting.",
+        "toolCalls": [
+          {
+            "name": "logFieldSighting",
+            "arguments": "{\"species\":\"barn owl\",\"location\":\"North Meadow\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": { "userMessage": "[sighting] run test", "sequenceIndex": 1 },
+      "response": { "content": "Done — the sighting request was processed." }
+    }
+  ]
+}

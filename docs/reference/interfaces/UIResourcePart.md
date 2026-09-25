@@ -3,19 +3,17 @@ id: UIResourcePart
 title: UIResourcePart
 ---
 
-# Interface: UIResourcePart
-
-Defined in: [packages/ai/src/types.ts:442](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L442)
+Defined in: [packages/ai/src/types.ts:524](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L524)
 
 ## Properties
 
 ### meta?
 
 ```ts
-optional meta: Record<string, unknown>;
+optional meta?: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/types.ts:456](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L456)
+Defined in: [packages/ai/src/types.ts:538](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L538)
 
 Reserved for future passthrough of the resource/tool `_meta.ui` (e.g. frame-size hints).
  Currently always `undefined` — nothing populates this field yet.
@@ -28,14 +26,14 @@ Reserved for future passthrough of the resource/tool `_meta.ui` (e.g. frame-size
 resource: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:445](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L445)
+Defined in: [packages/ai/src/types.ts:527](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L527)
 
 The ui:// resource object in MCP-native shape — fed straight to the renderer.
 
 #### blob?
 
 ```ts
-optional blob: string;
+optional blob?: string;
 ```
 
 #### mimeType
@@ -47,7 +45,7 @@ mimeType: string;
 #### text?
 
 ```ts
-optional text: string;
+optional text?: string;
 ```
 
 #### uri
@@ -61,10 +59,10 @@ uri: string;
 ### serverId?
 
 ```ts
-optional serverId: string;
+optional serverId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:447](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L447)
+Defined in: [packages/ai/src/types.ts:529](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L529)
 
 Pool prefix / config key — routes interactive calls to the right MCP server.
 
@@ -76,7 +74,7 @@ Pool prefix / config key — routes interactive calls to the right MCP server.
 toolCallId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:450](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L450)
+Defined in: [packages/ai/src/types.ts:532](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L532)
 
 Links the widget to the originating tool call — correlates it with the
  sibling ToolCallPart/ToolResultPart in the same message.
@@ -89,7 +87,7 @@ Links the widget to the originating tool call — correlates it with the
 toolName: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:453](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L453)
+Defined in: [packages/ai/src/types.ts:535](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L535)
 
 Server-native (unprefixed) MCP tool name whose UI this resource renders.
  Required by the renderer (`@mcp-ui/client`'s `AppRenderer` `toolName` prop).
@@ -102,4 +100,4 @@ Server-native (unprefixed) MCP tool name whose UI this resource renders.
 type: "ui-resource";
 ```
 
-Defined in: [packages/ai/src/types.ts:443](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L443)
+Defined in: [packages/ai/src/types.ts:525](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L525)

@@ -13,6 +13,15 @@
   // The container image that the @cloudflare/sandbox Sandbox DO runs. It ships
   // all three harness CLIs — claude, codex, grok (see Dockerfile + README
   // Limitations re: stdin) — so `HARNESS` can select one without a rebuild.
+  //
+  // FOOTGUN — `sleepAfter`: the Sandbox class's idle timeout (a class/option
+  // property, not a wrangler key) counts RPC activity, not agent CPU. A run
+  // that is detached AND quiet (nobody tailing, no bridge/tool calls in
+  // flight) looks idle, so the container can sleep mid-run — which presents as
+  // "durability failed" when it is the idle timeout working as configured.
+  // Size it above your longest expected quiet stretch before relying on
+  // detached runs. See docs/sandbox/cloudflare.md "What edge durability does
+  // not buy you".
   "containers": [
     {
       "class_name": "Sandbox",

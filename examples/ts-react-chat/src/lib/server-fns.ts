@@ -8,15 +8,17 @@ import {
   generateTranscription,
   generateVideo,
   getVideoJobStatus,
+  memoryStream,
+  replayRunStream,
   summarize,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import {
-  openaiImage,
-  openaiSummarize,
-  openaiText,
-  openaiVideo,
-} from '@tanstack/ai-openai'
+  getGenerationHydration,
+  withGenerationPersistence,
+} from '@tanstack/ai-persistence'
+import { openaiSummarize, openaiText } from '@tanstack/ai-openai'
+import { grokImage, grokVideo } from '@tanstack/ai-grok'
 import type { UIMessage } from '@tanstack/ai'
 import {
   InvalidModelOverrideError,
@@ -25,6 +27,10 @@ import {
   buildSpeechAdapter,
   buildTranscriptionAdapter,
 } from './server-audio-adapters'
+import {
+  artifactServeUrl,
+  generationServerPersistence,
+} from './generation-server-store'
 
 /**
  * Server-fn error with a stable `code` property clients can switch on.
@@ -74,11 +80,11 @@ function rethrowAudioAdapterError(err: unknown): never {
 }
 
 const SPEECH_PROVIDER_SCHEMA = z
-  .enum(['openai', 'gemini', 'fal', 'grok', 'elevenlabs'])
+  .enum(['openai', 'gemini', 'fal', 'grok', 'elevenlabs', 'byteplus'])
   .optional()
 
 const TRANSCRIPTION_PROVIDER_SCHEMA = z
-  .enum(['openai', 'openai-diarize', 'fal', 'grok', 'elevenlabs'])
+  .enum(['openai', 'openai-diarize', 'fal', 'grok', 'elevenlabs', 'byteplus'])
   .optional()
 
 const TRANSCRIPTION_RESPONSE_FORMAT_SCHEMA = z
@@ -96,23 +102,42 @@ const AUDIO_PROVIDER_SCHEMA = z
   .optional()
 
 // =============================================================================
+// Image generation — server-driven persistence (direct + streaming server fns)
+// =============================================================================
+//
+// Same stores as `/api/generate/image` (`generationServerPersistence` +
+// `/api/artifacts`). Direct and streaming server-fn modes have no GET route, so
+// the client supplies `hydrateGeneration` / `joinRun` via the companion
+// functions below. See docs/persistence/generation-persistence.md.
+
+const imageGenerateInputSchema = z.object({
+  prompt: z.string(),
+  numberOfImages: z.number().optional(),
+  size: z.string().optional(),
+  // Required: the slot successive runs are filed under for hydration.
+  threadId: z.string().min(1),
+})
+
+function imagePersistenceMiddleware() {
+  return withGenerationPersistence(generationServerPersistence(), {
+    artifactUrl: (ref) => artifactServeUrl(ref.artifactId),
+  })
+}
+
+// =============================================================================
 // Direct server functions (non-streaming, return the result directly)
 // =============================================================================
 
 export const generateImageFn = createServerFn({ method: 'POST' })
-  .inputValidator(
-    z.object({
-      prompt: z.string(),
-      numberOfImages: z.number().optional(),
-      size: z.string().optional(),
-    }),
-  )
+  .inputValidator(imageGenerateInputSchema)
   .handler(async ({ data }) => {
     return generateImage({
-      adapter: openaiImage('gpt-image-1'),
+      adapter: grokImage('grok-imagine-image'),
       prompt: data.prompt,
       numberOfImages: data.numberOfImages,
       size: data.size as any,
+      threadId: data.threadId,
+      middleware: [imagePersistenceMiddleware()],
     })
   })
 
@@ -227,7 +252,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
     }),
   )
   .handler(async ({ data }) => {
-    const adapter = openaiVideo('sora-2')
+    const adapter = grokVideo('grok-imagine-video')
 
     // Create the job
     const { jobId } = await generateVideo({
@@ -270,24 +295,76 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
 // =============================================================================
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator(
-    z.object({
-      prompt: z.string(),
-      numberOfImages: z.number().optional(),
-      size: z.string().optional(),
-    }),
-  )
+  .inputValidator(imageGenerateInputSchema)
   .handler(({ data }) => {
-    return toServerSentEventsResponse(
-      generateImage({
-        adapter: openaiImage('gpt-image-1'),
-        prompt: data.prompt,
-        numberOfImages: data.numberOfImages,
-        size: data.size as any,
-        stream: true,
-      }),
+    // One run id for the durability log and the run record so join can replay
+    // exactly the run hydration reports.
+    const runId = crypto.randomUUID()
+    const stream = generateImage({
+      adapter: grokImage('grok-imagine-image'),
+      prompt: data.prompt,
+      numberOfImages: data.numberOfImages,
+      size: data.size as any,
+      threadId: data.threadId,
+      runId,
+      stream: true,
+      middleware: [imagePersistenceMiddleware()],
+    })
+    return toServerSentEventsResponse(stream, {
+      durability: { adapter: memoryStream({ runId }) },
+    })
+  })
+
+/**
+ * Wire shape for mount hydration. Parsed with Zod so:
+ * - TanStack Start gets a JSON-serializable return type (no `unknown`)
+ * - the store's loose `result` is validated before it crosses the wire
+ */
+const generationHydrationSchema = z.object({
+  resumeSnapshot: z
+    .object({
+      schemaVersion: z.literal(1),
+      resumeState: z
+        .object({
+          threadId: z.string(),
+          runId: z.string(),
+        })
+        .nullable(),
+      status: z.enum(['idle', 'running', 'complete', 'error']),
+      // `z.any()` (not `z.unknown()`) so Start's serializer accepts the values.
+      result: z.record(z.string(), z.any()).optional(),
+      error: z
+        .object({
+          message: z.string(),
+          code: z.string().optional(),
+        })
+        .optional(),
+      activity: z.string().optional(),
+    })
+    .nullable(),
+  activeRun: z.object({ runId: z.string() }).nullable(),
+})
+
+/** Mount hydration for image `persistence: true` over a fetcher (no GET route). */
+export const getImageHydrationFn = createServerFn({ method: 'GET' })
+  .inputValidator(z.string().min(1))
+  .handler(async ({ data: threadId }) => {
+    // No auth in this single-user demo — gate on session in a multi-user app.
+    return generationHydrationSchema.parse(
+      await getGenerationHydration(generationServerPersistence(), threadId),
     )
   })
+
+/**
+ * Rejoin an in-flight image run over a server function (replay + live tail).
+ * Returns an SSE `Response` — the client parses it the same way
+ * `generateImageStreamFn` does (see `chunksFromSseResponse` on the page).
+ */
+export const joinImageRunFn = createServerFn({ method: 'GET' })
+  .inputValidator(z.string().min(1))
+  .handler(({ data: runId }) =>
+    toServerSentEventsResponse(replayRunStream(memoryStream({ runId }))),
+  )
 
 export const generateSpeechStreamFn = createServerFn({ method: 'POST' })
   .inputValidator(
@@ -386,7 +463,7 @@ export const generateVideoStreamFn = createServerFn({ method: 'POST' })
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateVideo({
-        adapter: openaiVideo('sora-2'),
+        adapter: grokVideo('grok-imagine-video'),
         prompt: data.prompt,
         size: data.size as any,
         duration: data.duration,
@@ -396,7 +473,7 @@ export const generateVideoStreamFn = createServerFn({ method: 'POST' })
   })
 
 // =============================================================================
-// Chat server function — pairs with useChat({ fetcher })
+// Chat server function â€” pairs with useChat({ fetcher })
 // =============================================================================
 
 export const chatFn = createServerFn({ method: 'POST' })

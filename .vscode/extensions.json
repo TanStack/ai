@@ -1,7 +1,7 @@
 {
   "recommendations": [
     "dbaeumer.vscode-eslint",
-    "esbenp.prettier-vscode",
+    "oxc.oxc-vscode",
     "vitest.explorer",
     "nrwl.angular-console",
     "svelte.svelte-vscode",

@@ -3,51 +3,45 @@ id: ApprovalRequestedEvent
 title: ApprovalRequestedEvent
 ---
 
-# Interface: ApprovalRequestedEvent
+Defined in: [packages/ai/src/types.ts:1468](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1468)
 
-Defined in: [packages/ai/src/types.ts:1346](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1346)
+## Deprecated
 
-Emitted when a server tool requires approval before execution. The agent
-loop yields this and pauses — `structured-output.complete` will not fire
-for that run. The shape is fixed by the orchestrator's tool-approval flow
-(the agent-loop branch of `runStreamingStructuredOutputImpl` in
-`activities/chat/index.ts` forwards CUSTOM events from `TextEngine.run()`).
+Native interrupts use RUN_FINISHED interrupt outcomes. This
+compatibility event remains readable until 1.0.
 
 ## Extends
 
 - [`CustomEvent`](CustomEvent.md)
 
-## Indexable
-
-```ts
-[k: string]: unknown
-```
-
 ## Properties
 
-### model?
+### ~~metadata?~~
 
 ```ts
-optional model: string;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1298](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1298)
+Defined in: [packages/ai/src/types.ts:1416](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1416)
 
-Model identifier for multi-model support
+Extra information attached to this event.
 
 #### Inherited from
 
-[`CustomEvent`](CustomEvent.md).[`model`](CustomEvent.md#model)
+[`CustomEvent`](CustomEvent.md).[`metadata`](CustomEvent.md#metadata)
 
 ***
 
-### name
+### ~~name~~
 
 ```ts
 name: "approval-requested";
 ```
 
-Defined in: [packages/ai/src/types.ts:1347](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1347)
+Defined in: [packages/ai/src/types.ts:1469](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1469)
+
+What this custom event is. Required: without it a consumer cannot route
+the value.
 
 #### Overrides
 
@@ -57,15 +51,31 @@ CustomEvent.name
 
 ***
 
-### value
+### ~~type~~
+
+```ts
+type: "CUSTOM";
+```
+
+Defined in: [packages/ai/src/types.ts:1415](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1415)
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`type`](CustomEvent.md#type)
+
+***
+
+### ~~value~~
 
 ```ts
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1348](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1348)
+Defined in: [packages/ai/src/types.ts:1470](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1470)
 
-#### approval
+The payload. Any JSON value, and required.
+
+#### ~~approval~~
 
 ```ts
 approval: object;
@@ -83,19 +93,19 @@ id: string;
 needsApproval: true;
 ```
 
-#### input
+#### ~~input~~
 
 ```ts
 input: unknown;
 ```
 
-#### toolCallId
+#### ~~toolCallId~~
 
 ```ts
 toolCallId: string;
 ```
 
-#### toolName
+#### ~~toolName~~
 
 ```ts
 toolName: string;

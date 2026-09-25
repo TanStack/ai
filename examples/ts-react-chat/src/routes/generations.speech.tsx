@@ -3,7 +3,9 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateSpeech } from '@tanstack/ai-react'
 import type { UseGenerateSpeechReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
+import { byteplusVoiceByok } from '@tanstack/ai-byteplus/byok'
 import { generateSpeechFn, generateSpeechStreamFn } from '../lib/server-fns'
+import { byok } from '../lib/byok'
 import {
   SPEECH_PROVIDERS,
   type SpeechProviderConfig,
@@ -13,6 +15,8 @@ import {
 type SpeechOutput = { audioUrl: string; format?: string; duration?: number }
 
 type Mode = 'streaming' | 'direct' | 'server-fn'
+
+// Persist each variant's lightweight resume snapshot across reloads.
 
 function toSpeechOutput(raw: {
   audio: string
@@ -48,25 +52,36 @@ function SpeechGenerationForm({
   const hookOptions = useMemo(() => {
     if (mode === 'streaming') {
       return {
+        threadId: `speech:${mode}:${config.id}`,
         connection: fetchServerSentEvents('/api/generate/speech'),
         body: { provider: config.id },
+        persistence: true,
         onResult: toSpeechOutput,
+        ...(config.id === 'byteplus'
+          ? { byok, byokProvider: () => byteplusVoiceByok.id }
+          : {}),
       }
     }
     if (mode === 'direct') {
       return {
-        fetcher: (input: { text: string; voice?: string }) =>
+        threadId: `speech:${mode}:${config.id}`,
+        // `text` is optional on the hook's input because a dialogue request
+        // sends `turns` instead. This form only sends text, so default it.
+        fetcher: (input: { text?: string; voice?: string }) =>
           generateSpeechFn({
-            data: { ...input, provider: config.id },
+            data: { ...input, text: input.text ?? '', provider: config.id },
           }),
+        persistence: true,
         onResult: toSpeechOutput,
       }
     }
     return {
-      fetcher: (input: { text: string; voice?: string }) =>
+      threadId: `speech:${mode}:${config.id}`,
+      fetcher: (input: { text?: string; voice?: string }) =>
         generateSpeechStreamFn({
-          data: { ...input, provider: config.id },
+          data: { ...input, text: input.text ?? '', provider: config.id },
         }),
+      persistence: true,
       onResult: toSpeechOutput,
     }
   }, [mode, config.id])

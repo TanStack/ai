@@ -40,6 +40,21 @@ export interface VercelSandboxConfig {
 
 const DEFAULT_WORKDIR = '/vercel/sandbox'
 const DEFAULT_RUNTIME = 'node24'
+const USER_AGENT_TOKEN = '@tanstack/ai'
+
+export function withSandboxUserAgent(
+  inner: typeof globalThis.fetch = globalThis.fetch,
+): typeof globalThis.fetch {
+  return (input, init) => {
+    const headers = new Headers(init?.headers)
+    const existing = headers.get('user-agent')
+    headers.set(
+      'user-agent',
+      existing ? `${existing} ${USER_AGENT_TOKEN}` : USER_AGENT_TOKEN,
+    )
+    return inner(input, { ...init, headers })
+  }
+}
 
 /**
  * True when `error` is the Vercel SDK's "directory already exists" failure — an
@@ -66,6 +81,8 @@ export function isDirAlreadyExistsError(error: unknown): boolean {
 
 class VercelProvider implements SandboxProvider {
   readonly name = 'vercel'
+
+  private readonly fetch = withSandboxUserAgent()
 
   constructor(private readonly config: VercelSandboxConfig) {}
 
@@ -101,6 +118,7 @@ class VercelProvider implements SandboxProvider {
   async create(input: SandboxCreateInput): Promise<SandboxHandle> {
     const sandbox = await Sandbox.create({
       ...this.auth(),
+      fetch: this.fetch,
       runtime: this.config.runtime ?? DEFAULT_RUNTIME,
       ...(this.config.timeout !== undefined
         ? { timeout: this.config.timeout }
@@ -133,7 +151,11 @@ class VercelProvider implements SandboxProvider {
 
   async resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {
     try {
-      const sandbox = await Sandbox.get({ name: input.id, ...this.auth() })
+      const sandbox = await Sandbox.get({
+        name: input.id,
+        ...this.auth(),
+        fetch: this.fetch,
+      })
       return new VercelHandle({
         sandbox,
         workdir: this.workdir,
@@ -147,7 +169,11 @@ class VercelProvider implements SandboxProvider {
 
   async destroy(input: SandboxDestroyInput): Promise<void> {
     try {
-      const sandbox = await Sandbox.get({ name: input.id, ...this.auth() })
+      const sandbox = await Sandbox.get({
+        name: input.id,
+        ...this.auth(),
+        fetch: this.fetch,
+      })
       await sandbox.stop()
     } catch {
       // Already stopped / gone.

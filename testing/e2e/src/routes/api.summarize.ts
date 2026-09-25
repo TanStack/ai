@@ -1,11 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { summarize, toServerSentEventsResponse } from '@tanstack/ai'
 import { createOpenaiSummarize } from '@tanstack/ai-openai'
+import { openaiCompatible } from '@tanstack/ai-openai/compatible'
+import { ChatStreamSummarizeAdapter } from '@tanstack/ai/adapters'
 import { createAnthropicSummarize } from '@tanstack/ai-anthropic'
 import { createGeminiSummarize } from '@tanstack/ai-gemini'
+import { vertexSummarize } from '@tanstack/ai-vertex'
+import { vertexE2eAuthClient, vertexE2eConfig } from '@/lib/vertex-e2e'
 import { createOllamaSummarize } from '@tanstack/ai-ollama'
+import { createGroqSummarize } from '@tanstack/ai-groq'
 import { createGrokSummarize } from '@tanstack/ai-grok'
+import { grokVertexSummarize } from '@tanstack/ai-grok/vertex'
+import { createLLMGatewaySummarize } from '@tanstack/ai-llmgateway'
+import { createCloudflareSummarize } from '@tanstack/ai-cloudflare'
 import { createOpenRouterSummarize } from '@tanstack/ai-openrouter'
+import { createVercelGatewaySummarize } from '@tanstack/ai-vercel-gateway'
+import { createLovableSummarize } from '@tanstack/ai-lovable'
 import { HTTPClient } from '@openrouter/sdk'
 import type { Provider } from '@/lib/types'
 
@@ -52,6 +62,16 @@ function createSummarizeAdapter(
 ) {
   const headers = testHeaders(testId)
   const factories: Record<string, () => any> = {
+    'openai-compatible': () => {
+      const compatible = openaiCompatible({
+        name: 'custom-compatible',
+        baseURL: openaiUrl(aimockPort),
+        apiKey: DUMMY_KEY,
+        models: ['gpt-4o'],
+        defaultHeaders: headers,
+      })
+      return new ChatStreamSummarizeAdapter(compatible('gpt-4o'), 'gpt-4o')
+    },
     openai: () =>
       createOpenaiSummarize('gpt-4o', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
@@ -64,11 +84,42 @@ function createSummarizeAdapter(
       }),
     gemini: () =>
       createGeminiSummarize(DUMMY_KEY, 'gemini-2.5-flash', {
-        httpOptions: { baseUrl: llmockBase(aimockPort), headers },
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
       }),
+    vertex: () =>
+      vertexSummarize(
+        'gemini-2.5-flash',
+        vertexE2eConfig(llmockBase(aimockPort), headers),
+      ),
     ollama: () => createOllamaSummarize('mistral', llmockBase(aimockPort)),
+    groq: () =>
+      createGroqSummarize('llama-3.3-70b-versatile', DUMMY_KEY, {
+        baseURL: `${llmockBase(aimockPort)}/openai/v1`,
+        defaultHeaders: headers,
+      }),
     grok: () =>
       createGrokSummarize('grok-build-0.1', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    'vertex-grok': () =>
+      grokVertexSummarize('grok-4.3', {
+        project: 'e2e-project',
+        location: 'global',
+        baseURL: openaiUrl(aimockPort),
+        authClient: vertexE2eAuthClient(),
+        defaultHeaders: headers,
+      }),
+    llmgateway: () =>
+      createLLMGatewaySummarize('gpt-5.6-terra', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    cloudflare: () =>
+      createCloudflareSummarize('@cf/zai-org/glm-5.3-flash', {
+        accountId: 'e2e-account',
+        apiKey: DUMMY_KEY,
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
@@ -87,6 +138,16 @@ function createSummarizeAdapter(
         serverURL: openaiUrl(aimockPort),
         httpClient: openRouterHttpClient(headers),
       }),
+    'vercel-gateway': () =>
+      createVercelGatewaySummarize('openai/gpt-5.5', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    lovable: () =>
+      createLovableSummarize('openai/gpt-5.5', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
   }
   return factories[provider]?.()
 }
@@ -104,12 +165,14 @@ export const Route = createFileRoute('/api/summarize')({
           stream: shouldStream,
           testId,
           aimockPort,
+          maxLength,
         } = data as {
           text: string
           provider: Provider
           stream?: boolean
           testId?: string
           aimockPort?: number
+          maxLength?: number
         }
 
         try {
@@ -128,12 +191,17 @@ export const Route = createFileRoute('/api/summarize')({
           // statically narrowable by a later `shouldStream === false`
           // check on the result variable.
           if (shouldStream === false) {
-            const summary = await summarize({ adapter, text, stream: false })
+            const summary = await summarize({
+              adapter,
+              text,
+              maxLength,
+              stream: false,
+            })
             return new Response(JSON.stringify({ summary }), {
               headers: { 'Content-Type': 'application/json' },
             })
           }
-          const stream = summarize({ adapter, text, stream: true })
+          const stream = summarize({ adapter, text, maxLength, stream: true })
           return toServerSentEventsResponse(stream)
         } catch (error) {
           console.error('[api.summarize] Error:', error)

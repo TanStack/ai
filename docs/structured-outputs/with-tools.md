@@ -17,6 +17,10 @@ You want the agent to use tools to gather information, then return a structured 
 
 This page covers the combined `outputSchema` + `tools` shape, including the pause/resume points (server-tool approval prompts, client-tool invocations) that can land mid-run before the structured object arrives.
 
+On adapters that support native combined mode (modern OpenAI, Claude 4.5+, Gemini 3.x, Grok 4.x, and [OpenRouter on those same upstream models](../adapters/openrouter.md#tools-and-structured-output-together)), `chat({ tools, outputSchema, stream: true })` is one streaming request. The extra finalization call does not run.
+
+The React chat example has a live OpenRouter page at `/generations/openrouter-combined`.
+
 > **Note:** If you're not yet familiar with how tools work in TanStack AI, read [Tool Architecture](../tools/tool-architecture) and [Server Tools](../tools/server-tools) first. The patterns here build on the regular agent-loop flow — `outputSchema` just adds a final terminal event.
 
 ## Non-streaming: tools first, then structured object
@@ -56,6 +60,8 @@ recommendation.reason;       // string
 
 The agent decides when to call `get_product_price`, executes the tool, integrates the result into its reasoning, and only then produces the final structured response. You see the validated object; the tool calls happen behind the scenes.
 
+> **Note:** Coding agents in a sandbox (Claude Code, Codex, OpenCode, Grok Build) run native tools and the schema on the same turn. They do not pause for TanStack tool approval or client tools. See [Harness Agents](./harnesses).
+
 ## Streaming: lifecycle events before the structured payload
 
 Pass `stream: true` and the wire format changes — the client now sees tool-call events as they happen, _then_ the structured-output stream emits its terminal event. The lifecycle ordering is:
@@ -64,10 +70,12 @@ Pass `stream: true` and the wire format changes — the client now sees tool-cal
 2. (Agent loop) `TOOL_CALL_START` → `TOOL_CALL_ARGS` → `TOOL_CALL_END` → `TOOL_CALL_RESULT`, possibly repeating for multiple tool calls or iterations
 3. `structured-output.start` (once the model begins emitting the JSON response)
 4. `TEXT_MESSAGE_CONTENT` deltas (the JSON itself)
-5. `structured-output.complete` (validated payload)
+5. `structured-output.complete` (completed payload)
 6. `RUN_FINISHED`
 
 `useChat`'s `partial` stays `{}` and `final` stays `null` while step 2 is running — the structured stream hasn't started yet. Once step 3 fires, `partial` begins filling in; on step 5, `final` snaps.
+
+On the separate-finalization path, the agent loop may also complete a plain-text assistant message before step 3. That message and the structured-output assistant message remain separate. Native-combined output keeps the structured JSON and its part on one assistant message.
 
 The tool-call parts land on the assistant message exactly as they would in a normal streaming chat. Render them however you'd render tool calls outside a structured-output run.
 
@@ -128,7 +136,7 @@ The full server-tool approval pattern lives in [Tool Approval Flow](../tools/too
 
 ## Client tools mid-run
 
-Client tools — defined with `.client((input) => ...)` on the tool definition — execute automatically when the model calls them. The runtime sees the queued `tool-input-available` custom event, looks up the registered `.client()` implementation, runs it, and posts the result back. The agent loop continues to the structured-output stream once every client tool resolves. There's no `onToolCall` option to wire up on the hook side.
+Client tools — defined with `.client((input) => ...)` on the tool definition — execute automatically when the model calls them. The server ends the current run with an internal `client-tool-execution` interrupt that does not appear in the public `interrupts` array. The client runs the registered `.client()` implementation and submits its output in a resume batch. Once every client tool resolves, the agent loop continues into the structured-output stream. There's no `onToolCall` option to wire up on the hook side.
 
 ```tsx
 import { toolDefinition } from "@tanstack/ai";
@@ -164,6 +172,6 @@ See [Client Tools](../tools/client-tools) for the full pattern (typed inputs / o
 
 ## Multi-turn + tools + structured output
 
-Composes naturally. Every turn runs the agent loop (with any tool gates), then snaps a structured-output part on that turn's assistant message. The next turn sees the prior recipe (or recommendation, or report) as assistant content and can iterate on it.
+Composes naturally. Every turn runs the agent loop (with any tool gates), then produces a structured-output assistant message when the run completes successfully. The next turn sees the prior recipe (or recommendation, or report) as assistant content and can iterate on it. The separate-finalization path can also retain the agent loop's plain-text assistant message before that structured response.
 
 The only thing to be careful of: between `sendMessage()` and the first structured-output event, the latest turn has no `structured-output` part yet — your render loop's `m.parts.find(p => p.type === "structured-output")` returns `undefined`. Render a "streaming…" placeholder when `isLoading && messages[last]?.role === "user"` to cover that gap. See [Multi-Turn Chat](./multi-turn) for the full pattern.

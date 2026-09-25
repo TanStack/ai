@@ -9,6 +9,31 @@ import { createMCPClient } from '@tanstack/ai-mcp'
 import type { StreamChunk } from '@tanstack/ai'
 import type { MCPClient } from '@tanstack/ai-mcp'
 import { createTextAdapter } from '@/lib/providers'
+import type { jsonSchemaValidator } from '@modelcontextprotocol/sdk/validation'
+
+/**
+ * A JSON Schema validator that refuses everything.
+ *
+ * Stands in for `CfWorkerJsonSchemaValidator`, which exists because the SDK's
+ * default AJV provider compiles schemas with `new Function` — forbidden on edge
+ * runtimes, where it fails an entire `tools/list` against any server whose
+ * tools declare an `outputSchema`.
+ *
+ * Refusing rather than accepting is what makes the pass-through observable: the
+ * mock server's `get_guitar_price` returns `structuredContent` that AJV accepts,
+ * so a `clientOptions` that never reached the SDK would leave the run
+ * succeeding with the price in the transcript. With it installed, the tool call
+ * fails instead.
+ */
+const rejectingJsonSchemaValidator: jsonSchemaValidator = {
+  getValidator() {
+    return () => ({
+      valid: false,
+      data: undefined,
+      errorMessage: 'rejected by the injected validator',
+    })
+  },
+}
 
 /**
  * Wrap the chat stream so the MCP client is closed only AFTER the stream has
@@ -74,6 +99,9 @@ export const Route = createFileRoute('/api/mcp-test')({
         const testId = typeof fp.testId === 'string' ? fp.testId : undefined
         const aimockPort =
           fp.aimockPort != null ? Number(fp.aimockPort) : undefined
+        // Opt-in: install a custom `jsonSchemaValidator` through
+        // `clientOptions` so the spec can prove the option reaches the SDK.
+        const rejectStructuredOutput = fp.rejectStructuredOutput === true
 
         // The mock MCP server lives at this same dev server's origin.
         const origin = new URL(request.url).origin
@@ -85,6 +113,13 @@ export const Route = createFileRoute('/api/mcp-test')({
         try {
           mcp = await createMCPClient({
             transport: { type: 'http', url: mcpUrl },
+            ...(rejectStructuredOutput
+              ? {
+                  clientOptions: {
+                    jsonSchemaValidator: rejectingJsonSchemaValidator,
+                  },
+                }
+              : {}),
           })
 
           const tools = await mcp.tools()

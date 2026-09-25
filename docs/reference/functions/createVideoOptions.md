@@ -3,13 +3,11 @@ id: createVideoOptions
 title: createVideoOptions
 ---
 
-# Function: createVideoOptions()
-
 ```ts
 function createVideoOptions<TAdapter, TStream>(options): VideoCreateOptions<TAdapter, TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/index.ts:694](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L694)
+Defined in: [packages/ai/src/activities/generateVideo/index.ts:1076](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L1076)
 
 Create typed options for the generateVideo() function without executing.
 
@@ -17,7 +15,7 @@ Create typed options for the generateVideo() function without executing.
 
 ### TAdapter
 
-`TAdapter` *extends* [`VideoAdapter`](../interfaces/VideoAdapter.md)\<`string`, `any`, `any`, `any`, [`ModelInputModalitiesByName`](../type-aliases/ModelInputModalitiesByName.md), `Record`\<`string`, `number`\>\>
+`TAdapter` *extends* [`VideoAdapter`](../interfaces/VideoAdapter.md)\<`string`, `any`, `any`, `any`, `any`, `any`\>
 
 ### TStream
 

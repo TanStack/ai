@@ -82,17 +82,21 @@ describe('chat() return type', () => {
 
   describe('StructuredOutputStream assignability', () => {
     it('is assignable to AsyncIterable<StreamChunk> (toServerSentEventsResponse input)', () => {
-      expectTypeOf<StructuredOutputStream<Person>>().toMatchTypeOf<
+      expectTypeOf<StructuredOutputStream<Person>>().toExtend<
         AsyncIterable<StreamChunk>
       >()
     })
   })
 
   describe('without outputSchema', () => {
-    it('stream: true → ChatStream', () => {
+    it('stream: true → ChatStream (assignable to StreamChunk)', () => {
+      // Bare CUSTOM is replaced by KnownCustomEvent so name narrows work.
       expectTypeOf<
         TextActivityResult<undefined, true>
       >().toEqualTypeOf<ChatStream>()
+      expectTypeOf<TextActivityResult<undefined, true>>().toExtend<
+        AsyncIterable<StreamChunk>
+      >()
     })
 
     it('stream: false → Promise<string>', () => {

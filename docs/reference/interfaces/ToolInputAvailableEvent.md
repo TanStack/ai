@@ -3,50 +3,45 @@ id: ToolInputAvailableEvent
 title: ToolInputAvailableEvent
 ---
 
-# Interface: ToolInputAvailableEvent
+Defined in: [packages/ai/src/types.ts:1488](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1488)
 
-Defined in: [packages/ai/src/types.ts:1362](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1362)
+## Deprecated
 
-Emitted when a client tool is invoked. The agent loop yields this and
-pauses to let the caller run the tool client-side — `structured-output.complete`
-will not fire for that run. Shape fixed by the agent-loop forwarding in
-`runStreamingStructuredOutputImpl` in `activities/chat/index.ts`.
+Native interrupts use RUN_FINISHED interrupt outcomes. This
+compatibility event remains readable until 1.0.
 
 ## Extends
 
 - [`CustomEvent`](CustomEvent.md)
 
-## Indexable
-
-```ts
-[k: string]: unknown
-```
-
 ## Properties
 
-### model?
+### ~~metadata?~~
 
 ```ts
-optional model: string;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1298](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1298)
+Defined in: [packages/ai/src/types.ts:1416](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1416)
 
-Model identifier for multi-model support
+Extra information attached to this event.
 
 #### Inherited from
 
-[`CustomEvent`](CustomEvent.md).[`model`](CustomEvent.md#model)
+[`CustomEvent`](CustomEvent.md).[`metadata`](CustomEvent.md#metadata)
 
 ***
 
-### name
+### ~~name~~
 
 ```ts
 name: "tool-input-available";
 ```
 
-Defined in: [packages/ai/src/types.ts:1363](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1363)
+Defined in: [packages/ai/src/types.ts:1489](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1489)
+
+What this custom event is. Required: without it a consumer cannot route
+the value.
 
 #### Overrides
 
@@ -56,27 +51,43 @@ CustomEvent.name
 
 ***
 
-### value
+### ~~type~~
+
+```ts
+type: "CUSTOM";
+```
+
+Defined in: [packages/ai/src/types.ts:1415](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1415)
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`type`](CustomEvent.md#type)
+
+***
+
+### ~~value~~
 
 ```ts
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1364](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1364)
+Defined in: [packages/ai/src/types.ts:1490](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1490)
 
-#### input
+The payload. Any JSON value, and required.
+
+#### ~~input~~
 
 ```ts
 input: unknown;
 ```
 
-#### toolCallId
+#### ~~toolCallId~~
 
 ```ts
 toolCallId: string;
 ```
 
-#### toolName
+#### ~~toolName~~
 
 ```ts
 toolName: string;
