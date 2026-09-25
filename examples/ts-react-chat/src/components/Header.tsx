@@ -18,6 +18,7 @@ import {
   MessageSquare,
   Mic,
   Music,
+  Network,
   PauseCircle,
   Plug,
   RefreshCw,
@@ -379,6 +380,19 @@ export default function Header() {
           >
             <Wifi size={20} />
             <span className="font-medium">WebSocket Chat</span>
+          </Link>
+
+          <Link
+            to="/subagent-brief"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Network size={20} />
+            <span className="font-medium">Subagent Brief</span>
           </Link>
 
           <Link

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WebsocketChatRouteImport } from './routes/websocket-chat'
 import { Route as TypesafeToolsRouteImport } from './routes/typesafe-tools'
 import { Route as ThreadsRouteImport } from './routes/threads'
+import { Route as SubagentBriefRouteImport } from './routes/subagent-brief'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as SandboxesDurableRouteImport } from './routes/sandboxes-durable'
 import { Route as SandboxesRouteImport } from './routes/sandboxes'
@@ -46,6 +47,7 @@ import { Route as ExampleRuntimeContextRouteImport } from './routes/example.runt
 import { Route as ApiTranscribeRouteImport } from './routes/api.transcribe'
 import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
+import { Route as ApiSubagentBriefRouteImport } from './routes/api.subagent-brief'
 import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured-output'
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
 import { Route as ApiSandboxTriageDurableRouteImport } from './routes/api.sandbox-triage-durable'
@@ -94,6 +96,11 @@ const TypesafeToolsRoute = TypesafeToolsRouteImport.update({
 const ThreadsRoute = ThreadsRouteImport.update({
   id: '/threads',
   path: '/threads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubagentBriefRoute = SubagentBriefRouteImport.update({
+  id: '/subagent-brief',
+  path: '/subagent-brief',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ServerFnChatRoute = ServerFnChatRouteImport.update({
@@ -269,6 +276,11 @@ const ApiTanchatRoute = ApiTanchatRouteImport.update({
 const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   id: '/api/summarize',
   path: '/api/summarize',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSubagentBriefRoute = ApiSubagentBriefRouteImport.update({
+  id: '/api/subagent-brief',
+  path: '/api/subagent-brief',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiStructuredOutputRoute = ApiStructuredOutputRouteImport.update({
@@ -464,6 +476,7 @@ export interface FileRoutesByFullPath {
   '/sandboxes': typeof SandboxesRoute
   '/sandboxes-durable': typeof SandboxesDurableRoute
   '/server-fn-chat': typeof ServerFnChatRoute
+  '/subagent-brief': typeof SubagentBriefRoute
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/websocket-chat': typeof WebsocketChatRoute
@@ -494,6 +507,7 @@ export interface FileRoutesByFullPath {
   '/api/sandbox-triage-durable': typeof ApiSandboxTriageDurableRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
+  '/api/subagent-brief': typeof ApiSubagentBriefRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
@@ -537,6 +551,7 @@ export interface FileRoutesByTo {
   '/sandboxes': typeof SandboxesRoute
   '/sandboxes-durable': typeof SandboxesDurableRoute
   '/server-fn-chat': typeof ServerFnChatRoute
+  '/subagent-brief': typeof SubagentBriefRoute
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/websocket-chat': typeof WebsocketChatRoute
@@ -567,6 +582,7 @@ export interface FileRoutesByTo {
   '/api/sandbox-triage-durable': typeof ApiSandboxTriageDurableRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
+  '/api/subagent-brief': typeof ApiSubagentBriefRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
@@ -611,6 +627,7 @@ export interface FileRoutesById {
   '/sandboxes': typeof SandboxesRoute
   '/sandboxes-durable': typeof SandboxesDurableRoute
   '/server-fn-chat': typeof ServerFnChatRoute
+  '/subagent-brief': typeof SubagentBriefRoute
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/websocket-chat': typeof WebsocketChatRoute
@@ -641,6 +658,7 @@ export interface FileRoutesById {
   '/api/sandbox-triage-durable': typeof ApiSandboxTriageDurableRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
   '/api/structured-output': typeof ApiStructuredOutputRoute
+  '/api/subagent-brief': typeof ApiSubagentBriefRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
@@ -686,6 +704,7 @@ export interface FileRouteTypes {
     | '/sandboxes'
     | '/sandboxes-durable'
     | '/server-fn-chat'
+    | '/subagent-brief'
     | '/threads'
     | '/typesafe-tools'
     | '/websocket-chat'
@@ -716,6 +735,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-triage-durable'
     | '/api/structured-chat'
     | '/api/structured-output'
+    | '/api/subagent-brief'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
@@ -759,6 +779,7 @@ export interface FileRouteTypes {
     | '/sandboxes'
     | '/sandboxes-durable'
     | '/server-fn-chat'
+    | '/subagent-brief'
     | '/threads'
     | '/typesafe-tools'
     | '/websocket-chat'
@@ -789,6 +810,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-triage-durable'
     | '/api/structured-chat'
     | '/api/structured-output'
+    | '/api/subagent-brief'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
@@ -832,6 +854,7 @@ export interface FileRouteTypes {
     | '/sandboxes'
     | '/sandboxes-durable'
     | '/server-fn-chat'
+    | '/subagent-brief'
     | '/threads'
     | '/typesafe-tools'
     | '/websocket-chat'
@@ -862,6 +885,7 @@ export interface FileRouteTypes {
     | '/api/sandbox-triage-durable'
     | '/api/structured-chat'
     | '/api/structured-output'
+    | '/api/subagent-brief'
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
@@ -906,6 +930,7 @@ export interface RootRouteChildren {
   SandboxesRoute: typeof SandboxesRoute
   SandboxesDurableRoute: typeof SandboxesDurableRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
+  SubagentBriefRoute: typeof SubagentBriefRoute
   ThreadsRoute: typeof ThreadsRoute
   TypesafeToolsRoute: typeof TypesafeToolsRoute
   WebsocketChatRoute: typeof WebsocketChatRoute
@@ -936,6 +961,7 @@ export interface RootRouteChildren {
   ApiSandboxTriageDurableRoute: typeof ApiSandboxTriageDurableRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
   ApiStructuredOutputRoute: typeof ApiStructuredOutputRoute
+  ApiSubagentBriefRoute: typeof ApiSubagentBriefRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiTanchatRoute: typeof ApiTanchatRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
@@ -979,6 +1005,13 @@ declare module '@tanstack/react-router' {
       path: '/threads'
       fullPath: '/threads'
       preLoaderRoute: typeof ThreadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subagent-brief': {
+      id: '/subagent-brief'
+      path: '/subagent-brief'
+      fullPath: '/subagent-brief'
+      preLoaderRoute: typeof SubagentBriefRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/server-fn-chat': {
@@ -1217,6 +1250,13 @@ declare module '@tanstack/react-router' {
       path: '/api/summarize'
       fullPath: '/api/summarize'
       preLoaderRoute: typeof ApiSummarizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/subagent-brief': {
+      id: '/api/subagent-brief'
+      path: '/api/subagent-brief'
+      fullPath: '/api/subagent-brief'
+      preLoaderRoute: typeof ApiSubagentBriefRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/structured-output': {
@@ -1492,6 +1532,7 @@ const rootRouteChildren: RootRouteChildren = {
   SandboxesRoute: SandboxesRoute,
   SandboxesDurableRoute: SandboxesDurableRoute,
   ServerFnChatRoute: ServerFnChatRoute,
+  SubagentBriefRoute: SubagentBriefRoute,
   ThreadsRoute: ThreadsRoute,
   TypesafeToolsRoute: TypesafeToolsRoute,
   WebsocketChatRoute: WebsocketChatRoute,
@@ -1522,6 +1563,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSandboxTriageDurableRoute: ApiSandboxTriageDurableRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,
   ApiStructuredOutputRoute: ApiStructuredOutputRoute,
+  ApiSubagentBriefRoute: ApiSubagentBriefRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiTanchatRoute: ApiTanchatRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
