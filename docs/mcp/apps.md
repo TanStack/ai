@@ -215,6 +215,11 @@ export const Route = createFileRoute('/api/mcp-apps/call')({
 
 `createMcpAppCallHandler` always verifies that `toolName` is in the list of tools the target server actually exposes. A request for a tool the server does not know about returns `{ ok: false, error: "Tool not allowed: <name>" }` without ever executing it. This server-exposure check is unconditional and cannot be bypassed.
 
+The handler also uses the [tool policy](../tools/mcp#limit-and-gate-tools) of each client:
+
+- `toolFilter`: a tool that the filter hides returns `Tool not allowed: <name>`.
+- `needsApproval`: a widget call has no approval step. A tool that `needsApproval` marks returns `{ ok: false, error: "Tool needs approval: <name>" }`.
+
 Use the `allowTool` option to add a further restriction on top. A request must satisfy **both** the server-exposure check and `allowTool` — it is AND-ed, not a replacement for the server check:
 
 ```ts

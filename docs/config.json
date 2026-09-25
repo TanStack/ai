@@ -147,7 +147,7 @@
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Connection Adapters",
@@ -271,7 +271,7 @@
           "label": "Provider Tools",
           "to": "tools/provider-tools",
           "addedAt": "2026-04-21",
-          "updatedAt": "2026-09-22"
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "Provider Skills",
@@ -495,7 +495,8 @@
         {
           "label": "Managed MCP with chat()",
           "to": "tools/mcp-managed",
-          "addedAt": "2026-06-05"
+          "addedAt": "2026-06-05",
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Manual MCP",
@@ -518,7 +519,7 @@
           "label": "MCP Apps",
           "to": "mcp/apps",
           "addedAt": "2026-06-24",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Serve Tools over HTTP",
@@ -639,7 +640,7 @@
           "label": "Client Persistence",
           "to": "persistence/client-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-24"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Generation Persistence",
@@ -656,7 +657,7 @@
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Migrations",
@@ -1145,7 +1146,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-16"
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "Google Vertex AI",
@@ -1286,7 +1287,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-09-16"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "BytePlus",

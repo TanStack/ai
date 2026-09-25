@@ -211,6 +211,30 @@ try {
 }
 ```
 
+### Recover the model's text
+
+Sometimes a model returns a valid JSON object and then more text, for example a second copy of the object. The JSON parse then fails and `chat()` throws. The error message shows only the first 200 characters. The full text is on `error.rawText`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { MySchema } from "./schemas";
+
+try {
+  const result = await chat({
+    adapter: openaiText("gpt-6-astra"),
+    messages: [{ role: "user", content: "..." }],
+    outputSchema: MySchema,
+  });
+} catch (error) {
+  if (error instanceof Error && "rawText" in error) {
+    console.error("Model text:", error.rawText);
+  }
+}
+```
+
+Parse and validate that text yourself if you want to keep the answer.
+
 ## Consuming the result on the client
 
 The `await chat({ outputSchema })` call above returns a `Promise<T>` — ideal for a server route, a script, or a CLI. There are two ways that typed object reaches a browser.

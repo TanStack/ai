@@ -196,6 +196,13 @@ export interface ToolCall<TMetadata = unknown> extends Omit<
   metadata?: TMetadata
 }
 
+/** One source link from a provider-executed web search. */
+export interface ProviderExecutedToolSource {
+  url: string
+  title?: string
+  pageAge?: string
+}
+
 /**
  * Convention for tool-call `metadata` that marks a call as **provider-executed**
  * — run by the provider's own infrastructure (e.g. Anthropic `web_search` /
@@ -209,10 +216,12 @@ export interface ToolCall<TMetadata = unknown> extends Omit<
  *
  * Provider-specific payloads live under a namespaced key (e.g. `anthropic`),
  * keeping this convention opaque to the framework core. The index signature
- * preserves those per-adapter fields.
+ * preserves those per-adapter fields. `sources` is the normalized list of
+ * links a web search used, shared across providers.
  */
 export interface ProviderExecutedToolMetadata {
   providerExecuted?: boolean
+  sources?: Array<ProviderExecutedToolSource>
   [key: string]: unknown
 }
 
@@ -560,6 +569,12 @@ export interface TanStackMessageMetadata {
   model?: string
   /** Parent chat run that produced this assistant message. */
   runId?: string
+  /**
+   * The chat run that produced this assistant message. `withPersistence` sets
+   * `id`. `reconstructChat` with `includeRuns: true` adds the finished run's
+   * timings, in epoch ms.
+   */
+  run?: { id: string; startedAt?: number; finishedAt?: number }
   /** Card data on a child wire message. See `uiMessagesToWire`. */
   subagent?: SubagentWireInfo
   /** Thinking signature for a `role: 'reasoning'` fan-out message. */

@@ -1208,6 +1208,81 @@ describe('StreamProcessor', () => {
   })
 
   // ==========================================================================
+  // TOOL_CALL_END input after streamed arguments
+  // ==========================================================================
+  describe('TOOL_CALL_END input after streamed arguments', () => {
+    // Adapters that stream the provider's wire arguments and then hand a
+    // normalized `input` on TOOL_CALL_END (OpenAI strict-mode null widening,
+    // undone by the adapter since #939) must not leave the part with a raw
+    // `arguments` string that disagrees with its `input`.
+    const WIRE_ARGS = '{"task":"list","context":null}'
+    const CANONICAL_INPUT = { task: 'list' }
+
+    const runToolCall = (end: StreamChunk) => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.toolStart('tc-1', 'spawn'))
+      processor.processChunk(ev.toolArgs('tc-1', WIRE_ARGS))
+      processor.processChunk(end)
+      processor.processChunk(ev.runFinished('tool_calls'))
+      processor.finalizeStream()
+      const part = processor
+        .getMessages()
+        .flatMap((m) => m.parts)
+        .find((p): p is ToolCallPart => p.type === 'tool-call')
+      return { part, processor }
+    }
+
+    it('writes TOOL_CALL_END.input into arguments even when deltas were streamed', () => {
+      // `ev.toolEnd` drops its `input` option, so build the chunk directly.
+      const { part, processor } = runToolCall(
+        chunk(EventType.TOOL_CALL_END, {
+          toolCallId: 'tc-1',
+          input: CANONICAL_INPUT,
+        }),
+      )
+
+      expect(part?.state).toBe('input-complete')
+      expect(part?.arguments).toBe(JSON.stringify(CANONICAL_INPUT))
+      expect(part?.input).toEqual(CANONICAL_INPUT)
+      expect(
+        processor.getState().toolCalls.get('tc-1')?.parsedArguments,
+      ).toEqual(CANONICAL_INPUT)
+    })
+
+    it('keeps the streamed arguments when TOOL_CALL_END carries no input', () => {
+      const { part } = runToolCall(ev.toolEnd('tc-1', 'spawn'))
+
+      expect(part?.state).toBe('input-complete')
+      expect(part?.arguments).toBe(WIRE_ARGS)
+      expect(part?.input).toEqual(JSON.parse(WIRE_ARGS))
+    })
+
+    // An input JSON cannot carry is not canonical: `arguments` and `input`
+    // both stay with the streamed value rather than disagreeing.
+    it.each([
+      ['throws on serialization', { task: 'list', count: 1n }],
+      ['serializes to undefined', () => 'list'],
+      ['is null', null],
+    ])(
+      'keeps the streamed arguments and input when TOOL_CALL_END.input %s',
+      (_case, input) => {
+        const { part, processor } = runToolCall(
+          chunk(EventType.TOOL_CALL_END, { toolCallId: 'tc-1', input }),
+        )
+
+        expect(part?.state).toBe('input-complete')
+        expect(part?.arguments).toBe(WIRE_ARGS)
+        expect(part?.input).toEqual(JSON.parse(WIRE_ARGS))
+        expect(
+          processor.getState().toolCalls.get('tc-1')?.parsedArguments,
+        ).toEqual(JSON.parse(WIRE_ARGS))
+      },
+    )
+  })
+
+  // ==========================================================================
   // Text-tool interleaving
   // ==========================================================================
   describe('text-tool interleaving', () => {

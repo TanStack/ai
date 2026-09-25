@@ -11,7 +11,10 @@ export type {
   ServerDescriptor,
   ToolsOptions,
 } from './types'
-export type { ToolAnnotations } from '@modelcontextprotocol/client'
+export type {
+  Tool as McpTool,
+  ToolAnnotations,
+} from '@modelcontextprotocol/client'
 export type {
   TransportConfig,
   TransportInput,

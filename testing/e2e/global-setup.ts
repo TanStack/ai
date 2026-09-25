@@ -3,6 +3,7 @@ import fs from 'fs'
 import http from 'http'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { EventStreamCodec } from '@smithy/eventstream-codec'
 import type { Mountable } from '@copilotkit/aimock'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -134,6 +135,19 @@ export default async function globalSetup() {
   // spec asserts those reach `RUN_FINISHED.usage` as the canonical
   // `promptTokensDetails.cachedTokens` / `completionTokensDetails.reasoningTokens`.
   mock.mount('/openai-usage-details', openaiUsageDetailsMount())
+
+  // Provider-executed web search responses need native Responses/Gemini wire
+  // items that aimock does not synthesize. These mounts feed the adapter E2E
+  // route deterministic search calls and grounding metadata.
+  mock.mount('/provider-search-openai', openaiProviderSearchMount())
+  mock.mount('/provider-search-gemini', geminiProviderSearchMount())
+
+  // Bedrock Converse prompt caching. aimock cannot replay the Converse
+  // `vnd.amazon.eventstream` protocol, so this mount encodes the frames itself
+  // and drives the real `@aws-sdk/client-bedrock-runtime` client. It reports
+  // which request sections ended with a `cachePoint` block and answers with
+  // Bedrock's cache usage counters; the companion spec asserts both.
+  mock.mount('/bedrock-converse-cache', bedrockConverseCacheMount())
 
   // Anthropic structured-output fallback usage (#758). The Anthropic text
   // adapter has no native `structuredOutputStream`, so streaming structured
@@ -1805,6 +1819,181 @@ function openaiUsageDetailsMount(): Mountable {
   }
 }
 
+function openaiProviderSearchMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (req.method !== 'POST' || pathname !== '/v1/responses') {
+        return false
+      }
+
+      const body = asRecord(await readJsonRequestBody(req))
+      const include = body?.include
+      if (
+        !Array.isArray(include) ||
+        !include.includes('web_search_call.action.sources')
+      ) {
+        res.statusCode = 400
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            error: {
+              message: 'OpenAI web search sources were not requested.',
+            },
+          }),
+        )
+        return true
+      }
+
+      const webSearchCall = {
+        type: 'web_search_call',
+        id: 'ws_e2e_openai',
+        status: 'completed',
+        action: {
+          type: 'search',
+          queries: ['latest release'],
+          sources: [{ type: 'url', url: 'https://example.com/release' }],
+        },
+      }
+      const citation = {
+        type: 'url_citation',
+        url: 'https://example.com/release',
+        title: 'Example release notes',
+        start_index: 0,
+        end_index: 7,
+      }
+      const events = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp_e2e_openai',
+            object: 'response',
+            status: 'in_progress',
+            model: 'gpt-4o',
+            output: [],
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { ...webSearchCall, status: 'searching' },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_e2e_openai',
+          output_index: 1,
+          content_index: 0,
+          delta: 'Grounded',
+        },
+        {
+          type: 'response.output_text.annotation.added',
+          item_id: 'msg_e2e_openai',
+          output_index: 1,
+          content_index: 0,
+          annotation_index: 0,
+          annotation: citation,
+        },
+        {
+          type: 'response.output_item.done',
+          output_index: 0,
+          item: webSearchCall,
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp_e2e_openai',
+            object: 'response',
+            status: 'completed',
+            model: 'gpt-4o',
+            output: [
+              webSearchCall,
+              {
+                id: 'msg_e2e_openai',
+                type: 'message',
+                role: 'assistant',
+                status: 'completed',
+                content: [
+                  {
+                    type: 'output_text',
+                    text: 'Grounded',
+                    annotations: [citation],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ]
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      for (const event of events) {
+        res.write(`data: ${JSON.stringify(event)}\n\n`)
+      }
+      res.write('data: [DONE]\n\n')
+      res.end()
+      return true
+    },
+  }
+}
+
+function geminiProviderSearchMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (
+        req.method !== 'POST' ||
+        !pathname.endsWith(':streamGenerateContent')
+      ) {
+        return false
+      }
+      await drainBody(req)
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.end(
+        `data: ${JSON.stringify({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [{ text: 'Grounded' }],
+              },
+              groundingMetadata: {
+                webSearchQueries: ['latest release'],
+                groundingChunks: [
+                  {
+                    web: {
+                      uri: 'https://example.com/release',
+                      title: 'Example release notes',
+                    },
+                  },
+                ],
+              },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 1,
+            candidatesTokenCount: 1,
+            totalTokenCount: 2,
+          },
+        })}\n\n`,
+      )
+      return true
+    },
+  }
+}
+
 /**
  * Mounts the non-streaming Anthropic `/v1/messages` response the text adapter's
  * `structuredOutput()` expects: a tool-forced `structured_output` `tool_use`
@@ -1985,6 +2174,90 @@ function readBody(req: http.IncomingMessage): Promise<string> {
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
     req.on('error', reject)
   })
+}
+
+/**
+ * Answers `POST /model/{modelId}/converse-stream` with a fixed Converse event
+ * stream. The text block carries a JSON report of where the request placed
+ * `cachePoint` blocks (tools, system, last message), and the trailing
+ * `metadata` event carries cache read/write counters as Bedrock returns them
+ * on a cache hit.
+ */
+function bedrockConverseCacheMount(): Mountable {
+  const utf8 = new TextEncoder()
+  const codec = new EventStreamCodec(
+    (bytes) => new TextDecoder().decode(bytes),
+    (text) => utf8.encode(text),
+  )
+  const frame = (eventType: string, payload: unknown): Buffer =>
+    Buffer.from(
+      codec.encode({
+        headers: {
+          ':event-type': { type: 'string', value: eventType },
+          ':message-type': { type: 'string', value: 'event' },
+          ':content-type': { type: 'string', value: 'application/json' },
+        },
+        body: utf8.encode(JSON.stringify(payload)),
+      }),
+    )
+  const endsWithCachePoint = (blocks: unknown): boolean => {
+    if (!Array.isArray(blocks) || blocks.length === 0) return false
+    const last: unknown = blocks[blocks.length - 1]
+    return typeof last === 'object' && last !== null && 'cachePoint' in last
+  }
+
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      // The mount prefix (/bedrock-converse-cache) is stripped before dispatch.
+      if (
+        req.method !== 'POST' ||
+        !/\/model\/[^/]+\/converse-stream$/.test(pathname)
+      ) {
+        return false
+      }
+      const body = (await readJsonRequestBody(req)) ?? {}
+      const toolConfig = body.toolConfig as { tools?: unknown } | undefined
+      const messages = body.messages as Array<{ content?: unknown }> | undefined
+      const observed = {
+        tools: endsWithCachePoint(toolConfig?.tools),
+        system: endsWithCachePoint(body.system),
+        lastMessage: endsWithCachePoint(
+          messages?.[messages.length - 1]?.content,
+        ),
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/vnd.amazon.eventstream')
+      res.write(frame('messageStart', { role: 'assistant' }))
+      res.write(
+        frame('contentBlockDelta', {
+          contentBlockIndex: 0,
+          delta: { text: JSON.stringify(observed) },
+        }),
+      )
+      res.write(frame('contentBlockStop', { contentBlockIndex: 0 }))
+      res.write(frame('messageStop', { stopReason: 'end_turn' }))
+      // Values from a real cache hit: inputTokens is the uncached remainder.
+      res.write(
+        frame('metadata', {
+          usage: {
+            inputTokens: 3,
+            outputTokens: 4,
+            totalTokens: 8416,
+            cacheReadInputTokens: 8409,
+            cacheWriteInputTokens: 0,
+          },
+          metrics: { latencyMs: 1 },
+        }),
+      )
+      res.end()
+      return true
+    },
+  }
 }
 
 function drainBody(req: http.IncomingMessage): Promise<void> {

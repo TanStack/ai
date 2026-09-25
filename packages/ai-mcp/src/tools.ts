@@ -15,7 +15,11 @@ import type {
   ToolAnnotations,
   Transport,
 } from '@modelcontextprotocol/client'
-import type { ContentPart, ToolInputResponse } from '@tanstack/ai'
+import type {
+  AnyServerTool,
+  ContentPart,
+  ToolInputResponse,
+} from '@tanstack/ai'
 import {
   isMCPInputRequiredError,
   MCPInputRequiredError,
@@ -25,6 +29,7 @@ import type { McpServerTool, McpToolMetadata } from './types'
 interface ConvertOptions {
   prefix?: string
   lazy?: boolean
+  needsApproval?: (tool: McpToolDef) => boolean
 }
 
 /** Reads the MCP Apps `_meta.ui.resourceUri` link from a tool def, if present. */
@@ -713,6 +718,11 @@ export function toServerTools(
           Boolean(def.outputSchema),
           requiresTaskExecution(def),
         ),
+      }
+      if (options.needsApproval?.(def)) {
+        // McpServerTool types needsApproval as false to stay a plain ServerTool.
+        const approvable: AnyServerTool = tool
+        approvable.needsApproval = true
       }
       return tool
     })

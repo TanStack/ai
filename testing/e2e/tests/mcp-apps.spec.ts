@@ -228,4 +228,29 @@ test.describe('mcp-apps — data + interactive planes', () => {
       `expected error message to mention 'not allowed', got: ${body}`,
     ).toContain('not allowed')
   })
+
+  test('APPROVAL: a widget call for a tool that needs approval returns ok:false', async ({
+    request,
+    testId,
+  }) => {
+    const res = await request.post('/api/mcp-apps-call', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        threadId: `mcp-apps-thread-${testId}`,
+        serverId: 'widgets',
+        toolName: 'show_widget',
+        args: { title: 'from-test' },
+        needsApproval: true,
+      },
+    })
+
+    const body = await res.text()
+    expect(res.ok(), `mcp-apps-call failed (${res.status()}): ${body}`).toBe(
+      true,
+    )
+
+    const json = parseCallResponse(body)
+    expect(json.ok, `expected ok:false, got: ${body}`).toBe(false)
+    expect(json.error).toBe('Tool needs approval: show_widget')
+  })
 })

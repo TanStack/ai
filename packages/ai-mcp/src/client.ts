@@ -56,6 +56,8 @@ export type TypedCallToolResult<TOutput> = unknown extends TOutput
   ? CallToolResult
   : Omit<CallToolResult, 'structuredContent'> & { structuredContent?: TOutput }
 
+type ToolPolicy = Pick<MCPClientOptions, 'toolFilter' | 'needsApproval'>
+
 export interface MCPClient<
   TServer extends ServerDescriptor = AutomaticDescriptor,
 > {
@@ -139,6 +141,8 @@ export interface MCPClient<
      * Optional so an existing hand-rolled `MCPClient` keeps compiling.
      */
     clientOptions?: ClientOptions
+    toolFilter?: MCPClientOptions['toolFilter']
+    needsApproval?: MCPClientOptions['needsApproval']
   }
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
@@ -161,6 +165,7 @@ class MCPClientImpl<
   // rebuilds a client per call from getInfo(), and a rebuilt client that lost
   // `jsonSchemaValidator` falls straight back to AJV.
   readonly #clientOptions: ClientOptions | undefined
+  readonly #policy: ToolPolicy
 
   constructor(
     prefix?: string,
@@ -168,10 +173,12 @@ class MCPClientImpl<
     version = '0.0.1',
     transport?: TransportConfig,
     clientOptions?: ClientOptions,
+    policy: ToolPolicy = {},
   ) {
     this.prefix = prefix
     this.#transport = transport
     this.#clientOptions = clientOptions
+    this.#policy = policy
     // Try spec 2026-07-28 first. If the server does not support it, the
     // client uses the 2025 initialize handshake. Caller options still apply.
     // `mode` stays `auto` even when `clientOptions` sets another mode.
@@ -199,11 +206,16 @@ class MCPClientImpl<
     transport: TransportConfig | undefined
     prefix: string | undefined
     clientOptions?: ClientOptions
+    toolFilter?: MCPClientOptions['toolFilter']
+    needsApproval?: MCPClientOptions['needsApproval']
   } {
+    const { toolFilter, needsApproval } = this.#policy
     return {
       transport: this.#transport,
       prefix: this.prefix,
       ...(this.#clientOptions ? { clientOptions: this.#clientOptions } : {}),
+      ...(toolFilter ? { toolFilter } : {}),
+      ...(needsApproval ? { needsApproval } : {}),
     }
   }
 
@@ -279,12 +291,14 @@ class MCPClientImpl<
       : // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         ((defsOrOptions as ToolsOptions) ?? {}) // SDK interop: defsOrOptions may be undefined at runtime even though TS types it as ToolsOptions here
 
+    const { toolFilter, needsApproval } = this.#policy
+    const listed = await this.#listTools()
+    const defs = toolFilter ? listed.filter((def) => toolFilter(def)) : listed
+
     let tools: Array<McpServerTool>
     if (isDefs) {
       // Explicit path: bind each TanStack toolDefinition to the server by name.
-      const available = new Map(
-        (await this.#listTools()).map((tool) => [tool.name, tool]),
-      )
+      const available = new Map(defs.map((tool) => [tool.name, tool]))
       tools = (defsOrOptions as ReadonlyArray<AnyToolDefinition>).map((def) => {
         const serverTool = available.get(def.name)
         if (!serverTool) throw new MCPToolNotFoundError(def.name)
@@ -334,10 +348,10 @@ class MCPClientImpl<
       })
     } else {
       // Auto-discovery path.
-      const defs = await this.#listTools()
       tools = toServerTools(this.#client, defs, {
         prefix: this.prefix,
         lazy: options.lazy,
+        needsApproval,
       })
     }
 
@@ -496,6 +510,7 @@ async function connectTransport<
     // instance is single-use, so it is not retained as a descriptor.
     isTransportInstance(options.transport) ? undefined : options.transport,
     options.clientOptions,
+    { toolFilter: options.toolFilter, needsApproval: options.needsApproval },
   )
   await impl.connect(transport)
   return impl

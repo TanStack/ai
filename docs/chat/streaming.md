@@ -95,6 +95,8 @@ export function Chat() {
 
 `messages` updates as chunks arrive. `isLoading` is `true` while the run is in flight.
 
+The shared `ChatClient` processes ready chunks in order without inserting a task between each chunk. It yields after bounded processing work to keep the main thread responsive.
+
 The same pattern works in every UI framework. See [Quick Start](../getting-started/quick-start).
 
 If SSE is blocked, pick another transport on [Connection Adapters](./connection-adapters).
@@ -132,6 +134,8 @@ export async function POST(request: Request) {
 `AbortError` from `stop()` is expected. Pending client-tool work for that turn does not resume. A later `addToolResult()` for that turn is ignored.
 
 A dropped connection mid-line throws `StreamTruncatedError`. The client then moves to `error`. See [Connection Adapters](./connection-adapters).
+
+For OpenAI and OpenRouter Responses, a stream that ends without `response.completed` emits `RUN_ERROR` with code `incomplete-stream`. This applies to chat and to structured output. Text received before the error remains available. The run does not call `onFinish`.
 
 ## Later
 

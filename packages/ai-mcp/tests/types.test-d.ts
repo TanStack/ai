@@ -7,6 +7,7 @@ import type { DescriptorFromServer } from '../src/direct-client'
 import type { travelServer } from './fixtures/travel-server'
 import type { MCPClients } from '../src/pool'
 import type {
+  MCPClientOptions,
   MappedServerTools,
   McpServerTool,
   McpToolMetadata,
@@ -126,3 +127,17 @@ async function untypedRemote() {
   await remote.getPrompt('anything', { any: 'args' })
 }
 void untypedRemote
+
+// Tool policy callbacks get the typed raw MCP tool definition.
+const policy: MCPClientOptions = {
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  toolFilter: (tool) => {
+    expectTypeOf(tool.name).toEqualTypeOf<string>()
+    expectTypeOf(tool.annotations).toEqualTypeOf<ToolAnnotations | undefined>()
+    // @ts-expect-error - misspelled field
+    void tool.annotaions
+    return tool.annotations?.readOnlyHint === true
+  },
+  needsApproval: (tool) => tool.annotations?.destructiveHint !== false,
+}
+void policy

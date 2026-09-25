@@ -955,6 +955,8 @@ class TextEngine<
     message: string
     code?: string
     cause?: unknown
+    /** Full model text, when a structured-output parse failed (#1485). */
+    rawText?: string
   } | null = null
   private combinedCompleteEmitted = false
   private readonly finalStructuredOutput?: {
@@ -1192,6 +1194,7 @@ class TextEngine<
     message: string
     code?: string
     cause?: unknown
+    rawText?: string
   } | null {
     return this.finalizationError
   }
@@ -1211,6 +1214,12 @@ class TextEngine<
       if (this.finalizationError.code !== undefined) {
         Object.defineProperty(errForHook, 'code', {
           value: this.finalizationError.code,
+          enumerable: true,
+        })
+      }
+      if (this.finalizationError.rawText !== undefined) {
+        Object.defineProperty(errForHook, 'rawText', {
+          value: this.finalizationError.rawText,
           enumerable: true,
         })
       }
@@ -3897,6 +3906,9 @@ class TextEngine<
     // Track whether a RUN_ERROR has been yielded to streaming consumers so
     // we don't emit a duplicate synthetic one at the end.
     let runErrorYielded = false
+    // The full model text. Adapter errors carry only a 200-character preview,
+    // so a Promise caller could not recover the answer (#1485).
+    let rawText = ''
 
     // Pipe chunks through middleware; yield to consumer only when yieldChunks=true
     for await (const raw of providerStream) {
@@ -4008,6 +4020,10 @@ class TextEngine<
           await this.runOnUsageFromChunk(chunk)
         }
 
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+          rawText += chunk.delta
+        }
+
         if (chunk.type === EventType.RUN_ERROR) {
           // RunErrorEvent already exposes `message` and `code` after narrowing.
           // A native stream has no adapter error to capture, but its RUN_ERROR
@@ -4017,6 +4033,7 @@ class TextEngine<
             message: chunk.message,
             ...(chunk.code ? { code: chunk.code } : {}),
             ...(cause !== undefined ? { cause } : {}),
+            ...(rawText ? { rawText } : {}),
           }
         }
 
@@ -4200,6 +4217,7 @@ class TextEngine<
             message: `Failed to parse structured output as JSON. Content: ${detail}`,
             code: 'structured-output-parse-failed',
             cause: err,
+            rawText,
           }
         }
       }
@@ -5816,6 +5834,12 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
     if (finalizationError.code !== undefined) {
       Object.defineProperty(err, 'code', {
         value: finalizationError.code,
+        enumerable: true,
+      })
+    }
+    if (finalizationError.rawText !== undefined) {
+      Object.defineProperty(err, 'rawText', {
+        value: finalizationError.rawText,
         enumerable: true,
       })
     }

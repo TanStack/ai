@@ -177,6 +177,56 @@ const adapter = createBedrockText(
 )
 ```
 
+### Prompt caching
+
+Add a `cachePoint` to make a prompt prefix eligible for caching. Later requests can read matching tokens at the reduced cache rate. Bedrock bills cache misses at the standard input rate.
+
+Explicit prompt caching is model-dependent. Use `cachePoint` only with a model that AWS lists as supporting it. The minimum checkpoint size and the TTL options also vary by model.
+
+Set `metadata.cachePoint` on the item that ends the stable part of your prompt. The adapter places a `cachePoint` block right after it:
+
+```typescript
+import { bedrockText } from '@tanstack/ai-bedrock'
+import { chat } from '@tanstack/ai'
+
+const stream = chat({
+  adapter: bedrockText('us.anthropic.claude-sonnet-4-5-20250929-v1:0', {
+    region: 'us-east-1',
+  }),
+  systemPrompts: [
+    {
+      content: 'Long, stable instructions...',
+      metadata: { cachePoint: { type: 'default' } },
+    },
+  ],
+  messages: [
+    // An older turn. Its cachePoint was removed when the new turn was added.
+    { role: 'user', content: 'Summarize the report.' },
+    { role: 'assistant', content: 'The report says...' },
+    {
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          content: 'What changed since yesterday?',
+          // Only the newest message has a checkpoint.
+          // It caches the conversation up to here for the next round.
+          metadata: { cachePoint: { type: 'default' } },
+        },
+      ],
+    },
+  ],
+})
+```
+
+Keep one message checkpoint, on the newest message. Before you send the next turn, remove `cachePoint` from the older message and add it to the new message. The metadata stays in the message history. If you do not remove it, the checkpoints add up, and the request can go over the Bedrock limit of four.
+
+Tools take the same metadata. Pass `metadata: { cachePoint: { type: 'default' } }` to `toolDefinition()` for the last tool in the list to cache the tool definitions.
+
+- Bedrock accepts up to four checkpoints per request.
+- Add `ttl: '1h'` to keep an entry for one hour. The default is 5 minutes, and a read refreshes the timer. Bedrock processes tool checkpoints first, then system prompt checkpoints, and then message checkpoints. If a request mixes both TTLs, place every `1h` checkpoint before the first `5m` checkpoint in that combined order.
+- A checkpoint below the model's minimum size is ignored. The request still succeeds, and nothing is cached.
+
 ### Token usage
 
 `onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. When a request hits or writes a prompt cache, the cache counts arrive on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. Bedrock counts only the uncached part of the input in `promptTokens`, so add the two cache counts to it to get the full input size.

@@ -175,6 +175,28 @@ The optional run methods are `listByThread`, `listByParentRun`, and
 `skipMethods`. An omitted `listByParentRun` needs no entry: the subagent checks
 skip on their own.
 
+### Turn on the newer checks
+
+Some checks were added after the suite shipped. They are off by default, so an
+adapter that passed before still passes. Turn them on to prove that your adapter
+supports run timings on reload (`reconstructChat` with `includeRuns: true`):
+
+```ts
+import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
+import { sqlitePersistence } from './sqlite-persistence'
+
+runPersistenceConformance(
+  'my sqlite adapter',
+  () => sqlitePersistence({ url: ':memory:', migrate: true }),
+  { checks: ['messages.metadata', 'runs.listByThread.state'] },
+)
+```
+
+- `messages.metadata`: `loadThread` returns each message's `metadata` as it was saved.
+- `runs.listByThread.state`: `listByThread` returns each run's current `status` and `finishedAt` after `update`.
+
+A check you do not turn on shows as skipped, with the option to add.
+
 Anything absent and undeclared fails with a message naming exactly what to add, so a
 half-wired adapter cannot report a pass. When this is green, your adapter is a drop-in
 for `withPersistence`, and with the generation stores for

@@ -172,6 +172,23 @@ export class OpenAITextAdapter<
       request.include = ['reasoning.encrypted_content']
     }
 
+    // OpenAI only returns the URLs used by a hosted web search when this
+    // response item is included. Preserve caller entries and add the item for
+    // branded web search tools only. A custom function named `web_search` has
+    // no internal provider-tool discriminator and must not change the request.
+    const hasWebSearchTool = options.tools?.some((tool) => {
+      const kind = tool.metadata?.['__kind']
+      return (
+        kind === 'openai.web_search' || kind === 'openai.web_search_preview'
+      )
+    })
+    if (hasWebSearchTool) {
+      const include = request.include ?? []
+      if (!include.includes('web_search_call.action.sources')) {
+        request.include = [...include, 'web_search_call.action.sources']
+      }
+    }
+
     return request
   }
 }

@@ -1,6 +1,7 @@
 import type { ServerTool, ToolDefinition } from '@tanstack/ai'
 import type {
   ClientOptions,
+  Tool as McpToolDef,
   ToolAnnotations,
 } from '@modelcontextprotocol/client'
 import type { TransportInput } from './transport'
@@ -114,6 +115,36 @@ export interface MCPClientOptions {
    * ```
    */
   clientOptions?: ClientOptions
+  /**
+   * Return `false` to hide a server tool. Receives the raw MCP tool definition
+   * (native `name`, `title`, `annotations`). Default: every tool.
+   *
+   * Applies to `tools()`, `chat({ mcp })`, and MCP Apps widget calls. In
+   * `tools([...defs])` a hidden definition throws `MCPToolNotFoundError`.
+   * `callTool()` is not filtered. `annotations` are server-declared hints, not
+   * a security boundary.
+   *
+   * ```ts
+   * const mcp = await createMCPClient({
+   *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+   *   toolFilter: (tool) => tool.annotations?.readOnlyHint === true,
+   * })
+   * ```
+   */
+  toolFilter?: (tool: McpToolDef) => boolean
+  /**
+   * Return `true` to require user approval before a discovered tool runs.
+   * Default: no approval. `tools([...defs])` keeps each definition's own
+   * `needsApproval`.
+   *
+   * ```ts
+   * const mcp = await createMCPClient({
+   *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+   *   needsApproval: (tool) => tool.annotations?.readOnlyHint !== true,
+   * })
+   * ```
+   */
+  needsApproval?: (tool: McpToolDef) => boolean
 }
 
 export interface ToolsOptions {

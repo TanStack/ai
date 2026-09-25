@@ -534,6 +534,12 @@ const stream = chat({
 
 **Supported models:** GPT-4o and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
+When the model uses hosted web search, the assistant tool-call part includes
+`metadata.providerExecuted: true` and the normalized `metadata.sources` array.
+OpenAI's raw search call and URL citations stay under `metadata.openai`. The
+agent loop does not execute this call in your application, and the adapter
+replays the raw response items on the next turn.
+
 ### `fileSearchTool`
 
 Searches OpenAI vector stores that you have pre-populated, letting the model

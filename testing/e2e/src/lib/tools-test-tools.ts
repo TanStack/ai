@@ -323,6 +323,11 @@ export const SCENARIO_LIST = [
     label: 'Text Interleaved in Tool Args (Regression #1017)',
     category: 'race',
   },
+  {
+    id: 'canonical-tool-input',
+    label: 'TOOL_CALL_END Input Replaces Streamed Args',
+    category: 'race',
+  },
 ]
 
 /**
@@ -416,6 +421,7 @@ export function getToolsForScenario(scenario: string) {
 
     case 'malformed-tool-arguments':
     case 'provider-rejected-tool-call':
+    case 'canonical-tool-input':
       return [serverTools.check_status]
 
     default:

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { chat, type AdapterYieldChunk, type Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAITextAdapter } from '../src/adapters/text'
+import { webSearchTool } from '../src/tools'
 import type { OpenAITextProviderOptions } from '../src/adapters/text'
 
 const createAdapter = <TModel extends 'gpt-4o-mini' | 'gpt-4o'>(
@@ -248,6 +249,50 @@ describe('OpenAI adapter option mapping', () => {
 
     const [payload] = responsesCreate.mock.calls[0]!
     expect(payload.include).toEqual(['reasoning.encrypted_content'])
+  })
+
+  it('requests hosted web search sources while preserving caller include entries', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-web-search-include',
+          model: 'gpt-4o-mini',
+          status: 'in_progress',
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-web-search-include',
+          model: 'gpt-4o-mini',
+          status: 'completed',
+          output: [],
+        },
+      },
+    ])
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+    const adapter = createAdapter('gpt-4o-mini')
+    ;(adapter as any).client = {
+      responses: {
+        create: responsesCreate,
+      },
+    }
+
+    for await (const _chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Search the web.' }],
+      tools: [webSearchTool({ type: 'web_search' })],
+      modelOptions: { include: ['message.output_text.logprobs'] },
+    })) {
+      // consume
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]!
+    expect(payload.include).toEqual([
+      'message.output_text.logprobs',
+      'web_search_call.action.sources',
+    ])
   })
 
   it('lets callers override the default reasoning include list', async () => {
