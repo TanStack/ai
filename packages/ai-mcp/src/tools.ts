@@ -127,6 +127,7 @@ export function mcpContentToTanstack(
  * On spec 2026, pass `inputResponse` to answer an input request.
  * The call gets the request again, then sends the answer at once
  * with `inputResponses` and the server's `requestState`.
+ * If the server asks for input again after that answer, this throws an Error.
  *
  * @param client - Connected MCP client
  * @param mcpName - Server tool name
@@ -172,6 +173,15 @@ export async function callMcpTool(
       { ...params, ...retryParams(raw, inputResponse) },
       signal,
     )
+    // ponytail: one input round per call. The next resume starts with no
+    // requestState, so a second pause would ask round 1 again forever.
+    // Carry requestState through the interrupt if servers need more rounds.
+    if (isInputRequiredResult(raw)) {
+      throw new Error(
+        `The MCP tool "${mcpName}" asked for input a second time. ` +
+          'This client answers one input request per tool call.',
+      )
+    }
   }
   return finishToolCall(client, mcpName, raw, signal)
 }

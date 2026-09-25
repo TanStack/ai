@@ -64,6 +64,8 @@ On spec 2026, the handler returns `input_required`. Then the client runs the too
 
 If the work must run once, put that work after `requestInput` returns.
 
+On spec 2026, a tool asks one question per call. A second `requestInput` in the same call throws an Error. To ask two questions, use two tools.
+
 A TanStack `chat()` host pauses on `input_required` and shows the request to the user. [MCP Client Input](../tools/mcp-input) shows how the user answers.
 
 `requestInput` does not work in an `execution: 'task'` tool. [MCP Server Tasks](./server-tasks) has the details.

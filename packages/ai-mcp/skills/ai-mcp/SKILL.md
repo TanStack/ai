@@ -133,6 +133,7 @@ On spec 2026, `ctx.context.requestInput` throws, and the handler returns `input_
 The client runs the tool again with the answer.
 Code before `requestInput` runs on each call, so it can run more than once.
 Put work that must run once after `requestInput` returns.
+On spec 2026, a tool asks one question per call. A second `requestInput` throws an Error.
 If the user declines or cancels, `requestInput` throws an Error, and the call ends with a tool error.
 In an `execution: 'task'` tool, `ctx.context.requestInput` throws an error.
 On spec 2025, `requestInput` waits on the open session.

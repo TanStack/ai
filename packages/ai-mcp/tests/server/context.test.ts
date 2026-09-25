@@ -96,6 +96,15 @@ describe('createServerToolContext', () => {
       expect(runs).toBe(2)
       expect(finished).toBe(1)
     })
+
+    it('throws on a second 2026 question in one call instead of reusing the answer', async () => {
+      const ctx = createServerToolContext({ era: '2026', inputAnswer: 'Paris' })
+
+      await expect(ctx.requestInput(cityRequest)).resolves.toBe('Paris')
+      await expect(ctx.requestInput({ message: 'Which day?' })).rejects.toThrow(
+        'only one question per tool call',
+      )
+    })
   })
 
   describe('sample', () => {

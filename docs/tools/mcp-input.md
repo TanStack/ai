@@ -189,6 +189,8 @@ To decline a form, send the full MCP answer: `{ action: 'decline' }`.
 
 A resumed tool gets the answer on `ctx.inputResponse`. The MCP tools read it for you. Your own server tool can read it too.
 
+The client answers one input request per tool call. If the server asks for input again after it gets the answer, the tool call ends with a tool error.
+
 The pause and the resume work on spec 2026. On spec 2025, the server asks the client for input in the middle of the tool call. `chat()` cannot pause that call, so the tool call fails.
 
 ## A tool error

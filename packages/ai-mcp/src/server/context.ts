@@ -130,6 +130,7 @@ export type MCPToolContext = ReturnType<typeof createServerToolContext>
 export function createServerToolContext<TAnswer = unknown, TSample = unknown>(
   options: ServerToolContextOptions<TAnswer, TSample>,
 ) {
+  let asked = false
   return {
     /**
      * Asks the user for a value.
@@ -139,6 +140,7 @@ export function createServerToolContext<TAnswer = unknown, TSample = unknown>(
      * {@link ToolInputRequiredError}.
      * If `inputAnswer` is present, this returns that answer.
      * If the user declined or cancelled, this throws an Error.
+     * On era `2026`, a second call in the same tool call throws an Error.
      *
      * @param request - The question for the user
      */
@@ -146,6 +148,16 @@ export function createServerToolContext<TAnswer = unknown, TSample = unknown>(
       if (options.era === '2025') {
         return options.waitForInput(request)
       }
+
+      // The retry carries one answer. A second question would get that same
+      // answer back, so stop the call instead.
+      if (asked) {
+        throw new Error(
+          'ctx.context.requestInput can ask only one question per tool call ' +
+            'on protocol 2026. Split the questions into separate tools.',
+        )
+      }
+      asked = true
 
       if (options.inputDeclined === true) {
         throw new Error(inputDeclinedMessage)

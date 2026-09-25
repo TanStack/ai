@@ -34,6 +34,8 @@ A session closes in two cases:
 
 The server checks for idle sessions when a request comes in. After a session closes, the client must open a new session.
 
+The server has no limit on the number of open sessions. Each session stays in memory until it closes, which can take 30 minutes. On a public server, set `auth`, or limit new sessions at your proxy.
+
 ## Sessions and auth
 
 When `auth` names a subject, the session belongs to that subject. A request from another subject gets 404, the same as an unknown id. [MCP Server Auth](./server-auth) shows how to set the subject.

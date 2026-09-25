@@ -415,6 +415,41 @@ describe('callMcpTool', () => {
     expect(seen[0]?.responses).toEqual({ city: { action: 'cancel' } })
   })
 
+  it('fails with a clear error when the server asks a second input round', async () => {
+    let calls = 0
+    const server = modernInputServer()
+    server.setRequestHandler('tools/call', () => {
+      calls += 1
+      return inputRequired({
+        inputRequests: {
+          [`round${calls}`]: inputRequired.elicit({
+            message: `Question ${calls}?`,
+            requestedSchema: { type: 'object', properties: {} },
+          }),
+        },
+        requestState: `state-${calls}`,
+      })
+    })
+    const client = await connectModernClient(server)
+    try {
+      const execute = makeMcpExecute(client, 'ask', false)
+      // A pause here would reuse the same interrupt id and loop forever.
+      await expect(
+        execute(
+          {},
+          {
+            abortSignal: undefined,
+            inputResponse: { status: 'resolved', payload: {} },
+          },
+        ),
+      ).rejects.toThrow('asked for input a second time')
+      expect(calls).toBe(2)
+    } finally {
+      await client.close()
+      await server.close()
+    }
+  })
+
   it('stops a spec 2025 task that needs input instead of polling forever', async () => {
     const clock = taskClock()
     const server = new Server(
