@@ -1,4 +1,6 @@
 import { runPersistenceConformance } from '../src/testkit/conformance'
 import { memoryPersistence } from '../src/memory'
 
-runPersistenceConformance('memory', () => memoryPersistence())
+runPersistenceConformance('memory', () => memoryPersistence(), {
+  checks: ['messages.metadata', 'runs.listByThread.state'],
+})

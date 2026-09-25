@@ -259,6 +259,53 @@ test.describe('server persistence', () => {
     })
   })
 
+  test('reconstructChat with includeRuns returns run timings (issue #1061)', async ({
+    request,
+  }) => {
+    const threadId = `run-timings-${crypto.randomUUID()}`
+    const run = await request.post(
+      '/api/persistence-durability?scenario=usage',
+      { data: { threadId, runId: crypto.randomUUID() } },
+    )
+    expect(run.ok()).toBe(true)
+    const { runId } = (await run.json()) as { runId: string }
+
+    const hydrated = await request.get(
+      `/api/persistence-durability?scenario=usage&threadId=${encodeURIComponent(threadId)}`,
+    )
+    expect(hydrated.ok()).toBe(true)
+    const body = (await hydrated.json()) as {
+      runs?: Array<{
+        runId: string
+        status: string
+        startedAt: number
+        finishedAt?: number
+      }>
+      messages: Array<{
+        role: string
+        metadata?: {
+          tanstack?: {
+            run?: { id: string; startedAt?: number; finishedAt?: number }
+          }
+        }
+      }>
+    }
+
+    expect(body.runs).toHaveLength(1)
+    const [timing] = body.runs!
+    expect(timing).toMatchObject({ runId, status: 'completed' })
+    expect(timing!.finishedAt).toBeGreaterThanOrEqual(timing!.startedAt)
+    const assistant = body.messages.filter((m) => m.role === 'assistant')
+    expect(assistant.length).toBeGreaterThan(0)
+    for (const message of assistant) {
+      expect(message.metadata?.tanstack?.run).toEqual({
+        id: runId,
+        startedAt: timing!.startedAt,
+        finishedAt: timing!.finishedAt,
+      })
+    }
+  })
+
   test('restores a failed server tool call as failed', async ({ request }) => {
     const threadId = `tool-error-${crypto.randomUUID()}`
     const run = await request.post(

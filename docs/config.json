@@ -137,7 +137,7 @@
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Connection Adapters",
@@ -191,7 +191,7 @@
           "label": "One-Shot Extraction",
           "to": "structured-outputs/one-shot",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Streaming UIs",
@@ -291,7 +291,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-27"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Built-in Middleware",
@@ -480,7 +480,7 @@
           "label": "MCP Server Tools",
           "to": "tools/mcp",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Managed MCP with chat()",
@@ -577,7 +577,7 @@
           "label": "Client Persistence",
           "to": "persistence/client-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-24"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Generation Persistence",
@@ -594,7 +594,7 @@
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Migrations",
@@ -1071,7 +1071,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-22"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Anthropic",
@@ -1154,7 +1154,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Perplexity Search",
@@ -1194,7 +1194,7 @@
           "label": "Claude Code",
           "to": "adapters/claude-code",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-25"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Codex",
@@ -1320,7 +1320,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "@tanstack/ai-client",

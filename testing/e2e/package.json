@@ -43,6 +43,7 @@
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-reactor": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
+    "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@tanstack/ai-skills": "workspace:*",
     "@tanstack/ai-vercel-gateway": "workspace:*",
     "@tanstack/ai-vertex": "workspace:*",

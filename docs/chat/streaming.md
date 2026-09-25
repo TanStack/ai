@@ -133,6 +133,8 @@ export async function POST(request: Request) {
 
 A dropped connection mid-line throws `StreamTruncatedError`. The client then moves to `error`. See [Connection Adapters](./connection-adapters).
 
+For OpenAI and OpenRouter Responses, a stream that ends without `response.completed` emits `RUN_ERROR` with code `incomplete-stream`. This applies to chat and to structured output. Text received before the error remains available. The run does not call `onFinish`.
+
 ## Later
 
 - **No HTTP.** Iterate `chat()` yourself. Branch on `chunk.type === "TEXT_MESSAGE_CONTENT"`. Then read `chunk.delta`.
