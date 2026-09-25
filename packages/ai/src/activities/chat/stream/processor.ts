@@ -37,6 +37,7 @@ import { getChunkRunId } from '../../../utilities/chunk-ids'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import {
   isContentPartArray,
+  isToolResultOutcome,
   normalizeToolResult,
   toolResultErrorText,
 } from '../../../utilities/tool-result'
@@ -2061,9 +2062,14 @@ export class StreamProcessor {
     if (!messageId) return
 
     const extra = chunk as AdapterYieldChunk
+    const rawToolResultOutcome = tanstackMetadata(chunk)?.toolResultOutcome
+    const toolResultOutcome = isToolResultOutcome(rawToolResultOutcome)
+      ? rawToolResultOutcome
+      : undefined
     const isOutputError =
       extra.state === 'output-error' ||
-      tanstackMetadata(chunk)?.state === 'output-error'
+      tanstackMetadata(chunk)?.state === 'output-error' ||
+      toolResultOutcome !== undefined
 
     // Step 1: Update the tool-call part's output field
     let output: unknown
@@ -2095,6 +2101,7 @@ export class StreamProcessor {
         : aguiContentToContentParts(chunk.content),
       resultState,
       resultState === 'error' ? toolResultErrorText(output) : undefined,
+      toolResultOutcome,
     )
     this.emitMessagesChange()
   }
