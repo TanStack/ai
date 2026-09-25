@@ -257,6 +257,8 @@ const tools = await mcp.tools()
 // tools: ServerTool[]  — args typed unknown at compile time
 ```
 
+MCP schemas often use `$ref` or `oneOf`. On adapters built on the OpenAI API, those tools are sent without strict mode, and the adapter warns in development. See [Tools that cannot use strict mode](../adapters/openai.md#tools-that-cannot-use-strict-mode).
+
 > **Task-based tools are supported.** Tools that declare
 > `execution.taskSupport: 'required'` automatically run through the MCP SDK's
 > experimental `tasks/callToolStream` flow. TanStack AI waits through task

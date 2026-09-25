@@ -117,6 +117,28 @@ const config: Omit<OpenAITextConfig, "apiKey"> = {
 
 const adapter = createOpenaiChat("gpt-5.2", process.env.OPENAI_API_KEY!, config);
 ```
+
+### Tools that cannot use strict mode
+
+OpenAI holds tool arguments to the schema only when the tool is sent with `strict: true`. Some schemas cannot be strict, for example a schema that uses `$ref`, `z.any()`, or `z.record()`. The adapter sends these tools with `strict: false`, so the tool still works. The model can then return arguments that do not match the schema.
+
+In development, the adapter logs a warning once for each of these tools:
+
+```txt
+tool "lookup_user" sent with strict: false: schema uses $ref, which strict mode does not support
+```
+
+To get strict mode back, change the schema so that the reason goes away. If you accept a non-strict tool, turn the warning off in the adapter config:
+
+```typescript
+import { createOpenaiChat } from "@tanstack/ai-openai";
+
+const adapter = createOpenaiChat("gpt-6-astra", process.env.OPENAI_API_KEY!, {
+  strictFallbackWarning: false,
+});
+```
+
+The warning never runs when `NODE_ENV` is `production`. The same option works on every adapter built on the OpenAI API, for example Groq, Bedrock, and Vercel AI Gateway.
  
 ## Example: Chat Completion
 

@@ -2,6 +2,7 @@ import { buildBaseUsage } from '@tanstack/ai'
 import { BaseEvaluateAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { buildHeaders, getOpenRouterApiKeyFromEnv } from '../utils'
+import { extractUsageCost } from './cost'
 import type { EvaluateOptions, WireAnswer } from '@tanstack/ai/adapters'
 import type { OpenRouterClientConfig } from '../utils/client'
 import type {
@@ -100,11 +101,14 @@ function mapUsage(usage: unknown) {
     readNumber(usage, ['output_tokens', 'completion_tokens']) ?? 0
   const totalTokens =
     readNumber(usage, ['total_tokens']) ?? promptTokens + completionTokens
-  return buildBaseUsage({
-    promptTokens,
-    completionTokens,
-    totalTokens,
-  })
+  return {
+    ...buildBaseUsage({
+      promptTokens,
+      completionTokens,
+      totalTokens,
+    }),
+    ...extractUsageCost(usage),
+  }
 }
 
 /**

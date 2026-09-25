@@ -36,6 +36,7 @@ import {
 import { getChunkRunId } from '../../../utilities/chunk-ids'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import {
+  isContentPartArray,
   isToolResultOutcome,
   normalizeToolResult,
   toolResultErrorText,
@@ -2075,7 +2076,11 @@ export class StreamProcessor {
       this.messages,
       messageId,
       chunk.toolCallId,
-      aguiContentToContentParts(chunk.content),
+      // The server sends a ContentPart[] result as a JSON string. Keep the
+      // parsed array so uiMessagesToWire can carry it in metadata.
+      isContentPartArray(output)
+        ? output
+        : aguiContentToContentParts(chunk.content),
       resultState,
       resultState === 'error' ? toolResultErrorText(output) : undefined,
       toolResultOutcome,

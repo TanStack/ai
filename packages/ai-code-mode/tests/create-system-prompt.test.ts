@@ -123,6 +123,14 @@ describe('createCodeModeSystemPrompt — lazy tools', () => {
     expect(prompt).not.toContain('external_fetchStocks — Get stock prices.')
   })
 
+  it('says discover_tools is a separate tool, not a sandbox function', () => {
+    const prompt = createCodeModeSystemPrompt({
+      driver: driverStub,
+      tools: [eagerTool, lazyTool],
+    })
+    expect(prompt).toContain('not available inside `execute_typescript`')
+  })
+
   it('includes first sentences in the catalog when configured', () => {
     const prompt = createCodeModeSystemPrompt({
       driver: driverStub,
