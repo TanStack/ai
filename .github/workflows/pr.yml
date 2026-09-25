@@ -70,7 +70,7 @@ jobs:
           PROJECTS: ${{ steps.affected.outputs.list }}
         run: |
           rm -rf packages/*/coverage
-          pnpm exec nx run-many --targets=test:coverage --projects="$PROJECTS" -- --coverage.reporter=json-summary --coverage.include='src/**'
+          pnpm exec nx run-many --targets=test:coverage --projects="$PROJECTS" --outputStyle=static -- --coverage.reporter=json-summary --coverage.include='src/**'
           node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-head" --expect "$PROJECTS"
       # Re-measuring the merge-base is normally a set of Nx Cloud cache
       # restores seeded by the Coverage workflow on main: the task hashes are
@@ -99,7 +99,7 @@ jobs:
           fi
           # Extra reporters/include so a merge-base whose scripts are still
           # `vitest run --coverage` still writes coverage-summary.json.
-          pnpm exec nx run-many --targets=test:coverage --projects="$base_list" -- --coverage.reporter=json-summary --coverage.include='src/**'
+          pnpm exec nx run-many --targets=test:coverage --projects="$base_list" --outputStyle=static -- --coverage.reporter=json-summary --coverage.include='src/**'
           node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-base" --expect "$base_list"
       - name: Compare
         if: steps.affected.outputs.list != ''
