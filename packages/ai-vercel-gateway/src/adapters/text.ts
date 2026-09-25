@@ -11,13 +11,15 @@ import type {
 } from '../model-meta'
 import type { VercelGatewayMessageMetadataByModality } from '../message-types'
 import type { VercelGatewayClientConfig } from '../utils/client'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof VercelGatewayChatModelToolCapabilitiesByName
     ? NonNullable<VercelGatewayChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
-export interface VercelGatewayTextConfig extends VercelGatewayClientConfig {}
+export interface VercelGatewayTextConfig
+  extends VercelGatewayClientConfig, OpenAIBaseTextAdapterOptions {}
 
 export type { ExternalTextProviderOptions as VercelGatewayTextProviderOptions } from '../text/text-provider-options'
 
@@ -49,6 +51,7 @@ export class VercelGatewayTextAdapter<
       model,
       'vercel-gateway',
       new OpenAI(withVercelGatewayDefaults(config)),
+      config,
     )
   }
 

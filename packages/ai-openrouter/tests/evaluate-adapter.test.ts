@@ -181,6 +181,33 @@ describe('OpenRouterEvaluateAdapter', () => {
     })
   })
 
+  it('maps the response id and provider into meta (#1456)', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        id: 'gen-dec-1789738314-X5e5eKGQdvR9rblyX250',
+        model: 'typesafe/jev-1.13-20260917',
+        provider: 'TypeSafe',
+        answers: {
+          isUrgent: { type: 'noul', noul: 0.2 },
+        },
+        usage: { cost: 0.000019992, input_tokens: 476, output_tokens: 70 },
+      }),
+    )
+
+    const result = await decide({
+      adapter: adapter(),
+      state,
+      questions: {
+        isUrgent: boolean({
+          instructions: 'Does this message convey urgency?',
+        }),
+      },
+    })
+
+    expect(result.meta.id).toBe('gen-dec-1789738314-X5e5eKGQdvR9rblyX250')
+    expect(result.meta.provider).toBe('TypeSafe')
+  })
+
   it('maps usage.cost into meta.usage (#1456)', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({

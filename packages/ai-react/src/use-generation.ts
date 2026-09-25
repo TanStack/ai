@@ -189,7 +189,7 @@ export function useGenerationWithDevtoolsIdentity<
 >(
   options: Omit<
     UseGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: TResult) => TTransformed
   } & GenerationPersistenceOptions,
