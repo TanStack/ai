@@ -480,7 +480,7 @@
           "label": "MCP Server Tools",
           "to": "tools/mcp",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Managed MCP with chat()",
@@ -1071,7 +1071,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-22"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Anthropic",
