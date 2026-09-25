@@ -35,19 +35,20 @@ tells you which package to add.
 
 ## Choosing a model and key
 
-Pick a model with a `provider/model` slug. The API key comes from `--apiKey`
+Pick a model with a `provider/model` slug. The API key comes from `--api-key`
 or, by default, the conventional environment variable for that provider
 (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
-`FAL_KEY`).
+`FAL_KEY`). Ollama needs no key. It uses the host from `baseURL` in
+`--config`, else `OLLAMA_HOST`, else `http://localhost:11434`.
 
 ```bash
-ts-ai chat "Explain MCP in one sentence" --model openai/gpt-5.5
-ts-ai chat "Summarize this PR" --model anthropic/claude-sonnet-4-6 --api-key sk-...
+ts-ai chat "Explain MCP in one sentence" --model openai/gpt-5.6
+ts-ai chat "Summarize this PR" --model anthropic/claude-sonnet-5 --api-key sk-...
 ```
 
 `ts-ai` also loads a `.env` from the current directory automatically, so dropping
 `OPENAI_API_KEY=...` in a project `.env` is enough. Real environment variables
-and `--apiKey` always take precedence over `.env`.
+and `--api-key` always take precedence over `.env`.
 
 ## Interactive mode
 
@@ -82,13 +83,13 @@ multi-line prompts work without quoting gymnastics. When no prompt is given,
 input is read from stdin — handy for pipes:
 
 ```bash
-cat article.txt | ts-ai summarize --model openai/gpt-5.5
+cat article.txt | ts-ai summarize --model openai/gpt-5.6
 ```
 
 Attach files with the repeatable `--attachment` flag:
 
 ```bash
-ts-ai chat "What's in this diagram?" --model openai/gpt-5.5 --attachment diagram.png
+ts-ai chat "What's in this diagram?" --model openai/gpt-5.6 --attachment diagram.png
 ```
 
 ## Output: humans vs harnesses
@@ -106,8 +107,8 @@ ts-ai chat "What's in this diagram?" --model openai/gpt-5.5 --attachment diagram
 `--json` returns a single JSON object you can parse directly:
 
 ```bash
-ts-ai image "a red bicycle" --model openai/gpt-image-1 --json
-# {"id":"...","model":"gpt-image-1","images":[{"path":"./ts-ai-image-<ts>.png","mimeType":"image/png"}],"usage":{...}}
+ts-ai image "a red bicycle" --model openai/gpt-image-2 --json
+# {"id":"...","model":"gpt-image-2","images":[{"path":"./ts-ai-image-<ts>.png","mimeType":"image/png"}],"usage":{...}}
 ```
 
 Media commands (`image`, `video`, `audio`, `speech`) always write the artifact
@@ -117,12 +118,13 @@ to a file and report the path in the JSON. By default the file lands in the
 - `--output-dir <dir>` — write the auto-named file into `<dir>` (created if
   missing). Works the same on Windows and macOS.
 - `-o/--output <path>` — set the exact file path (wins over `--output-dir`).
-- `-o -` — stream the raw bytes to stdout (for piping).
+- `-o -`: stream the raw bytes to stdout (for piping). Nothing else goes to
+  stdout, so there is no JSON result.
 
 ```bash
-ts-ai image "a red bicycle" --model openai/gpt-image-1               # ./ts-ai-image-<ts>.png
-ts-ai image "a red bicycle" --model openai/gpt-image-1 --output-dir ./out
-ts-ai image "a red bicycle" --model openai/gpt-image-1 -o ./pics/bike.png
+ts-ai image "a red bicycle" --model openai/gpt-image-2               # ./ts-ai-image-<ts>.png
+ts-ai image "a red bicycle" --model openai/gpt-image-2 --output-dir ./out
+ts-ai image "a red bicycle" --model openai/gpt-image-2 -o ./pics/bike.png
 ```
 
 ### Streaming the AG-UI event stream
@@ -131,7 +133,7 @@ ts-ai image "a red bicycle" --model openai/gpt-image-1 -o ./pics/bike.png
 one event per line, so a harness can reconstruct state incrementally:
 
 ```bash
-ts-ai chat "Write a haiku" --model openai/gpt-5.5 --stream
+ts-ai chat "Write a haiku" --model openai/gpt-5.6 --stream
 ```
 
 ## Stateless multi-turn
@@ -140,11 +142,11 @@ ts-ai chat "Write a haiku" --model openai/gpt-5.5 --stream
 (a JSON array) and thread the returned messages back yourself:
 
 ```bash
-ts-ai chat --model openai/gpt-5.5 --json \
+ts-ai chat --model openai/gpt-5.6 --json \
   --messages '[{"role":"user","content":"hi"},{"role":"assistant","content":"hello!"},{"role":"user","content":"what did I just say?"}]'
 ```
 
-`--threadId` is accepted purely as a correlation id (for telemetry / AG-UI) and
+`--thread-id` is accepted purely as a correlation id (for telemetry / AG-UI) and
 never causes anything to be persisted.
 
 ## Structured output
@@ -153,10 +155,10 @@ Constrain `chat` to a JSON Schema and get a validated object back under `.data`:
 
 ```bash
 ts-ai chat "Classify: 'the app crashes on launch'" \
-  --model openai/gpt-5.5 \
+  --model openai/gpt-5.6 \
   --schema ./ticket.schema.json \
   --json
-# {"data":{"severity":"high","area":"startup"},"model":"gpt-5.5"}
+# {"data":{"severity":"high","area":"startup"},"model":"gpt-5.6"}
 ```
 
 ## Configuration
@@ -167,7 +169,7 @@ shape mirrors the command's options. Precedence is **flags > `--config` > env >
 defaults**:
 
 ```bash
-ts-ai image "a logo" --model openai/gpt-image-1 \
+ts-ai image "a logo" --model openai/gpt-image-2 \
   --config '{"size":"1024x1024","modelOptions":{"background":"transparent"}}'
 ```
 
@@ -190,6 +192,12 @@ Two patterns make `ts-ai` easy to drive programmatically:
      "tanstack-ai": { "command": "ts-ai", "args": ["mcp"] }
    }
    ```
+
+   A tool call's `options` accepts only generation keys (`model`,
+   `modelOptions`, `system`, `schema` as an object, `size`, and similar).
+   The server refuses `baseURL`, `apiKey`, `output`, `outputDir`,
+   `attachment`, `mcp`, and `codeMode`. An agent cannot change the host,
+   read or write local files, or start commands.
 
 ### Exit codes
 

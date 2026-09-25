@@ -12,8 +12,9 @@ single-shot subprocess with `--json` buffered output, `--stream` AG-UI event
 output, strict stdout-is-payload discipline, typed exit codes, and structured
 error objects. Providers resolve from a `provider/model` slug (openai,
 anthropic, gemini, openrouter, and fal bundled for zero-install) with keys from
-`--apiKey`, a conventional `.env`, or environment variables, and all options are
+`--api-key`, a conventional `.env`, or environment variables, and all options are
 expressible via `--config` (file or inline JSON).
+Needs Node.js 22 or newer.
 
 For humans there's a lazily-loaded, TanStack-branded Ink layer: running `ts-ai`
 with no command on a TTY opens a full-width welcome screen (island logo on
@@ -23,6 +24,8 @@ results preview inline. `chat` supports tools via `--mcp` servers, sandboxed
 `--code-mode` execution, and `--schema` structured output, plus
 `ts-ai introspect` (machine-readable manifest), `ts-ai mcp` (expose commands as
 MCP tools — prints a ready-to-paste client config to stderr), and `ts-ai update`.
+A `ts-ai mcp` tool call accepts only generation options. It refuses `baseURL`,
+`apiKey`, `output`, `outputDir`, `attachment`, `mcp`, and `codeMode`.
 
 Generations (`image`, `video`, `audio`, `speech`) write to the current directory
 by default; `--output-dir <dir>` sets the target directory (created if missing,

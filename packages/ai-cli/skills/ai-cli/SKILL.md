@@ -46,8 +46,8 @@ conventional `.env` in the working directory, or the provider's env var
 `FAL_KEY`).
 
 ```bash
-ts-ai chat "Explain MCP in one sentence" --model openai/gpt-5.5 --json
-ts-ai chat "Summarize this" --model anthropic/claude-haiku-4-5 --api-key sk-...
+ts-ai chat "Explain MCP in one sentence" --model openai/gpt-5.6 --json
+ts-ai chat "Summarize this" --model anthropic/claude-sonnet-5 --api-key sk-...
 ```
 
 The model after the first `/` may itself contain slashes (e.g.
@@ -69,7 +69,7 @@ This is what makes `ts-ai` safe to script:
 
 ```bash
 result=$(ts-ai chat "classify: 'app crashes on launch'" \
-  --model openai/gpt-5.5 --schema ./ticket.schema.json --json)
+  --model openai/gpt-5.6 --schema ./ticket.schema.json --json)
 echo "$result" | jq '.data'
 ```
 
@@ -98,7 +98,7 @@ inputs use the repeatable `--attachment <file>` flag (`-` reads stdin).
 messages back yourself:
 
 ```bash
-ts-ai chat --model openai/gpt-5.5 --json \
+ts-ai chat --model openai/gpt-5.6 --json \
   --messages '[{"role":"user","content":"hi"},{"role":"assistant","content":"hello!"},{"role":"user","content":"what did I say?"}]'
 ```
 
@@ -123,10 +123,11 @@ the JSON. Default: the **current directory** with an auto-generated name.
 - `--output-dir <dir>` — auto-named file into `<dir>` (created if missing;
   cross-platform).
 - `-o/--output <path>` — exact file path (wins over `--output-dir`).
-- `-o -` — stream raw bytes to stdout (for piping).
+- `-o -`: stream raw bytes to stdout (for piping). Nothing else goes to stdout,
+  so there is no JSON result.
 
 ```bash
-ts-ai image "a red bicycle" --model openai/gpt-image-1 --output-dir ./assets --json
+ts-ai image "a red bicycle" --model openai/gpt-image-2 --output-dir ./assets --json
 ts-ai speech "hello there" --model openai/gpt-4o-mini-tts -o ./hi.mp3 --json
 ts-ai transcribe ./talk.mp3 --model openai/gpt-4o-mini-transcribe --json
 ```
@@ -138,7 +139,7 @@ Every option is a flag, but nested, provider-specific options live under
 the command's options. Precedence: **flags > `--config` > env > defaults**.
 
 ```bash
-ts-ai image "a logo" --model openai/gpt-image-1 \
+ts-ai image "a logo" --model openai/gpt-image-2 \
   --config '{"size":"1024x1024","modelOptions":{"background":"transparent"}}'
 ```
 
@@ -153,6 +154,10 @@ ts-ai image "a logo" --model openai/gpt-image-1 \
 - `ts-ai mcp` starts an MCP server (stdio) exposing each command as a tool, so an
   MCP-capable agent can register `ts-ai` directly. On startup it prints a
   ready-to-paste client config to **stderr** (stdout is the JSON-RPC channel).
+  A tool call's `options` accepts only generation keys (`model`,
+  `modelOptions`, `system`, `schema` as an object, `size`, and similar). Keys
+  that pick a host or key, touch local files, or run commands (`baseURL`,
+  `apiKey`, `output`, `outputDir`, `attachment`, `mcp`, `codeMode`) are refused.
 
 ## Common Mistakes
 
@@ -166,13 +171,13 @@ JSON object (or one event per line) and nothing else.
 Wrong:
 
 ```bash
-answer=$(ts-ai chat "hi" --model openai/gpt-5.5)   # pretty UI if stdout is a TTY
+answer=$(ts-ai chat "hi" --model openai/gpt-5.6)   # pretty UI if stdout is a TTY
 ```
 
 Right:
 
 ```bash
-answer=$(ts-ai chat "hi" --model openai/gpt-5.5 --json | jq -r '.text')
+answer=$(ts-ai chat "hi" --model openai/gpt-5.6 --json | jq -r '.text')
 ```
 
 Source: docs/cli/overview.md
@@ -184,7 +189,7 @@ object on stdout. Branch on the exit code; on non-zero, parse `.error.code`
 (`USAGE`, `PROVIDER`, `PROVIDER_NOT_INSTALLED`, `OUTPUT_VALIDATION`, `RUNTIME`).
 
 ```bash
-out=$(ts-ai image "x" --model openai/gpt-image-1 --json) || {
+out=$(ts-ai image "x" --model openai/gpt-image-2 --json) || {
   code=$(echo "$out" | jq -r '.error.code')
   echo "ts-ai failed: $code" >&2
   exit 1
@@ -202,13 +207,13 @@ under `--config`'s `modelOptions` — there is no generic `--model-options` flag
 Wrong:
 
 ```bash
-ts-ai image "x" --model openai/gpt-image-1 --background transparent   # unknown flag
+ts-ai image "x" --model openai/gpt-image-2 --background transparent   # unknown flag
 ```
 
 Right:
 
 ```bash
-ts-ai image "x" --model openai/gpt-image-1 --config '{"modelOptions":{"background":"transparent"}}'
+ts-ai image "x" --model openai/gpt-image-2 --config '{"modelOptions":{"background":"transparent"}}'
 ```
 
 Source: packages/ai-cli/src/manifest/manifest.ts
