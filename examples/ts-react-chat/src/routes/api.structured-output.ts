@@ -20,7 +20,11 @@ import {
   openRouterText,
 } from '@tanstack/ai-openrouter'
 import { z } from 'zod'
-import type { AnyTextAdapter, ChatMiddleware, StreamChunk } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  ChatMiddleware,
+  AdapterYieldChunk,
+} from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
 
 /**
@@ -53,10 +57,10 @@ function phaseCounterMiddleware(): {
  * right before terminating, carrying the counter middleware's snapshot.
  */
 async function* withTrailingPhaseCounts(
-  stream: AsyncIterable<StreamChunk>,
+  stream: AsyncIterable<AdapterYieldChunk>,
   snapshot: () => Record<string, number>,
   model: string,
-): AsyncIterable<StreamChunk> {
+): AsyncIterable<AdapterYieldChunk> {
   let yieldedCounts = false
   for await (const chunk of stream) {
     if (
@@ -160,10 +164,8 @@ function adapterFor(provider: Provider, model?: string): AnyTextAdapter {
       // for the combination and falls back to the engine's legacy
       // finalization path.
       //
-      // Default is `gemini-3.7-flash`: the newest *stable* (non-preview)
-      // 3.x id, matching the dropdown's first entry. The previous default
-      // (`gemini-3-pro-preview`) was retired by Google and now 404s.
-      return geminiText((baseModel || 'gemini-3.7-flash') as 'gemini-3.7-flash')
+      // Keep the default aligned with the dropdown's first entry.
+      return geminiText((baseModel || 'gemini-3.8-flash') as 'gemini-3.8-flash')
     case 'grok':
       return grokText((model || 'grok-build-0.1') as 'grok-build-0.1')
     case 'groq':
@@ -300,7 +302,7 @@ async function* structuredOutputResultStream(args: {
   threadId: string
   runId: string
   model: string
-}): AsyncIterable<StreamChunk> {
+}): AsyncIterable<AdapterYieldChunk> {
   const messageId = `structured-output-${args.runId}`
   const raw = JSON.stringify(args.result)
   const timestamp = Date.now()
@@ -408,7 +410,7 @@ export const Route = createFileRoute('/api/structured-output')({
               threadId: params.threadId,
               runId: params.runId,
               abortController,
-            }) as AsyncIterable<StreamChunk>
+            }) as AsyncIterable<AdapterYieldChunk>
             const withCounts = withTrailingPhaseCounts(
               streamIterable,
               counter.snapshot,

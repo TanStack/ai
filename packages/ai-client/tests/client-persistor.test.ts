@@ -70,9 +70,8 @@ function toolCallStart(
     type: EventType.TOOL_CALL_START,
     toolCallId,
     toolCallName: 'tool',
-    toolName: 'tool',
     ...(parentMessageId ? { parentMessageId } : {}),
-  }
+  } as StreamChunk
 }
 
 function messagesSnapshot(): StreamChunk {

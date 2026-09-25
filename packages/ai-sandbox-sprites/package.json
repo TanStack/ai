@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-sprites",
-  "version": "0.2.2",
+  "version": "0.2.5",
   "description": "Sprites sandbox provider for TanStack AI — run harness adapters inside isolated Fly.io Sprite stateful sandboxes through the uniform SandboxHandle.",
   "author": "",
   "license": "MIT",
@@ -38,6 +38,7 @@
     "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
     "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -50,6 +51,6 @@
   },
   "devDependencies": {
     "@tanstack/ai-sandbox": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14"
+    "@vitest/coverage-v8": "4.1.10"
   }
 }

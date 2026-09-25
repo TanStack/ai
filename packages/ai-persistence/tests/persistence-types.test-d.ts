@@ -12,6 +12,7 @@ import {
 } from '../src'
 import { InMemoryLockStore, withLocks } from '@tanstack/ai/locks'
 import type { LockStore } from '@tanstack/ai/locks'
+import type { ModelMessage } from '@tanstack/ai'
 import type {
   AIPersistence,
   ArtifactStore,
@@ -21,6 +22,7 @@ import type {
   ChatTranscriptStores,
   GenerationRunStore,
   InterruptStore,
+  MessagePage,
   MessageStore,
   MetadataStore,
   RunStore,
@@ -205,6 +207,30 @@ expectTypeOf(memoryPersistence().stores).not.toHaveProperty('locks')
 // Per-store typers: identity helpers that type an implementation inline and
 // compose into defineAIPersistence with exact presence.
 // ---------------------------------------------------------------------------
+// MessagePage is exported. loadThread accepts an optional paging object.
+expectTypeOf<MessagePage>().toMatchTypeOf<
+  | {
+      messages: Array<ModelMessage>
+      truncated: false
+      cursor?: never
+    }
+  | {
+      messages: Array<ModelMessage>
+      truncated: true
+      cursor: string
+    }
+>()
+expectTypeOf(messages.loadThread).toBeCallableWith('thread-1')
+expectTypeOf(messages.loadThread).toBeCallableWith('thread-1', {
+  limit: 50,
+  before: 'cursor-1',
+})
+expectTypeOf(messages.loadThread('thread-1')).toEqualTypeOf<
+  Promise<Array<ModelMessage>>
+>()
+expectTypeOf(
+  messages.loadThread('thread-1', { limit: 50, before: 'cursor-1' }),
+).toEqualTypeOf<Promise<Array<ModelMessage> | MessagePage>>()
 expectTypeOf(defineMessageStore(messages)).toEqualTypeOf<MessageStore>()
 expectTypeOf(defineRunStore(runs)).toEqualTypeOf<RunStore>()
 expectTypeOf(defineInterruptStore(interrupts)).toEqualTypeOf<InterruptStore>()

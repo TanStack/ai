@@ -1,5 +1,247 @@
 # @tanstack/openai-base
 
+## 0.11.1
+
+### Patch Changes
+
+- [#1365](https://github.com/TanStack/ai/pull/1365) [`790cb0a`](https://github.com/TanStack/ai/commit/790cb0a0d089c7d28756076488c9b24a92629848) - Responses API: stop replaying a turn that reasoned more than once as an unsendable request. A `ModelMessage` keeps reasoning and tool calls in two flat arrays, so `convertMessagesToInput` regrouped them as reasoning A, reasoning B, call A, call B; the Responses API needs a persisted `function_call` to sit directly after the reasoning item that produced it and rejected the whole request with `Item 'fc_...' of type 'function_call' was provided without its required 'reasoning' item: 'rs_...'`. Since the stored transcript keeps the regrouped order, every later turn on that thread failed the same way. Calls that can no longer be adjacent to their reasoning are now sent without their item id, so the API treats them as fresh items and stops requiring the pairing; `call_id` is untouched, so tool outputs still correlate. Calls with a single reasoning item (or none) keep their ids. A reasoning item id is also replayed at most once now, avoiding `Duplicate item found with id rs_...` when a provider mints the same id twice.
+
+- [#1427](https://github.com/TanStack/ai/pull/1427) [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088) - Structured output now reports a response that was cut off at the output cap (`finish_reason: "length"`) as a truncation error instead of a JSON parse error or a "no content" / "missing structured result" error. This covers `chat({ outputSchema })` in native combined mode (error code `max_tokens`), `structuredOutputStream()` in `openai-base` and `ai-openrouter` (`RUN_ERROR` with code `max_tokens`), and their non-stream `structuredOutput()`. A truncated document used to read as a schema failure; the error now says the token limit was reached.
+
+- Updated dependencies [[`54d39d3`](https://github.com/TanStack/ai/commit/54d39d30704bbdbdccea756af31530cc6713fc2e), [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb), [`74b5823`](https://github.com/TanStack/ai/commit/74b582305471eaf37a3b68595e60ed1a6f42d914), [`abb0169`](https://github.com/TanStack/ai/commit/abb0169bf96c38f59791450ce060d089a7fcd26e), [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088), [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b)]:
+  - @tanstack/ai@0.61.0
+
+## 0.11.0
+
+### Minor Changes
+
+- [#915](https://github.com/TanStack/ai/pull/915) [`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd) - feat(ai): native Files API support across providers (upload adapters + `file` content source)
+
+  Adds first-class support for provider **Files / storage APIs** so callers can upload media once and reference it by a provider-issued handle instead of re-sending base64 or a public URL each request (lower latency/bandwidth, no re-buffering on memory-constrained runtimes).
+  - **New tree-shakeable `files` adapter kind** — `openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, `grokFiles()`, and `falFiles()`. Each exposes `upload()`, and (where the provider has a lifecycle API) `get()` / `delete()`. Drive them with the new `uploadFile()` / `getFile()` / `deleteFile()` activity functions. fal is upload-only.
+  - **New `{ type: 'file' }` arm on `ContentPartSource`**, matching the AG-UI `FileSource` arm field for field: `{ type: 'file', value, provider?, mimeType? }`. `value` is the opaque handle the provider issued; `provider` names the adapter that issued it. Each adapter maps `value` to its native wire field: OpenAI (Responses) `input_image`/`input_file` `file_id`, Anthropic `file_id` message source (with the `files-api-2025-04-14` beta), Gemini `fileData.fileUri`, fal storage URL, Grok public URL. `fileSourceFromHandle(handle)` builds the source.
+  - **Fail-closed capability preflight** — adapters that can consume file references declare `supportsFileSources`; `chat()` / `generateImage()` / `generateVideo()` / `embed()` reject `{ type: 'file' }` sources for every other adapter (Bedrock, Mistral, Groq, OpenRouter, Ollama, BytePlus, Cohere, and any future adapter that doesn't opt in) **before a request is built**, so a reference can never be silently mis-mapped onto a URL/data field. Endpoints that need raw bytes (image edits, Sora `input_reference`, Veo, Chat Completions images) throw endpoint-specific errors. A supporting adapter handed a source whose `provider` names a different adapter throws an error naming the issuer.
+  - **Provider-literal typed handles** — `FileHandle<'openai'>` etc. flow from each files adapter through `uploadFile()`, and `getFile()`/`deleteFile()` accept the handle itself, so cross-provider lifecycle calls fail at compile time. `fileSourceFromHandle` and `FileHandle` are also exported from the browser-safe `@tanstack/ai/client` entry. A `{ type: 'file' }` source cannot cross the chat wire format (which carries `data`/`url` sources only) and throws rather than being dropped, so a browser that holds a handle sends it in its own request body and the server builds the source.
+
+### Patch Changes
+
+- [#1455](https://github.com/TanStack/ai/pull/1455) [`222ebed`](https://github.com/TanStack/ai/commit/222ebed91c4f1d7f5c338e07279de60d13c1d79f) - Surface OpenAI `apply_patch`, `local_shell`, and local `shell` calls for the app to run, and send the results back as `apply_patch_call_output`, `local_shell_call_output`, and `shell_call_output`.
+
+- Updated dependencies [[`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd)]:
+  - @tanstack/ai@0.60.0
+
+## 0.10.16
+
+### Patch Changes
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+
+## 0.10.15
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+
+## 0.10.14
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+
+## 0.10.13
+
+### Patch Changes
+
+- Updated dependencies [[`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9), [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6)]:
+  - @tanstack/ai@0.56.0
+
+## 0.10.12
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+
+## 0.10.11
+
+### Patch Changes
+
+- Updated dependencies [[`c17bc95`](https://github.com/TanStack/ai/commit/c17bc951ca783d8023bf54d69035c19c0c72ea2f), [`53e2ec0`](https://github.com/TanStack/ai/commit/53e2ec082b40d8c3fcd09f408c29f0b895436198), [`6269eff`](https://github.com/TanStack/ai/commit/6269eff90e770205ffd9cae8c5989b8ff02b57ce)]:
+  - @tanstack/ai@0.54.0
+
+## 0.10.10
+
+### Patch Changes
+
+- Updated dependencies [[`21775ee`](https://github.com/TanStack/ai/commit/21775ee2d23dd594cdc184678ff587341bd74871)]:
+  - @tanstack/ai@0.53.0
+
+## 0.10.9
+
+### Patch Changes
+
+- [#1290](https://github.com/TanStack/ai/pull/1290) [`819e77c`](https://github.com/TanStack/ai/commit/819e77cee018106bdcd44870cea2c4f9b6d3004a) - Replay OpenAI Responses reasoning items with function_call on the next tool turn. Default `include: ['reasoning.encrypted_content']` only on reasoning models.
+
+- Updated dependencies [[`819e77c`](https://github.com/TanStack/ai/commit/819e77cee018106bdcd44870cea2c4f9b6d3004a)]:
+  - @tanstack/ai@0.52.3
+
+## 0.10.8
+
+### Patch Changes
+
+- Updated dependencies [[`49fc54c`](https://github.com/TanStack/ai/commit/49fc54ca0aacf2fc60bb36647a61a23559dda4bc), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7)]:
+  - @tanstack/ai@0.52.0
+
+## 0.10.7
+
+### Patch Changes
+
+- [#1210](https://github.com/TanStack/ai/pull/1210) [`43b51f2`](https://github.com/TanStack/ai/commit/43b51f2e89db1c9fb23bb34b4ea4e052d370fb31) - Preserve draft-07 tuple `items` arrays during strict schema conversion.
+
+  Send tools that use `prefixItems` with `strict: false`. OpenAI strict mode rejects that keyword.
+
+- [#1236](https://github.com/TanStack/ai/pull/1236) [`5dc4e1a`](https://github.com/TanStack/ai/commit/5dc4e1a08728b410f85956093ccef621d12b4d6b) - Add `@tanstack/ai-skills`: portable Agent Skills (`SKILL.md`) as a first-class `chat()` middleware.
+
+  `withSkills(sources, options?)` renders a skill catalog and a `load_skill` tool so any tool-calling model can load skills on demand, on any provider, with no server sandbox. Skills come from `inlineSkill`, `skillDirectory` (`/node`), or a build-time `staticSkills` bundle, and compose via `aggregate`/`dedupe`/`filter`/`cache`. `createResourceTool` exposes a skill's bundled files through `read_skill_resource`, and `runSkillSourceConformance` (`/testing`) validates custom `SkillSource` adapters. The catalog renders as `<available_skills>` XML for Anthropic models and markdown for others; portable and hosted (native) skills refuse to combine in one call.
+
+  Core `@tanstack/ai` now exports `SkillLimitError`. The native factories throw it (or add validation): `codeExecutionTool` (`@tanstack/ai-anthropic`) frames its 8-skill cap, and `shellTool` (`@tanstack/openai-base`) now validates `skill_id` format instead of nothing. `@tanstack/ai-sandbox` reuses the shared skill-directory walk from `@tanstack/ai-skills`.
+
+  `withSkills` sends a `skills:state` CUSTOM chunk so TanStack AI DevTools can show the catalog and which skills the model loaded.
+
+- Updated dependencies [[`5dc4e1a`](https://github.com/TanStack/ai/commit/5dc4e1a08728b410f85956093ccef621d12b4d6b), [`a7e0798`](https://github.com/TanStack/ai/commit/a7e079872af372496728d25e6ec23149cd5e04b9), [`6a083bf`](https://github.com/TanStack/ai/commit/6a083bfcfaa4fd0c83368c4d10067e5c2298e22c)]:
+  - @tanstack/ai@0.51.0
+
+## 0.10.6
+
+### Patch Changes
+
+- Updated dependencies [[`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b), [`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b)]:
+  - @tanstack/ai@0.50.0
+
+## 0.10.5
+
+### Patch Changes
+
+- [#1211](https://github.com/TanStack/ai/pull/1211) [`59481e2`](https://github.com/TanStack/ai/commit/59481e297831ba4bc7c13a80b3d23d1f6fbb7231) - Map the legacy `response.reasoning.delta` Responses event as an alias of `response.reasoning_text.delta`. The old event name was removed from the OpenAI spec in July 2025, but OpenAI-compatible providers frozen on the older spec (such as Amazon Bedrock's Mantle endpoint serving Gemma) still emit it; their reasoning was silently dropped.
+
+- Updated dependencies [[`67ce4e5`](https://github.com/TanStack/ai/commit/67ce4e529c42e64d4591f996c7e3e32458d5dd7c)]:
+  - @tanstack/ai@0.49.1
+
+## 0.10.4
+
+### Patch Changes
+
+- Updated dependencies [[`b7ebcb0`](https://github.com/TanStack/ai/commit/b7ebcb0bbe63e425facb5e38f138bd0cd36637dd)]:
+  - @tanstack/ai@0.49.0
+
+## 0.10.3
+
+### Patch Changes
+
+- [#1174](https://github.com/TanStack/ai/pull/1174) [`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46) - Put AG-UI extras under `metadata.tanstack`. SSE/HTTP wire events are spec-only.
+
+  `sendMessage({ content, metadata })` stamps user metadata on the user message.
+  In-process `chat()` still yields `toolName`, `TOOL_CALL_END.input`, and TanStack `TokenUsage`.
+  Thinking signatures round-trip on `REASONING_ENCRYPTED_VALUE`.
+  Wire messages use `content` / `toolCalls` / fan-out roles, not `parts`.
+
+- Updated dependencies [[`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46)]:
+  - @tanstack/ai@0.48.0
+
+## 0.10.2
+
+### Patch Changes
+
+- [#939](https://github.com/TanStack/ai/pull/939) [`ff27fde`](https://github.com/TanStack/ai/commit/ff27fdeb2e134cb4c2b69e6809774477ffdc26a0) - Undo strict-mode null widening before validating and executing OpenAI-compatible tool calls.
+
+- [#937](https://github.com/TanStack/ai/pull/937) [`66ba92c`](https://github.com/TanStack/ai/commit/66ba92cb5c2cfaf07ee2269306048e2fd4f788fe) - Recover successful OpenAI and OpenRouter Responses API text that is present only on the completed response event.
+
+- Updated dependencies [[`7c4b73a`](https://github.com/TanStack/ai/commit/7c4b73af5023e7ab7e113121644213c75d611aac), [`87e497f`](https://github.com/TanStack/ai/commit/87e497f2e282c2389579051ec743fa4cc8cf493e), [`c0ba484`](https://github.com/TanStack/ai/commit/c0ba48402a807d6482e1cb36a0cf393d0cd26b2b), [`d34b6c0`](https://github.com/TanStack/ai/commit/d34b6c01fbc9ed83e5dc9bd2725eb05f6b03bfd4)]:
+  - @tanstack/ai@0.47.3
+
+## 0.10.1
+
+### Patch Changes
+
+- [#1176](https://github.com/TanStack/ai/pull/1176) [`0f77dca`](https://github.com/TanStack/ai/commit/0f77dcadf16e076d1e81d75abde352f5e0c2713e) - Recover Groq tool calls rejected after streaming begins so agent loops can repair them.
+
+- Updated dependencies [[`17b4c60`](https://github.com/TanStack/ai/commit/17b4c60c8d237df53a63dcda18c43d8017d45449)]:
+  - @tanstack/ai@0.47.2
+
+## 0.10.0
+
+### Minor Changes
+
+- [#977](https://github.com/TanStack/ai/pull/977) [`11c988b`](https://github.com/TanStack/ai/commit/11c988b8ea2153e0ee0f86ba58083f42c343fd75) - feat(ai-openai): support PDF `document` content parts in the Responses adapter.
+
+  `openaiText`'s Responses adapter now accepts PDF `document` content parts, for any model whose `model-meta` entry declares the `document` input modality. Base64 data sources are sent as `input_file` with a `file_data` data URL and a `filename` (from `metadata.filename`, defaulting to `document.pdf`). URL sources are sent as `input_file` with `file_url`.
+
+  ```ts
+  const adapter = openaiText('gpt-5.5')
+
+  const message = {
+    role: 'user',
+    content: [
+      { type: 'text', content: 'Summarize this document' },
+      {
+        type: 'document',
+        source: { type: 'data', value: pdfBase64, mimeType: 'application/pdf' },
+        metadata: { filename: 'report.pdf' },
+      },
+    ],
+  }
+  ```
+
+  Non-PDF MIME types are rejected before the request is sent — including pre-wrapped `data:` URLs whose media type disagrees with `mimeType` — so callers get an actionable message instead of an opaque provider `400`. Inline base64 payloads are also checked for the `%PDF` magic bytes, so non-PDF data mislabeled (or sent without) a PDF `mimeType` is rejected locally. `OpenAIDocumentMetadata` gains `filename` and `detail`. The Chat Completions adapter throws a document-specific error pointing here, since documents are Responses-only.
+
+### Patch Changes
+
+- Updated dependencies [[`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d)]:
+  - @tanstack/ai@0.47.1
+
+## 0.9.16
+
+### Patch Changes
+
+- Updated dependencies [[`5f68cbc`](https://github.com/TanStack/ai/commit/5f68cbccf3621b48dae73cedcb1e59cb4cbe72b4), [`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29)]:
+  - @tanstack/ai@0.47.0
+
+## 0.9.15
+
+### Patch Changes
+
+- [#932](https://github.com/TanStack/ai/pull/932) [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b) - Classify Anthropic, Gemini, and OpenAI native tools with stable runtime discriminators so ordinary functions can use the same public names without selecting provider-native behavior. Native tools must come from the adapter factory (`webSearchTool()`, `googleSearchTool()`, and the rest). A reserved `name` alone does not select a native converter. `chat()` throws `DuplicateToolNameError` when a factory tool and a custom function share the same public name.
+
+  Previously the converters picked provider-native behavior by `tool.name`. Tool names are public application identifiers, so a plain function called `web_search`, `google_search`, or `code_execution` was routed into a native converter: it lost its `inputSchema` and was sent as a provider-only payload (and on Anthropic could also flip on `code_execution` / skills beta headers). Native tools are now identified by adapter-owned metadata, which converters strip before building the wire payload, so provider API versions stay confined to the wire converters.
+
+  Also preserves Anthropic `webSearchTool` options (`max_uses`, `allowed_domains`, `blocked_domains`, `user_location`, `cache_control`) on the wire payload.
+
+  Also fixes `googleSearchTool({ searchTypes: … })` being silently dropped on the experimental `geminiTextInteractions()` adapter. The Interactions converter read a snake_case `search_types` array, but the public factory takes the Generate Content shape (`GoogleSearch.searchTypes: { webSearch?, imageSearch? }`), so the field never matched and every request fell back to the provider default of web-search-only. The camelCase config is now translated to the Interactions wire list.
+
+- Updated dependencies [[`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b), [`4599019`](https://github.com/TanStack/ai/commit/4599019eb02f72562ef155b69b8f61f9d25d187a), [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b), [`ecd12a4`](https://github.com/TanStack/ai/commit/ecd12a408987bc75649c21aada6948282a2a66dd)]:
+  - @tanstack/ai@0.46.0
+
+## 0.9.14
+
+### Patch Changes
+
+- [#1139](https://github.com/TanStack/ai/pull/1139) [`b97a11b`](https://github.com/TanStack/ai/commit/b97a11beaea57bd675b5646074d15c0041f4763a) - Return recoverable Groq `tool_use_failed` responses to the model as non-executable tool errors so the agent loop can repair them.
+
+- Updated dependencies [[`b97a11b`](https://github.com/TanStack/ai/commit/b97a11beaea57bd675b5646074d15c0041f4763a)]:
+  - @tanstack/ai@0.45.1
+
+## 0.9.13
+
+### Patch Changes
+
+- [#1132](https://github.com/TanStack/ai/pull/1132) [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b) - Timestamp native and fallback structured-output events when they are emitted so their lifecycle remains chronologically ordered.
+
+- Updated dependencies [[`d10dfe6`](https://github.com/TanStack/ai/commit/d10dfe6eca788ae52631d45e5599aa0c45e9ba37), [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b), [`c63319e`](https://github.com/TanStack/ai/commit/c63319e34a2ca2f1d56b90addf28784f7c3e13ad), [`b09e010`](https://github.com/TanStack/ai/commit/b09e010b32932c812e65b1e14f6faa2b0e6d5cb8), [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d)]:
+  - @tanstack/ai@0.45.0
+
 ## 0.9.12
 
 ### Patch Changes

@@ -7,7 +7,7 @@ import {
   toolDefinition,
 } from '@tanstack/ai'
 import { z } from 'zod'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type { AnyTextAdapter, AdapterYieldChunk } from '@tanstack/ai'
 
 /**
  * Wire-format regression for issue #519.
@@ -37,7 +37,7 @@ function createServerToolAdapter(): AnyTextAdapter {
       toolCallMetadata: undefined,
       systemPromptMetadata: undefined,
     },
-    async *chatStream(options): AsyncGenerator<StreamChunk> {
+    async *chatStream(options): AsyncGenerator<AdapterYieldChunk> {
       const model = 'tool-lifecycle-test'
       const runId = options.runId ?? 'tool-lifecycle-run'
       const threadId = options.threadId ?? 'tool-lifecycle-thread'

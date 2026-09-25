@@ -1,5 +1,10 @@
 import { OpenRouter } from '@openrouter/sdk'
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  EventType,
+  isFileSource,
+  normalizeSystemPrompts,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   toRunErrorPayload,
@@ -7,6 +12,7 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
+import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertFunctionToolToResponsesFormat } from '../internal/responses-tool-converter'
 import { isWebSearchTool } from '../tools/web-search-tool'
@@ -29,8 +35,9 @@ import type {
 } from '@tanstack/ai/adapters'
 import type {
   ContentPart,
+  JSONSchema,
   ModelMessage,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
@@ -119,7 +126,7 @@ export class OpenRouterResponsesTextAdapter<
 
   async *chatStream(
     options: TextOptions<OpenRouterResponsesTextProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     // Track tool call metadata by unique ID. The Responses API streams tool
     // calls with deltas — first chunk has ID/name, subsequent chunks only
     // have args. We assign our own indices as we encounter unique ids.
@@ -312,7 +319,7 @@ export class OpenRouterResponsesTextAdapter<
    */
   async *structuredOutputStream(
     options: StructuredOutputOptions<OpenRouterResponsesTextProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const responsesRequest = this.mapOptionsToRequest(chatOptions)
 
@@ -321,12 +328,10 @@ export class OpenRouterResponsesTextAdapter<
       outputSchema.required,
     )
 
-    const timestamp = Date.now()
     const aguiState = {
       runId: generateId(this.name),
       threadId: chatOptions.threadId ?? generateId(this.name),
       messageId: generateId(this.name),
-      timestamp,
       hasEmittedRunStarted: false,
     }
 
@@ -344,23 +349,24 @@ export class OpenRouterResponsesTextAdapter<
           totalTokens?: number
         }
       | undefined
+    let responseCompleted = false
 
     const closeReasoning = function* (this: {
       name: string
-    }): Generator<StreamChunk> {
+    }): Generator<AdapterYieldChunk> {
       if (reasoningMessageId && !hasClosedReasoning) {
         hasClosedReasoning = true
         yield {
           type: EventType.REASONING_MESSAGE_END,
           messageId: reasoningMessageId,
           model,
-          timestamp,
+          timestamp: Date.now(),
         }
         yield {
           type: EventType.REASONING_END,
           messageId: reasoningMessageId,
           model,
-          timestamp,
+          timestamp: Date.now(),
         }
         if (stepId) {
           yield {
@@ -368,16 +374,19 @@ export class OpenRouterResponsesTextAdapter<
             stepName: stepId,
             stepId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             content: accumulatedReasoning,
           }
         }
+        reasoningMessageId = undefined
+        stepId = undefined
+        hasClosedReasoning = false
       }
     }.bind(this)
 
     const openReasoning = function* (this: {
       name: string
-    }): Generator<StreamChunk> {
+    }): Generator<AdapterYieldChunk> {
       if (reasoningMessageId) return
       reasoningMessageId = generateId(this.name)
       stepId = generateId(this.name)
@@ -385,21 +394,21 @@ export class OpenRouterResponsesTextAdapter<
         type: EventType.REASONING_START,
         messageId: reasoningMessageId,
         model,
-        timestamp,
+        timestamp: Date.now(),
       }
       yield {
         type: EventType.REASONING_MESSAGE_START,
         messageId: reasoningMessageId,
         role: 'reasoning' as const,
         model,
-        timestamp,
+        timestamp: Date.now(),
       }
       yield {
         type: EventType.STEP_STARTED,
         stepName: stepId,
         stepId,
         model,
-        timestamp,
+        timestamp: Date.now(),
         stepType: 'thinking',
       }
     }.bind(this)
@@ -446,7 +455,7 @@ export class OpenRouterResponsesTextAdapter<
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             parentRunId: chatOptions.parentRunId,
           }
         }
@@ -465,7 +474,7 @@ export class OpenRouterResponsesTextAdapter<
             type: EventType.RUN_ERROR,
             runId: aguiState.runId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             message: `Model refused: ${delta}`,
             code: 'refusal',
             error: { message: `Model refused: ${delta}`, code: 'refusal' },
@@ -493,7 +502,7 @@ export class OpenRouterResponsesTextAdapter<
             messageId: reasoningMessageId,
             delta: reasoningDelta,
             model,
-            timestamp,
+            timestamp: Date.now(),
           }
           continue
         }
@@ -514,7 +523,7 @@ export class OpenRouterResponsesTextAdapter<
               type: EventType.TEXT_MESSAGE_START,
               messageId: aguiState.messageId,
               model,
-              timestamp,
+              timestamp: Date.now(),
               role: 'assistant',
             }
           }
@@ -523,7 +532,7 @@ export class OpenRouterResponsesTextAdapter<
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: aguiState.messageId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             delta: textDelta,
             content: accumulatedContent,
           }
@@ -531,9 +540,11 @@ export class OpenRouterResponsesTextAdapter<
         }
 
         if (chunk.type === 'response.completed') {
+          responseCompleted = true
           if (chunk.response?.model) model = chunk.response.model
           if (chunk.response?.usage) usage = chunk.response.usage
-          continue
+          // Terminal event: do not wait for the HTTP body to close (#1445).
+          break
         }
 
         if (
@@ -554,7 +565,7 @@ export class OpenRouterResponsesTextAdapter<
             type: EventType.RUN_ERROR,
             runId: aguiState.runId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             message,
             ...(code !== undefined && { code }),
             // Forward the provider's structured error body when the failure
@@ -575,7 +586,7 @@ export class OpenRouterResponsesTextAdapter<
             type: EventType.RUN_ERROR,
             runId: aguiState.runId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             message,
             ...(code !== undefined && { code }),
             error: {
@@ -594,8 +605,22 @@ export class OpenRouterResponsesTextAdapter<
           type: EventType.TEXT_MESSAGE_END,
           messageId: aguiState.messageId,
           model,
-          timestamp,
+          timestamp: Date.now(),
         }
+      }
+
+      if (!responseCompleted) {
+        const message = 'Response stream ended before response.completed'
+        yield {
+          type: EventType.RUN_ERROR,
+          runId: aguiState.runId,
+          model,
+          timestamp: Date.now(),
+          message,
+          code: 'incomplete-stream',
+          error: { message, code: 'incomplete-stream' },
+        }
+        return
       }
 
       if (accumulatedContent.length === 0) {
@@ -603,7 +628,7 @@ export class OpenRouterResponsesTextAdapter<
           type: EventType.RUN_ERROR,
           runId: aguiState.runId,
           model,
-          timestamp,
+          timestamp: Date.now(),
           message: `${this.name}.structuredOutputStream: response contained no content`,
           code: 'empty-response',
           error: {
@@ -622,7 +647,7 @@ export class OpenRouterResponsesTextAdapter<
           type: EventType.RUN_ERROR,
           runId: aguiState.runId,
           model,
-          timestamp,
+          timestamp: Date.now(),
           message: `Failed to parse structured output as JSON. Content: ${accumulatedContent.slice(0, 200)}${accumulatedContent.length > 200 ? '...' : ''}`,
           code: 'parse-error',
           error: {
@@ -644,7 +669,7 @@ export class OpenRouterResponsesTextAdapter<
           ...(accumulatedReasoning ? { reasoning: accumulatedReasoning } : {}),
         },
         model,
-        timestamp,
+        timestamp: Date.now(),
       }
 
       yield {
@@ -652,7 +677,7 @@ export class OpenRouterResponsesTextAdapter<
         runId: aguiState.runId,
         threadId: aguiState.threadId,
         model,
-        timestamp,
+        timestamp: Date.now(),
         finishReason: 'stop',
         ...(usage && {
           usage: {
@@ -671,7 +696,7 @@ export class OpenRouterResponsesTextAdapter<
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model,
-          timestamp,
+          timestamp: Date.now(),
           parentRunId: chatOptions.parentRunId,
         }
       }
@@ -697,7 +722,7 @@ export class OpenRouterResponsesTextAdapter<
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
         model,
-        timestamp,
+        timestamp: Date.now(),
         message: errorPayload.message,
         ...(resolvedCode !== undefined && { code: resolvedCode }),
         ...(rawEvent !== undefined && { rawEvent }),
@@ -811,7 +836,7 @@ export class OpenRouterResponsesTextAdapter<
       messageId: string
       hasEmittedRunStarted: boolean
     },
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     let accumulatedContent = ''
     let accumulatedReasoning = ''
 
@@ -822,8 +847,91 @@ export class OpenRouterResponsesTextAdapter<
 
     let stepId: string | null = null
     let hasEmittedTextMessageStart = false
-    let hasEmittedStepStarted = false
+    let reasoningMessageId: string | undefined
+    let hasClosedReasoning = false
     let runFinishedEmitted = false
+
+    const adapterName = this.name
+    const emitModel = () => model || options.model
+
+    const openReasoning = function* (): Generator<AdapterYieldChunk> {
+      if (reasoningMessageId) return
+      reasoningMessageId = generateId(adapterName)
+      stepId = generateId(adapterName)
+      const timestamp = Date.now()
+      const currentModel = emitModel()
+      yield {
+        type: EventType.REASONING_START,
+        messageId: reasoningMessageId,
+        model: currentModel,
+        timestamp,
+      }
+      yield {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: reasoningMessageId,
+        role: 'reasoning' as const,
+        model: currentModel,
+        timestamp,
+      }
+      yield {
+        type: EventType.STEP_STARTED,
+        stepName: stepId,
+        stepId,
+        model: currentModel,
+        timestamp,
+        stepType: 'thinking',
+      }
+    }
+
+    const closeReasoning = function* (): Generator<AdapterYieldChunk> {
+      if (!reasoningMessageId || hasClosedReasoning) return
+      hasClosedReasoning = true
+      const timestamp = Date.now()
+      const currentModel = emitModel()
+      yield {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: reasoningMessageId,
+        model: currentModel,
+        timestamp,
+      }
+      yield {
+        type: EventType.REASONING_END,
+        messageId: reasoningMessageId,
+        model: currentModel,
+        timestamp,
+      }
+      if (stepId) {
+        yield {
+          type: EventType.STEP_FINISHED,
+          stepName: stepId,
+          stepId,
+          model: currentModel,
+          timestamp,
+          content: accumulatedReasoning,
+        }
+      }
+      reasoningMessageId = undefined
+      stepId = null
+      hasClosedReasoning = false
+      accumulatedReasoning = ''
+    }
+
+    const emitReasoningDelta = function* (
+      text: string,
+    ): Generator<AdapterYieldChunk> {
+      if (!text) return
+      yield* openReasoning()
+      if (!reasoningMessageId) return
+      accumulatedReasoning += text
+      hasStreamedReasoningDeltas = true
+      yield {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: reasoningMessageId,
+        delta: text,
+        model: emitModel(),
+        timestamp: Date.now(),
+      }
+    }
 
     try {
       for await (const rawEvent of stream) {
@@ -848,7 +956,7 @@ export class OpenRouterResponsesTextAdapter<
 
         const handleContentPart = (
           contentPart: ContentPartAddedEventPart,
-        ): StreamChunk => {
+        ): AdapterYieldChunk => {
           if (contentPart.type === 'output_text') {
             accumulatedContent += contentPart.text
             return {
@@ -858,24 +966,6 @@ export class OpenRouterResponsesTextAdapter<
               timestamp: Date.now(),
               delta: contentPart.text,
               content: accumulatedContent,
-            }
-          }
-
-          if (contentPart.type === 'reasoning_text') {
-            accumulatedReasoning += contentPart.text
-            // Cache the fallback stepId rather than generating a fresh one
-            // on every call.
-            if (!stepId) {
-              stepId = generateId(this.name)
-            }
-            return {
-              type: EventType.STEP_FINISHED,
-              stepName: stepId,
-              stepId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              delta: contentPart.text,
-              content: accumulatedReasoning,
             }
           }
 
@@ -922,7 +1012,9 @@ export class OpenRouterResponsesTextAdapter<
           hasStreamedContentDeltas = false
           hasStreamedReasoningDeltas = false
           hasEmittedTextMessageStart = false
-          hasEmittedStepStarted = false
+          reasoningMessageId = undefined
+          hasClosedReasoning = false
+          stepId = null
           accumulatedContent = ''
           accumulatedReasoning = ''
         }
@@ -932,6 +1024,7 @@ export class OpenRouterResponsesTextAdapter<
           chunk.type === 'response.failed' ||
           chunk.type === 'response.incomplete'
         ) {
+          yield* closeReasoning()
           if (hasEmittedTextMessageStart) {
             yield {
               type: EventType.TEXT_MESSAGE_END,
@@ -977,6 +1070,7 @@ export class OpenRouterResponsesTextAdapter<
               : ''
 
           if (textDelta) {
+            yield* closeReasoning()
             if (!hasEmittedTextMessageStart) {
               hasEmittedTextMessageStart = true
               yield {
@@ -1001,87 +1095,14 @@ export class OpenRouterResponsesTextAdapter<
           }
         }
 
-        // Handle reasoning deltas
-        if (chunk.type === 'response.reasoning_text.delta' && chunk.delta) {
-          const reasoningDelta = Array.isArray(chunk.delta)
-            ? chunk.delta.join('')
-            : typeof chunk.delta === 'string'
-              ? chunk.delta
-              : ''
-
-          if (reasoningDelta) {
-            if (!hasEmittedStepStarted) {
-              hasEmittedStepStarted = true
-              stepId = generateId(this.name)
-              yield {
-                type: EventType.STEP_STARTED,
-                stepName: stepId,
-                stepId,
-                model: model || options.model,
-                timestamp: Date.now(),
-                stepType: 'thinking',
-              }
-            }
-
-            accumulatedReasoning += reasoningDelta
-            hasStreamedReasoningDeltas = true
-            const fallbackStepId = stepId || generateId(this.name)
-            yield {
-              type: EventType.STEP_FINISHED,
-              stepName: fallbackStepId,
-              stepId: fallbackStepId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              delta: reasoningDelta,
-              content: accumulatedReasoning,
-            }
-          }
-        }
-
-        // Handle reasoning summary deltas
+        // Some Responses-compatible providers omit text deltas and expose the
+        // completed text only on the dedicated done event.
         if (
-          chunk.type === 'response.reasoning_summary_text.delta' &&
-          chunk.delta
+          chunk.type === 'response.output_text.done' &&
+          chunk.text &&
+          accumulatedContent.length === 0
         ) {
-          const summaryDelta =
-            typeof chunk.delta === 'string' ? chunk.delta : ''
-
-          if (summaryDelta) {
-            if (!hasEmittedStepStarted) {
-              hasEmittedStepStarted = true
-              stepId = generateId(this.name)
-              yield {
-                type: EventType.STEP_STARTED,
-                stepName: stepId,
-                stepId,
-                model: model || options.model,
-                timestamp: Date.now(),
-                stepType: 'thinking',
-              }
-            }
-
-            accumulatedReasoning += summaryDelta
-            hasStreamedReasoningDeltas = true
-            const fallbackStepId = stepId || generateId(this.name)
-            yield {
-              type: EventType.STEP_FINISHED,
-              stepName: fallbackStepId,
-              stepId: fallbackStepId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              delta: summaryDelta,
-              content: accumulatedReasoning,
-            }
-          }
-        }
-
-        // handle content_part added events for text, reasoning and refusals
-        if (chunk.type === 'response.content_part.added' && chunk.part) {
-          const contentPart = chunk.part
-          if (
-            contentPart.type === 'output_text' &&
-            !hasEmittedTextMessageStart
-          ) {
+          if (!hasEmittedTextMessageStart) {
             hasEmittedTextMessageStart = true
             yield {
               type: EventType.TEXT_MESSAGE_START,
@@ -1091,22 +1112,73 @@ export class OpenRouterResponsesTextAdapter<
               role: 'assistant',
             }
           }
-          if (contentPart.type === 'reasoning_text' && !hasEmittedStepStarted) {
-            hasEmittedStepStarted = true
-            stepId = generateId(this.name)
+
+          accumulatedContent = chunk.text
+          hasStreamedContentDeltas = true
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: aguiState.messageId,
+            model: model || options.model,
+            timestamp: Date.now(),
+            delta: chunk.text,
+            content: accumulatedContent,
+          }
+        }
+
+        // Handle reasoning deltas
+        if (chunk.type === 'response.reasoning_text.delta' && chunk.delta) {
+          const reasoningDelta = Array.isArray(chunk.delta)
+            ? chunk.delta.join('')
+            : typeof chunk.delta === 'string'
+              ? chunk.delta
+              : ''
+          yield* emitReasoningDelta(reasoningDelta)
+        }
+
+        // Handle reasoning summary deltas
+        if (
+          chunk.type === 'response.reasoning_summary_text.delta' &&
+          chunk.delta
+        ) {
+          const summaryDelta =
+            typeof chunk.delta === 'string' ? chunk.delta : ''
+          yield* emitReasoningDelta(summaryDelta)
+        }
+
+        // handle content_part added events for text, reasoning and refusals
+        if (chunk.type === 'response.content_part.added' && chunk.part) {
+          const contentPart = chunk.part
+          // Some Responses-compatible providers announce an empty text part
+          // and put the actual text only on response.completed. Do not count
+          // that placeholder as streamed content; the completion backstop
+          // below must remain eligible to recover the final text.
+          if (
+            (contentPart.type === 'output_text' ||
+              contentPart.type === 'reasoning_text') &&
+            !contentPart.text
+          ) {
+            continue
+          }
+          if (contentPart.type === 'reasoning_text') {
+            yield* emitReasoningDelta(contentPart.text)
+            continue
+          }
+          if (
+            contentPart.type === 'output_text' &&
+            !hasEmittedTextMessageStart
+          ) {
+            yield* closeReasoning()
+            hasEmittedTextMessageStart = true
             yield {
-              type: EventType.STEP_STARTED,
-              stepName: stepId,
-              stepId,
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: aguiState.messageId,
               model: model || options.model,
               timestamp: Date.now(),
-              stepType: 'thinking',
+              role: 'assistant',
             }
           }
           if (contentPart.type === 'output_text') {
             hasStreamedContentDeltas = true
-          } else if (contentPart.type === 'reasoning_text') {
-            hasStreamedReasoningDeltas = true
           }
           const partChunk = handleContentPart(contentPart)
           yield partChunk
@@ -1133,10 +1205,15 @@ export class OpenRouterResponsesTextAdapter<
           // Upstreams that emit `content_part.done` without any preceding
           // deltas (or `content_part.added`) still need a START event before
           // CONTENT.
+          if (contentPart.type === 'reasoning_text') {
+            yield* emitReasoningDelta(contentPart.text)
+            continue
+          }
           if (
             contentPart.type === 'output_text' &&
             !hasEmittedTextMessageStart
           ) {
+            yield* closeReasoning()
             hasEmittedTextMessageStart = true
             yield {
               type: EventType.TEXT_MESSAGE_START,
@@ -1144,20 +1221,6 @@ export class OpenRouterResponsesTextAdapter<
               model: model || options.model,
               timestamp: Date.now(),
               role: 'assistant',
-            }
-          } else if (
-            contentPart.type === 'reasoning_text' &&
-            !hasEmittedStepStarted
-          ) {
-            hasEmittedStepStarted = true
-            stepId = generateId(this.name)
-            yield {
-              type: EventType.STEP_STARTED,
-              stepName: stepId,
-              stepId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              stepType: 'thinking',
             }
           }
 
@@ -1378,6 +1441,45 @@ export class OpenRouterResponsesTextAdapter<
             ? responseObj.output
             : []
 
+          const outputItemText = outputItems
+            .flatMap((item) =>
+              item.type === 'message' && Array.isArray(item.content)
+                ? item.content
+                : [],
+            )
+            .filter((part) => part.type === 'output_text')
+            .map((part) => part.text)
+            .join('')
+          const completedText =
+            typeof responseObj.outputText === 'string' &&
+            responseObj.outputText.length > 0
+              ? responseObj.outputText
+              : outputItemText
+
+          if (accumulatedContent.length === 0 && completedText.length > 0) {
+            if (!hasEmittedTextMessageStart) {
+              hasEmittedTextMessageStart = true
+              yield {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId: aguiState.messageId,
+                model: model || options.model,
+                timestamp: Date.now(),
+                role: 'assistant',
+              }
+            }
+
+            accumulatedContent = completedText
+            hasStreamedContentDeltas = true
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: aguiState.messageId,
+              model: model || options.model,
+              timestamp: Date.now(),
+              delta: completedText,
+              content: accumulatedContent,
+            }
+          }
+
           // Final backstop for function_call lifecycle.
           for (const item of outputItems) {
             if (item.type !== 'function_call' || !item.id) continue
@@ -1454,6 +1556,7 @@ export class OpenRouterResponsesTextAdapter<
             }
           }
 
+          yield* closeReasoning()
           if (hasEmittedTextMessageStart) {
             yield {
               type: EventType.TEXT_MESSAGE_END,
@@ -1495,6 +1598,8 @@ export class OpenRouterResponsesTextAdapter<
             finishReason,
           }
           runFinishedEmitted = true
+          // Terminal event: do not wait for the HTTP body to close (#1445).
+          return
         }
 
         if (chunk.type === 'error') {
@@ -1515,9 +1620,11 @@ export class OpenRouterResponsesTextAdapter<
         }
       }
 
-      // Synthetic terminal RUN_FINISHED if the stream ended without a
-      // response.completed event.
+      // The stream ended without a terminal event (e.g. a truncated
+      // connection). Completion was never confirmed, so this is not a
+      // successful stop (#1447). The partial text was already emitted.
       if (!runFinishedEmitted && aguiState.hasEmittedRunStarted) {
+        yield* closeReasoning()
         if (hasEmittedTextMessageStart) {
           yield {
             type: EventType.TEXT_MESSAGE_END,
@@ -1526,13 +1633,14 @@ export class OpenRouterResponsesTextAdapter<
             timestamp: Date.now(),
           }
         }
+        const message = 'Response stream ended before response.completed'
         yield {
-          type: EventType.RUN_FINISHED,
-          runId: aguiState.runId,
-          threadId: aguiState.threadId,
+          type: EventType.RUN_ERROR,
           model: model || options.model,
           timestamp: Date.now(),
-          finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
+          message,
+          code: 'incomplete-stream',
+          error: { message, code: 'incomplete-stream' },
         }
       }
     } catch (error: unknown) {
@@ -1607,6 +1715,18 @@ export class OpenRouterResponsesTextAdapter<
         )
       : undefined
 
+    // Attach text.format json_schema only when outputSchema is set and every
+    // routed model is in the combined-capable set.
+    const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
+    const combinedSchema =
+      combinedOutputSchema &&
+      this.supportsCombinedToolsAndSchema(options.modelOptions)
+        ? this.makeStructuredOutputCompatible(
+            combinedOutputSchema,
+            combinedOutputSchema.required,
+          )
+        : undefined
+
     const built: Pick<
       ResponsesRequest,
       | 'model'
@@ -1619,6 +1739,7 @@ export class OpenRouterResponsesTextAdapter<
       | 'tools'
       | 'toolChoice'
       | 'parallelToolCalls'
+      | 'text'
     > = {
       ...modelOptions,
       model: options.model + variantSuffix,
@@ -1637,9 +1758,34 @@ export class OpenRouterResponsesTextAdapter<
         tools.length > 0 && {
           tools,
         }),
+      ...(combinedSchema && {
+        // Merge onto any caller-supplied `text` (spread above via
+        // `...modelOptions`) so sibling fields like `text.verbosity` survive;
+        // only `text.format` is overridden by the combined-mode schema.
+        text: {
+          ...modelOptions.text,
+          format: {
+            type: 'json_schema' as const,
+            name: 'structured_output',
+            schema: combinedSchema,
+            strict: true,
+          },
+        },
+      }),
     }
 
     return built
+  }
+
+  /**
+   * Combined mode is safe only when this model and every `modelOptions.models`
+   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
+   * `:variant` suffixes are routing directives and do not change the gate.
+   */
+  supportsCombinedToolsAndSchema(
+    modelOptions?: OpenRouterResponsesTextProviderOptions,
+  ): boolean {
+    return openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
   }
 
   /**
@@ -1726,20 +1872,34 @@ export class OpenRouterResponsesTextAdapter<
   protected convertContentPartToInput(
     part: ContentPart,
   ): ResponsesInputContent {
+    if (part.type === 'text') {
+      return {
+        type: 'input_text',
+        text: part.content,
+      }
+    }
+    // Narrow once so the branches below can only see url/data sources — a
+    // `{ type: 'file' }` reference has no `value` to mis-map. A part without
+    // a source (unknown/malformed type) is rejected the same way as the
+    // default branch below.
+    const source = (part as { source?: typeof part.source }).source
+    if (source === undefined) {
+      throw new Error(
+        `Unsupported content part type for ${this.name}: ${(part as { type: string }).type}`,
+      )
+    }
+    if (isFileSource(source)) {
+      throw unsupportedFileSourceError(this.name)
+    }
     switch (part.type) {
-      case 'text':
-        return {
-          type: 'input_text',
-          text: part.content,
-        }
       case 'image': {
         const meta = part.metadata as
           | { detail?: 'auto' | 'low' | 'high' }
           | undefined
-        const value = part.source.value
+        const value = source.value
         const imageUrl =
-          part.source.type === 'data' && !value.startsWith('data:')
-            ? `data:${part.source.mimeType || 'application/octet-stream'};base64,${value}`
+          source.type === 'data' && !value.startsWith('data:')
+            ? `data:${source.mimeType || 'application/octet-stream'};base64,${value}`
             : value
         return {
           type: 'input_image',
@@ -1748,36 +1908,36 @@ export class OpenRouterResponsesTextAdapter<
         }
       }
       case 'audio': {
-        if (part.source.type === 'url') {
+        if (source.type === 'url') {
           // OpenRouter's `input_audio` carries `{ data, format }` not a URL —
           // fall back to `input_file` for URLs so we don't silently drop the
           // audio reference.
           return {
             type: 'input_file',
-            fileUrl: part.source.value,
+            fileUrl: source.value,
           }
         }
         return {
           type: 'input_audio',
-          inputAudio: { data: part.source.value, format: 'mp3' },
+          inputAudio: { data: source.value, format: 'mp3' },
         }
       }
       case 'video':
         return {
           type: 'input_video',
-          videoUrl: part.source.value,
+          videoUrl: source.value,
         }
       case 'document': {
-        if (part.source.type === 'url') {
+        if (source.type === 'url') {
           return {
             type: 'input_file',
-            fileUrl: part.source.value,
+            fileUrl: source.value,
           }
         }
-        const mime = part.source.mimeType || 'application/octet-stream'
-        const data = part.source.value.startsWith('data:')
-          ? part.source.value
-          : `data:${mime};base64,${part.source.value}`
+        const mime = source.mimeType || 'application/octet-stream'
+        const data = source.value.startsWith('data:')
+          ? source.value
+          : `data:${mime};base64,${source.value}`
         return {
           type: 'input_file',
           fileData: data,
@@ -1791,9 +1951,9 @@ export class OpenRouterResponsesTextAdapter<
   }
 
   protected normalizeContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
-    if (content === null) {
+    if (content === null || content === undefined) {
       return []
     }
     if (typeof content === 'string') {
@@ -1803,9 +1963,9 @@ export class OpenRouterResponsesTextAdapter<
   }
 
   protected extractTextContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): string {
-    if (content === null) {
+    if (content === null || content === undefined) {
       return ''
     }
     if (typeof content === 'string') {
@@ -1910,6 +2070,7 @@ function camelCaseResponseShape(
   const out: Record<string, unknown> = { ...src }
   if ('incomplete_details' in src)
     out.incompleteDetails = src.incomplete_details
+  if ('output_text' in src) out.outputText = src.output_text
   if (
     'input_tokens' in src ||
     'output_tokens' in src ||

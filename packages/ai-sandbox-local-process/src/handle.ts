@@ -639,6 +639,31 @@ export class LocalProcessHandle implements SandboxHandle {
           type: e.isDirectory() ? ('dir' as const) : ('file' as const),
         }))
       },
+      lstat: async (p) => {
+        let stat: Awaited<ReturnType<typeof fsp.lstat>>
+        try {
+          stat = await fsp.lstat(this.resolve(p))
+        } catch (error) {
+          if (
+            error !== null &&
+            typeof error === 'object' &&
+            'code' in error &&
+            error.code === 'ENOENT'
+          )
+            return undefined
+          throw error
+        }
+        const type = stat.isFile()
+          ? 'file'
+          : stat.isDirectory()
+            ? 'dir'
+            : stat.isSymbolicLink()
+              ? 'symlink'
+              : 'other'
+        return type === 'file'
+          ? { type, mode: stat.mode, size: stat.size }
+          : { type, mode: stat.mode }
+      },
       mkdir: async (p) => {
         await fsp.mkdir(this.resolve(p), { recursive: true })
       },
@@ -866,6 +891,11 @@ export class LocalProcessHandle implements SandboxHandle {
       detached: spawnDetached,
     })
     this.track(child)
+    // Node reports a failed write twice: to the `write` callback below, and
+    // as an `error` event on this socket. An unhandled `error` event throws
+    // and stops the host process. `stdin.write` still rejects with the same
+    // error.
+    child.stdin.on('error', () => {})
     if (opts?.signal) {
       opts.signal.addEventListener(
         'abort',
@@ -875,6 +905,13 @@ export class LocalProcessHandle implements SandboxHandle {
         },
       )
     }
+    const closed = new Promise<number>((resolve, reject) => {
+      child.once('error', reject)
+      child.once('close', (code) => resolve(code ?? 0))
+    })
+    // The child can close while stdout is still being drained. Keep the
+    // rejection handled until the caller asks for the result via wait().
+    closed.catch(() => {})
     const handle: SpawnHandle = {
       pid: child.pid ?? -1,
       stdout: decodeStream(child.stdout),
@@ -889,11 +926,7 @@ export class LocalProcessHandle implements SandboxHandle {
             child.stdin.end(() => resolve())
           }),
       },
-      wait: () =>
-        new Promise<number>((resolve, reject) => {
-          child.on('error', reject)
-          child.on('close', (code) => resolve(code ?? 0))
-        }),
+      wait: () => closed,
       kill: (signal) => {
         killTree(child, signal, this.options.logger)
         return Promise.resolve()

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { isRoutingAlias, rejectRoutingAliases, toModelConstName } from './ids'
+import {
+  isRoutingAlias,
+  rejectRoutingAliases,
+  toModelConstName,
+  toNativeProviderId,
+} from './ids'
 
 describe('isRoutingAlias', () => {
   it('treats a leading tilde as a routing alias', () => {
@@ -22,6 +27,25 @@ describe('rejectRoutingAliases', () => {
       'openai/gpt-5.5',
       'anthropic/claude-opus-4.6',
     ])
+  })
+})
+
+describe('toNativeProviderId', () => {
+  it('hyphenates Anthropic OpenRouter version dots', () => {
+    expect(toNativeProviderId('claude-fable-5.1', 'anthropic')).toBe(
+      'claude-fable-5-1',
+    )
+    expect(toNativeProviderId('claude-haiku-4.5', 'anthropic')).toBe(
+      'claude-haiku-4-5',
+    )
+  })
+
+  it('leaves OpenAI, Gemini, and Grok ids unchanged', () => {
+    expect(toNativeProviderId('gpt-5.2', 'openai')).toBe('gpt-5.2')
+    expect(toNativeProviderId('gemini-3.1-pro', 'gemini')).toBe(
+      'gemini-3.1-pro',
+    )
+    expect(toNativeProviderId('grok-4.5', 'grok')).toBe('grok-4.5')
   })
 })
 

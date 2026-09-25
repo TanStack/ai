@@ -14,13 +14,11 @@ const targets = [
   'packages/ai-openrouter/README.md',
   'packages/ai-preact/README.md',
   'packages/ai-react/README.md',
-  'packages/ai-react-ui/README.md',
-  'packages/ai-solid-ui/README.md',
   'packages/ai-vue/README.md',
-  'packages/ai-vue-ui/README.md',
   'packages/preact-ai-devtools/README.md',
   'packages/react-ai-devtools/README.md',
   'packages/solid-ai-devtools/README.md',
+  'packages/svelte-ai-devtools/README.md',
 ]
 
 for (const target of targets) {

@@ -11,7 +11,9 @@
  *   - gitSkill repos → linked under `.claude/skills/<basename>`.
  *   - agentSkill     → no reliable claude primitive pulls a public skill by
  *                      bare name, so we warn and skip rather than invent one.
- *   - plugins        → `claude plugin install <name>` (best-effort).
+ *   - plugins        → `claude plugin install <name> --scope project`
+ *                      (best-effort; project scope so the adapter's default
+ *                      `--setting-sources project` loads it).
  *
  * The secret-bearing `.mcp.json` is (re)written on EVERY call, re-resolving
  * secrets each time, so claude always reads current values and a snapshot can
@@ -176,16 +178,17 @@ function projectAgentSkills(projection: WorkspaceProjection): void {
 }
 
 /**
- * Install each declared plugin via `claude plugin install <name>`. Plugin
- * installs are best-effort: a failure (no marketplace, network, …) warns but
- * never throws, so a missing plugin can't break the run.
+ * Install each declared plugin via `claude plugin install <name>` at project
+ * scope (user scope is not read under the default `--setting-sources project`).
+ * Plugin installs are best-effort: a failure (no marketplace, network, …) warns
+ * but never throws, so a missing plugin can't break the run.
  */
 async function projectPlugins(
   handle: SandboxHandle,
   projection: WorkspaceProjection,
 ): Promise<void> {
   for (const name of projection.plugins) {
-    const cmd = `claude plugin install ${shellQuote(name)}`
+    const cmd = `claude plugin install ${shellQuote(name)} --scope project`
     try {
       const result = await handle.process.exec(cmd, { cwd: projection.root })
       if (result.exitCode !== 0) {

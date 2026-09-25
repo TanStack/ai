@@ -29,16 +29,17 @@ export interface UseTranscriptionOptions<
     TranscriptionResult,
     TOutput
   >,
-  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+  | 'persistence'
+  | 'threadId'
+  | 'hydrateGeneration'
+  | 'joinRun'
+  | 'byok'
+  | 'byokProvider'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for transcription */
   fetcher?: GenerationFetcher<TranscriptionGenerateInput, TranscriptionResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -117,7 +118,7 @@ export interface UseTranscriptionReturn<
 export function useTranscription<TTransformed = void>(
   options: Omit<
     UseTranscriptionOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: TranscriptionResult) => TTransformed
   } & GenerationPersistenceOptions,

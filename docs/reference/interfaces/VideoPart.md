@@ -3,11 +3,13 @@ id: VideoPart
 title: VideoPart
 ---
 
-# Interface: VideoPart\<TMetadata\>
+Defined in: [packages/ai/src/types.ts:292](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L292)
 
-Defined in: [packages/ai/src/types.ts:272](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L272)
+Video content part for multimodal messages. AG-UI `VideoPart` with typed metadata.
 
-Video content part for multimodal messages.
+## Extends
+
+- `VideoPart`
 
 ## Type Parameters
 
@@ -22,31 +24,15 @@ Provider-specific metadata type
 ### metadata?
 
 ```ts
-optional metadata: TMetadata;
+optional metadata?: TMetadata;
 ```
 
-Defined in: [packages/ai/src/types.ts:277](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L277)
+Defined in: [packages/ai/src/types.ts:294](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L294)
 
 Provider-specific metadata (e.g., duration, resolution)
 
-***
-
-### source
+#### Overrides
 
 ```ts
-source: ContentPartSource;
+AGUIVideoPart.metadata
 ```
-
-Defined in: [packages/ai/src/types.ts:275](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L275)
-
-Source of the video content
-
-***
-
-### type
-
-```ts
-type: "video";
-```
-
-Defined in: [packages/ai/src/types.ts:273](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L273)

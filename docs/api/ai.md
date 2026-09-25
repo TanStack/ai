@@ -2,7 +2,7 @@
 title: "@tanstack/ai"
 id: tanstack-ai-api
 order: 1
-description: "API reference for @tanstack/ai — the core TanStack AI library providing chat(), generateImage(), toolDefinition(), and streaming utilities."
+description: "API reference for @tanstack/ai, the core TanStack AI library providing chat(), decide(), generateImage(), toolDefinition(), and streaming utilities."
 keywords:
   - tanstack ai
   - "@tanstack/ai"
@@ -10,6 +10,7 @@ keywords:
   - chat
   - toolDefinition
   - generateImage
+  - decide
   - core library
 ---
 
@@ -17,9 +18,18 @@ The core AI library for TanStack AI.
 
 ## Installation
 
-```bash
-npm install @tanstack/ai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai
+vue: @tanstack/ai
+solid: @tanstack/ai
+svelte: @tanstack/ai
+preact: @tanstack/ai
+angular: @tanstack/ai
+vanilla: @tanstack/ai
+octane: @tanstack/ai
+
+<!-- ::end:tabs -->
 
 ## `chat(options)`
 
@@ -85,6 +95,79 @@ const result = await summarize({
 ### Returns
 
 A `SummarizationResult` with the summary text.
+
+## `decide(options)`
+
+Asks typed questions about a shared state and returns answers your code can
+branch on. This call is async. There is no stream.
+
+```typescript
+import { decide, choice, score, boolean } from "@tanstack/ai";
+import { typesafeDecider } from "@tanstack/ai-typesafe";
+
+const ticket = {
+  subject: "Charged twice for the same invoice",
+  body: "Please refund the extra payment.",
+};
+
+const result = await decide({
+  adapter: typesafeDecider("jev-latest"),
+  state: ticket,
+  questions: {
+    queue: choice({
+      instructions: "Which team should handle this ticket?",
+      options: {
+        billing: "Payments, invoices, refunds",
+        tech: "Bugs, outages, integrations",
+        sales: "Pricing, upgrades, new accounts",
+      },
+    }),
+    urgency: score({
+      instructions: "How urgent is this ticket?",
+      levels: ["low", "medium", "high"],
+    }),
+    refund: boolean({
+      instructions: "Is the customer asking for a refund?",
+    }),
+  },
+});
+
+console.log(result.queue.value);
+console.log(result.queue.probability);
+console.log(result.queue.confidence);
+console.log(result.meta.usage);
+```
+
+### Parameters (`decide`)
+
+Required:
+
+- `adapter` - An evaluate adapter created with a model (for example `typesafeDecider('jev-latest')`)
+- `state` - Shared content every question judges. A string, an object, or an array. An array is one state, not a batch.
+- `questions` - Map of `choice`, `score`, and `boolean` questions. The key `meta` is reserved.
+
+Optional:
+
+- `abortSignal?` - Cancel the in-flight request
+- `modelOptions?` - Provider-specific options
+- `middleware?` - Observe-only generation middleware
+- `debug?` - Debug logging
+
+### Returns
+
+Each question key is a top-level answer. `meta.model` and `meta.usage` hold the resolved model id and token usage. When the adapter returns them, `meta.id` holds the provider response id and `meta.provider` names the upstream provider.
+
+- `choice`: `.value` is the selected option key. `.probability` is P(selected). `.confidence` is a number from 0 to 1. `.probabilities` is the full map.
+- `score`: `.value` is the nearest level label. `.score` is the raw fraction. `.probability` is P(that level). `.confidence` is a number from 0 to 1. `.legend` maps each level index to its label. `.probabilities` is the full map, keyed by level index.
+- `boolean`: When `.probability` is 0.5 or more, `.value` is `true`. No `.confidence`.
+
+### Helpers
+
+- `choice({ instructions, options })` - Pick one key from `options`
+- `score({ instructions, levels })` - Rate `state` on ordered `levels` (at least two)
+- `boolean({ instructions, criteria? })` - Yes or no. When P(true) is 0.5 or more, `.value` is `true`
+
+See [Evaluate](../evaluate/evaluate) for adapters, abort, and middleware.
 
 ## `toolDefinition(config)`
 
@@ -336,15 +419,161 @@ const stream = chat({
 
 An `AgentLoopStrategy` function.
 
+## `defineByokProvider({ id, label, env?, with? })`
+
+Declare a BYOK provider from an adapter package. `id` is the `x-byok-<id>` slug and is **required** — an optional or missing `id` does not type-check.
+
+```typescript
+import { defineByokProvider } from "@tanstack/ai/byok";
+
+export const openaiByok = defineByokProvider({
+  id: "openai",
+  label: "OpenAI",
+  env: "OPENAI_API_KEY",
+});
+```
+
+Import the object from the adapter `/byok` subpath (`openaiByok` from `@tanstack/ai-openai/byok`). Pass it to `getByokKey` on the relay. Do not import it from the adapter main entry. That pulls in the provider SDK. Import `getByokKey` from `@tanstack/ai/byok/server`. That entry is the only BYOK module that reads `process.env`.
+
+### Parameters
+
+- `id` - Required slug (`[a-z][a-z0-9-]{0,63}`)
+- `label` - Display name
+- `env?` - Env var **name**, or a list of names tried in order. A string is stored as a one-element array. Names only — this object is imported on the client, so do not put `process.env` values here
+- `with?` - Other descriptors this credential needs, for example an account id next to a token. A store created with `defineByok({ providers })` sends their headers and prompts for them together with this one. Read them on the relay with `getByokKeys`
+
+### Returns
+
+A `{ id, label, env?, with? }` object. `id` is the literal slug type.
+
+## `getByokKey(request, provider)`
+
+Read a key on the relay. Import from `@tanstack/ai/byok/server` so `process.env` is not in the client graph. Works in any API route — it is not a TanStack Start server function.
+
+The header wins. A `ByokProvider` then tries `provider.env` in order. A slug is header-only. Returns `null` when both are empty. The JSON body is ignored.
+
+```typescript
+import { getByokKey } from "@tanstack/ai/byok/server";
+import { openaiByok } from "@tanstack/ai-openai/byok";
+
+export async function POST(request: Request) {
+  const apiKey = getByokKey(request, openaiByok);
+  return new Response(apiKey ? "ok" : "missing");
+}
+```
+
+### Parameters
+
+- `request` - Incoming `Request`
+- `provider` - A `ByokProvider` or a provider slug (`[a-z][a-z0-9-]{0,63}`). Becomes the `x-byok-<slug>` header. Not a fixed catalog.
+
+### Returns
+
+`string | null`
+
+## `getByokKeys(request, providers)`
+
+Read several keys at once. Each entry obeys the same rules as `getByokKey`. Use it when one credential is made of more than one value.
+
+```typescript
+import { byokMissing, getByokKeys } from "@tanstack/ai/byok/server";
+import {
+  cloudflareAccountByok,
+  cloudflareByok,
+} from "@tanstack/ai-cloudflare/byok";
+
+export async function POST(request: Request) {
+  const { apiKey, accountId } = getByokKeys(request, {
+    apiKey: cloudflareByok,
+    accountId: cloudflareAccountByok,
+  });
+  if (!apiKey) return byokMissing(cloudflareByok);
+  if (!accountId) return byokMissing(cloudflareAccountByok);
+  return new Response("ok");
+}
+```
+
+### Parameters
+
+- `request` - Incoming `Request`
+- `providers` - An object whose values are a `ByokProvider` or a provider slug. The keys name the result.
+
+### Returns
+
+An object with the same keys, each `string | null`.
+
+## `byokMissing(provider)`
+
+Return a `401` JSON `Response` with `{ error: { type: "byok_missing", provider, message } }`. The chat and generation clients read this body and set `snapshot.prompt`. Import from `@tanstack/ai/byok` or `@tanstack/ai/byok/server`.
+
+```typescript
+import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
+import { openaiByok } from "@tanstack/ai-openai/byok";
+
+export async function POST(request: Request) {
+  const apiKey = getByokKey(request, openaiByok);
+  if (!apiKey) return byokMissing(openaiByok);
+  return new Response("ok");
+}
+```
+
+### Parameters
+
+- `provider` - A `ByokProvider` or a provider slug to put on the error body
+
+### Returns
+
+A `Response` with status `401` and `content-type: application/json`.
+
+## `maskKey(key)`
+
+Return the last four characters of a key. Keys of four characters or fewer become `"••"`.
+
+```typescript
+import { maskKey } from "@tanstack/ai/byok";
+
+maskKey("sk-abcdefghij"); // "ghij"
+```
+
+## `scrubSecrets(input, secrets)`
+
+Replace each listed secret in `input` with `[redacted]`. Use this before you log an error string.
+
+```typescript
+import { scrubSecrets } from "@tanstack/ai/byok";
+
+scrubSecrets("failed sk-live extra", ["sk-live"]);
+// "failed [redacted] extra"
+```
+
+See [Bring Your Own Key](../advanced/byok) for the client store and a full relay.
+
 ## Types
 
 ### `ModelMessage`
 
 ```typescript
-interface ModelMessage {
-  role: "user" | "assistant" | "system" | "tool";
-  content: string;
+import type {
+  ContentPart,
+  StructuredOutputPart,
+  ToolCall,
+} from "@tanstack/ai";
+
+interface ModelMessage<
+  TContent extends string | null | ContentPart[] =
+    | string
+    | null
+    | ContentPart[],
+> {
+  role: "user" | "assistant" | "tool";
+  content: TContent;
+  name?: string;
+  toolCalls?: ToolCall[];
   toolCallId?: string;
+  thinking?: Array<{ content: string; signature?: string }>;
+  structuredOutput?: StructuredOutputPart;
+  id?: string;
+  createdAt?: Date;
 }
 ```
 
@@ -403,7 +632,11 @@ interface Tool<TContext = unknown> {
 ```typescript ignore
 type ToolExecutionContext<TContext = unknown> = {
   toolCallId?: string;
-  emitCustomEvent: (eventName: string, value: Record<string, any>) => void;
+  emitCustomEvent: (
+    eventName: string,
+    value: Record<string, any>,
+    options?: { batch?: boolean },
+  ) => void;
 } & (unknown extends TContext ? { context?: TContext } : { context: TContext });
 ```
 
@@ -548,5 +781,7 @@ async function examples() {
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Bring Your Own Key](../advanced/byok) - Read user keys on the relay
+- [Evaluate](../evaluate/evaluate) - Ask typed questions about shared state
 - [Tools Guide](../tools/tools) - Learn about tools
 - [Adapters](../adapters/openai) - Explore adapter options

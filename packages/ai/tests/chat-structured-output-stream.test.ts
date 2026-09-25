@@ -14,12 +14,14 @@
  * and the e2e suite. This file is the orchestrator-only fixture.
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
+import { tanstackMetadata } from '../src/utilities/merge-metadata'
 import { collectChunks } from './test-utils'
 import type { StreamChunk, TokenUsage } from '../src/types'
+import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
 import type { AnyTextAdapter } from '../src/activities/chat/adapter'
 
 const PersonSchema = z.object({
@@ -85,7 +87,7 @@ function structuredStreamChunks(
   fullJson: string,
   object: unknown,
   reasoning?: string,
-): Array<StreamChunk> {
+): Array<AdapterYieldChunk> {
   return [
     {
       type: EventType.RUN_STARTED,
@@ -287,6 +289,101 @@ describe('chat({ outputSchema, stream: true })', () => {
     })
   })
 
+  describe('provider errors', () => {
+    it('keeps the provider error body from a native stream as the cause (#1005)', async () => {
+      const providerBody = {
+        code: 400,
+        message: 'Provider returned error',
+        metadata: {
+          provider_name: 'Alibaba',
+          raw: "'messages' must contain the word 'json' in some form",
+        },
+      }
+      const adapter = makeAdapter({
+        structuredOutputStream: () =>
+          (async function* () {
+            yield {
+              type: EventType.RUN_STARTED,
+              runId: 'run-1',
+              threadId: 'thread-1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.RUN_ERROR,
+              message: 'Provider returned error',
+              code: '400',
+              rawEvent: providerBody,
+              timestamp: Date.now(),
+            }
+          })(),
+      })
+
+      const error = await chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+      }).catch((e: unknown) => e)
+
+      expect(error).toBeInstanceOf(Error)
+      expect(error).toMatchObject({
+        message: 'Provider returned error',
+        code: '400',
+        cause: providerBody,
+      })
+    })
+  })
+
+  describe('parse errors', () => {
+    it('puts the full raw text on the error from a native stream (#1485)', async () => {
+      const one = JSON.stringify({ ...validPerson, name: 'x'.repeat(150) })
+      const raw = `${one}\n\n${one}`
+      const adapter = makeAdapter({
+        structuredOutputStream: () =>
+          (async function* () {
+            yield {
+              type: EventType.RUN_STARTED,
+              runId: 'run-1',
+              threadId: 'thread-1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: 'msg-1',
+              role: 'assistant',
+              timestamp: Date.now(),
+            }
+            // Two deltas: the full text must be joined, not just the last one.
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: 'msg-1',
+              delta: one,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.TEXT_MESSAGE_CONTENT,
+              messageId: 'msg-1',
+              delta: `\n\n${one}`,
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.RUN_ERROR,
+              message: `Failed to parse structured output as JSON. Content: ${raw.slice(0, 200)}...`,
+              code: 'parse-error',
+              timestamp: Date.now(),
+            }
+          })(),
+      })
+
+      const error = await chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+      }).catch((e: unknown) => e)
+
+      expect(error).toMatchObject({ code: 'parse-error', rawText: raw })
+    })
+  })
+
   describe('fallbackStructuredOutputStream (adapter lacks native streaming)', () => {
     it('synthesizes the AG-UI lifecycle around adapter.structuredOutput', async () => {
       // No `structuredOutputStream` on the adapter — orchestrator falls back
@@ -330,6 +427,54 @@ describe('chat({ outputSchema, stream: true })', () => {
       expect(complete).toBeDefined()
       expect(complete!.value.object).toEqual(validPerson)
       expect(complete!.value.raw).toBe(JSON.stringify(validPerson))
+    })
+
+    it('timestamps fallback completion events after the provider settles', async () => {
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime(1_000)
+        const adapter = makeAdapter({
+          structuredOutput: async () => {
+            vi.setSystemTime(2_000)
+            return {
+              data: validPerson,
+              rawText: JSON.stringify(validPerson),
+            }
+          },
+        })
+
+        const chunks = await collectChunks(
+          chat({
+            adapter,
+            messages: [{ role: 'user', content: 'extract' }],
+            outputSchema: PersonSchema,
+            stream: true,
+          }),
+        )
+        const started = chunks.find(
+          (chunk) => chunk.type === EventType.RUN_STARTED,
+        )
+        const start = chunks.find(
+          (chunk) =>
+            chunk.type === EventType.CUSTOM &&
+            chunk.name === 'structured-output.start',
+        )
+        const complete = chunks.find(
+          (chunk) =>
+            chunk.type === EventType.CUSTOM &&
+            chunk.name === 'structured-output.complete',
+        )
+        const finished = chunks.find(
+          (chunk) => chunk.type === EventType.RUN_FINISHED,
+        )
+
+        expect(started?.timestamp).toBe(1_000)
+        expect(start?.timestamp).toBe(2_000)
+        expect(complete?.timestamp).toBeGreaterThanOrEqual(start!.timestamp!)
+        expect(finished?.timestamp).toBeGreaterThanOrEqual(complete!.timestamp!)
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('forwards the fallback-synthesized structured-output.complete event without orchestrator-side schema validation', async () => {
@@ -397,7 +542,14 @@ describe('chat({ outputSchema, stream: true })', () => {
 
       const finished = chunks.find((c) => c.type === EventType.RUN_FINISHED)
       expect(finished).toBeDefined()
-      expect(finished!.usage).toEqual(usage)
+      expect(finished).not.toHaveProperty('finishReason')
+      expect(tanstackMetadata(finished)?.finishReason).toBe('stop')
+      expect(finished!.usage).toEqual({
+        promptTokens: 125,
+        completionTokens: 1346,
+        totalTokens: 1471,
+        promptTokensDetails: { cachedTokens: 5760 },
+      })
     })
 
     it('omits usage on RUN_FINISHED when the adapter does not report it', async () => {
@@ -518,6 +670,43 @@ describe('chat({ outputSchema, stream: true })', () => {
       }
       expect(typeof startChunk.value.messageId).toBe('string')
       expect(startChunk.value.messageId.length).toBeGreaterThan(0)
+    })
+
+    it('timestamps fallback errors at the synthesized start boundary', async () => {
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime(1_000)
+        const adapter = makeAdapter({
+          structuredOutput: async () => {
+            vi.setSystemTime(2_000)
+            throw new Error('upstream auth failed')
+          },
+        })
+
+        const chunks = await collectChunks(
+          chat({
+            adapter,
+            messages: [{ role: 'user', content: 'extract' }],
+            outputSchema: PersonSchema,
+            stream: true,
+          }),
+        )
+        const started = chunks.find(
+          (chunk) => chunk.type === EventType.RUN_STARTED,
+        )
+        const start = chunks.find(
+          (chunk) =>
+            chunk.type === EventType.CUSTOM &&
+            chunk.name === 'structured-output.start',
+        )
+        const error = chunks.find((chunk) => chunk.type === EventType.RUN_ERROR)
+
+        expect(started?.timestamp).toBe(1_000)
+        expect(start?.timestamp).toBe(2_000)
+        expect(error?.timestamp).toBeGreaterThanOrEqual(start!.timestamp!)
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('forwards adapter-emitted lifecycle ordering (TEXT_MESSAGE_CONTENT precedes structured-output.complete)', async () => {

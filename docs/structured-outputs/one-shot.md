@@ -17,7 +17,7 @@ You have unstructured input — a paragraph of text, a freeform user prompt, the
 
 By the end of this guide you'll have a working `chat({ outputSchema })` call returning a fully-typed result, know how to describe fields so the model fills them correctly, and have a pattern for handling validation errors.
 
-> **Note:** If you want to stream the result field-by-field into a UI, you want [Streaming UIs](./streaming) instead. If you want users to iterate on the object across multiple turns, you want [Multi-Turn Chat](./multi-turn). This page is for the single-extraction case.
+> **Note:** If you want to stream the result field-by-field into a UI, you want [Streaming UIs](./streaming) instead. If you want users to iterate on the object across multiple turns, you want [Multi-Turn Chat](./multi-turn). If the model must inspect files in a sandbox first, you want [Harness Agents](./harnesses). This page is for the single-extraction case.
 
 ## Basic Usage
 
@@ -188,6 +188,52 @@ try {
 ```
 
 Provider-level errors (auth failure, rate limit, network) throw the same way — wrap the call in `try` / `catch` to handle both.
+
+### Read the provider's error
+
+When the provider rejects the request, the message can be short, for example `Provider returned error`. The provider's full error body is on `error.cause`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { MySchema } from "./schemas";
+
+try {
+  const result = await chat({
+    adapter: openaiText("gpt-6-astra"),
+    messages: [{ role: "user", content: "..." }],
+    outputSchema: MySchema,
+  });
+} catch (error) {
+  if (error instanceof Error) {
+    console.error(error.message, error.cause);
+  }
+}
+```
+
+### Recover the model's text
+
+Sometimes a model returns a valid JSON object and then more text, for example a second copy of the object. The JSON parse then fails and `chat()` throws. The error message shows only the first 200 characters. The full text is on `error.rawText`:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { MySchema } from "./schemas";
+
+try {
+  const result = await chat({
+    adapter: openaiText("gpt-6-astra"),
+    messages: [{ role: "user", content: "..." }],
+    outputSchema: MySchema,
+  });
+} catch (error) {
+  if (error instanceof Error && "rawText" in error) {
+    console.error("Model text:", error.rawText);
+  }
+}
+```
+
+Parse and validate that text yourself if you want to keep the answer.
 
 ## Consuming the result on the client
 

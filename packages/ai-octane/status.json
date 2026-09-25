@@ -1,0 +1,32 @@
+{
+  "upstream": {
+    "package": "@tanstack/ai-react",
+    "version": "0.21.1"
+  },
+  "surface": "Ports the current @tanstack/ai-react hook surface (useChat, useRealtimeChat, useGeneration, useGenerateImage/Audio/Speech/Video, useTranscription, useSummarize, useAudioRecorder, useMcpAppBridge) while reusing @tanstack/ai and @tanstack/ai-client unchanged. useChat matches the current ChatClient shape: threadId identity, queue, runId, interrupts, attach/detach, and SendMessageOptions.",
+  "divergences": [
+    "The `./mcp-apps` subpath and its `MCPAppResource` component are not ported: they render `AppRenderer` from the React-only `@mcp-ui/client`, which has no Octane equivalent. The framework-agnostic `useMcpAppBridge` hook is ported and available on the main entry.",
+    "Octane uses native events: text/file/recorder inputs drive updates via `onInput`; there is no synthetic `onChange` layer.",
+    "Octane has no StrictMode double-invoke and always provides `useId`, so no random-id fallback is needed. useChat attach/detach + dispose is immediate (Vue-style), not React's deferred setTimeout dispose.",
+    "The TanStack AI Devtools bridge is tagged `framework: 'octane'` (upstream `@tanstack/ai-react` sends `'react'`), so the devtools identify this binding correctly. Caller `devtools` is spread first so identification cannot be overridden.",
+    "Realtime reconnects and token refreshes use the latest `getToken` and adapter supplied to the hook; upstream `@tanstack/ai-react` captures the first render's callbacks.",
+    "The declared realtime `onStatusChange` callback is invoked alongside the hook's state update; upstream `@tanstack/ai-react` currently drops the external callback.",
+    "Changing `useChat`'s connection or fetcher updates the active ChatClient in place and preserves conversation state; upstream `@tanstack/ai-react` captures the initial transport.",
+    "FIXED HERE, STILL PRESENT UPSTREAM — `useGeneration` spreads caller `devtools` metadata BEFORE the hardcoded `framework`/`hookName`, so a caller supplying `devtools.framework` can no longer silently misattribute this binding in the devtools. Upstream @tanstack/ai-react (and this port, as received) spread it after, letting the caller win. The sibling hooks (useChat, useGenerateVideo) already ordered it correctly, so the port was also internally inconsistent. Tracked upstream: https://github.com/TanStack/ai/issues/1002",
+    "FIXED HERE, STILL PRESENT UPSTREAM — `useAudioRecorder`'s transforming overload now requires `onComplete`. Without that constraint an options object carrying only unrelated keys (e.g. `useAudioRecorder({ onError })`) still matched it, `TOnComplete` inferred as `unknown`, and `recording`/`stop()` collapsed to `unknown` — so passing any option silently cost you the `AudioRecording` type. Same defect in @tanstack/ai-react. Tracked upstream: https://github.com/TanStack/ai/issues/1001",
+    "FIXED HERE, STILL PRESENT UPSTREAM — `UseGenerationReturn` is parameterized as `<TInput, TOutput>` and types `generate` as `(input: TInput)`. Upstream (@tanstack/ai-react, ai-vue, ai-solid) declares `<TOutput>` and widens `generate` to `(input: Record<string, any>)` via a cast, so required and narrow input fields go unchecked at the call site. This changes the arity of an exported type relative to the React adapter — the only such divergence in the public type surface; the runtime surface is unchanged. Tracked upstream: https://github.com/TanStack/ai/issues/1003",
+    "FIXED HERE — the `renderUseChat` test helper defaults its options to `{}` instead of asserting `options!`, which would have passed `undefined` into a hook that reads options eagerly."
+  ],
+  "ssr": "Supported and tested: useChat renders its initial message snapshot through octane/server without a DOM.",
+  "e2e": "None, deliberately. E2E coverage in this repo runs against a demo app under testing/e2e, which is TanStack Start-based; an Octane build of TanStack Start exists but is not officially released yet, so the app cannot be built. Held until that ships rather than worked around — this is a known external blocker, not an oversight.",
+  "notes": [
+    "Hook modules are authored as TSRX with checked declaration companions; no ported hook renders JSX or references React types in its public signature.",
+    "Ported into the TanStack AI monorepo from @octanejs/tanstack-ai@0.0.11, which was a temporary stopgap home. Renamed to @tanstack/ai-octane.",
+    "Caught up to current ChatClient / useChat: threadId is the only hook identity (hookId from useId is a recreation key and is never sent on the wire), queue + cancelQueued, runId, interrupt generics and resolve/cancel/retry/resume, attach() on mount and detach()+dispose on unmount, SendMessageOptions on sendMessage, and onResponse returns the user callback so ChatClient can await it.",
+    "The conformance suite runs on happy-dom, not the jsdom the Octane repo used: this repo pins jsdom ^27, whose Blob has no arrayBuffer() (Octane pins ^29, which does), and the useAudioRecorder cases need it.",
+    "typetests/ is wired into CI via `test:types`. Tool inputs use real Zod — matching how @tanstack/ai-client's own type tests do it. The outputSchema tests keep a structural Standard Schema stand-in on purpose, to prove inference works for any spec-conforming validator.",
+    "typetests/use-generation.test-d.ts locks in the two type-level fixes listed under divergences; each was verified to fail if the corresponding fix is reverted. The devtools identity fix is covered by tests/conformance/devtools-identification.test.ts, likewise verified to fail against the un-fixed spread order.",
+    "The differential parity test did not come across: it esbuild-compiles a shared fixture for both Octane and React and byte-compares streamed output, which would make a sibling workspace package a pinned test dependency. It remains in the octanejs/octane repo."
+  ],
+  "verified": "2026-08-21"
+}

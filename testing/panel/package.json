@@ -15,6 +15,7 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai-compaction": "workspace:*",
     "@tanstack/ai-event-client": "workspace:*",
     "@tanstack/ai-gemini": "workspace:*",
     "@tanstack/ai-grok": "workspace:*",
@@ -23,7 +24,7 @@
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-openrouter": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
-    "@tanstack/ai-react-ui": "workspace:*",
+    "@tanstack/ai-skills": "workspace:*",
     "@tanstack/nitro-v2-vite-plugin": "^1.155.0",
     "@tanstack/react-ai-devtools": "workspace:*",
     "@tanstack/react-devtools": "^0.9.10",
@@ -47,9 +48,9 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.2",
+    "@vitejs/plugin-react": "^5.2.0",
     "dotenv": "^17.2.3",
     "typescript": "5.9.3",
-    "vite": "^8.1.4"
+    "vite": "^8.2.1"
   }
 }

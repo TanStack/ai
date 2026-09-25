@@ -10,6 +10,8 @@ import {
   withGenerationPersistence,
 } from '@tanstack/ai-persistence'
 import { z } from 'zod'
+import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
+import { byteplusVoiceByok } from '@tanstack/ai-byteplus/byok'
 import {
   InvalidModelOverrideError,
   UnknownProviderError,
@@ -107,7 +109,14 @@ export const Route = createFileRoute('/api/transcribe')({
         }
 
         try {
-          const adapter = buildTranscriptionAdapter(provider ?? 'openai')
+          let adapter
+          if (provider === 'byteplus') {
+            const apiKey = getByokKey(request, byteplusVoiceByok)
+            if (!apiKey) return byokMissing(byteplusVoiceByok)
+            adapter = buildTranscriptionAdapter('byteplus', apiKey)
+          } else {
+            adapter = buildTranscriptionAdapter(provider ?? 'openai')
+          }
 
           const stream = generateTranscription({
             adapter,

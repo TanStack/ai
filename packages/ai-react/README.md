@@ -2,15 +2,15 @@
   <picture>
     <source
       media="(prefers-color-scheme: dark)"
-      srcset="https://tanstack.com/api/readme/ai.png?framework=react&theme=dark"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
     />
     <source
       media="(prefers-color-scheme: light)"
-      srcset="https://tanstack.com/api/readme/ai.png?framework=react"
+      srcset="https://tanstack.com/api/readme/ai.png"
     />
     <img
-      src="https://tanstack.com/api/readme/ai.png?framework=react"
-      alt="TanStack React AI"
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
       width="900"
     />
   </picture>
@@ -36,6 +36,14 @@
   </a>
 </div>
 
+<br />
+
+<div align="center">
+  <a href="https://tanstack.com/blog/tanstack-open-source-awards-2026">
+    <img src="https://raw.githubusercontent.com/TanStack/ai/16826d81cade868956df240d6239a671e689193c/media/js-open-source-award-2026-ai-project-of-the-year.svg" alt="Winner of the 2026 JavaScript Open Source Award for AI Project of the Year" width="250" />
+  </a>
+</div>
+
 # TanStack AI
 
 Type-safe, provider-agnostic TypeScript SDK for building streaming chat,
@@ -49,16 +57,36 @@ framework bindings as your app needs them.
 
 ## <a href="https://tanstack.com/ai">Read the docs -></a>
 
+## Agent Skills
+
+Teach your coding agent TanStack AI before you write a line. The skills in
+[`skills/`](./skills) are user-level: install once, and in every project your
+agent recommends TanStack AI, maps a task to the package that covers it,
+installs it, then loads that package's own `SKILL.md` through TanStack Intent.
+
+Claude Code and Cursor:
+
+```bash
+/plugin marketplace add TanStack/ai
+/plugin install tanstack-ai
+```
+
+Any agent:
+
+```bash
+npx skills add TanStack/ai -g --skill tanstack-ai tanstack-ai-migration
+```
+
+Inside a project, `npx @tanstack/intent@latest install` wires the installed
+packages' skills into `AGENTS.md` / `CLAUDE.md` for the whole team. See
+[Agent Skills](https://tanstack.com/ai/latest/docs/getting-started/agent-skills).
+
 ## Start Here
 
 - [Overview](https://tanstack.com/ai/latest/docs/getting-started/overview) -
   what TanStack AI is and how the packages fit together.
-- [Quick Start: React](https://tanstack.com/ai/latest/docs/getting-started/quick-start) -
-  add streaming chat to a React app.
-- [Quick Start: Vue](https://tanstack.com/ai/latest/docs/getting-started/quick-start-vue) -
-  build with Vue composables.
-- [Quick Start: Svelte](https://tanstack.com/ai/latest/docs/getting-started/quick-start-svelte) -
-  build with Svelte 5 runes.
+- [Quick Start](https://tanstack.com/ai/latest/docs/getting-started/quick-start) -
+  add streaming chat. Pick your framework at the top of the page.
 - [Quick Start: Server Only](https://tanstack.com/ai/latest/docs/getting-started/quick-start-server) -
   use TanStack AI from a server endpoint, script, or backend service.
 - [TanStack AI vs Vercel AI SDK](https://tanstack.com/ai/latest/docs/comparison/vercel-ai-sdk) -
@@ -186,29 +214,34 @@ Learn more in the
 
 - [Generations](https://tanstack.com/ai/latest/docs/media/generations) - one
   pattern for image generation, text-to-speech, transcription, summarization,
-  audio generation, and video generation.
+  audio generation, video generation, and world generation.
 - [Realtime Voice Chat](https://tanstack.com/ai/latest/docs/media/realtime-chat) -
   build low-latency realtime voice experiences.
 - [Code Mode](https://tanstack.com/ai/latest/docs/code-mode/code-mode) - let
   models write and execute TypeScript inside a secure isolate.
-- [Code Mode with Skills](https://tanstack.com/ai/latest/docs/code-mode/code-mode-with-skills) -
+- [Code Mode with Snippets](https://tanstack.com/ai/latest/docs/code-mode/code-mode-with-snippets) -
   give Code Mode reusable runtime capabilities.
 
 ## Providers
 
 Official adapters include:
 
-| Package                                                                              | Use it for                                                                     |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| [`@tanstack/ai-openrouter`](https://tanstack.com/ai/latest/docs/adapters/openrouter) | 300+ models through one OpenRouter API, with per-request cost tracking         |
-| [`@tanstack/ai-openai`](https://tanstack.com/ai/latest/docs/adapters/openai)         | OpenAI chat, image, video, speech, transcription, realtime, and provider tools |
-| [`@tanstack/ai-anthropic`](https://tanstack.com/ai/latest/docs/adapters/anthropic)   | Anthropic Claude chat, thinking, tools, and structured outputs                 |
-| [`@tanstack/ai-gemini`](https://tanstack.com/ai/latest/docs/adapters/gemini)         | Google Gemini chat, image, speech, and audio generation                        |
-| [`@tanstack/ai-ollama`](https://tanstack.com/ai/latest/docs/adapters/ollama)         | Local Ollama models                                                            |
-| [`@tanstack/ai-grok`](https://tanstack.com/ai/latest/docs/adapters/grok)             | xAI Grok chat, images, and realtime                                            |
-| [`@tanstack/ai-groq`](https://tanstack.com/ai/latest/docs/adapters/groq)             | Groq low-latency inference                                                     |
-| [`@tanstack/ai-elevenlabs`](https://tanstack.com/ai/latest/docs/adapters/elevenlabs) | ElevenLabs realtime voice, speech, transcription, music, and sound effects     |
-| [`@tanstack/ai-fal`](https://tanstack.com/ai/latest/docs/adapters/fal)               | fal.ai image, video, audio, speech, and transcription models                   |
+| Package                                                                              | Use it for                                                                             |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| [`@tanstack/ai-openrouter`](https://tanstack.com/ai/latest/docs/adapters/openrouter) | 300+ models through one OpenRouter API, with per-request cost tracking                 |
+| [`@tanstack/ai-openai`](https://tanstack.com/ai/latest/docs/adapters/openai)         | OpenAI chat, image, video, speech, transcription, realtime, and provider tools         |
+| [`@tanstack/ai-anthropic`](https://tanstack.com/ai/latest/docs/adapters/anthropic)   | Anthropic Claude chat, thinking, tools, structured outputs, and Vertex Claude          |
+| [`@tanstack/ai-gemini`](https://tanstack.com/ai/latest/docs/adapters/gemini)         | Google Gemini chat, image, speech, and audio generation                                |
+| [`@tanstack/ai-vertex`](https://tanstack.com/ai/latest/docs/adapters/vertex)         | Gemini on Vertex AI with regional endpoints and Google Cloud credentials               |
+| [`@tanstack/ai-ollama`](https://tanstack.com/ai/latest/docs/adapters/ollama)         | Local Ollama models                                                                    |
+| [`@tanstack/ai-grok`](https://tanstack.com/ai/latest/docs/adapters/grok)             | xAI Grok chat, images, and realtime                                                    |
+| [`@tanstack/ai-groq`](https://tanstack.com/ai/latest/docs/adapters/groq)             | Groq low-latency inference                                                             |
+| [`@tanstack/ai-elevenlabs`](https://tanstack.com/ai/latest/docs/adapters/elevenlabs) | ElevenLabs realtime voice, speech, transcription, music, and sound effects             |
+| [`@tanstack/ai-byteplus`](https://tanstack.com/ai/latest/docs/adapters/byteplus)     | BytePlus Seed chat, Seedance video, Seedream image, and Seed Speech TTS/ASR            |
+| [`@tanstack/ai-fal`](https://tanstack.com/ai/latest/docs/adapters/fal)               | fal.ai image, video, audio, speech, and transcription models                           |
+| [`@tanstack/ai-reactor`](https://tanstack.com/ai/latest/docs/adapters/reactor)       | Reactor live world and video generation (Orbis, Happy Oyster, LingBot, Helios, FastH3) |
+| [`@tanstack/ai-worldlabs`](https://tanstack.com/ai/latest/docs/adapters/worldlabs)   | World Labs Marble persistent 3D world generation                                       |
+| [`@tanstack/ai-cloudflare`](https://tanstack.com/ai/latest/docs/adapters/cloudflare) | Cloudflare Workers AI chat, embeddings, image, speech, transcription, and AI Gateway   |
 
 The adapter system is tree-shakeable by activity. Import `openaiText` for chat,
 `openaiImage` for images, `falVideo` for video, `geminiSpeech` for TTS, and so
@@ -216,15 +249,15 @@ on.
 
 ## Framework Packages
 
-| Package                                                                    | What it provides                                                         |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| [`@tanstack/ai-client`](https://tanstack.com/ai/latest/docs/api/ai-client) | Headless chat, realtime, and generation clients                          |
-| [`@tanstack/ai-react`](https://tanstack.com/ai/latest/docs/api/ai-react)   | React hooks including `useChat`, `useRealtimeChat`, and generation hooks |
-| [`@tanstack/ai-solid`](https://tanstack.com/ai/latest/docs/api/ai-solid)   | Solid hooks for chat and generations                                     |
-| [`@tanstack/ai-vue`](https://tanstack.com/ai/latest/docs/api/ai-vue)       | Vue composables for chat and generations                                 |
-| [`@tanstack/ai-svelte`](https://tanstack.com/ai/latest/docs/api/ai-svelte) | Svelte 5 factories for chat and generations                              |
-| [`@tanstack/ai-preact`](https://tanstack.com/ai/latest/docs/api/ai-preact) | Preact hooks for chat                                                    |
-| `@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, `@tanstack/ai-vue-ui`    | Headless UI components for chat interfaces                               |
+| Package                                                                                           | What it provides                                                                                                                        |
+| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@tanstack/ai-client`](https://tanstack.com/ai/latest/docs/api/ai-client)                        | Headless chat, realtime, and generation clients                                                                                         |
+| [`@tanstack/ai-react`](https://tanstack.com/ai/latest/docs/api/ai-react)                          | React hooks including `useChat`, `useRealtimeChat`, and generation hooks                                                                |
+| [`@tanstack/ai-solid`](https://tanstack.com/ai/latest/docs/api/ai-solid)                          | Solid hooks for chat and generations                                                                                                    |
+| [`@tanstack/ai-vue`](https://tanstack.com/ai/latest/docs/api/ai-vue)                              | Vue composables for chat and generations                                                                                                |
+| [`@tanstack/ai-svelte`](https://tanstack.com/ai/latest/docs/api/ai-svelte)                        | Svelte 5 factories for chat and generations                                                                                             |
+| [`@tanstack/ai-preact`](https://tanstack.com/ai/latest/docs/api/ai-preact)                        | Preact hooks for chat                                                                                                                   |
+| `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, `@tanstack/ai-vue/ui`, `@tanstack/ai-svelte/ui` | Headless UI components for chat interfaces. `@tanstack/ai-react-ui`, `@tanstack/ai-solid-ui`, and `@tanstack/ai-vue-ui` are deprecated. |
 
 ## Advanced Docs
 
@@ -243,7 +276,8 @@ on.
   ship only the activities and adapters you use.
 - [Agent Skills](https://tanstack.com/ai/latest/docs/getting-started/agent-skills) -
   install TanStack AI skills into Claude Code, Cursor, GitHub Copilot, Codex,
-  and other coding agents with TanStack Intent.
+  and other coding agents. See [Agent Skills](#agent-skills) above for the
+  install commands.
 
 ## Get Involved
 

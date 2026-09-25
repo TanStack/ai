@@ -14,6 +14,7 @@ import type {
   BlobStore,
   GenerationRunRecord,
   GenerationRunStore,
+  InterruptCommitEntry,
   InterruptRecord,
   InterruptStore,
   MessageStore,
@@ -22,9 +23,28 @@ import type {
   RunStore,
 } from './types'
 
+const compareUtf8Bytes = (left: string, right: string): number => {
+  const leftBytes = new TextEncoder().encode(left)
+  const rightBytes = new TextEncoder().encode(right)
+  const length = Math.min(leftBytes.length, rightBytes.length)
+
+  for (let index = 0; index < length; index++) {
+    const leftByte = leftBytes[index]
+    const rightByte = rightBytes[index]
+    if (leftByte !== rightByte) {
+      return (leftByte ?? 0) - (rightByte ?? 0)
+    }
+  }
+
+  return leftBytes.length - rightBytes.length
+}
+
 class MemoryMessageStore implements MessageStore {
   private readonly threads = new Map<string, Array<ModelMessage>>()
-  loadThread(threadId: string): Promise<Array<ModelMessage>> {
+  loadThread(
+    threadId: string,
+    _options?: { limit?: number; before?: string },
+  ): Promise<Array<ModelMessage>> {
     return Promise.resolve(this.threads.get(threadId)?.slice() ?? [])
   }
   saveThread(threadId: string, messages: Array<ModelMessage>): Promise<void> {
@@ -40,6 +60,9 @@ class MemoryRunStore implements RunStore {
     threadId: string
     status?: RunRecord['status']
     startedAt: number
+    parentRunId?: string
+    subagentRunId?: string
+    name?: string
   }): Promise<RunRecord> {
     const existing = this.runs.get(input.runId)
     if (existing) return Promise.resolve(existing)
@@ -48,6 +71,13 @@ class MemoryRunStore implements RunStore {
       threadId: input.threadId,
       status: input.status ?? 'running',
       startedAt: input.startedAt,
+      ...(input.parentRunId !== undefined
+        ? { parentRunId: input.parentRunId }
+        : {}),
+      ...(input.subagentRunId !== undefined
+        ? { subagentRunId: input.subagentRunId }
+        : {}),
+      ...(input.name !== undefined ? { name: input.name } : {}),
     }
     this.runs.set(record.runId, record)
     return Promise.resolve(record)
@@ -84,6 +114,12 @@ class MemoryRunStore implements RunStore {
   listByThread(threadId: string): Promise<Array<RunRecord>> {
     const matching = [...this.runs.values()]
       .filter((run) => run.threadId === threadId)
+      .sort((a, b) => a.startedAt - b.startedAt)
+    return Promise.resolve(matching)
+  }
+  listByParentRun(parentRunId: string): Promise<Array<RunRecord>> {
+    const matching = [...this.runs.values()]
+      .filter((run) => run.parentRunId === parentRunId)
       .sort((a, b) => a.startedAt - b.startedAt)
     return Promise.resolve(matching)
   }
@@ -188,6 +224,49 @@ class MemoryInterruptStore implements InterruptStore {
     }
     return Promise.resolve()
   }
+  async commitBatch(
+    entries: ReadonlyArray<InterruptCommitEntry>,
+  ): Promise<void> {
+    const ids = new Set<string>()
+    for (const entry of entries) {
+      if (ids.has(entry.interruptId)) {
+        throw new Error(
+          `Interrupt batch contains duplicate id: ${entry.interruptId}.`,
+        )
+      }
+      ids.add(entry.interruptId)
+      const existing = this.interrupts.get(entry.interruptId)
+      if (!existing) {
+        throw new Error(
+          `Interrupt batch references missing id: ${entry.interruptId}.`,
+        )
+      }
+      if (existing.status !== 'pending') {
+        throw new Error(
+          `Interrupt batch references non-pending id: ${entry.interruptId}.`,
+        )
+      }
+    }
+    const resolvedAt = Date.now()
+    for (const entry of entries) {
+      const existing = this.interrupts.get(entry.interruptId)
+      if (!existing) continue
+      if (entry.status === 'resolved') {
+        this.interrupts.set(entry.interruptId, {
+          ...existing,
+          status: 'resolved',
+          resolvedAt,
+          response: entry.response,
+        })
+      } else {
+        this.interrupts.set(entry.interruptId, {
+          ...existing,
+          status: 'cancelled',
+          resolvedAt,
+        })
+      }
+    }
+  }
   get(interruptId: string): Promise<InterruptRecord | null> {
     return Promise.resolve(this.interrupts.get(interruptId) ?? null)
   }
@@ -267,7 +346,24 @@ class MemoryArtifactStore implements ArtifactStore {
   }
   list(runId: string): Promise<Array<ArtifactRecord>> {
     return Promise.resolve(
-      [...this.artifacts.values()].filter((a) => a.runId === runId),
+      [...this.artifacts.values()]
+        .filter((a) => a.runId === runId)
+        .sort(
+          (a, b) =>
+            a.createdAt - b.createdAt ||
+            compareUtf8Bytes(a.artifactId, b.artifactId),
+        ),
+    )
+  }
+  listForThread(threadId: string): Promise<Array<ArtifactRecord>> {
+    return Promise.resolve(
+      [...this.artifacts.values()]
+        .filter((a) => a.threadId === threadId)
+        .sort(
+          (a, b) =>
+            a.createdAt - b.createdAt ||
+            compareUtf8Bytes(a.artifactId, b.artifactId),
+        ),
     )
   }
   delete(artifactId: string): Promise<void> {

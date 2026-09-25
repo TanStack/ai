@@ -9,11 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SolidUiRouteImport } from './routes/solid-ui'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
 
+const SolidUiRoute = SolidUiRouteImport.update({
+  id: '/solid-ui',
+  path: '/solid-ui',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -37,12 +43,14 @@ const ExampleGuitarsGuitarIdRoute = ExampleGuitarsGuitarIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/solid-ui': typeof SolidUiRoute
   '/api/chat': typeof ApiChatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars': typeof ExampleGuitarsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/solid-ui': typeof SolidUiRoute
   '/api/chat': typeof ApiChatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars': typeof ExampleGuitarsIndexRoute
@@ -50,6 +58,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/solid-ui': typeof SolidUiRoute
   '/api/chat': typeof ApiChatRoute
   '/example/guitars/$guitarId': typeof ExampleGuitarsGuitarIdRoute
   '/example/guitars/': typeof ExampleGuitarsIndexRoute
@@ -58,14 +67,21 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/solid-ui'
     | '/api/chat'
     | '/example/guitars/$guitarId'
     | '/example/guitars'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/chat' | '/example/guitars/$guitarId' | '/example/guitars'
+  to:
+    | '/'
+    | '/solid-ui'
+    | '/api/chat'
+    | '/example/guitars/$guitarId'
+    | '/example/guitars'
   id:
     | '__root__'
     | '/'
+    | '/solid-ui'
     | '/api/chat'
     | '/example/guitars/$guitarId'
     | '/example/guitars/'
@@ -73,6 +89,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SolidUiRoute: typeof SolidUiRoute
   ApiChatRoute: typeof ApiChatRoute
   ExampleGuitarsGuitarIdRoute: typeof ExampleGuitarsGuitarIdRoute
   ExampleGuitarsIndexRoute: typeof ExampleGuitarsIndexRoute
@@ -80,6 +97,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/solid-router' {
   interface FileRoutesByPath {
+    '/solid-ui': {
+      id: '/solid-ui'
+      path: '/solid-ui'
+      fullPath: '/solid-ui'
+      preLoaderRoute: typeof SolidUiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -113,6 +137,7 @@ declare module '@tanstack/solid-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SolidUiRoute: SolidUiRoute,
   ApiChatRoute: ApiChatRoute,
   ExampleGuitarsGuitarIdRoute: ExampleGuitarsGuitarIdRoute,
   ExampleGuitarsIndexRoute: ExampleGuitarsIndexRoute,

@@ -1,3 +1,23 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
 # @tanstack/ai-sandbox
 
 Provider-agnostic sandbox layer for [TanStack AI](https://tanstack.com/ai). Run coding-agent harness adapters (Grok Build, Claude Code, Codex, OpenCode, Gemini CLI) **inside** an isolated environment with a real filesystem, shell, and cloned repo — and stream their work back through `chat()`.
@@ -52,7 +72,17 @@ Pick a **provider** package for where the sandbox runs:
 | `@tanstack/ai-sandbox-cloudflare`    | Cloudflare Workers + Containers        |
 | `@tanstack/ai-sandbox-vercel`        | Vercel Sandbox                         |
 | `@tanstack/ai-sandbox-daytona`       | Daytona cloud sandboxes, snapshots     |
+| `@tanstack/ai-sandbox-upstash-box`   | Upstash Box cloud sandboxes, snapshots |
 | `@tanstack/ai-sandbox-sprites`       | Sprites stateful sandboxes             |
+| `@tanstack/ai-sandbox-blaxel`        | Blaxel cloud sandboxes and previews    |
+| `@tanstack/ai-sandbox-boxd`          | boxd microVMs, live fork, snapshots    |
+| `@tanstack/ai-sandbox-e2b`           | E2B microVMs, snapshots and fork       |
+
+Install the provider you select separately. For Blaxel:
+
+```bash
+npm install @tanstack/ai-sandbox-blaxel
+```
 
 **Harness adapters** are separate packages. The default path is **Grok Build** (`@tanstack/ai-grok-build`); others include `@tanstack/ai-claude-code`, `@tanstack/ai-codex`, and `@tanstack/ai-opencode`. All require `withSandbox(...)` middleware — `chat()` fails fast without it.
 
@@ -137,6 +167,30 @@ lifecycle: {
 }
 ```
 
+### Portable snapshots
+
+Use portable snapshots when a later run must rebuild completed files after the
+provider sandbox is gone. Create one snapshots object, pass it to
+`withPersistence` and `withSandbox`, and put `withPersistence` first.
+
+```typescript
+import { withPersistence } from '@tanstack/ai-persistence'
+import { memorySandboxSnapshots, withSandbox } from '@tanstack/ai-sandbox'
+
+const snapshots = await memorySandboxSnapshots({ sandbox, instances })
+
+const middleware = [
+  withPersistence(snapshots.persistence),
+  withSandbox(sandbox, { instances, snapshots }),
+]
+```
+
+A successful terminal run saves regular files, empty directories, saved
+conversation data, and thread artifacts. Restore runs only in a new private
+sandbox. A live resumed sandbox keeps its current files. Read
+[Keep Files After Reload](https://tanstack.com/ai/latest/docs/sandbox/portable-snapshots-configure)
+for the full server setup.
+
 ### Secrets
 
 Use `createSecrets()` so values stay behind opaque `SecretRef` tokens. They are never written to snapshots, the sandbox store, or event logs. The sandbox layer resolves them onto the live handle at create, resume, and snapshot restore:
@@ -178,6 +232,8 @@ Full guides on [tanstack.com/ai](https://tanstack.com/ai/latest/docs/sandbox/ove
 - [Policy](https://tanstack.com/ai/latest/docs/sandbox/policy)
 - [Tools](https://tanstack.com/ai/latest/docs/sandbox/tools) (host tool bridge)
 - [Lifecycle & snapshots](https://tanstack.com/ai/latest/docs/sandbox/lifecycle)
+- [Portable sandbox snapshots](https://tanstack.com/ai/latest/docs/sandbox/portable-snapshots)
+- [Pick which files to keep](https://tanstack.com/ai/latest/docs/sandbox/portable-snapshots-files)
 
 ## Examples
 

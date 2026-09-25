@@ -1,5 +1,231 @@
 # @tanstack/ai-openai
 
+## 0.24.1
+
+### Patch Changes
+
+- [#1428](https://github.com/TanStack/ai/pull/1428) [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb) - Forward summarize maxLength through OpenAI-compatible adapters using the token-limit key for their API, regardless of the summarize wrapper name. Keep explicit caller limits unchanged.
+
+- [#1467](https://github.com/TanStack/ai/pull/1467) [`dfd9f3a`](https://github.com/TanStack/ai/commit/dfd9f3a0bdc4ad1a43c49d4291625cc4953d1e04) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`54d39d3`](https://github.com/TanStack/ai/commit/54d39d30704bbdbdccea756af31530cc6713fc2e), [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb), [`74b5823`](https://github.com/TanStack/ai/commit/74b582305471eaf37a3b68595e60ed1a6f42d914), [`790cb0a`](https://github.com/TanStack/ai/commit/790cb0a0d089c7d28756076488c9b24a92629848), [`abb0169`](https://github.com/TanStack/ai/commit/abb0169bf96c38f59791450ce060d089a7fcd26e), [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088), [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b)]:
+  - @tanstack/ai@0.61.0
+  - @tanstack/openai-base@0.11.1
+
+## 0.24.0
+
+### Minor Changes
+
+- [#915](https://github.com/TanStack/ai/pull/915) [`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd) - feat(ai): native Files API support across providers (upload adapters + `file` content source)
+
+  Adds first-class support for provider **Files / storage APIs** so callers can upload media once and reference it by a provider-issued handle instead of re-sending base64 or a public URL each request (lower latency/bandwidth, no re-buffering on memory-constrained runtimes).
+  - **New tree-shakeable `files` adapter kind** — `openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, `grokFiles()`, and `falFiles()`. Each exposes `upload()`, and (where the provider has a lifecycle API) `get()` / `delete()`. Drive them with the new `uploadFile()` / `getFile()` / `deleteFile()` activity functions. fal is upload-only.
+  - **New `{ type: 'file' }` arm on `ContentPartSource`**, matching the AG-UI `FileSource` arm field for field: `{ type: 'file', value, provider?, mimeType? }`. `value` is the opaque handle the provider issued; `provider` names the adapter that issued it. Each adapter maps `value` to its native wire field: OpenAI (Responses) `input_image`/`input_file` `file_id`, Anthropic `file_id` message source (with the `files-api-2025-04-14` beta), Gemini `fileData.fileUri`, fal storage URL, Grok public URL. `fileSourceFromHandle(handle)` builds the source.
+  - **Fail-closed capability preflight** — adapters that can consume file references declare `supportsFileSources`; `chat()` / `generateImage()` / `generateVideo()` / `embed()` reject `{ type: 'file' }` sources for every other adapter (Bedrock, Mistral, Groq, OpenRouter, Ollama, BytePlus, Cohere, and any future adapter that doesn't opt in) **before a request is built**, so a reference can never be silently mis-mapped onto a URL/data field. Endpoints that need raw bytes (image edits, Sora `input_reference`, Veo, Chat Completions images) throw endpoint-specific errors. A supporting adapter handed a source whose `provider` names a different adapter throws an error naming the issuer.
+  - **Provider-literal typed handles** — `FileHandle<'openai'>` etc. flow from each files adapter through `uploadFile()`, and `getFile()`/`deleteFile()` accept the handle itself, so cross-provider lifecycle calls fail at compile time. `fileSourceFromHandle` and `FileHandle` are also exported from the browser-safe `@tanstack/ai/client` entry. A `{ type: 'file' }` source cannot cross the chat wire format (which carries `data`/`url` sources only) and throws rather than being dropped, so a browser that holds a handle sends it in its own request body and the server builds the source.
+
+### Patch Changes
+
+- Updated dependencies [[`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd), [`222ebed`](https://github.com/TanStack/ai/commit/222ebed91c4f1d7f5c338e07279de60d13c1d79f)]:
+  - @tanstack/ai@0.60.0
+  - @tanstack/openai-base@0.11.0
+
+## 0.23.2
+
+### Patch Changes
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+  - @tanstack/openai-base@0.10.16
+
+## 0.23.1
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+  - @tanstack/openai-base@0.10.15
+
+## 0.23.0
+
+### Minor Changes
+
+- [#1373](https://github.com/TanStack/ai/pull/1373) [`bffdd18`](https://github.com/TanStack/ai/commit/bffdd186afee12d3bbd71986e9cc2793c8aeded6) - The default realtime model for `openaiRealtimeToken()` and `openaiRealtime()` is now `gpt-realtime-2.1`, the latest snapshot in `OpenAIRealtimeModel`. Pass `model` explicitly to pin an older snapshot (`gpt-realtime`, `gpt-realtime-mini`, `gpt-realtime-1.5`, `gpt-realtime-2`, or `gpt-realtime-2.1-mini`).
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+  - @tanstack/openai-base@0.10.14
+
+## 0.22.9
+
+### Patch Changes
+
+- [#1367](https://github.com/TanStack/ai/pull/1367) [`a54ed1f`](https://github.com/TanStack/ai/commit/a54ed1f4b519f5e56df59a75902914362828906b) - `openaiCompatible`: stream reasoning from OpenAI-compatible providers. Reasoning models behind an OpenAI-compatible endpoint (DeepSeek, Qwen, GLM, Kimi, most vLLM/SGLang deployments) send their thinking on `delta.reasoning_content`, or `delta.reasoning` on some gateways — fields that are outside the OpenAI wire format. The generic adapter had no reasoning hook, so the thinking was dropped silently and the only workaround was to monkey-patch `extractReasoning` onto the prototype. It now reads both fields, matching what `@tanstack/ai-cloudflare`, `@tanstack/ai-byteplus` and `@tanstack/ai-groq` already do. Providers that send neither are unaffected.
+
+- Updated dependencies [[`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9), [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6)]:
+  - @tanstack/ai@0.56.0
+  - @tanstack/openai-base@0.10.13
+
+## 0.22.8
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+  - @tanstack/openai-base@0.10.12
+
+## 0.22.7
+
+### Patch Changes
+
+- [#1322](https://github.com/TanStack/ai/pull/1322) [`2f6a45c`](https://github.com/TanStack/ai/commit/2f6a45c4f889a6cd08f0c25df508fb6a381a8309) - `openaiCompatible` and `openaiCompatibleText` accept the OpenAI SDK token-provider `apiKey` (`() => Promise<string>`), so Azure Entra and rotating keys type-check.
+
+## 0.22.6
+
+### Patch Changes
+
+- [#1326](https://github.com/TanStack/ai/pull/1326) [`c9681f7`](https://github.com/TanStack/ai/commit/c9681f7aacd5c938971c056c1636a08589964f87) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`c17bc95`](https://github.com/TanStack/ai/commit/c17bc951ca783d8023bf54d69035c19c0c72ea2f), [`53e2ec0`](https://github.com/TanStack/ai/commit/53e2ec082b40d8c3fcd09f408c29f0b895436198), [`6269eff`](https://github.com/TanStack/ai/commit/6269eff90e770205ffd9cae8c5989b8ff02b57ce)]:
+  - @tanstack/ai@0.54.0
+  - @tanstack/openai-base@0.10.11
+
+## 0.22.5
+
+### Patch Changes
+
+- Updated dependencies [[`21775ee`](https://github.com/TanStack/ai/commit/21775ee2d23dd594cdc184678ff587341bd74871)]:
+  - @tanstack/ai@0.53.0
+  - @tanstack/openai-base@0.10.10
+
+## 0.22.4
+
+### Patch Changes
+
+- [#1290](https://github.com/TanStack/ai/pull/1290) [`819e77c`](https://github.com/TanStack/ai/commit/819e77cee018106bdcd44870cea2c4f9b6d3004a) - Replay OpenAI Responses reasoning items with function_call on the next tool turn. Default `include: ['reasoning.encrypted_content']` only on reasoning models.
+
+- Updated dependencies [[`819e77c`](https://github.com/TanStack/ai/commit/819e77cee018106bdcd44870cea2c4f9b6d3004a)]:
+  - @tanstack/ai@0.52.3
+  - @tanstack/openai-base@0.10.9
+
+## 0.22.3
+
+### Patch Changes
+
+- Updated dependencies [[`49fc54c`](https://github.com/TanStack/ai/commit/49fc54ca0aacf2fc60bb36647a61a23559dda4bc), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7)]:
+  - @tanstack/ai@0.52.0
+  - @tanstack/openai-base@0.10.8
+
+## 0.22.2
+
+### Patch Changes
+
+- Updated dependencies [[`43b51f2`](https://github.com/TanStack/ai/commit/43b51f2e89db1c9fb23bb34b4ea4e052d370fb31), [`5dc4e1a`](https://github.com/TanStack/ai/commit/5dc4e1a08728b410f85956093ccef621d12b4d6b), [`a7e0798`](https://github.com/TanStack/ai/commit/a7e079872af372496728d25e6ec23149cd5e04b9), [`6a083bf`](https://github.com/TanStack/ai/commit/6a083bfcfaa4fd0c83368c4d10067e5c2298e22c)]:
+  - @tanstack/openai-base@0.10.7
+  - @tanstack/ai@0.51.0
+
+## 0.22.1
+
+### Patch Changes
+
+- [#1253](https://github.com/TanStack/ai/pull/1253) [`8147e66`](https://github.com/TanStack/ai/commit/8147e6680996fc6f6c2d73294135ee0ccd5d1697) - Stop requiring Zod as a peer dependency when the adapters do not import it at runtime.
+
+- Updated dependencies [[`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b), [`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b)]:
+  - @tanstack/ai@0.50.0
+  - @tanstack/openai-base@0.10.6
+
+## 0.22.0
+
+### Minor Changes
+
+- [#906](https://github.com/TanStack/ai/pull/906) [`b7ebcb0`](https://github.com/TanStack/ai/commit/b7ebcb0bbe63e425facb5e38f138bd0cd36637dd) - Add headless BYOK: `defineByok` in `@tanstack/ai-client/byok`, pass `byok` into chat and generation hooks, and read keys on the relay with `getByokKey` from `@tanstack/ai/byok/server`. Provider ids are open slugs (`x-byok-<slug>`). Each adapter exports a `{ id, label, env? }` object (`openaiByok`, …); `id` is required. `env` is the env var name(s) for the relay — names only; the client never reads `process.env`. A wrong key surfaces as the provider's own `401` through the relay, so no client-side key check is needed. OpenRouter PKCE (`@tanstack/ai-openrouter/pkce`) saves the minted key under `openrouterByok.id`.
+
+### Patch Changes
+
+- Updated dependencies [[`b7ebcb0`](https://github.com/TanStack/ai/commit/b7ebcb0bbe63e425facb5e38f138bd0cd36637dd)]:
+  - @tanstack/ai@0.49.0
+  - @tanstack/openai-base@0.10.4
+
+## 0.21.1
+
+### Patch Changes
+
+- Updated dependencies [[`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46)]:
+  - @tanstack/ai@0.48.0
+  - @tanstack/openai-base@0.10.3
+
+## 0.21.0
+
+### Minor Changes
+
+- [#977](https://github.com/TanStack/ai/pull/977) [`11c988b`](https://github.com/TanStack/ai/commit/11c988b8ea2153e0ee0f86ba58083f42c343fd75) - feat(ai-openai): support PDF `document` content parts in the Responses adapter.
+
+  `openaiText`'s Responses adapter now accepts PDF `document` content parts, for any model whose `model-meta` entry declares the `document` input modality. Base64 data sources are sent as `input_file` with a `file_data` data URL and a `filename` (from `metadata.filename`, defaulting to `document.pdf`). URL sources are sent as `input_file` with `file_url`.
+
+  ```ts
+  const adapter = openaiText('gpt-5.5')
+
+  const message = {
+    role: 'user',
+    content: [
+      { type: 'text', content: 'Summarize this document' },
+      {
+        type: 'document',
+        source: { type: 'data', value: pdfBase64, mimeType: 'application/pdf' },
+        metadata: { filename: 'report.pdf' },
+      },
+    ],
+  }
+  ```
+
+  Non-PDF MIME types are rejected before the request is sent — including pre-wrapped `data:` URLs whose media type disagrees with `mimeType` — so callers get an actionable message instead of an opaque provider `400`. Inline base64 payloads are also checked for the `%PDF` magic bytes, so non-PDF data mislabeled (or sent without) a PDF `mimeType` is rejected locally. `OpenAIDocumentMetadata` gains `filename` and `detail`. The Chat Completions adapter throws a document-specific error pointing here, since documents are Responses-only.
+
+### Patch Changes
+
+- Updated dependencies [[`11c988b`](https://github.com/TanStack/ai/commit/11c988b8ea2153e0ee0f86ba58083f42c343fd75), [`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d)]:
+  - @tanstack/openai-base@0.10.0
+  - @tanstack/ai@0.47.1
+
+## 0.20.1
+
+### Patch Changes
+
+- Updated dependencies [[`5f68cbc`](https://github.com/TanStack/ai/commit/5f68cbccf3621b48dae73cedcb1e59cb4cbe72b4), [`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29)]:
+  - @tanstack/ai@0.47.0
+  - @tanstack/openai-base@0.9.16
+
+## 0.20.0
+
+### Minor Changes
+
+- [#896](https://github.com/TanStack/ai/pull/896) [`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b) - Add a self-describing `billed` field to `TokenUsage` so billed quantities carry the unit they are counted in ([#816](https://github.com/TanStack/ai/issues/816)). `usage.billed` is `{ quantity, unit }` with a `BillingUnit` union (`'seconds'`, `'units'`, `'images'`, `'tokens'`, ... open-ended). The deprecated `unitsBilled` / `durationSeconds` counts are still populated for backward compatibility. The fal adapters report `{ quantity, unit: 'units' }`, Grok video `{ quantity, unit: 'seconds' }`, the OpenAI/Grok/BytePlus duration-billed transcription paths `{ quantity, unit: 'seconds' }`, BytePlus Seedream images `{ quantity, unit: 'images' }`, BytePlus Seedance video `{ quantity, unit: 'tokens' }`, and Cohere/OpenRouter rerank `{ quantity, unit: 'units' }` (search units). Persistence sums `billed` when both reports use the same unit. `otelMiddleware` emits the pair as `tanstack.ai.usage.billed_quantity` / `tanstack.ai.usage.billed_unit` span attributes.
+
+### Patch Changes
+
+- [#932](https://github.com/TanStack/ai/pull/932) [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b) - Classify Anthropic, Gemini, and OpenAI native tools with stable runtime discriminators so ordinary functions can use the same public names without selecting provider-native behavior. Native tools must come from the adapter factory (`webSearchTool()`, `googleSearchTool()`, and the rest). A reserved `name` alone does not select a native converter. `chat()` throws `DuplicateToolNameError` when a factory tool and a custom function share the same public name.
+
+  Previously the converters picked provider-native behavior by `tool.name`. Tool names are public application identifiers, so a plain function called `web_search`, `google_search`, or `code_execution` was routed into a native converter: it lost its `inputSchema` and was sent as a provider-only payload (and on Anthropic could also flip on `code_execution` / skills beta headers). Native tools are now identified by adapter-owned metadata, which converters strip before building the wire payload, so provider API versions stay confined to the wire converters.
+
+  Also preserves Anthropic `webSearchTool` options (`max_uses`, `allowed_domains`, `blocked_domains`, `user_location`, `cache_control`) on the wire payload.
+
+  Also fixes `googleSearchTool({ searchTypes: … })` being silently dropped on the experimental `geminiTextInteractions()` adapter. The Interactions converter read a snake_case `search_types` array, but the public factory takes the Generate Content shape (`GoogleSearch.searchTypes: { webSearch?, imageSearch? }`), so the field never matched and every request fell back to the provider default of web-search-only. The camelCase config is now translated to the Interactions wire list.
+
+- Updated dependencies [[`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b), [`4599019`](https://github.com/TanStack/ai/commit/4599019eb02f72562ef155b69b8f61f9d25d187a), [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b), [`ecd12a4`](https://github.com/TanStack/ai/commit/ecd12a408987bc75649c21aada6948282a2a66dd)]:
+  - @tanstack/ai@0.46.0
+  - @tanstack/openai-base@0.9.15
+
+## 0.19.1
+
+### Patch Changes
+
+- [#1048](https://github.com/TanStack/ai/pull/1048) [`bc8c5e8`](https://github.com/TanStack/ai/commit/bc8c5e8684da159b08e63aba7cfc51b01289d4eb) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`d10dfe6`](https://github.com/TanStack/ai/commit/d10dfe6eca788ae52631d45e5599aa0c45e9ba37), [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b), [`c63319e`](https://github.com/TanStack/ai/commit/c63319e34a2ca2f1d56b90addf28784f7c3e13ad), [`b09e010`](https://github.com/TanStack/ai/commit/b09e010b32932c812e65b1e14f6faa2b0e6d5cb8), [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d)]:
+  - @tanstack/ai@0.45.0
+  - @tanstack/openai-base@0.9.13
+
 ## 0.19.0
 
 ### Minor Changes

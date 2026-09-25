@@ -3,6 +3,7 @@ import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
+  AIDevtoolsClientMetadata,
   AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientOptions,
@@ -12,6 +13,8 @@ import type {
   GenerationRestoredResult,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
+import type { ByokClient } from '@tanstack/ai-client/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
 
 /**
  * Options for the useGeneration hook.
@@ -27,12 +30,12 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
   fetcher?: GenerationFetcher<TInput, TResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
+  byok?: ByokClient
+  /** Optional provider id. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
+  byokProvider?: () => ProviderId | undefined
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
@@ -54,8 +57,8 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -159,7 +162,7 @@ export function useGeneration<
 >(
   options: Omit<
     UseGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: TResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -167,10 +170,38 @@ export function useGeneration<
   InferGenerationOutputFromReturn<TResult, TTransformed>,
   TInput
 > {
+  return useGenerationWithDevtoolsIdentity<TInput, TResult, TTransformed>(
+    options,
+    { hookName: 'useGeneration' },
+  )
+}
+
+interface GenerationDevtoolsIdentity {
+  hookName: AIDevtoolsClientMetadata['hookName']
+  outputKind?: AIDevtoolsClientMetadata['outputKind']
+}
+
+/** @internal */
+export function useGenerationWithDevtoolsIdentity<
+  TInput extends Record<string, any>,
+  TResult,
+  TTransformed = void,
+>(
+  options: Omit<
+    UseGenerationOptions<TInput, TResult>,
+    'onResult' | 'persistence' | 'threadId'
+  > & {
+    onResult?: (result: TResult) => TTransformed
+  } & GenerationPersistenceOptions,
+  devtoolsIdentity: GenerationDevtoolsIdentity,
+): UseGenerationReturn<
+  InferGenerationOutputFromReturn<TResult, TTransformed>,
+  TInput
+> {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
   const hookId = useId()
-  // Single identity: prefer `threadId`; deprecated `id` only when no threadId.
-  const clientIdentity = options.threadId ?? options.id ?? hookId
+  // The hook identity is `threadId`. `hookId` is only a React recreation key.
+  const clientIdentity = options.threadId ?? hookId
 
   const [result, setResult] = useState<TOutput | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -189,25 +220,28 @@ export function useGeneration<
     // local source is `Record<string, any> | undefined`). Callbacks
     // wrap optional ones in non-returning bodies so `?.()`'s
     // implicit `undefined` doesn't pollute the function return type.
-    // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
-    const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
+    const clientOptions: Omit<
+      GenerationClientOptions<TInput, TResult, TOutput>,
+      'persistence' | 'threadId'
+    > = {
       body: opts.body,
-      ...(opts.threadId !== undefined
-        ? { threadId: opts.threadId }
-        : { id: opts.id ?? hookId }),
-      ...(opts.persistence !== undefined && { persistence: opts.persistence }),
       ...(opts.hydrateGeneration !== undefined && {
         hydrateGeneration: opts.hydrateGeneration,
       }),
       ...(opts.joinRun !== undefined && { joinRun: opts.joinRun }),
+      ...(opts.byok !== undefined && { byok: opts.byok }),
+      byokProvider: () => optionsRef.current.byokProvider?.(),
       ...(opts.reconstructResult
         ? { reconstructResult: opts.reconstructResult }
         : {}),
       devtoolsBridgeFactory: createGenerationDevtoolsBridge,
       devtools: {
-        hookName: 'useGeneration',
-        framework: 'react',
         ...opts.devtools,
+        framework: 'react',
+        hookName: devtoolsIdentity.hookName,
+        ...(devtoolsIdentity.outputKind !== undefined && {
+          outputKind: devtoolsIdentity.outputKind,
+        }),
       },
       // The transform's raw return type (`TTransformed`) and the stored output
       // (`TOutput`, with null/void/undefined stripped) are identical at runtime;
@@ -241,9 +275,20 @@ export function useGeneration<
       },
     }
 
+    const persistenceProps =
+      typeof opts.threadId === 'string' && opts.persistence
+        ? {
+            persistence: opts.persistence,
+            threadId: opts.threadId,
+          }
+        : {
+            ...(opts.threadId !== undefined && { threadId: opts.threadId }),
+          }
+
     if (opts.connection) {
       return new GenerationClient<TInput, TResult, TOutput>({
         ...clientOptions,
+        ...persistenceProps,
         connection: opts.connection,
       })
     }
@@ -251,6 +296,7 @@ export function useGeneration<
     if (opts.fetcher) {
       return new GenerationClient<TInput, TResult, TOutput>({
         ...clientOptions,
+        ...persistenceProps,
         fetcher: opts.fetcher,
       })
     }

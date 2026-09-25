@@ -24,16 +24,17 @@ export interface CreateGenerateAudioOptions<
   TOutput = AudioGenerationResult,
 > extends Pick<
   CreateGenerationOptions<AudioGenerateInput, AudioGenerationResult, TOutput>,
-  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+  | 'persistence'
+  | 'threadId'
+  | 'hydrateGeneration'
+  | 'joinRun'
+  | 'byok'
+  | 'byokProvider'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for audio generation */
   fetcher?: GenerationFetcher<AudioGenerateInput, AudioGenerationResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -103,7 +104,7 @@ export interface CreateGenerateAudioReturn<
 export function createGenerateAudio<TTransformed = void>(
   options: Omit<
     CreateGenerateAudioOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: AudioGenerationResult) => TTransformed
   } & GenerationPersistenceOptions,

@@ -202,5 +202,5 @@ The `includeDescription` behavior is identical — `'none'` lists bare tool name
 ## Next Steps
 
 - [Code Mode](./code-mode) — Core Code Mode setup and API reference
-- [Code Mode with Skills](./code-mode-with-skills) — Persistent reusable skill libraries
+- [Code Mode with Snippets](./code-mode-with-snippets) — Persistent reusable snippet libraries
 - [Isolate Drivers](./code-mode-isolates) — Compare Node, QuickJS, and Cloudflare sandbox runtimes

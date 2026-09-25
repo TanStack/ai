@@ -94,11 +94,12 @@ const response = await chat({
 
 ### OpenAI
 
-OpenAI supports images and audio in their vision and audio models:
+OpenAI supports images, audio, and PDF documents in their vision, audio, and
+document-capable models:
 
 ```typescript
 import { openaiText } from '@tanstack/ai-openai'
-import { imageBase64 } from './data'
+import { imageBase64, pdfBase64 } from './data'
 
 const adapter = openaiText('gpt-5.5')
 
@@ -116,9 +117,29 @@ const message = {
 }
 ```
 
+```typescript
+import { pdfBase64 } from './data'
+
+// PDF document via base64 data (the API requires a filename alongside
+// inline data; defaults to "document.pdf" when omitted)
+const documentMessage = {
+  role: 'user',
+  content: [
+    { type: 'text', content: 'Summarize this document' },
+    {
+      type: 'document',
+      source: { type: 'data', value: pdfBase64, mimeType: 'application/pdf' },
+      metadata: { filename: 'report.pdf' }
+    }
+  ]
+}
+```
+
 **Supported modalities by model:**
-- `gpt-5.2`, `gpt-5-mini`: text, image
+- `gpt-5.5`, `gpt-5.2`, `gpt-5-mini` (among others): text, image, PDF document
 - `gpt-4o-audio`: text, audio
+
+Check each model's `supports.input` in `@tanstack/ai-openai`'s `model-meta.ts` for the authoritative per-model list.
 
 ### Anthropic
 
@@ -257,6 +278,40 @@ const imagePart = {
 ```
 
 **Note:** Not all providers support URL-based content for all modalities. Check provider documentation for specifics.
+
+### File Handle (Files API)
+
+Use `type: 'file'` to reference media you uploaded once via a provider's [Files API](./files-api.md) — the provider stores the bytes and you pass a lightweight reference instead of re-sending base64 or a public URL every request. The source carries the opaque handle and the provider that issued it (`{ type: 'file', value: 'file-…', provider: 'openai' }`). An adapter throws if a different provider issued the handle, and adapters without Files API support reject the source before any request is built.
+
+```typescript
+import { openaiFiles, openaiText } from '@tanstack/ai-openai'
+import { chat, fileSourceFromHandle, uploadFile } from '@tanstack/ai'
+import { pdfBase64 } from './pdf-data'
+
+// Upload once...
+const handle = await uploadFile({
+  adapter: openaiFiles(),
+  input: { data: pdfBase64, mimeType: 'application/pdf' },
+})
+
+// ...then reference the handle by id in as many requests as you like.
+for await (const chunk of chat({
+  adapter: openaiText('gpt-5.5'),
+  messages: [
+    {
+      role: 'user',
+      content: [
+        { type: 'text', content: 'Summarize this document' },
+        { type: 'document', source: fileSourceFromHandle(handle) },
+      ],
+    },
+  ],
+})) {
+  // ...
+}
+```
+
+`fileSourceFromHandle(handle)` builds the `{ type: 'file', value, provider }` source for you. It picks the handle URL for Gemini, fal, and Grok, or the opaque id for OpenAI and Anthropic. Each adapter maps `value` to the provider's native field (`file_id`, `fileData.fileUri`, or a URL). Sending the source to a different provider, or to an endpoint that requires raw bytes (image edits, Veo), throws a clear error. See [Files API](./files-api.md) for uploading, retrieving, and deleting handles.
 
 ## Backward Compatibility
 

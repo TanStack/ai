@@ -45,7 +45,7 @@ describe('client tool call status (issue #421)', () => {
         threadId: 'thread-2',
         model: 'test',
         timestamp: Date.now(),
-        finishReason: 'stop',
+        metadata: { tanstack: { finishReason: 'stop' } },
       } as StreamChunk,
     ]
 
@@ -143,7 +143,7 @@ describe('client tool call status (issue #421)', () => {
         threadId: 'thread-1',
         model: 'test',
         timestamp: Date.now(),
-        finishReason: 'stop',
+        metadata: { tanstack: { finishReason: 'stop' } },
       } as StreamChunk,
     ]
 

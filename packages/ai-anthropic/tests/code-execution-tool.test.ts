@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { SkillLimitError } from '@tanstack/ai'
 import {
   codeExecutionTool,
   convertCodeExecutionToolToAdapterFormat,
@@ -37,6 +38,17 @@ describe('codeExecutionTool', () => {
       skill_id: `s${i}`,
     }))
     expect(() => codeExecutionTool(config, { skills })).toThrow(/at most 8/i)
+    try {
+      codeExecutionTool(config, { skills })
+    } catch (err) {
+      expect(err).toBeInstanceOf(SkillLimitError)
+      const e = err as SkillLimitError
+      expect(e.provider).toBe('anthropic')
+      expect(e.path).toBe('native')
+      expect(e.allowed).toBe(8)
+      expect(e.actual).toBe(9)
+      expect(e.offending).toHaveLength(9)
+    }
   })
 
   it('rejects an empty skill_id', () => {

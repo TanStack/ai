@@ -17,7 +17,57 @@ async function fetchOtelCapture(
   return response.json()
 }
 
+async function fetchPhaseCapture(
+  page: import('@playwright/test').Page,
+  baseURL: string | undefined,
+  testId: string | undefined,
+) {
+  if (!testId) throw new Error('phase capture test requires a testId fixture')
+  const url = `${baseURL ?? ''}/api/middleware-test?testId=${encodeURIComponent(testId)}&kind=phase`
+  const response = await page.request.get(url)
+  if (!response.ok()) {
+    throw new Error(
+      `GET ${url} failed: ${response.status()} ${await response.text()}`,
+    )
+  }
+  return response.json()
+}
+
 test.describe('Middleware Lifecycle', () => {
+  test('adapter RUN_ERROR calls onError once', async ({
+    page,
+    testId,
+    baseURL,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000) // hydration
+    await page.locator('#mw-scenario-select').selectOption('run-error')
+    await page.locator('#mw-mode-select').selectOption('phase-recorder')
+    await page.locator('#mw-run-button').click()
+
+    await expect
+      .poll(async () => {
+        const capture = await fetchPhaseCapture(page, baseURL, testId)
+        return capture.onErrorCount
+      })
+      .toBe(1)
+
+    const capture = await fetchPhaseCapture(page, baseURL, testId)
+    expect(capture.onFinishCount).toBe(0)
+    expect(capture.yieldedChunks).toContainEqual(
+      expect.objectContaining({ type: 'RUN_ERROR' }),
+    )
+    expect(capture.yieldedChunks).not.toContainEqual(
+      expect.objectContaining({
+        type: 'RUN_FINISHED',
+        outcomeType: 'interrupt',
+      }),
+    )
+  })
+
   test('onChunk transforms text content', async ({
     page,
     testId,
@@ -429,6 +479,43 @@ test.describe('Middleware Lifecycle', () => {
       'gen_ai.system': 'openai',
       'gen_ai.operation.name': 'image_generation',
       'gen_ai.request.model': 'gpt-image-1',
+    })
+  })
+
+  test('otel middleware emits the self-describing billed quantity for a duration-billed activity', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    // `/api/otel-transcription` drives whisper-1 (duration-billed) against the
+    // transcription aimock fixture, whose response reports `duration: 2.4`.
+    // The adapter surfaces that as `usage.billed = { quantity, unit }`, and the
+    // middleware must emit it as the paired billed_quantity/billed_unit
+    // attributes — the machine-readable unit that #816 adds.
+    const res = await request.post('/api/otel-transcription', {
+      data: {
+        audio: 'data:audio/mpeg;base64,SGVsbG8=',
+        provider: 'openai',
+        testId,
+        aimockPort,
+      },
+    })
+    expect(res.ok()).toBe(true)
+    const { ok, error, spans } = await res.json()
+    expect(error ?? null).toBeNull()
+    expect(ok).toBe(true)
+
+    const mediaSpans = spans.filter(
+      (s: any) => s.attributes['gen_ai.operation.name'] === 'transcription',
+    )
+    expect(mediaSpans).toHaveLength(1)
+    expect(mediaSpans[0].ended).toBe(true)
+    expect(mediaSpans[0].attributes).toMatchObject({
+      'gen_ai.request.model': 'whisper-1',
+      'tanstack.ai.usage.billed_quantity': 2.4,
+      'tanstack.ai.usage.billed_unit': 'seconds',
+      // Deprecated bare count still emitted for backward compatibility.
+      'tanstack.ai.usage.duration_seconds': 2.4,
     })
   })
 

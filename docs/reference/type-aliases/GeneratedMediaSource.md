@@ -3,8 +3,6 @@ id: GeneratedMediaSource
 title: GeneratedMediaSource
 ---
 
-# Type Alias: GeneratedMediaSource
-
 ```ts
 type GeneratedMediaSource = 
   | {
@@ -17,14 +15,16 @@ type GeneratedMediaSource =
 };
 ```
 
-Defined in: [packages/ai/src/types.ts:1840](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1840)
+Defined in: [packages/ai/src/types.ts:2075](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2075)
 
 Source of a generated media asset. Exactly one of `url` or `b64Json` is
 present; the other is absent. Modeled as a mutually-exclusive union so the
 type rejects `{}` and `{ url, b64Json }` together at compile time while
 preserving the flat `.url` / `.b64Json` access patterns.
 
-## Type Declaration
+## Union Members
+
+### Type Literal
 
 ```ts
 {
@@ -33,19 +33,23 @@ preserving the flat `.url` / `.b64Json` access patterns.
 }
 ```
 
-### b64Json?
+#### b64Json?
 
 ```ts
-optional b64Json: never;
+optional b64Json?: never;
 ```
 
-### url
+#### url
 
 ```ts
 url: string;
 ```
 
 URL to the generated asset (may be temporary)
+
+***
+
+### Type Literal
 
 ```ts
 {
@@ -54,7 +58,7 @@ URL to the generated asset (may be temporary)
 }
 ```
 
-### b64Json
+#### b64Json
 
 ```ts
 b64Json: string;
@@ -62,8 +66,8 @@ b64Json: string;
 
 Base64-encoded asset data
 
-### url?
+#### url?
 
 ```ts
-optional url: never;
+optional url?: never;
 ```

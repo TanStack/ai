@@ -4,7 +4,9 @@ End-to-end tests for TanStack AI using Playwright and [aimock](https://github.co
 
 **Architecture:** Playwright drives a TanStack Start app (`testing/e2e/`) which routes requests through provider adapters pointing at aimock. Fixtures define mock responses. No real API keys needed. All scenarios (including tool execution flows) use aimock fixtures. Tests run in parallel with per-test `X-Test-Id` isolation.
 
-**Providers tested:** openai, anthropic, gemini, ollama, groq, grok, openrouter, openrouter-responses, vercel-gateway, vercel-gateway-responses, bedrock, bedrock-responses, openai-compatible, mistral, byteplus, elevenlabs
+**Providers tested in CI:** openai, anthropic, gemini, vertex, vertex-grok, vertex-mistral, ollama, groq, grok, openrouter, openrouter-responses, vercel-gateway, vercel-gateway-responses, lovable, lovable-responses, bedrock, bedrock-responses, openai-compatible, openai-compatible-legacy, mistral, byteplus, elevenlabs, llmgateway, cloudflare
+
+**Local `pnpm test:e2e`** runs openai, anthropic, and gemini. If none of those providers support a feature, the feature still runs on the providers that do. An explicit `E2E_PROVIDERS` list runs only those providers. Use `E2E_PROVIDERS=*` for the full matrix, or `E2E_PROVIDERS=grok` (comma-separated) to pick providers. Playwright does not retry or record video locally; CI retries twice and keeps the video of a failed test.
 
 > **Claude Code (`@tanstack/ai-claude-code`) is excluded from the standard matrix.** It's a harness adapter that spawns the Claude Code runtime as a subprocess, so aimock's per-test `X-Test-Id` header isolation can't be injected into its requests. It's covered by unit tests in the package plus a gated live smoke test in `tests/claude-code.spec.ts` — run it with `CLAUDE_CODE_E2E=1` and an `ANTHROPIC_API_KEY` (or a local `claude login`).
 
@@ -26,8 +28,9 @@ Each test iterates over supported providers using `providersFor('feature')`:
 | tool-approval            | 6         | `tests/tool-approval.spec.ts`            |
 | text-tool-text           | 6         | `tests/text-tool-text.spec.ts`           |
 | agentic-structured       | 7         | `tests/agentic-structured.spec.ts`       |
-| reasoning                | 3         | `tests/reasoning.spec.ts`                |
+| reasoning                | 8         | `tests/reasoning.spec.ts`                |
 | multimodal-image         | 5         | `tests/multimodal-image.spec.ts`         |
+| multimodal-document      | 1         | `tests/multimodal-document.spec.ts`      |
 | multimodal-structured    | 5         | `tests/multimodal-structured.spec.ts`    |
 | summarize                | 6         | `tests/summarize.spec.ts`                |
 | summarize-stream         | 6         | `tests/summarize-stream.spec.ts`         |
@@ -37,6 +40,7 @@ Each test iterates over supported providers using `providersFor('feature')`:
 | tts                      | 3         | `tests/tts.spec.ts`                      |
 | transcription            | 3         | `tests/transcription.spec.ts`            |
 | audio-gen                | 1         | `tests/audio-gen.spec.ts`                |
+| video-understanding      | 1         | `tests/video-understanding.spec.ts`      |
 
 ### Tools-test page
 
@@ -92,6 +96,7 @@ Notes:
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tests/delivery-durability.spec.ts`    | Transport layer: offset-tagged log, `Last-Event-ID` reconnect, second-tab join, SSE + NDJSON                                                                |
 | `tests/persistence-durability.spec.ts` | Client layer: a browser refresh restores the conversation and any pending interrupt                                                                         |
+| `tests/join-run-client-tool.spec.ts`   | Mid-run reload: `joinRun` replay that ends on a client tool drains the continuation (issue #1058)                                                           |
 | `tests/sandbox-durability.spec.ts`     | Sandbox instances: a second run resumes the persisted sandbox                                                                                               |
 | `tests/durable-takeover.spec.ts`       | Takeover with log alignment, detach-on-disconnect, out-of-band cancel in both bands, cancel-vs-disconnect divergence, and the superseded-driver epoch fence |
 
@@ -127,6 +132,7 @@ E2E coverage is mandatory for every feature, bug fix, or behavior change (see th
 | Tool system change                      | Add scenario to `tools-test-scenarios.ts` + test in `tools-test/` specs.                                                                                                                                   |
 | Middleware change                       | Add test to `middleware.spec.ts` with appropriate scenario.                                                                                                                                                |
 | Client-side change (useChat, etc.)      | Add test covering the observable behavior change.                                                                                                                                                          |
+| joinRun + client-tool continuation      | Add a spec that reloads mid-run, tails with `joinRun`, and asserts the client-tool result POSTs after replay (see `tests/join-run-client-tool.spec.ts`).                                                   |
 | Durable/detachable run + takeover       | Add a spec that disconnects mid-stream, reconnects with the same `runId`, and asserts the resumed stream continues from the aligned offset instead of restarting the agent.                                |
 | Out-of-band cancel vs. plain disconnect | Add a case distinguishing `requestRunCancel`/`wasCancelRequested` (durable cancel — record ends `'aborted'`) from an unrequested disconnect on a detachable run (record stays `'running'`, resumable).     |
 | New run-store backend                   | Run `runPersistenceConformance` from `packages/ai-persistence/src/testkit/` against it; it now pins `undefined` vs. explicit `false` on `cancelRequested` and absent vs. explicit `undefined` on `update`. |
@@ -259,6 +265,32 @@ await waitForAssistantText(page, 'Fender Stratocaster')
 3. **Add to `tests/test-matrix.ts`** — mirror the support matrix
 4. **No fixture changes needed** — aimock translates to correct wire format
 
+### Vertex (Gemini on Vertex AI)
+
+`vertex` is the Gemini adapter with Vertex auth and the Vertex request path. It is not a new protocol.
+
+The factory in `src/lib/providers.ts` calls `vertexText` with `vertexE2eConfig()` from `src/lib/vertex-e2e.ts`:
+
+- `project` + `location` so `@google/genai` posts to `/v1/projects/{p}/locations/{l}/publishers/google/models/{m}:(generateContent|streamGenerateContent)`. aimock already serves that path.
+- A dummy `googleAuthOptions.authClient` so the SDK does not look for Application Default Credentials in CI.
+- `apiVersion: 'v1'`. The SDK default for Vertex is `v1beta1`, and aimock's Vertex handler only matches `/v1/…`.
+
+Chat, tools, structured output, multimodal image, and summarize reuse the existing Gemini fixtures. Media, embedding, TTS, video, and Gemini Interactions stay off the Vertex row: those Gemini e2e mounts live under `/v1beta`, and Vertex uses a different path.
+
+Claude on Vertex (`anthropicVertexText`) is not in this matrix. That SDK talks OAuth and a different Vertex URL that aimock does not mock.
+
+### Vertex Grok and Vertex Mistral
+
+`vertex-grok` is the Grok Responses adapter with Vertex auth. The factory in `src/lib/providers.ts` calls `grokVertexText` with:
+
+- `baseURL` pointed at aimock `/v1`, so the OpenAI client posts `/v1/responses` like the xAI Grok row
+- a dummy `authClient` so the factory does not look for Application Default Credentials
+- the factory still prefixes the wire model with `xai/`
+
+`vertex-mistral` is the Mistral chat adapter with Vertex auth. The factory calls `mistralVertexText` with `resolveRequestUrl` pointed at aimock `/v1/chat/completions`. That skips the Vertex publisher `:rawPredict` rewrite.
+
+Both rows reuse the existing Grok and Mistral fixtures. Image, TTS, transcription, and embedding stay off these rows.
+
 ### Bedrock Converse coverage gap
 
 The `bedrock` and `bedrock-responses` providers in this matrix use `createBedrockText` with a `baseURL` pointing at aimock — they speak Bedrock's **OpenAI-compatible** endpoint, which aimock's OpenAI replay handles fine.
@@ -266,6 +298,8 @@ The `bedrock` and `bedrock-responses` providers in this matrix use `createBedroc
 The default `bedrock-converse` adapter (introduced later) uses `@aws-sdk/client-bedrock-runtime` and speaks AWS's **binary event-stream (`vnd.amazon.eventstream`) Converse protocol**, which `@copilotkit/aimock` does not currently mock. Adding `bedrock-converse` to the live matrix would fail without a Converse-capable aimock provider.
 
 **Coverage today:** the Converse translation layer (message converter, tool converter, stream processor, structured output, adapter) is covered by unit tests in `packages/ai-bedrock/tests/converse/` (64 tests). The OpenAI-compatible `bedrock` and `bedrock-responses` entries remain in the E2E matrix as-is.
+
+**Partial coverage:** `bedrock-converse-cache.spec.ts` drives the real Converse adapter through the AWS SDK against a hand-crafted mount (`/bedrock-converse-cache` in `global-setup.ts`) that encodes `vnd.amazon.eventstream` frames with `@smithy/eventstream-codec`. It covers `metadata.cachePoint` placement and the cache usage counters. The mount answers one fixed stream, so it is not a general Converse replay.
 
 **Follow-up:** a Bedrock/Converse provider will be added to aimock to close this gap and enable full E2E coverage of the Converse path.
 
@@ -292,6 +326,9 @@ Three endpoints have no aimock equivalent and are mounted in `global-setup.ts`, 
 - Groq: `LLMOCK_BASE` (SDK appends `/openai/v1/` internally) + `defaultHeaders`
 - Anthropic: `LLMOCK_BASE` + `defaultHeaders`
 - Gemini: `httpOptions: { baseUrl: LLMOCK_BASE, headers }`
+- Vertex: `vertexE2eConfig(LLMOCK_BASE, headers)` (`project` + `location` + dummy auth + `apiVersion: 'v1'`)
+- Vertex Grok: `grokVertexText` with `baseURL: LLMOCK_OPENAI`, dummy `authClient`, and `defaultHeaders`
+- Vertex Mistral: `mistralVertexText` with `resolveRequestUrl` → `LLMOCK_BASE/v1/chat/completions`, dummy `authClient`, and `defaultHeaders`
 - Ollama: `{ host: LLMOCK_BASE, headers }` (config object)
 - OpenRouter: `serverURL` with `?testId=` query param (SDK doesn't support headers)
 - BytePlus: `LLMOCK_BASE + /api/v3` + `defaultHeaders` for Ark (chat, image, video); bare `LLMOCK_BASE` + `defaultHeaders` for Seed Speech (TTS, ASR)

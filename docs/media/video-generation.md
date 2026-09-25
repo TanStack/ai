@@ -2,7 +2,7 @@
 title: Video Generation
 id: video-generation
 order: 6
-description: "Generate video from text prompts with OpenAI Sora, Google Veo, Gemini Omni Flash, xAI Grok Imagine, BytePlus Seedance, OpenRouter, or fal.ai using TanStack AI's experimental generateVideo() jobs/polling API."
+description: "Generate video from text prompts with OpenAI Sora, Google Veo, Gemini Omni Flash, xAI Grok Imagine, BytePlus Seedance, OpenRouter, or fal.ai using TanStack AI's experimental generateVideo() API."
 keywords:
   - tanstack ai
   - video generation
@@ -23,8 +23,6 @@ keywords:
   - image-to-video
 ---
 
-# Video Generation (Experimental)
-
 > **⚠️ EXPERIMENTAL FEATURE WARNING**
 >
 > Video generation is an **experimental feature** that is subject to significant changes. Please read the caveats below carefully before using this feature.
@@ -39,17 +37,19 @@ keywords:
 
 ## Overview
 
-TanStack AI provides experimental support for video generation through dedicated video adapters. Unlike image generation, video generation is an **asynchronous operation** that uses a jobs/polling pattern:
+TanStack AI provides experimental support for video generation through dedicated video adapters. Most providers are **asynchronous** and use a jobs/polling pattern:
 
 1. **Create a job** - Submit a prompt and receive a job ID
 2. **Poll for status** - Check the job status until it's complete
 3. **Retrieve the video** - Get the URL to download/view the generated video
 
+For a prompt-steerable live stream (no download URL), use [Live Generation](./live-generation) or [World Generation](./world-generation).
+
 Currently supported:
 
 - **OpenAI**: Sora-2 and Sora-2-Pro models (when available)
 - **Google Gemini**: Veo 3.1 models (via the long-running operations API), and Gemini Omni Flash (via the Interactions API)
-- **Grok (xAI)**: grok-imagine-video (text-to-video + image-to-video) and grok-imagine-video-1.5 (image-to-video only) models
+- **Grok (xAI)**: grok-imagine-video and grok-imagine-video-1.5 (text-to-video, image-to-video; 1.5 adds reference-to-video; v1.0 adds editing and extension)
 - **BytePlus**: Seedance 2.0, 1.5-pro and 1.0-pro models (text-to-video, first/last frame, and multimodal references on 2.0)
 - **fal.ai**: MiniMax, Luma, Kling, Hunyuan, and other hosted video models
 - **OpenRouter**: Seedance, Veo 3.1, Wan, Kling, Sora 2 Pro and others via the dedicated async video API (`POST /api/v1/videos`)
@@ -79,6 +79,8 @@ const { jobId, model } = await generateVideo({
 
 console.log("Job started:", jobId);
 ```
+
+For a stream that plays while it generates, and that you can steer with a new prompt, use [Live Generation](./live-generation). `generateVideo()` is the job path: create, poll, then fetch a file URL.
 
 ### Polling for Status
 
@@ -600,6 +602,8 @@ await generateVideo({
 Adapters that haven't declared a per-model duration map keep the plain
 `duration?: number` typing, return `{ kind: 'none' }` from
 `availableDurations()`, and return `undefined` from `snapDuration()`.
+fal is the exception: `duration` is typed from `@fal-ai/client`'s
+`EndpointTypeMap` even when the runtime map has no entry.
 
 > **Note:** The video URL returned for Veo jobs is served by the Gemini
 > Files API and requires your API key to download (send it as an
@@ -607,7 +611,7 @@ Adapters that haven't declared a per-model duration map keep the plain
 
 #### Gemini Omni Flash (Interactions API) Model Options
 
-Gemini Omni Flash (`gemini-omni-flash-preview`) is Google's multimodal
+Gemini Omni Flash (`gemini-omni-1.1-flash`) is Google's multimodal
 video-generation model with conversational editing. It only serves the
 [Interactions API](https://ai.google.dev/gemini-api/docs/omni), and the same
 `geminiVideo()` adapter routes it automatically:
@@ -618,8 +622,8 @@ video-generation model with conversational editing. It only serves the
   When Google delivers by reference instead, the Files API URI passes through
   and needs your API key to download, like Veo.
 
-Clips are 720p at 24 FPS. `duration` accepts any value in the **3 to 10 second**
-range (fractional seconds included), defaulting to 10 seconds when omitted:
+`duration` accepts any value in the **3 to 10 second** range (fractional
+seconds included), defaulting to 10 seconds when omitted:
 
 - `availableDurations()` reports
   `{ kind: 'range', min: 3, max: 10, unit: 'seconds' }`.
@@ -627,24 +631,29 @@ range (fractional seconds included), defaulting to 10 seconds when omitted:
 - `snapDuration(n)` snaps raw seconds into the range, clamping to its bounds and
   rounding to whole seconds.
 
-The `size` option maps onto the interaction's output aspect ratio:
+The `size` option is an `aspectRatio_resolution` template, same shape as
+grok and byteplus video. Bare `'16:9'` / `'9:16'` uses the 720p default.
+Add a suffix for the other tiers (`'360p'`, `'1080p'`, `'4k'`):
 
 ```typescript ignore
 import { generateVideo, getVideoJobStatus } from "@tanstack/ai";
 import { geminiVideo } from "@tanstack/ai-gemini";
 
-const adapter = geminiVideo("gemini-omni-flash-preview");
+const adapter = geminiVideo("gemini-omni-1.1-flash");
 
 const { jobId } = await generateVideo({
   adapter,
   prompt: "A woman playing violin outdoors at golden hour",
-  size: "9:16", // aspect ratio: '16:9' (default) or '9:16'
+  size: "9:16_1080p", // '16:9' | '9:16', optional _360p/_720p/_1080p/_4k
   duration: 6, // 3-10 seconds; omit for the 10s default
 });
 
 const status = await getVideoJobStatus({ adapter, jobId });
 // status.url → 'data:video/mp4;base64,…' once completed
 ```
+
+`gemini-omni-flash-preview` still type-checks as a deprecated alias until
+it shuts down on 2026-09-30. Use `gemini-omni-1.1-flash` in new code.
 
 Image and video prompt parts are sent to the interaction as content blocks,
 grouped as images, then videos, then the text prompt (Omni doesn't use Veo's
@@ -666,7 +675,7 @@ edits the video while preserving everything you didn't mention:
 import { generateVideo } from "@tanstack/ai";
 import { geminiVideo } from "@tanstack/ai-gemini";
 
-const adapter = geminiVideo("gemini-omni-flash-preview");
+const adapter = geminiVideo("gemini-omni-1.1-flash");
 
 // Turn 1: generate
 const first = await generateVideo({
@@ -691,16 +700,16 @@ instead of letting the model infer the task mode).
 
 #### Grok (xAI Imagine) Model Options
 
-Based on the [xAI video generation API](https://docs.x.ai/docs/guides/video-generations). Two models are available: `grok-imagine-video` (v1.0) supports **text-to-video and image-to-video**, while `grok-imagine-video-1.5` is **image-to-video only** (a text-only prompt is rejected by the API; the adapter throws a clear error pointing you at `grok-imagine-video`). Both are aspect-ratio sized — the generic `size` option takes an `aspectRatio_resolution` template (like the Grok Imagine image models), and clips can be 1–15 seconds long.
+Based on the [xAI video generation API](https://docs.x.ai/developers/model-capabilities/video/generation). Two models are available: `grok-imagine-video` (v1.0) and `grok-imagine-video-1.5` (xAI's recommended default, with native 1080p text-to-video). Both support **text-to-video and image-to-video**; 1.5 adds **reference-to-video**. **Video editing and extension** are `grok-imagine-video` only — 1.5 has no video input. Both are aspect-ratio sized — the generic `size` option takes an `aspectRatio_resolution` template (like the Grok Imagine image models), and clips can be 1–15 seconds long.
 
-Text-to-video with the base model:
+Text-to-video:
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
 import { grokVideo } from "@tanstack/ai-grok";
 
 const { jobId } = await generateVideo({
-  adapter: grokVideo("grok-imagine-video"),
+  adapter: grokVideo("grok-imagine-video-1.5"),
   prompt: "A beautiful sunset over the ocean",
   size: "16:9_720p", // aspect ratio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '3:2' | '2:3'
   // resolution (optional suffix): '480p' | '720p' | '1080p'
@@ -713,7 +722,7 @@ const { jobId } = await generateVideo({
 });
 ```
 
-Image-to-video (required for `grok-imagine-video-1.5`) — include an `image` prompt part as the starting frame. URL sources are fetched by xAI's servers (so they must be publicly reachable); use a `data` source for a base64 starting frame:
+Image-to-video — include an `image` prompt part as the starting frame. URL sources are fetched by xAI's servers (so they must be publicly reachable); use a `data` source for a base64 starting frame:
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -733,23 +742,64 @@ const { jobId } = await generateVideo({
 });
 ```
 
+Reference-to-video (`grok-imagine-video-1.5` only, output capped at 720p) — image prompt parts with `metadata.role: 'reference'` or `'character'` become `reference_images` (addressed from the prompt as `<IMAGE_0>`, `<IMAGE_1>`, …), and up to 3 preset TTS voices can be referenced via `modelOptions.reference_audios` (addressed as `<AUDIO_0>`, …):
+
+```typescript
+import { generateVideo } from "@tanstack/ai";
+import { grokVideo } from "@tanstack/ai-grok";
+
+const { jobId } = await generateVideo({
+  adapter: grokVideo("grok-imagine-video-1.5"),
+  prompt: [
+    { type: "text", content: "<IMAGE_0> waves at the camera while <AUDIO_0> says hello" },
+    {
+      type: "image",
+      source: { type: "url", value: "https://example.com/character.png" },
+      metadata: { role: "reference" },
+    },
+  ],
+  size: "16:9_720p",
+  modelOptions: { reference_audios: [{ voice_id: "eve" }] },
+});
+```
+
+Video editing and extension (`grok-imagine-video` only) — pass the source clip as a `video` prompt part and pick the mode with `modelOptions.mode`. `'edit'` (`/v1/videos/edits`) modifies only what the prompt asks for and inherits duration / aspect ratio / resolution from the source (capped at 720p); `'extend'` (`/v1/videos/extensions`) continues the clip, with `duration` meaning the length of the **added tail**, not the total. Because the output inherits the source clip's properties, the adapter rejects `size` / `aspect_ratio` / `resolution` in both modes (and `duration` in edit mode) instead of sending fields the API ignores. The adapter rejects a source-video part or `mode` on `grok-imagine-video-1.5`.
+
+```typescript
+import { generateVideo } from "@tanstack/ai";
+import { grokVideo } from "@tanstack/ai-grok";
+
+const { jobId } = await generateVideo({
+  adapter: grokVideo("grok-imagine-video"),
+  prompt: [
+    { type: "text", content: "The camera keeps panning right across the bay" },
+    {
+      type: "video",
+      source: { type: "url", value: "https://example.com/clip.mp4" },
+    },
+  ],
+  duration: 5, // 'extend' mode: seconds added to the clip, not the total
+  modelOptions: { mode: "extend" },
+});
+```
+
 Both models accept any whole second in the **1–15** range. A raw `duration` is coerced into that range rather than rejected — values are clamped to `[1, 15]` and rounded to the nearest second. Inspect or pre-snap the range the same way as Veo:
 
 ```typescript
 import { grokVideo } from "@tanstack/ai-grok";
 
-const adapter = grokVideo("grok-imagine-video");
+const adapter = grokVideo("grok-imagine-video-1.5");
 
 adapter.availableDurations(); // { kind: 'range', min: 1, max: 15, step: 1, unit: 'seconds' }
 adapter.snapDuration(2.5); // 3 — clamped/rounded into range
 adapter.snapDuration(99); // 15
 ```
 
-Generated clips include an audio track. When the job completes, the adapter reports `usage.unitsBilled` (billed seconds of video) and `usage.cost` (exact USD cost as returned by the API) on the result.
+Generated clips include an audio track. When the job completes, the adapter reports `usage.billed` (`{ quantity, unit: 'seconds' }` — billed seconds of video) and `usage.cost` (exact USD cost as returned by the API) on the result.
 
 #### BytePlus (Seedance) Model Options
 
-Seedance is aspect-ratio sized like Grok Imagine — `size` takes a `ratio` or `ratio_resolution` template. Ratios are `16:9`, `9:16`, `4:3`, `3:4`, `1:1`, `21:9` and `adaptive`; resolutions are `480p`, `720p`, `1080p` and (on `dreamina-seedance-2-0-260128` only) `4k`. Seedance 2.5 (`dreamina-seedance-2-5-260628`) is 480p/720p only and runs up to 30 seconds. There is no 2K tier on any Seedance model:
+Seedance is aspect-ratio sized like Grok Imagine — `size` takes a `ratio` or `ratio_resolution` template. Ratios are `16:9`, `9:16`, `4:3`, `3:4`, `1:1`, `21:9` and `adaptive`; resolutions are `480p`, `720p`, `1080p` and (on `dreamina-seedance-2-0-260128` only) `4k`. Seedance 2.5 (`dreamina-seedance-2-5-260628`) accepts 480p/720p/1080p and runs up to 30 seconds. There is no 2K tier on any Seedance model:
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -770,7 +820,7 @@ const { jobId } = await generateVideo({
 
 Options are **model-specific and validated server-side**: Ark rejects an inapplicable field with a `400` instead of ignoring it. `service_tier` and `camera_fixed` are Seedance 1.x only, `frames` works on the 1.0-pro models, `draft` on 1.5-pro, `priority` on Seedance 2.5 and the 2.0 family, and `duration: -1` (let the model choose) on 2.5, 2.0 and 1.5-pro. Durations are 4–30s on Seedance 2.5, 4–15s on the 2.0 family, 4–12s on 1.5-pro and 2–12s on the 1.0-pro models.
 
-**Seedance video URLs expire 24 hours after the task completes** (the task record is kept for seven days), so persist the bytes rather than the link. See the [BytePlus adapter](../adapters/byteplus#video-generation-seedance) for the full option table.
+**Seedance video URLs expire 24 hours after the task completes** (the task record is kept for seven days), so persist the bytes rather than the link. See the [BytePlus adapter](../adapters/byteplus#video-generation-seedance) for the full option table. Completed jobs report `usage.billed` as `{ quantity, unit: 'tokens' }` (Seedance bills output tokens only).
 
 ##### Porting a Seedance call between providers
 
@@ -847,6 +897,29 @@ Two OpenRouter-specific behaviors to know about:
 - **Cost is reported on completion.** The gateway reports the real billed
   cost for the job; it's surfaced as `usage.cost` on the completed result.
 
+#### fal.ai Model Options
+
+`duration` is typed per endpoint from `@fal-ai/client`. Popular models also
+implement `availableDurations()` / `snapDuration()` (Kling 2.6/Pika `'5' | '10'`,
+Kling 3 `'3'`…`'15'`, Luma `'5s' | '9s'`, Veo 3.1 `'4s' | '6s' | '8s'`, WAN
+`'2'`…`'15'`). Models with no duration field (Minimax, Hunyuan) type `duration`
+as `undefined`, so passing one is a compile error. See the
+[fal adapter](../adapters/fal) for the full table.
+
+```typescript ignore
+import { generateVideo } from '@tanstack/ai'
+import { falVideo } from '@tanstack/ai-fal'
+
+const adapter = falVideo('fal-ai/veo3.1')
+adapter.availableDurations() // { kind: 'discrete', values: ['4s', '6s', '8s'] }
+
+await generateVideo({
+  adapter,
+  prompt: 'A timelapse of a city skyline at dusk',
+  duration: adapter.snapDuration(7), // '6s'
+})
+```
+
 ### Response Types
 
 > **Note:** The interfaces below are the underlying adapter-level types. The `getVideoJobStatus()` helper returns a single merged object, `{ status, progress?, url?, error?, usage? }` — it does not return `jobId` or `expiresAt`.
@@ -854,9 +927,12 @@ Two OpenRouter-specific behaviors to know about:
 #### VideoJobResult (from create)
 
 ```typescript
+import type { PersistedArtifactRef } from '@tanstack/ai/client'
+
 interface VideoJobResult {
   jobId: string; // Unique job identifier for polling
   model: string; // Model used for generation
+  artifacts?: Array<PersistedArtifactRef>
 }
 ```
 
@@ -880,19 +956,24 @@ interface VideoUrlResult {
   jobId: string;
   url: string; // URL to download/stream the video
   expiresAt?: Date; // When the URL expires
-  // Usage for the completed generation, when the adapter reports it. fal
-  // populates `usage.unitsBilled` from its `x-fal-billable-units` header.
+  // Usage for the completed generation, when the adapter reports it. The
+  // billed quantity is self-describing: fal reports
+  // `usage.billed = { quantity, unit: 'units' }` (from its
+  // `x-fal-billable-units` header), Grok Imagine reports
+  // `{ quantity, unit: 'seconds' }`.
   usage?: TokenUsage;
 }
 ```
 
 > **Cost tracking (fal):** fal bills media generation by usage-based units
 > rather than tokens. The fal adapters surface the real billed quantity as
-> `usage.unitsBilled` (denominated in the endpoint's priced unit). Combine it
-> with the endpoint's unit price from
-> `GET https://api.fal.ai/v1/models/pricing?endpoint_id=…` to compute the exact
-> cost (`unitsBilled * unitPrice`). The same `usage.unitsBilled` is surfaced
-> on image, audio, speech, and transcription results.
+> `usage.billed` — `{ quantity, unit: 'units' }`, where `'units'` marks fal's
+> endpoint-defined priced unit. Combine the quantity with the endpoint's unit
+> price from `GET https://api.fal.ai/v1/models/pricing?endpoint_id=…` to
+> compute the exact cost (`billed.quantity * unitPrice`). The same
+> `usage.billed` is surfaced on image, audio, speech, and transcription
+> results. (The deprecated bare count `usage.unitsBilled` is still populated
+> for backward compatibility.)
 
 ### Model Variants
 

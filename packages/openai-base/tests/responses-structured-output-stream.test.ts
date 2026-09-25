@@ -10,7 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import OpenAI from 'openai'
-import type { JSONSchema, StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk, JSONSchema } from '@tanstack/ai'
 import { resolveDebugOption, type Logger } from '@tanstack/ai/adapter-internals'
 
 /**
@@ -96,9 +96,9 @@ const personSchema: JSONSchema = {
 const testLogger = resolveDebugOption(false)
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const c of stream) out.push(c)
   return out
 }
@@ -147,6 +147,130 @@ describe('OpenAIBaseResponsesTextAdapter.structuredOutputStream', () => {
       expect(complete).toBeDefined()
       expect(complete!.value.object).toEqual({ name: 'John', age: 30 })
       expect(complete!.value.raw).toBe(json)
+    })
+
+    it('finishes on response.completed without waiting for EOF (#1445)', async () => {
+      const chunks = [
+        eventCreated(),
+        eventOutputTextDelta('{"name":"John","age":30}'),
+        eventCompleted(),
+      ]
+      let returned = false
+      const openStream: AsyncIterable<Record<string, unknown>> = {
+        [Symbol.asyncIterator]() {
+          let index = 0
+          return {
+            next() {
+              if (index < chunks.length) {
+                return Promise.resolve({ value: chunks[index++]!, done: false })
+              }
+              // The HTTP body stays open: no more events and no EOF.
+              return new Promise(() => {})
+            },
+            return() {
+              returned = true
+              return Promise.resolve({ value: undefined, done: true })
+            },
+          }
+        },
+      }
+      mockCreate = vi.fn().mockResolvedValue(openStream)
+      const adapter = new TestAdapter()
+
+      const outcome = await Promise.race([
+        collect(
+          adapter.structuredOutputStream!({
+            chatOptions: {
+              model: 'test-model',
+              messages: [{ role: 'user', content: 'extract' }],
+              logger: testLogger,
+            },
+            outputSchema: personSchema,
+          }),
+        ),
+        new Promise<'timeout'>((resolve) =>
+          setTimeout(() => resolve('timeout'), 1000),
+        ),
+      ])
+
+      expect(outcome).not.toBe('timeout')
+      if (outcome !== 'timeout') {
+        expect(outcome.at(-1)?.type).toBe('RUN_FINISHED')
+      }
+      expect(returned).toBe(true)
+    })
+
+    // response.reasoning.delta is the pre-2025-07 spec name for
+    // response.reasoning_text.delta; providers frozen on the older spec
+    // (e.g. Amazon Bedrock's Mantle endpoint serving Gemma) still emit it.
+    it('streams reasoning from the legacy reasoning.delta and carries it on structured-output.complete', async () => {
+      setupStreamingMock([
+        eventCreated(),
+        { type: 'response.reasoning.delta', delta: 'Comparing the fields.' },
+        eventOutputTextDelta('{"name":"John","age":30}'),
+        eventCompleted(),
+      ])
+      const adapter = new TestAdapter()
+
+      const chunks = await collect(
+        adapter.structuredOutputStream!({
+          chatOptions: {
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'extract' }],
+            logger: testLogger,
+          },
+          outputSchema: personSchema,
+        }),
+      )
+
+      const reasoningContent = chunks.find(
+        (c) => c.type === 'REASONING_MESSAGE_CONTENT',
+      ) as { delta?: string } | undefined
+      expect(reasoningContent?.delta).toBe('Comparing the fields.')
+
+      const complete = chunks.find(
+        (c) =>
+          c.type === 'CUSTOM' &&
+          (c as { name?: string }).name === 'structured-output.complete',
+      ) as { value: { reasoning?: string } } | undefined
+      expect(complete!.value.reasoning).toBe('Comparing the fields.')
+    })
+
+    it('timestamps lifecycle events when they are emitted', async () => {
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime(1_000)
+        setupStreamingMock([
+          eventCreated(),
+          eventOutputTextDelta('{"name":"John","age":30}'),
+          eventCompleted(),
+        ])
+        const adapter = new TestAdapter()
+        const chunks: Array<AdapterYieldChunk> = []
+
+        for await (const chunk of adapter.structuredOutputStream!({
+          chatOptions: {
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'extract' }],
+            logger: testLogger,
+          },
+          outputSchema: personSchema,
+        })) {
+          chunks.push(chunk)
+          vi.advanceTimersByTime(1)
+        }
+
+        const timestamps = chunks
+          .map((chunk) => chunk.timestamp)
+          .filter(
+            (timestamp): timestamp is number => typeof timestamp === 'number',
+          )
+        expect(timestamps).toHaveLength(chunks.length)
+        expect(timestamps).toEqual([...timestamps].sort((a, b) => a - b))
+        expect(timestamps.at(-1)).toBeGreaterThan(timestamps[0]!)
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('sends text.format: { type: "json_schema", strict: true } in the request', async () => {
@@ -221,6 +345,39 @@ describe('OpenAIBaseResponsesTextAdapter.structuredOutputStream', () => {
         totalTokens: 13,
       })
     })
+  })
+
+  it('reports EOF without response.completed after valid JSON', async () => {
+    setupStreamingMock([
+      eventCreated(),
+      eventOutputTextDelta('{"name":"John","age":30}'),
+    ])
+
+    const chunks = await collect(
+      new TestAdapter().structuredOutputStream!({
+        chatOptions: {
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'extract' }],
+          logger: testLogger,
+        },
+        outputSchema: personSchema,
+      }),
+    )
+
+    expect(chunks.some((chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT')).toBe(
+      true,
+    )
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      code: 'incomplete-stream',
+    })
+    expect(
+      chunks.some(
+        (chunk) =>
+          chunk.type === 'CUSTOM' &&
+          chunk.name === 'structured-output.complete',
+      ),
+    ).toBe(false)
   })
 
   describe('error paths', () => {

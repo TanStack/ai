@@ -52,7 +52,11 @@ function ranked(...indices: Array<number>): RerankAdapterResult {
   return {
     id: 'rr-1',
     ranking: indices.map((index, i) => ({ index, score: 1 - i * 0.1 })),
-    usage: { ...zeroUsage, unitsBilled: 1 },
+    usage: {
+      ...zeroUsage,
+      billed: { quantity: 1, unit: 'units' },
+      unitsBilled: 1,
+    },
   }
 }
 
@@ -107,6 +111,7 @@ describe('rerank() activity', () => {
       'rainy afternoon in the city',
       'sunny day at the beach',
     ])
+    expect(result.usage.billed).toEqual({ quantity: 1, unit: 'units' })
     expect(result.usage.unitsBilled).toBe(1)
   })
 
@@ -156,6 +161,7 @@ describe('rerank() activity', () => {
     expect(events.start).toHaveLength(1)
     expect(events.start[0]!.activity).toBe('rerank')
     expect(events.start[0]!.provider).toBe('mock')
+    expect(events.usage[0]!.billed).toEqual({ quantity: 1, unit: 'units' })
     expect(events.usage[0]!.unitsBilled).toBe(1)
     expect(events.finish).toHaveLength(1)
     expect(events.error).toHaveLength(0)

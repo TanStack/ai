@@ -29,7 +29,7 @@ import {
   noopLogger,
   pollStrategyHandle,
 } from './fakes'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 import type { AgentSdkMessage } from '../src/stream/sdk-types'
 
 const baseDir = path.join(
@@ -50,8 +50,8 @@ afterAll(async () => {
 
 // Same stand-in as `text-adapter.test.ts`: ignores its flags, reads the
 // prompt from stdin, then emits stream-json (system/init → assistant text →
-// result). Its filename ("fake-claude") is asserted to be ABSENT from the
-// spawned commands on the attach path, proving the agent was never started.
+// result). The runner filename is asserted to be ABSENT from the spawned
+// commands on the attach path, proving the agent was never started.
 const FAKE_CLAUDE = [
   `let input = ''`,
   `process.stdin.on('data', (d) => { input += d })`,
@@ -68,9 +68,9 @@ function newRunId(label: string): string {
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }
@@ -83,7 +83,7 @@ async function collect(
  * one id — the caller's on an attach, a generated one otherwise. Anything with
  * more than one entry means the resolution ran twice.
  */
-function threadIdsOf(chunks: Array<StreamChunk>): Array<string> {
+function threadIdsOf(chunks: Array<AdapterYieldChunk>): Array<string> {
   const seen = new Set<string>()
   for (const chunk of chunks) {
     const value = (chunk as { threadId?: unknown }).threadId
@@ -152,10 +152,12 @@ describe('claude-code durable-run wiring (attach path)', () => {
     )
 
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
-    // The agent still ran directly (unjournaled): its own command shows up,
+    // The agent still ran directly (unjournaled): the argv runner shows up,
     // but no command anywhere references a journal path for this runId.
     expect(
-      recorder.spawned.some((command) => command.includes('fake-claude.mjs')),
+      recorder.spawned.some((command) =>
+        command.includes('tanstack-claude-run-'),
+      ),
     ).toBe(true)
     const paths = journalPaths(runId)
     expect(
@@ -192,9 +194,11 @@ describe('claude-code durable-run wiring (attach path)', () => {
 
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
 
-    // The agent was actually started (`startJournaledAgent` spawns it).
+    // The agent was actually started (`startJournaledAgent` spawns the runner).
     expect(
-      recorder.spawned.some((command) => command.includes('fake-claude.mjs')),
+      recorder.spawned.some((command) =>
+        command.includes('tanstack-claude-run-'),
+      ),
     ).toBe(true)
 
     // ...and its output was journaled under a path derived from THIS runId.
@@ -273,10 +277,12 @@ describe('claude-code durable-run wiring (attach path)', () => {
     expect(text).toContain('resumed')
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
 
-    // No command ever referenced the agent executable: the agent was never
+    // No command ever referenced the argv runner: the agent was never
     // started on the attach path.
     expect(
-      recorder.spawned.some((command) => command.includes('fake-claude.mjs')),
+      recorder.spawned.some((command) =>
+        command.includes('tanstack-claude-run-'),
+      ),
     ).toBe(false)
 
     // A read command against this run's journal DID happen.
@@ -327,7 +333,7 @@ describe('claude-code durable-run wiring (attach path)', () => {
     async function* asMessages(): AsyncIterable<AgentSdkMessage> {
       for (const m of seedMessages) yield m
     }
-    const fullTranslation: Array<StreamChunk> = []
+    const fullTranslation: Array<AdapterYieldChunk> = []
     for await (const chunk of translateSdkStream(asMessages(), {
       model: 'haiku',
       runId,

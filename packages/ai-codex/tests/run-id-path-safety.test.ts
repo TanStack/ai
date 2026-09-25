@@ -24,7 +24,7 @@ import * as path from 'node:path'
 import { SandboxCapability } from '@tanstack/ai-sandbox'
 import { codexText } from '../src/index'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { CapabilityContext, StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk, CapabilityContext } from '@tanstack/ai'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
 const MODEL = 'gpt-5.5-codex'
@@ -128,7 +128,7 @@ function capabilityContext(handle: SandboxHandle): CapabilityContext {
 /** Drive one run with the given caller-chosen runId and return the prompt path it wrote. */
 async function promptPathFor(runId: string): Promise<string> {
   const handle = recordingHandle()
-  const chunks: Array<StreamChunk> = []
+  const chunks: Array<AdapterYieldChunk> = []
   for await (const chunk of codexText(MODEL).chatStream({
     model: MODEL,
     runId,

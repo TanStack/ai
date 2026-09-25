@@ -9,8 +9,8 @@
  * an error naming the field under test means "rejected", an error naming
  * `seed` means "accepted". Ark reports only one arbitrary invalid parameter
  * per request, so each cell was retried until a verdict repeated. Seedance 2.5
- * cells come from the public ModelArk create-task docs once the model was
- * fully opened (2026-08-07).
+ * cells come from the public ModelArk create-task docs (opened 2026-08-07);
+ * its resolution row was refreshed 2026-08-19 when native 1080p shipped.
  *
  * Ark rejects an inapplicable field outright — "the specified parameter
  * `draft` is not supported for model seedance-1-0-pro in t2v, must be empty" —
@@ -91,8 +91,8 @@ export interface BytePlusVideoProviderOptions {
   /**
    * Output resolution tier. Overrides the resolution half of the generic
    * `size`. Matched case-insensitively by the API; this package uses
-   * lowercase throughout. `4k` exists only on `dreamina-seedance-2-0-260128`
-   * (Seedance 2.5 is 480p/720p only), and there is no 2K tier on any model.
+   * lowercase throughout. `4k` exists only on `dreamina-seedance-2-0-260128`,
+   * and there is no 2K tier on any model.
    */
   resolution?: BytePlusVideoResolution
 
@@ -228,17 +228,18 @@ const BYTEPLUS_VIDEO_RATIOS: ReadonlyArray<string> = [
 /**
  * Resolutions each model accepts.
  *
- * 2.0 / 1.x cells were live-probed; 2.5 comes from the public ModelArk docs.
- * Two findings still contradict older prose: there is no 2K tier on any
- * Seedance model (`2k`/`2K` is rejected everywhere), and
+ * 2.0 / 1.x cells were live-probed; 2.5 comes from the public ModelArk docs
+ * and the live fal Seedance 2.5 spec (modelschemas.com, 2026-08-19). Two
+ * findings still contradict older prose: there is no 2K tier on any Seedance
+ * model (`2k`/`2K` is rejected everywhere), and
  * `seedance-1-0-pro-fast-251015` does accept `1080p` despite being documented
- * as 480p/720p only. Seedance 2.5 is 480p/720p only — it does **not** offer
+ * as 480p/720p only. Seedance 2.5 is 480p/720p/1080p — it does **not** offer
  * the 2.0 flagship's 4k tier.
  */
 const BYTEPLUS_VIDEO_RESOLUTIONS: {
   readonly [K in BytePlusVideoModel]: ReadonlyArray<BytePlusVideoResolution>
 } = {
-  'dreamina-seedance-2-5-260628': ['480p', '720p'],
+  'dreamina-seedance-2-5-260628': ['480p', '720p', '1080p'],
   'dreamina-seedance-2-0-260128': ['480p', '720p', '1080p', '4k'],
   'dreamina-seedance-2-0-fast-260128': ['480p', '720p'],
   'dreamina-seedance-2-0-mini-260615': ['480p', '720p'],

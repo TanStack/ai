@@ -1,0 +1,11 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[generic-after-model] run test",
+        "sequenceIndex": 0
+      },
+      "response": { "content": "AFTER_MODEL_CONTENT" }
+    }
+  ]
+}

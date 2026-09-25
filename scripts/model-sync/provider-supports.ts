@@ -23,6 +23,70 @@ function quoteList(values: Array<string>): string {
   return `[${values.map((value) => `'${value}'`).join(', ')}]`
 }
 
+interface AnthropicProviderOptionsInput {
+  supportedParameters?: Array<string>
+  reasoningMandatory?: boolean
+  hasCachedPricing?: boolean
+}
+
+const ANTHROPIC_BASE_OPTIONS = [
+  'AnthropicContainerOptions',
+  'AnthropicContextManagementOptions',
+  'AnthropicMCPOptions',
+  'AnthropicServiceTierOptions',
+  'AnthropicStopSequencesOptions',
+] as const
+
+/**
+ * Per-model Anthropic provider-options intersection, inferred from the
+ * OpenRouter catalog. Does not copy another model's tool list.
+ *
+ * - `reasoning.mandatory` → adaptive-only thinking (Fable 5 / 5.1).
+ * - reasoning params without sampling → adaptive-or-disabled (Sonnet 5,
+ *   Opus 4.7+).
+ * - reasoning + sampling → adaptive union plus sampling (Opus/Sonnet 4.6).
+ * - no reasoning → budget-based thinking plus sampling when listed.
+ */
+export function buildAnthropicProviderOptionsType(
+  input: AnthropicProviderOptionsInput,
+): string {
+  const params = input.supportedParameters ?? []
+  const hasSampling = hasParam(params, ['temperature', 'top_p', 'top_k'])
+  const hasReasoning = hasParam(params, [
+    'include_reasoning',
+    'reasoning',
+    'reasoning_effort',
+  ])
+
+  const parts: Array<string> = [...ANTHROPIC_BASE_OPTIONS]
+  if (input.hasCachedPricing) {
+    parts.unshift('AnthropicCacheControlOptions')
+  }
+
+  if (input.reasoningMandatory) {
+    parts.push('AnthropicAdaptiveOnlyThinkingOptions')
+  } else if (hasReasoning && hasSampling) {
+    parts.push('AnthropicAdaptiveThinkingOptions')
+  } else if (hasReasoning) {
+    parts.push('AnthropicAdaptiveOrDisabledThinkingOptions')
+  } else {
+    parts.push('AnthropicThinkingOptions')
+  }
+
+  parts.push('AnthropicToolChoiceOptions')
+
+  if (hasSampling) {
+    parts.push('AnthropicSamplingOptions')
+  } else {
+    parts.push('AnthropicMaxTokensOptions')
+    if (hasReasoning || input.reasoningMandatory) {
+      parts.push('AnthropicOutputConfigOptions')
+    }
+  }
+
+  return parts.join(' & ')
+}
+
 export function buildProviderSupportsBody(
   input: ProviderSupportsInput,
 ): string {

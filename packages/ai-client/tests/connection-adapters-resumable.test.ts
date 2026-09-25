@@ -3,6 +3,7 @@ import { EventType } from '@tanstack/ai/client'
 import {
   DurableStreamIncompleteError,
   StreamReconnectLimitError,
+  createReconnectTracker,
   fetchServerSentEvents,
 } from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai/client'
@@ -53,7 +54,7 @@ function finishedEvent(id: string): string {
     runId: 'r',
     model: 'test',
     timestamp: 0,
-    finishReason: 'stop',
+    metadata: { tanstack: { finishReason: 'stop' } },
   }
   return `id: ${id}\ndata: ${JSON.stringify(chunk)}\n\n`
 }
@@ -580,5 +581,17 @@ describe('resumable SSE connection adapter', () => {
       }
     }).rejects.toThrow(/503 Unavailable/)
     expect(fetchClient).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('createReconnectTracker', () => {
+  it('de-dupes ids, tracks lastEventId, and resets on empty id', () => {
+    const t = createReconnectTracker()
+    expect(t.note('a')).toBe('new')
+    expect(t.lastEventId).toBe('a')
+    expect(t.note('a')).toBe('duplicate')
+    expect(t.note('')).toBe('reset')
+    expect(t.lastEventId).toBeUndefined()
+    expect(t.note('a')).toBe('new') // seen was cleared by reset
   })
 })

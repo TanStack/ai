@@ -9,8 +9,6 @@ keywords:
   - drizzle prisma d1 adapter
 ---
 
-# Build Your Own Persistence Adapter
-
 Your data lives in your own database (Postgres behind Prisma, a SQLite file, D1,
 Mongo) and you do not want another service just for chat history. You do not need
 one. An adapter is a plain object of store functions. The core never looks at your
@@ -67,23 +65,29 @@ object inline so you never annotate it by hand.
 Each store switches on one capability. Find your column and implement the rows marked
 with a tick:
 
-| Store | Save the transcript | Rejoin a run after reload | Durable approvals | App key/value | Persist generation runs | Keep generated files |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: |
-| `messages` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| `runs` | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `interrupts` | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| `metadata` | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| `generationRuns` | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| `artifacts` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| `blobs` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Store | Save the transcript | Rejoin a run after reload | Durable approvals | App key/value | Persist generation runs | Keep generated files | Rebuild sandbox files |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `messages` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
+| `runs` | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `interrupts` | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `metadata` | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `generationRuns` | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| `artifacts` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| `blobs` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
 
-- **Columns stack.** Durable approvals and generated files means the union of both.
-- **Two pairs cannot be split.** `interrupts` needs `runs`, and `artifacts` needs
-  `blobs`.
-- **The generation stores feed `withGenerationPersistence`** instead, and need none of
-  the chat stores. See [Generation persistence](./generation-persistence).
+- **Columns stack.** Chat plus sandbox files means `messages` + `artifacts` +
+  `blobs`. Durable approvals plus generated files means the union of both
+  columns.
+- **Two pairs cannot be split.** `interrupts` needs `runs`, and `artifacts`
+  needs `blobs`.
+- **Generation runs need none of the chat stores.** See
+  [Generation persistence](./generation-persistence).
+- **Sandbox files need a checkpoint store too.** That store lives on
+  `@tanstack/ai-sandbox`, not in this table. See
+  [Keep Files After Reload](../sandbox/portable-snapshots-configure).
 
-The common production shape is `messages` + `runs` + `interrupts`.
+The common production shape is `messages` + `runs` + `interrupts`. When you
+keep generated files or rebuild sandbox files, add `artifacts` and `blobs`.
 
 You can also own only part of it. Put `messages` and `runs` in your database and fill
 the rest from somewhere else with `composePersistence`:
@@ -107,10 +111,31 @@ retrying them safe.
 turn this into a recipe against your stack: your ORM config, your schema file, your
 database handle.
 
-```bash
-pnpm add @tanstack/ai-persistence
-npx @tanstack/intent@latest install
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-persistence
+vue: @tanstack/ai-persistence
+solid: @tanstack/ai-persistence
+svelte: @tanstack/ai-persistence
+preact: @tanstack/ai-persistence
+angular: @tanstack/ai-persistence
+vanilla: @tanstack/ai-persistence
+octane: @tanstack/ai-persistence
+
+<!-- ::end:tabs -->
+
+<!-- ::start:tabs variant="package-manager" mode="local-install" -->
+
+react: @tanstack/intent@latest install
+vue: @tanstack/intent@latest install
+solid: @tanstack/intent@latest install
+svelte: @tanstack/intent@latest install
+preact: @tanstack/intent@latest install
+angular: @tanstack/intent@latest install
+vanilla: @tanstack/intent@latest install
+octane: @tanstack/intent@latest install
+
+<!-- ::end:tabs -->
 
 Then ask for "add chat persistence to this app". There are recipes for Drizzle,
 Prisma, Cloudflare D1, and anything else (raw `pg`, Kysely, SQLite, Mongo, Supabase).
@@ -145,6 +170,33 @@ runPersistenceConformance('chat-only adapter', () => chatOnlyPersistence(), {
 })
 ```
 
+The optional run methods are `listByThread`, `listByParentRun`, and
+`listReclaimable`. Add an omitted `listByThread` or `listReclaimable` to
+`skipMethods`. An omitted `listByParentRun` needs no entry: the subagent checks
+skip on their own.
+
+### Turn on the newer checks
+
+Some checks were added after the suite shipped. They are off by default, so an
+adapter that passed before still passes. Turn them on to prove that your adapter
+supports run timings on reload (`reconstructChat` with `includeRuns: true`):
+
+```ts
+import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
+import { sqlitePersistence } from './sqlite-persistence'
+
+runPersistenceConformance(
+  'my sqlite adapter',
+  () => sqlitePersistence({ url: ':memory:', migrate: true }),
+  { checks: ['messages.metadata', 'runs.listByThread.state'] },
+)
+```
+
+- `messages.metadata`: `loadThread` returns each message's `metadata` as it was saved.
+- `runs.listByThread.state`: `listByThread` returns each run's current `status` and `finishedAt` after `update`.
+
+A check you do not turn on shows as skipped, with the option to add.
+
 Anything absent and undeclared fails with a message naming exactly what to add, so a
 half-wired adapter cannot report a pass. When this is green, your adapter is a drop-in
 for `withPersistence`, and with the generation stores for
@@ -158,6 +210,8 @@ for `withPersistence`, and with the generation stores for
   artifacts and blobs.
 - [Build a sandbox adapter](./build-a-sandbox-adapter): the sandbox instance store, and
   what a durable sandboxed run adds to `runs`. Only if you run sandboxes.
+- [Keep Files After Reload](../sandbox/portable-snapshots-configure): reuse this
+  adapter for portable snapshots. You need `messages`, `artifacts`, and `blobs`.
 - [Store reference](./store-reference): every signature and invariant, and how the
   records relate.
 - [Controls](./controls): compose stores from different systems.

@@ -8,6 +8,7 @@ import { DefaultChatClientEventEmitter } from './events'
 import type { AnyClientTool, StreamChunk } from '@tanstack/ai/client'
 import type {
   AIDevtoolsEventVisibility,
+  CompactionMessagePreview,
   MemoryScopeLite,
 } from '@tanstack/ai-event-client'
 import type {
@@ -33,6 +34,11 @@ export interface AIDevtoolsDisplayOptions {
  * payload of the `memory:state` CUSTOM chunk. Kept local so `ai-client` doesn't
  * depend on `ai-memory`; the memory middleware is the producer.
  */
+interface SkillsStateEventValue {
+  catalog?: Array<{ name: string; description: string }>
+  activated?: Array<string>
+}
+
 interface MemoryStateEventValue {
   scope: MemoryScopeLite
   adapter: string
@@ -52,6 +58,127 @@ interface MemoryStateEventValue {
       source?: string
       createdAt?: string
     }>
+  }
+}
+
+function readCompactionBoundaryValue(rawValue: unknown): {
+  before?: number
+  after?: number
+  messagesBefore?: number
+  messagesAfter?: number
+  reusedCheckpoint?: boolean
+  maxTokens?: number
+  strategyKey?: string
+  durationMs?: number
+} {
+  if (!rawValue || typeof rawValue !== 'object') return {}
+  return {
+    ...('before' in rawValue && typeof rawValue.before === 'number'
+      ? { before: rawValue.before }
+      : {}),
+    ...('after' in rawValue && typeof rawValue.after === 'number'
+      ? { after: rawValue.after }
+      : {}),
+    ...('messagesBefore' in rawValue &&
+    typeof rawValue.messagesBefore === 'number'
+      ? { messagesBefore: rawValue.messagesBefore }
+      : {}),
+    ...('messagesAfter' in rawValue &&
+    typeof rawValue.messagesAfter === 'number'
+      ? { messagesAfter: rawValue.messagesAfter }
+      : {}),
+    ...('reusedCheckpoint' in rawValue &&
+    typeof rawValue.reusedCheckpoint === 'boolean'
+      ? { reusedCheckpoint: rawValue.reusedCheckpoint }
+      : {}),
+    ...('maxTokens' in rawValue && typeof rawValue.maxTokens === 'number'
+      ? { maxTokens: rawValue.maxTokens }
+      : {}),
+    ...('strategyKey' in rawValue && typeof rawValue.strategyKey === 'string'
+      ? { strategyKey: rawValue.strategyKey }
+      : {}),
+    ...('durationMs' in rawValue && typeof rawValue.durationMs === 'number'
+      ? { durationMs: rawValue.durationMs }
+      : {}),
+  }
+}
+
+function readPreviewList(
+  value: unknown,
+): Array<CompactionMessagePreview> | undefined {
+  if (!Array.isArray(value)) return undefined
+  const previews: Array<CompactionMessagePreview> = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue
+    if (!('role' in item) || !('tokens' in item) || !('text' in item)) continue
+    if (
+      typeof item.role !== 'string' ||
+      typeof item.tokens !== 'number' ||
+      typeof item.text !== 'string'
+    ) {
+      continue
+    }
+    previews.push({
+      role: item.role,
+      tokens: item.tokens,
+      text: item.text,
+    })
+  }
+  return previews
+}
+
+function readCompactionStateValue(rawValue: unknown): {
+  before: number
+  after: number
+  messagesBefore: number
+  messagesAfter: number
+  reusedCheckpoint: boolean
+  maxTokens?: number
+  strategyKey?: string
+  dropped?: Array<CompactionMessagePreview>
+  result?: Array<CompactionMessagePreview>
+} | null {
+  if (!rawValue || typeof rawValue !== 'object') return null
+  if (
+    !('before' in rawValue) ||
+    !('after' in rawValue) ||
+    !('messagesBefore' in rawValue) ||
+    !('messagesAfter' in rawValue)
+  ) {
+    return null
+  }
+  if (
+    typeof rawValue.before !== 'number' ||
+    typeof rawValue.after !== 'number' ||
+    typeof rawValue.messagesBefore !== 'number' ||
+    typeof rawValue.messagesAfter !== 'number'
+  ) {
+    return null
+  }
+  const reusedCheckpoint =
+    'reusedCheckpoint' in rawValue && rawValue.reusedCheckpoint === true
+  const maxTokens =
+    'maxTokens' in rawValue && typeof rawValue.maxTokens === 'number'
+      ? rawValue.maxTokens
+      : undefined
+  const strategyKey =
+    'strategyKey' in rawValue && typeof rawValue.strategyKey === 'string'
+      ? rawValue.strategyKey
+      : undefined
+  const dropped =
+    'dropped' in rawValue ? readPreviewList(rawValue.dropped) : undefined
+  const result =
+    'result' in rawValue ? readPreviewList(rawValue.result) : undefined
+  return {
+    before: rawValue.before,
+    after: rawValue.after,
+    messagesBefore: rawValue.messagesBefore,
+    messagesAfter: rawValue.messagesAfter,
+    reusedCheckpoint,
+    ...(maxTokens !== undefined ? { maxTokens } : {}),
+    ...(strategyKey ? { strategyKey } : {}),
+    ...(dropped ? { dropped } : {}),
+    ...(result ? { result } : {}),
   }
 }
 
@@ -448,9 +575,51 @@ function getActiveBridgeRegistry(): Map<string, ActiveDevtoolsBridge> {
   return registry
 }
 
+/**
+ * `{...options}` turns `get hookId()` into a data property. Chat/generation
+ * clients mint `threadId` after construct (`ensureThreadId` on mount), so a
+ * spread would freeze `hookId: ''` and DevTools could never select the hook.
+ */
+function withLiveClientIdentity<TSnapshot extends object>(
+  identity: Pick<
+    AIDevtoolsBridgeOptions<TSnapshot>,
+    | 'hookId'
+    | 'clientId'
+    | 'threadId'
+    | 'metadata'
+    | 'getTools'
+    | 'applyToolFixture'
+  >,
+  rest: Pick<AIDevtoolsBridgeOptions<TSnapshot>, 'getSnapshot'> &
+    Partial<
+      Pick<AIDevtoolsBridgeOptions<TSnapshot>, 'getTools' | 'applyToolFixture'>
+    >,
+): AIDevtoolsBridgeOptions<TSnapshot> {
+  return {
+    get hookId() {
+      return identity.hookId
+    },
+    get clientId() {
+      return identity.clientId
+    },
+    get threadId() {
+      return identity.threadId
+    },
+    metadata: identity.metadata,
+    getSnapshot: rest.getSnapshot,
+    ...(rest.getTools || identity.getTools
+      ? { getTools: rest.getTools ?? identity.getTools }
+      : {}),
+    ...(rest.applyToolFixture || identity.applyToolFixture
+      ? {
+          applyToolFixture: rest.applyToolFixture ?? identity.applyToolFixture,
+        }
+      : {}),
+  }
+}
+
 export class ClientDevtoolsBridge<TSnapshot extends object> {
   protected readonly options: AIDevtoolsBridgeOptions<TSnapshot>
-  private readonly bridgeId: string
   private readonly unsubscribers: Array<Unsubscribe> = []
   private disposed = false
   private superseded = false
@@ -458,7 +627,6 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
 
   constructor(options: AIDevtoolsBridgeOptions<TSnapshot>) {
     this.options = options
-    this.bridgeId = createBridgeId(options.hookId)
   }
 
   emitRegistered(): void {
@@ -569,6 +737,12 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
 
     this.disposed = true
     if (!this.registered) {
+      this.deactivate()
+      return
+    }
+
+    const live = getActiveBridgeRegistry().get(this.options.hookId)
+    if (live !== this) {
       this.deactivate()
       return
     }
@@ -708,6 +882,10 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       | 'memory:retrieve:started'
       | 'memory:retrieve:completed'
       | 'memory:snapshot'
+      | 'compaction:started'
+      | 'compaction:state'
+      | 'compaction:ended'
+      | 'skills:snapshot'
       | AIDevtoolsRunEventType,
     visibility: AIDevtoolsEventVisibility = 'client-state',
     context: { runId?: string } = {},
@@ -718,7 +896,6 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       visibility,
       clientId: this.options.clientId,
       hookId: this.options.hookId,
-      correlationId: this.bridgeId,
       ...(this.options.threadId ? { threadId: this.options.threadId } : {}),
       ...(context.runId ? { runId: context.runId } : {}),
       timestamp: Date.now(),
@@ -740,25 +917,6 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
         : {}),
     }
   }
-}
-
-let bridgeIdSequence = 0
-
-function createBridgeId(hookId: string): string {
-  const cryptoLike = (
-    globalThis as {
-      crypto?: {
-        randomUUID?: () => string
-      }
-    }
-  ).crypto
-
-  if (cryptoLike?.randomUUID) {
-    return `bridge:${hookId}:${cryptoLike.randomUUID()}`
-  }
-
-  bridgeIdSequence += 1
-  return `bridge:${hookId}:${bridgeIdSequence}`
 }
 
 // Owns the chat-client devtools surface so the chat client itself stays a
@@ -786,17 +944,29 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   private lastRunEventContext: ChatClientRunEventContext | undefined
   /** Last transported `memory:state` value, replayed when a panel opens. */
   private lastMemoryStateValue: unknown = null
+  /** Transported compaction CUSTOM events, replayed when a panel opens. */
+  private readonly lastCompactionEvents: Array<{
+    eventType: string
+    value: unknown
+  }> = []
+  /** Last transported `skills:state` value, replayed when a panel opens. */
+  private lastSkillsStateValue: unknown = null
 
   constructor(options: ChatDevtoolsBridgeOptions) {
-    super({
-      ...options,
-      // Thunk defers `this.applyFixture` lookup until after `super` returns.
-      applyToolFixture: (fixture) => this.applyFixture(fixture),
-    })
+    super(
+      withLiveClientIdentity(options, {
+        getSnapshot: options.getSnapshot,
+        // Thunk defers `this.applyFixture` lookup until after `super` returns.
+        applyToolFixture: (fixture) => this.applyFixture(fixture),
+      }),
+    )
     this.chatOptions = options
     // Auto-attaches run/thread context and auto-emits a snapshot after each
     // event so callers can keep using `this.events.X(...)` with no context arg.
-    this.events = new ChatDevtoolsAwareEventEmitter(options.clientId, this)
+    this.events = new ChatDevtoolsAwareEventEmitter(
+      () => options.clientId,
+      this,
+    )
   }
 
   // --- Stream / run context API -------------------------------------------
@@ -890,6 +1060,11 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     this.emitMemoryState(rawValue)
   }
 
+  recordSkillsState(rawValue: unknown): void {
+    this.lastSkillsStateValue = rawValue
+    this.emitSkillsState(rawValue)
+  }
+
   /**
    * Re-emit the browser-side `memory:*` events from a transported
    * `memory:state` value. The devtools store consumes these to render the
@@ -942,9 +1117,77 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     }
   }
 
+  /**
+   * Record a transported compaction CUSTOM event. Called from the chat
+   * client's `onCustomEvent` handler so server-side compaction reaches the
+   * browser DevTools panel.
+   */
+  recordCompactionEvent(eventType: string, rawValue: unknown): void {
+    this.lastCompactionEvents.push({ eventType, value: rawValue })
+    if (this.lastCompactionEvents.length > 60) {
+      this.lastCompactionEvents.splice(0, this.lastCompactionEvents.length - 60)
+    }
+    this.emitCompactionEvent(eventType, rawValue)
+  }
+
+  recordCompactionState(rawValue: unknown): void {
+    this.recordCompactionEvent('compaction:state', rawValue)
+  }
+
+  private emitCompactionEvent(eventType: string, rawValue: unknown): void {
+    const runContext = this.currentRunId ? { runId: this.currentRunId } : {}
+    if (eventType === 'compaction:started') {
+      const value = readCompactionBoundaryValue(rawValue)
+      emitAIDevtoolsEvent('compaction:started', {
+        ...this.createEnvelope(
+          'compaction:started',
+          'client-state',
+          runContext,
+        ),
+        ...value,
+      })
+      return
+    }
+    if (eventType === 'compaction:ended') {
+      const value = readCompactionBoundaryValue(rawValue)
+      emitAIDevtoolsEvent('compaction:ended', {
+        ...this.createEnvelope('compaction:ended', 'client-state', runContext),
+        ...value,
+      })
+      return
+    }
+    if (eventType === 'compaction:state') {
+      const value = readCompactionStateValue(rawValue)
+      if (!value) return
+      emitAIDevtoolsEvent('compaction:state', {
+        ...this.createEnvelope('compaction:state', 'client-state', runContext),
+        ...value,
+      })
+    }
+  }
+
+  private emitSkillsState(rawValue: unknown): void {
+    if (!rawValue || typeof rawValue !== 'object') return
+    const value = rawValue as SkillsStateEventValue
+    const catalog = Array.isArray(value.catalog) ? value.catalog : []
+    const activated = Array.isArray(value.activated) ? value.activated : []
+    const runContext = this.currentRunId ? { runId: this.currentRunId } : {}
+    emitAIDevtoolsEvent('skills:snapshot', {
+      ...this.createEnvelope('skills:snapshot', 'client-state', runContext),
+      catalog,
+      activated,
+    })
+  }
+
   protected override onReplayState(): void {
     if (this.lastMemoryStateValue != null) {
       this.emitMemoryState(this.lastMemoryStateValue)
+    }
+    for (const event of this.lastCompactionEvents) {
+      this.emitCompactionEvent(event.eventType, event.value)
+    }
+    if (this.lastSkillsStateValue != null) {
+      this.emitSkillsState(this.lastSkillsStateValue)
     }
   }
 
@@ -1426,10 +1669,11 @@ export class GenerationDevtoolsBridge<TOutput> extends ClientDevtoolsBridge<
   protected readonly getCoreState: () => GenerationDevtoolsCoreState<TOutput>
 
   constructor(options: GenerationDevtoolsBridgeOptions<TOutput>) {
-    super({
-      ...options,
-      getSnapshot: () => this.buildSnapshot(),
-    })
+    super(
+      withLiveClientIdentity(options, {
+        getSnapshot: () => this.buildSnapshot(),
+      }),
+    )
     this.maxRuns = options.maxRuns ?? 20
     this.getCoreState = options.getCoreState
   }
@@ -1775,10 +2019,18 @@ export class VideoDevtoolsBridge<
 // so resolveStreamId() works without the chat client telling it.
 class ChatDevtoolsAwareEventEmitter extends DefaultChatClientEventEmitter {
   constructor(
-    clientId: string,
+    private readonly getClientId: () => string,
     private readonly helper: ChatDevtoolsBridge,
   ) {
-    super(clientId)
+    super(getClientId())
+  }
+
+  protected override emitEvent(
+    eventName: string,
+    data?: Record<string, any>,
+  ): void {
+    this.clientId = this.getClientId()
+    super.emitEvent(eventName, data)
   }
 
   private afterEmit(streamId?: string): void {

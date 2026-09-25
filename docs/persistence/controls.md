@@ -3,8 +3,6 @@ title: Persistence Controls
 id: controls
 ---
 
-# Persistence Controls
-
 Persistence has no feature flags. What you persist is decided by which **state**
 stores the backend provides, and you compose backends per store. Supply only the
 stores your workflow needs.
@@ -90,6 +88,9 @@ values arrive from untyped JavaScript.
 - `withPersistence` requires `messages`.
 - `interrupts` requires `runs`: an interrupt record is scoped to a run.
 - `withGenerationPersistence` requires `generationRuns`.
+- Portable sandbox snapshots require `messages`, `artifacts`, and `blobs` on
+  the same persistence object. See
+  [Keep Files After Reload](../sandbox/portable-snapshots-configure).
 
 To define a partial backend directly rather than by composing, use
 `defineAIPersistence({ stores: { ... } })` and pass only the stores you have.

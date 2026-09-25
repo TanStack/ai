@@ -8,7 +8,13 @@ import { wasRunDetached } from './delivery-detach'
 import { notifyRunDisconnected } from './delivery-disconnect'
 import { resolveResumeRunId } from './stream-durability'
 import { EventType } from './types'
+import { toWireChunk } from './strip-to-spec-middleware'
+import {
+  isDurabilityBatchedCustom,
+  stripDurabilityBatchHint,
+} from './utilities/durability-batch'
 import { resolveDebugOption } from './logger/resolve'
+import { runErrorEventToError } from './utilities/errors'
 import type { LockStore } from './activities/chat/middleware/locks'
 import type {
   RunRecord,
@@ -46,6 +52,10 @@ export async function streamToText(
   let accumulatedContent = ''
 
   for await (const chunk of stream) {
+    if (chunk.type === 'RUN_ERROR') {
+      throw runErrorEventToError(chunk)
+    }
+
     if (chunk.type === 'TEXT_MESSAGE_CONTENT' && chunk.delta) {
       accumulatedContent += chunk.delta
     }
@@ -78,7 +88,7 @@ function combineFailures(
   )
 }
 
-function runErrorChunk(
+export function runErrorChunk(
   error: unknown,
 ): Extract<StreamChunk, { type: 'RUN_ERROR' }> {
   const payload = toRunErrorPayload(error)
@@ -282,10 +292,13 @@ function sseEncoders(
     encodeChunk: (chunk, index) => {
       const id = getId?.(chunk, index)
       const idLine = id === undefined ? '' : `id: ${id}\n`
-      return encoder.encode(`${idLine}data: ${JSON.stringify(chunk)}\n\n`)
+      const wire = toWireChunk(chunk)
+      return encoder.encode(`${idLine}data: ${JSON.stringify(wire)}\n\n`)
     },
     encodeError: (error) =>
-      encoder.encode(`data: ${JSON.stringify(runErrorChunk(error))}\n\n`),
+      encoder.encode(
+        `data: ${JSON.stringify(toWireChunk(runErrorChunk(error)))}\n\n`,
+      ),
   }
 }
 
@@ -310,23 +323,29 @@ function resolveBatchSize(batch: number | undefined): number {
 
 /**
  * Boundaries at which the batching producer flushes early, regardless of the
- * batch size — the run-start marker, terminal events, and tool-call ends.
- * Flushing here keeps the durability log promptly consistent at semantically
- * meaningful points.
+ * batch size: run-start, terminals, tool-call ends, and CUSTOM events that
+ * are not high-volume adapter output.
  *
  * `RUN_STARTED` matters especially for one-shot activities (image, speech,
  * transcription, summarize): they emit `RUN_STARTED`, then await the provider
  * for seconds, then a terminal. Without flushing `RUN_STARTED` the log stays
  * empty for the whole run, so a mount-time `joinRun` finds nothing and its
- * empty-log deadline fast-fails as "run gone" — even though the run is alive.
+ * empty-log deadline fast-fails as "run gone" even though the run is alive.
  * Flushing it immediately makes the run resumable from the instant it starts.
+ *
+ * CUSTOM progress events (compaction, tool progress, middleware) flush at
+ * emit time so a live indicator can render. `process.stdout`,
+ * `process.stderr`, `sandbox.file`, and `sandbox.file.diff` stay batched.
+ * `emitCustomEvent(name, value, { batch: true })` opts a single event into
+ * that same batch.
  */
 function isDurabilityFlushBoundary(chunk: StreamChunk): boolean {
   return (
     chunk.type === 'RUN_STARTED' ||
     chunk.type === 'RUN_FINISHED' ||
     chunk.type === 'RUN_ERROR' ||
-    chunk.type === 'TOOL_CALL_END'
+    chunk.type === 'TOOL_CALL_END' ||
+    (chunk.type === 'CUSTOM' && !isDurabilityBatchedCustom(chunk))
   )
 }
 
@@ -366,7 +385,7 @@ export const RUN_ACCEPTED_EVENT = 'run.accepted'
  * The returned `getId` maps each forwarded chunk to the exact opaque offset
  * returned by the durability adapter for the SSE `id:` line.
  */
-function durableStreamSource<TOffset extends string>(
+export function durableStreamSource<TOffset extends string>(
   stream: AsyncIterable<StreamChunk>,
   durability: StreamDurability<TOffset>,
   options: {
@@ -437,7 +456,7 @@ function durableStreamSource<TOffset extends string>(
 
     async function* flush(): AsyncIterable<StreamChunk> {
       if (batch.length === 0) return
-      const toForward = batch
+      const toForward = batch.map(stripDurabilityBatchHint)
       batch = []
       // Tag each chunk with the exact backend offset. Requiring one opaque
       // token per chunk preserves exact-once resume at any batch size.
@@ -1064,12 +1083,15 @@ function ndjsonEncoders(
   return {
     encodeChunk: (chunk, index) => {
       const id = getId?.(chunk, index)
+      const wire = toWireChunk(chunk)
       const line =
-        id === undefined ? JSON.stringify(chunk) : JSON.stringify({ id, chunk })
+        id === undefined
+          ? JSON.stringify(wire)
+          : JSON.stringify({ id, chunk: wire })
       return encoder.encode(`${line}\n`)
     },
     encodeError: (error) =>
-      encoder.encode(`${JSON.stringify(runErrorChunk(error))}\n`),
+      encoder.encode(`${JSON.stringify(toWireChunk(runErrorChunk(error)))}\n`),
   }
 }
 

@@ -3,8 +3,6 @@ id: ToolRegistry
 title: ToolRegistry
 ---
 
-# Interface: ToolRegistry\<TTool\>
-
 Defined in: [packages/ai/src/tool-registry.ts:9](https://github.com/TanStack/ai/blob/main/packages/ai/src/tool-registry.ts#L9)
 
 A registry that holds tools and allows dynamic tool management.
@@ -20,7 +18,7 @@ or frozen (static tool list, for backward compatibility with tools arrays).
 
 ## Properties
 
-### add()
+### add
 
 ```ts
 add: (tool) => void;
@@ -45,7 +43,7 @@ The tool to add
 
 ***
 
-### get()
+### get
 
 ```ts
 get: (name) => TTool | undefined;
@@ -71,7 +69,7 @@ The tool if found, undefined otherwise
 
 ***
 
-### getTools()
+### getTools
 
 ```ts
 getTools: () => TTool[];
@@ -88,7 +86,7 @@ Called each agent loop iteration to get the latest tool list.
 
 ***
 
-### has()
+### has
 
 ```ts
 has: (name) => boolean;
@@ -125,7 +123,7 @@ Frozen registries don't allow add/remove operations.
 
 ***
 
-### remove()
+### remove
 
 ```ts
 remove: (name) => boolean;

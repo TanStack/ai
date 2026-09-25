@@ -1,18 +1,23 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
+import { getPendingTurn } from '@tanstack/ai/adapter-internals'
 import type {
+  AdapterYieldChunk,
   AnyTextAdapter,
+  ChatMiddleware,
   ModelMessage,
   StreamChunk,
   Tool,
+  TokenUsage,
 } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
 import { defineAIPersistence } from '../src/types'
+import { threadMessages } from './persistence-fixtures'
 
 // --- minimal mock text adapter ---------------------------------------------
 
-function mockAdapter(iterations: Array<Array<StreamChunk>>) {
+function mockAdapter(iterations: Array<Array<AdapterYieldChunk>>) {
   const calls: Array<unknown> = []
   let i = 0
   const adapter = {
@@ -34,26 +39,31 @@ function mockAdapter(iterations: Array<Array<StreamChunk>>) {
 }
 
 const ev = {
-  runStarted: (runId = 'r1', threadId = 't1'): StreamChunk => ({
+  runStarted: (runId = 'r1', threadId = 't1'): AdapterYieldChunk => ({
     type: EventType.RUN_STARTED,
     runId,
     threadId,
     timestamp: 1,
   }),
-  text: (delta: string): StreamChunk => ({
+  text: (delta: string): AdapterYieldChunk => ({
     type: EventType.TEXT_MESSAGE_CONTENT,
     messageId: 'm1',
     delta,
     timestamp: 1,
   }),
-  runFinished: (runId = 'r1', threadId = 't1'): StreamChunk => ({
+  runFinished: (
+    runId = 'r1',
+    threadId = 't1',
+    usage?: TokenUsage,
+  ): AdapterYieldChunk => ({
     type: EventType.RUN_FINISHED,
     runId,
     threadId,
     finishReason: 'stop',
     timestamp: 1,
+    ...(usage ? { usage } : {}),
   }),
-  interrupted: (interruptId = 'interrupt-1'): StreamChunk => ({
+  interrupted: (interruptId = 'interrupt-1'): AdapterYieldChunk => ({
     type: EventType.RUN_FINISHED,
     runId: 'r1',
     threadId: 't1',
@@ -79,11 +89,9 @@ async function collect(stream: AsyncIterable<StreamChunk>) {
   return out
 }
 
-async function expectCollectRejects(
-  stream: AsyncIterable<StreamChunk>,
-  pattern: RegExp,
-) {
-  await expect(collect(stream)).rejects.toThrow(pattern)
+function interruptErrorsOf(chunk: StreamChunk | undefined) {
+  if (chunk?.type !== EventType.RUN_ERROR) return undefined
+  return chunk.metadata?.tanstack?.interruptErrors
 }
 
 function serverSearchTool(): Tool {
@@ -103,6 +111,40 @@ function findAssistantToolCall(
       message.role === 'assistant' &&
       message.toolCalls?.some((call) => call.id === toolCallId),
   )
+}
+
+function messageIds(messages: ReadonlyArray<ModelMessage>) {
+  return messages.map((message) => message.id)
+}
+
+const snapshotProbe: ChatMiddleware = {
+  name: 'snapshot-probe',
+  async setup(ctx) {
+    await getPendingTurn(ctx, { optional: true })?.snapshot()
+  },
+}
+
+async function loadedThread(persistence: ReturnType<typeof memoryPersistence>) {
+  return threadMessages(await persistence.stores.messages!.loadThread('t1'))
+}
+
+async function runPersistedChat(
+  persistence: ReturnType<typeof memoryPersistence>,
+  messages: Array<ModelMessage>,
+) {
+  const { adapter } = mockAdapter([
+    [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+  ])
+  await collect(
+    chat({
+      adapter,
+      messages,
+      runId: 'r1',
+      threadId: 't1',
+      middleware: [withPersistence(persistence), snapshotProbe],
+    }) as AsyncIterable<StreamChunk>,
+  )
+  return loadedThread(persistence)
 }
 
 describe('withPersistence (state-only)', () => {
@@ -126,14 +168,205 @@ describe('withPersistence (state-only)', () => {
     expect(chunks.length).toBeGreaterThan(0)
     expect(chunks.every((c) => !('cursor' in c))).toBe(true)
 
-    // Run is completed and the FULL transcript is saved — including the
-    // assistant's terminal text reply, which the engine does not append to the
-    // middleware message list itself (see `finishedTranscript`).
+    // Run is completed and the full engine transcript is saved, including the
+    // assistant's terminal text reply.
     expect((await persistence.stores.runs!.get('r1'))?.status).toBe('completed')
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
       { role: 'user', content: 'hi' },
-      { role: 'assistant', content: 'hello' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
     ])
+  })
+
+  it('saves canonical history when middleware compacts provider messages', async () => {
+    const persistence = memoryPersistence()
+    const { adapter, calls } = mockAdapter([
+      [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+    ])
+
+    const dropOldest: ChatMiddleware = {
+      name: 'drop-oldest',
+      onConfig(ctx, config) {
+        if (ctx.phase !== 'beforeModel' || config.messages.length <= 1) return
+        return { providerMessages: config.messages.slice(1) }
+      },
+    }
+
+    await collect(
+      chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'DROP_ME_FIRST' },
+          { role: 'user', content: 'KEEP_ME_LAST' },
+        ],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [dropOldest, withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const thread = await persistence.stores.messages!.loadThread('t1')
+    expect(thread).toEqual([
+      { role: 'user', content: 'DROP_ME_FIRST' },
+      { role: 'user', content: 'KEEP_ME_LAST' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+    expect(calls[0]).toEqual(
+      expect.objectContaining({
+        messages: [{ role: 'user', content: 'KEEP_ME_LAST' }],
+      }),
+    )
+  })
+
+  it('tags the assistant messages each run adds with its run id (#1061)', async () => {
+    const persistence = memoryPersistence()
+    const runTurn = async (runId: string, messages: Array<ModelMessage>) => {
+      const { adapter } = mockAdapter([
+        [
+          ev.runStarted(runId),
+          ev.text(`reply ${runId}`),
+          ev.runFinished(runId),
+        ],
+      ])
+      await collect(
+        chat({
+          adapter,
+          messages,
+          runId,
+          threadId: 't1',
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      return loadedThread(persistence)
+    }
+    // An assistant message stored before run ids were recorded.
+    const legacy: ModelMessage = { role: 'assistant', content: 'old reply' }
+
+    const afterFirst = await runTurn('r1', [
+      { role: 'user', content: 'old' },
+      legacy,
+      { role: 'user', content: 'one' },
+    ])
+    const afterSecond = await runTurn('r2', [
+      ...afterFirst,
+      { role: 'user', content: 'two' },
+    ])
+
+    const runIds = afterSecond
+      .filter((message) => message.role === 'assistant')
+      .map((message) => message.metadata?.tanstack?.run?.id)
+    expect(runIds).toEqual([undefined, 'r1', 'r2'])
+  })
+
+  it('does not add ids to caller messages while saving', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+    ])
+    const userMessage: ModelMessage = { role: 'user', content: 'hello' }
+
+    await collect(
+      chat({
+        adapter,
+        messages: [userMessage],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(userMessage).toEqual({ role: 'user', content: 'hello' })
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'hello' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+  })
+
+  it('persists cumulative usage across model calls', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'agent-tool',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'call_1',
+          toolCallName: 'search',
+          toolName: 'search',
+          parentMessageId: 'agent-tool',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'call_1',
+          delta: '{}',
+          timestamp: 1,
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r1',
+          threadId: 't1',
+          finishReason: 'tool_calls',
+          timestamp: 1,
+          usage: {
+            promptTokens: 10,
+            completionTokens: 2,
+            totalTokens: 12,
+            promptTokensDetails: { cachedTokens: 3 },
+            billed: { quantity: 2, unit: 'units' },
+            unitsBilled: 2,
+            cost: 1,
+          },
+        },
+      ],
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'agent-final',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        ev.text('hello'),
+        ev.runFinished('r1', 't1', {
+          promptTokens: 20,
+          completionTokens: 4,
+          totalTokens: 24,
+          completionTokensDetails: { reasoningTokens: 2 },
+          providerUsageDetails: { requestId: 'final' },
+          billed: { quantity: 1, unit: 'units' },
+          unitsBilled: 1,
+          cost: 2,
+        }),
+      ],
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'search' }],
+        tools: [serverSearchTool()],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect((await persistence.stores.runs!.get('r1'))?.usage).toEqual({
+      promptTokens: 30,
+      completionTokens: 6,
+      totalTokens: 36,
+      promptTokensDetails: { cachedTokens: 3 },
+      completionTokensDetails: { reasoningTokens: 2 },
+      providerUsageDetails: { requestId: 'final' },
+      billed: { quantity: 3, unit: 'units' },
+      unitsBilled: 3,
+      cost: 3,
+    })
   })
 
   it('persists the pending user turn at start, so it survives a failed run', async () => {
@@ -219,6 +452,147 @@ describe('withPersistence (state-only)', () => {
     ])
   })
 
+  it('does not let an empty TEXT_MESSAGE_START id replace parentMessageId', async () => {
+    const persistence = memoryPersistence()
+    const adapter = {
+      kind: 'text',
+      name: 'mock',
+      model: 'test-model',
+      '~types': {},
+      chatStream: () =>
+        (async function* () {
+          yield ev.runStarted()
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: '',
+            timestamp: 1,
+          }
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'call_1',
+            toolCallName: 'search',
+            toolName: 'search',
+            parentMessageId: 'stream-assistant',
+            timestamp: 1,
+          }
+          yield ev.text('Half a stor')
+          throw new Error('crash mid-stream')
+        })(),
+      structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+    } as unknown as AnyTextAdapter
+
+    await expect(
+      collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'hi' }],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [
+            withPersistence(persistence, { snapshotStreaming: true }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      ),
+    ).rejects.toThrow('crash mid-stream')
+
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'hi' },
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Half a stor',
+        id: 'stream-assistant',
+        createdAt: expect.any(Date),
+      }),
+    ])
+  })
+
+  it('resets streaming state on an empty-id TEXT_MESSAGE_START between turns', async () => {
+    const persistence = memoryPersistence()
+    let call = 0
+    const adapter = {
+      kind: 'text',
+      name: 'mock',
+      model: 'test-model',
+      '~types': {},
+      chatStream: () => {
+        call++
+        if (call === 1) {
+          return (async function* () {
+            yield ev.runStarted()
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: '',
+              timestamp: 1,
+            }
+            yield ev.text('Let me search.')
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'call_1',
+              toolCallName: 'search',
+              toolName: 'search',
+              parentMessageId: 'assistant-turn-1',
+              timestamp: 1,
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'call_1',
+              delta: '{}',
+              timestamp: 1,
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId: 'r1',
+              threadId: 't1',
+              finishReason: 'tool_calls',
+              timestamp: 1,
+            }
+          })()
+        }
+        return (async function* () {
+          yield ev.runStarted()
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: '',
+            timestamp: 1,
+          }
+          yield ev.text('The answer is 42.')
+          throw new Error('crash mid-stream')
+        })()
+      },
+      structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+    } as unknown as AnyTextAdapter
+
+    await expect(
+      collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'search' }],
+          tools: [serverSearchTool()],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [
+            withPersistence(persistence, {
+              snapshotStreaming: true,
+              snapshotIntervalMs: 0,
+            }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      ),
+    ).rejects.toThrow('crash mid-stream')
+
+    // The empty-id start on turn 2 still resets the per-turn accumulator: the
+    // crash-window snapshot holds only turn-2 text, and it must not inherit
+    // turn 1's tool-call id — two persisted messages may never share an id.
+    const thread = await loadedThread(persistence)
+    expect(findAssistantToolCall(thread, 'call_1')?.id).toBe('assistant-turn-1')
+    const terminal = thread.at(-1)
+    expect(terminal).toMatchObject({
+      role: 'assistant',
+      content: 'The answer is 42.',
+    })
+    expect(terminal).not.toHaveProperty('id')
+  })
+
   it('stamps the terminal assistant turn with its stream messageId', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([
@@ -231,7 +605,11 @@ describe('withPersistence (state-only)', () => {
           timestamp: 1,
         },
         ev.text('hello'),
-        ev.runFinished(),
+        ev.runFinished('r1', 't1', {
+          promptTokens: 20,
+          completionTokens: 4,
+          totalTokens: 24,
+        }),
       ],
     ])
 
@@ -289,6 +667,11 @@ describe('withPersistence (state-only)', () => {
           threadId: 't1',
           finishReason: 'tool_calls',
           timestamp: 1,
+          usage: {
+            promptTokens: 10,
+            completionTokens: 2,
+            totalTokens: 12,
+          },
         },
       ],
       [
@@ -315,7 +698,7 @@ describe('withPersistence (state-only)', () => {
       }) as AsyncIterable<StreamChunk>,
     )
 
-    const thread = await persistence.stores.messages!.loadThread('t1')
+    const thread = await loadedThread(persistence)
     const toolTurn = findAssistantToolCall(thread, 'call_1')
     expect(toolTurn?.id).toBe('stream-assistant')
     expect(toolTurn?.createdAt).toBeInstanceOf(Date)
@@ -328,6 +711,65 @@ describe('withPersistence (state-only)', () => {
         }),
       ]),
     )
+  })
+
+  it('does not duplicate a tool-call turn when the loop stops', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'stream-tool',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        ev.text('checking'),
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'call_1',
+          toolCallName: 'search',
+          toolName: 'search',
+          parentMessageId: 'stream-tool',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'call_1',
+          delta: '{}',
+          timestamp: 1,
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r1',
+          threadId: 't1',
+          finishReason: 'tool_calls',
+          timestamp: 1,
+        },
+      ],
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'search' }],
+        tools: [serverSearchTool()],
+        agentLoopStrategy: () => false,
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const turns = (await loadedThread(persistence)).filter(
+      (message) =>
+        message.role === 'assistant' && message.content === 'checking',
+    )
+    expect(turns).toHaveLength(1)
+    expect(turns[0]).toMatchObject({
+      id: 'stream-tool',
+      toolCalls: [expect.objectContaining({ id: 'call_1' })],
+    })
   })
 
   it('stamps createdAt at TEXT_MESSAGE_START, not at iteration start', async () => {
@@ -353,7 +795,7 @@ describe('withPersistence (state-only)', () => {
                 messageId: 'stream-assistant',
                 role: 'assistant',
                 timestamp: 1,
-              } satisfies StreamChunk
+              } satisfies AdapterYieldChunk
               yield {
                 type: EventType.TOOL_CALL_START,
                 toolCallId: 'call_1',
@@ -361,20 +803,20 @@ describe('withPersistence (state-only)', () => {
                 toolName: 'search',
                 parentMessageId: 'stream-assistant',
                 timestamp: 1,
-              } satisfies StreamChunk
+              } satisfies AdapterYieldChunk
               yield {
                 type: EventType.TOOL_CALL_ARGS,
                 toolCallId: 'call_1',
                 delta: '{}',
                 timestamp: 1,
-              } satisfies StreamChunk
+              } satisfies AdapterYieldChunk
               yield {
                 type: EventType.RUN_FINISHED,
                 runId: 'r1',
                 threadId: 't1',
                 finishReason: 'tool_calls',
                 timestamp: 1,
-              } satisfies StreamChunk
+              } satisfies AdapterYieldChunk
               return
             }
             yield ev.runStarted()
@@ -403,7 +845,7 @@ describe('withPersistence (state-only)', () => {
       )
 
       const toolTurn = findAssistantToolCall(
-        await persistence.stores.messages!.loadThread('t1'),
+        await loadedThread(persistence),
         'call_1',
       )
       expect(toolTurn?.createdAt).toEqual(new Date('2026-01-01T00:00:05.000Z'))
@@ -412,7 +854,332 @@ describe('withPersistence (state-only)', () => {
     }
   })
 
-  it('does not let structured-output TEXT_MESSAGE_START replace the agent-loop id', async () => {
+  it('persists native-combined output as structured output', async () => {
+    const persistence = memoryPersistence()
+    const raw = '{"name":"Ada"}'
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'structured-native',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        ev.text(raw),
+        ev.runFinished(),
+      ],
+    ])
+    adapter.supportsCombinedToolsAndSchema = () => true
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        runId: 'r1',
+        threadId: 't1',
+        stream: true,
+        outputSchema: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+        },
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'extract' },
+      expect.objectContaining({
+        id: 'structured-native',
+        role: 'assistant',
+        content: raw,
+        structuredOutput: {
+          type: 'structured-output',
+          status: 'complete',
+          raw,
+          data: { name: 'Ada' },
+          partial: { name: 'Ada' },
+        },
+      }),
+    ])
+  })
+
+  it('persists event-sourced harness output as a distinct structured-output message', async () => {
+    const persistence = memoryPersistence()
+    const raw = '{"name":"Ada"}'
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'harness-prose',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        ev.text('looking around'),
+        {
+          type: EventType.CUSTOM,
+          name: 'structured-output.start',
+          value: { messageId: 'msg-so' },
+          timestamp: 1,
+        },
+        {
+          type: EventType.CUSTOM,
+          name: 'structured-output.complete',
+          value: { object: { name: 'Ada' }, raw, messageId: 'msg-so' },
+          timestamp: 1,
+        },
+        ev.runFinished(),
+      ],
+    ])
+    adapter.supportsCombinedToolsAndSchema = () => true
+    adapter.combinedStructuredOutputSource = () => 'event'
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        runId: 'r1',
+        threadId: 't1',
+        stream: true,
+        outputSchema: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+        },
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'extract' },
+      expect.objectContaining({
+        id: 'harness-prose',
+        role: 'assistant',
+        content: 'looking around',
+      }),
+      expect.objectContaining({
+        id: 'msg-so',
+        role: 'assistant',
+        content: raw,
+        structuredOutput: {
+          type: 'structured-output',
+          status: 'complete',
+          raw,
+          data: { name: 'Ada' },
+          partial: { name: 'Ada' },
+        },
+      }),
+    ])
+  })
+
+  it('keeps event-sourced output on one message when complete reuses the text id', async () => {
+    const persistence = memoryPersistence()
+    const raw = '{"name":"Ada"}'
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'harness-prose',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        ev.text(raw),
+        {
+          type: EventType.CUSTOM,
+          name: 'structured-output.start',
+          value: { messageId: 'harness-prose' },
+          timestamp: 1,
+        },
+        {
+          type: EventType.CUSTOM,
+          name: 'structured-output.complete',
+          value: { object: { name: 'Ada' }, raw, messageId: 'harness-prose' },
+          timestamp: 1,
+        },
+        ev.runFinished(),
+      ],
+    ])
+    adapter.supportsCombinedToolsAndSchema = () => true
+    adapter.combinedStructuredOutputSource = () => 'event'
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        runId: 'r1',
+        threadId: 't1',
+        stream: true,
+        outputSchema: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+        },
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'extract' },
+      expect.objectContaining({
+        id: 'harness-prose',
+        role: 'assistant',
+        content: raw,
+        structuredOutput: {
+          type: 'structured-output',
+          status: 'complete',
+          raw,
+          data: { name: 'Ada' },
+          partial: { name: 'Ada' },
+        },
+      }),
+    ])
+  })
+
+  it('uses the complete event messageId when start omits it', async () => {
+    const persistence = memoryPersistence()
+    const raw = '{"name":"Ada"}'
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'harness-prose',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        ev.text('looking around'),
+        {
+          type: EventType.CUSTOM,
+          name: 'structured-output.complete',
+          value: { object: { name: 'Ada' }, raw, messageId: 'msg-so' },
+          timestamp: 1,
+        },
+        ev.runFinished(),
+      ],
+    ])
+    adapter.supportsCombinedToolsAndSchema = () => true
+    adapter.combinedStructuredOutputSource = () => 'event'
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        runId: 'r1',
+        threadId: 't1',
+        stream: true,
+        outputSchema: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+        },
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'extract' },
+      expect.objectContaining({
+        id: 'harness-prose',
+        role: 'assistant',
+        content: 'looking around',
+      }),
+      expect.objectContaining({
+        id: 'msg-so',
+        role: 'assistant',
+        content: raw,
+        structuredOutput: expect.objectContaining({ raw }),
+      }),
+    ])
+  })
+
+  it('persists thinking on a completed assistant message', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'think-msg',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        {
+          type: EventType.STEP_STARTED,
+          stepName: 'think-1',
+          timestamp: 1,
+        },
+        {
+          type: EventType.REASONING_MESSAGE_CONTENT,
+          messageId: 'reasoning-1',
+          delta: 'Need a name.',
+          timestamp: 1,
+        },
+        {
+          type: EventType.STEP_FINISHED,
+          stepName: 'think-1',
+          timestamp: 1,
+        },
+        ev.text('Ada'),
+        ev.runFinished(),
+      ],
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'name her' }],
+        runId: 'r1',
+        threadId: 't1',
+        stream: true,
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'name her' },
+      expect.objectContaining({
+        id: 'think-msg',
+        role: 'assistant',
+        content: 'Ada',
+        thinking: [{ content: 'Need a name.' }],
+      }),
+    ])
+  })
+
+  it('persists serialized structured data when raw output is empty', async () => {
+    const persistence = memoryPersistence()
+    const raw = '{"name":"Ada"}'
+    const { adapter } = mockAdapter([])
+    adapter.structuredOutput = async () => ({
+      data: { name: 'Ada' },
+      rawText: '',
+    })
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        runId: 'r1',
+        threadId: 't1',
+        stream: true,
+        outputSchema: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+        },
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'extract' },
+      expect.objectContaining({
+        role: 'assistant',
+        content: raw,
+        structuredOutput: expect.objectContaining({ raw }),
+      }),
+    ])
+  })
+
+  it('preserves message ids and cumulative usage through structured output', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([
       [
@@ -443,6 +1210,11 @@ describe('withPersistence (state-only)', () => {
           threadId: 't1',
           finishReason: 'tool_calls',
           timestamp: 1,
+          usage: {
+            promptTokens: 10,
+            completionTokens: 2,
+            totalTokens: 12,
+          },
         },
       ],
       [
@@ -454,15 +1226,24 @@ describe('withPersistence (state-only)', () => {
           timestamp: 1,
         },
         ev.text('hello'),
-        ev.runFinished(),
+        ev.runFinished('r1', 't1', {
+          promptTokens: 20,
+          completionTokens: 4,
+          totalTokens: 24,
+        }),
       ],
     ])
     adapter.structuredOutput = async () => ({
       data: { name: 'Ada' },
       rawText: '{"name":"Ada"}',
+      usage: {
+        promptTokens: 5,
+        completionTokens: 1,
+        totalTokens: 6,
+      },
     })
 
-    await collect(
+    const chunks = await collect(
       chat({
         adapter,
         messages: [{ role: 'user', content: 'extract' }],
@@ -478,11 +1259,45 @@ describe('withPersistence (state-only)', () => {
       }) as AsyncIterable<StreamChunk>,
     )
 
-    const thread = await persistence.stores.messages!.loadThread('t1')
+    const thread = await loadedThread(persistence)
+    const start = chunks.find(
+      (chunk) =>
+        chunk.type === EventType.CUSTOM &&
+        chunk.name === 'structured-output.start',
+    )
+    const messageId =
+      start?.type === EventType.CUSTOM &&
+      start.value &&
+      typeof start.value === 'object' &&
+      'messageId' in start.value &&
+      typeof start.value.messageId === 'string'
+        ? start.value.messageId
+        : undefined
     const terminal = thread.find(
+      (message) =>
+        message.role === 'assistant' && message.content === '{"name":"Ada"}',
+    )
+    const agentFinal = thread.find(
       (message) => message.role === 'assistant' && message.content === 'hello',
     )
-    expect(terminal?.id).toBe('agent-final')
+    expect(messageId).toBeDefined()
+    expect(agentFinal).toMatchObject({ id: 'agent-final' })
+    expect(terminal).toMatchObject({
+      id: messageId,
+      structuredOutput: {
+        type: 'structured-output',
+        status: 'complete',
+        raw: '{"name":"Ada"}',
+        data: { name: 'Ada' },
+        partial: { name: 'Ada' },
+      },
+    })
+    expect(thread.indexOf(agentFinal!)).toBeLessThan(thread.indexOf(terminal!))
+    expect((await persistence.stores.runs!.get('r1'))?.usage).toEqual({
+      promptTokens: 35,
+      completionTokens: 7,
+      totalTokens: 42,
+    })
   })
 
   it('records an interrupt and marks the run interrupted', async () => {
@@ -522,7 +1337,7 @@ describe('withPersistence (state-only)', () => {
     )
 
     const next = mockAdapter([[ev.text('SHOULD NOT RUN')]])
-    await expectCollectRejects(
+    const blockedChunks = await collect(
       chat({
         adapter: next.adapter,
         messages: [{ role: 'user', content: 'new input' }],
@@ -530,7 +1345,22 @@ describe('withPersistence (state-only)', () => {
         threadId: 't1',
         middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
-      /pending interrupts.*resume is required/i,
+    )
+    const blockedError = blockedChunks.find(
+      (chunk) => chunk.type === EventType.RUN_ERROR,
+    )
+    expect(interruptErrorsOf(blockedError)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          scope: 'item',
+          interruptId: 'interrupt-1',
+          code: 'unknown-interrupt',
+        }),
+        expect.objectContaining({
+          scope: 'batch',
+          code: 'incomplete-batch',
+        }),
+      ]),
     )
     expect(next.calls.length).toBe(0)
   })
@@ -550,7 +1380,7 @@ describe('withPersistence (state-only)', () => {
     )
 
     const next = mockAdapter([[ev.text('SHOULD NOT RUN')]])
-    await expectCollectRejects(
+    const mismatchChunks = await collect(
       chat({
         adapter: next.adapter,
         messages: [{ role: 'user', content: 'new input' }],
@@ -559,7 +1389,22 @@ describe('withPersistence (state-only)', () => {
         resume: [{ interruptId: 'other-interrupt', status: 'resolved' }],
         middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
-      /missing resume entry for pending interrupt interrupt-1/i,
+    )
+    const mismatchError = mismatchChunks.find(
+      (chunk) => chunk.type === EventType.RUN_ERROR,
+    )
+    expect(interruptErrorsOf(mismatchError)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          scope: 'item',
+          interruptId: 'interrupt-1',
+          code: 'unknown-interrupt',
+        }),
+        expect.objectContaining({
+          scope: 'batch',
+          code: 'incomplete-batch',
+        }),
+      ]),
     )
     expect(next.calls.length).toBe(0)
   })
@@ -642,5 +1487,145 @@ describe('withPersistence (state-only)', () => {
       }) as AsyncIterable<StreamChunk>,
     )
     expect(chunks.every((c) => !('cursor' in c))).toBe(true)
+  })
+})
+
+describe('withPersistence (merge by id)', () => {
+  it('does not drop stored extras when the incoming list is short', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'first', id: 'old-1' },
+      { role: 'assistant', content: 'second', id: 'old-2' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'next', id: 'new-1' },
+    ])
+
+    expect(messageIds(thread).slice(0, 3)).toEqual(['old-1', 'old-2', 'new-1'])
+    expect(thread).toEqual([
+      { role: 'user', content: 'first', id: 'old-1' },
+      { role: 'assistant', content: 'second', id: 'old-2' },
+      { role: 'user', content: 'next', id: 'new-1' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+  })
+
+  it('continues from the stored thread when incoming messages are empty', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'first', id: 'old-1' },
+      { role: 'assistant', content: 'second', id: 'old-2' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [])
+
+    expect(messageIds(thread).slice(0, 2)).toEqual(['old-1', 'old-2'])
+    expect(thread).toEqual([
+      { role: 'user', content: 'first', id: 'old-1' },
+      { role: 'assistant', content: 'second', id: 'old-2' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+  })
+
+  it('lets incoming content win when the same id is in both lists', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'stored text', id: 'old-1' },
+      { role: 'assistant', content: 'keep me', id: 'old-2' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'incoming wins', id: 'old-1' },
+      { role: 'assistant', content: 'keep me', id: 'old-2' },
+    ])
+
+    expect(thread.find((message) => message.id === 'old-1')).toEqual({
+      role: 'user',
+      content: 'incoming wins',
+      id: 'old-1',
+    })
+    expect(thread.find((message) => message.id === 'old-2')).toEqual({
+      role: 'assistant',
+      content: 'keep me',
+      id: 'old-2',
+    })
+  })
+
+  it('keeps the shared assistant when incoming is the last user plus that assistant', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'ask', id: 'u1' },
+      { role: 'assistant', content: 'tool call', id: 'a1' },
+      { role: 'assistant', content: 'later extra', id: 'a2' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'ask', id: 'u1' },
+      { role: 'assistant', content: 'tool call', id: 'a1' },
+    ])
+
+    expect(thread.find((message) => message.id === 'a1')).toEqual({
+      role: 'assistant',
+      content: 'tool call',
+      id: 'a1',
+    })
+    expect(thread.find((message) => message.id === 'a2')).toBeUndefined()
+  })
+
+  it('drops stored messages after the last shared incoming id', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'ask', id: 'u1' },
+      { role: 'assistant', content: 'old reply', id: 'a1' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'ask', id: 'u1' },
+    ])
+
+    expect(messageIds(thread)[0]).toBe('u1')
+    expect(thread.find((message) => message.id === 'a1')).toBeUndefined()
+    expect(thread).toEqual([
+      { role: 'user', content: 'ask', id: 'u1' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+  })
+
+  it('appends a message that has no id', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'keep', id: 'old-1' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'no id' },
+    ])
+
+    expect(thread.slice(0, 2)).toEqual([
+      { role: 'user', content: 'keep', id: 'old-1' },
+      { role: 'user', content: 'no id' },
+    ])
+  })
+
+  it('does not duplicate a stored no-id message that incoming repeats', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      { role: 'user', content: 'go' },
+    ])
+
+    const thread = await runPersistedChat(persistence, [
+      { role: 'user', content: 'go' },
+    ])
+
+    expect(
+      thread.filter(
+        (message) => message.role === 'user' && message.content === 'go',
+      ),
+    ).toHaveLength(1)
+    expect(thread).toEqual([
+      { role: 'user', content: 'go' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
   })
 })

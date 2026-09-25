@@ -17,8 +17,6 @@ keywords:
   - agent loop
 ---
 
-# Migration from Vercel AI SDK
-
 This guide helps you migrate from the Vercel AI SDK (`ai` + `@ai-sdk/*`) to TanStack AI. Both libraries cover the same problem space — LLM calls, streaming, tool use, structured output, framework hooks — but TanStack AI uses a different architecture with enhanced type safety, tree-shakeable adapters, an isomorphic tool system, and a first-class middleware pipeline.
 
 The "Before" examples target **AI SDK v5 and v6**. Older v4 naming is called out inline where it differs.
@@ -41,6 +39,7 @@ TanStack AI provides several advantages:
 | `@ai-sdk/openai` | `@tanstack/ai-openai` |
 | `@ai-sdk/anthropic` | `@tanstack/ai-anthropic` |
 | `@ai-sdk/google` | `@tanstack/ai-gemini` |
+| `@ai-sdk/google-vertex` | `@tanstack/ai-vertex` (Gemini), `@tanstack/ai-anthropic/vertex` (Claude), `@tanstack/ai-grok/vertex` (Grok), and `@tanstack/ai-mistral/vertex` (Mistral) |
 | `@ai-sdk/react` | `@tanstack/ai-react` |
 | `@ai-sdk/vue` | `@tanstack/ai-vue` |
 | `@ai-sdk/solid` | `@tanstack/ai-solid` |
@@ -52,16 +51,26 @@ TanStack AI provides several advantages:
 
 ### Before (Vercel AI SDK)
 
-```bash
-# v5+ (framework hook lives in @ai-sdk/react)
-npm install ai @ai-sdk/react @ai-sdk/openai @ai-sdk/anthropic
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: ai @ai-sdk/react @ai-sdk/openai @ai-sdk/anthropic
+
+<!-- ::end:tabs -->
 
 ### After (TanStack AI)
 
-```bash
-npm install @tanstack/ai @tanstack/ai-react @tanstack/ai-openai @tanstack/ai-anthropic
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openai @tanstack/ai-anthropic
+vue: @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai @tanstack/ai-anthropic
+solid: @tanstack/ai @tanstack/ai-solid @tanstack/ai-openai @tanstack/ai-anthropic
+svelte: @tanstack/ai @tanstack/ai-svelte @tanstack/ai-openai @tanstack/ai-anthropic
+preact: @tanstack/ai @tanstack/ai-preact @tanstack/ai-openai @tanstack/ai-anthropic
+angular: @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai @tanstack/ai-anthropic
+vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-openai @tanstack/ai-anthropic
+octane: @tanstack/ai @tanstack/ai-octane @tanstack/ai-openai @tanstack/ai-anthropic octane
+
+<!-- ::end:tabs -->
 
 ## Server-Side Migration
 

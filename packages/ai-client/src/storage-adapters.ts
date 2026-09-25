@@ -1,4 +1,5 @@
-import type { ChatPersistedState, ChatStorageAdapter } from './types'
+import type { ChatPersistedState, ChatStorageAdapter, UIMessage } from './types'
+import { normalizeMessagesDates } from './message-date-normalizer'
 
 export interface WebStoragePersistenceOptions {
   keyPrefix?: string
@@ -45,6 +46,16 @@ function stringifyJson(value: ChatPersistedState): string {
   return serialized
 }
 
+function reviveMessageCreatedAt(message: UIMessage): UIMessage {
+  return normalizeMessagesDates([message]).at(0) ?? message
+}
+
+function revivePersistedState(state: ChatPersistedState): ChatPersistedState {
+  if (state == null || typeof state !== 'object') return state
+  if (!Array.isArray(state.messages)) return state
+  return { ...state, messages: state.messages.map(reviveMessageCreatedAt) }
+}
+
 function createWebStoragePersistence(
   storageName: 'localStorage' | 'sessionStorage',
   options: WebStoragePersistenceOptions,
@@ -69,7 +80,7 @@ function createWebStoragePersistence(
   return {
     getItem(id) {
       const item = getStorage().getItem(key(id))
-      return item === null ? null : deserialize(item)
+      return item === null ? null : revivePersistedState(deserialize(item))
     },
     setItem(id, value) {
       getStorage().setItem(key(id), serialize(value))

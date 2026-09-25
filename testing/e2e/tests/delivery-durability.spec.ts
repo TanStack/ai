@@ -137,7 +137,10 @@ test.describe('delivery durability (agent loop)', () => {
     expect(events.every((e) => e.id !== undefined)).toBeTruthy()
     const last = events[events.length - 1]!
     expect(eventType(last)).toBe('RUN_FINISHED')
-    expect((last.data as { finishReason: string }).finishReason).toBe('stop')
+    const metadata = (
+      last.data as { metadata?: { tanstack?: { finishReason?: string } } }
+    ).metadata
+    expect(metadata?.tanstack?.finishReason).toBe('stop')
   })
 
   test('a second tab joins a finished tool-calling run in full', async ({

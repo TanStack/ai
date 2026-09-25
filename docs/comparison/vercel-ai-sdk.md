@@ -35,7 +35,7 @@ Versions referenced below: TanStack AI as of this writing; Vercel AI SDK `ai@7.x
 |---------|------------|---------------|
 | License | MIT | Apache 2.0 |
 | Hosting | Works anywhere | Works anywhere |
-| Providers | 15 official LLM adapters (OpenAI, Anthropic, Gemini, Grok, Groq, OpenRouter, Ollama, Bedrock, BytePlus, Mistral, Cohere, ElevenLabs, fal, Vercel Gateway, `openaiCompatible`) plus 5 harness adapters; community adapters for more | ~38 first-party provider packages (plus community); 100+ models via AI Gateway |
+| Providers | 16 official LLM adapters (OpenAI, Anthropic, Gemini, Vertex, Grok, Groq, OpenRouter, Ollama, Bedrock, BytePlus, Mistral, Cohere, ElevenLabs, fal, Vercel Gateway, `openaiCompatible`) plus 5 harness adapters; community adapters for more | ~38 first-party provider packages (plus community); 100+ models via AI Gateway |
 | Framework Hooks | React, Solid, Svelte, Vue, Preact, Angular (+ React Native) | React, Vue, Svelte, Angular (Solid is community-maintained) |
 | Generation UI Hooks | One hook per activity: chat, structured output, image, audio, speech, transcription, summarize, video, realtime | `useChat`, `useCompletion`, `useObject` |
 | Wire Protocol | Native AG-UI events end to end | Proprietary UI Message Stream; AG-UI via external translation layer |
@@ -600,7 +600,7 @@ TanStack AI ships five isolate drivers behind one `IsolateDriver` interface:
 - **`@tanstack/ai-isolate-cloudflare`** - Cloudflare Workers
 - **`@tanstack/ai-isolate-daytona`** - Remote Daytona sandbox
 
-Swap the driver without changing application code. A companion `@tanstack/ai-code-mode-skills` package gives the model a persistent skill library. The model can save working TypeScript snippets, list them, and reuse them across sessions. Trust strategies control what gets promoted to a first-class tool.
+Swap the driver without changing application code. A companion `@tanstack/ai-code-mode-snippets` package gives the model a persistent snippet library. The model can save working TypeScript snippets, list them, and reuse them across sessions. Trust strategies control what gets promoted to a first-class tool.
 
 Vercel AI SDK now ships experimental `@ai-sdk/code-mode`. It runs QuickJS only, needs Node 22 or newer, and does not run in the browser or on the edge. Nested tool approvals are rejected. Provider-hosted code execution (Anthropic, xAI, OpenAI) is still a separate path. None of those give the model a persistent, provider-agnostic skill library it builds itself. See [Code Mode](../code-mode/code-mode).
 
@@ -742,7 +742,7 @@ Vercel AI SDK's UI layer has three hooks: `useChat`, `useCompletion`, and `useOb
 
 ### Multi-Turn Structured Output
 
-Structured output in TanStack AI is part of the conversation, not a separate call. Pass `outputSchema` to `useChat` and every assistant turn carries its own typed `StructuredOutputPart` - streamed as a `partial`, validated as a `final`, preserved in message history, with the schema generic threading all the way down to `messages[i].parts[j].data`.
+TanStack AI preserves structured output in conversation history instead of leaving it only on a call result. Providers may produce it in the agent loop or through separate finalization; both paths create a typed `StructuredOutputPart`, streamed as a `partial` and completed as a `final`, with the schema generic threading all the way down to `messages[i].parts[j].data`.
 
 Vercel AI SDK's structured output (`generateObject` / `streamObject` / `Output`) is per-call: the typed object lives on the call result, the message-part union has no structured-output type, and combining `useChat` with typed structured output means manually parsing model text into custom data parts.
 
@@ -754,7 +754,7 @@ Set `debug: true` on any activity and the pipeline prints itself: raw provider c
 
 TanStack AI publishes an open adapter specification. Official LLM adapters:
 
-- OpenAI, Anthropic, Gemini, Grok, Groq, OpenRouter, Ollama
+- OpenAI, Anthropic, Gemini, Vertex, Grok, Groq, OpenRouter, Ollama
 - Bedrock, BytePlus, Mistral, Cohere, ElevenLabs, fal
 - Vercel AI Gateway, and any OpenAI-compatible endpoint via `openaiCompatible`
 
@@ -980,10 +980,17 @@ In TanStack AI, each activity (chat, image, speech, video, transcription, summar
 
 ## Getting Started
 
-```bash
-npm install @tanstack/ai @tanstack/ai-openai
-# or
-pnpm add @tanstack/ai @tanstack/ai-openai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
+vue: @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai
+solid: @tanstack/ai @tanstack/ai-solid @tanstack/ai-openai
+svelte: @tanstack/ai @tanstack/ai-svelte @tanstack/ai-openai
+preact: @tanstack/ai @tanstack/ai-preact @tanstack/ai-openai
+angular: @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
+vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-openai
+octane: @tanstack/ai @tanstack/ai-octane @tanstack/ai-openai octane
+
+<!-- ::end:tabs -->
 
 See the [Quick Start Guide](../getting-started/quick-start) to build your first chat application, or explore the [full documentation](../getting-started/overview).

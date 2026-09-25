@@ -3,8 +3,6 @@ id: RealtimeEventPayloads
 title: RealtimeEventPayloads
 ---
 
-# Interface: RealtimeEventPayloads
-
 Defined in: [packages/ai/src/realtime/types.ts:258](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L258)
 
 Event payloads for realtime events
@@ -60,7 +58,7 @@ Defined in: [packages/ai/src/realtime/types.ts:271](https://github.com/TanStack/
 #### timeLeft?
 
 ```ts
-optional timeLeft: string;
+optional timeLeft?: string;
 ```
 
 ***
@@ -76,7 +74,7 @@ Defined in: [packages/ai/src/realtime/types.ts:269](https://github.com/TanStack/
 #### messageId?
 
 ```ts
-optional messageId: string;
+optional messageId?: string;
 ```
 
 ***
@@ -174,7 +172,7 @@ isFinal: boolean;
 #### role
 
 ```ts
-role: "user" | "assistant";
+role: "assistant" | "user";
 ```
 
 #### transcript

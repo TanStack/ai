@@ -8,6 +8,7 @@ import {
   processConverseStream,
   throwIfConverseStreamError,
 } from '../converse/stream-processor'
+import { buildConverseUsage } from '../converse/usage'
 import {
   STRUCTURED_TOOL_NAME,
   buildStructuredToolConfig,
@@ -27,8 +28,9 @@ import type {
 import type {
   JSONSchema,
   Modality,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
+  TokenUsage,
   Tool,
 } from '@tanstack/ai'
 import type {
@@ -36,7 +38,11 @@ import type {
   StructuredOutputResult,
 } from '@tanstack/ai/adapters'
 import type { BedrockClientConfig } from '../utils/client'
-import type { BedrockMessageMetadataByModality } from '../message-types'
+import type {
+  BedrockMessageMetadataByModality,
+  BedrockSystemPromptMetadata,
+  BedrockToolMetadata,
+} from '../message-types'
 import type {
   BedrockConverseModels,
   ResolveConverseProviderOptions,
@@ -76,7 +82,15 @@ export class BedrockConverseTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
-  BedrockMessageMetadataByModality
+  BedrockMessageMetadataByModality,
+  // TToolCapabilities — Converse has no per-model tool-capability table; the
+  // base default.
+  ReadonlyArray<string>,
+  // TToolCallMetadata — Converse has no tool-call metadata round-tripping.
+  unknown,
+  // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the chat()
+  // call site so users get `cachePoint` autocomplete.
+  BedrockSystemPromptMetadata
 > {
   override readonly kind = 'text' as const
   override readonly name = 'bedrock-converse' as const
@@ -123,9 +137,31 @@ export class BedrockConverseTextAdapter<
           },
           'runtime',
         )
-        return new BedrockRuntimeClient(
+        const client = new BedrockRuntimeClient(
           this.buildClientConfig(resolved, region, this.clientConfig.baseURL),
         )
+        const defaultHeaders = this.clientConfig.defaultHeaders
+        if (defaultHeaders) {
+          // `build` runs before SigV4 signing, so gateway headers are signed
+          // along with the rest of the request.
+          client.middlewareStack.add(
+            (next) => (args) => {
+              const request = args.request
+              if (
+                typeof request === 'object' &&
+                request !== null &&
+                'headers' in request &&
+                typeof request.headers === 'object' &&
+                request.headers !== null
+              ) {
+                Object.assign(request.headers, defaultHeaders)
+              }
+              return next(args)
+            },
+            { step: 'build', name: 'tanstackDefaultHeaders' },
+          )
+        }
+        return client
       })().catch((error: unknown) => {
         // Don't cache a rejected promise — clear it so a later call can retry
         // (e.g. after a transient import failure or fixed auth config).
@@ -197,7 +233,7 @@ export class BedrockConverseTextAdapter<
 
   async *chatStream(
     options: TextOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     try {
       options.logger.request(
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
@@ -265,13 +301,7 @@ export class BedrockConverseTextAdapter<
       return {
         data: structured,
         rawText: JSON.stringify(structured),
-        ...(usage && {
-          usage: {
-            promptTokens: usage.inputTokens ?? 0,
-            completionTokens: usage.outputTokens ?? 0,
-            totalTokens: usage.totalTokens ?? 0,
-          },
-        }),
+        ...(usage && { usage: buildConverseUsage(usage) }),
       }
     } catch (error: unknown) {
       chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
@@ -291,9 +321,8 @@ export class BedrockConverseTextAdapter<
    */
   async *structuredOutputStream(
     options: StructuredOutputOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
-    const timestamp = Date.now()
     const runId = this.generateId()
     const threadId = chatOptions.threadId ?? this.generateId()
     const messageId = this.generateId()
@@ -302,6 +331,9 @@ export class BedrockConverseTextAdapter<
     let hasEmittedTextMessageStart = false
     let accumulatedRaw = ''
     let finishReason: 'stop' | 'length' | 'content_filter' = 'stop'
+    // Usage arrives on the trailing `metadata` event, after the finish signal,
+    // so it is captured during iteration and folded into RUN_FINISHED below.
+    let usage: TokenUsage | undefined
 
     try {
       chatOptions.logger.request(
@@ -326,7 +358,7 @@ export class BedrockConverseTextAdapter<
             runId,
             threadId,
             model: chatOptions.model,
-            timestamp,
+            timestamp: Date.now(),
             parentRunId: chatOptions.parentRunId,
           }
         }
@@ -347,7 +379,7 @@ export class BedrockConverseTextAdapter<
                 messageId,
                 role: 'assistant',
                 model: chatOptions.model,
-                timestamp,
+                timestamp: Date.now(),
               }
             }
             accumulatedRaw += fragment
@@ -357,7 +389,7 @@ export class BedrockConverseTextAdapter<
               delta: fragment,
               content: accumulatedRaw,
               model: chatOptions.model,
-              timestamp,
+              timestamp: Date.now(),
             }
           }
           continue
@@ -376,6 +408,14 @@ export class BedrockConverseTextAdapter<
                 : 'stop'
           continue
         }
+
+        if ('metadata' in ev) {
+          const u = ev.metadata?.usage
+          if (u) {
+            usage = buildConverseUsage(u)
+          }
+          continue
+        }
       }
 
       if (!hasEmittedRunStarted) {
@@ -385,7 +425,7 @@ export class BedrockConverseTextAdapter<
           runId,
           threadId,
           model: chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
           parentRunId: chatOptions.parentRunId,
         }
       }
@@ -395,7 +435,7 @@ export class BedrockConverseTextAdapter<
           type: EventType.TEXT_MESSAGE_END,
           messageId,
           model: chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
         }
       }
 
@@ -404,7 +444,7 @@ export class BedrockConverseTextAdapter<
           type: EventType.RUN_ERROR,
           runId,
           model: chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
           message: `${this.name}.structuredOutputStream: response contained no content`,
           code: 'empty-response',
           error: {
@@ -423,7 +463,7 @@ export class BedrockConverseTextAdapter<
           type: EventType.RUN_ERROR,
           runId,
           model: chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
           message: `Failed to parse structured output as JSON. Content: ${accumulatedRaw.slice(0, 200)}${accumulatedRaw.length > 200 ? '...' : ''}`,
           code: 'parse-error',
           error: {
@@ -442,7 +482,7 @@ export class BedrockConverseTextAdapter<
           raw: accumulatedRaw,
         },
         model: chatOptions.model,
-        timestamp,
+        timestamp: Date.now(),
       }
 
       yield {
@@ -450,8 +490,9 @@ export class BedrockConverseTextAdapter<
         runId,
         threadId,
         model: chatOptions.model,
-        timestamp,
+        timestamp: Date.now(),
         finishReason,
+        ...(usage && { usage }),
       }
     } catch (error: unknown) {
       if (!hasEmittedRunStarted) {
@@ -461,7 +502,7 @@ export class BedrockConverseTextAdapter<
           runId,
           threadId,
           model: chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
           parentRunId: chatOptions.parentRunId,
         }
       }
@@ -477,7 +518,7 @@ export class BedrockConverseTextAdapter<
         type: EventType.RUN_ERROR,
         runId,
         model: chatOptions.model,
-        timestamp,
+        timestamp: Date.now(),
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
         error: {
@@ -564,10 +605,12 @@ function convertTools(tools: Array<Tool>): Array<ConverseToolInput> {
     const inputSchema: JSONSchema = convertSchemaToJsonSchema(
       tool.inputSchema,
     ) ?? { type: 'object', properties: {}, required: [] }
+    const { cachePoint }: BedrockToolMetadata = tool.metadata ?? {}
     return {
       name: tool.name,
       description: tool.description,
       inputSchema,
+      ...(cachePoint && { cachePoint }),
     }
   })
 }

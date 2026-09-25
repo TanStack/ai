@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { BedrockConverseTextAdapter } from '../../src/adapters/converse-text'
+import type * as BedrockRuntime from '@aws-sdk/client-bedrock-runtime'
 import type {
   ConverseCommandOutput,
   ConverseStreamCommandInput,
   ConverseStreamOutput,
 } from '@aws-sdk/client-bedrock-runtime'
-import type { StreamChunk, TextOptions } from '@tanstack/ai'
+import type { AdapterYieldChunk, TextOptions, Tool } from '@tanstack/ai'
 
 /**
  * Subclass that overrides the protected SDK seams so no real AWS call happens.
@@ -77,6 +78,34 @@ describe('BedrockConverseTextAdapter', () => {
     }
     expect(types).toContain(EventType.TEXT_MESSAGE_CONTENT)
     expect(types).toContain(EventType.RUN_FINISHED)
+  })
+
+  it('writes system and tool cachePoints into the Converse request', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [{ messageStop: { stopReason: 'end_turn' } }]
+    const tool: Tool = {
+      name: 'lookup',
+      description: 'd',
+      inputSchema: { type: 'object', properties: {} },
+      metadata: { cachePoint: { type: 'default' } },
+    }
+    for await (const _c of a.chatStream(
+      textOptions({
+        systemPrompts: [
+          { content: 'stable', metadata: { cachePoint: { type: 'default' } } },
+        ],
+        tools: [tool],
+      }),
+    )) {
+      // drain
+    }
+    expect(a.capturedStreamInput?.system).toEqual([
+      { text: 'stable' },
+      { cachePoint: { type: 'default' } },
+    ])
+    expect(a.capturedStreamInput?.toolConfig?.tools?.[1]).toEqual({
+      cachePoint: { type: 'default' },
+    })
   })
 
   it('maps modelOptions sampling + stop into Converse inferenceConfig', async () => {
@@ -170,6 +199,43 @@ describe('BedrockConverseTextAdapter', () => {
     expect(JSON.parse(res.rawText)).toEqual({ n: 5 })
   })
 
+  it('forwards cache counts from the structuredOutput usage', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.nonStreamOutput = {
+      output: {
+        message: {
+          role: 'assistant',
+          content: [
+            {
+              toolUse: {
+                toolUseId: 's',
+                name: 'structured_output',
+                input: { n: 5 },
+              },
+            },
+          ],
+        },
+      },
+      usage: {
+        inputTokens: 3,
+        outputTokens: 4,
+        totalTokens: 8416,
+        cacheReadInputTokens: 8409,
+        cacheWriteInputTokens: 0,
+      },
+    } as unknown as ConverseCommandOutput
+    const res = await a.structuredOutput({
+      chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
+      outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
+    })
+    expect(res.usage).toEqual({
+      promptTokens: 3,
+      completionTokens: 4,
+      totalTokens: 8416,
+      promptTokensDetails: { cachedTokens: 8409, cacheWriteTokens: 0 },
+    })
+  })
+
   it('streams structured output through structuredOutputStream', async () => {
     const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
     a.streamEvents = [
@@ -189,7 +255,7 @@ describe('BedrockConverseTextAdapter', () => {
       { contentBlockStop: { contentBlockIndex: 0 } },
       { messageStop: { stopReason: 'tool_use' } },
     ]
-    const events: Array<StreamChunk> = []
+    const events: Array<AdapterYieldChunk> = []
     for await (const c of a.structuredOutputStream({
       chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
       outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
@@ -197,7 +263,7 @@ describe('BedrockConverseTextAdapter', () => {
       events.push(c)
     }
     const complete = events.find(
-      (e): e is Extract<StreamChunk, { type: 'CUSTOM' }> =>
+      (e): e is Extract<AdapterYieldChunk, { type: 'CUSTOM' }> =>
         e.type === 'CUSTOM' &&
         'name' in e &&
         e.name === 'structured-output.complete',
@@ -210,6 +276,135 @@ describe('BedrockConverseTextAdapter', () => {
     expect(
       (finished as { finishReason?: string } | undefined)?.finishReason,
     ).toBe('stop')
+  })
+
+  it('folds trailing metadata usage into the structuredOutputStream RUN_FINISHED (#1278)', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [
+      { messageStart: { role: 'assistant' } },
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 's', name: 'structured_output' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"n":5}' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { contentBlockStop: { contentBlockIndex: 0 } },
+      { messageStop: { stopReason: 'tool_use' } },
+      // SDK boundary: the metadata event requires `metrics` too — narrow the
+      // canned shape through `unknown` rather than spell out every field.
+      {
+        metadata: {
+          usage: { inputTokens: 7, outputTokens: 11, totalTokens: 18 },
+        },
+      } as unknown as ConverseStreamOutput,
+    ]
+    const events: Array<AdapterYieldChunk> = []
+    for await (const c of a.structuredOutputStream({
+      chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
+      outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
+    })) {
+      events.push(c)
+    }
+    const finished = events.filter((e) => e.type === EventType.RUN_FINISHED)
+    expect(finished).toHaveLength(1)
+    // Usage arrives on the trailing metadata event, after messageStop, yet is
+    // folded into the single terminal RUN_FINISHED.
+    expect(
+      (
+        finished[0] as {
+          usage?: {
+            promptTokens: number
+            completionTokens: number
+            totalTokens: number
+          }
+        }
+      ).usage,
+    ).toEqual({ promptTokens: 7, completionTokens: 11, totalTokens: 18 })
+  })
+
+  it('forwards cache counts from the structuredOutputStream metadata usage', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [
+      { messageStart: { role: 'assistant' } },
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 's', name: 'structured_output' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"n":5}' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { contentBlockStop: { contentBlockIndex: 0 } },
+      { messageStop: { stopReason: 'tool_use' } },
+      {
+        metadata: {
+          usage: {
+            inputTokens: 3,
+            outputTokens: 4,
+            totalTokens: 8416,
+            cacheReadInputTokens: 8409,
+            cacheWriteInputTokens: 0,
+          },
+        },
+      } as unknown as ConverseStreamOutput,
+    ]
+    const events: Array<AdapterYieldChunk> = []
+    for await (const c of a.structuredOutputStream({
+      chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
+      outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
+    })) {
+      events.push(c)
+    }
+    const finished = events.find((e) => e.type === EventType.RUN_FINISHED)
+    expect((finished as { usage?: unknown }).usage).toEqual({
+      promptTokens: 3,
+      completionTokens: 4,
+      totalTokens: 8416,
+      promptTokensDetails: { cachedTokens: 8409, cacheWriteTokens: 0 },
+    })
+  })
+
+  it('omits usage from the structuredOutputStream RUN_FINISHED when no metadata event arrives (#1278)', async () => {
+    const a = new StubAdapter({ apiKey: 'k' }, 'us.amazon.nova-pro-v1:0')
+    a.streamEvents = [
+      { messageStart: { role: 'assistant' } },
+      {
+        contentBlockStart: {
+          start: { toolUse: { toolUseId: 's', name: 'structured_output' } },
+          contentBlockIndex: 0,
+        },
+      },
+      {
+        contentBlockDelta: {
+          delta: { toolUse: { input: '{"n":5}' } },
+          contentBlockIndex: 0,
+        },
+      },
+      { contentBlockStop: { contentBlockIndex: 0 } },
+      { messageStop: { stopReason: 'tool_use' } },
+    ]
+    const events: Array<AdapterYieldChunk> = []
+    for await (const c of a.structuredOutputStream({
+      chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
+      outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
+    })) {
+      events.push(c)
+    }
+    const finished = events.filter((e) => e.type === EventType.RUN_FINISHED)
+    expect(finished).toHaveLength(1)
+    // A run with no usage signal must stay distinguishable from a zero-cost
+    // one: the key is absent, not a zero-filled object.
+    expect(finished[0]).not.toHaveProperty('usage')
   })
 
   it('rejects a non-forced tool-use block in structuredOutput', async () => {
@@ -307,6 +502,37 @@ describe('BedrockConverseTextAdapter', () => {
     // ignored — this is the contract that keeps API-key auth working.
     expect(cfg.authSchemePreference).toEqual(['httpBearerAuth'])
     expect(cfg.token).toEqual({ token: 'ABSK-test-token' })
+  })
+
+  it('registers a build middleware that applies defaultHeaders', async () => {
+    type Middleware = (
+      next: (args: unknown) => unknown,
+    ) => (args: unknown) => unknown
+    const added: Array<Middleware> = []
+    class FakeClient {
+      middlewareStack = { add: (mw: Middleware) => added.push(mw) }
+    }
+    class Probe extends BedrockConverseTextAdapter<'us.amazon.nova-pro-v1:0'> {
+      protected override importBedrockRuntime() {
+        return Promise.resolve({
+          BedrockRuntimeClient: FakeClient,
+        } as unknown as typeof BedrockRuntime)
+      }
+      client() {
+        return this.getClient()
+      }
+    }
+    const a = new Probe(
+      { apiKey: 'k', defaultHeaders: { 'X-Gateway': 'yes' } },
+      'us.amazon.nova-pro-v1:0',
+    )
+    expect(await a.client()).toBeInstanceOf(FakeClient)
+    expect(added).toHaveLength(1)
+
+    const request = { headers: { host: 'bedrock' } }
+    const next = (args: unknown) => args
+    added[0]!(next)({ request })
+    expect(request.headers).toEqual({ host: 'bedrock', 'X-Gateway': 'yes' })
   })
 
   it('declares it does not support combined tools and schema', () => {

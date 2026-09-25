@@ -200,7 +200,7 @@ describe('VideoGenerationClient', () => {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         },
       ])
@@ -260,7 +260,7 @@ describe('VideoGenerationClient', () => {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         },
       ])
@@ -340,7 +340,7 @@ describe('VideoGenerationClient', () => {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         },
       ])
@@ -375,7 +375,7 @@ describe('VideoGenerationClient', () => {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         },
       ])
@@ -414,7 +414,7 @@ describe('VideoGenerationClient', () => {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         },
       ])
@@ -435,7 +435,7 @@ describe('VideoGenerationClient', () => {
           type: EventType.RUN_FINISHED as const,
           runId: 'run-1',
           threadId: 'thread-1',
-          finishReason: 'stop' as const,
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         }
       })
@@ -539,7 +539,7 @@ describe('VideoGenerationClient', () => {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         },
       ])
@@ -571,7 +571,7 @@ describe('VideoGenerationClient', () => {
           type: EventType.RUN_FINISHED as const,
           runId: 'run-1',
           threadId: 'thread-1',
-          finishReason: 'stop' as const,
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         }
       })

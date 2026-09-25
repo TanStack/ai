@@ -1,4 +1,4 @@
-import { useGeneration } from './use-generation'
+import { useGenerationWithDevtoolsIdentity } from './use-generation'
 import { reconstructSpeechResult } from '@tanstack/ai-client'
 import type { StreamChunk, TTSResult } from '@tanstack/ai'
 import type {
@@ -10,6 +10,8 @@ import type {
   InferGenerationOutputFromReturn,
   SpeechGenerateInput,
 } from '@tanstack/ai-client'
+import type { ByokClient } from '@tanstack/ai-client/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
 
 /**
  * Options for the useGenerateSpeech hook.
@@ -21,12 +23,12 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for speech generation */
   fetcher?: GenerationFetcher<SpeechGenerateInput, TTSResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
+  byok?: ByokClient
+  /** Optional provider id. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
+  byokProvider?: () => ProviderId | undefined
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
@@ -48,8 +50,8 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -140,28 +142,24 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> {
 export function useGenerateSpeech<TTransformed = void>(
   options: Omit<
     UseGenerateSpeechOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: TTSResult) => TTransformed
   } & GenerationPersistenceOptions,
 ): UseGenerateSpeechReturn<
   InferGenerationOutputFromReturn<TTSResult, TTransformed>
 > {
-  const devtools = {
-    ...options.devtools,
-    framework: 'react',
-    hookName: 'useGenerateSpeech',
-    outputKind: 'audio' as const,
-  }
-  const generation = useGeneration<
+  const generation = useGenerationWithDevtoolsIdentity<
     SpeechGenerateInput,
     TTSResult,
     TTransformed
-  >({
-    ...options,
-    devtools,
-    reconstructResult: reconstructSpeechResult,
-  })
+  >(
+    { ...options, reconstructResult: reconstructSpeechResult },
+    {
+      hookName: 'useGenerateSpeech',
+      outputKind: 'audio',
+    },
+  )
 
   return generation
 }

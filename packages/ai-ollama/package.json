@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-ollama",
-  "version": "0.9.0",
+  "version": "0.11.9",
   "description": "Ollama adapter for TanStack AI local LLM chat, tool calling, and structured outputs.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -24,6 +24,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
     }
   },
   "files": [
@@ -36,6 +40,7 @@
     "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
     "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --passWithNoTests --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
     "test:lib": "vitest --passWithNoTests",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -63,7 +68,7 @@
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^8.1.4"
+    "@vitest/coverage-v8": "4.1.10",
+    "vite": "^8.2.1"
   }
 }

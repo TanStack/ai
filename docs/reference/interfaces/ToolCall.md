@@ -3,9 +3,13 @@ id: ToolCall
 title: ToolCall
 ---
 
-# Interface: ToolCall\<TMetadata\>
+Defined in: [packages/ai/src/types.ts:189](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L189)
 
-Defined in: [packages/ai/src/types.ts:150](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L150)
+AG-UI `ToolCall` with typed metadata. `function.arguments` is a JSON string.
+
+## Extends
+
+- `Omit`\<`AGUIToolCall`, `"metadata"`\>
 
 ## Type Parameters
 
@@ -15,56 +19,14 @@ Defined in: [packages/ai/src/types.ts:150](https://github.com/TanStack/ai/blob/m
 
 ## Properties
 
-### function
-
-```ts
-function: object;
-```
-
-Defined in: [packages/ai/src/types.ts:153](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L153)
-
-#### arguments
-
-```ts
-arguments: string;
-```
-
-#### name
-
-```ts
-name: string;
-```
-
-***
-
-### id
-
-```ts
-id: string;
-```
-
-Defined in: [packages/ai/src/types.ts:151](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L151)
-
-***
-
 ### metadata?
 
 ```ts
-optional metadata: TMetadata;
+optional metadata?: TMetadata;
 ```
 
-Defined in: [packages/ai/src/types.ts:160](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L160)
+Defined in: [packages/ai/src/types.ts:196](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L196)
 
 Provider-specific metadata to carry through the tool call lifecycle.
 Typed per-adapter via `TToolCallMetadata`. For example,
 `@tanstack/ai-gemini` sets this to `{ thoughtSignature?: string }`.
-
-***
-
-### type
-
-```ts
-type: "function";
-```
-
-Defined in: [packages/ai/src/types.ts:152](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L152)

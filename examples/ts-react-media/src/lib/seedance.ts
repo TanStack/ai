@@ -60,7 +60,8 @@ export const SEEDANCE_MODELS = [
   {
     id: 'dreamina-seedance-2-5-260628',
     name: 'Seedance 2.5',
-    blurb: 'Current multimodal flagship — up to 30s, audio-only references',
+    blurb:
+      'Current multimodal flagship — up to 30s, native 1080p, audio-only references',
     extras: {
       generateAudio: true,
       cameraFixed: false,

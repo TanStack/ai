@@ -1,16 +1,36 @@
 import {
   defineChatMiddleware,
+  fromSpecTokenUsage,
   getDetachableRun,
+  InterruptResumeValidationError,
+  MetadataCapability,
+  provideMetadata,
+  readInterruptBinding,
+  validateInterruptResumeBatch,
   wasCancelRequested,
 } from '@tanstack/ai'
-import { providePendingTurn } from '@tanstack/ai/adapter-internals'
+import {
+  createInterruptBinding,
+  getGenericInterruptDefinitionRegistry,
+  providePendingTurn,
+  rehydrateInterruptRequest,
+  toRunErrorPayload,
+} from '@tanstack/ai/adapter-internals'
+import type {
+  GenericInterruptRequest,
+  InterruptDefinition,
+} from '@tanstack/ai/adapter-internals'
 import { base64ToUint8Array } from '@tanstack/ai-utils'
 import {
   InterruptsCapability,
   PersistenceCapability,
+  PersistenceCompletionCapability,
   provideInterrupts,
   providePersistence,
+  providePersistenceCompletion,
 } from './capabilities'
+import { mergeStoredMessages } from './merge-stored'
+import { createSubagentRunRecorder } from './subagent-runs'
 import {
   validateChatPersistenceStores,
   validateGenerationPersistenceStores,
@@ -28,13 +48,17 @@ import type {
   GenerationFinishInfo,
   GenerationMiddleware,
   GenerationMiddlewareContext,
+  Interrupt,
   ModelMessage,
+  PendingInterruptResumeRecord,
   PersistedArtifactActivity,
   PersistedArtifactRef,
   PersistedArtifactRole,
   RunAgentResumeItem,
   StreamChunk,
+  Tool,
   ToolApprovalResolution,
+  BilledUsage,
   TokenUsage,
 } from '@tanstack/ai'
 import type {
@@ -43,7 +67,9 @@ import type {
   ArtifactRecord,
   BlobBody,
   ChatTranscriptStores,
+  InterruptCommitEntry,
   InterruptRecord,
+  MessagePage,
   RunStore,
 } from './types'
 import { artifactBlobKey } from './retrieve'
@@ -254,6 +280,8 @@ interface RunStateEntry {
     pending: Array<InterruptRecord>
     resumeByInterruptId: Map<string, RunAgentResumeItem>
   }
+  /** Usage accumulated across every model call in this chat invocation. */
+  usage?: TokenUsage
   /** Accumulated terminal-turn text, for throttled streaming snapshots (B). */
   streamingText?: string
   /** Epoch ms of the last streaming snapshot, to throttle writes (B). */
@@ -266,33 +294,202 @@ interface RunStateEntry {
    */
   streamingMessageId?: string
   streamingMessageCreatedAt?: Date
+  /**
+   * Length of `ctx.messages` when this run started. Messages from this index
+   * on are the ones this run added, so they get its run id on save (#1061).
+   */
+  firstRunMessage?: number
+  completion?: {
+    promise: Promise<void>
+    resolve: () => void
+    reject: (error: unknown) => void
+  }
 }
 
 const runState = new WeakMap<object, RunStateEntry>()
+/** `metadata.tanstack.run.id` of a stored message, when set. */
+function runTagOf(message: ModelMessage): string | undefined {
+  const tanstack: unknown = message.metadata?.tanstack
+  if (typeof tanstack !== 'object' || tanstack === null) return
+  const run: unknown = (tanstack as { run?: unknown }).run
+  if (typeof run !== 'object' || run === null) return
+  const id: unknown = (run as { id?: unknown }).id
+  return typeof id === 'string' && id !== '' ? id : undefined
+}
+
+function withRunTag(message: ModelMessage, runId: string): ModelMessage {
+  const metadata = message.metadata ?? {}
+  const tanstack: unknown = metadata.tanstack
+  return {
+    ...message,
+    metadata: {
+      ...metadata,
+      tanstack: {
+        ...(typeof tanstack === 'object' && tanstack !== null ? tanstack : {}),
+        run: { id: runId },
+      },
+    },
+  }
+}
+
+/**
+ * The thread to save, with this run's id on the assistant messages it added
+ * (`metadata.tanstack.run.id`). `reconstructChat` uses it to match each
+ * message to its run. Messages from earlier runs are left as they are.
+ */
+function runMessages(
+  ctx: ChatMiddlewareContext,
+  state: RunStateEntry | undefined,
+): Array<ModelMessage> {
+  const from = state?.firstRunMessage
+  if (from === undefined) return [...ctx.messages]
+  return ctx.messages.map((message, index) =>
+    index >= from &&
+    message.role === 'assistant' &&
+    runTagOf(message) === undefined
+      ? withRunTag(message, ctx.runId)
+      : message,
+  )
+}
 
 const validResumeStatuses = new Set(['resolved', 'cancelled'])
+
+function mergeMaps<K, V>(
+  left?: ReadonlyMap<K, V>,
+  right?: ReadonlyMap<K, V>,
+): Map<K, V> | undefined {
+  if (!left && !right) return undefined
+  return new Map([...(left ?? []), ...(right ?? [])])
+}
+
+function mergeSets<T>(
+  left?: ReadonlySet<T>,
+  right?: ReadonlySet<T>,
+): Set<T> | undefined {
+  if (!left && !right) return undefined
+  return new Set([...(left ?? []), ...(right ?? [])])
+}
+
+function mergeResumeToolState(
+  left: ChatResumeToolState | undefined,
+  right: ChatResumeToolState | undefined,
+): ChatResumeToolState | undefined {
+  if (!left) return right
+  if (!right) return left
+  return {
+    approvals: mergeMaps(left.approvals, right.approvals),
+    clientToolResults: mergeMaps(
+      left.clientToolResults,
+      right.clientToolResults,
+    ),
+    genericInterrupts: mergeMaps(
+      left.genericInterrupts,
+      right.genericInterrupts,
+    ),
+    genericInterruptRequests: mergeMaps(
+      left.genericInterruptRequests,
+      right.genericInterruptRequests,
+    ),
+    deniedToolResults: mergeMaps(
+      left.deniedToolResults,
+      right.deniedToolResults,
+    ),
+    cancelledToolCallIds: mergeSets(
+      left.cancelledToolCallIds,
+      right.cancelledToolCallIds,
+    ),
+  }
+}
+
+function rejectMixedRunPending(
+  pending: Array<InterruptRecord>,
+  ctx: Pick<ChatMiddlewareContext, 'threadId' | 'runId'>,
+): void {
+  const runIds = new Set(pending.map((interrupt) => interrupt.runId))
+  if (runIds.size <= 1) return
+  throw new InterruptResumeValidationError([
+    {
+      scope: 'batch',
+      threadId: ctx.threadId,
+      interruptedRunId: ctx.runId,
+      generation: 0,
+      interruptIds: pending.map((interrupt) => interrupt.interruptId),
+      code: 'stale',
+      message: 'Thread has pending interrupts from more than one run.',
+      source: 'server',
+      retryable: false,
+    },
+  ])
+}
 
 function validatePendingResumes(
   pending: Array<InterruptRecord>,
   resume: Array<RunAgentResumeItem> | undefined,
+  ctx: Pick<ChatMiddlewareContext, 'threadId' | 'runId'>,
 ): Map<string, RunAgentResumeItem> {
+  const interruptedRunId = pending[0]?.runId ?? ctx.runId
+  const failure = (
+    interruptId: string,
+    code: 'conflict' | 'unknown-interrupt',
+    message: string,
+  ): never => {
+    throw new InterruptResumeValidationError([
+      {
+        scope: 'item',
+        threadId: ctx.threadId,
+        interruptedRunId,
+        generation: 0,
+        interruptId,
+        code,
+        message,
+        source: 'client',
+        retryable: false,
+      },
+      {
+        scope: 'batch',
+        threadId: ctx.threadId,
+        interruptedRunId,
+        generation: 0,
+        interruptIds: pending.map((interrupt) => interrupt.interruptId),
+        code: code === 'conflict' ? 'conflict' : 'incomplete-batch',
+        message:
+          'Resume entries must resolve or cancel the complete interrupt batch.',
+        source: 'client',
+        retryable: false,
+      },
+    ])
+  }
   const pendingInterruptIds = new Set(
     pending.map((interrupt) => interrupt.interruptId),
   )
-  const resumeByInterruptId = new Map(
-    (resume ?? []).map((entry) => [entry.interruptId, entry]),
-  )
+  const resumeByInterruptId = new Map<string, RunAgentResumeItem>()
+  for (const entry of resume ?? []) {
+    if (resumeByInterruptId.has(entry.interruptId)) {
+      return failure(
+        entry.interruptId,
+        'conflict',
+        `Interrupt ${entry.interruptId} has duplicate resume entries.`,
+      )
+    }
+    resumeByInterruptId.set(entry.interruptId, entry)
+  }
   if (pending.length === 0) {
     const staleEntry = resume?.[0]
     if (staleEntry) {
-      throw new Error(
+      return failure(
+        staleEntry.interruptId,
+        'unknown-interrupt',
         `Resume entry references non-pending interrupt ${staleEntry.interruptId}.`,
       )
     }
     return resumeByInterruptId
   }
+  const firstPending = pending[0]
+  if (firstPending === undefined) return resumeByInterruptId
   if (!resume || resume.length === 0) {
-    throw new Error(
+    return failure(
+      firstPending.interruptId,
+      'unknown-interrupt',
       `Thread has pending interrupts; resume is required before accepting new input.`,
     )
   }
@@ -300,19 +497,25 @@ function validatePendingResumes(
   for (const interrupt of pending) {
     const entry = resumeByInterruptId.get(interrupt.interruptId)
     if (!entry) {
-      throw new Error(
+      return failure(
+        interrupt.interruptId,
+        'unknown-interrupt',
         `Missing resume entry for pending interrupt ${interrupt.interruptId}.`,
       )
     }
     if (!validResumeStatuses.has(entry.status)) {
-      throw new Error(
+      return failure(
+        interrupt.interruptId,
+        'unknown-interrupt',
         `Invalid resume status for pending interrupt ${interrupt.interruptId}: ${entry.status}.`,
       )
     }
   }
   for (const entry of resume) {
     if (!pendingInterruptIds.has(entry.interruptId)) {
-      throw new Error(
+      return failure(
+        entry.interruptId,
+        'unknown-interrupt',
         `Resume entry references non-pending interrupt ${entry.interruptId}.`,
       )
     }
@@ -325,13 +528,52 @@ async function applyPendingResumes(
   resumeByInterruptId: Map<string, RunAgentResumeItem>,
   interrupts: NonNullable<AIPersistence['stores']['interrupts']>,
 ): Promise<void> {
+  const entries: Array<InterruptCommitEntry> = []
   for (const interrupt of pending) {
     const entry = resumeByInterruptId.get(interrupt.interruptId)
     if (!entry) continue
     if (entry.status === 'resolved') {
-      await interrupts.resolve(interrupt.interruptId, entry.payload)
+      entries.push({
+        interruptId: interrupt.interruptId,
+        status: 'resolved',
+        response: entry.payload,
+      })
     } else {
-      await interrupts.cancel(interrupt.interruptId)
+      entries.push({
+        interruptId: interrupt.interruptId,
+        status: 'cancelled',
+      })
+    }
+  }
+  if (interrupts.commitBatch) {
+    await interrupts.commitBatch(entries)
+    return
+  }
+  const ids = new Set<string>()
+  for (const entry of entries) {
+    if (ids.has(entry.interruptId)) {
+      throw new Error(
+        `Interrupt batch contains duplicate id: ${entry.interruptId}.`,
+      )
+    }
+    ids.add(entry.interruptId)
+    const existing = await interrupts.get(entry.interruptId)
+    if (!existing) {
+      throw new Error(
+        `Interrupt batch references missing id: ${entry.interruptId}.`,
+      )
+    }
+    if (existing.status !== 'pending') {
+      throw new Error(
+        `Interrupt batch references non-pending id: ${entry.interruptId}.`,
+      )
+    }
+  }
+  for (const entry of entries) {
+    if (entry.status === 'resolved') {
+      await interrupts.resolve(entry.interruptId, entry.response)
+    } else {
+      await interrupts.cancel(entry.interruptId)
     }
   }
 }
@@ -373,6 +615,267 @@ function stringField(
 function interruptKind(interrupt: InterruptRecord): string | undefined {
   const metadata = objectValue(interrupt.payload.metadata)
   return metadata ? stringField(metadata, 'kind') : undefined
+}
+
+function hasReservedInterruptBinding(payload: unknown): boolean {
+  const descriptor = objectValue(payload)
+  const metadata = objectValue(descriptor?.metadata)
+  return !!metadata && 'tanstack:interruptBinding' in metadata
+}
+
+function isPersistedInterruptDescriptor(
+  value: unknown,
+): value is Interrupt & { reason: string; message: string } {
+  const record = objectValue(value)
+  return (
+    !!record &&
+    typeof record.id === 'string' &&
+    typeof record.reason === 'string' &&
+    typeof record.message === 'string'
+  )
+}
+
+/**
+ * Does this pending record belong to the TanStack chat resume protocol?
+ *
+ * An external system can persist an AG-UI descriptor in the same durable
+ * thread. A descriptor without a TanStack binding or legacy tool marker stays
+ * pending for its owner, but it does not make this resume incomplete. Older
+ * opaque records remain owned because their provenance cannot be known.
+ */
+function isChatOwnedPendingInterrupt(interrupt: InterruptRecord): boolean {
+  const kind = interruptKind(interrupt)
+  return (
+    !isPersistedInterruptDescriptor(interrupt.payload) ||
+    stringField(interrupt.payload, 'toolCallId') !== undefined ||
+    kind === 'approval' ||
+    kind === 'client_tool' ||
+    hasReservedInterruptBinding(interrupt.payload)
+  )
+}
+
+function durableGenericFailure(
+  ctx: Pick<ChatMiddlewareContext, 'threadId' | 'runId'>,
+  persisted: InterruptRecord,
+  message: string,
+): InterruptResumeValidationError {
+  return new InterruptResumeValidationError([
+    {
+      scope: 'item',
+      threadId: ctx.threadId,
+      interruptedRunId: persisted.runId || ctx.runId,
+      generation: 0,
+      interruptId: persisted.interruptId,
+      code: 'stale',
+      message,
+      source: 'server',
+      retryable: false,
+    },
+    {
+      scope: 'batch',
+      threadId: ctx.threadId,
+      interruptedRunId: persisted.runId || ctx.runId,
+      generation: 0,
+      interruptIds: [persisted.interruptId],
+      code: 'item-validation-failed',
+      message: 'One or more persisted interrupt records are invalid.',
+      source: 'server',
+      retryable: false,
+    },
+  ])
+}
+
+async function durableGenericResumeState(
+  ctx: ChatMiddlewareContext,
+  pending: Array<InterruptRecord>,
+  resume: ReadonlyArray<RunAgentResumeItem>,
+  tools: Array<Tool>,
+): Promise<ChatResumeToolState | undefined> {
+  const registry = getGenericInterruptDefinitionRegistry(ctx, {
+    optional: true,
+  })
+  const records: Array<PendingInterruptResumeRecord> = []
+
+  for (const persisted of pending) {
+    if (!isPersistedInterruptDescriptor(persisted.payload)) {
+      if (hasReservedInterruptBinding(persisted.payload)) {
+        throw durableGenericFailure(
+          ctx,
+          persisted,
+          `Persisted interrupt ${persisted.interruptId} has an invalid binding descriptor.`,
+        )
+      }
+      continue
+    }
+    const descriptor = persisted.payload
+    const binding = readInterruptBinding(descriptor)
+    if (!binding) {
+      if (hasReservedInterruptBinding(descriptor)) {
+        throw durableGenericFailure(
+          ctx,
+          persisted,
+          `Persisted interrupt ${persisted.interruptId} has an invalid or incomplete binding.`,
+        )
+      }
+      continue
+    }
+    if (
+      descriptor.id !== persisted.interruptId ||
+      binding.interruptId !== persisted.interruptId ||
+      binding.interruptedRunId !== persisted.runId ||
+      binding.generation !== 0
+    ) {
+      throw durableGenericFailure(
+        ctx,
+        persisted,
+        `Persisted interrupt ${persisted.interruptId} has stale correlation metadata.`,
+      )
+    }
+    if (binding.kind !== 'generic') {
+      records.push({
+        interruptId: persisted.interruptId,
+        payload: descriptor,
+        binding,
+      })
+      continue
+    }
+    if (
+      !binding.definitionId ||
+      !binding.key ||
+      binding.batchIndex === undefined
+    ) {
+      records.push({
+        interruptId: persisted.interruptId,
+        payload: descriptor,
+        binding,
+      })
+      continue
+    }
+    if (!registry) {
+      throw durableGenericFailure(
+        ctx,
+        persisted,
+        `Persisted generic interrupt ${persisted.interruptId} cannot be restored because no interrupt registry is available.`,
+      )
+    }
+    const definition = registry.definitions.get(binding.definitionId)
+    if (!definition) {
+      throw durableGenericFailure(
+        ctx,
+        persisted,
+        `Persisted generic interrupt definition ${binding.definitionId} is unavailable.`,
+      )
+    }
+    const metadata = objectValue(descriptor.metadata)
+    const payload = metadata?.['tanstack:interruptPayload']
+    let request: GenericInterruptRequest<
+      InterruptDefinition<any, any, any, any>
+    >
+    try {
+      request = rehydrateInterruptRequest(definition, {
+        key: binding.key,
+        reason: descriptor.reason,
+        message: descriptor.message,
+        ...(descriptor.expiresAt !== undefined
+          ? { expiresAt: descriptor.expiresAt }
+          : {}),
+        ...(payload !== undefined ? { payload } : {}),
+      })
+    } catch (error) {
+      throw durableGenericFailure(
+        ctx,
+        persisted,
+        `Persisted generic interrupt ${persisted.interruptId} is invalid: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+    const emitted = createInterruptBinding(request, {
+      batchIndex: binding.batchIndex,
+    })
+    if (
+      emitted.descriptor.responseSchemaHash !== binding.responseSchemaHash ||
+      emitted.descriptor.payloadSchemaHash !== binding.payloadSchemaHash ||
+      binding.interruptId !== persisted.interruptId
+    ) {
+      throw durableGenericFailure(
+        ctx,
+        persisted,
+        `Persisted generic interrupt ${persisted.interruptId} is stale.`,
+      )
+    }
+    records.push({
+      interruptId: persisted.interruptId,
+      payload: descriptor,
+      binding,
+      genericRequest: request,
+    })
+  }
+
+  const firstRecord = records[0]
+  if (firstRecord === undefined) return undefined
+  const interruptedRunId = firstRecord.binding.interruptedRunId
+  const generation = firstRecord.binding.generation
+  const validated = await validateInterruptResumeBatch({
+    threadId: ctx.threadId,
+    interruptedRunId,
+    generation,
+    pending: records,
+    resume: resume.filter((entry) =>
+      records.some((record) => record.interruptId === entry.interruptId),
+    ),
+    tools,
+  })
+  if (validated.errors.length > 0 || !validated.resumeToolState) {
+    throw new InterruptResumeValidationError(validated.errors)
+  }
+  type GenericRecord = PendingInterruptResumeRecord & {
+    binding: Extract<
+      PendingInterruptResumeRecord['binding'],
+      { kind: 'generic' }
+    >
+    genericRequest: GenericInterruptRequest<
+      InterruptDefinition<any, any, any, any>
+    >
+  }
+  const isGenericRecord = (
+    record: PendingInterruptResumeRecord,
+  ): record is GenericRecord =>
+    record.binding.kind === 'generic' && record.genericRequest !== undefined
+  const genericRecords: Array<{ record: GenericRecord; batchIndex: number }> =
+    []
+  const batchIndexes = new Set<number>()
+  for (const record of records) {
+    if (!isGenericRecord(record)) continue
+    const batchIndex = record.binding.batchIndex
+    if (batchIndex === undefined || batchIndexes.has(batchIndex)) {
+      throw new InterruptResumeValidationError([
+        {
+          scope: 'batch',
+          threadId: ctx.threadId,
+          interruptedRunId,
+          generation,
+          interruptIds: records.map((item) => item.interruptId),
+          code: 'stale',
+          message:
+            'Persisted generic interrupts have duplicate or invalid batch indexes.',
+          source: 'server',
+          retryable: false,
+        },
+      ])
+    }
+    batchIndexes.add(batchIndex)
+    genericRecords.push({ record, batchIndex })
+  }
+  genericRecords.sort((left, right) => left.batchIndex - right.batchIndex)
+  return {
+    ...validated.resumeToolState,
+    genericInterruptRequests: new Map(
+      genericRecords.flatMap(({ record }) =>
+        record.genericRequest
+          ? [[record.interruptId, record.genericRequest] as const]
+          : [],
+      ),
+    ),
+  }
 }
 
 function resolvedApprovalDecision(entry: RunAgentResumeItem): boolean {
@@ -433,43 +936,6 @@ function resumeToolStateFromPending(
     return undefined
   }
   return { approvals, clientToolResults, cancelledToolCallIds }
-}
-
-/**
- * Build the transcript to persist when a run finishes successfully.
- *
- * The chat engine appends an assistant message to the middleware message list
- * only when that turn carries tool calls (to feed the agent loop); a run's
- * terminal *text* reply is never appended. So `ctx.messages` at `onFinish` is
- * missing the assistant's final answer. Reattach it from the finish info —
- * `info.content` is the last turn's accumulated text (reset each cycle) — so
- * the stored thread is the complete conversation a server-authoritative client
- * hydrates on load. A guard avoids duplicating a terminal assistant turn should
- * the engine ever start appending it itself.
- */
-function finishedTranscript(
-  messages: ReadonlyArray<ModelMessage>,
-  info: FinishInfo,
-  messageId: string | undefined,
-  createdAt: Date | undefined,
-): Array<ModelMessage> {
-  const transcript = [...messages]
-  const last = transcript[transcript.length - 1]
-  const alreadyPresent =
-    last?.role === 'assistant' &&
-    last.toolCalls === undefined &&
-    last.content === info.content
-  if (info.content && !alreadyPresent) {
-    // Stamp the terminal turn with its stream messageId so a hydrated bubble
-    // keeps the same identity as the live stream (in-place resume on reload).
-    transcript.push({
-      role: 'assistant',
-      content: info.content,
-      ...(messageId ? { id: messageId } : {}),
-      ...(createdAt ? { createdAt } : {}),
-    })
-  }
-  return transcript
 }
 
 function interruptPayload(interrupt: unknown): Record<string, unknown> {
@@ -1287,12 +1753,123 @@ async function createOrResumeRun(
   runs: RunStore | undefined,
   runId: string,
   threadId: string,
-): Promise<void> {
-  await runs?.createOrResume({
+): Promise<TokenUsage | undefined> {
+  const run = await runs?.createOrResume({
     runId,
     threadId,
     startedAt: Date.now(),
   })
+  return run?.usage
+}
+
+function sumOptionalNumber(
+  current: number | undefined,
+  next: number | undefined,
+): number | undefined {
+  if (current === undefined) return next
+  if (next === undefined) return current
+  return current + next
+}
+
+function sumNumberFields<T extends object>(
+  current: T | undefined,
+  next: T | undefined,
+): T | undefined {
+  if (!current) return next
+  if (!next) return current
+
+  const result = { ...current }
+  for (const key of Object.keys(next) as Array<keyof T>) {
+    const currentValue = current[key]
+    const nextValue = next[key]
+    if (typeof nextValue === 'number') {
+      result[key] = ((typeof currentValue === 'number' ? currentValue : 0) +
+        nextValue) as T[keyof T]
+    }
+  }
+  return result
+}
+
+function tokenUsageFromChunk(chunk: StreamChunk): TokenUsage | undefined {
+  if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
+    return undefined
+  }
+  const usage = chunk.usage
+  if (
+    usage != null &&
+    typeof usage === 'object' &&
+    !Array.isArray(usage) &&
+    'promptTokens' in usage
+  ) {
+    return usage
+  }
+  const metadata = chunk.metadata
+  const tanstack =
+    metadata != null && typeof metadata === 'object' && 'tanstack' in metadata
+      ? metadata.tanstack
+      : undefined
+  const leftover =
+    tanstack != null && typeof tanstack === 'object' && !Array.isArray(tanstack)
+      ? (tanstack as { usage?: TokenUsage }).usage
+      : undefined
+  return fromSpecTokenUsage(Array.isArray(usage) ? usage : undefined, leftover)
+}
+
+function accumulateTokenUsage(
+  current: TokenUsage | undefined,
+  next: TokenUsage,
+): TokenUsage {
+  if (!current) return { ...next }
+
+  const promptTokensDetails = sumNumberFields(
+    current.promptTokensDetails,
+    next.promptTokensDetails,
+  )
+  const completionTokensDetails = sumNumberFields(
+    current.completionTokensDetails,
+    next.completionTokensDetails,
+  )
+  const costDetails = sumNumberFields(current.costDetails, next.costDetails)
+  // Provider-specific details are opaque, so retain the latest reported bag.
+  const providerUsageDetails =
+    next.providerUsageDetails ?? current.providerUsageDetails
+  const durationSeconds = sumOptionalNumber(
+    current.durationSeconds,
+    next.durationSeconds,
+  )
+  const unitsBilled = sumOptionalNumber(current.unitsBilled, next.unitsBilled)
+  const billed = accumulateBilled(current.billed, next.billed)
+  const cost = sumOptionalNumber(current.cost, next.cost)
+
+  return {
+    ...current,
+    ...next,
+    promptTokens: current.promptTokens + next.promptTokens,
+    completionTokens: current.completionTokens + next.completionTokens,
+    totalTokens: current.totalTokens + next.totalTokens,
+    ...(promptTokensDetails ? { promptTokensDetails } : {}),
+    ...(completionTokensDetails ? { completionTokensDetails } : {}),
+    ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+    ...(unitsBilled !== undefined ? { unitsBilled } : {}),
+    ...(billed !== undefined ? { billed } : {}),
+    ...(cost !== undefined ? { cost } : {}),
+    ...(costDetails ? { costDetails } : {}),
+    ...(providerUsageDetails ? { providerUsageDetails } : {}),
+  }
+}
+
+/**
+ * Sum billed quantities when both reports use the same unit. Different units
+ * cannot be added, so the later report wins.
+ */
+function accumulateBilled(
+  current: BilledUsage | undefined,
+  next: BilledUsage | undefined,
+): BilledUsage | undefined {
+  if (!current) return next
+  if (!next) return current
+  if (current.unit !== next.unit) return next
+  return { quantity: current.quantity + next.quantity, unit: current.unit }
 }
 
 async function completeRun(
@@ -1300,9 +1877,12 @@ async function completeRun(
   runId: string,
   usage?: TokenUsage,
 ): Promise<void> {
+  // A late detach stamp from a superseded host can land after takeover
+  // claimed the run. A terminal run is not detached.
   await runs?.update(runId, {
     status: 'completed',
     finishedAt: Date.now(),
+    detachedSince: undefined,
     ...(usage ? { usage } : {}),
   })
 }
@@ -1311,15 +1891,18 @@ async function failRun(
   runs: RunStore | undefined,
   runId: string,
   error: unknown,
+  usage?: TokenUsage,
 ): Promise<void> {
-  // `RunRecord.error` is a structured `RunError`. Only `message` is filled in
-  // here: the middleware sees an opaque thrown value, and inventing a `code`
-  // from it would fabricate the stable classification consumers branch on. A
-  // provider-supplied code reaches the record through the adapter layer.
+  const runError = toRunErrorPayload(error)
   await runs?.update(runId, {
     status: 'failed',
     finishedAt: Date.now(),
-    error: { message: error instanceof Error ? error.message : String(error) },
+    detachedSince: undefined,
+    error: {
+      message: runError.message,
+      ...(runError.code !== undefined ? { code: runError.code } : {}),
+    },
+    ...(usage ? { usage } : {}),
   })
 }
 
@@ -1334,9 +1917,11 @@ async function failRun(
 export async function interruptRun(
   runs: RunStore | undefined,
   runId: string,
+  usage?: TokenUsage,
 ): Promise<void> {
   await runs?.update(runId, {
     status: 'interrupted',
+    ...(usage ? { usage } : {}),
   })
 }
 
@@ -1348,10 +1933,13 @@ export async function interruptRun(
 export async function abortRun(
   runs: RunStore | undefined,
   runId: string,
+  usage?: TokenUsage,
 ): Promise<void> {
   await runs?.update(runId, {
     status: 'aborted',
     finishedAt: Date.now(),
+    detachedSince: undefined,
+    ...(usage ? { usage } : {}),
   })
 }
 
@@ -1372,26 +1960,12 @@ function detachableRun(ctx: ChatMiddlewareContext): boolean {
 // Chat middleware
 // ---------------------------------------------------------------------------
 
-/**
- * Chat-only **state** persistence middleware. Provides durable transcript,
- * run records, and interrupts for `chat()`. Does **not** provide locks —
- * use `withLocks` from `@tanstack/ai` for multi-instance coordination.
- *
- * This middleware never mutates the chunk stream; delivery durability
- * (replaying a disconnected/reloaded stream) is a separate transport-layer
- * concern (see the resumable-streams docs).
- *
- * Requires `stores.messages`. When `stores.interrupts` is present,
- * `stores.runs` is also required.
- *
- * ⚠️ AUTHORITATIVE-HISTORY CONTRACT: when a request carries a non-empty
- * `messages` array it is treated as the FULL conversation history and, on
- * finish, **overwrites** the entire stored thread. Post only the complete
- * transcript, never a delta — sending just the newest message(s) will replace
- * (and thereby destroy) the stored thread. To continue a stored thread without
- * resending history, pass an empty `messages` array and the stored transcript
- * is loaded and used.
- */
+function threadMessages(
+  loaded: Array<ModelMessage> | MessagePage,
+): Array<ModelMessage> {
+  return Array.isArray(loaded) ? loaded : loaded.messages
+}
+
 export interface WithPersistenceOptions {
   /**
    * Also persist a throttled snapshot of the in-progress assistant reply while
@@ -1404,12 +1978,31 @@ export interface WithPersistenceOptions {
   snapshotStreaming?: boolean
   /**
    * Minimum milliseconds between streaming snapshots when `snapshotStreaming`
-   * is on. Defaults to 1000.
+   * is on. Defaults to 1000. A streaming subagent child always uses the same
+   * interval for its transcript writes, with or without `snapshotStreaming`.
    */
   snapshotIntervalMs?: number
 }
 
 /**
+ * Chat-only **state** persistence middleware. Provides durable transcript,
+ * run records, and interrupts for `chat()`. Does **not** provide locks —
+ * use `withLocks` from `@tanstack/ai` for multi-instance coordination.
+ *
+ * This middleware never mutates the chunk stream; delivery durability
+ * (replaying a disconnected/reloaded stream) is a separate transport-layer
+ * concern (see the resumable-streams docs).
+ *
+ * Requires `stores.messages`. When `stores.interrupts` is present,
+ * `stores.runs` is also required.
+ *
+ * Incoming `messages` merge into the stored thread by id. An empty list loads
+ * the stored thread. The last incoming id that already exists in stored is a
+ * cutoff; stored messages after it are dropped (reload). If no incoming id is
+ * in stored, every stored message stays. Same id: incoming wins. New ids and
+ * messages with no id are appended. `saveThread` still replaces the thread
+ * with that merged list.
+ *
  * @param persistence - Must satisfy {@link ChatTranscriptStores} (messages
  *   required). Known-absent `messages` or `interrupts` without `runs` fail at
  *   compile time; fully dynamic bags are checked at runtime.
@@ -1432,18 +2025,51 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
 
   const provides = [
     PersistenceCapability,
+    PersistenceCompletionCapability,
+    ...(persistence.stores.metadata ? [MetadataCapability] : []),
     ...(wantsInterrupts ? [InterruptsCapability] : []),
   ]
 
+  const subagentRuns = createSubagentRunRecorder({
+    messages: messageStore,
+    runs,
+    intervalMs: snapshotIntervalMs,
+    ...(wantsInterrupts && persistence.stores.interrupts
+      ? { interrupts: persistence.stores.interrupts }
+      : {}),
+  })
+
   return defineChatMiddleware({
     name: 'chat-persistence',
+    routedSubagentPersistence: subagentRuns,
     provides,
     setup(ctx: ChatMiddlewareContext) {
       providePersistence(ctx, persistence)
+      if (persistence.stores.metadata) {
+        provideMetadata(ctx, persistence.stores.metadata)
+      }
+
+      let resolveCompletion: () => void = () => undefined
+      let rejectCompletion: (error: unknown) => void = () => undefined
+      const completion = new Promise<void>((resolve, reject) => {
+        resolveCompletion = resolve
+        rejectCompletion = reject
+      })
+      // Consumers may not need this capability. Mark the rejection handled while
+      // preserving the original promise for callers that do await it.
+      void completion.catch(() => undefined)
 
       runState.set(ctx, {
         merged: false,
         interrupted: false,
+        completion: {
+          promise: completion,
+          resolve: resolveCompletion,
+          reject: rejectCompletion,
+        },
+      })
+      providePersistenceCompletion(ctx, {
+        waitForRunCompletion: () => completion,
       })
 
       if (wantsInterrupts && persistence.stores.interrupts) {
@@ -1461,11 +2087,12 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // it behaves exactly as before. See `PendingTurnCapability`.
       providePendingTurn(ctx, {
         snapshot: async () => {
-          const stored = await messageStore.loadThread(ctx.threadId)
-          // The SAME rule `onConfig` applies when it merges. Kept here, in the
-          // owner, because `saveThread` REPLACES the thread: a caller that stored
-          // only the newly-sent list would delete the history.
-          const list = ctx.messages.length > 0 ? [...ctx.messages] : stored
+          const stored = threadMessages(
+            await messageStore.loadThread(ctx.threadId),
+          )
+          // Same merge as onConfig. saveThread replaces the thread, so a short
+          // incoming list must not drop stored extras.
+          const list = mergeStoredMessages(stored, ctx.messages)
           await messageStore.saveThread(ctx.threadId, list)
         },
       })
@@ -1480,11 +2107,15 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         const pending = await persistence.stores.interrupts.listPending(
           ctx.threadId,
         )
-        // Gate: a thread with pending interrupts must carry a resume batch that
-        // references them.
+        // Gate only records that this chat owns. A foreign AG-UI interrupt can
+        // share the durable thread, but its owner resolves it outside this
+        // resume protocol. Including it would deadlock this chat resume.
+        const ownedPending = pending.filter(isChatOwnedPendingInterrupt)
+        rejectMixedRunPending(ownedPending, ctx)
         const resumeByInterruptId = validatePendingResumes(
-          pending,
+          ownedPending,
           config.resume,
+          ctx,
         )
         // Persistence is the server-authoritative resume path: translate the
         // persisted interrupts into the engine's resume tool state and CLEAR
@@ -1493,30 +2124,43 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         // persistence flow deliberately omits).
         if ((config.resume?.length ?? 0) > 0) {
           const resumeToolState = resumeToolStateFromPending(
-            pending,
+            ownedPending,
             resumeByInterruptId,
           )
+          const genericResumeState = await durableGenericResumeState(
+            ctx,
+            ownedPending,
+            config.resume ?? [],
+            config.tools,
+          )
           patch.resume = []
-          if (resumeToolState) patch.resumeToolState = resumeToolState
+          if (resumeToolState || genericResumeState) {
+            patch.resumeToolState = mergeResumeToolState(
+              resumeToolState,
+              genericResumeState,
+            )
+          }
         }
         // Defer marking these interrupts resolved/cancelled until the run
         // succeeds (see commitPendingResumes). Committing here would consume the
         // approval even if the run then failed, breaking a retry.
         const state = runState.get(ctx)
-        if (state && pending.length > 0) {
-          state.pendingResumes = { pending, resumeByInterruptId }
+        if (state && ownedPending.length > 0) {
+          state.pendingResumes = { pending: ownedPending, resumeByInterruptId }
         }
       }
 
-      await createOrResumeRun(runs, ctx.runId, ctx.threadId)
+      const storedUsage = await createOrResumeRun(runs, ctx.runId, ctx.threadId)
 
-      {
-        const state = runState.get(ctx)
-        if (!state?.merged) {
-          if (state) state.merged = true
-          const stored = await messageStore.loadThread(ctx.threadId)
-          patch.messages = config.messages.length > 0 ? config.messages : stored
-        }
+      const state = runState.get(ctx)
+      // A continuation has a fresh middleware context but resumes the same run.
+      if (state && storedUsage) state.usage = storedUsage
+      if (!state?.merged) {
+        if (state) state.merged = true
+        const stored = threadMessages(
+          await messageStore.loadThread(ctx.threadId),
+        )
+        patch.messages = mergeStoredMessages(stored, config.messages)
       }
 
       return Object.keys(patch).length > 0 ? patch : undefined
@@ -1527,6 +2171,8 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // prior history) as soon as the run starts, so a reload mid-run rehydrates
       // it before the assistant reply exists. Best-effort: a failed eager
       // snapshot must not abort the run — the authoritative save is `onFinish`.
+      const state = runState.get(ctx)
+      if (state) state.firstRunMessage = ctx.messages.length
       try {
         await messageStore.saveThread(ctx.threadId, [...ctx.messages])
       } catch {
@@ -1535,14 +2181,24 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
     },
 
     async onChunk(ctx: ChatMiddlewareContext, chunk: StreamChunk) {
-      // Always capture the current assistant turn's stream messageId (cheap),
-      // regardless of snapshotStreaming — it's persisted onto the assistant
-      // message so its identity survives hydrate and a reload resumes the same
-      // bubble in place.
-      if (ctx.phase === 'modelStream') {
+      await subagentRuns.chunk({
+        threadId: ctx.threadId,
+        runId: ctx.runId,
+        chunk,
+      })
+      // Capture the current assistant turn's identity for optional in-progress
+      // snapshots. Completed messages already live in `ctx.messages`.
+      if (snapshotStreaming && ctx.phase === 'modelStream') {
         const s = runState.get(ctx)
         if (s && chunk.type === 'TEXT_MESSAGE_START') {
-          s.streamingMessageId = chunk.messageId
+          // An empty/malformed messageId means "no identity" (matching the
+          // engine's convention), leaving room for the TOOL_CALL_START
+          // parentMessageId fallback below — but the per-turn accumulator
+          // still resets so snapshots never mix text across turns.
+          s.streamingMessageId =
+            typeof chunk.messageId === 'string' && chunk.messageId !== ''
+              ? chunk.messageId
+              : undefined
           s.streamingMessageCreatedAt = new Date()
           s.streamingText = ''
         } else if (
@@ -1559,9 +2215,8 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
 
       // (B) Optional throttled snapshot of the in-progress assistant reply, so
       // partial output survives a crash/reload before onFinish. Off unless
-      // `snapshotStreaming` is set. We accumulate the terminal turn's text here
-      // (the engine only appends assistant turns with tool calls to
-      // `ctx.messages`, never a streaming text reply), then persist
+      // `snapshotStreaming` is set. The completed turn enters `ctx.messages`
+      // only after streaming ends, so accumulate its text here and persist
       // `ctx.messages` + that partial assistant message (tagged with its id).
       if (
         snapshotStreaming &&
@@ -1622,9 +2277,23 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           })
         }
       }
-      await interruptRun(runs, ctx.runId)
-      await messageStore.saveThread(ctx.threadId, [...ctx.messages])
+      // Adapter terminals arrive before `onUsage`; synthesized tool boundaries
+      // arrive after it with the same usage already in state.
+      const chunkUsage = tokenUsageFromChunk(chunk)
+      const usage =
+        ctx.phase === 'modelStream' && chunkUsage
+          ? accumulateTokenUsage(state.usage, chunkUsage)
+          : (state.usage ?? chunkUsage)
+      state.usage = usage
+      await interruptRun(runs, ctx.runId, usage)
+      await messageStore.saveThread(ctx.threadId, runMessages(ctx, state))
       state.interrupted = true
+    },
+
+    onUsage(ctx: ChatMiddlewareContext, usage: TokenUsage) {
+      const state = runState.get(ctx)
+      if (!state || state.interrupted) return
+      state.usage = accumulateTokenUsage(state.usage, usage)
     },
 
     async onFinish(ctx: ChatMiddlewareContext, info: FinishInfo) {
@@ -1634,21 +2303,30 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // resumes stay pending so a retry can re-apply them. Completing the run
       // or consuming approvals before the durable history lands leaves a
       // "finished" run whose transcript is missing the terminal turn.
-      await messageStore.saveThread(
-        ctx.threadId,
-        finishedTranscript(
-          ctx.messages,
-          info,
-          state?.streamingMessageId,
-          state?.streamingMessageCreatedAt,
-        ),
-      )
-      await completeRun(runs, ctx.runId, info.usage)
-      await commitPendingResumes(state, persistence.stores.interrupts)
+      try {
+        await messageStore.saveThread(ctx.threadId, runMessages(ctx, state))
+        await commitPendingResumes(state, persistence.stores.interrupts)
+        await completeRun(runs, ctx.runId, state?.usage ?? info.usage)
+        state?.completion?.resolve()
+      } catch (error) {
+        // Core has already selected its terminal hook. Persist the failed run
+        // here, so a failed transcript save or batch write does not leave an
+        // interrupted or completed run whose pending records need retrying.
+        try {
+          await failRun(runs, ctx.runId, error, state?.usage)
+        } finally {
+          state?.completion?.reject(error)
+        }
+        throw error
+      }
     },
 
     async onError(ctx: ChatMiddlewareContext, info: ErrorInfo) {
-      await failRun(runs, ctx.runId, info.error)
+      try {
+        await failRun(runs, ctx.runId, info.error, runState.get(ctx)?.usage)
+      } finally {
+        runState.get(ctx)?.completion?.reject(info.error)
+      }
     },
 
     async onAbort(ctx: ChatMiddlewareContext, info: AbortInfo) {
@@ -1658,21 +2336,29 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // (`info.cancelRequested`, set when the cancel aborted this host's signal)
       // and durable (`RunRecord.cancelRequested`, the only channel that reaches
       // a run being driven elsewhere).
-      const cancelled =
-        info.cancelRequested === true ||
-        (runs !== undefined && (await wasCancelRequested(runs, ctx.runId)))
-
       // A run paused at an interrupt boundary is waiting for a HUMAN, not for
-      // this socket. `chat()` skips its terminal hook at an actionable-wait
-      // boundary, so its `finally` routes the disconnect here — and
-      // terminalizing then produced a record claiming the run finished while
+      // this socket. A disconnect can land after the interrupt boundary but
+      // before the invocation ends, and `chat()` then routes it here instead
+      // of to `onFinish` — and terminalizing then produced a record claiming the run finished while
       // the interrupt rows stayed `'pending'` and `validatePendingResumes`
       // still threw on the next request. An explicit cancel is different: the
       // user gave up on the approval, so the cancel band stays authoritative.
       const state = runState.get(ctx)
-      if (cancelled || (!detachableRun(ctx) && state?.interrupted !== true)) {
-        await abortRun(runs, ctx.runId)
-        return
+      let terminal = false
+      try {
+        // The durable cancel read is best-effort. It must not bypass the
+        // terminal persistence path or prevent the completion promise from
+        // settling when the run store is unavailable.
+        const cancelled =
+          info.cancelRequested === true ||
+          (runs !== undefined && (await wasCancelRequested(runs, ctx.runId)))
+        terminal =
+          cancelled || (!detachableRun(ctx) && state?.interrupted !== true)
+        if (terminal) {
+          await abortRun(runs, ctx.runId, state?.usage)
+        }
+      } finally {
+        if (terminal) state?.completion?.reject(info.reason)
       }
       // A plain disconnect on a detachable or interrupted run: write NOTHING.
       // Either the agent is still running and a later attach can take it over

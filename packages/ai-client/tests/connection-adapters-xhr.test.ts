@@ -196,7 +196,7 @@ describe('xhr connection adapters', () => {
           type: EventType.RUN_FINISHED,
           threadId: 'thread-1',
           runId: 'run-1',
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         },
       })
       await expect(iterator.next()).resolves.toEqual({

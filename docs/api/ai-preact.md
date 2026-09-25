@@ -16,9 +16,57 @@ Preact hooks for TanStack AI, providing convenient Preact bindings for the headl
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-preact
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+preact: @tanstack/ai-preact
+
+<!-- ::end:tabs -->
+
+## `useRegisterWebMCPTools(tools, options?)`
+
+Register executable client tools after the Preact component mounts. Preact removes them on cleanup and replaces them when `tools` or `options` change.
+
+For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+
+```tsx
+import {
+  useRegisterWebMCPTools,
+  type UseRegisterWebMCPToolsOptions,
+} from "@tanstack/ai-preact";
+import { searchProducts } from "./tools";
+
+const tools = [searchProducts];
+const options: UseRegisterWebMCPToolsOptions<typeof tools> = {
+  onError(error) {
+    console.error(error);
+  },
+};
+
+function ProductsPage() {
+  useRegisterWebMCPTools(tools, options);
+  return null;
+}
 ```
+
+`UseRegisterWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The hook owns the registration signal.
+
+The `context` field is required when a tool declares a required runtime context. Keep `tools` and `options` stable when their values do not change.
+
+## `usePageWebMCPTools(options?)`
+
+Read the WebMCP tools on the page as client tools. The array starts empty and updates when the page adds or removes a tool. Pass it to `useChat` as `tools`.
+
+```tsx
+import { usePageWebMCPTools } from "@tanstack/ai-preact";
+
+export function useSameOriginPageTools() {
+  return usePageWebMCPTools({
+    filter: (tool) => tool.origin === location.origin,
+  });
+}
+```
+
+`filter` skips a tool when it returns `false`. `onError` gets a failed WebMCP read. For a complete guide, see [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
 
 ## `useChat(options?)`
 
@@ -73,15 +121,17 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 - `connection` - Connection adapter (required)
 - `tools?` - Array of client tool implementations (with `.client()` method)
 - `initialMessages?` - Initial messages array
-- `id?` - Unique identifier for this chat instance
-- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
-- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-4o' }`)
+- `threadId?` - The only identity for this chat. Required when persistence is on. If omitted, minted after mount.
+- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-5.5' }`)
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire
+- `byok?` - Optional BYOK keyring from `defineByok`. On each send the client prepares the resolved provider and stamps `x-byok-*` request headers. Keys never go in the body
+- `byokProvider?` - Optional function that returns the provider slug for this chat. If it returns a slug, only that key is prepared and sent. Otherwise the merged `provider` from `forwardedProps`, `body`, and per-call `sendMessage` `body` is used. Later sources win. If no slug resolves, the send throws instead of attaching every stored key
 - `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received
 - `onFinish?` - Callback when response finishes
 - `onError?` - Callback when error occurs
+- `onInterruptStateChange?` - Callback when interrupt state changes; context source is `hydrate` for restored state and `live` for streamed or client-initiated updates
 - `streamProcessor?` - Stream processing configuration
 
 **Note:** Client tools are now automatically executed - no `onToolCall` callback needed!
@@ -91,10 +141,17 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 ```typescript
 import type { UIMessage } from "@tanstack/ai-preact";
 import type { ModelMessage } from "@tanstack/ai/client";
+import type {
+  MultimodalContent,
+  SendMessageOptions,
+} from "@tanstack/ai-client";
 
 interface UseChatReturn {
   messages: UIMessage[];
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (
+    content: string | MultimodalContent,
+    options?: SendMessageOptions,
+  ) => Promise<void>;
   append: (message: ModelMessage | UIMessage) => Promise<void>;
   addToolResult: (result: {
     toolCallId: string;
@@ -115,6 +172,24 @@ interface UseChatReturn {
   clear: () => void;
 }
 ```
+
+## `useByok(client)`
+
+Subscribe to a `ByokClient` snapshot in Preact.
+
+```tsx
+import { useByok } from "@tanstack/ai-preact";
+import { byok } from "./byok";
+
+export function KeyStatus() {
+  const snapshot = useByok(byok);
+  const openai = snapshot.status.openai;
+  const last4 = openai && "masked" in openai ? openai.masked : "No key";
+  return <p>{last4}</p>;
+}
+```
+
+`snapshot` has `status`, `locked`, and `prompt`. Call `byok.update(provider, value)` from your own UI to save a key. See [Bring Your Own Key](../advanced/byok).
 
 ## Connection Adapters
 

@@ -8,7 +8,13 @@ description: >
   fileSkill), plugins, instructions → canonical AGENTS.md + symlinks projected
   per harness; shallow-clone default with depth opt-out; serial/parallel setup
   callback over a persistent shell; snapshot-after-setup default with
-  snapshotMaxAge TTL; defineWorkspace (git/setup/scripts/skills/secrets/
+  snapshotMaxAge TTL. It also covers portable snapshots after a successful
+  terminal run with withPersistence before withSandbox and
+  memorySandboxSnapshots for local examples. It covers named saves with
+  snapshots.save, selected-checkpoint forks with snapshots.fork, and
+  authorized artifact reads with snapshots.readArtifact. See
+  docs/sandbox/portable-snapshots.md. It covers defineWorkspace
+  (git/setup/scripts/skills/secrets/
   instructions/plugins), defineSandboxPolicy (allow/ask/deny), lifecycle/resume,
   the SandboxHandle (fs/git/process/ports), capability tokens, defineSandbox
   hooks (onFile/onFileCreate/onFileChange/onFileDelete/onReady/onError/
@@ -42,9 +48,10 @@ agent CLI **inside** the sandbox and streams its events back.
 ## Setup — Claude Code in a Docker sandbox
 
 ```typescript
-import { chat } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import {
+  createSecrets,
   defineSandbox,
   defineWorkspace,
   withSandbox,
@@ -59,17 +66,25 @@ const sandbox = defineSandbox({
     packageManager: 'pnpm',
     setup: ['corepack enable', 'pnpm install'],
     scripts: { test: 'pnpm test' },
-    secrets: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '' },
+    secrets: createSecrets({
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
+    }),
   }),
   lifecycle: { reuse: 'thread', snapshot: 'after-setup', keepAlive: '30m' },
 })
 
-const stream = chat({
-  threadId,
-  adapter: claudeCodeText('sonnet'),
-  messages,
-  middleware: [withSandbox(sandbox)],
-})
+export async function POST(request: Request) {
+  const { threadId, messages } = await request.json()
+
+  const stream = chat({
+    threadId,
+    adapter: claudeCodeText('sonnet'),
+    messages,
+    middleware: [withSandbox(sandbox)],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ## Type-safe secrets
@@ -159,6 +174,8 @@ serial and parallel groups over a **persistent shell** whose cwd/env carry over
 between serial steps:
 
 ```typescript
+import { githubRepo, defineWorkspace } from '@tanstack/ai-sandbox'
+
 defineWorkspace({
   source: githubRepo({ repo: 'owner/app' }),
   setup: ({ serial, parallel }) => {
@@ -177,13 +194,108 @@ When the provider supports snapshots, bootstrap takes one automatically after
 Override or add a TTL:
 
 ```typescript
-lifecycle: {
-  snapshot: 'after-setup', // default when provider.capabilities().snapshots
-  snapshotMaxAge: '24h',   // re-create when the snapshot is older than this
-}
+import { defineSandbox } from '@tanstack/ai-sandbox'
+import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+
+const sandbox = defineSandbox({
+  id: 'repo-agent',
+  provider: dockerSandbox({ image: 'node:22' }),
+  lifecycle: {
+    snapshot: 'after-setup', // default when provider.capabilities().snapshots
+    snapshotMaxAge: '24h', // re-create when the snapshot is older than this
+  },
+})
 ```
 
 Providers without snapshot support skip the step silently.
+
+### Portable sandbox snapshots
+
+Portable snapshots keep completed workspace files in application persistence.
+They are separate from provider-native bootstrap snapshots. Configure the
+middleware in this order, with the same persistence value in both places:
+
+```typescript
+import { withPersistence } from '@tanstack/ai-persistence'
+import {
+  InMemorySandboxInstanceStore,
+  memorySandboxSnapshots,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
+// Your `defineSandbox(...)` result.
+import { sandbox } from './sandbox'
+
+const instances = new InMemorySandboxInstanceStore()
+const snapshots = await memorySandboxSnapshots({ sandbox, instances })
+
+const middleware = [
+  withPersistence(snapshots.persistence),
+  withSandbox(sandbox, { instances, snapshots }),
+]
+```
+
+Each successful terminal run saves regular files, empty directories, durable
+conversation data, and persisted thread artifacts. A later run restores the
+latest checkpoint only into a new private sandbox. A live resumed sandbox is
+never overwritten. The default policy excludes `.git`, `node_modules`, and
+`.env*` path segments at every depth. It excludes the exact projection marker
+only at the workspace root. It also excludes root `CLAUDE.md` and `GEMINI.md`,
+plus direct `.claude/skills/<name>`, `.codex/skills/<name>`, and
+`.grok/skills/<name>` paths. These exclusions use paths even for regular files
+or copies. If you pass only `include` or only `redact`, the default
+exclusions stay in place. If you pass `exclude`, that function replaces
+the default exclusions, except for exact projection-marker protection.
+Copy `defaultSandboxSnapshotPolicy()` first when you write `exclude`.
+Pass `include` and `exclude` functions on `policy` to store only some files,
+including one file. There is no `save({ files })` list. See
+`docs/sandbox/portable-snapshots-files.md`. Resolved secrets are redacted before the data is stored. Symlinks,
+executables, and special filesystem entries fail the capture or restore. Each
+thread has one writer lease. Pause and detach release the lease without a
+partial checkpoint. Blob retention is manual because there is no automatic
+garbage collection yet.
+
+Read these pages for the server-only setup:
+
+- `docs/sandbox/portable-snapshots.md`
+- `docs/sandbox/portable-snapshots-configure.md`
+- `docs/sandbox/portable-snapshots-save.md`
+- `docs/sandbox/portable-snapshots-fork.md`
+- `docs/sandbox/portable-snapshots-artifacts.md`
+- `docs/sandbox/portable-snapshots-tools.md`
+- `docs/sandbox/portable-snapshots-files.md`
+- `docs/sandbox/portable-snapshots-safety.md`
+
+For a user-marked workspace state, call `snapshots.save` on the server. Bind
+`sandbox` and `instances` at create time, or pass them on `save`. The call
+needs `threadId`, `runId`, and a label. It requires a live reusable sandbox.
+`reuse: 'none'` cannot save a named checkpoint.
+
+To branch from a selected checkpoint, call `snapshots.fork` with the thread id,
+checkpoint id, and destination thread id. The store must implement atomic
+`forkFromCheckpoint`. The destination thread must be empty. A fork copies the
+selected snapshot, not the latest snapshot.
+
+To send a checkpoint artifact, call `snapshots.readArtifact` on the server.
+First authorize the caller for the supplied thread. The method makes sure that
+the checkpoint belongs to that thread, then returns its metadata and bytes. It
+does not authorize a caller or create an HTTP response.
+
+For a SQLite checkpoint store, use one transaction for a checkpoint write, its
+head update, and every blob reference update. Use one transaction for a fork,
+including its copied conversation. A partial transaction breaks snapshot
+consistency.
+
+Snapshot capture supports regular files and empty directories only. It excludes
+`.git`, `node_modules`, and `.env*` path segments at every depth. It excludes
+the exact projection marker only at the workspace root. It also excludes root
+`CLAUDE.md` and `GEMINI.md`, plus direct `.claude/skills/<name>`,
+`.codex/skills/<name>`, and `.grok/skills/<name>` paths. These exclusions use
+paths even for regular files or copies. If you pass only `include` or only
+`redact`, the default exclusions stay in place. If you pass `exclude`, that
+function replaces the default exclusions, except for exact projection-marker
+protection. It rejects symlinks, executable files, and special filesystem
+entries. Restore verifies the manifest and blobs before
+it changes a new private sandbox. It never writes into a live resumed sandbox.
 
 ## Providers
 
@@ -234,20 +346,30 @@ distributed lock: either `withLocks` from `@tanstack/ai/locks` (ordered
 **before** `withSandbox`) or the `locks` option.
 
 ```typescript
-import { chat } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { InMemoryLockStore, withLocks } from '@tanstack/ai/locks'
+import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { withSandbox } from '@tanstack/ai-sandbox'
+// Your `defineSandbox(...)` result.
+import { sandbox } from './sandbox'
 // Production: your BYO store — docs/sandbox/durability.md
 import { instanceStore } from './sandbox-instance-store'
 
-chat({
-  adapter,
-  messages,
-  middleware: [
-    withLocks(new InMemoryLockStore()), // multi-replica: distributed lock
-    withSandbox(sandbox, { instances: instanceStore }),
-  ],
-})
+export async function POST(request: Request) {
+  const { threadId, messages } = await request.json()
+
+  const stream = chat({
+    threadId,
+    adapter: claudeCodeText('sonnet'),
+    messages,
+    middleware: [
+      withLocks(new InMemoryLockStore()), // multi-replica: distributed lock
+      withSandbox(sandbox, { instances: instanceStore }),
+    ],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 The store option takes precedence over an ambient `SandboxInstanceStoreCapability`
@@ -273,8 +395,11 @@ middleware via the `sandbox` group (run-scoped):
 import { defineSandbox, withSandbox } from '@tanstack/ai-sandbox'
 // `defineChatMiddleware` is core's, not this package's — `@tanstack/ai-sandbox`
 // consumes it too (see its own `src/middleware.ts`).
-import { defineChatMiddleware } from '@tanstack/ai'
+import { chat, defineChatMiddleware } from '@tanstack/ai'
+import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+import { db } from './db'
+import { metrics } from './metrics'
 
 // Sandbox-scoped hooks (all optional):
 const sandbox = defineSandbox({
@@ -305,6 +430,13 @@ const auditMiddleware = defineChatMiddleware({
 
 // No extra middleware needed — sandbox.file CUSTOM events are emitted
 // automatically. Read them from the stream:
+const stream = chat({
+  threadId: 'thread-1',
+  adapter: claudeCodeText('sonnet'),
+  messages: [{ role: 'user', content: 'Add a README.' }],
+  middleware: [auditMiddleware, withSandbox(sandbox)],
+})
+
 for await (const chunk of stream) {
   if (chunk.type === 'CUSTOM' && chunk.name === 'sandbox.file') {
     const value = chunk.value
@@ -325,7 +457,10 @@ outside a `chat()` run:
 
 ```typescript
 import { watchWorkspace } from '@tanstack/ai-sandbox'
+// Your `defineSandbox(...)` result.
+import { sandbox } from './sandbox'
 
+const handle = await sandbox.ensure({ threadId: 'thread-1', runId: 'run-1' })
 const watcher = await watchWorkspace(handle, {
   onEvent: (e) => console.log(e.type, e.path),
   ignore: ['.git', 'node_modules'], // default
@@ -337,8 +472,24 @@ Enable the `sandbox` debug category to log watcher start/stop, event dispatch,
 and lifecycle transitions:
 
 ```typescript
-chat({ threadId, adapter, messages, debug: { sandbox: true } })
-// or debug: true to enable all categories
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { withSandbox } from '@tanstack/ai-sandbox'
+import { sandbox } from './sandbox'
+
+export async function POST(request: Request) {
+  const { threadId, messages } = await request.json()
+
+  const stream = chat({
+    threadId,
+    adapter: claudeCodeText('sonnet'),
+    messages,
+    middleware: [withSandbox(sandbox)],
+    debug: { sandbox: true }, // or debug: true to enable all categories
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ## Edge / serverless execution
@@ -464,12 +615,17 @@ file from byte 0 at any point, including after the original host has died.
 
 ```typescript
 import { spawnNdjson } from '@tanstack/ai-sandbox'
+import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
-for await (const event of spawnNdjson(sandbox, agentCommand, {
-  cwd,
-  journal: { runId }, // durability is opt-in: pass `journal` to route through it
-})) {
-  // parsed NDJSON objects, translated by the harness adapter as usual
+export async function runAgent(handle: SandboxHandle, runId: string) {
+  const agentCommand = 'claude -p --output-format stream-json'
+  for await (const event of spawnNdjson(handle, agentCommand, {
+    cwd: '/workspace',
+    journal: { runId }, // durability is opt-in: pass `journal` to route through it
+  })) {
+    // parsed NDJSON objects, translated by the harness adapter as usual
+    console.log(event)
+  }
 }
 ```
 
@@ -919,6 +1075,17 @@ import {
 } from '@tanstack/ai-sandbox'
 import type { RunRecord } from '@tanstack/ai'
 import type { ReapResult, RunExitProbe } from '@tanstack/ai-sandbox'
+// Your distributed LockStore, the same one `withSandbox` gets.
+import { locks } from './locks'
+// Your persistence — the SAME RunStore the chat routes use.
+import { runs } from './persistence'
+// Your `defineSandbox(...)` result and the `SandboxInstanceStore` you passed to
+// `withSandbox(sandbox, { instances })`.
+import { instances, sandbox } from './sandbox'
+// The per-run log factory, resolving the SAME log the producing route wrote.
+import { durabilityFor } from './durability'
+// The same `drive` the attach route passes to `sandboxRunDriver`.
+import { driveRun } from './drive-run'
 
 async function hasFinished(record: RunRecord): Promise<RunExitProbe> {
   if (record.sandboxKey === undefined) return { state: 'unknown' }
@@ -983,14 +1150,15 @@ including the client `joinRun` side, is in `docs/sandbox/takeover.md`.
 
 - **Harness adapters require a sandbox.** Always include `withSandbox(...)` in
   `middleware` — without it `chat()` throws a missing-capability error.
-- **Secrets** (`workspace.secrets`) are injected into the sandbox env and never
-  persisted (no snapshots, no sandbox store, no event log). Always create them
-  with `createSecrets(...)` so the values stay hidden behind `SecretRef` tokens.
-  The agent binary (`claude`) must exist in the sandbox image (install it in
-  `setup` or bake it into the image).
+- **Secrets** (`workspace.secrets`) are injected into the sandbox env. Their
+  raw values are never persisted in snapshots, the sandbox store, or the event
+  log. Always create them with `createSecrets(...)` so the values stay hidden
+  behind `SecretRef` tokens. The agent binary (`claude`) must exist in the
+  sandbox image (install it in `setup` or bake it into the image).
 - **Secret-bearing projected files** (e.g. MCP config with resolved header
-  values) are re-written on every projection call so rotated secrets re-apply;
-  they are never included in a snapshot.
+  values) can be included by default capture. Capture replaces resolved secret
+  bytes with zero bytes before it hashes or writes snapshot blobs. Restore runs
+  before projection, so projection writes current secret values after restore.
 - **chat()-provided `tools` are bridged** into the in-sandbox agent over a
   host-side MCP tool-proxy: the agent calls them as `mcp__tanstack__<tool>` and
   each call is proxied back to the host where the tool's `execute()` runs (with

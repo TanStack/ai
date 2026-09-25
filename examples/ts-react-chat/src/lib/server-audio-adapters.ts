@@ -14,12 +14,18 @@ import {
   elevenlabsTranscription,
 } from '@tanstack/ai-elevenlabs'
 import { grokSpeech, grokTranscription } from '@tanstack/ai-grok'
-import { byteplusSpeech, byteplusTranscription } from '@tanstack/ai-byteplus'
+import {
+  byteplusSpeech,
+  byteplusTranscription,
+  createBytePlusSpeech,
+  createBytePlusTranscription,
+} from '@tanstack/ai-byteplus'
 import type {
   AnyAudioAdapter,
   AnyTranscriptionAdapter,
   AnyTTSAdapter,
 } from '@tanstack/ai'
+import type { ElevenLabsAudioModel } from '@tanstack/ai-elevenlabs'
 import {
   AUDIO_PROVIDERS,
   SPEECH_PROVIDERS,
@@ -43,7 +49,10 @@ function findConfig<T extends { id: string }>(
   return match
 }
 
-export function buildSpeechAdapter(provider: SpeechProviderId): AnyTTSAdapter {
+export function buildSpeechAdapter(
+  provider: SpeechProviderId,
+  apiKey?: string,
+): AnyTTSAdapter {
   const config = findConfig(SPEECH_PROVIDERS, provider)
   switch (config.id) {
     case 'openai':
@@ -57,14 +66,17 @@ export function buildSpeechAdapter(provider: SpeechProviderId): AnyTTSAdapter {
     case 'elevenlabs':
       return elevenlabsSpeech(config.model as 'eleven_multilingual_v2')
     case 'byteplus':
-      // Seed Speech TTS authenticates with BYTEPLUS_VOICE_API_KEY — a
+      // Seed Speech TTS authenticates with BYTEPLUS_VOICE_API_KEY, a
       // different product (and key) from the ARK_API_KEY used for chat.
-      return byteplusSpeech(config.model as 'seed-audio-1.0')
+      return apiKey
+        ? createBytePlusSpeech(config.model as 'seed-audio-1.0', apiKey)
+        : byteplusSpeech(config.model as 'seed-audio-1.0')
   }
 }
 
 export function buildTranscriptionAdapter(
   provider: TranscriptionProviderId,
+  apiKey?: string,
 ): AnyTranscriptionAdapter {
   const config = findConfig(TRANSCRIPTION_PROVIDERS, provider)
   switch (config.id) {
@@ -80,7 +92,9 @@ export function buildTranscriptionAdapter(
       return elevenlabsTranscription(config.model as 'scribe_v1')
     case 'byteplus':
       // Seed Speech ASR shares the BYTEPLUS_VOICE_API_KEY key with TTS.
-      return byteplusTranscription(config.model as 'seed-asr')
+      return apiKey
+        ? createBytePlusTranscription(config.model as 'seed-asr', apiKey)
+        : byteplusTranscription(config.model as 'seed-asr')
   }
 }
 
@@ -100,7 +114,7 @@ export function buildAudioAdapter(
       return falAudio(model)
     case 'elevenlabs-music':
     case 'elevenlabs-sfx':
-      return elevenlabsAudio(model as 'music_v1')
+      return elevenlabsAudio(model as ElevenLabsAudioModel)
   }
 }
 

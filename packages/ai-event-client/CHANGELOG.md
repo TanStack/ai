@@ -1,5 +1,95 @@
 # @tanstack/ai-event-client
 
+## 0.13.0
+
+### Minor Changes
+
+- [#915](https://github.com/TanStack/ai/pull/915) [`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd) - feat(ai): native Files API support across providers (upload adapters + `file` content source)
+
+  Adds first-class support for provider **Files / storage APIs** so callers can upload media once and reference it by a provider-issued handle instead of re-sending base64 or a public URL each request (lower latency/bandwidth, no re-buffering on memory-constrained runtimes).
+  - **New tree-shakeable `files` adapter kind** — `openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, `grokFiles()`, and `falFiles()`. Each exposes `upload()`, and (where the provider has a lifecycle API) `get()` / `delete()`. Drive them with the new `uploadFile()` / `getFile()` / `deleteFile()` activity functions. fal is upload-only.
+  - **New `{ type: 'file' }` arm on `ContentPartSource`**, matching the AG-UI `FileSource` arm field for field: `{ type: 'file', value, provider?, mimeType? }`. `value` is the opaque handle the provider issued; `provider` names the adapter that issued it. Each adapter maps `value` to its native wire field: OpenAI (Responses) `input_image`/`input_file` `file_id`, Anthropic `file_id` message source (with the `files-api-2025-04-14` beta), Gemini `fileData.fileUri`, fal storage URL, Grok public URL. `fileSourceFromHandle(handle)` builds the source.
+  - **Fail-closed capability preflight** — adapters that can consume file references declare `supportsFileSources`; `chat()` / `generateImage()` / `generateVideo()` / `embed()` reject `{ type: 'file' }` sources for every other adapter (Bedrock, Mistral, Groq, OpenRouter, Ollama, BytePlus, Cohere, and any future adapter that doesn't opt in) **before a request is built**, so a reference can never be silently mis-mapped onto a URL/data field. Endpoints that need raw bytes (image edits, Sora `input_reference`, Veo, Chat Completions images) throw endpoint-specific errors. A supporting adapter handed a source whose `provider` names a different adapter throws an error naming the issuer.
+  - **Provider-literal typed handles** — `FileHandle<'openai'>` etc. flow from each files adapter through `uploadFile()`, and `getFile()`/`deleteFile()` accept the handle itself, so cross-provider lifecycle calls fail at compile time. `fileSourceFromHandle` and `FileHandle` are also exported from the browser-safe `@tanstack/ai/client` entry. A `{ type: 'file' }` source cannot cross the chat wire format (which carries `data`/`url` sources only) and throws rather than being dropped, so a browser that holds a handle sends it in its own request body and the server builds the source.
+
+## 0.12.1
+
+### Patch Changes
+
+- [#1437](https://github.com/TanStack/ai/pull/1437) [`3d81cab`](https://github.com/TanStack/ai/commit/3d81cabca196068629ddce91f7960d29ce899746) - Add a package README: what `aiEventClient` is, how to subscribe with `on()`, the event groups on `AIDevtoolsEventMap`, and the envelope helpers.
+
+## 0.12.0
+
+### Minor Changes
+
+- [#1390](https://github.com/TanStack/ai/pull/1390) [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7) - Add a `generateVoice()` activity for creating a voice, and refresh the ElevenLabs model lists.
+
+  **`generateVoice()`** creates a reusable voice and returns voice ids that `generateSpeech({ voice })` accepts. Providers create voices two ways, and the activity covers both: design one from a text `prompt`, or derive one from `referenceAudio`. Pass a `name` to keep the voice in the provider's library, and read `saved` on each returned voice to see what happened. Every returned voice also carries `status`, which is `'ready'` on every adapter today. Comes with `VoiceAdapter` / `BaseVoiceAdapter` for adapter authors, the `voice:request:*` and `voice:usage` devtools events, and a `voice_generation` OpenTelemetry operation name. See [Voice Creation](https://tanstack.com/ai/latest/docs/media/voice-creation).
+
+  **`listVoices()`** reads an account voice catalog back, for when you did not store the id `generateVoice()` returned. It filters by `origin` (`premade`, `generated`, `cloned`, `professional`). `listVoices` is an optional method on `TTSAdapter` rather than `VoiceAdapter`, because `voice` is a `generateSpeech()` option and that is where the id gets used. Only providers with a per-account catalog implement it; where the voice list is fixed the package publishes it directly (`GeminiTTSVoices` from `@tanstack/ai-gemini`, the `OpenAITTSVoice` union from `@tanstack/ai-openai`), which beats a network call, and calling `listVoices()` on such an adapter throws and points at those exports. `elevenlabsSpeech` implements it against `GET /v1/voices`.
+
+  **`elevenlabsVoiceDesign()`** implements voice creation on `eleven_ttv_v3` and `eleven_multilingual_ttv_v2`. ElevenLabs' design-then-create two-step is hidden inside the adapter. Only `eleven_ttv_v3` accepts `referenceAudio`, and it is a design reference rather than a straight clone: a `prompt` is still required, and `modelOptions.promptStrength` balances the description against the recording.
+
+  **ElevenLabs models.** `@elevenlabs/elevenlabs-js` moves to `^2.68.0` and `@elevenlabs/client` to `^1.25.0`. The bump is what makes the new music and transcription ids type-check: 2.44 pinned the music request to `modelId?: 'music_v1'` and typed speech-to-text as a two-member `'scribe_v2' | 'scribe_v1'` union. Adds `eleven_v3_conversational` (TTS), `scribe_v2_medical` (Scribe), and `music_v2_5` and `music_v2` (music). `eleven_turbo_v2`, `eleven_turbo_v2_5`, `eleven_monolingual_v1`, `scribe_v1`, and `music_v1` are still accepted and are commented as deprecated in `model-meta.ts`. `ELEVENLABS_AUDIO_MODELS` is now pinned to the SDK's own `MusicModelId | SfxModelId` with `satisfies`, so an id the SDK drops fails the build instead of the request.
+
+  **Breaking:** `eleven_text_to_sound_v1` is removed from `ELEVENLABS_AUDIO_MODELS`. ElevenLabs dropped it from the catalog and from the SDK's `SfxModelId`, so the adapter can no longer send it. Use `eleven_text_to_sound_v2`.
+
+## 0.11.3
+
+### Patch Changes
+
+- [#1321](https://github.com/TanStack/ai/pull/1321) [`c17bc95`](https://github.com/TanStack/ai/commit/c17bc951ca783d8023bf54d69035c19c0c72ea2f) - Add `generateWorld()` and `generateLiveVideo()` for prompt-steerable sessions, plus a first-party Reactor adapter (`reactorWorld`, `reactorVideo`) and fal `falLiveVideo()` for H3 Max Director. Reactor returns a session JWT. falLiveVideo returns the WMA app id on `result.model` so the browser can call `wma(live.model)`. `generateVideo()` stays the job path that polls for a file URL.
+
+## 0.11.2
+
+### Patch Changes
+
+- [#1235](https://github.com/TanStack/ai/pull/1235) [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7) - Show compaction in TanStack AI DevTools. `withCompaction` injects
+  `compaction:started`, `compaction:state`, and `compaction:ended` CUSTOM
+  stream events. State includes before/after counts, the token budget, and
+  dropped vs sent message previews. The chat client re-emits the same three
+  events. The AI panel has a Compaction tab and started/state/ended steps on
+  the iteration.
+
+## 0.11.1
+
+### Patch Changes
+
+- [#1236](https://github.com/TanStack/ai/pull/1236) [`5dc4e1a`](https://github.com/TanStack/ai/commit/5dc4e1a08728b410f85956093ccef621d12b4d6b) - Add `@tanstack/ai-skills`: portable Agent Skills (`SKILL.md`) as a first-class `chat()` middleware.
+
+  `withSkills(sources, options?)` renders a skill catalog and a `load_skill` tool so any tool-calling model can load skills on demand, on any provider, with no server sandbox. Skills come from `inlineSkill`, `skillDirectory` (`/node`), or a build-time `staticSkills` bundle, and compose via `aggregate`/`dedupe`/`filter`/`cache`. `createResourceTool` exposes a skill's bundled files through `read_skill_resource`, and `runSkillSourceConformance` (`/testing`) validates custom `SkillSource` adapters. The catalog renders as `<available_skills>` XML for Anthropic models and markdown for others; portable and hosted (native) skills refuse to combine in one call.
+
+  Core `@tanstack/ai` now exports `SkillLimitError`. The native factories throw it (or add validation): `codeExecutionTool` (`@tanstack/ai-anthropic`) frames its 8-skill cap, and `shellTool` (`@tanstack/openai-base`) now validates `skill_id` format instead of nothing. `@tanstack/ai-sandbox` reuses the shared skill-directory walk from `@tanstack/ai-skills`.
+
+  `withSkills` sends a `skills:state` CUSTOM chunk so TanStack AI DevTools can show the catalog and which skills the model loaded.
+
+## 0.11.0
+
+### Minor Changes
+
+- [#1204](https://github.com/TanStack/ai/pull/1204) [`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b) - Preserve tool-result identity, metadata, multimodal content, and timestamps across message conversions and hydration.
+
+  Correct the public `WireMessage` type. System and user messages now require content, and the union no longer includes outbound activity messages.
+
+  Keep structured multimodal content compatible with the AI devtools message store.
+
+## 0.10.0
+
+### Minor Changes
+
+- [#1174](https://github.com/TanStack/ai/pull/1174) [`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46) - Put AG-UI extras under `metadata.tanstack`. SSE/HTTP wire events are spec-only.
+
+  `sendMessage({ content, metadata })` stamps user metadata on the user message.
+  In-process `chat()` still yields `toolName`, `TOOL_CALL_END.input`, and TanStack `TokenUsage`.
+  Thinking signatures round-trip on `REASONING_ENCRYPTED_VALUE`.
+  Wire messages use `content` / `toolCalls` / fan-out roles, not `parts`.
+
+## 0.9.0
+
+### Minor Changes
+
+- [#896](https://github.com/TanStack/ai/pull/896) [`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b) - Add a self-describing `billed` field to `TokenUsage` so billed quantities carry the unit they are counted in ([#816](https://github.com/TanStack/ai/issues/816)). `usage.billed` is `{ quantity, unit }` with a `BillingUnit` union (`'seconds'`, `'units'`, `'images'`, `'tokens'`, ... open-ended). The deprecated `unitsBilled` / `durationSeconds` counts are still populated for backward compatibility. The fal adapters report `{ quantity, unit: 'units' }`, Grok video `{ quantity, unit: 'seconds' }`, the OpenAI/Grok/BytePlus duration-billed transcription paths `{ quantity, unit: 'seconds' }`, BytePlus Seedream images `{ quantity, unit: 'images' }`, BytePlus Seedance video `{ quantity, unit: 'tokens' }`, and Cohere/OpenRouter rerank `{ quantity, unit: 'units' }` (search units). Persistence sums `billed` when both reports use the same unit. `otelMiddleware` emits the pair as `tanstack.ai.usage.billed_quantity` / `tanstack.ai.usage.billed_unit` span attributes.
+
 ## 0.8.0
 
 ### Minor Changes

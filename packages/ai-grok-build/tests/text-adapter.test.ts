@@ -14,7 +14,7 @@ import {
 import { grokBuildText } from '../src/index'
 import { GROK_BUILD_MODELS, resolveGrokCliModel } from '../src/model-meta'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { CapabilityContext, StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk, CapabilityContext } from '@tanstack/ai'
 import type { SandboxHandle, SandboxPolicy } from '@tanstack/ai-sandbox'
 
 const baseDir = path.join(
@@ -69,9 +69,9 @@ function capabilityContextWith(
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }

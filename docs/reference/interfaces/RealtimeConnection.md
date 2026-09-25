@@ -3,8 +3,6 @@ id: RealtimeConnection
 title: RealtimeConnection
 ---
 
-# Interface: RealtimeConnection
-
 Defined in: [packages/ai/src/realtime/types.ts:339](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L339)
 
 Connection interface representing an active realtime session.
@@ -12,7 +10,7 @@ Handles audio I/O, events, and session management.
 
 ## Properties
 
-### disconnect()
+### disconnect
 
 ```ts
 disconnect: () => Promise<void>;
@@ -28,7 +26,7 @@ Disconnect from the realtime session
 
 ***
 
-### getAudioVisualization()
+### getAudioVisualization
 
 ```ts
 getAudioVisualization: () => AudioVisualization;
@@ -44,7 +42,7 @@ Get audio visualization data
 
 ***
 
-### interrupt()
+### interrupt
 
 ```ts
 interrupt: () => void;
@@ -60,7 +58,7 @@ Interrupt the current response
 
 ***
 
-### on()
+### on
 
 ```ts
 on: <TEvent>(event, handler) => () => void;
@@ -88,17 +86,11 @@ Subscribe to connection events
 
 #### Returns
 
-```ts
-(): void;
-```
-
-##### Returns
-
-`void`
+() => `void`
 
 ***
 
-### sendImage()
+### sendImage
 
 ```ts
 sendImage: (imageData, mimeType) => void;
@@ -124,7 +116,7 @@ Send an image to the conversation
 
 ***
 
-### sendText()
+### sendText
 
 ```ts
 sendText: (text) => void;
@@ -146,7 +138,7 @@ Send a text message (fallback for when voice isn't available)
 
 ***
 
-### sendToolResult()
+### sendToolResult
 
 ```ts
 sendToolResult: (callId, result) => void;
@@ -172,7 +164,7 @@ Send a tool execution result back to the provider
 
 ***
 
-### startAudioCapture()
+### startAudioCapture
 
 ```ts
 startAudioCapture: () => Promise<void>;
@@ -188,7 +180,7 @@ Start capturing audio from the microphone
 
 ***
 
-### stopAudioCapture()
+### stopAudioCapture
 
 ```ts
 stopAudioCapture: () => void;
@@ -204,7 +196,7 @@ Stop capturing audio
 
 ***
 
-### updateSession()
+### updateSession
 
 ```ts
 updateSession: (config) => void;
@@ -226,10 +218,10 @@ Update session configuration
 
 ***
 
-### updateToken()?
+### updateToken?
 
 ```ts
-optional updateToken: (token) => void;
+optional updateToken?: (token) => void;
 ```
 
 Defined in: [packages/ai/src/realtime/types.ts:366](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L366)

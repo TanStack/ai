@@ -11,8 +11,11 @@ import type {
   InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
+  VideoGenerationClientOptions,
   VideoStatusInfo,
 } from '@tanstack/ai-client'
+import type { ByokClient } from '@tanstack/ai-client/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
 
 /**
  * Options for the useGenerateVideo hook.
@@ -22,12 +25,12 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function that returns a completed video result */
   fetcher?: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
+  byok?: ByokClient
+  /** Optional provider id. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
+  byokProvider?: () => ProviderId | undefined
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
@@ -49,8 +52,8 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -157,7 +160,7 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
 export function useGenerateVideo<TTransformed = void>(
   options: Omit<
     UseGenerateVideoOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: VideoGenerateResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -169,8 +172,8 @@ export function useGenerateVideo<TTransformed = void>(
     TTransformed
   >
   const hookId = useId()
-  // Single identity: prefer `threadId`; deprecated `id` only when no threadId.
-  const clientIdentity = options.threadId ?? options.id ?? hookId
+  // The hook identity is `threadId`. `hookId` is only a React recreation key.
+  const clientIdentity = options.threadId ?? hookId
 
   const [result, setResult] = useState<TOutput | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -192,17 +195,17 @@ export function useGenerateVideo<TTransformed = void>(
     // `?.()`'s implicit `undefined` doesn't widen the function
     // return type (which `exactOptionalPropertyTypes` rejects
     // against the strict-optional target).
-    // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
-    const baseOptions = {
+    const baseOptions: Omit<
+      VideoGenerationClientOptions<TOutput>,
+      'persistence' | 'threadId'
+    > = {
       body: opts.body,
-      ...(opts.threadId !== undefined
-        ? { threadId: opts.threadId }
-        : { id: opts.id ?? hookId }),
-      ...(opts.persistence !== undefined && { persistence: opts.persistence }),
       ...(opts.hydrateGeneration !== undefined && {
         hydrateGeneration: opts.hydrateGeneration,
       }),
       ...(opts.joinRun !== undefined && { joinRun: opts.joinRun }),
+      ...(opts.byok !== undefined && { byok: opts.byok }),
+      byokProvider: () => optionsRef.current.byokProvider?.(),
       devtoolsBridgeFactory: createVideoDevtoolsBridge,
       devtools: {
         ...opts.devtools,
@@ -255,9 +258,20 @@ export function useGenerateVideo<TTransformed = void>(
       },
     }
 
+    const persistenceProps =
+      typeof opts.threadId === 'string' && opts.persistence
+        ? {
+            persistence: opts.persistence,
+            threadId: opts.threadId,
+          }
+        : {
+            ...(opts.threadId !== undefined && { threadId: opts.threadId }),
+          }
+
     if (opts.connection) {
       return new VideoGenerationClient<TOutput>({
         ...baseOptions,
+        ...persistenceProps,
         connection: opts.connection,
       })
     }
@@ -265,6 +279,7 @@ export function useGenerateVideo<TTransformed = void>(
     if (opts.fetcher) {
       return new VideoGenerationClient<TOutput>({
         ...baseOptions,
+        ...persistenceProps,
         fetcher: opts.fetcher,
       })
     }

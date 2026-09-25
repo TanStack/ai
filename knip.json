@@ -9,14 +9,16 @@
   "ignoreWorkspaces": [
     "examples/**",
     "testing/**",
+    "tools/**",
     "packages/ai-code-mode/models-eval"
   ],
   "ignore": [
     "kiira.config.ts",
     "scripts/**",
     "**/*.test-d.ts",
-    "packages/ai-code-mode-skills/test-cli/**",
+    "packages/ai-code-mode-snippets/test-cli/**",
     ".claude/worktrees/**",
+    "worktrees/**",
     "packages/ai-openai/live-tests/**",
     "packages/ai-openai/src/**/*.test.ts",
     "packages/ai-openai/src/audio/audio-provider-options.ts",
@@ -57,20 +59,23 @@
       "ignoreDependencies": ["cloudflare"]
     },
     "packages/ai-react": {
-      "ignoreDependencies": ["@mcp-ui/client"]
+      "ignoreDependencies": ["@mcp-ui/client", "react-dom"]
     },
     "packages/ai-preact": {
       "ignoreDependencies": ["@mcp-ui/client"]
     },
-    "packages/ai-react-ui": {
-      "ignoreDependencies": ["react-dom"]
+    "packages/ai-angular": {
+      "entry": ["src/index.ts", "ui/src/index.ts"]
     },
-    "packages/ai-vue-ui": {
-      "ignore": ["src/use-chat-context.ts"]
+    "packages/ai-remix": {
+      "entry": ["src/index.ts", "src/ui.ts"]
     },
     "packages/ai-bedrock": {},
     "packages/ai-grok-build": {
       "ignoreDependencies": ["@tanstack/ai-acp"]
+    },
+    "packages/ai-worldlabs": {
+      "ignore": ["src/generated/**"]
     }
   }
 }

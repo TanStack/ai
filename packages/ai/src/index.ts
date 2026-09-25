@@ -3,13 +3,25 @@ export {
   chat,
   summarize,
   rerank,
+  decide,
+  choice,
+  score,
+  boolean,
   generateImage,
   generateAudio,
   generateVideo,
   getVideoJobStatus,
   generateSpeech,
+  listVoices,
+  generateVoice,
   generateTranscription,
   embed,
+  generateWorld,
+  generateLiveVideo,
+  uploadFile,
+  getFile,
+  deleteFile,
+  fileSourceFromHandle,
 } from './activities/index'
 
 // Create options functions - for pre-defining typed configurations
@@ -20,8 +32,11 @@ export { createImageOptions } from './activities/generateImage/index'
 export { createAudioOptions } from './activities/generateAudio/index'
 export { createVideoOptions } from './activities/generateVideo/index'
 export { createSpeechOptions } from './activities/generateSpeech/index'
+export { createVoiceOptions } from './activities/generateVoice/index'
 export { createTranscriptionOptions } from './activities/generateTranscription/index'
 export { createEmbedOptions } from './activities/embed/index'
+export { createWorldOptions } from './activities/generateWorld/index'
+export { createLiveVideoOptions } from './activities/generateLiveVideo/index'
 
 // Re-export types
 export type {
@@ -36,6 +51,9 @@ export type {
   AudioAdapter,
   AnyTTSAdapter,
   TTSAdapter,
+  TTSCapabilities,
+  AnyVoiceAdapter,
+  VoiceAdapter,
   AnyTranscriptionAdapter,
   TranscriptionAdapter,
   AnyVideoAdapter,
@@ -44,10 +62,47 @@ export type {
   EmbeddingAdapter,
   AnyRerankAdapter,
   RerankAdapter,
+  AnyEvaluateAdapter,
+  EvaluateAdapter,
+  ChoiceAnswer,
+  ScoreAnswer,
+  BooleanAnswer,
+  EvaluateResult,
+  WireQuestion,
+  WireAnswer,
+  AnyWorldAdapter,
+  WorldAdapter,
+  AnyLiveVideoAdapter,
+  LiveVideoAdapter,
+  FilesAdapter,
+  AnyFilesAdapter,
+  FileHandle,
+  FileUploadInput,
 } from './activities/index'
 
 // Rerank adapter base + types
 export { BaseRerankAdapter } from './activities/rerank/adapter'
+
+// Evaluate adapter base + types
+export { BaseEvaluateAdapter } from './activities/evaluate/adapter'
+
+export {
+  defineAgent,
+  type DefinedAgent,
+  type SubagentChoiceOptions,
+  type SubagentRunContext,
+} from './activities/chat/agents/define-agent'
+export {
+  subagentRoute,
+  type SubagentRouteOptions,
+} from './activities/chat/agents/route'
+export type {
+  SubagentOrder,
+  SubagentRouterPick,
+  SubagentRouterPlan,
+  SubagentStep,
+  SubagentStepsPlan,
+} from './activities/chat/agents/spawn'
 
 // Tool definition
 export {
@@ -103,6 +158,9 @@ export type {
 
 // MCP error classes (value exports — usable with instanceof)
 export { MCPDuplicateToolNameError } from './activities/chat/mcp/manager'
+export { DuplicateToolNameError } from './activities/chat/tools/unique-tool-names'
+export { SkillLimitError } from './utilities/errors'
+export type { SkillLimitErrorInit } from './utilities/errors'
 
 // Schema conversion (Standard JSON Schema compliant)
 export {
@@ -137,6 +195,22 @@ export type {
   StreamDurability,
   UpsertableStreamDurability,
 } from './stream-durability'
+
+// WebSocket transport utilities
+export {
+  toWebSocketStream,
+  toWebSocketResponse,
+  resumeWebSocketStream,
+  resumeWebSocketResponse,
+  encodeWsFrame,
+  decodeWsFrame,
+} from './stream-to-websocket'
+export type {
+  WebSocketLike,
+  WsRunContext,
+  WebSocketStreamInit,
+  InboundFrame,
+} from './stream-to-websocket'
 
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'
@@ -184,6 +258,17 @@ export type {
   SandboxFileEvent,
   SandboxFileHookEvent,
   ChatSandboxHooks,
+  InterruptBoundaryPhase,
+  InterruptToolResume,
+  InterruptResolutionCollection,
+  GenericInterruptResolution,
+  InterruptBoundaryResult,
+  InterruptResolutionResult,
+} from './activities/chat/middleware/index'
+
+export {
+  INTERRUPT_BOUNDARY_PHASES,
+  INTERRUPT_TOOL_RESUMES,
 } from './activities/chat/middleware/index'
 
 // Interrupt protocol surface. Deliberately enumerated rather than
@@ -192,6 +277,29 @@ export type {
 // a commitment. Only the ephemeral contract this release actually implements
 // is exported — no durable-recovery or persisted-state types, which would
 // pre-decide a question the orchestration RFC still owns.
+export {
+  defineInterrupt,
+  createInterruptBinding,
+  INTERRUPT_PAYLOAD_METADATA_KEY,
+} from './interrupt-definition'
+export {
+  INTERRUPT_CONTINUATION_METADATA_KEY,
+  INTERRUPT_CONTINUATION_VERSION,
+  genericInterruptContinuationFromDescriptor,
+  readGenericInterruptContinuation,
+  wrapGenericInterruptContinuation,
+} from './generic-interrupt-continuation'
+export type {
+  GenericInterruptContinuation,
+  GenericInterruptContinuationReadResult,
+} from './generic-interrupt-continuation'
+export type {
+  InterruptDefinition,
+  GenericInterruptRequest,
+  InterruptDefinitionOptions,
+  InterruptBindingDescriptor,
+} from './interrupt-definition'
+
 export {
   INTERRUPT_BINDING_VERSION,
   canonicalizeInterruptResolutions,
@@ -230,6 +338,9 @@ export {
   createCapability,
   defineChatMiddleware,
   createChatMiddleware,
+  MetadataCapability,
+  getMetadata,
+  provideMetadata,
 } from './activities/chat/middleware/index'
 export type {
   Capability,
@@ -239,6 +350,7 @@ export type {
   CapabilityProvider,
   DefinedChatMiddleware,
   AnyChatMiddleware,
+  MetadataStore,
 } from './activities/chat/middleware/index'
 // Locks are a distributed-mutex primitive — coordination, not chat state — and
 // live behind their own subpath: `@tanstack/ai/locks` (see ./locks.ts).
@@ -408,12 +520,31 @@ export { generationParamsFromBody, generationParamsFromRequest } from './client'
 
 // AG-UI wire serialization (used internally by @tanstack/ai-client)
 export { uiMessagesToWire } from './utilities/ag-ui-wire'
+export type { SubagentWireInfo } from './utilities/subagent-wire'
+export {
+  subagentHostMessageId,
+  wireSubagentInfo,
+} from './utilities/subagent-wire'
+export { mergeMetadata, withTanstackMetadata } from './utilities/merge-metadata'
+export { fromSpecTokenUsage, toSpecTokenUsage } from './utilities/ag-ui-usage'
+export type { SpecTokenUsage } from './utilities/ag-ui-usage'
+export { normalizeStreamChunk } from './utilities/normalize-stream-chunk'
+export type { AdapterYieldChunk } from './utilities/adapter-yield-chunk'
+export { getChunkRunId, getChunkThreadId } from './utilities/chunk-ids'
 export type { WireMessage } from './utilities/ag-ui-wire'
 export {
   isContentPart,
   isContentPartArray,
   normalizeToolResult,
 } from './utilities/tool-result'
+export {
+  assertMessagesFileSourceSupport,
+  assertPromptFileSourceSupport,
+  fileReferenceFor,
+  isFileSource,
+  unsupportedFileSourceError,
+  type FileSourceCapable,
+} from './utilities/content-source'
 
 export {
   getProviderExecutedMetadata,

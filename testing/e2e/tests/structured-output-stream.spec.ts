@@ -7,6 +7,23 @@ import {
 } from './helpers'
 import { providersFor } from './test-matrix'
 
+test('OpenAI Responses structured output reports EOF without response.completed', async ({
+  request,
+}) => {
+  const response = await request.post(
+    '/api/openai-completed-response-text?scenario=structured-missing-terminal',
+  )
+
+  expect(response.ok()).toBe(true)
+  const result = await response.json()
+  expect(result.text).toBe('{"answer":"partial"}')
+  expect(result.events).toContain('TEXT_MESSAGE_CONTENT')
+  expect(result.events.at(-1)).toBe('RUN_ERROR')
+  expect(result.errorCode).toBe('incomplete-stream')
+  expect(result.completed).toBe(false)
+  expect(result.events).not.toContain('RUN_FINISHED')
+})
+
 for (const provider of providersFor('structured-output-stream')) {
   test.describe(`${provider} — structured-output-stream`, () => {
     test('streams structured JSON deltas in a single request', async ({
@@ -99,6 +116,32 @@ for (const provider of providersFor('structured-output-stream')) {
       // The structured-output.complete event must not have reached the
       // client — aborting before the JSON finished streaming should leave
       // the run terminated, not "completed with empty result".
+      await expect(page.getByTestId('structured-output-complete')).toHaveCount(
+        0,
+      )
+    })
+
+    test('invalid JSON does not emit structured-output.complete', async ({
+      page,
+      testId,
+      aimockPort,
+    }) => {
+      test.skip(
+        provider !== 'gemini',
+        'Pins the Gemini native parse-error path added with structuredOutputStream',
+      )
+      await page.goto(
+        featureUrl(provider, 'structured-output-stream', testId, aimockPort),
+      )
+
+      await sendMessage(
+        page,
+        '[structured-stream-invalid] recommend a guitar as json',
+      )
+
+      await expect(page.getByTestId('loading-indicator')).not.toBeVisible({
+        timeout: 15_000,
+      })
       await expect(page.getByTestId('structured-output-complete')).toHaveCount(
         0,
       )

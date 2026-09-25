@@ -49,15 +49,16 @@ test.describe('AG-UI client-to-server compliance', () => {
     // runId freshness: each send generates a new runId
     expect(first.runId).not.toBe(second.runId)
 
-    // Anchor messages carry `parts` (re-attached by chatParamsFromRequestBody)
+    // Anchors are spec AG-UI messages: id + role, no TanStack `parts`.
     const anchors = second.messages.filter(
       (m: any) =>
         m.role === 'user' || m.role === 'system' || m.role === 'assistant',
     )
     expect(anchors.length).toBeGreaterThan(0)
     for (const a of anchors) {
-      expect(a).toHaveProperty('parts')
-      expect(Array.isArray(a.parts)).toBe(true)
+      expect(a).not.toHaveProperty('parts')
+      expect(a).toHaveProperty('id')
+      expect(a).toHaveProperty('role')
     }
   })
 })

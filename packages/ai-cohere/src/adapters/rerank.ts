@@ -1,8 +1,5 @@
 import { BaseRerankAdapter } from '@tanstack/ai/adapters'
-import {
-  COHERE_DEFAULT_BASE_URL,
-  getCohereApiKeyFromEnv,
-} from '../utils/client'
+import { resolveCohereTransport, getCohereApiKeyFromEnv } from '../utils/client'
 import type { CohereClientConfig } from '../utils/client'
 import type {
   CohereRerankModel,
@@ -56,11 +53,9 @@ export class CohereRerankAdapter<
   constructor(config: CohereClientConfig, model: TModel) {
     super({}, model)
     this.apiKey = config.apiKey
-    this.baseUrl = (config.baseUrl ?? COHERE_DEFAULT_BASE_URL).replace(
-      /\/+$/,
-      '',
-    )
-    this.headers = config.headers ?? {}
+    const transport = resolveCohereTransport(config)
+    this.baseUrl = transport.baseUrl
+    this.headers = transport.headers
   }
 
   async rerank(
@@ -124,7 +119,12 @@ export class CohereRerankAdapter<
       promptTokens: 0,
       completionTokens: 0,
       totalTokens: 0,
-      ...(searchUnits !== undefined ? { unitsBilled: searchUnits } : {}),
+      ...(searchUnits !== undefined
+        ? {
+            billed: { quantity: searchUnits, unit: 'units' },
+            unitsBilled: searchUnits,
+          }
+        : {}),
     }
 
     return {

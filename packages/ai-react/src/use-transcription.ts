@@ -1,4 +1,4 @@
-import { useGeneration } from './use-generation'
+import { useGenerationWithDevtoolsIdentity } from './use-generation'
 import { reconstructTranscriptionResult } from '@tanstack/ai-client'
 import type { StreamChunk, TranscriptionResult } from '@tanstack/ai'
 import type {
@@ -10,6 +10,8 @@ import type {
   InferGenerationOutputFromReturn,
   TranscriptionGenerateInput,
 } from '@tanstack/ai-client'
+import type { ByokClient } from '@tanstack/ai-client/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
 
 /**
  * Options for the useTranscription hook.
@@ -21,12 +23,12 @@ export interface UseTranscriptionOptions<TOutput = TranscriptionResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for transcription */
   fetcher?: GenerationFetcher<TranscriptionGenerateInput, TranscriptionResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
+  byok?: ByokClient
+  /** Optional provider id. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
+  byokProvider?: () => ProviderId | undefined
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
@@ -48,8 +50,8 @@ export interface UseTranscriptionOptions<TOutput = TranscriptionResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -148,24 +150,24 @@ export interface UseTranscriptionReturn<TOutput = TranscriptionResult> {
 export function useTranscription<TTransformed = void>(
   options: Omit<
     UseTranscriptionOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: TranscriptionResult) => TTransformed
   } & GenerationPersistenceOptions,
 ): UseTranscriptionReturn<
   InferGenerationOutputFromReturn<TranscriptionResult, TTransformed>
 > {
-  const devtools = {
-    ...options.devtools,
-    framework: 'react',
-    hookName: 'useTranscription',
-    outputKind: 'text' as const,
-  }
-  const generation = useGeneration<
+  const generation = useGenerationWithDevtoolsIdentity<
     TranscriptionGenerateInput,
     TranscriptionResult,
     TTransformed
-  >({ ...options, devtools, reconstructResult: reconstructTranscriptionResult })
+  >(
+    { ...options, reconstructResult: reconstructTranscriptionResult },
+    {
+      hookName: 'useTranscription',
+      outputKind: 'text',
+    },
+  )
 
   return generation
 }

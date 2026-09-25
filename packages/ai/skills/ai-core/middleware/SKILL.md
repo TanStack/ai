@@ -24,49 +24,54 @@ sources:
 ```typescript
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
+import { trackAnalytics, reportError } from './analytics'
 
-const stream = chat({
-  adapter: openaiText('gpt-5.2'),
-  messages,
-  middleware: [
-    {
-      onStart: (ctx) => {
-        console.log('Chat started:', ctx.model)
-      },
-      onFinish: (ctx, info) => {
-        trackAnalytics({ model: ctx.model, tokens: info.usage?.totalTokens })
-      },
-      onError: (ctx, info) => {
-        reportError(info.error)
-      },
-    },
-  ],
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
 
-return toServerSentEventsResponse(stream)
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    middleware: [
+      {
+        onStart: (ctx) => {
+          console.log('Chat started:', ctx.model)
+        },
+        onFinish: (ctx, info) => {
+          trackAnalytics({ model: ctx.model, tokens: info.usage?.totalTokens })
+        },
+        onError: (ctx, info) => {
+          reportError(info.error)
+        },
+      },
+    ],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ## Hooks Reference
 
 Every hook receives a `ChatMiddlewareContext` as its first argument, which provides
 `requestId`, `streamId`, `phase`, `iteration`, `chunkIndex`, `model`, `provider`,
-`signal`, `abort()`, `defer()`, and more.
+`signal`, `abort()`, `defer()`, and more. `parentRunId` names the run this one continues. `subagentRunId` is set only inside a subagent and names its card.
 
-| Hook                       | When                                                                                               | Second Argument                                     |
-| -------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `onConfig`                 | Once at startup (`init`) + once per iteration (`beforeModel`) + once at structured-output boundary | `ChatMiddlewareConfig` (return partial to merge)    |
-| `onStructuredOutputConfig` | Once at the structured-output boundary (only when `chat({ outputSchema })`)                        | `StructuredOutputMiddlewareConfig` (return partial) |
-| `onStart`                  | Once after initial `onConfig`                                                                      | none                                                |
-| `onIteration`              | Start of each agent loop iteration                                                                 | `IterationInfo`                                     |
-| `onShouldContinue`         | Whether to start another agent-loop iteration (AND with strategy; `false` stops)                   | `AgentLoopState`                                    |
-| `onChunk`                  | Every streamed chunk                                                                               | `StreamChunk` (return void/chunk/chunk[]/null)      |
-| `onBeforeToolCall`         | Before each tool executes                                                                          | `ToolCallHookContext` (return decision or void)     |
-| `onAfterToolCall`          | After each tool executes                                                                           | `AfterToolCallInfo`                                 |
-| `onToolPhaseComplete`      | After all tool calls in an iteration                                                               | `ToolPhaseCompleteInfo`                             |
-| `onUsage`                  | When `RUN_FINISHED` includes usage data                                                            | `UsageInfo`                                         |
-| `onFinish`                 | Run completed normally                                                                             | `FinishInfo`                                        |
-| `onAbort`                  | Run was aborted                                                                                    | `AbortInfo`                                         |
-| `onError`                  | Unhandled error occurred                                                                           | `ErrorInfo`                                         |
+| Hook                       | When                                                                                                     | Second Argument                                     |
+| -------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `onConfig`                 | Once at startup (`init`) + once per iteration (`beforeModel`) + once at a separate-finalization boundary | `ChatMiddlewareConfig` (return partial to merge)    |
+| `onStructuredOutputConfig` | Once at the separate-finalization boundary                                                               | `StructuredOutputMiddlewareConfig` (return partial) |
+| `onStart`                  | Once after initial `onConfig`                                                                            | none                                                |
+| `onIteration`              | Start of each agent loop iteration                                                                       | `IterationInfo`                                     |
+| `onShouldContinue`         | Whether to start another agent-loop iteration (AND with strategy; `false` stops)                         | `AgentLoopState`                                    |
+| `onChunk`                  | Every streamed chunk                                                                                     | `StreamChunk` (return void/chunk/chunk[]/null)      |
+| `onBeforeToolCall`         | Before each tool executes                                                                                | `ToolCallHookContext` (return decision or void)     |
+| `onAfterToolCall`          | After each tool executes                                                                                 | `AfterToolCallInfo`                                 |
+| `onToolPhaseComplete`      | After all tool calls in an iteration                                                                     | `ToolPhaseCompleteInfo`                             |
+| `onUsage`                  | When `RUN_FINISHED` includes usage data                                                                  | `UsageInfo`                                         |
+| `onFinish`                 | Run completed normally                                                                                   | `FinishInfo`                                        |
+| `onAbort`                  | Run was aborted                                                                                          | `AbortInfo`                                         |
+| `onError`                  | Unhandled error occurred                                                                                 | `ErrorInfo`                                         |
 
 Terminal hooks (`onFinish`, `onAbort`, `onError`) are **mutually exclusive** -- exactly
 one fires per `chat()` invocation.
@@ -82,48 +87,67 @@ one fires per `chat()` invocation.
 
 `ctx.phase` is one of:
 
-| Phase                | When                                                                                                                                                                                                                                           |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `'init'`             | Initial setup (before the first `onConfig` snapshot is built).                                                                                                                                                                                 |
-| `'beforeModel'`      | Right before each agent-loop adapter call (`onConfig` re-fires here).                                                                                                                                                                          |
-| `'modelStream'`      | During model streaming chunks within the agent loop.                                                                                                                                                                                           |
-| `'beforeTools'`      | Before tool execution phase.                                                                                                                                                                                                                   |
-| `'afterTools'`       | After tool execution phase.                                                                                                                                                                                                                    |
-| `'structuredOutput'` | During the final structured-output adapter call (set for all chunks from `adapter.structuredOutputStream` or the synthesized fallback). Triggered only when `chat({ outputSchema })` is invoked; one phase transition per `chat()` invocation. |
+| Phase                | When                                                                                                                                                                             |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `'init'`             | Initial setup (before the first `onConfig` snapshot is built).                                                                                                                   |
+| `'beforeModel'`      | Right before each agent-loop adapter call (`onConfig` re-fires here).                                                                                                            |
+| `'modelStream'`      | During model streaming chunks within the agent loop.                                                                                                                             |
+| `'beforeTools'`      | Before tool execution phase.                                                                                                                                                     |
+| `'afterTools'`       | After tool execution phase.                                                                                                                                                      |
+| `'structuredOutput'` | During the separate-finalization adapter call (set for all chunks from `adapter.structuredOutputStream` or the synthesized fallback). Does not occur for native-combined output. |
 
-**Structured-output lifecycle rules** (when `chat({ outputSchema })` is used):
+**Separate-finalization path** (adapters without native-combined support):
 
 - `onStructuredOutputConfig` fires **before** `onConfig` at the structured-output boundary.
 - `onConfig` re-fires at the same boundary with `ctx.phase === 'structuredOutput'`, receiving the post-`onStructuredOutputConfig` view of the config (minus `outputSchema`).
 - `onChunk` and `onUsage` fire for every chunk and usage event emitted by the structured-output call, with `ctx.phase === 'structuredOutput'`.
 - `onIteration` does **not** fire for finalization — it is agent-loop-only.
-- `onFinish` fires once at the end of the whole `chat()` invocation, **after** the structured-output finalization completes (not after the agent loop). Terminal-hook exclusivity still holds (one of `onFinish` / `onAbort` / `onError`).
 - **Terminal `info` and structured-output:** `info.usage` / `info.finishReason` / `info.content` reflect the **agent loop's** terminal state, NOT the finalization step. Finalization state is intentionally segregated to keep agent-loop semantics clean. For a tools-less `chat({ outputSchema })` run, `info.usage` is `undefined` and `info.finishReason` is `null` (no agent-loop iteration produced `RUN_FINISHED`). To capture finalization tokens, use `onUsage` — it fires for both agent-loop iterations and the final call. For the structured-output result itself, observe the `structured-output.complete` CUSTOM event in `onChunk`.
+
+**Native-combined output:**
+
+- The schema-constrained JSON is produced by a normal agent-loop iteration. `onStructuredOutputConfig` does not fire, `ctx.phase` remains `'modelStream'`, and `onIteration` fires for that iteration.
+- `info.content` includes the structured JSON because it is agent-loop text. Middleware observes the `structured-output.complete` event in `onChunk` during the same phase.
+
+**Both paths:**
+
+- On successful completion, `onFinish` fires once after the structured result completes. Terminal-hook exclusivity still holds.
+- By `onFinish`, `ctx.messages` includes the completed terminal assistant messages. Native-combined output keeps the structured result on its terminal assistant message. The separate-finalization path can preserve the agent loop's plain-text message followed by a distinct structured-output message.
 
 ## onStructuredOutputConfig
 
-A dedicated config hook that fires **only** at the structured-output boundary
-(when `chat({ outputSchema })` is invoked). Use it to transform the JSON Schema
-sent to the provider (inject `$defs`, strip vendor-incompatible keywords) or to
-apply structured-output-specific config changes that should not affect the
-agent-loop adapter calls.
+A dedicated config hook that fires **only** at the separate-finalization
+boundary. Use it to transform the JSON Schema sent to the provider (inject
+`$defs`, strip vendor-incompatible keywords) or to apply structured-output-
+specific config changes that should not affect the agent-loop adapter calls.
 
 **Signature:**
 
 ```ts
-onStructuredOutputConfig?: (
-  ctx: ChatMiddlewareContext,
-  config: StructuredOutputMiddlewareConfig,
-) =>
-  | void
-  | null
-  | Partial<StructuredOutputMiddlewareConfig>
-  | Promise<void | null | Partial<StructuredOutputMiddlewareConfig>>
+import type {
+  ChatMiddlewareContext,
+  StructuredOutputMiddlewareConfig,
+} from '@tanstack/ai'
+
+// Excerpt of the `ChatMiddleware` interface exported by '@tanstack/ai'
+interface ChatMiddleware {
+  onStructuredOutputConfig?: (
+    ctx: ChatMiddlewareContext,
+    config: StructuredOutputMiddlewareConfig,
+  ) =>
+    | void
+    | null
+    | Partial<StructuredOutputMiddlewareConfig>
+    | Promise<void | null | Partial<StructuredOutputMiddlewareConfig>>
+}
 ```
 
 **`StructuredOutputMiddlewareConfig` shape:**
 
 ```ts
+import type { ChatMiddlewareConfig, JSONSchema } from '@tanstack/ai'
+
+// As exported by '@tanstack/ai'
 interface StructuredOutputMiddlewareConfig extends Omit<
   ChatMiddlewareConfig,
   'tools'
@@ -195,13 +219,17 @@ const analytics: ChatMiddleware = {
   },
 }
 
-const stream = chat({
-  adapter: openaiText('gpt-5.2'),
-  messages,
-  middleware: [analytics],
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
 
-return toServerSentEventsResponse(stream)
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    middleware: [analytics],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ### Pattern 2: Tool Interception Middleware
@@ -259,34 +287,39 @@ const toolGuard: ChatMiddleware = {
 
 ### Pattern 3: Structured-Output Middleware
 
-When `chat({ outputSchema })` is used, the final structured-output adapter call
-now flows through the same middleware chain as the agent loop (with
-`ctx.phase === 'structuredOutput'`). Before this change, the final call bypassed
-middleware entirely — `onChunk`, `onUsage`, `onConfig`, and terminal hooks did
-not see it.
+On the separate-finalization path, the final structured-output adapter call
+flows through the same middleware chain as the agent loop with
+`ctx.phase === 'structuredOutput'`. Native-combined output has no separate
+provider call: middleware observes its chunks during `modelStream`, and
+`onStructuredOutputConfig` does not fire. Middleware cannot transform the
+native-combined schema.
 
-**Example A — Observability (tracing every chunk, including finalization):**
+**Example A — Observability (tracing every chunk, including separate finalization):**
 
 ```typescript
 import type { ChatMiddleware } from '@tanstack/ai'
+import { trace } from '@opentelemetry/api'
 
 const tracing: ChatMiddleware = {
   name: 'tracing',
   onChunk(ctx, chunk) {
-    span.addEvent('chunk', { phase: ctx.phase, type: chunk.type })
+    trace
+      .getActiveSpan()
+      ?.addEvent('chunk', { phase: ctx.phase, type: chunk.type })
   },
 }
 ```
 
-This middleware now observes every chunk from the final structured-output call,
-attributed to `ctx.phase === 'structuredOutput'`. Before the fix, the final
-adapter call bypassed middleware entirely — `tracing` would only see agent-loop
-chunks.
+On the separate-finalization path, this middleware observes every chunk from
+the final structured-output call with `ctx.phase === 'structuredOutput'`. On
+the native-combined path, it observes the structured stream with
+`ctx.phase === 'modelStream'`.
 
 **Example B — Schema rewriting (inject shared `$defs`):**
 
 ```typescript
 import type { ChatMiddleware } from '@tanstack/ai'
+import { sharedDefs } from './defs'
 
 const injectDefs: ChatMiddleware = {
   name: 'inject-defs',
@@ -298,9 +331,9 @@ const injectDefs: ChatMiddleware = {
 }
 ```
 
-`onStructuredOutputConfig` is the right hook here because it has direct access
-to `config.outputSchema` and runs only on the structured-output boundary —
-schema rewrites do not leak into the agent-loop adapter calls.
+`onStructuredOutputConfig` is the right hook here on the separate-finalization
+path because it has direct access to `config.outputSchema`. Native-combined
+schema transformation is not exposed through middleware.
 
 ### Pattern 4: Multiple Middleware Composition
 
@@ -308,9 +341,27 @@ Middleware executes in array order (left-to-right). Ordering matters for hooks t
 pipe or short-circuit:
 
 ```typescript
-import { chat, type ChatMiddleware } from '@tanstack/ai'
+import {
+  chat,
+  toolDefinition,
+  toServerSentEventsResponse,
+  type ChatMiddleware,
+} from '@tanstack/ai'
 import { toolCacheMiddleware } from '@tanstack/ai/middlewares'
 import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const weatherTool = toolDefinition({
+  name: 'getWeather',
+  description: 'Get the current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+}).server(async ({ city }) => ({ city, tempC: 21 }))
+
+const stockTool = toolDefinition({
+  name: 'getStock',
+  description: 'Get the latest price for a ticker symbol',
+  inputSchema: z.object({ symbol: z.string() }),
+}).server(async ({ symbol }) => ({ symbol, price: 123.45 }))
 
 const logging: ChatMiddleware = {
   name: 'logging',
@@ -338,16 +389,22 @@ const configTransform: ChatMiddleware = {
   },
 }
 
-const stream = chat({
-  adapter: openaiText('gpt-5.2'),
-  messages,
-  tools: [weatherTool, stockTool],
-  middleware: [
-    logging, // Runs first
-    configTransform, // Transforms config second
-    toolCacheMiddleware({ ttl: 60_000 }), // Caches tool results third
-  ],
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    tools: [weatherTool, stockTool],
+    middleware: [
+      logging, // Runs first
+      configTransform, // Transforms config second
+      toolCacheMiddleware({ ttl: 60_000 }), // Caches tool results third
+    ],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 **Composition rules by hook:**
@@ -369,7 +426,21 @@ Not a built-in. Cap fan-out with `onBeforeToolCall` skip + `onShouldContinue`.
 See `docs/chat/agentic-cycle.md` ("Tool-call budgets").
 
 ```typescript
-import { chat, maxIterations, type ChatMiddleware } from '@tanstack/ai'
+import {
+  chat,
+  maxIterations,
+  toolDefinition,
+  toServerSentEventsResponse,
+  type ChatMiddleware,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const weatherTool = toolDefinition({
+  name: 'getWeather',
+  description: 'Get the current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+}).server(async ({ city }) => ({ city, tempC: 21 }))
 
 function toolCallBudget(opts: {
   max?: number
@@ -400,13 +471,19 @@ function toolCallBudget(opts: {
   }
 }
 
-chat({
-  adapter,
-  messages,
-  tools: [weatherTool],
-  agentLoopStrategy: maxIterations(20),
-  middleware: [toolCallBudget({ maxPerTurn: 10, max: 20 })],
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    tools: [weatherTool],
+    agentLoopStrategy: maxIterations(20),
+    middleware: [toolCallBudget({ maxPerTurn: 10, max: 20 })],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 ## Built-in: toolCacheMiddleware
@@ -414,21 +491,35 @@ chat({
 Caches tool call results by name + arguments. Import from `@tanstack/ai/middlewares`:
 
 ```typescript
-import { chat } from '@tanstack/ai'
+import { chat, toolDefinition, toServerSentEventsResponse } from '@tanstack/ai'
 import { toolCacheMiddleware } from '@tanstack/ai/middlewares'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
 
-const stream = chat({
-  adapter,
-  messages,
-  tools: [weatherTool],
-  middleware: [
-    toolCacheMiddleware({
-      ttl: 60_000, // Cache entries expire after 60 seconds
-      maxSize: 50, // Max 50 entries (LRU eviction)
-      toolNames: ['getWeather'], // Only cache specific tools
-    }),
-  ],
-})
+const weatherTool = toolDefinition({
+  name: 'getWeather',
+  description: 'Get the current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+}).server(async ({ city }) => ({ city, tempC: 21 }))
+
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    tools: [weatherTool],
+    middleware: [
+      toolCacheMiddleware({
+        ttl: 60_000, // Cache entries expire after 60 seconds
+        maxSize: 50, // Max 50 entries (LRU eviction)
+        toolNames: ['getWeather'], // Only cache specific tools
+      }),
+    ],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 Options: `maxSize` (default 100), `ttl` (default Infinity), `toolNames` (default all),
@@ -518,9 +609,12 @@ driver, or nothing fences a dead host's writes.
 a bare string: `message` is the provider's prose, `code` is the stable,
 machine-branchable classification a consumer switches on. Only
 `createOrResume`, `update`, `get`, and `findActiveRun` are required on a
-`RunStore`; `listByThread` and `listReclaimable` are optional, so a backend can
-leave either out and callers feature-detect
-(`store.listReclaimable?.(opts)`). Shape your own store with
+`RunStore`. `listByThread`, `listByParentRun`, and `listReclaimable` are
+optional, so a backend can leave any of them out and callers feature-detect
+(`store.listReclaimable?.(opts)`). A subagent child run also stores
+`parentRunId`, `subagentRunId`, and `name`. `createOrResume` writes them on
+the first insert and leaves them unchanged on resume. `reconstructChat` calls
+`listByParentRun` to put the child cards back. Shape your own store with
 `defineRunStore` for autocomplete without a separate `: RunStore` annotation,
 matching `defineLock`; `defineRunStore<const T extends RunStore>(store: T): T`
 returns the argument's own type, so an optional method your store implements
@@ -541,7 +635,12 @@ implement, and what `@tanstack/ai-sandbox`'s run driver resolves per run — its
 `snapshot()` method alongside `append`, `read`, and `close`:
 
 ```ts
-snapshot: () => Promise<Array<{ offset: TOffset; chunk: StreamChunk }>>
+import type { StreamChunk } from '@tanstack/ai'
+
+// Excerpt of the `StreamDurability` interface exported by '@tanstack/ai'
+interface StreamDurability<TOffset extends string = string> {
+  snapshot: () => Promise<Array<{ offset: TOffset; chunk: StreamChunk }>>
+}
 ```
 
 It returns everything stored for a run right now, in append order, then
@@ -686,11 +785,15 @@ Source: docs/sandbox/observability.md
 ### a. MEDIUM: Trying to modify StreamChunks in middleware
 
 ```typescript
+import type { ChatMiddleware } from '@tanstack/ai'
+
 // WRONG -- mutating the chunk object directly
 const broken: ChatMiddleware = {
   name: 'broken',
   onChunk: (ctx, chunk) => {
-    chunk.delta = 'modified' // Mutation does nothing; chunk is not modified in-place
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+      chunk.delta = 'modified' // Mutation does nothing; chunk is not modified in-place
+    }
   },
 }
 
@@ -727,6 +830,9 @@ middleware had decided to reject. A throw from either fails the whole stream. Th
 is where an unhandled error actually costs you a response:
 
 ```typescript
+import type { ChatMiddleware } from '@tanstack/ai'
+import { logChunk, requireEnv } from './logging'
+
 // WRONG -- an unhandled error in onChunk kills the entire streaming response
 const fragile: ChatMiddleware = {
   name: 'fragile-chunk-logger',
@@ -736,7 +842,12 @@ const fragile: ChatMiddleware = {
   },
   onConfig: (ctx, config) => {
     // Same for a config transform that reads an env var that is not set
-    return { model: requireEnv('MODEL_OVERRIDE') }
+    return {
+      modelOptions: {
+        ...config.modelOptions,
+        temperature: Number(requireEnv('TEMPERATURE')),
+      },
+    }
   },
 }
 
@@ -752,9 +863,15 @@ const resilient: ChatMiddleware = {
     // Return void to pass through
   },
   onConfig: (ctx, config) => {
-    const override = process.env.MODEL_OVERRIDE
+    const temperature = process.env.TEMPERATURE
     // Decide, do not throw: no override means no transform.
-    return override === undefined ? undefined : { model: override }
+    if (temperature === undefined) return undefined
+    return {
+      modelOptions: {
+        ...config.modelOptions,
+        temperature: Number(temperature),
+      },
+    }
   },
   onFinish: (ctx, info) => {
     // Already guarded by core — but prefer ctx.defer() anyway, so a slow
@@ -779,6 +896,6 @@ Source: docs/advanced/middleware.md, `packages/ai/src/activities/chat/middleware
 ## Cross-References
 
 - See also: **ai-core/chat-experience/SKILL.md** -- Middleware hooks into the chat lifecycle
-- See also: **ai-core/structured-outputs/SKILL.md** -- Middleware now wraps the final structured-output call; use `onStructuredOutputConfig` for JSON-Schema transforms
+- See also: **ai-core/structured-outputs/SKILL.md** -- Separate finalization uses `onStructuredOutputConfig` for JSON-Schema transforms; native-combined schema transformation is not exposed through middleware
 - See also: **ai-core/ag-ui-protocol/SKILL.md** -- Reading the `sandbox.file` / `sandbox.file.diff` `CUSTOM` chunks the sandbox runtime emits alongside these `sandbox` hooks, via `ChatStream`'s typed `KnownCustomEvent` narrowing
 - See also: **`@tanstack/ai-persistence` skills** (`skills/ai-persistence/SKILL.md` in that package) -- Full persistence suite (`withPersistence`, client storage, store contracts, adapter recipes, locks). This file only sketches server `withPersistence`.

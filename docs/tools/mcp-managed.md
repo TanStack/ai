@@ -12,6 +12,8 @@ keywords:
   - keep-alive
   - lazyTools
   - onDiscoveryError
+  - toolFilter
+  - needsApproval
 ---
 
 You have one or more live [MCP clients](./mcp) (or pools) and you want the model to use their tools — without writing boilerplate `await client.tools()` calls and `try/finally close()` blocks for every route. By the end of this guide you'll hand those clients to `chat()` via the `mcp` option and let it handle both discovery and lifecycle for you.
@@ -113,6 +115,41 @@ const stream = chat({
   },
 })
 ```
+
+## Limit which tools the model gets
+
+`chat({ mcp })` sends every tool that each client discovers. To hide tools, or to require approval, set `toolFilter` or `needsApproval` on the client. `chat()` uses the options of each client:
+
+```ts
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient, createMCPClients } from '@tanstack/ai-mcp'
+
+const messages = [{ role: 'user' as const, content: 'Hello' }]
+
+// One client: send only read-only tools
+const github = await createMCPClient({
+  transport: { type: 'http', url: process.env.GITHUB_MCP_URL! },
+  toolFilter: (tool) => tool.annotations?.readOnlyHint === true,
+})
+
+// A pool: each server gets its own options
+const pool = await createMCPClients({
+  linear: {
+    transport: { type: 'http', url: process.env.LINEAR_MCP_URL! },
+    needsApproval: (tool) => tool.annotations?.readOnlyHint !== true,
+  },
+  docs: { transport: { type: 'http', url: process.env.DOCS_MCP_URL! } },
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-5.5'),
+  messages,
+  mcp: { clients: [github, pool] },
+})
+```
+
+The hints come from the server, and a compromised server can send false hints. For the trust rules and a name-based filter, see [Limit and Gate Tools](./mcp#limit-and-gate-tools).
 
 ## Keep connections warm
 

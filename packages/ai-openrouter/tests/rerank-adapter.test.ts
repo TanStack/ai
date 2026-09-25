@@ -87,6 +87,7 @@ describe('OpenRouterRerankAdapter', () => {
 
     const result = await rerank({ adapter: adapter(), query: 'q', documents })
 
+    expect(result.usage.billed).toEqual({ quantity: 1, unit: 'units' })
     expect(result.usage.unitsBilled).toBe(1)
     expect(result.usage.cost).toBe(0.002)
     expect(result.usage.totalTokens).toBe(20)

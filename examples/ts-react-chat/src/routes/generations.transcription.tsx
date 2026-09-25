@@ -2,7 +2,9 @@ import { useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranscription } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
+import { byteplusVoiceByok } from '@tanstack/ai-byteplus/byok'
 import { transcribeFn, transcribeStreamFn } from '../lib/server-fns'
+import { byok } from '../lib/byok'
 import { TRANSCRIPTION_PROVIDERS } from '../lib/audio-providers'
 import type {
   TranscriptionProviderConfig,
@@ -29,6 +31,9 @@ function TranscriptionForm({
         connection: fetchServerSentEvents('/api/transcribe'),
         body: { provider: config.id },
         persistence: true,
+        ...(config.id === 'byteplus'
+          ? { byok, byokProvider: () => byteplusVoiceByok.id }
+          : {}),
       }
     }
     if (mode === 'direct') {

@@ -19,9 +19,18 @@ The Groq adapter provides access to Groq's fast inference API, featuring the wor
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-groq
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-groq
+vue: @tanstack/ai-groq
+solid: @tanstack/ai-groq
+svelte: @tanstack/ai-groq
+preact: @tanstack/ai-groq
+angular: @tanstack/ai-groq
+vanilla: @tanstack/ai-groq
+octane: @tanstack/ai-groq
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 
@@ -109,6 +118,8 @@ const stream = chat({
   tools: [searchDatabase],
 });
 ```
+
+If Groq rejects a generated tool call with `tool_use_failed` and includes a reconstructable tool call in `failed_generation`, the adapter returns the provider error as that tool's result without executing the call. The agent loop can then repair the call on its next iteration. Other provider errors remain terminal run errors.
 
 ## Transcription
 

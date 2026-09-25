@@ -1,5 +1,45 @@
 # @tanstack/ai-sandbox-local-process
 
+## 0.2.6
+
+### Patch Changes
+
+- [#1484](https://github.com/TanStack/ai/pull/1484) [`61231d6`](https://github.com/TanStack/ai/commit/61231d61df2908ef14efd59801d8c0f9b82eb51b) - Add a package README to each sandbox provider: what it isolates with, the factory call, the auth and snapshot/resume behaviour that differs between them, and links to the sandbox docs.
+
+## 0.2.5
+
+### Patch Changes
+
+- [#1293](https://github.com/TanStack/ai/pull/1293) [`efba9cf`](https://github.com/TanStack/ai/commit/efba9cf6768fc895ff4ecd8b89edea9cb3080cb5) - fix: stop an uncaught EPIPE when a write goes to a child that closed its stdin
+
+- Updated dependencies []:
+  - @tanstack/ai-sandbox@0.5.6
+
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies [[`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46)]:
+  - @tanstack/ai-sandbox@0.5.0
+
+## 0.2.3
+
+### Patch Changes
+
+- [#1108](https://github.com/TanStack/ai/pull/1108) [`9b5f841`](https://github.com/TanStack/ai/commit/9b5f841127743ed73fbdaa96038c9b45314e0db9) - Support filesystem metadata needed by portable sandbox snapshots.
+
+- Updated dependencies [[`9b5f841`](https://github.com/TanStack/ai/commit/9b5f841127743ed73fbdaa96038c9b45314e0db9)]:
+  - @tanstack/ai-sandbox@0.4.0
+
+## 0.2.2
+
+### Patch Changes
+
+- [#1119](https://github.com/TanStack/ai/pull/1119) [`880d710`](https://github.com/TanStack/ai/commit/880d710626e77d85442082f95de03fa6cda78b78) - Fix local-process spawn handles hanging when the child exits before `wait()` is called.
+
+- Updated dependencies []:
+  - @tanstack/ai-sandbox@0.3.4
+
 ## 0.2.1
 
 ### Patch Changes

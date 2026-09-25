@@ -34,7 +34,7 @@ function finishedChunk(): object {
     runId: 'r',
     model: 'test',
     timestamp: 0,
-    finishReason: 'stop',
+    metadata: { tanstack: { finishReason: 'stop' } },
   }
 }
 

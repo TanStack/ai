@@ -3,9 +3,7 @@ id: ThinkingPart
 title: ThinkingPart
 ---
 
-# Interface: ThinkingPart
-
-Defined in: [packages/ai/src/types.ts:408](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L408)
+Defined in: [packages/ai/src/types.ts:450](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L450)
 
 ## Properties
 
@@ -15,27 +13,27 @@ Defined in: [packages/ai/src/types.ts:408](https://github.com/TanStack/ai/blob/m
 content: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:410](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L410)
+Defined in: [packages/ai/src/types.ts:452](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L452)
 
 ***
 
 ### signature?
 
 ```ts
-optional signature: string;
+optional signature?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:412](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L412)
+Defined in: [packages/ai/src/types.ts:454](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L454)
 
 ***
 
 ### stepId?
 
 ```ts
-optional stepId: string;
+optional stepId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:411](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L411)
+Defined in: [packages/ai/src/types.ts:453](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L453)
 
 ***
 
@@ -45,4 +43,4 @@ Defined in: [packages/ai/src/types.ts:411](https://github.com/TanStack/ai/blob/m
 type: "thinking";
 ```
 
-Defined in: [packages/ai/src/types.ts:409](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L409)
+Defined in: [packages/ai/src/types.ts:451](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L451)

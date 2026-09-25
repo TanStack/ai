@@ -10,8 +10,10 @@ import type {
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
-export interface BedrockTextConfig extends BedrockClientConfig {}
+export interface BedrockTextConfig
+  extends BedrockClientConfig, OpenAIBaseTextAdapterOptions {}
 
 export type { ExternalTextProviderOptions as BedrockTextProviderOptions } from '../text/text-provider-options'
 
@@ -52,7 +54,12 @@ export class BedrockTextAdapter<
 
   constructor(config: BedrockTextConfig, model: TModel) {
     // No `forced` -> honors config.endpoint ('runtime' default, 'mantle' allowed).
-    super(model, 'bedrock', new OpenAI(withBedrockDefaults(config)))
+    super(
+      model,
+      'bedrock',
+      new OpenAI(withBedrockDefaults(config, undefined, model)),
+      config,
+    )
   }
 
   /**

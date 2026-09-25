@@ -5,7 +5,8 @@ import { modelMessagesToUIMessages, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import type { ModelMessage, ToolCallPart } from '@tanstack/ai'
 import type { UIMessage } from '@tanstack/ai-react'
-import { SCENARIO_LIST } from '@/lib/tools-test-tools'
+import { parseAimockPort } from '@/lib/devtools-test'
+import { SCENARIO_LIST, STOP_CLIENT_TOOL_MESSAGE } from '@/lib/tools-test-tools'
 
 /**
  * Event log entry for tracking tool execution flow
@@ -90,8 +91,12 @@ function createTrackedTools(
       details: args.message,
     })
 
-    // Simulate async work
-    await new Promise((r) => setTimeout(r, 50))
+    await new Promise((resolve) =>
+      setTimeout(
+        resolve,
+        args.message === STOP_CLIENT_TOOL_MESSAGE ? 1000 : 50,
+      ),
+    )
 
     addEvent({
       type: 'execution-complete',
@@ -782,13 +787,9 @@ function ToolsTestPage() {
 export const Route = createFileRoute('/tools-test')({
   component: ToolsTestPage,
   validateSearch: (search: Record<string, unknown>) => {
-    const port =
-      typeof search.aimockPort === 'string'
-        ? parseInt(search.aimockPort, 10)
-        : undefined
     return {
       testId: typeof search.testId === 'string' ? search.testId : undefined,
-      aimockPort: port != null && !isNaN(port) ? port : undefined,
+      aimockPort: parseAimockPort(search.aimockPort),
       historyFixture:
         typeof search.historyFixture === 'string'
           ? search.historyFixture

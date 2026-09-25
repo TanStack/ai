@@ -1,3 +1,4 @@
+import { acpCompatibleText } from '@tanstack/ai-acp'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { codexText } from '@tanstack/ai-codex'
 import {
@@ -111,7 +112,14 @@ function npmGlobalCli(spec: string, verify: string): string {
 export const HARNESSES: Record<HarnessName, HarnessSpec> = {
   'claude-code': {
     label: 'Claude Code',
-    makeAdapter: () => claudeCodeText('sonnet'),
+    // Headless `-p` cannot answer permission prompts. Isolated sandboxes and
+    // this trusted local demo both need bypassPermissions, same as Codex
+    // `danger-full-access`. Do not set CLAUDE_CODE_SANDBOXED here: that marker
+    // is only for a real isolation boundary, which the adapter sets itself.
+    makeAdapter: () =>
+      claudeCodeText('sonnet', {
+        permissionMode: 'bypassPermissions',
+      }),
     installCommand: npmGlobalCli(
       '@anthropic-ai/claude-code',
       'claude --version',
@@ -173,12 +181,49 @@ export const HARNESSES: Record<HarnessName, HarnessSpec> = {
     },
     exposePort: 2419,
   },
+  acp: {
+    label: 'ACP compatible (Grok)',
+    makeAdapter: () =>
+      acpCompatibleText('composer-2.5', {
+        name: 'acp',
+        command: ({ model }) =>
+          `grok agent -m '${model}' --always-approve stdio`,
+        permissionMode: 'bypassPermissions',
+      }),
+    installCommand: GROK_CLI_INSTALL_COMMAND,
+    requiredEnv: ['XAI_API_KEY'],
+    envCheck: () =>
+      process.env.XAI_API_KEY || process.env.GROK_API_KEY
+        ? []
+        : ['XAI_API_KEY (or GROK_API_KEY)'],
+    sandboxSecrets: (): Record<string, string> => {
+      const key = process.env.XAI_API_KEY ?? process.env.GROK_API_KEY
+      return key ? { XAI_API_KEY: key } : {}
+    },
+  },
 }
+
+export type HarnessAuthMode = 'host' | 'api-key'
 
 export interface GrokHarnessOptions {
   model?: GrokBuildModel
   protocol?: GrokBuildProtocol
   transport?: GrokTransport
+  authMode?: HarnessAuthMode
+}
+
+function harnessAuthKeys(harness: HarnessName): Array<string> {
+  switch (harness) {
+    case 'grok':
+    case 'acp':
+      return ['XAI_API_KEY', 'GROK_API_KEY']
+    case 'claude-code':
+      return ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN']
+    case 'codex':
+      return ['CODEX_API_KEY']
+    case 'opencode':
+      return ['OPENAI_API_KEY']
+  }
 }
 
 /** Build the adapter for a harness run, including per-run Grok protocol options. */
@@ -187,10 +232,33 @@ export function buildHarnessAdapter(
   provider: ProviderName,
   grokOptions?: GrokHarnessOptions,
 ): AnyTextAdapter {
+  const authMode = grokOptions?.authMode
   if (harness === 'grok') {
     return grokBuildText(grokOptions?.model ?? 'composer-2.5', {
       protocol: grokOptions?.protocol ?? 'acp',
       transport: grokOptions?.transport ?? 'auto',
+      ...(authMode !== undefined && { authMode }),
+    })
+  }
+  if (harness === 'acp') {
+    return acpCompatibleText('composer-2.5', {
+      name: 'acp',
+      command: ({ model }) => `grok agent -m '${model}' --always-approve stdio`,
+      permissionMode: 'bypassPermissions',
+      ...(authMode !== undefined && { authMode }),
+      ...(authMode === 'api-key' && { authMethodId: 'xai.api_key' }),
+    })
+  }
+  if (harness === 'claude-code') {
+    return claudeCodeText('sonnet', {
+      permissionMode: 'bypassPermissions',
+      ...(authMode !== undefined && { authMode }),
+    })
+  }
+  if (harness === 'codex') {
+    return codexText('gpt-5.5', {
+      sandboxMode: 'danger-full-access',
+      ...(authMode !== undefined && { authMode }),
     })
   }
   return HARNESSES[harness].makeAdapter(provider)
@@ -282,17 +350,15 @@ export function usesSubscription(
 export function missingEnv(
   harness: HarnessName,
   provider: ProviderName,
+  authMode?: HarnessAuthMode,
 ): Array<string> {
-  // local-process runs the agent on the host with the host's OWN auth — an env
-  // API key, or a `claude login`/`codex login` — so the example requires no key
-  // for it. Sandboxed providers must have a key injected, so it's required.
   const harnessSpec = HARNESSES[harness]
-  const harnessMissing =
-    provider === 'local'
-      ? []
-      : harnessSpec.envCheck
-        ? harnessSpec.envCheck()
-        : harnessSpec.requiredEnv.filter((key) => !process.env[key])
+  const hostAuth = authMode === 'host'
+  const harnessMissing = hostAuth
+    ? []
+    : harnessSpec.envCheck
+      ? harnessSpec.envCheck()
+      : harnessSpec.requiredEnv.filter((key) => !process.env[key])
   const spec = PROVIDERS[provider]
   const providerMissing = spec.envCheck
     ? spec.envCheck()
@@ -381,28 +447,25 @@ export function buildSandbox(opts: {
   keepAlive?: boolean
   /** Local Claude Code only: use the host's subscription login instead of an API key. */
   useSubscription?: boolean
+  /** Host login vs API key. Not inferred from the sandbox provider. */
+  authMode?: HarnessAuthMode
 }): SandboxDefinition {
   const harness = HARNESSES[opts.harness]
-  const subscription = usesSubscription(
-    opts.harness,
-    opts.provider,
-    opts.useSubscription,
-  )
+  const authMode =
+    opts.authMode ??
+    (usesSubscription(opts.harness, opts.provider, opts.useSubscription)
+      ? 'host'
+      : 'api-key')
+  const hostAuth = authMode === 'host'
 
-  // Subscription mode scrubs ANTHROPIC_API_KEY from the host claude's env (via the
-  // provider's `scrubEnv` flag) so it falls back to the logged-in subscription.
-  // Ports the in-sandbox CLI needs reachable from the host (e.g. opencode's serve port).
   const ports = harness.exposePort !== undefined ? [harness.exposePort] : []
-  const provider = subscription
-    ? localProcessSandbox({ scrubEnv: ['ANTHROPIC_API_KEY'] })
-    : PROVIDERS[opts.provider].make(ports)
+  const provider =
+    hostAuth && opts.provider === 'local'
+      ? localProcessSandbox({ scrubEnv: harnessAuthKeys(opts.harness) })
+      : PROVIDERS[opts.provider].make(ports)
 
-  // Inject auth secrets only for sandboxed providers — local-process inherits the
-  // host's own env (API key, or a `claude login`/`codex login`), so nothing to inject.
   const secretEnv: Record<string, string> = {}
-  if (opts.provider !== 'local') {
-    // Harness auth: a custom mapping (e.g. codex → CODEX_API_KEY) if provided,
-    // otherwise inject whichever of its requiredEnv vars are set.
+  if (!hostAuth) {
     if (harness.sandboxSecrets) {
       Object.assign(secretEnv, harness.sandboxSecrets())
     } else {
@@ -411,6 +474,8 @@ export function buildSandbox(opts: {
         if (value) secretEnv[key] = value
       }
     }
+  }
+  if (opts.provider !== 'local') {
     // Provider auth (e.g. DAYTONA_API_KEY) — used host-side, harmless in-sandbox.
     for (const key of PROVIDERS[opts.provider].requiredEnv) {
       const value = process.env[key]

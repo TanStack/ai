@@ -2,10 +2,10 @@ import type {
   DefaultMessageMetadataByModality,
   JSONSchema,
   Modality,
-  StreamChunk,
   TextOptions,
   TokenUsage,
 } from '../../types'
+import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
 import type { CapabilityHandle } from './middleware/capabilities'
 
 /**
@@ -90,6 +90,15 @@ export interface TextAdapter<
   readonly requires?: ReadonlyArray<CapabilityHandle>
 
   /**
+   * Declares that this adapter can consume `{ type: 'file' }` content sources
+   * (provider Files API references). `chat()` rejects file sources in preflight
+   * for adapters that don't declare this, so an adapter written before the
+   * file arm existed fails closed instead of silently mis-mapping a reference
+   * onto its URL/data branch.
+   */
+  readonly supportsFileSources?: boolean
+
+  /**
    * @internal Type-only properties for inference. Not assigned at runtime.
    */
   '~types': {
@@ -106,7 +115,7 @@ export interface TextAdapter<
    */
   chatStream: (
     options: TextOptions<TProviderOptions>,
-  ) => AsyncIterable<StreamChunk>
+  ) => AsyncIterable<AdapterYieldChunk>
 
   /**
    * Generate structured output using the provider's native structured output API.
@@ -131,11 +140,12 @@ export interface TextAdapter<
    * Implementations must emit standard AG-UI lifecycle events (RUN_STARTED,
    * TEXT_MESSAGE_*, RUN_FINISHED) carrying raw JSON text deltas, plus a final
    * `CUSTOM` event named `structured-output.complete` whose `value` is
-   * `{ object, raw, reasoning? }`.
+   * `{ object, raw, reasoning? }`. Events must be timestamped when emitted so
+   * their timestamps follow stream order.
    */
   structuredOutputStream?: (
     options: StructuredOutputOptions<TProviderOptions>,
-  ) => AsyncIterable<StreamChunk>
+  ) => AsyncIterable<AdapterYieldChunk>
 
   /**
    * Declares whether the adapter supports combining `tools` and a
@@ -159,6 +169,20 @@ export interface TextAdapter<
   supportsCombinedToolsAndSchema?: (
     modelOptions?: TProviderOptions | undefined,
   ) => boolean
+
+  /**
+   * Where native-combined structured output is taken from.
+   *
+   * - `'text'` (default when omitted): the agent loop's accumulated
+   *   assistant text is schema JSON. The engine parses it after the loop.
+   *   HTTP adapters use this.
+   * - `'event'`: the adapter emits `structured-output.complete` during
+   *   `chatStream`. The engine must not parse accumulated prose. Harness
+   *   adapters use this.
+   */
+  combinedStructuredOutputSource?: (
+    modelOptions?: TProviderOptions | undefined,
+  ) => 'text' | 'event'
 }
 
 /**
@@ -194,6 +218,7 @@ export abstract class BaseTextAdapter<
   abstract readonly name: string
   readonly model: TModel
   readonly requires?: ReadonlyArray<CapabilityHandle> = undefined
+  readonly supportsFileSources: boolean = false
 
   // Type-only property - never assigned at runtime
   declare '~types': {
@@ -214,7 +239,7 @@ export abstract class BaseTextAdapter<
 
   abstract chatStream(
     options: TextOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk>
+  ): AsyncIterable<AdapterYieldChunk>
 
   /**
    * Generate structured output using the provider's native structured output API.

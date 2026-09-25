@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type {
   AnyClientTool,
   InferSchemaType,
+  InterruptDefinition,
   ModelMessage,
   RunAgentResumeItem,
   SchemaInput,
@@ -11,7 +12,7 @@ import type {
 } from '@tanstack/ai/client'
 import type {
   ChatClientState,
-  ChatInterrupt,
+  ResolvableChatInterrupt,
   ChatInterruptState,
   ChatResumeState,
   ConnectionStatus,
@@ -36,13 +37,17 @@ export function useChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
+  const TSubagents extends ReadonlyArray<{ name: string }> | undefined =
+    undefined,
 >(
-  options: UseChatOptions<TTools, TSchema, TContext>,
-): UseChatReturn<TTools, TSchema> {
-  // The hook's identity is its `threadId` — also the persistence key, so a
-  // reload with the same `threadId` restores the same conversation. `hookId` is
-  // only a stable fallback for React's client-recreation keying when no
-  // `threadId` is given (an ephemeral chat), never a persistence key.
+  options: UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>,
+): UseChatReturn<TTools, TSchema, TInterrupts, TSubagents> {
+  // The hook's identity is its `threadId`. Reload with the same `threadId`
+  // restores the same conversation. `hookId` is only a React recreation key
+  // when no `threadId` is given. It is never sent on the wire.
   const hookId = useId()
   const clientId = options.threadId ?? hookId
 
@@ -50,6 +55,7 @@ export function useChat<
     options.initialMessages || [],
   )
   const [isLoading, setIsLoading] = useState(false)
+  const [hasOlderMessages, setHasOlderMessages] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
   const [status, setStatus] = useState<ChatClientState>('ready')
   const [isSubscribed, setIsSubscribed] = useState(false)
@@ -59,7 +65,7 @@ export function useChat<
   const [queue, setQueue] = useState<Array<QueuedMessage>>([])
   const [runId, setRunId] = useState<string | null>(null)
   const [interruptState, setInterruptState] = useState<
-    ChatInterruptState<TTools>
+    ChatInterruptState<TTools, TInterrupts>
   >(() => ({
     interrupts: EMPTY_INTERRUPTS,
     pendingInterrupts: EMPTY_INTERRUPTS,
@@ -89,7 +95,10 @@ export function useChat<
   messagesRef.current = messages
 
   // Track current options in a ref to avoid recreating client when options change
-  const optionsRef = useRef<UseChatOptions<TTools, TSchema, TContext>>(options)
+  const optionsRef =
+    useRef<UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>>(
+      options,
+    )
   optionsRef.current = options
 
   const syncResumeState = useCallback((target: ChatClient | null) => {
@@ -99,7 +108,7 @@ export function useChat<
   }, [])
 
   // Create ChatClient instance with callbacks to sync state
-  const client = useMemo(() => {
+  const { client, initialization } = useMemo(() => {
     const messagesToUse = options.initialMessages || []
     isFirstMountRef.current = false
 
@@ -113,7 +122,7 @@ export function useChat<
       : { fetcher: initialOptions.fetcher }
 
     const instanceHolder: {
-      current: ChatClient<TTools, TContext> | undefined
+      current: ChatClient<TTools, TContext, TInterrupts> | undefined
     } = { current: undefined }
     const getActiveInstance = () => {
       const currentInstance = instanceHolder.current
@@ -122,21 +131,54 @@ export function useChat<
       }
       return currentInstance
     }
-    const pendingInitializationErrors: Array<Error> = []
-    const instance = new ChatClient<TTools, TContext>({
+    // ChatClient may publish while its constructor is running or while async
+    // persistence resolves before commit. Preserve those exact notifications
+    // until this render commits; invoking them here would run state setters and
+    // user callbacks for a client React may abandon.
+    const initializationState = {
+      ready: false,
+      callbacks: [] as Array<() => void>,
+    }
+    const runOrQueueForActiveInstance = (callback: () => void) => {
+      if (!initializationState.ready) {
+        initializationState.callbacks.push(callback)
+        return
+      }
+      const currentInstance = instanceHolder.current
+      if (!currentInstance || activeClientRef.current !== currentInstance)
+        return
+      callback()
+    }
+    const instance = new ChatClient<TTools, TContext, TInterrupts>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       initialMessages: messagesToUse,
+      ...(typeof initialOptions.threadId === 'string' &&
+      initialOptions.persistence === true
+        ? {
+            persistence: true,
+            threadId: initialOptions.threadId,
+            ...(initialOptions.history !== undefined && {
+              history: initialOptions.history,
+            }),
+          }
+        : typeof initialOptions.threadId === 'string' &&
+            initialOptions.persistence
+          ? {
+              persistence: initialOptions.persistence,
+              threadId: initialOptions.threadId,
+            }
+          : {
+              ...(initialOptions.threadId !== undefined && {
+                threadId: initialOptions.threadId,
+              }),
+            }),
       ...(initialOptions.body !== undefined && { body: initialOptions.body }),
-      ...(initialOptions.threadId !== undefined && {
-        threadId: initialOptions.threadId,
-      }),
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),
-      ...(initialOptions.persistence !== undefined && {
-        persistence: initialOptions.persistence,
-      }),
+      ...(initialOptions.byok !== undefined && { byok: initialOptions.byok }),
+      byokProvider: () => optionsRef.current.byokProvider?.(),
       ...(initialOptions.initialResumeSnapshot !== undefined && {
         initialResumeSnapshot: initialOptions.initialResumeSnapshot,
       }),
@@ -150,105 +192,140 @@ export function useChat<
         outputKind: initialOptions.outputSchema ? 'structured' : 'chat',
       },
       onResponse: (response) => {
+        // ChatClient awaits this return value. Queuing would drop the promise.
         if (!getActiveInstance()) return
-        void optionsRef.current.onResponse?.(response)
+        return optionsRef.current.onResponse?.(response)
       },
       onChunk: (chunk: StreamChunk) => {
-        if (!getActiveInstance()) return
-        optionsRef.current.onChunk?.(chunk)
+        runOrQueueForActiveInstance(() => {
+          optionsRef.current.onChunk?.(chunk)
+        })
       },
       onFinish: (message: UIMessage<TTools>) => {
-        if (!getActiveInstance()) return
-        optionsRef.current.onFinish?.(message)
+        runOrQueueForActiveInstance(() => {
+          optionsRef.current.onFinish?.(message)
+        })
       },
       onError: (error: Error) => {
-        const currentInstance = instanceHolder.current
-        if (!currentInstance) {
-          pendingInitializationErrors.push(error)
-          return
-        }
-        if (activeClientRef.current !== currentInstance) return
-        optionsRef.current.onError?.(error)
+        runOrQueueForActiveInstance(() => {
+          optionsRef.current.onError?.(error)
+        })
       },
       ...(initialOptions.tools !== undefined && {
         tools: initialOptions.tools,
       }),
+      ...(initialOptions.interrupts !== undefined && {
+        interrupts: initialOptions.interrupts,
+      }),
       onCustomEvent: (eventType, data, context) => {
-        if (!getActiveInstance()) return
-        optionsRef.current.onCustomEvent?.(eventType, data, context)
+        runOrQueueForActiveInstance(() => {
+          optionsRef.current.onCustomEvent?.(eventType, data, context)
+        })
       },
       ...(options.streamProcessor !== undefined && {
         streamProcessor: options.streamProcessor,
       }),
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
-        if (!getActiveInstance()) return
-        setMessages(newMessages)
+        runOrQueueForActiveInstance(() => {
+          setMessages(newMessages)
+          const currentInstance = getActiveInstance()
+          if (!currentInstance) return
+          setHasOlderMessages(currentInstance.getHasOlderMessages())
+        })
       },
       onLoadingChange: (newIsLoading: boolean) => {
-        const currentInstance = getActiveInstance()
-        if (!currentInstance) return
-        setIsLoading(newIsLoading)
-        syncResumeState(currentInstance)
+        runOrQueueForActiveInstance(() => {
+          const currentInstance = getActiveInstance()
+          if (!currentInstance) return
+          setIsLoading(newIsLoading)
+          syncResumeState(currentInstance)
+        })
       },
       onErrorChange: (newError: Error | undefined) => {
-        if (!getActiveInstance()) return
-        setError(newError)
+        runOrQueueForActiveInstance(() => {
+          setError(newError)
+        })
       },
       onStatusChange: (status: ChatClientState) => {
-        if (!getActiveInstance()) return
-        setStatus(status)
+        runOrQueueForActiveInstance(() => {
+          setStatus(status)
+        })
       },
       onSubscriptionChange: (nextIsSubscribed: boolean) => {
-        if (!getActiveInstance()) return
-        setIsSubscribed(nextIsSubscribed)
+        runOrQueueForActiveInstance(() => {
+          setIsSubscribed(nextIsSubscribed)
+        })
       },
       onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
-        if (!getActiveInstance()) return
-        setConnectionStatus(nextStatus)
+        runOrQueueForActiveInstance(() => {
+          setConnectionStatus(nextStatus)
+        })
       },
       onSessionGeneratingChange: (isGenerating: boolean) => {
-        if (!getActiveInstance()) return
-        setSessionGenerating(isGenerating)
+        runOrQueueForActiveInstance(() => {
+          setSessionGenerating(isGenerating)
+        })
       },
       ...(optionsRef.current.queue !== undefined && {
         queue: optionsRef.current.queue,
       }),
       onQueueChange: (nextQueue: Array<QueuedMessage>) => {
-        if (activeClientRef.current !== instance) return
-        setQueue(nextQueue)
+        runOrQueueForActiveInstance(() => {
+          setQueue(nextQueue)
+        })
       },
       onRunIdChange: (nextRunId) => {
-        if (!getActiveInstance()) return
-        setRunId(nextRunId)
+        runOrQueueForActiveInstance(() => {
+          setRunId(nextRunId)
+        })
       },
       onResumeStateChange: (_nextResumeState, nextPendingInterrupts) => {
-        if (!getActiveInstance()) return
-        setInterruptState((current) => ({
-          ...current,
-          interrupts: nextPendingInterrupts,
-          pendingInterrupts: nextPendingInterrupts,
-        }))
+        runOrQueueForActiveInstance(() => {
+          setInterruptState((current) => ({
+            ...current,
+            interrupts: nextPendingInterrupts,
+            pendingInterrupts: nextPendingInterrupts,
+          }))
+        })
       },
-      onInterruptStateChange: (nextInterruptState) => {
-        if (!getActiveInstance()) return
-        setInterruptState(nextInterruptState)
-        optionsRef.current.onInterruptStateChange?.(nextInterruptState)
+      onInterruptStateChange: (nextInterruptState, context) => {
+        runOrQueueForActiveInstance(() => {
+          setInterruptState(nextInterruptState)
+          optionsRef.current.onInterruptStateChange?.(
+            nextInterruptState,
+            context,
+          )
+        })
       },
     })
     instanceHolder.current = instance
-    activeClientRef.current = instance
-    for (const error of pendingInitializationErrors) {
-      if (activeClientRef.current !== instance) break
-      optionsRef.current.onError?.(error)
-    }
-    return instance
+    return { client: instance, initialization: initializationState }
   }, [clientId, syncResumeState])
+
+  useEffect(() => {
+    activeClientRef.current = client
+    try {
+      // Keep initialization closed while draining so callbacks published by a
+      // queued callback are appended and delivered in the same commit.
+      while (initialization.callbacks.length > 0) {
+        if (activeClientRef.current !== client) {
+          initialization.callbacks.length = 0
+          break
+        }
+        initialization.callbacks.shift()?.()
+      }
+    } finally {
+      // A throw from a queued user callback must not leave the queue closed.
+      initialization.ready = true
+    }
+  }, [client, initialization])
 
   useEffect(() => {
     const clientMessages = client.getMessages()
     if (clientMessages !== messagesRef.current) {
       setMessages(clientMessages)
     }
+    setHasOlderMessages(client.getHasOlderMessages())
   }, [client])
 
   // Sync each wire-payload slot in its own effect so an unrelated option
@@ -327,7 +404,6 @@ export function useChat<
       clearTimeout(cleanupInvalidationRef.current)
       cleanupInvalidationRef.current = null
     }
-    activeClientRef.current = client
     client.mountDevtools()
     // Delivery-durability resume is transparent: the resumable SSE connection
     // adapter re-attaches via the browser's native Last-Event-ID on reconnect.
@@ -407,6 +483,11 @@ export function useChat<
     }
   }, [client, syncResumeState])
 
+  const loadOlderMessages = useCallback(async () => {
+    await client.loadOlderMessages()
+    setHasOlderMessages(client.getHasOlderMessages())
+  }, [client])
+
   const stop = useCallback(() => {
     client.stop()
   }, [client])
@@ -458,7 +539,11 @@ export function useChat<
 
   const resolveInterrupts = useCallback(
     (
-      resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+      resolution:
+        | boolean
+        | ((
+            interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+          ) => undefined),
     ) => {
       if (typeof resolution === 'boolean') {
         client.resolveInterrupts(resolution)
@@ -528,17 +613,22 @@ export function useChat<
     return activeStructuredPart.data as Final
   }, [activeStructuredPart])
 
+  const subagents = useMemo(() => client.getSubagents(), [renderedMessages])
+
   // The runtime shape unconditionally exposes partial/final; the public
   // return type hides them when no outputSchema was supplied. TS can't
   // structurally narrow across that conditional, so the `as` is the seam.
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- hook return shape diverges from generic UseChatReturn<TTools, TSchema> due to conditional type on TSchema; TS can't structurally narrow
   return {
     messages: renderedMessages,
+    subagents,
     sendMessage,
     append,
     reload,
     stop,
     isLoading,
+    hasOlderMessages,
+    loadOlderMessages,
     error,
     status,
     isSubscribed,
@@ -562,5 +652,5 @@ export function useChat<
     resumeInterrupts,
     partial,
     final,
-  } as unknown as UseChatReturn<TTools, TSchema>
+  } as unknown as UseChatReturn<TTools, TSchema, TInterrupts, TSubagents>
 }

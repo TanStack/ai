@@ -3,8 +3,6 @@ title: Client Persistence
 id: client-persistence
 ---
 
-# Client Persistence
-
 A `ChatClient` (and every framework `useChat` / `createChat`) keeps messages in
 memory, so a reload or a crashed tab loses the whole conversation and any reply
 that was still streaming. The `persistence` option fixes that from the browser
@@ -67,6 +65,52 @@ pointer. On the next load `useChat` reads it and:
   a durability-backed connection (a route that records the stream and exposes a
   replay handler); see [Resumable streams](../resumable-streams/overview).
 
+Replay rebuilds reasoning, tool activity, and text from the durable log, including runs that emit reasoning before their first tool or text event. The completed activity remains in the transcript sent with the next message.
+
+### Handle restored client tools
+
+A live client tool runs automatically when its call arrives from the stream.
+Hydration restores its pending execution but does not run the browser code
+again, because that work may not be safe to repeat. The execution remains an
+internal interrupt and does not appear in `interrupts`.
+
+Use `onInterruptStateChange` to distinguish restored interrupt state from live
+updates. Leaving a restored batch pending is the default. This example cancels
+every restored batch instead:
+
+```tsx
+import { useEffect, useState } from 'react'
+import {
+  fetchServerSentEvents,
+  localStoragePersistence,
+  useChat,
+} from '@tanstack/ai-react'
+
+function Chat() {
+  const [restoredBatch, setRestoredBatch] = useState(false)
+  const { cancelInterrupts } = useChat({
+    threadId: 'support-chat',
+    connection: fetchServerSentEvents('/api/chat'),
+    persistence: localStoragePersistence(),
+    onInterruptStateChange(_state, { source }) {
+      setRestoredBatch(source === 'hydrate')
+    },
+  })
+
+  useEffect(() => {
+    if (restoredBatch) cancelInterrupts()
+  }, [cancelInterrupts, restoredBatch])
+
+  return null
+}
+```
+
+`source` is `hydrate` for state restored from an initial resume snapshot, a
+client storage adapter, or server hydration. It is `live` for streamed and
+client-initiated changes. `cancelInterrupts()` cancels the complete internal
+batch, including visible approvals and hidden client-tool executions; it does
+not selectively cancel one kind of interrupt.
+
 ## Choose a mode
 
 `persistence` takes a storage adapter or a boolean:
@@ -91,7 +135,8 @@ conversations.
 Pass `persistence: true`. The client stores nothing, no transcript and no resume
 pointer. On mount `useChat` hydrates the thread from the server by its
 `threadId`: it paints the stored transcript and, if a run is still generating,
-tails it to completion. Best when transcripts are large (localStorage is
+tails it to completion. `history: { pageSize }` paints the newest window on
+hydrate. Best when transcripts are large (localStorage is
 synchronous and quota-bound), when the same conversation must open on another
 device, or when you simply do not want message content in the browser.
 
@@ -109,13 +154,27 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 const connection = fetchServerSentEvents('/api/chat')
 
 function Chat({ threadId }: { threadId: string }) {
-  const { messages, sendMessage } = useChat({
-    threadId,
-    connection,
-    persistence: true,
-  })
+  const { messages, hasOlderMessages, loadOlderMessages, sendMessage } =
+    useChat({
+      threadId,
+      connection,
+      persistence: true,
+      history: { pageSize: 50 },
+    })
   return (
     <div>
+      {hasOlderMessages ? (
+        <button
+          type="button"
+          onClick={() => {
+            void loadOlderMessages().catch(() => {
+              // Show a retry. Painted messages stay.
+            })
+          }}
+        >
+          Load older
+        </button>
+      ) : null}
       {messages.map((m) => (
         <div key={m.id}>{m.role}</div>
       ))}
@@ -126,6 +185,19 @@ function Chat({ threadId }: { threadId: string }) {
   )
 }
 ```
+
+Call `loadOlderMessages()` from your scroll handler. The library does not watch
+the scrollbar.
+
+- `hasOlderMessages` follows `page.truncated` on the last hydrate or older-page
+  response.
+- Without `history`, hydrate loads the full thread.
+- `history` is only valid with `persistence: true`.
+- With `history.pageSize`, send posts only the new turn. Reload posts the last
+  user (the old assistant is already gone locally). Resume posts from that
+  user through the painted assistant so the stored tool-call is not dropped.
+- If `loadOlderMessages()` fails, the promise rejects and painted messages
+  stay. `hasOlderMessages` stays true. Catch the rejection in your UI.
 
 **Server**: one `GET` endpoint next to your chat `POST`. Replay the durability
 log when the request carries a resume cursor, otherwise return the stored
@@ -150,11 +222,42 @@ export function GET(request: Request): Response | Promise<Response> {
 ```
 
 `reconstructChat` returns `{ messages, activeRun }`: the transcript as UI
-messages, and `activeRun` when a run is still generating for the thread. The
-client calls this endpoint on mount and, when `activeRun` is set, tails the run
-through the replay branch above. You never handle a run id, and a second device
-resumes the live run the same way the original tab does. See
+messages, and `activeRun` when a run is still generating for the thread. With a
+valid `limit` query param, the body also has `page: { truncated, cursor }`.
+`reconstructChat` reads `limit` and `before` from the query.
+
+The client calls this endpoint on mount and, when `activeRun` is set, tails the
+run through the replay branch above. You never handle a run id, and a second
+device resumes the live run the same way the original tab does. See
 [Chat persistence](./chat-persistence).
+
+### Show how long each turn took
+
+A live turn can time itself on the client. After a reload, that time is gone. Pass `includeRuns: true` to get it back from the server:
+
+```ts
+import { reconstructChat } from '@tanstack/ai-persistence'
+import { persistence } from './persistence'
+
+export function GET(request: Request): Promise<Response> {
+  return reconstructChat(persistence, request, { includeRuns: true })
+}
+```
+
+Each assistant message of a finished run then has the run's timings, in epoch ms, on `metadata.tanstack.run`:
+
+```tsx
+import type { UIMessage } from '@tanstack/ai'
+
+function TurnDuration({ message }: { message: UIMessage }) {
+  const run = message.metadata?.tanstack?.run
+  if (!run?.finishedAt) return null
+  const seconds = Math.round((run.finishedAt - run.startedAt) / 1000)
+  return <span>Worked for {seconds}s</span>
+}
+```
+
+The response also has a top-level `runs` list with `runId`, `status`, `startedAt`, and `finishedAt` for each finished run. The timings need a `runs` store that implements `listByThread`, and messages that were saved by `withPersistence` with this version or later.
 
 | Mode | Caches on client | Authoritative history | Reach for it when |
 | --- | --- | --- | --- |

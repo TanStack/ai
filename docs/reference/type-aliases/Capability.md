@@ -3,8 +3,6 @@ id: Capability
 title: Capability
 ---
 
-# Type Alias: Capability\<TValue, TName\>
-
 ```ts
 type Capability<TValue, TName> = readonly [CapabilityGetter<TValue>, CapabilityProvider<TValue>] & object;
 ```
@@ -26,7 +24,7 @@ unique across an app or the type-level coverage check conflates them.
 readonly capabilityName: TName;
 ```
 
-### has()
+### has
 
 ```ts
 has: (ctx) => boolean;

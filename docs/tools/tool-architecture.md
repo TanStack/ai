@@ -148,6 +148,7 @@ stateDiagram-v2
         ApprovalRequested --> ApprovalResponded: user approves / denies
     }
     InputComplete --> ResultComplete: needsApproval=false, success
+    InputComplete --> ResultError: parsing, validation, or execution error
     ApprovalResponded --> ResultComplete: approved + success (output set)
     ApprovalResponded --> ResultError: approved + error
     ApprovalResponded --> Denied: user denied (no execution)
@@ -176,7 +177,7 @@ stateDiagram-v2
 |-------|-------------|---------------|
 | `streaming` | Result being streamed (future feature) | Show progress |
 | `complete` | Result is complete | Show result |
-| `error` | Error occurred during execution | Show error message |
+| `error` | Error occurred before or during execution | Show error message |
 
 ### Monitoring Tool States in React
 
@@ -436,4 +437,3 @@ All execute simultaneously, then LLM generates comparison.
 - [Client Tools](./client-tools) - Deep dive into client-side tools
 - [Tool Approval Flow](./tool-approval) - Implementing approval workflows
 - [AG-UI protocol](https://docs.ag-ui.com/introduction) - Understanding the streaming protocol
-

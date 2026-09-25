@@ -3,13 +3,11 @@ id: createChatOptions
 title: createChatOptions
 ---
 
-# Function: createChatOptions()
-
 ```ts
-function createChatOptions<TAdapter, TSchema, TStream, TTools, TMiddleware>(options): TextActivityOptions<TAdapter, TSchema, TStream, InferredContext<TTools, TMiddleware>>;
+function createChatOptions<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware>(options): Omit<TextActivityOptions<TAdapter, TSchema, TStream, InferredContext<TTools, TMiddleware>, readonly DefinedAgent<string, readonly SubagentTool[], SchemaInput | undefined, readonly InterruptDefinition<any, any, any, any, any>[]>[]>, "middleware" | "tools" | "interrupts" | "context"> & object & RuntimeContextOption<TTools, TMiddleware, TContext>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/index.ts:346](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L346)
+Defined in: [packages/ai/src/activities/chat/index.ts:642](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L642)
 
 Create typed options for the chat() function without executing.
 This is useful for pre-defining configurations with full type inference.
@@ -31,32 +29,36 @@ This is useful for pre-defining configurations with full type inference.
 ### TTools
 
 `TTools` *extends* 
-  \| (
+  \| readonly (
   \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
   \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
   \| `undefined` = 
-  \| (
+  \| readonly (
   \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
   \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
   \| `undefined`
+
+### TInterrupts
+
+`TInterrupts` *extends* readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[] = \[\]
+
+### TContext
+
+`TContext` = `unknown`
 
 ### TMiddleware
 
-`TMiddleware` *extends* 
-  \| [`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`any`\>[]
-  \| `undefined` = 
-  \| [`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`any`\>[]
-  \| `undefined`
+`TMiddleware` *extends* `unknown`[] \| `undefined` = `undefined`
 
 ## Parameters
 
 ### options
 
-`TextActivityOptionsWithContext`\<`TAdapter`, `TSchema`, `TStream`, `TTools`, `TMiddleware`\>
+`TextActivityOptionsWithContext`\<`TAdapter`, `TSchema`, `TStream`, `TTools`, `TInterrupts`, `TContext`, `TMiddleware`\>
 
 ## Returns
 
-`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`, `InferredContext`\<`TTools`, `TMiddleware`\>\>
+`Omit`\<`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`, `InferredContext`\<`TTools`, `TMiddleware`\>, readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[]\>[]\>, `"middleware"` \| `"tools"` \| `"interrupts"` \| `"context"`\> & `object` & `RuntimeContextOption`\<`TTools`, `TMiddleware`, `TContext`\>
 
 ## Example
 

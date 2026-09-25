@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-angular",
-  "version": "0.4.2",
+  "version": "0.12.1",
   "description": "Angular signals integration for TanStack AI streaming chat, structured outputs, and media generation.",
   "author": "",
   "license": "MIT",
@@ -33,6 +33,14 @@
     },
     "./package.json": {
       "default": "./package.json"
+    },
+    "./ui": {
+      "types": "./dist/types/tanstack-ai-angular-ui.d.ts",
+      "default": "./dist/fesm2022/tanstack-ai-angular-ui.mjs"
+    },
+    "./byok": {
+      "types": "./dist/types/tanstack-ai-angular-byok.d.ts",
+      "default": "./dist/fesm2022/tanstack-ai-angular-byok.mjs"
     }
   },
   "sideEffects": false,
@@ -41,11 +49,13 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "ui"
   ],
   "scripts": {
     "clean": "premove ./build ./dist",
-    "test:oxlint": "oxlint src --type-aware",
+    "test:oxlint": "oxlint src ui/src --type-aware",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.include='ui/src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
     "test:lib": "vitest run",
     "test:lib:dev": "vitest",
     "test:types": "tsc",
@@ -57,20 +67,21 @@
     "tslib": "^2.8.1"
   },
   "peerDependencies": {
+    "@angular/common": ">=21.0.0",
     "@angular/core": ">=21.0.0",
     "@tanstack/ai": "workspace:^"
   },
   "devDependencies": {
     "@analogjs/vite-plugin-angular": "^2.6.2",
-    "@angular/build": "^21.2.20",
-    "@angular/common": "^21.2.19",
-    "@angular/compiler": "^21.2.19",
-    "@angular/core": "^21.2.19",
-    "@angular/platform-browser": "^21.2.19",
-    "@angular/platform-browser-dynamic": "^21.2.19",
+    "@angular/build": "^21.2.21",
+    "@angular/common": "^21.2.20",
+    "@angular/compiler": "^21.2.20",
+    "@angular/core": "^21.2.20",
+    "@angular/platform-browser": "^21.2.20",
+    "@angular/platform-browser-dynamic": "^21.2.20",
     "@tanstack/ai": "workspace:*",
     "@types/node": "^24.10.1",
-    "jsdom": "^27.2.0",
+    "jsdom": "^27.4.0",
     "ng-packagr": "^21.2.0",
     "typescript": "5.9.3",
     "vitest": "^4.1.10",

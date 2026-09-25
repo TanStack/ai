@@ -103,7 +103,6 @@ describe('ChatClient devtools bridge', () => {
   })
 
   function createClient(options?: {
-    id?: string
     threadId?: string
     connection?: ConnectConnectionAdapter
     tools?: ReadonlyArray<AnyClientTool>
@@ -112,7 +111,6 @@ describe('ChatClient devtools bridge', () => {
     devtoolsName?: string
   }) {
     const client = new ChatClient({
-      id: options?.id ?? 'chat-1',
       threadId: options?.threadId ?? 'thread-1',
       connection: options?.connection ?? createMockConnectionAdapter(),
       ...(options?.tools ? { tools: options.tools } : {}),
@@ -153,23 +151,18 @@ describe('ChatClient devtools bridge', () => {
     }
   }
 
-  function textContentChunk(args: {
-    messageId: string
-    delta: string
-    content: string
-  }) {
+  function textContentChunk(args: { messageId: string; delta: string }) {
     return {
       type: EventType.TEXT_MESSAGE_CONTENT,
       messageId: args.messageId,
       timestamp: Date.now(),
       delta: args.delta,
-      content: args.content,
     } satisfies StreamChunk
   }
 
   function dispatchToolFixture(overrides: Partial<AIDevtoolsToolFixture> = {}) {
     const fixture: AIDevtoolsToolFixture = {
-      hookId: 'chat-1',
+      hookId: 'thread-1',
       threadId: 'thread-1',
       runId: 'run-fixture',
       toolName: 'weather',
@@ -227,7 +220,7 @@ describe('ChatClient devtools bridge', () => {
       threadId: args.threadId,
       runId: args.runId,
       timestamp: Date.now(),
-      finishReason: 'stop',
+      metadata: { tanstack: { finishReason: 'stop' } },
     } satisfies StreamChunk
   }
 
@@ -252,6 +245,40 @@ describe('ChatClient devtools bridge', () => {
     expect(eventClientMock.emitted('hook:unregistered')).toEqual([])
   })
 
+  it('registers a generated hookId when construct had no threadId', () => {
+    const client = new ChatClient({
+      connection: createMockConnectionAdapter(),
+      devtools: {
+        framework: 'react',
+        hookName: 'useChat',
+        name: 'Skills',
+      },
+    })
+    client.mountDevtools()
+
+    expect(eventClientMock.emitted('hook:registered')).toEqual([
+      [
+        'hook:registered',
+        expect.objectContaining({
+          hookId: expect.stringMatching(/^thread-/),
+          displayName: 'Skills',
+          lifecycle: 'mounted',
+        }),
+      ],
+    ])
+    expect(eventClientMock.emitted('client:created')).toEqual([
+      [
+        'client:created',
+        expect.objectContaining({
+          clientId: expect.stringMatching(/^thread-/),
+          hookId: expect.stringMatching(/^thread-/),
+        }),
+      ],
+    ])
+
+    client.dispose()
+  })
+
   it('can register again after a mount cleanup cycle', () => {
     const client = createClient({ mountDevtools: false })
 
@@ -265,13 +292,62 @@ describe('ChatClient devtools bridge', () => {
       [
         'hook:registered',
         expect.objectContaining({
-          hookId: 'chat-1',
+          hookId: 'thread-1',
           lifecycle: 'mounted',
         }),
       ],
     ])
 
     client.dispose()
+  })
+
+  it('binds hook identity to threadId', () => {
+    const client = createClient({
+      threadId: 'support-42',
+    })
+
+    expect(eventClientMock.emitted('hook:registered')).toEqual([
+      [
+        'hook:registered',
+        expect.objectContaining({
+          hookId: 'support-42',
+          clientId: 'support-42',
+          threadId: 'support-42',
+        }),
+      ],
+    ])
+    const payload = eventClientMock.emitted('hook:registered')[0]?.[1]
+    expect(payload).toEqual(
+      expect.not.objectContaining({ correlationId: expect.anything() }),
+    )
+
+    client.dispose()
+  })
+
+  it('does not unregister a superseded client that shares a threadId', () => {
+    const first = createClient({
+      threadId: 'support-42',
+    })
+    const second = createClient({
+      threadId: 'support-42',
+    })
+
+    eventClientMock.emit.mockClear()
+    first.dispose()
+
+    expect(eventClientMock.emitted('hook:unregistered')).toEqual([])
+
+    second.dispose()
+
+    expect(eventClientMock.emitted('hook:unregistered')).toEqual([
+      [
+        'hook:unregistered',
+        expect.objectContaining({
+          hookId: 'support-42',
+          threadId: 'support-42',
+        }),
+      ],
+    ])
   })
 
   it('registers the chat hook and emits the initial state snapshot', () => {
@@ -285,8 +361,8 @@ describe('ChatClient devtools bridge', () => {
         timestamp: expect.any(Number),
         source: 'client',
         visibility: 'client-state',
-        hookId: 'chat-1',
-        clientId: 'chat-1',
+        hookId: 'thread-1',
+        clientId: 'thread-1',
         threadId: 'thread-1',
         hookName: 'useChat',
         framework: 'react',
@@ -301,8 +377,8 @@ describe('ChatClient devtools bridge', () => {
         eventType: 'hook:state-snapshot',
         source: 'client',
         visibility: 'client-state',
-        hookId: 'chat-1',
-        clientId: 'chat-1',
+        hookId: 'thread-1',
+        clientId: 'thread-1',
         threadId: 'thread-1',
         hookName: 'useChat',
         framework: 'react',
@@ -325,7 +401,7 @@ describe('ChatClient devtools bridge', () => {
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'hook:registered',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         hookName: 'useChat',
         displayName: 'Recipe Assistant',
       }),
@@ -333,7 +409,7 @@ describe('ChatClient devtools bridge', () => {
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'hook:state-snapshot',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         hookName: 'useChat',
         displayName: 'Recipe Assistant',
       }),
@@ -357,7 +433,7 @@ describe('ChatClient devtools bridge', () => {
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'tools:registered',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         hookName: 'useChat',
         framework: 'react',
         outputKind: 'chat',
@@ -382,14 +458,14 @@ describe('ChatClient devtools bridge', () => {
     vi.clearAllMocks()
 
     eventClientMock.dispatch('devtools:request-state', {
-      targetHookId: 'chat-1',
+      targetHookId: 'thread-1',
     })
 
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'hook:registered',
       expect.objectContaining({
-        hookId: 'chat-1',
-        clientId: 'chat-1',
+        hookId: 'thread-1',
+        clientId: 'thread-1',
         threadId: 'thread-1',
         hookName: 'useChat',
         outputKind: 'chat',
@@ -398,15 +474,15 @@ describe('ChatClient devtools bridge', () => {
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'tools:registered',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         tools: [],
       }),
     )
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'hook:state-snapshot',
       expect.objectContaining({
-        hookId: 'chat-1',
-        clientId: 'chat-1',
+        hookId: 'thread-1',
+        clientId: 'thread-1',
         threadId: 'thread-1',
         state: expect.objectContaining({
           messages: [],
@@ -426,7 +502,7 @@ describe('ChatClient devtools bridge', () => {
     expect(eventClientMock.emitAIDevtoolsEvent).toHaveBeenCalledWith(
       'hook:registered',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         threadId: 'thread-1',
         hookName: 'useChat',
         lifecycle: 'mounted',
@@ -435,13 +511,13 @@ describe('ChatClient devtools bridge', () => {
 
     eventClientMock.emitAIDevtoolsEvent.mockClear()
     eventClientMock.dispatch('devtools:request-state', {
-      targetHookId: 'chat-1',
+      targetHookId: 'thread-1',
     })
 
     expect(eventClientMock.emitAIDevtoolsEvent).toHaveBeenCalledWith(
       'hook:registered',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         threadId: 'thread-1',
         hookName: 'useChat',
         lifecycle: 'mounted',
@@ -450,7 +526,7 @@ describe('ChatClient devtools bridge', () => {
     expect(eventClientMock.emitAIDevtoolsEvent).toHaveBeenCalledWith(
       'hook:state-snapshot',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         threadId: 'thread-1',
         state: expect.objectContaining({
           messages: [],
@@ -517,7 +593,7 @@ describe('ChatClient devtools bridge', () => {
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'devtools:tool-fixture:applied',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         threadId: 'thread-1',
         runId: 'run-fixture',
         toolName: fixture.toolName,
@@ -531,7 +607,7 @@ describe('ChatClient devtools bridge', () => {
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'text:message:created',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         threadId: 'thread-1',
         runId: 'run-fixture',
         toolCallId: 'fixture-call',
@@ -756,13 +832,17 @@ describe('ChatClient devtools bridge', () => {
   })
 
   it('routes hook-scoped fixture events to the latest bridge for a hook id', async () => {
-    const staleClient = createClient({ threadId: 'thread-stale' })
-    const activeClient = createClient({ threadId: 'thread-active' })
+    const staleClient = createClient({
+      threadId: 'shared-thread',
+    })
+    const activeClient = createClient({
+      threadId: 'shared-thread',
+    })
     vi.clearAllMocks()
 
     eventClientMock.dispatch('devtools:tool-fixture:apply', {
-      hookId: 'chat-1',
-      threadId: 'thread-stale',
+      hookId: 'shared-thread',
+      threadId: 'shared-thread',
       toolName: 'weather',
       input: { city: 'Paris' },
       output: { temperature: 21 },
@@ -797,13 +877,15 @@ describe('ChatClient devtools bridge', () => {
   it('keeps superseded duplicate hook bridges silent when they emit later', async () => {
     const runContexts: Array<RunAgentInputContext> = []
     const firstClient = createClient({
-      threadId: 'thread-first',
+      threadId: 'shared-thread',
       connection: createRunTrackingAdapter(
         [createTextChunks('from first', 'msg-first')],
         runContexts,
       ),
     })
-    const duplicateClient = createClient({ threadId: 'thread-duplicate' })
+    const duplicateClient = createClient({
+      threadId: 'shared-thread',
+    })
     vi.clearAllMocks()
 
     await firstClient.sendMessage('start')
@@ -821,8 +903,8 @@ describe('ChatClient devtools bridge', () => {
       [
         'hook:unregistered',
         expect.objectContaining({
-          hookId: 'chat-1',
-          threadId: 'thread-duplicate',
+          hookId: 'shared-thread',
+          threadId: 'shared-thread',
         }),
       ],
     ])
@@ -833,7 +915,7 @@ describe('ChatClient devtools bridge', () => {
     vi.clearAllMocks()
 
     const fixture: AIDevtoolsToolFixture = {
-      hookId: 'chat-1',
+      hookId: 'thread-1',
       threadId: 'thread-1',
       toolName: 'weather',
       input: { city: 'Rome' },
@@ -1030,6 +1112,106 @@ describe('ChatClient devtools bridge', () => {
     client.dispose()
   })
 
+  it('sends live snapshots of a child agent, not the live handle', async () => {
+    const at = () => Date.now()
+    let release = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const connection: ConnectConnectionAdapter = {
+      async *connect() {
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: at(),
+        }
+        yield {
+          type: EventType.SUBAGENT_STARTED,
+          subagentRunId: 'sub-1',
+          name: 'researcher',
+          timestamp: at(),
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'child-msg',
+          role: 'assistant',
+          timestamp: at(),
+          subagentRunId: 'sub-1',
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'child-msg',
+          delta: 'notes',
+          timestamp: at(),
+          subagentRunId: 'sub-1',
+        }
+        await gate
+        yield {
+          type: EventType.SUBAGENT_FINISHED,
+          subagentRunId: 'sub-1',
+          timestamp: at(),
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: at(),
+        }
+      },
+    }
+    const client = createClient({ connection })
+    vi.clearAllMocks()
+
+    const subagentOf = (call: Array<unknown> | undefined) => {
+      const payload = call?.[1]
+      const state =
+        payload && typeof payload === 'object' && 'state' in payload
+          ? payload.state
+          : undefined
+      const messages =
+        state && typeof state === 'object' && 'messages' in state
+          ? state.messages
+          : undefined
+      if (!Array.isArray(messages)) return undefined
+      for (const message of messages as Array<UIMessage>) {
+        for (const part of message.parts) {
+          if (part.type === 'subagent') return part.subagent
+        }
+      }
+      return undefined
+    }
+
+    const sending = client.sendMessage('research')
+    // The child is still running. Its text already reached the devtools.
+    await vi.waitFor(() => {
+      const child = subagentOf(
+        eventClientMock.emitted('hook:state-snapshot').at(-1),
+      )
+      expect(child?.status).toBe('running')
+      expect(child?.messages[0]?.parts).toEqual([
+        { type: 'text', content: 'notes' },
+      ])
+    })
+    const running = subagentOf(
+      eventClientMock.emitted('hook:state-snapshot').at(-1),
+    )
+
+    release()
+    await sending
+    await vi.waitFor(() => {
+      const child = subagentOf(
+        eventClientMock.emitted('hook:state-snapshot').at(-1),
+      )
+      expect(child?.status).toBe('finished')
+    })
+    // A copy, not the live handle: the earlier snapshot keeps its status.
+    expect(running?.status).toBe('running')
+    expect(running).not.toBe(client.getSubagents()[0])
+
+    client.dispose()
+  })
+
   it('emits chat run lifecycle events for hook run tracking', async () => {
     const runContexts: Array<RunAgentInputContext> = []
     const client = createClient({
@@ -1048,7 +1230,7 @@ describe('ChatClient devtools bridge', () => {
       [
         'run:created',
         expect.objectContaining({
-          hookId: 'chat-1',
+          hookId: 'thread-1',
           threadId: 'thread-1',
           runId: runContext?.runId,
           status: 'created',
@@ -1059,7 +1241,7 @@ describe('ChatClient devtools bridge', () => {
       [
         'run:started',
         expect.objectContaining({
-          hookId: 'chat-1',
+          hookId: 'thread-1',
           threadId: 'thread-1',
           runId: runContext?.runId,
           status: 'started',
@@ -1070,7 +1252,7 @@ describe('ChatClient devtools bridge', () => {
       [
         'run:completed',
         expect.objectContaining({
-          hookId: 'chat-1',
+          hookId: 'thread-1',
           threadId: 'thread-1',
           runId: runContext?.runId,
           status: 'completed',
@@ -1089,12 +1271,10 @@ describe('ChatClient devtools bridge', () => {
           textContentChunk({
             messageId: 'msg-text',
             delta: 'h',
-            content: 'h',
           }),
           textContentChunk({
             messageId: 'msg-text',
             delta: 'i',
-            content: 'hi',
           }),
           ...createToolCallChunks(
             [{ id: 'call-1', name: 'weather', arguments: '{"city":"Paris"}' }],
@@ -1144,7 +1324,6 @@ describe('ChatClient devtools bridge', () => {
           textContentChunk({
             messageId: 'msg-server',
             delta: 's',
-            content: 's',
           }),
           runFinishedChunk({
             threadId: 'server-thread',
@@ -1178,7 +1357,7 @@ describe('ChatClient devtools bridge', () => {
     const chunks: Array<StreamChunk> = [
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'structured-output.start',
         value: { messageId: 'msg-structured' },
@@ -1186,16 +1365,14 @@ describe('ChatClient devtools bridge', () => {
       textContentChunk({
         messageId: 'msg-structured',
         delta: '{"title":"Pasta"',
-        content: '{"title":"Pasta"',
       }),
       textContentChunk({
         messageId: 'msg-structured',
         delta: ',"servings":2}',
-        content: '{"title":"Pasta","servings":2}',
       }),
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'structured-output.complete',
         value: {
@@ -1216,8 +1393,8 @@ describe('ChatClient devtools bridge', () => {
       [
         'structured-output:started',
         expect.objectContaining({
-          hookId: 'chat-1',
-          clientId: 'chat-1',
+          hookId: 'thread-1',
+          clientId: 'thread-1',
           threadId: runContexts[0]?.threadId,
           runId: runContexts[0]?.runId,
           messageId: 'msg-structured',
@@ -1230,8 +1407,8 @@ describe('ChatClient devtools bridge', () => {
         [
           'structured-output:updated',
           expect.objectContaining({
-            hookId: 'chat-1',
-            clientId: 'chat-1',
+            hookId: 'thread-1',
+            clientId: 'thread-1',
             threadId: runContexts[0]?.threadId,
             runId: runContexts[0]?.runId,
             messageId: 'msg-structured',
@@ -1246,8 +1423,8 @@ describe('ChatClient devtools bridge', () => {
       [
         'structured-output:completed',
         expect.objectContaining({
-          hookId: 'chat-1',
-          clientId: 'chat-1',
+          hookId: 'thread-1',
+          clientId: 'thread-1',
           threadId: runContexts[0]?.threadId,
           runId: runContexts[0]?.runId,
           messageId: 'msg-structured',
@@ -1281,7 +1458,7 @@ describe('ChatClient devtools bridge', () => {
       runStartedChunk({ threadId: 'thread-1', runId: 'run-mem' }),
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'memory:state',
         value: {
@@ -1306,7 +1483,6 @@ describe('ChatClient devtools bridge', () => {
       textContentChunk({
         messageId: 'msg-mem',
         delta: 'Your name is Jack',
-        content: 'Your name is Jack',
       }),
       runFinishedChunk({ threadId: 'thread-1', runId: 'run-mem' }),
     ]
@@ -1370,6 +1546,189 @@ describe('ChatClient devtools bridge', () => {
     client.dispose()
   })
 
+  it('re-emits compaction started, state, and ended from transported CUSTOM chunks', async () => {
+    const runContexts: Array<RunAgentInputContext> = []
+    const chunks: Array<StreamChunk> = [
+      runStartedChunk({ threadId: 'thread-1', runId: 'run-cmp' }),
+      {
+        type: EventType.CUSTOM,
+        metadata: { tanstack: { model: 'test' } },
+        timestamp: Date.now(),
+        name: 'compaction:started',
+        value: {
+          before: 400,
+          messagesBefore: 8,
+          reusedCheckpoint: false,
+          maxTokens: 400,
+          strategyKey: 'evict-oldest:half:maxTokens=400',
+        },
+      },
+      {
+        type: EventType.CUSTOM,
+        metadata: { tanstack: { model: 'test' } },
+        timestamp: Date.now(),
+        name: 'compaction:state',
+        value: {
+          before: 400,
+          after: 180,
+          messagesBefore: 8,
+          messagesAfter: 3,
+          reusedCheckpoint: false,
+          maxTokens: 400,
+          strategyKey: 'evict-oldest:half:maxTokens=400',
+          dropped: [{ role: 'user', tokens: 40, text: 'old turn' }],
+          result: [{ role: 'user', tokens: 10, text: 'omitted' }],
+        },
+      },
+      {
+        type: EventType.CUSTOM,
+        metadata: { tanstack: { model: 'test' } },
+        timestamp: Date.now(),
+        name: 'compaction:ended',
+        value: {
+          after: 180,
+          messagesAfter: 3,
+          reusedCheckpoint: false,
+          maxTokens: 400,
+          durationMs: 12,
+          strategyKey: 'evict-oldest:half:maxTokens=400',
+        },
+      },
+      textContentChunk({
+        messageId: 'msg-cmp',
+        delta: 'ok',
+      }),
+      runFinishedChunk({ threadId: 'thread-1', runId: 'run-cmp' }),
+    ]
+    const client = createClient({
+      connection: createRunTrackingAdapter([chunks], runContexts),
+    })
+    vi.clearAllMocks()
+
+    await client.sendMessage('keep going')
+    await waitForCondition(
+      () => eventClientMock.emitted('compaction:ended').length > 0,
+    )
+
+    expect(eventClientMock.emitted('compaction:started')).toEqual([
+      [
+        'compaction:started',
+        expect.objectContaining({
+          before: 400,
+          messagesBefore: 8,
+          reusedCheckpoint: false,
+          maxTokens: 400,
+        }),
+      ],
+    ])
+    expect(eventClientMock.emitted('compaction:state')).toEqual([
+      [
+        'compaction:state',
+        expect.objectContaining({
+          before: 400,
+          after: 180,
+          messagesBefore: 8,
+          messagesAfter: 3,
+          reusedCheckpoint: false,
+          maxTokens: 400,
+          strategyKey: 'evict-oldest:half:maxTokens=400',
+          dropped: [{ role: 'user', tokens: 40, text: 'old turn' }],
+          result: [{ role: 'user', tokens: 10, text: 'omitted' }],
+        }),
+      ],
+    ])
+    expect(eventClientMock.emitted('compaction:ended')).toEqual([
+      [
+        'compaction:ended',
+        expect.objectContaining({
+          after: 180,
+          messagesAfter: 3,
+          durationMs: 12,
+        }),
+      ],
+    ])
+
+    vi.clearAllMocks()
+    eventClientMock.dispatch('devtools:request-state', {})
+    await waitForCondition(
+      () => eventClientMock.emitted('compaction:ended').length > 0,
+    )
+    expect(eventClientMock.emitted('compaction:started')).toEqual([
+      ['compaction:started', expect.objectContaining({ before: 400 })],
+    ])
+    expect(eventClientMock.emitted('compaction:state')).toEqual([
+      ['compaction:state', expect.objectContaining({ after: 180 })],
+    ])
+    expect(eventClientMock.emitted('compaction:ended')).toEqual([
+      ['compaction:ended', expect.objectContaining({ durationMs: 12 })],
+    ])
+
+    client.dispose()
+  })
+
+  it('re-emits skills:snapshot from a transported skills:state CUSTOM chunk', async () => {
+    const runContexts: Array<RunAgentInputContext> = []
+    const chunks: Array<StreamChunk> = [
+      runStartedChunk({ threadId: 'thread-1', runId: 'run-skills' }),
+      {
+        type: EventType.CUSTOM,
+        metadata: { tanstack: { model: 'test' } },
+        timestamp: Date.now(),
+        name: 'skills:state',
+        value: {
+          catalog: [
+            { name: 'pirate-speak', description: 'talk like a pirate' },
+          ],
+          activated: [],
+        },
+      },
+      textContentChunk({
+        messageId: 'msg-skills',
+        delta: 'Ahoy',
+      }),
+      runFinishedChunk({ threadId: 'thread-1', runId: 'run-skills' }),
+    ]
+    const client = createClient({
+      connection: createRunTrackingAdapter([chunks], runContexts),
+    })
+    vi.clearAllMocks()
+
+    await client.sendMessage('talk like a pirate')
+    await waitForCondition(
+      () => eventClientMock.emitted('skills:snapshot').length > 0,
+    )
+
+    expect(eventClientMock.emitted('skills:snapshot')).toEqual([
+      [
+        'skills:snapshot',
+        expect.objectContaining({
+          catalog: [
+            { name: 'pirate-speak', description: 'talk like a pirate' },
+          ],
+          activated: [],
+        }),
+      ],
+    ])
+
+    vi.clearAllMocks()
+    eventClientMock.dispatch('devtools:request-state', {})
+    await waitForCondition(
+      () => eventClientMock.emitted('skills:snapshot').length > 0,
+    )
+    expect(eventClientMock.emitted('skills:snapshot')).toEqual([
+      [
+        'skills:snapshot',
+        expect.objectContaining({
+          catalog: [
+            { name: 'pirate-speak', description: 'talk like a pirate' },
+          ],
+        }),
+      ],
+    ])
+
+    client.dispose()
+  })
+
   it('batches structured output update events while preserving final state', async () => {
     const runContexts: Array<RunAgentInputContext> = []
     const finalObject = { title: 'Pasta', servings: 2 }
@@ -1377,21 +1736,20 @@ describe('ChatClient devtools bridge', () => {
     const chunks: Array<StreamChunk> = [
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'structured-output.start',
         value: { messageId: 'msg-structured-batched' },
       },
-      ...Array.from(raw).map((character, index) =>
+      ...Array.from(raw).map((character) =>
         textContentChunk({
           messageId: 'msg-structured-batched',
           delta: character,
-          content: raw.slice(0, index + 1),
         }),
       ),
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'structured-output.complete',
         value: {
@@ -1463,14 +1821,14 @@ describe('ChatClient devtools bridge', () => {
     const chunks: Array<StreamChunk> = [
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'structured-output.start',
         value: { messageId: 'msg-structured-terminal' },
       },
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'structured-output.complete',
         value: {
@@ -1490,8 +1848,8 @@ describe('ChatClient devtools bridge', () => {
       [
         'structured-output:completed',
         expect.objectContaining({
-          hookId: 'chat-1',
-          clientId: 'chat-1',
+          hookId: 'thread-1',
+          clientId: 'thread-1',
           threadId: runContexts[0]?.threadId,
           runId: runContexts[0]?.runId,
           messageId: 'msg-structured-terminal',
@@ -1529,14 +1887,14 @@ describe('ChatClient devtools bridge', () => {
           [
             {
               type: EventType.CUSTOM,
-              model: 'test',
+              metadata: { tanstack: { model: 'test' } },
               timestamp: Date.now(),
               name: 'structured-output.start',
               value: { messageId: 'msg-structured-first' },
             },
             {
               type: EventType.CUSTOM,
-              model: 'test',
+              metadata: { tanstack: { model: 'test' } },
               timestamp: Date.now(),
               name: 'structured-output.complete',
               value: {
@@ -1548,7 +1906,7 @@ describe('ChatClient devtools bridge', () => {
           [
             {
               type: EventType.CUSTOM,
-              model: 'test',
+              metadata: { tanstack: { model: 'test' } },
               timestamp: Date.now(),
               name: 'structured-output.start',
               value: { messageId: 'msg-structured-second' },
@@ -1556,11 +1914,10 @@ describe('ChatClient devtools bridge', () => {
             textContentChunk({
               messageId: 'msg-structured-second',
               delta: '{"title":"Soup","servings":3}',
-              content: '{"title":"Soup","servings":3}',
             }),
             {
               type: EventType.CUSTOM,
-              model: 'test',
+              metadata: { tanstack: { model: 'test' } },
               timestamp: Date.now(),
               name: 'structured-output.complete',
               value: {
@@ -1618,7 +1975,7 @@ describe('ChatClient devtools bridge', () => {
       ),
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'approval-requested',
         value: {
@@ -1643,8 +2000,8 @@ describe('ChatClient devtools bridge', () => {
       [
         'tools:approval:requested',
         expect.objectContaining({
-          hookId: 'chat-1',
-          clientId: 'chat-1',
+          hookId: 'thread-1',
+          clientId: 'thread-1',
           threadId: runContexts[0]?.threadId,
           runId: runContexts[0]?.runId,
           streamId: expect.any(String),
@@ -1711,8 +2068,8 @@ describe('ChatClient devtools bridge', () => {
       [
         'tools:approval:responded',
         expect.objectContaining({
-          hookId: 'chat-1',
-          clientId: 'chat-1',
+          hookId: 'thread-1',
+          clientId: 'thread-1',
           toolCallId: 'approval-call-1',
           approvalId: 'approval-approval-call-1',
           approved: true,

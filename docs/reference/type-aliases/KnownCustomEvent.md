@@ -3,8 +3,6 @@ id: KnownCustomEvent
 title: KnownCustomEvent
 ---
 
-# Type Alias: KnownCustomEvent
-
 ```ts
 type KnownCustomEvent = 
   | SandboxFileCustomEvent
@@ -16,10 +14,10 @@ type KnownCustomEvent =
   | CodeModeExternalCallEvent
   | CodeModeExternalResultEvent
   | CodeModeExternalErrorEvent
-  | CodeModeSkillCallEvent
-  | CodeModeSkillResultEvent
-  | CodeModeSkillErrorEvent
-  | SkillRegisteredEvent
+  | CodeModeSnippetCallEvent
+  | CodeModeSnippetResultEvent
+  | CodeModeSnippetErrorEvent
+  | SnippetRegisteredEvent
   | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent
   | ApprovalRequestedEvent
@@ -27,7 +25,7 @@ type KnownCustomEvent =
   | UIResourceEvent;
 ```
 
-Defined in: [packages/ai/src/types.ts:1496](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1496)
+Defined in: [packages/ai/src/types.ts:1586](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1586)
 
 Every CUSTOM event TanStack AI itself emits, as a discriminated union on
 `name`. User-emitted custom events (via `emitCustomEvent` with a custom name)

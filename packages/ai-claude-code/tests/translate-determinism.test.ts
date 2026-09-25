@@ -56,7 +56,7 @@ import {
   pollStrategyHandle,
 } from './fakes'
 import type { AgentSdkMessage } from '../src/stream/sdk-types'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 async function* fromArray(
   messages: Array<AgentSdkMessage>,
@@ -70,8 +70,8 @@ async function translate(
   messages: Array<AgentSdkMessage>,
   runId: string,
   genId: () => string,
-): Promise<Array<StreamChunk>> {
-  const chunks: Array<StreamChunk> = []
+): Promise<Array<AdapterYieldChunk>> {
+  const chunks: Array<AdapterYieldChunk> = []
   for await (const chunk of translateSdkStream(fromArray(messages), {
     model: 'claude-opus-4-6',
     runId,
@@ -251,9 +251,9 @@ const NATIVE_FAKE_CLAUDE = [
 ].join('\n')
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }

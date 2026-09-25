@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
+import { chat, type AdapterYieldChunk, type Tool } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAITextAdapter } from '../src/adapters/text'
+import { webSearchTool } from '../src/tools'
 import type { OpenAITextProviderOptions } from '../src/adapters/text'
 
 const createAdapter = <TModel extends 'gpt-4o-mini' | 'gpt-4o'>(
@@ -25,6 +27,81 @@ function createMockChatCompletionsStream(
     },
   }
 }
+
+describe('strict fallback warning (#1213)', () => {
+  it('warns once per tool when its schema cannot be sent as strict', async () => {
+    const warn = vi.fn()
+    const logger = resolveDebugOption({
+      logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() },
+    })
+    const refTool: Tool = {
+      name: 'lookup_user',
+      description: 'Find a user',
+      inputSchema: {
+        type: 'object',
+        properties: { user: { $ref: '#/$defs/user' } },
+        required: ['user'],
+      },
+    }
+    const adapter = createAdapter('gpt-4o-mini')
+    ;(adapter as any).client = {
+      responses: {
+        create: vi.fn(async () => createMockChatCompletionsStream([])),
+      },
+    }
+
+    for (let i = 0; i < 2; i++) {
+      for await (const _ of adapter.chatStream({
+        logger,
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: [refTool, weatherTool],
+      })) {
+        // drain
+      }
+    }
+
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]![0]).toContain('"lookup_user"')
+    expect(warn.mock.calls[0]![0]).toContain('$ref')
+  })
+
+  it('does not warn when the config sets strictFallbackWarning: false', async () => {
+    const warn = vi.fn()
+    const logger = resolveDebugOption({
+      logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() },
+    })
+    const refTool: Tool = {
+      name: 'lookup_user',
+      description: 'Find a user',
+      inputSchema: {
+        type: 'object',
+        properties: { user: { $ref: '#/$defs/user' } },
+        required: ['user'],
+      },
+    }
+    const adapter = new OpenAITextAdapter(
+      { apiKey: 'test-key', strictFallbackWarning: false },
+      'gpt-4o-mini',
+    )
+    ;(adapter as any).client = {
+      responses: {
+        create: vi.fn(async () => createMockChatCompletionsStream([])),
+      },
+    }
+
+    for await (const _ of adapter.chatStream({
+      logger,
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [refTool],
+    })) {
+      // drain
+    }
+
+    expect(warn).not.toHaveBeenCalled()
+  })
+})
 
 describe('OpenAI adapter option mapping', () => {
   beforeEach(() => {
@@ -84,7 +161,7 @@ describe('OpenAI adapter option mapping', () => {
       max_output_tokens: 1024,
     }
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       systemPrompts: ['Stay concise'],
@@ -131,6 +208,132 @@ describe('OpenAI adapter option mapping', () => {
     expect(payload.tools).toBeDefined()
     expect(Array.isArray(payload.tools)).toBe(true)
     expect(payload.tools.length).toBeGreaterThan(0)
+    expect(payload.include).toBeUndefined()
+  })
+
+  it('requests encrypted reasoning only on reasoning models', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-reasoning-include',
+          model: 'gpt-5.6',
+          status: 'in_progress',
+          created_at: 1234567890,
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-reasoning-include',
+          status: 'completed',
+          usage: { input_tokens: 1, output_tokens: 0 },
+        },
+      },
+    ])
+
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+    const adapter = new OpenAITextAdapter({ apiKey: 'test-key' }, 'gpt-5.6')
+    ;(adapter as any).client = {
+      responses: {
+        create: responsesCreate,
+      },
+    }
+
+    for await (const _chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      // consume
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]!
+    expect(payload.include).toEqual(['reasoning.encrypted_content'])
+  })
+
+  it('requests hosted web search sources while preserving caller include entries', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-web-search-include',
+          model: 'gpt-4o-mini',
+          status: 'in_progress',
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-web-search-include',
+          model: 'gpt-4o-mini',
+          status: 'completed',
+          output: [],
+        },
+      },
+    ])
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+    const adapter = createAdapter('gpt-4o-mini')
+    ;(adapter as any).client = {
+      responses: {
+        create: responsesCreate,
+      },
+    }
+
+    for await (const _chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Search the web.' }],
+      tools: [webSearchTool({ type: 'web_search' })],
+      modelOptions: { include: ['message.output_text.logprobs'] },
+    })) {
+      // consume
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]!
+    expect(payload.include).toEqual([
+      'message.output_text.logprobs',
+      'web_search_call.action.sources',
+    ])
+  })
+
+  it('lets callers override the default reasoning include list', async () => {
+    const mockStream = createMockChatCompletionsStream([
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-include',
+          model: 'gpt-5.6',
+          status: 'in_progress',
+          created_at: 1234567890,
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-include',
+          status: 'completed',
+          usage: { input_tokens: 1, output_tokens: 0 },
+        },
+      },
+    ])
+
+    const responsesCreate = vi.fn().mockResolvedValueOnce(mockStream)
+    const adapter = new OpenAITextAdapter({ apiKey: 'test-key' }, 'gpt-5.6')
+    ;(adapter as any).client = {
+      responses: {
+        create: responsesCreate,
+      },
+    }
+
+    for await (const _chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: { include: [] },
+    })) {
+      // consume
+    }
+
+    const [payload] = responsesCreate.mock.calls[0]!
+    expect(payload.include).toEqual([])
   })
 
   it('accepts mixed string + object-form systemPrompts and joins .content into instructions', async () => {

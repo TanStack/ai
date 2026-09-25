@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures'
 
 /**
- * Regression for #758. `AnthropicTextAdapter` has no native
+ * Regressions for #758 and #1125. `AnthropicTextAdapter` has no native
  * `structuredOutputStream`, so `chat({ outputSchema, stream: true })` runs
  * through the activity layer's `fallbackStructuredOutputStream`. That wrapper
  * used to drop the `usage` returned by `structuredOutput()`, so consumers
@@ -11,17 +11,15 @@ import { test, expect } from './fixtures'
  * The `/api/anthropic-structured-usage` route drives the adapter against an
  * aimock mount whose tool-forced `structured_output` response carries
  * `input_tokens` / `output_tokens` / `cache_read_input_tokens`. This is the
- * end-to-end proof that usage now survives the fallback path onto
- * `RUN_FINISHED.usage`.
+ * end-to-end proof that usage survives the fallback path and its timestamps
+ * follow stream order.
  */
-test.describe('anthropic — structured-output fallback usage (#758)', () => {
-  test('usage reaches RUN_FINISHED.usage on the fallback path', async ({
-    request,
-  }) => {
+test.describe('anthropic — structured-output fallback', () => {
+  test('preserves usage and timestamp ordering', async ({ request }) => {
     const res = await request.post('/api/anthropic-structured-usage')
     expect(res.ok()).toBe(true)
 
-    const { ok, usage, error } = (await res.json()) as {
+    const { ok, usage, timestamps, error } = (await res.json()) as {
       ok: boolean
       error?: string
       usage?: {
@@ -29,6 +27,12 @@ test.describe('anthropic — structured-output fallback usage (#758)', () => {
         completionTokens?: number
         totalTokens?: number
         promptTokensDetails?: { cachedTokens?: number }
+      }
+      timestamps: {
+        runStarted: number
+        structuredOutputStart: number
+        structuredOutputComplete: number
+        runFinished: number
       }
     }
 
@@ -40,5 +44,14 @@ test.describe('anthropic — structured-output fallback usage (#758)', () => {
       totalTokens: 1471,
       promptTokensDetails: { cachedTokens: 5760 },
     })
+    expect(timestamps.structuredOutputStart).toBeGreaterThanOrEqual(
+      timestamps.runStarted,
+    )
+    expect(timestamps.structuredOutputComplete).toBeGreaterThanOrEqual(
+      timestamps.structuredOutputStart,
+    )
+    expect(timestamps.runFinished).toBeGreaterThanOrEqual(
+      timestamps.structuredOutputComplete,
+    )
   })
 })

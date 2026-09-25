@@ -1,3 +1,9 @@
+import { ByokBlockedError, ByokMissingError } from '@tanstack/ai/byok'
+import { byokFallbackProviderId } from './byok/client'
+import {
+  prepareResolvedByokHeaders,
+  resolveByokProviderId,
+} from './byok/resolve'
 import {
   GENERATION_EVENTS,
   GENERATION_STREAM_TRUNCATED_MESSAGE,
@@ -10,7 +16,9 @@ import {
 } from './generation-types'
 import { createNoOpVideoDevtoolsBridge } from './devtools-noop'
 import { parseSSEResponse } from './sse-parser'
+import { restoreInboundChunk } from '@tanstack/ai/client'
 import type { StreamChunk } from '@tanstack/ai/client'
+import type { ByokClient } from './byok'
 import type {
   ConnectConnectionAdapter,
   GenerationHydrationResult,
@@ -25,8 +33,10 @@ import type {
 import type {
   GenerationClientState,
   GenerationFetcher,
+  GenerationPersistenceOptions,
   GenerationResumeSnapshot,
   GenerationResumeState,
+  GenerationTransport,
   VideoGenerateInput,
   VideoGenerateResult,
   VideoGenerationClientOptions,
@@ -111,14 +121,16 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private readonly fetcher:
     | GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
     | undefined
-  private readonly uniqueId: string
+  private uniqueId: string
   private readonly devtoolsMetadata: AIDevtoolsClientMetadata
   private readonly devtoolsBridge: VideoDevtoolsBridge<TOutput>
-  private readonly threadId: string
+  private threadId: string
   // Server-driven mode (`persistence: true`): no local snapshot store; on mount
   // the client hydrates the last generation for `threadId` from the server.
   private readonly serverDriven: boolean = false
   private body: Record<string, any>
+  private byok: ByokClient | undefined
+  private byokProvider: (() => string | undefined) | undefined
 
   private result: TOutput | null = null
   private input: VideoGenerateInput | null = null
@@ -137,27 +149,24 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private serverHydrationStarted = false
 
   constructor(
-    options: VideoGenerationClientOptions<TOutput> &
-      (
-        | { connection: ConnectConnectionAdapter; fetcher?: never }
-        | {
-            fetcher: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
-            connection?: never
-          }
-      ),
+    options: Omit<
+      VideoGenerationClientOptions<TOutput>,
+      'persistence' | 'threadId'
+    > &
+      GenerationPersistenceOptions &
+      GenerationTransport<VideoGenerateInput, VideoGenerateResult>,
   ) {
-    // `threadId` is the single identity. Deprecated `id` is only a fallback
-    // when no threadId is given (ephemeral runs / legacy call sites).
-    this.uniqueId =
-      options.threadId ?? options.id ?? this.generateUniqueId('video')
-    // The wire/hydration thread key. Server-driven mode needs a stable key, so
-    // prefer an explicit `threadId`, then legacy `id`, then a generated id.
-    this.threadId = options.threadId ?? this.uniqueId
+    // `threadId` is the only identity. Do not mint a random id during
+    // construct: hooks build this client during render.
+    this.threadId = options.threadId ?? ''
+    this.uniqueId = this.threadId
     this.connection = options.connection
     this.fetcher = options.fetcher
     this.hydrateGenerationHandler = options.hydrateGeneration
     this.joinRunHandler = options.joinRun
     this.body = options.body ?? {}
+    this.byok = options.byok
+    this.byokProvider = options.byokProvider
     // `persistence` is `false`/omitted (ephemeral) or `true` (server-driven:
     // hydrate the last generation for `threadId` from the server on mount).
     this.serverDriven = options.persistence === true
@@ -192,10 +201,17 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   }
 
   private buildDevtoolsBridgeOptions(): VideoDevtoolsBridgeOptions<TOutput> {
+    const client = this
     return {
-      hookId: this.uniqueId,
-      clientId: this.uniqueId,
-      threadId: this.threadId,
+      get hookId() {
+        return client.uniqueId
+      },
+      get clientId() {
+        return client.uniqueId
+      },
+      get threadId() {
+        return client.threadId
+      },
       metadata: this.devtoolsMetadata,
       getCoreState: () => ({
         input: this.input,
@@ -211,6 +227,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   }
 
   mountDevtools(): void {
+    this.ensureThreadId()
     // Mounting revives a disposed client. Framework hooks call this from
     // their mount effect, so a dispose → remount cycle (e.g. React
     // StrictMode's mount → cleanup → mount replay against the same memoized
@@ -252,15 +269,25 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     const { signal } = abortController
 
     try {
+      let headers: Record<string, string> | undefined
+      if (this.byok) {
+        const provider = resolveByokProviderId(
+          this.byokProvider,
+          this.body.provider,
+          byokFallbackProviderId(this.byok),
+        )
+        headers = await prepareResolvedByokHeaders(this.byok, provider)
+      }
+
       if (this.fetcher) {
-        await this.generateWithFetcher(input, signal, runId)
+        await this.generateWithFetcher(input, signal, runId, headers)
       } else if (this.connection) {
         const mergedData = { ...this.body, ...input }
         const stream = this.connection.connect(
           [],
           mergedData,
           signal,
-          this.createRunContext(runId),
+          this.createRunContext(runId, headers),
         )
         await this.processStream(stream, runId, signal)
       } else {
@@ -278,6 +305,12 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     } catch (err: unknown) {
       if (signal.aborted) return
       const error = err instanceof Error ? err : new Error(String(err))
+      if (error instanceof ByokMissingError) {
+        this.byok?.request(error.provider, 'missing')
+      }
+      if (error instanceof ByokBlockedError && error.reason === 'locked') {
+        this.byok?.request(error.provider, 'locked')
+      }
       this.setError(error)
       this.setStatus('error')
       this.recordResumeSnapshotError(error)
@@ -303,11 +336,15 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     input: VideoGenerateInput,
     signal: AbortSignal,
     runId: string,
+    headers?: Record<string, string>,
   ): Promise<void> {
     if (!this.fetcher) return
 
     // Fetcher returns a completed result directly, or a Response with SSE body
-    const result = await this.fetcher(input, { signal })
+    const result = await this.fetcher(
+      input,
+      headers === undefined ? { signal } : { signal, headers },
+    )
     if (signal.aborted) return
 
     if (result instanceof Response) {
@@ -338,9 +375,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     let streamRunId: string | undefined
     let sawTerminalChunk = false
 
-    for await (const chunk of source) {
+    for await (const raw of source) {
       if (signal.aborted) break
 
+      const chunk = restoreInboundChunk(raw)
       this.callbacksRef.onChunk?.(chunk)
       this.observeResumeSnapshot(chunk)
       const chunkRunId =
@@ -390,11 +428,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
           this.devtoolsBridge.ensureRunStarted(
             chunkRunId ?? streamRunId ?? fallbackRunId,
           )
-          // Prefer spec `message`; fall back to deprecated `error.message`
+          // Spec RUN_ERROR message. Missing message uses this fallback.
           const msg =
-            (chunk.message as string | undefined) ||
-            chunk.error?.message ||
-            'An error occurred'
+            (chunk.message as string | undefined) || 'An error occurred'
           throw new Error(msg)
         }
         default:
@@ -465,6 +501,8 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       Pick<
         VideoGenerationClientOptions<TOutput>,
         | 'body'
+        | 'byok'
+        | 'byokProvider'
         | 'onResult'
         | 'onError'
         | 'onProgress'
@@ -476,6 +514,12 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   ): void {
     if (options.body !== undefined) {
       this.body = options.body ?? {}
+    }
+    if (options.byok !== undefined) {
+      this.byok = options.byok
+    }
+    if (options.byokProvider !== undefined) {
+      this.byokProvider = options.byokProvider
     }
     if (options.onResult !== undefined) {
       this.callbacksRef.onResult = options.onResult
@@ -677,14 +721,26 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     }
   }
 
+  private ensureThreadId(): string {
+    if (!this.threadId) {
+      this.threadId = this.generateUniqueId('video')
+    }
+    this.uniqueId = this.threadId
+    return this.threadId
+  }
+
   private generateUniqueId(prefix: string): string {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
 
-  private createRunContext(runId: string): RunAgentInputContext {
+  private createRunContext(
+    runId: string,
+    headers?: Record<string, string>,
+  ): RunAgentInputContext {
     return {
       threadId: this.threadId,
       runId,
+      ...(headers ? { headers } : {}),
     }
   }
 

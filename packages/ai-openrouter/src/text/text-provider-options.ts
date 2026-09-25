@@ -26,7 +26,16 @@ export type PluginAutoRouter = Extract<Plugin, { id: 'auto-router' }>
 
 export type PdfParserOptions = NonNullable<PluginFileParser['pdf']>
 
-export type ReasoningOptions = NonNullable<ChatRequest['reasoning']>
+export type ReasoningOptions = NonNullable<ChatRequest['reasoning']> & {
+  /**
+   * Disable reasoning for this request.
+   *
+   * OpenRouter documents `enabled: false`, but the SDK's chat request schema
+   * currently strips that field. The adapter normalizes this explicit opt-out
+   * to `effort: 'none'`, which the SDK preserves on the wire.
+   */
+  enabled?: false
+}
 
 export type StreamOptions = NonNullable<ChatRequest['streamOptions']>
 
@@ -84,10 +93,11 @@ export type OpenRouterBaseOptions = Pick<
   | 'topLogprobs'
   | 'seed'
   | 'responseFormat'
-  | 'reasoning'
   | 'toolChoice'
   | 'parallelToolCalls'
->
+> & {
+  reasoning?: ReasoningOptions
+}
 
 export type ExternalTextProviderOptions = OpenRouterCommonOptions &
   OpenRouterBaseOptions

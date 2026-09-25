@@ -192,9 +192,17 @@ export function memoryMiddleware(
       const additions = memoryPrompts.filter((p) => p.length > 0)
       if (additions.length === 0 && tools.length === 0) return
 
+      const existingToolNames = new Set(config.tools.map((tool) => tool.name))
+      const extraTools = tools.filter(
+        (tool) => !existingToolNames.has(tool.name),
+      )
+
       return {
         systemPrompts: [...config.systemPrompts, ...additions],
-        tools: [...config.tools, ...tools],
+        tools:
+          extraTools.length > 0
+            ? [...config.tools, ...extraTools]
+            : config.tools,
       } satisfies Partial<ChatMiddlewareConfig>
     },
 

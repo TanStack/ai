@@ -1,13 +1,34 @@
-import { normalizeToolResult } from '../../utilities/tool-result'
+import {
+  isAssistantSegmentOf,
+  isProviderExecutedToolCall,
+} from '../../utilities/provider-executed'
+import {
+  isContentPartArray,
+  normalizeToolResult,
+} from '../../utilities/tool-result'
+import { tanstackMetadata } from '../../utilities/merge-metadata'
+import {
+  splitSubagentWire,
+  subagentWireText,
+} from '../../utilities/subagent-wire'
 import type { Message as AGUIMessage } from '@ag-ui/core'
 import type {
   ContentPart,
   MessagePart,
   ModelMessage,
+  StructuredOutputPart,
+  TanStackMessageMetadata,
   TextPart,
+  ToolCall,
   ToolCallPart,
+  SubagentPart,
   UIMessage,
+  UIResourcePart,
 } from '../../types'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 // ===========================
 // Message Converters
 // ===========================
@@ -26,11 +47,42 @@ function isContentPart(part: MessagePart): part is ContentPart {
   )
 }
 
-function safeJsonStringify(value: unknown): string {
+export function safeJsonStringify(value: unknown): string {
   try {
-    return JSON.stringify(value)
+    return JSON.stringify(value) ?? ''
   } catch {
     return ''
+  }
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value !== '' ? value : undefined
+}
+
+function encryptedValueFrom(value: object): string | undefined {
+  if ('encryptedValue' in value) {
+    const fromSpec = nonEmptyString(value.encryptedValue)
+    if (fromSpec !== undefined) return fromSpec
+  }
+  return nonEmptyString(tanstackMetadata(value)?.signature)
+}
+
+function toolCallFromWire(toolCall: ToolCall, bag: unknown): ToolCall {
+  const fromBag =
+    bag != null && typeof bag === 'object' && !Array.isArray(bag)
+      ? bag
+      : undefined
+  const encrypted = encryptedValueFrom(toolCall)
+  if (bag === null && encrypted === undefined) {
+    return { ...toolCall, metadata: null }
+  }
+  if (fromBag === undefined && encrypted === undefined) return toolCall
+  return {
+    ...toolCall,
+    metadata: {
+      ...(fromBag ?? {}),
+      ...(encrypted !== undefined ? { thoughtSignature: encrypted } : {}),
+    },
   }
 }
 
@@ -66,8 +118,13 @@ function collapseContentParts(
  * Extract text content from ModelMessage content (string, null, or ContentPart array).
  * Used when only the text portion is needed (e.g., tool result content).
  */
-function getTextContent(content: string | null | Array<ContentPart>): string {
-  if (content === null) return ''
+function getTextContent(
+  content: string | null | undefined | Array<ContentPart>,
+): string {
+  // Tool-call-only assistant turns carry no text and reach here as `null` or
+  // `undefined`; both must collapse to an empty string rather than crash on
+  // `.filter` (issue #532 — the interrupt-boundary MessagesSnapshot).
+  if (content === null || content === undefined) return ''
   if (typeof content === 'string') return content
   return content
     .filter((part): part is TextPart => part.type === 'text')
@@ -75,10 +132,98 @@ function getTextContent(content: string | null | Array<ContentPart>): string {
     .join('')
 }
 
+function historyTextFromParts(parts: ReadonlyArray<MessagePart>): string {
+  const blocks: Array<string> = []
+  for (const part of parts) {
+    if (part.type === 'text' && part.content !== '') {
+      blocks.push(part.content)
+    } else if (
+      part.type === 'structured-output' &&
+      part.status === 'complete' &&
+      part.raw !== ''
+    ) {
+      blocks.push(part.raw)
+    } else if (part.type === 'subagent') {
+      const nested = subagentHistoryText(part)
+      if (nested !== '') blocks.push(nested)
+    }
+  }
+  return blocks.join('\n\n')
+}
+
+/** Child text for a later turn. The name stays so the next agent can tell the notes apart. */
+export function subagentHistoryText(part: SubagentPart): string {
+  const blocks: Array<string> = []
+  for (const message of part.subagent.messages) {
+    if (!('parts' in message)) continue
+    const text = historyTextFromParts(message.parts).trim()
+    if (text !== '') blocks.push(text)
+  }
+  if (blocks.length === 0) return ''
+  return `${part.subagent.name}:\n${blocks.join('\n\n')}`
+}
+
+function toolResultContent(
+  content: string | null | undefined | Array<ContentPart>,
+): string | Array<ContentPart> {
+  return Array.isArray(content) ? content : getTextContent(content)
+}
+
 /**
  * Convert UIMessages or ModelMessages to ModelMessages
  */
 export function convertMessagesToModelMessages(
+  messages: Array<UIMessage | ModelMessage>,
+): Array<ModelMessage> {
+  const { top, groups } = splitSubagentWire(messages)
+  if (groups.length === 0) return convertOwnMessages(messages)
+
+  // Child wire messages leave the parent history. The parent model reads each
+  // child's text on the assistant message before it, the same as for a UI
+  // subagent part. A child that a tool call started reports through the tool
+  // result instead.
+  const blocks = new Map<string | undefined, Array<string>>()
+  for (const group of groups) {
+    if (group.info.parentToolCallId !== undefined) continue
+    const text = subagentWireText(group.messages)
+    if (text === '') continue
+    const host = top
+      .slice(0, group.hostIndex + 1)
+      .findLast((message) => message.role === 'assistant')
+    const hostId = host && 'id' in host ? host.id : undefined
+    blocks.set(hostId, [
+      ...(blocks.get(hostId) ?? []),
+      `${group.info.name}:\n${text}`,
+    ])
+  }
+  const converted = convertOwnMessages(top)
+  for (const [hostId, texts] of blocks) {
+    const block = texts.join('\n\n')
+    const index =
+      hostId === undefined
+        ? -1
+        : converted.findIndex(
+            (message) => message.role === 'assistant' && message.id === hostId,
+          )
+    const host = converted[index]
+    if (!host) {
+      converted.push({ role: 'assistant', content: block })
+      continue
+    }
+    converted[index] = {
+      ...host,
+      content:
+        typeof host.content === 'string' && host.content !== ''
+          ? `${host.content}\n\n${block}`
+          : Array.isArray(host.content)
+            ? [...host.content, { type: 'text', content: block }]
+            : block,
+    }
+  }
+  return converted
+}
+
+function convertOwnMessages(
   messages: Array<UIMessage | ModelMessage>,
 ): Array<ModelMessage> {
   // Pre-pass: collect toolCallIds already represented in anchor UIMessage parts.
@@ -96,42 +241,318 @@ export function convertMessagesToModelMessages(
   }
 
   const modelMessages: Array<ModelMessage> = []
+  let pendingThinking: Array<{ content: string; signature?: string }> = []
   for (const msg of messages) {
     if ('parts' in msg) {
-      // UIMessage anchor — existing fan-out path
       modelMessages.push(...uiMessageToModelMessages(msg))
       continue
     }
 
-    const role = (msg as { role: string }).role
+    const modelMessage = restoreModelMessageCreatedAt(
+      restoreToolResultOwnership(msg),
+    )
+    const role = (modelMessage as { role: string }).role
 
-    // AG-UI tool fan-out duplicate — drop if anchor already covers it
     if (
       role === 'tool' &&
-      msg.toolCallId &&
-      anchoredToolCallIds.has(msg.toolCallId)
+      modelMessage.toolCallId &&
+      anchoredToolCallIds.has(modelMessage.toolCallId)
     ) {
       continue
     }
 
-    // AG-UI reasoning and activity — no ModelMessage equivalent today
-    if (role === 'reasoning' || role === 'activity') {
+    if (role === 'reasoning') {
+      const content = (msg as { content?: string }).content
+      const signature = encryptedValueFrom(msg)
+      if (content || signature !== undefined) {
+        pendingThinking.push({
+          content: typeof content === 'string' ? content : '',
+          ...(signature !== undefined ? { signature } : {}),
+        })
+      }
       continue
     }
 
-    // AG-UI developer — collapse to system
+    if (role === 'activity') {
+      continue
+    }
+
     if (role === 'developer') {
       modelMessages.push({
         role: 'system' as ModelMessage['role'],
         content: (msg as { content: string }).content,
+        ...optionalName(modelMessage),
+        ...optionalCreatedAt(modelMessage),
+        ...(modelMessage.metadata !== undefined && {
+          metadata: modelMessage.metadata,
+        }),
       })
       continue
     }
 
-    // Already a ModelMessage (user, assistant, system, tool with no anchor) — pass through
-    modelMessages.push(msg)
+    if (
+      role === 'user' &&
+      Array.isArray((msg as { content?: unknown }).content)
+    ) {
+      const content = (msg as { content: Array<{ type: string }> }).content
+      // TanStack ModelMessage text parts use `{ content }`. AG-UI wire text
+      // parts use `{ text }`. Only rewrite the AG-UI shape.
+      if (
+        !content.some(
+          (part) =>
+            part.type === 'text' && 'text' in part && !('content' in part),
+        )
+      ) {
+        modelMessages.push(modelMessage)
+        continue
+      }
+      const parts = aguiUserContentToParts(
+        content as Extract<AGUIMessage, { role: 'user' }>['content'],
+      )
+      const contentParts = parts.filter(isContentPart)
+      modelMessages.push({
+        role: 'user',
+        content: collapseContentParts(contentParts),
+        ...((msg as { id?: string }).id !== undefined && {
+          id: (msg as { id: string }).id,
+        }),
+        ...optionalName(modelMessage),
+        ...optionalCreatedAt(modelMessage),
+        ...(modelMessage.metadata !== undefined && {
+          metadata: modelMessage.metadata,
+        }),
+      })
+      continue
+    }
+
+    if (role === 'assistant') {
+      const source = modelMessage
+      const toolCallMetadata = tanstackMetadata(msg)?.toolCallMetadata
+      const toolCalls = source.toolCalls?.map((toolCall) =>
+        toolCallFromWire(toolCall, toolCallMetadata?.[toolCall.id]),
+      )
+      modelMessages.push({
+        ...source,
+        ...(toolCalls !== undefined ? { toolCalls } : {}),
+        ...(pendingThinking.length > 0
+          ? {
+              thinking: [...(source.thinking ?? []), ...pendingThinking],
+            }
+          : {}),
+      })
+      pendingThinking = []
+      continue
+    }
+
+    modelMessages.push(modelMessage)
   }
   return modelMessages
+}
+
+function restoreModelMessageCreatedAt(message: ModelMessage): ModelMessage {
+  const createdAt =
+    coerceCreatedAt(message.createdAt) ?? createdAtFromMetadata(message)
+  if (createdAt === undefined) {
+    if (message.createdAt === undefined) return message
+    const { createdAt: _invalid, ...rest } = message
+    return rest
+  }
+  return Object.is(message.createdAt, createdAt)
+    ? message
+    : { ...message, createdAt }
+}
+
+export function restoreToolResultOwnership<T extends object>(message: T): T {
+  if (!('role' in message) || message.role !== 'tool') return message
+  const source = message
+  const metadata = tanstackMetadata(source)
+  const owned = metadata?.toolResult
+  if (!isRecord(owned)) return message
+  if ('content' in owned && !isContentPartArray(owned.content)) return message
+  const next = { ...message }
+  if (!('id' in owned)) Reflect.deleteProperty(next, 'id')
+  if (!('createdAt' in owned)) Reflect.deleteProperty(next, 'createdAt')
+  if (typeof owned.id === 'string') Reflect.set(next, 'id', owned.id)
+  if (typeof owned.createdAt === 'string') {
+    const createdAt = coerceCreatedAt(owned.createdAt)
+    if (createdAt) Reflect.set(next, 'createdAt', createdAt)
+  }
+  if (isContentPartArray(owned.content)) {
+    Reflect.set(next, 'content', owned.content)
+  }
+  const sourceMetadata: unknown = Reflect.get(source, 'metadata')
+  if (isRecord(sourceMetadata)) {
+    const tanstack = sourceMetadata.tanstack
+    if (isRecord(tanstack)) {
+      const { toolResult: _toolResult, ...restTanstack } = tanstack
+      const restMetadata = { ...sourceMetadata }
+      if (Object.keys(restTanstack).length) restMetadata.tanstack = restTanstack
+      else delete restMetadata.tanstack
+      if (Object.keys(restMetadata).length)
+        Reflect.set(next, 'metadata', restMetadata)
+      else Reflect.deleteProperty(next, 'metadata')
+    }
+  }
+  return next
+}
+
+/**
+ * Rebuild a `Date` from a live `Date` or from an ISO string.
+ * `JSON.stringify` turns `Date` into a string, so persistence reload
+ * and AG-UI wire both land here as strings.
+ */
+export function coerceCreatedAt(value: unknown): Date | undefined {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? undefined : value
+  }
+  if (typeof value !== 'string') return undefined
+  const createdAt = new Date(value)
+  return Number.isNaN(createdAt.getTime()) ? undefined : createdAt
+}
+
+function normalizeMessagePart(part: MessagePart): MessagePart {
+  if (part.type !== 'tool-result') return part
+  const createdAt = coerceCreatedAt(part.createdAt)
+  const { createdAt: _createdAt, ...rest } = part
+  return createdAt === undefined ? rest : { ...rest, createdAt }
+}
+
+function createdAtFromMetadata(source: object): Date | undefined {
+  return coerceCreatedAt(tanstackMetadata(source)?.createdAt)
+}
+
+function optionalCreatedAt(source: { createdAt?: unknown }): {
+  createdAt?: Date
+} {
+  const createdAt = coerceCreatedAt(source.createdAt)
+  return createdAt !== undefined ? { createdAt } : {}
+}
+
+function optionalName(source: { name?: string }): { name?: string } {
+  return source.name !== undefined ? { name: source.name } : {}
+}
+
+function isUiResourcePart(value: unknown): value is UIResourcePart {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+  if (!('type' in value) || value.type !== 'ui-resource') return false
+  if (!('toolCallId' in value) || typeof value.toolCallId !== 'string') {
+    return false
+  }
+  if (!('toolName' in value) || typeof value.toolName !== 'string') {
+    return false
+  }
+  if (
+    !('resource' in value) ||
+    value.resource == null ||
+    typeof value.resource !== 'object' ||
+    Array.isArray(value.resource)
+  ) {
+    return false
+  }
+  const resource = value.resource
+  return (
+    'uri' in resource &&
+    typeof resource.uri === 'string' &&
+    'mimeType' in resource &&
+    typeof resource.mimeType === 'string'
+  )
+}
+
+function uiResourceKey(part: UIResourcePart): string {
+  return `${part.toolCallId}\0${part.toolName}\0${part.resource.uri}`
+}
+
+function appendUiResources(
+  ui: UIMessage,
+  resources: ReadonlyArray<UIResourcePart>,
+): UIMessage {
+  if (resources.length === 0) return ui
+  const seen = new Set(
+    ui.parts.filter(isUiResourcePart).map((part) => uiResourceKey(part)),
+  )
+  const extra = resources.filter((part) => !seen.has(uiResourceKey(part)))
+  if (extra.length === 0) return ui
+  return { ...ui, parts: [...ui.parts, ...extra] }
+}
+
+/**
+ * Build a UIResourcePart from the value of a CUSTOM `ui-resource` chunk
+ * emitted via `ctx.emitCustomEvent('ui-resource', ...)` (MCP Apps). The
+ * emission-side value carries `resource`/`serverId`/`toolName` plus the
+ * `toolCallId` stamped by the tool-call context wrapper — the `type`
+ * discriminator is added here. Returns undefined when the value does not
+ * match the ui-resource shape.
+ */
+export function uiResourcePartFromCustomValue(
+  value: unknown,
+): UIResourcePart | undefined {
+  if (!isRecord(value)) return undefined
+  const part: unknown = { type: 'ui-resource', ...value }
+  return isUiResourcePart(part) ? part : undefined
+}
+
+/**
+ * Store an emitted ui-resource part on the assistant ModelMessage that owns
+ * its `toolCallId` (the tool-call anchor), so it survives later
+ * MESSAGES_SNAPSHOT chunks — e.g. the interrupt snapshot emitted when the
+ * run pauses on a client tool (#1397). Mirrors how `toolCallMetadata` is
+ * preserved on the anchor (#867).
+ *
+ * Returns the SAME array reference when no anchor owns the tool call or the
+ * resource is already stored (idempotent).
+ */
+export function appendUiResourceToModelMessages(
+  messages: Array<ModelMessage>,
+  part: UIResourcePart,
+): Array<ModelMessage> {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index]
+    if (!message || message.role !== 'assistant') continue
+    const ownsToolCall = message.toolCalls?.some(
+      (toolCall) => toolCall.id === part.toolCallId,
+    )
+    if (!ownsToolCall) continue
+    const previous = tanstackMetadata(message)?.uiResources ?? []
+    if (
+      previous.some((stored) => uiResourceKey(stored) === uiResourceKey(part))
+    ) {
+      return messages
+    }
+    const nextMessage = {
+      ...message,
+      metadata: {
+        ...message.metadata,
+        tanstack: {
+          ...tanstackMetadata(message),
+          uiResources: [...previous, part],
+        },
+      },
+    }
+    const next = messages.slice()
+    next[index] = nextMessage
+    return next
+  }
+  return messages
+}
+
+function assistantMetadata(
+  uiMessage: UIMessage,
+): UIMessage['metadata'] | undefined {
+  const fromParts = uiMessage.parts.filter(isUiResourcePart)
+  const current = uiMessage.metadata ?? {}
+  const previous = tanstackMetadata(uiMessage)
+  const tanstack: TanStackMessageMetadata = {}
+  if (previous?.model !== undefined) tanstack.model = previous.model
+  if (previous?.runId !== undefined) tanstack.runId = previous.runId
+  if (previous?.run?.id !== undefined) tanstack.run = { id: previous.run.id }
+  if (previous?.signature !== undefined) tanstack.signature = previous.signature
+  if (fromParts.length > 0) tanstack.uiResources = fromParts
+  const result = { ...current }
+  if (Object.keys(tanstack).length > 0) result.tanstack = tanstack
+  else delete result.tanstack
+  return Object.keys(result).length > 0 ? result : undefined
 }
 
 /**
@@ -187,15 +608,16 @@ function buildUserOrToolMessage(uiMessage: UIMessage): ModelMessage {
     id: uiMessage.id,
     role: uiMessage.role as 'user' | 'assistant' | 'tool',
     content: collapseContentParts(contentParts),
-    ...(uiMessage.createdAt !== undefined && {
-      createdAt: uiMessage.createdAt,
-    }),
+    ...optionalName(uiMessage),
+    ...optionalCreatedAt(uiMessage),
+    ...(uiMessage.metadata !== undefined && { metadata: uiMessage.metadata }),
   }
 }
 
 // Accumulator for building an assistant segment (content + tool calls)
 interface AssistantSegment {
   contentParts: Array<ContentPart>
+  structuredOutput?: StructuredOutputPart
   toolCalls: Array<{
     id: string
     type: 'function'
@@ -242,21 +664,32 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   // A tool call can have BOTH an explicit tool-result part AND an output
   // field on the tool-call part. We only want one per tool call ID.
   const emittedToolResultIds = new Set<string>()
+  const identityFields = {
+    id: uiMessage.id,
+    ...optionalName(uiMessage),
+    ...optionalCreatedAt(uiMessage),
+  }
+  const metadata = assistantMetadata(uiMessage)
+  const assistantFields = {
+    ...identityFields,
+    ...(metadata !== undefined && { metadata }),
+  }
 
-  function flushSegment(): void {
+  function flushSegment(force = false): void {
     const content = collapseContentParts(current.contentParts)
     const hasContent = content !== null
     const hasToolCalls = current.toolCalls.length > 0
+    const hasThinking = pendingThinking.length > 0
 
-    if (hasContent || hasToolCalls) {
+    if (force || hasContent || hasToolCalls || hasThinking) {
       messageList.push({
-        id: uiMessage.id,
+        ...assistantFields,
         role: 'assistant',
         content,
         ...(hasToolCalls && { toolCalls: current.toolCalls }),
-        ...(pendingThinking.length > 0 && { thinking: pendingThinking }),
-        ...(uiMessage.createdAt !== undefined && {
-          createdAt: uiMessage.createdAt,
+        ...(hasThinking && { thinking: pendingThinking }),
+        ...(current.structuredOutput && {
+          structuredOutput: current.structuredOutput,
         }),
       })
       pendingThinking = []
@@ -290,7 +723,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
 
       case 'tool-result':
         // Flush the current assistant segment before emitting the tool result
-        flushSegment()
+        flushSegment(messageList.length === 0)
 
         // Emit the tool result
         if (
@@ -298,20 +731,26 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
           !emittedToolResultIds.has(part.toolCallId)
         ) {
           messageList.push({
-            id: uiMessage.id,
+            ...(part.id !== undefined && { id: part.id }),
+            ...optionalCreatedAt(part),
             role: 'tool',
             content: part.content,
             toolCallId: part.toolCallId,
-            ...(uiMessage.createdAt !== undefined && {
-              createdAt: uiMessage.createdAt,
-            }),
+            ...(part.name !== undefined && { name: part.name }),
+            ...(part.metadata !== undefined && { metadata: part.metadata }),
+            ...(part.error !== undefined && { error: part.error }),
           })
           emittedToolResultIds.add(part.toolCallId)
         }
         break
 
       case 'thinking':
-        if (part.content) {
+        if (part.content || part.signature) {
+          // Provider-executed tools have no tool-result part, so thinking
+          // after them has to start the next segment or it replays first.
+          if (current.toolCalls.some(isProviderExecutedToolCall)) {
+            flushSegment()
+          }
           pendingThinking.push({
             content: part.content,
             ...(part.signature && { signature: part.signature }),
@@ -333,6 +772,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
                 : ''
           if (serialized !== '') {
             current.contentParts.push({ type: 'text', content: serialized })
+            current.structuredOutput = part
           }
         }
         break
@@ -341,6 +781,22 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         // MCP Apps widget — rendered client-side only. It must never enter
         // model input, so it is intentionally dropped from the model message.
         break
+
+      case 'subagent': {
+        // A child that a tool call started reports through the tool result.
+        const block =
+          part.subagent.parentToolCallId === undefined
+            ? subagentHistoryText(part)
+            : ''
+        if (block !== '') {
+          const prefix = current.contentParts.length > 0 ? '\n\n' : ''
+          current.contentParts.push({
+            type: 'text',
+            content: `${prefix}${block}`,
+          })
+        }
+        break
+      }
 
       default:
         break
@@ -361,13 +817,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     // emit the concrete output regardless of approval metadata.
     if (part.output !== undefined && !emittedToolResultIds.has(part.id)) {
       messageList.push({
-        id: uiMessage.id,
         role: 'tool',
         content: normalizeToolResult(part.output),
         toolCallId: part.id,
-        ...(uiMessage.createdAt !== undefined && {
-          createdAt: uiMessage.createdAt,
-        }),
       })
       emittedToolResultIds.add(part.id)
     }
@@ -381,7 +833,6 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     ) {
       const approved = part.approval.approved
       messageList.push({
-        id: uiMessage.id,
         role: 'tool',
         content: JSON.stringify({
           approved,
@@ -391,9 +842,6 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
             : 'User denied this action',
         }),
         toolCallId: part.id,
-        ...(uiMessage.createdAt !== undefined && {
-          createdAt: uiMessage.createdAt,
-        }),
       })
       emittedToolResultIds.add(part.id)
     }
@@ -402,12 +850,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   // If no messages were produced (e.g., empty parts), emit a minimal assistant message
   if (messageList.length === 0) {
     messageList.push({
-      id: uiMessage.id,
+      ...assistantFields,
       role: 'assistant',
       content: null,
-      ...(uiMessage.createdAt !== undefined && {
-        createdAt: uiMessage.createdAt,
-      }),
     })
   }
 
@@ -431,10 +876,11 @@ export function modelMessageToUIMessage(
   id?: string,
 ): UIMessage {
   const parts: Array<MessagePart> = []
+  const createdAt = coerceCreatedAt(modelMessage.createdAt)
 
   if (modelMessage.role === 'assistant' && modelMessage.thinking?.length) {
     for (const thinking of modelMessage.thinking) {
-      if (!thinking.content) continue
+      if (!thinking.content && !thinking.signature) continue
       parts.push({
         type: 'thinking',
         content: thinking.content,
@@ -445,12 +891,36 @@ export function modelMessageToUIMessage(
 
   // Handle tool results (when role is "tool") - only produce tool-result part,
   // not a text part (the content IS the tool result, not display text)
-  if (modelMessage.role === 'tool' && modelMessage.toolCallId) {
+  const structuredOutput =
+    modelMessage.structuredOutput ??
+    snapshotStructuredOutput(tanstackMetadata(modelMessage)?.structuredOutput)
+  if (modelMessage.role === 'assistant' && structuredOutput) {
+    if (
+      typeof modelMessage.content === 'string' &&
+      modelMessage.content &&
+      modelMessage.content !== structuredOutput.raw
+    ) {
+      const suffix = structuredOutput.raw
+      const text =
+        suffix !== '' && modelMessage.content.endsWith(suffix)
+          ? modelMessage.content.slice(0, -suffix.length)
+          : modelMessage.content
+      if (text) parts.push({ type: 'text', content: text })
+    }
+    parts.push(structuredOutput)
+  } else if (modelMessage.role === 'tool' && modelMessage.toolCallId) {
     parts.push({
       type: 'tool-result',
       toolCallId: modelMessage.toolCallId,
-      content: getTextContent(modelMessage.content),
-      state: 'complete',
+      content: toolResultContent(modelMessage.content),
+      state: modelMessage.error === undefined ? 'complete' : 'error',
+      ...(modelMessage.id !== undefined && { id: modelMessage.id }),
+      ...(modelMessage.name !== undefined && { name: modelMessage.name }),
+      ...(modelMessage.metadata !== undefined && {
+        metadata: modelMessage.metadata,
+      }),
+      ...(createdAt !== undefined && { createdAt }),
+      ...(modelMessage.error !== undefined && { error: modelMessage.error }),
     })
   } else if (Array.isArray(modelMessage.content)) {
     // Multimodal content - preserve all content parts as MessageParts
@@ -491,14 +961,23 @@ export function modelMessageToUIMessage(
     }
   }
 
-  return {
+  const ui: UIMessage = {
     id: id || generateMessageId(),
     role: modelMessage.role === 'tool' ? 'assistant' : modelMessage.role,
     parts,
-    ...(modelMessage.createdAt !== undefined && {
-      createdAt: modelMessage.createdAt,
+    ...optionalName(modelMessage),
+    ...(createdAt !== undefined && { createdAt }),
+    ...(modelMessage.metadata !== undefined && {
+      metadata: modelMessage.metadata,
     }),
   }
+  const storedResources = tanstackMetadata(modelMessage)?.uiResources
+  return appendUiResources(
+    ui,
+    Array.isArray(storedResources)
+      ? storedResources.filter(isUiResourcePart)
+      : [],
+  )
 }
 
 /**
@@ -521,58 +1000,178 @@ export function aguiSnapshotMessageToUIMessage(
   message: AGUIMessage | UIMessage,
 ): UIMessage {
   if ('parts' in message) {
-    return { ...message, id: message.id || generateMessageId() }
+    return applySnapshotMetadata(message, {
+      ...message,
+      id: message.id || generateMessageId(),
+    })
   }
 
   const id = message.id || generateMessageId()
 
   switch (message.role) {
     case 'user':
-      return {
+      return applySnapshotMetadata(message, {
         id,
         role: 'user',
         parts: aguiUserContentToParts(message.content),
-      }
-    case 'assistant':
-      return modelMessageToUIMessage(
-        {
-          role: 'assistant',
-          content: message.content ?? null,
-          ...(message.toolCalls && { toolCalls: message.toolCalls }),
-        },
-        id,
+      })
+    case 'assistant': {
+      const metadata = tanstackMetadata(message)
+      const toolCallMetadata = metadata?.toolCallMetadata
+      const structuredOutput = snapshotStructuredOutput(
+        metadata?.structuredOutput,
       )
-    case 'tool':
-      return modelMessageToUIMessage(
-        {
-          role: 'tool',
-          content: message.content,
-          toolCallId: message.toolCallId,
-        },
-        id,
+      const toolCalls = message.toolCalls?.map((toolCall) => {
+        const callMetadata =
+          toolCallMetadata != null && typeof toolCallMetadata === 'object'
+            ? (toolCallMetadata as Record<string, unknown>)[toolCall.id]
+            : undefined
+        return callMetadata !== undefined
+          ? { ...toolCall, metadata: callMetadata }
+          : toolCall
+      })
+      return applySnapshotMetadata(
+        message,
+        modelMessageToUIMessage(
+          {
+            role: 'assistant',
+            content: message.content ?? null,
+            ...optionalName(message),
+            ...(toolCalls && { toolCalls }),
+            ...(structuredOutput && { structuredOutput }),
+          },
+          id,
+        ),
       )
+    }
+    case 'tool': {
+      message = restoreToolResultOwnership(message)
+      const createdAt =
+        coerceCreatedAt(
+          'createdAt' in message ? message.createdAt : undefined,
+        ) ?? createdAtFromMetadata(message)
+      return applySnapshotMetadata(
+        message,
+        modelMessageToUIMessage(
+          {
+            role: 'tool',
+            content: isContentPartArray(message.content)
+              ? message.content
+              : aguiContentToContentParts(message.content),
+            toolCallId: message.toolCallId,
+            ...('name' in message && typeof message.name === 'string'
+              ? { name: message.name }
+              : {}),
+            ...('id' in message && typeof message.id === 'string'
+              ? { id: message.id }
+              : {}),
+            ...('metadata' in message && message.metadata != null
+              ? { metadata: message.metadata }
+              : {}),
+            ...(createdAt !== undefined ? { createdAt } : {}),
+            ...(message.error !== undefined && { error: message.error }),
+          },
+          id,
+        ),
+      )
+    }
     case 'system':
     case 'developer':
       // `ModelMessage` has no system/developer role; build the part directly.
-      return {
+      return applySnapshotMetadata(message, {
         id,
         role: 'system',
         parts: message.content
           ? [{ type: 'text', content: message.content }]
           : [],
-      }
-    case 'reasoning':
-      return {
+      })
+    case 'reasoning': {
+      const signature = encryptedValueFrom(message)
+      const content = typeof message.content === 'string' ? message.content : ''
+      return applySnapshotMetadata(message, {
         id,
         role: 'assistant',
-        parts: message.content
-          ? [{ type: 'thinking', content: message.content }]
-          : [],
-      }
+        parts:
+          content || signature !== undefined
+            ? [
+                {
+                  type: 'thinking' as const,
+                  content,
+                  ...(signature !== undefined ? { signature } : {}),
+                },
+              ]
+            : [],
+      })
+    }
     case 'activity':
     default:
       // `activity` (and any future role) has no text/parts equivalent today.
-      return { id, role: 'assistant', parts: [] }
+      return applySnapshotMetadata(message, {
+        id,
+        role: 'assistant',
+        parts: [],
+      })
+  }
+}
+
+/** Copy snapshot metadata when it is a record. Rebuild createdAt from tanstack.createdAt. */
+function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
+  const normalizedParts = ui.parts.map((part) => normalizeMessagePart(part))
+  if (normalizedParts !== ui.parts) ui = { ...ui, parts: normalizedParts }
+  const name =
+    'name' in source && typeof source.name === 'string'
+      ? source.name
+      : undefined
+  let next = name !== undefined ? { ...ui, name } : ui
+
+  let metadata: NonNullable<UIMessage['metadata']> | undefined
+  if ('metadata' in source) {
+    const raw = source.metadata
+    if (raw != null && typeof raw === 'object' && !Array.isArray(raw)) {
+      metadata = raw as NonNullable<UIMessage['metadata']>
+      next = { ...next, metadata }
+    }
+  }
+
+  const createdAt =
+    coerceCreatedAt(next.createdAt) ??
+    (metadata !== undefined ? createdAtFromMetadata(metadata) : undefined)
+  if (createdAt !== undefined && !Object.is(createdAt, next.createdAt)) {
+    next = { ...next, createdAt }
+  } else if (createdAt === undefined && next.createdAt !== undefined) {
+    const { createdAt: _invalid, ...rest } = next
+    next = rest
+  }
+
+  const uiResources = tanstackMetadata(metadata)?.uiResources
+  const resources = Array.isArray(uiResources)
+    ? uiResources.filter(isUiResourcePart)
+    : []
+  return appendUiResources(next, resources)
+}
+
+function snapshotStructuredOutput(
+  value: TanStackMessageMetadata['structuredOutput'],
+): StructuredOutputPart | undefined {
+  if (
+    value == null ||
+    (value.status !== 'streaming' &&
+      value.status !== 'complete' &&
+      value.status !== 'error') ||
+    typeof value.raw !== 'string'
+  ) {
+    return undefined
+  }
+  return {
+    type: 'structured-output',
+    status: value.status,
+    raw: value.raw,
+    ...(value.partial !== undefined ? { partial: value.partial } : {}),
+    ...(value.data !== undefined ? { data: value.data } : {}),
+    ...(value.reasoning ? { reasoning: value.reasoning } : {}),
+    ...(value.errorMessage !== undefined
+      ? { errorMessage: value.errorMessage }
+      : {}),
   }
 }
 
@@ -582,25 +1181,29 @@ export function aguiSnapshotMessageToUIMessage(
  * AG-UI user content is either a plain string or a multimodal array whose text
  * entries use `{ type: 'text', text }` (vs. TanStack's `{ type: 'text', content }`).
  * Text entries are rewritten to the TanStack shape; image/audio/video/document
- * entries already match `ContentPart` and pass through. `binary` entries have no
- * TanStack equivalent and are dropped.
+ * entries already match `ContentPart` and pass through.
  */
 function aguiUserContentToParts(
   content: Extract<AGUIMessage, { role: 'user' }>['content'],
 ): Array<MessagePart> {
-  if (typeof content === 'string') {
-    return content ? [{ type: 'text', content }] : []
-  }
+  const converted = aguiContentToContentParts(content)
+  return typeof converted === 'string'
+    ? converted
+      ? [{ type: 'text', content: converted }]
+      : []
+    : converted
+}
 
-  const parts: Array<MessagePart> = []
-  for (const part of content) {
-    if (part.type === 'text') {
-      parts.push({ type: 'text', content: part.text })
-    } else if (part.type !== 'binary') {
-      parts.push(part)
-    }
-  }
-  return parts
+/** Convert wire content parts. Data, url, and file sources pass through. */
+export function aguiContentToContentParts(
+  content: Extract<AGUIMessage, { role: 'user' }>['content'],
+): string | Array<ContentPart> {
+  if (typeof content === 'string') return content
+  return content.map((part) => {
+    if (part.type !== 'text') return part
+    const { text, ...rest } = part
+    return { ...rest, content: text }
+  })
 }
 
 /**
@@ -625,22 +1228,31 @@ export function modelMessagesToUIMessages(
         currentAssistantMessage &&
         currentAssistantMessage.role === 'assistant'
       ) {
-        const content = getTextContent(msg.content)
+        const content = toolResultContent(msg.content)
         const toolCallPart = currentAssistantMessage.parts.find(
           (part): part is ToolCallPart =>
             part.type === 'tool-call' && part.id === msg.toolCallId,
         )
 
         if (toolCallPart) {
-          toolCallPart.output = parseToolResultContent(content)
-          toolCallPart.state = 'complete'
+          toolCallPart.output =
+            typeof content === 'string'
+              ? parseToolResultContent(content)
+              : content
+          toolCallPart.state = msg.error === undefined ? 'complete' : 'error'
         }
 
         currentAssistantMessage.parts.push({
           type: 'tool-result',
           toolCallId: msg.toolCallId,
           content,
-          state: 'complete',
+          state: msg.error === undefined ? 'complete' : 'error',
+          ...(msg.id !== undefined &&
+            msg.id !== currentAssistantMessage.id && { id: msg.id }),
+          ...(msg.name !== undefined && { name: msg.name }),
+          ...(msg.metadata !== undefined && { metadata: msg.metadata }),
+          ...optionalCreatedAt(msg),
+          ...(msg.error !== undefined && { error: msg.error }),
         })
       } else {
         // No assistant message to merge into, create a standalone one
@@ -651,6 +1263,14 @@ export function modelMessagesToUIMessages(
       // Regular message. Preserve a persisted stable id so a hydrated message
       // keeps the same identity as its live stream (enables in-place resume).
       const uiMessage = modelMessageToUIMessage(msg, msg.id)
+      if (
+        msg.role === 'assistant' &&
+        currentAssistantMessage &&
+        isAssistantSegmentOf(msg.id, currentAssistantMessage.id)
+      ) {
+        currentAssistantMessage.parts.push(...uiMessage.parts)
+        continue
+      }
       uiMessages.push(uiMessage)
 
       // Track assistant messages for potential tool result merging
@@ -679,16 +1299,18 @@ export function normalizeToUIMessage(
 ): UIMessage {
   if ('parts' in message) {
     // Already a UIMessage
+    const parts = message.parts.map((part) => normalizeMessagePart(part))
     return {
       ...message,
+      parts,
       id: message.id || generateId(),
-      createdAt: message.createdAt || new Date(),
+      createdAt: coerceCreatedAt(message.createdAt) ?? new Date(),
     }
   } else {
     // ModelMessage - convert to UIMessage
     return {
       ...modelMessageToUIMessage(message, generateId()),
-      createdAt: message.createdAt ?? new Date(),
+      createdAt: coerceCreatedAt(message.createdAt) ?? new Date(),
     }
   }
 }

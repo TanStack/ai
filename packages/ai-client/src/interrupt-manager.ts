@@ -5,15 +5,20 @@ import {
   canonicalizeInterruptResolutions,
   cloneAndDeepFreezeJson,
   digestInterruptJson,
+  genericInterruptContinuationFromDescriptor,
+  hashInterruptDefinitionSchema,
   hashSchemaInput,
   isStandardSchema,
   normalizeApprovalSchema,
+  readInterruptBinding,
+  wrapGenericInterruptContinuation,
 } from '@tanstack/ai/client'
 import type {
   AnyClientTool,
   BatchInterruptError,
   Interrupt,
   InterruptBinding,
+  InterruptDefinition,
   InterruptSubmissionError,
   ItemInterruptError,
   RunAgentResumeItem,
@@ -25,6 +30,7 @@ import type {
   ChatInterruptState,
   GenericAGUIInterrupt,
   InterruptItemStatus,
+  ResolvableChatInterrupt,
   UnboundInterrupt,
 } from './types'
 
@@ -44,12 +50,17 @@ export interface InterruptManagerSubmission {
   fingerprint: string
 }
 
+export type InterruptManagerChangeSource = 'hydrate' | 'live'
+
 export interface InterruptManagerOptions<
   TTools extends ReadonlyArray<AnyClientTool>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   tools?: TTools
+  interrupts?: TInterrupts
   submit: (submission: InterruptManagerSubmission) => Promise<void>
-  onChange?: () => void
+  onChange?: (source: InterruptManagerChangeSource) => void
 }
 
 type UnknownObject = { [key: string]: unknown }
@@ -71,6 +82,11 @@ interface RuntimeInterrupt {
   error?: ItemInterruptError
   resolution?: RunAgentResumeItem
   tool?: AnyClientTool
+  definition?: InterruptDefinition<any, any, any, any>
+  /** Validated display payload for a registered first-party generic item. */
+  payload?: unknown
+  /** This binding is valid and can participate in this chat resume batch. */
+  resumable: boolean
   validationGeneration: number
 }
 
@@ -86,11 +102,42 @@ interface TransactionToken {
   active: boolean
 }
 
+interface SubmissionOperation {
+  submission: InterruptManagerSubmission
+}
+
 interface RuntimeInterruptCheckpoint {
   status: InterruptItemStatus
   resolution?: RunAgentResumeItem
   error?: ItemInterruptError
   validationGeneration: number
+}
+
+function isClientOwnedInterrupt(item: RuntimeInterrupt): boolean {
+  return item.resumable
+}
+
+function resolutionWithContinuation(
+  item: RuntimeInterrupt,
+  resolution: RunAgentResumeItem,
+): RunAgentResumeItem {
+  const continuation = genericInterruptContinuationFromDescriptor(
+    item.descriptor,
+  )
+  if (!continuation) return resolution
+  return {
+    ...resolution,
+    metadata: wrapGenericInterruptContinuation(continuation),
+  }
+}
+
+function isRootResolvableInterrupt<
+  TTools extends ReadonlyArray<AnyClientTool>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+>(
+  interrupt: ChatInterrupt<TTools, TInterrupts>,
+): interrupt is ResolvableChatInterrupt<TTools, TInterrupts> {
+  return 'cancel' in interrupt && 'clearResolution' in interrupt
 }
 
 const itemErrorCodes = new Set<ItemInterruptError['code']>([
@@ -157,91 +204,47 @@ function isLegacyInterruptMetadata(interrupt: Interrupt): boolean {
   )
 }
 
-function isBindingBase(value: UnknownObject): boolean {
-  return (
-    // A binding stamped with a version we don't know is another producer's.
-    // Reject it whole; never read our fields out of it. Missing `v` is read as
-    // the current version so pre-versioning bindings still resume.
-    (value['v'] === undefined || value['v'] === INTERRUPT_BINDING_VERSION) &&
-    typeof value['kind'] === 'string' &&
-    typeof value['interruptId'] === 'string' &&
-    typeof value['interruptedRunId'] === 'string' &&
-    typeof value['generation'] === 'number' &&
-    Number.isInteger(value['generation']) &&
-    value['generation'] >= 0 &&
-    typeof value['responseSchemaHash'] === 'string' &&
-    (value['expiresAt'] === undefined ||
-      (typeof value['expiresAt'] === 'string' &&
-        Number.isFinite(Date.parse(value['expiresAt']))))
-  )
-}
-
-function readBinding(value: unknown): InterruptBinding | undefined {
-  if (!isUnknownObject(value) || !isBindingBase(value)) return undefined
-  const expiresAt =
-    typeof value['expiresAt'] === 'string' ? value['expiresAt'] : undefined
-  if (value['kind'] === 'generic') {
-    return {
-      v: INTERRUPT_BINDING_VERSION,
-      kind: 'generic',
-      interruptId: String(value['interruptId']),
-      interruptedRunId: String(value['interruptedRunId']),
-      generation: Number(value['generation']),
-      responseSchemaHash: String(value['responseSchemaHash']),
-      ...(expiresAt !== undefined ? { expiresAt } : {}),
-    }
-  }
-  if (
-    value['kind'] === 'client-tool-execution' &&
-    typeof value['toolName'] === 'string' &&
-    typeof value['toolCallId'] === 'string' &&
-    typeof value['outputSchemaHash'] === 'string'
-  ) {
-    return {
-      v: INTERRUPT_BINDING_VERSION,
-      kind: 'client-tool-execution',
-      interruptId: String(value['interruptId']),
-      interruptedRunId: String(value['interruptedRunId']),
-      generation: Number(value['generation']),
-      toolName: value['toolName'],
-      toolCallId: value['toolCallId'],
-      outputSchemaHash: value['outputSchemaHash'],
-      responseSchemaHash: String(value['responseSchemaHash']),
-      ...(expiresAt !== undefined ? { expiresAt } : {}),
-    }
-  }
-  if (
-    value['kind'] === 'tool-approval' &&
-    typeof value['toolName'] === 'string' &&
-    typeof value['toolCallId'] === 'string' &&
-    typeof value['inputSchemaHash'] === 'string' &&
-    typeof value['approvalSchemaHash'] === 'string' &&
-    'originalArgs' in value
-  ) {
-    return {
-      v: INTERRUPT_BINDING_VERSION,
-      kind: 'tool-approval',
-      interruptId: String(value['interruptId']),
-      interruptedRunId: String(value['interruptedRunId']),
-      generation: Number(value['generation']),
-      toolName: value['toolName'],
-      toolCallId: value['toolCallId'],
-      originalArgs: value['originalArgs'],
-      inputSchemaHash: value['inputSchemaHash'],
-      approvalSchemaHash: value['approvalSchemaHash'],
-      responseSchemaHash: String(value['responseSchemaHash']),
-      ...(expiresAt !== undefined ? { expiresAt } : {}),
-    }
-  }
-  return undefined
-}
-
 function getDescriptorBinding(
   interrupt: Interrupt,
 ): InterruptBinding | undefined {
-  const candidate: unknown =
-    interrupt.metadata?.[INTERRUPT_BINDING_METADATA_KEY]
-  return readBinding(candidate)
+  return readInterruptBinding(interrupt)
+}
+
+function hasReservedFirstPartyBindingMarker(interrupt: Interrupt): boolean {
+  if (!isUnknownObject(interrupt.metadata)) return false
+  const binding = interrupt.metadata[INTERRUPT_BINDING_METADATA_KEY]
+  if (!isUnknownObject(binding)) return false
+  if (
+    binding['v'] !== undefined &&
+    binding['v'] !== INTERRUPT_BINDING_VERSION
+  ) {
+    return false
+  }
+  return (
+    binding['kind'] === 'generic' ||
+    binding['kind'] === 'tool-approval' ||
+    binding['kind'] === 'client-tool-execution' ||
+    'definitionId' in binding ||
+    'key' in binding ||
+    'batchIndex' in binding ||
+    'payloadSchemaHash' in binding
+  )
+}
+
+function hasFirstPartyGenericMarker(interrupt: Interrupt): boolean {
+  if (!isUnknownObject(interrupt.metadata)) return false
+  const binding = interrupt.metadata[INTERRUPT_BINDING_METADATA_KEY]
+  if (!isUnknownObject(binding) || binding['kind'] !== 'generic') return false
+  return (
+    'definitionId' in binding ||
+    'key' in binding ||
+    'batchIndex' in binding ||
+    'payloadSchemaHash' in binding
+  )
+}
+
+function getInterruptPayload(interrupt: Interrupt): unknown {
+  return interrupt.metadata?.['tanstack:interruptPayload']
 }
 
 /**
@@ -259,6 +262,17 @@ function responseSchemaHash(interrupt: Interrupt): string | undefined {
   if (interrupt.responseSchema === undefined) return undefined
   try {
     return digestInterruptJson(canonicalInterruptJson(interrupt.responseSchema))
+  } catch {
+    return undefined
+  }
+}
+
+function definitionSchemaHash(
+  schema: InterruptDefinition<any, any, any, any>['responseSchema'] | undefined,
+): string | undefined {
+  if (schema === undefined) return undefined
+  try {
+    return hashInterruptDefinitionSchema(schema)
   } catch {
     return undefined
   }
@@ -431,16 +445,15 @@ function genericBinding(
   hydration: InterruptManagerHydration,
   candidate: InterruptBinding | undefined,
 ): InterruptBinding {
+  const schemaHash =
+    responseSchemaHash(interrupt) ?? candidate?.responseSchemaHash
   return cloneAndDeepFreezeJson({
     v: INTERRUPT_BINDING_VERSION,
     kind: 'generic',
     interruptId: interrupt.id,
     interruptedRunId: hydration.interruptedRunId,
     generation: hydration.generation,
-    responseSchemaHash:
-      responseSchemaHash(interrupt) ??
-      candidate?.responseSchemaHash ??
-      'invalid',
+    ...(schemaHash !== undefined ? { responseSchemaHash: schemaHash } : {}),
     ...(interrupt.expiresAt !== undefined
       ? { expiresAt: interrupt.expiresAt }
       : {}),
@@ -450,9 +463,7 @@ function genericBinding(
 function baseSnapshot(
   item: RuntimeInterrupt,
   hydration: InterruptManagerHydration,
-  cancel: () => void,
-  clearResolution: () => void,
-): BoundInterruptBase {
+): Omit<BoundInterruptBase, 'cancel' | 'clearResolution'> {
   const descriptor = cloneAndDeepFreezeJson(item.descriptor)
   const errors: ReadonlyArray<ItemInterruptError> =
     item.error === undefined
@@ -482,61 +493,99 @@ function baseSnapshot(
     errors,
     ...(error !== undefined ? { error } : {}),
     canResolve: item.canResolve,
-    cancel,
-    clearResolution,
   }
 }
 
 export class InterruptManager<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   private hydration: InterruptManagerHydration | undefined
   private items: Array<RuntimeInterrupt> = []
-  private snapshot: ReadonlyArray<ChatInterrupt<TTools>> = Object.freeze([])
+  private snapshot: ReadonlyArray<ChatInterrupt<TTools, TInterrupts>> =
+    Object.freeze([])
   private rootErrors: ReadonlyArray<BatchInterruptError> = Object.freeze([])
   private submissionRootErrors: ReadonlyArray<BatchInterruptError> =
     Object.freeze([])
-  private state: ChatInterruptState<TTools> = Object.freeze({
+  private state: ChatInterruptState<TTools, TInterrupts> = Object.freeze({
     interrupts: this.snapshot,
     pendingInterrupts: this.snapshot,
     interruptErrors: this.rootErrors,
     resuming: false,
   })
   private activeTransaction: TransactionToken | undefined
+  private activeSubmissionOperation: SubmissionOperation | undefined
   private retrySubmission: InterruptManagerSubmission | undefined
   private resuming = false
   private tools: TTools | undefined
+  private readonly interruptDefinitions: ReadonlyMap<
+    string,
+    InterruptDefinition<any, any, any, any>
+  >
 
-  constructor(private readonly options: InterruptManagerOptions<TTools>) {
+  constructor(
+    private readonly options: InterruptManagerOptions<TTools, TInterrupts>,
+  ) {
     this.tools = options.tools
+    const definitions = new Map<
+      string,
+      InterruptDefinition<any, any, any, any>
+    >()
+    for (const definition of options.interrupts ?? []) {
+      if (definitions.has(definition.id)) {
+        throw new Error(`Duplicate interrupt definition id: ${definition.id}`)
+      }
+      definitions.set(definition.id, definition)
+    }
+    this.interruptDefinitions = definitions
   }
 
   updateTools(tools: TTools): void {
     this.tools = tools
   }
 
-  hydrate(hydration: InterruptManagerHydration): void {
+  hydrate(
+    hydration: InterruptManagerHydration,
+    source: InterruptManagerChangeSource = 'live',
+  ): void {
+    this.activeSubmissionOperation = undefined
     this.hydration = {
       threadId: hydration.threadId,
       interruptedRunId: hydration.interruptedRunId,
       generation: hydration.generation,
       interrupts: cloneAndDeepFreezeJson(hydration.interrupts),
     }
+    const firstPartyIndexes = new Map<number, number>()
+    for (const interrupt of hydration.interrupts) {
+      const binding = getDescriptorBinding(interrupt)
+      if (
+        binding?.kind === 'generic' &&
+        binding.definitionId !== undefined &&
+        binding.key !== undefined &&
+        binding.batchIndex !== undefined
+      ) {
+        firstPartyIndexes.set(
+          binding.batchIndex,
+          (firstPartyIndexes.get(binding.batchIndex) ?? 0) + 1,
+        )
+      }
+    }
     this.items = hydration.interrupts.map((interrupt) =>
-      this.hydrateInterrupt(interrupt, hydration),
+      this.hydrateInterrupt(interrupt, hydration, firstPartyIndexes),
     )
     this.rootErrors = Object.freeze([])
     this.submissionRootErrors = Object.freeze([])
     this.retrySubmission = undefined
     this.resuming = false
-    this.publish()
+    this.publish(source)
   }
 
-  getInterrupts(): BoundInterrupts<TTools> {
+  getInterrupts(): BoundInterrupts<TTools, TInterrupts> {
     return this.snapshot
   }
 
-  getState(): ChatInterruptState<TTools> {
+  getState(): ChatInterruptState<TTools, TInterrupts> {
     return this.state
   }
 
@@ -544,7 +593,17 @@ export class InterruptManager<
     return this.hydration?.interrupts ?? Object.freeze([])
   }
 
-  reset(options?: { preserveRootErrors?: boolean }): void {
+  hasValidatedFirstPartyGenericBatch(): boolean {
+    return this.items.some(
+      (item) => item.kind === 'generic' && item.definition !== undefined,
+    )
+  }
+
+  reset(options?: {
+    preserveRootErrors?: boolean
+    source?: InterruptManagerChangeSource
+  }): void {
+    this.activeSubmissionOperation = undefined
     this.hydration = undefined
     this.items = []
     this.snapshot = Object.freeze([])
@@ -560,7 +619,7 @@ export class InterruptManager<
       interruptErrors: this.rootErrors,
       resuming: false,
     })
-    this.options.onChange?.()
+    this.options.onChange?.(options?.source ?? 'live')
   }
 
   getInterruptErrors(): ReadonlyArray<BatchInterruptError> {
@@ -572,9 +631,15 @@ export class InterruptManager<
   }
 
   resolve(approved: boolean): void
-  resolve(resolver: (interrupt: ChatInterrupt<TTools>) => undefined): void
   resolve(
-    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => unknown),
+    resolver: (
+      interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+    ) => undefined,
+  ): void
+  resolve(
+    resolution:
+      | boolean
+      | ((interrupt: ResolvableChatInterrupt<TTools, TInterrupts>) => unknown),
   ): void {
     this.assertRootMutable()
     if (typeof resolution === 'boolean') {
@@ -588,11 +653,14 @@ export class InterruptManager<
     this.assertRootMutable()
     this.invalidateRetry()
     for (const item of this.items) {
+      if (!isClientOwnedInterrupt(item)) continue
       item.validationGeneration++
-      item.resolution = Object.freeze({
-        interruptId: item.descriptor.id,
-        status: 'cancelled',
-      })
+      item.resolution = Object.freeze(
+        resolutionWithContinuation(item, {
+          interruptId: item.descriptor.id,
+          status: 'cancelled',
+        }),
+      )
       item.status = 'staged'
       item.error = undefined
     }
@@ -648,9 +716,12 @@ export class InterruptManager<
   private hydrateInterrupt(
     descriptor: Interrupt,
     hydration: InterruptManagerHydration,
+    firstPartyIndexes: ReadonlyMap<number, number>,
   ): RuntimeInterrupt {
     const interrupt = cloneAndDeepFreezeJson(descriptor)
     const candidate = getDescriptorBinding(interrupt)
+    const legacyResumable =
+      candidate === undefined && isLegacyInterruptMetadata(interrupt)
 
     // No binding we understand, and nothing else identifying the descriptor as
     // ours, means this interrupt was not produced by this package's resume
@@ -668,13 +739,30 @@ export class InterruptManager<
     // Pre-binding TanStack descriptors are still ours: they carry the legacy
     // `metadata.kind` marker, so they keep hydrating through the generic path
     // below.
-    if (candidate === undefined && !isLegacyInterruptMetadata(interrupt)) {
+    if (candidate === undefined && !legacyResumable) {
+      if (hasReservedFirstPartyBindingMarker(interrupt)) {
+        return {
+          descriptor: interrupt,
+          binding: genericBinding(interrupt, hydration, undefined),
+          kind: 'generic',
+          status: 'error',
+          canResolve: false,
+          resumable: false,
+          error: this.itemError(
+            interrupt.id,
+            'stale',
+            'The interrupt binding is invalid or incomplete.',
+          ),
+          validationGeneration: 0,
+        }
+      }
       return {
         descriptor: interrupt,
         binding: undefined,
         kind: 'unbound',
         status: 'pending',
         canResolve: false,
+        resumable: false,
         validationGeneration: 0,
       }
     }
@@ -684,10 +772,42 @@ export class InterruptManager<
       candidate.interruptId === interrupt.id &&
       candidate.interruptedRunId === hydration.interruptedRunId &&
       candidate.generation === hydration.generation &&
+      responseSchemaHash(interrupt) === candidate.responseSchemaHash
+
+    const structurallyCorrelated =
+      candidate !== undefined &&
+      candidate.interruptId === interrupt.id &&
+      candidate.interruptedRunId === hydration.interruptedRunId &&
+      candidate.generation === hydration.generation &&
       candidate.responseSchemaHash ===
         (responseSchemaHash(interrupt) ?? candidate.responseSchemaHash)
 
-    if (correlated && candidate.kind === 'tool-approval') {
+    if (
+      candidate !== undefined &&
+      hasFirstPartyGenericMarker(interrupt) &&
+      (!structurallyCorrelated ||
+        candidate.kind !== 'generic' ||
+        candidate.definitionId === undefined ||
+        candidate.key === undefined ||
+        candidate.batchIndex === undefined)
+    ) {
+      return {
+        descriptor: interrupt,
+        binding: genericBinding(interrupt, hydration, candidate),
+        kind: 'generic',
+        status: 'error',
+        canResolve: false,
+        resumable: false,
+        error: this.itemError(
+          interrupt.id,
+          'stale',
+          'The interrupt binding does not match this interrupted run.',
+        ),
+        validationGeneration: 0,
+      }
+    }
+
+    if (structurallyCorrelated && candidate.kind === 'tool-approval') {
       const tool = this.tools?.find(
         (configured) => configured.name === candidate.toolName,
       )
@@ -714,6 +834,7 @@ export class InterruptManager<
               kind: 'tool-approval',
               status: 'pending',
               canResolve: true,
+              resumable: true,
               tool,
               validationGeneration: 0,
             }
@@ -724,7 +845,7 @@ export class InterruptManager<
       }
     }
 
-    if (correlated && candidate.kind === 'client-tool-execution') {
+    if (structurallyCorrelated && candidate.kind === 'client-tool-execution') {
       const tool = this.tools?.find(
         (configured) => configured.name === candidate.toolName,
       )
@@ -740,31 +861,112 @@ export class InterruptManager<
           kind: 'client-tool-execution',
           status: 'pending',
           canResolve: true,
+          resumable: true,
           tool,
           validationGeneration: 0,
         }
       }
     }
 
+    if (
+      candidate !== undefined &&
+      candidate.kind === 'generic' &&
+      candidate.definitionId !== undefined &&
+      candidate.key !== undefined &&
+      candidate.batchIndex !== undefined &&
+      candidate.key.length > 0 &&
+      firstPartyIndexes.get(candidate.batchIndex) !== 1
+    ) {
+      return {
+        descriptor: interrupt,
+        binding: cloneAndDeepFreezeJson(candidate),
+        kind: 'generic',
+        status: 'error',
+        canResolve: false,
+        resumable: false,
+        error: this.itemError(
+          interrupt.id,
+          'stale',
+          'Generic interrupt batch contains a duplicate batchIndex.',
+        ),
+        validationGeneration: 0,
+      }
+    }
+
+    if (
+      correlated &&
+      candidate.kind === 'generic' &&
+      candidate.definitionId !== undefined &&
+      candidate.key !== undefined &&
+      candidate.batchIndex !== undefined &&
+      candidate.key.length > 0 &&
+      firstPartyIndexes.get(candidate.batchIndex) === 1
+    ) {
+      const definition = this.interruptDefinitions.get(candidate.definitionId)
+      if (
+        definition !== undefined &&
+        definitionSchemaHash(definition.responseSchema) ===
+          candidate.responseSchemaHash &&
+        (definition.payloadSchema === undefined
+          ? candidate.payloadSchemaHash === undefined
+          : candidate.payloadSchemaHash ===
+            definitionSchemaHash(definition.payloadSchema))
+      ) {
+        const rawPayload = getInterruptPayload(interrupt)
+        // First-party display payloads are parsed by definition.interrupt()
+        // before the server emits them. Re-validating here would feed schema
+        // output back through an input schema and reject transforms such as
+        // z.string().transform(Number). The checks above still bind this value
+        // to the exact descriptor, run, generation, definition, and schemas.
+        return {
+          descriptor: interrupt,
+          binding: cloneAndDeepFreezeJson(candidate),
+          definition,
+          kind: 'generic',
+          status: 'pending',
+          canResolve: true,
+          resumable: true,
+          ...(rawPayload === undefined
+            ? {}
+            : { payload: cloneAndDeepFreezeJson(rawPayload) }),
+          validationGeneration: 0,
+        }
+      }
+    }
+
+    const resumable =
+      legacyResumable ||
+      (candidate !== undefined &&
+        candidate.interruptId === interrupt.id &&
+        candidate.interruptedRunId === hydration.interruptedRunId &&
+        candidate.generation === hydration.generation &&
+        (candidate.kind !== 'generic' ||
+          responseSchemaHash(interrupt) === undefined ||
+          candidate.responseSchemaHash === responseSchemaHash(interrupt)))
     return {
       descriptor: interrupt,
       binding: genericBinding(interrupt, hydration, candidate),
       kind: 'generic',
       status: 'pending',
-      // The library no longer validates the wire response schema, so a generic
-      // item is always resolvable. The application validates the value itself.
-      canResolve: true,
+      // A valid raw binding is an explicit request to use this resume path,
+      // even when this client has no registered first-party definition. Keep
+      // it untyped, but preserve its existing generic controls. Missing,
+      // malformed, and unsupported bindings remain display-only.
+      canResolve: resumable,
+      resumable,
       validationGeneration: 0,
     }
   }
 
   private buildSnapshot(
     transaction?: TransactionToken,
-  ): BoundInterrupts<TTools> {
+  ): BoundInterrupts<TTools, TInterrupts> {
     const hydration = this.requireHydration()
-    // `client-tool-execution` items stay in `this.items` (they gate batch
-    // submission and are resolved internally via auto-execution / addToolResult),
-    // but they are never surfaced as public bound interrupts.
+    // `client-tool-execution` items stay in `this.items` (they usually gate
+    // batch submission and are resolved internally via auto-execution /
+    // addToolResult), but they are never surfaced as public bound interrupts.
+    // A mixed generic batch is the exception: those client tools wait for
+    // `toolResume` and must not block submit.
     //
     // Items with status `submitting` are also omitted: the resume stream is
     // already in flight, so Approve/Deny is not actionable. Keeping them in
@@ -776,12 +978,7 @@ export class InterruptManager<
           item.kind !== 'client-tool-execution' && item.status !== 'submitting',
       )
       .map((item) => {
-        const base = baseSnapshot(
-          item,
-          hydration,
-          () => this.cancelItem(item.descriptor.id, transaction),
-          () => this.clearItem(item.descriptor.id, transaction),
-        )
+        const base = baseSnapshot(item, hydration)
         // Not ours to resume: expose the descriptor so a UI can show the run
         // is paused, with no `resolveInterrupt` to call.
         if (item.kind === 'unbound' || item.binding === undefined) {
@@ -804,6 +1001,9 @@ export class InterruptManager<
             toolName: item.binding.toolName,
             toolCallId: item.binding.toolCallId,
             originalArgs: cloneAndDeepFreezeJson(item.binding.originalArgs),
+            cancel: () => this.cancelItem(item.descriptor.id, transaction),
+            clearResolution: () =>
+              this.clearItem(item.descriptor.id, transaction),
             resolveInterrupt: (approved: boolean, options?: unknown) => {
               const details = isUnknownObject(options) ? options : undefined
               this.resolveItem(
@@ -832,15 +1032,33 @@ export class InterruptManager<
                 interruptId: item.descriptor.id,
                 interruptedRunId: hydration.interruptedRunId,
                 generation: hydration.generation,
-                responseSchemaHash:
-                  typeof item.binding.responseSchemaHash === 'string'
-                    ? item.binding.responseSchemaHash
-                    : 'none',
+                ...(typeof item.binding.responseSchemaHash === 'string'
+                  ? { responseSchemaHash: item.binding.responseSchemaHash }
+                  : {}),
               })
+        if (item.definition !== undefined && item.binding.kind === 'generic') {
+          const snapshot = {
+            ...base,
+            kind: 'generic',
+            definitionId: item.definition.id,
+            key: item.binding.key ?? '',
+            payload: item.payload,
+            binding: boundGeneric,
+            cancel: () => this.cancelItem(item.descriptor.id, transaction),
+            clearResolution: () =>
+              this.clearItem(item.descriptor.id, transaction),
+            resolveInterrupt: (response: unknown) =>
+              this.resolveItem(item.descriptor.id, response, transaction),
+          }
+          return Object.freeze(snapshot)
+        }
         const snapshot: GenericAGUIInterrupt = {
           ...base,
           kind: 'generic',
           binding: boundGeneric,
+          cancel: () => this.cancelItem(item.descriptor.id, transaction),
+          clearResolution: () =>
+            this.clearItem(item.descriptor.id, transaction),
           resolveInterrupt: (payload) =>
             this.resolveItem(item.descriptor.id, payload, transaction),
         }
@@ -851,10 +1069,12 @@ export class InterruptManager<
     // selected by name. TypeScript cannot preserve that per-element lookup
     // through Array.map, so this generic return boundary restores the proven
     // distributive public union.
-    return Object.freeze(next) as BoundInterrupts<TTools>
+    return Object.freeze(next) as BoundInterrupts<TTools, TInterrupts>
   }
 
-  private publish(): void {
+  // Provenance belongs to each publication because `onChange` may synchronously
+  // mutate the manager and publish again before an outer callback returns.
+  private publish(source: InterruptManagerChangeSource = 'live'): void {
     if (!this.hydration) {
       this.snapshot = Object.freeze([])
       this.state = Object.freeze({
@@ -863,7 +1083,7 @@ export class InterruptManager<
         interruptErrors: this.rootErrors,
         resuming: this.resuming,
       })
-      this.options.onChange?.()
+      this.options.onChange?.(source)
       return
     }
     this.snapshot = this.buildSnapshot()
@@ -873,7 +1093,7 @@ export class InterruptManager<
       interruptErrors: this.rootErrors,
       resuming: this.resuming,
     })
-    this.options.onChange?.()
+    this.options.onChange?.(source)
   }
 
   private resolveItem(
@@ -929,7 +1149,9 @@ export class InterruptManager<
     const item = this.findItem(interruptId)
     this.invalidateRetry()
     item.validationGeneration++
-    item.resolution = Object.freeze({ interruptId, status: 'cancelled' })
+    item.resolution = Object.freeze(
+      resolutionWithContinuation(item, { interruptId, status: 'cancelled' }),
+    )
     item.status = 'staged'
     item.error = undefined
     if (!transaction) {
@@ -954,7 +1176,12 @@ export class InterruptManager<
     // owns them. Including them in the completeness gate would deadlock the
     // batch, so the run's own interrupts could never be answered once a
     // foreign one shared the stream.
-    const ours = this.items.filter((item) => item.kind !== 'unbound')
+    const hasGeneric = this.items.some((item) => item.kind === 'generic')
+    const ours = this.items.filter(
+      (item) =>
+        isClientOwnedInterrupt(item) &&
+        !(hasGeneric && item.kind === 'client-tool-execution'),
+    )
     if (
       ours.length === 0 ||
       ours.some(
@@ -1019,11 +1246,13 @@ export class InterruptManager<
       if (!transaction) this.publish()
       return
     }
-    item.resolution = cloneAndDeepFreezeJson({
-      interruptId: item.descriptor.id,
-      status: 'resolved',
-      payload: result.payload,
-    })
+    item.resolution = cloneAndDeepFreezeJson(
+      resolutionWithContinuation(item, {
+        interruptId: item.descriptor.id,
+        status: 'resolved',
+        payload: result.payload,
+      }),
+    )
     item.status = 'staged'
     item.error = undefined
     if (!transaction) {
@@ -1037,11 +1266,17 @@ export class InterruptManager<
     payload: unknown,
   ): ValidationResult | Promise<ValidationResult> {
     if (item.kind === 'generic') {
-      return validateWithSchema(
-        item.descriptor.responseSchema,
+      const validation = validateWithSchema(
+        item.definition?.responseSchema ?? item.descriptor.responseSchema,
         payload,
         'invalid-payload',
       )
+      if (item.definition === undefined) return validation
+      const preserveInput = (result: ValidationResult): ValidationResult =>
+        'valid' in result ? { valid: true, payload } : result
+      return isPromiseLike(validation)
+        ? Promise.resolve(validation).then(preserveInput)
+        : preserveInput(validation)
     }
     if (item.kind === 'client-tool-execution') {
       return validateWithSchema(
@@ -1160,7 +1395,8 @@ export class InterruptManager<
     // addToolResult); they are transparent to the boolean shorthand. Eligibility
     // and resolution consider only the publicly resolvable items.
     const resolvable = this.items.filter(
-      (item) => item.kind !== 'client-tool-execution',
+      (item) =>
+        isClientOwnedInterrupt(item) && item.kind !== 'client-tool-execution',
     )
     const eligible = resolvable.every(
       (item) =>
@@ -1191,7 +1427,9 @@ export class InterruptManager<
   }
 
   private resolveTransaction(
-    resolver: (interrupt: ChatInterrupt<TTools>) => unknown,
+    resolver: (
+      interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+    ) => unknown,
   ): void {
     const checkpoints = this.items.map<RuntimeInterruptCheckpoint>((item) => ({
       status: item.status,
@@ -1201,7 +1439,7 @@ export class InterruptManager<
     }))
     const token: TransactionToken = { active: true }
     this.activeTransaction = token
-    const stable = this.buildSnapshot(token)
+    const stable = this.buildSnapshot(token).filter(isRootResolvableInterrupt)
     let failure:
       | { code: BatchInterruptError['code']; message: string }
       | undefined
@@ -1227,7 +1465,8 @@ export class InterruptManager<
             // `client-tool-execution` items are resolved out-of-band (auto
             // execution / addToolResult), not by this synchronous resolver, so
             // they don't count against transaction completeness. `maybeSubmit`
-            // still gates the actual submission on them being resolved.
+            // still waits for them unless a generic interrupt shares the batch.
+            isClientOwnedInterrupt(item) &&
             item.kind !== 'client-tool-execution' &&
             (item.resolution === undefined || item.status !== 'staged'),
         )
@@ -1296,23 +1535,32 @@ export class InterruptManager<
   }
 
   private submitBatch(submission: InterruptManagerSubmission): void {
+    // Track ownership so a superseded submission cannot mutate current state.
+    const operation = { submission }
+    this.activeSubmissionOperation = operation
     this.resuming = true
     this.retrySubmission = undefined
-    for (const item of this.items) item.status = 'submitting'
+    for (const item of this.items) {
+      if (isClientOwnedInterrupt(item)) item.status = 'submitting'
+    }
     this.publish()
-    void this.performSubmission(submission)
+    void this.performSubmission(operation)
   }
 
   private async performSubmission(
-    submission: InterruptManagerSubmission,
+    operation: SubmissionOperation,
   ): Promise<void> {
     try {
-      await this.options.submit(submission)
+      await this.options.submit(operation.submission)
     } catch (error) {
-      this.handleSubmissionFailure(error, submission)
+      if (this.activeSubmissionOperation !== operation) return
+      this.handleSubmissionFailure(error, operation.submission)
     } finally {
-      this.resuming = false
-      this.publish()
+      if (this.activeSubmissionOperation === operation) {
+        this.activeSubmissionOperation = undefined
+        this.resuming = false
+        this.publish()
+      }
     }
   }
 
@@ -1325,7 +1573,9 @@ export class InterruptManager<
       const message = error instanceof Error ? error.message : String(error)
       this.addRootError('transport', message, true, 'transport')
       this.retrySubmission = submission
-      for (const item of this.items) item.status = 'error'
+      for (const item of this.items) {
+        if (isClientOwnedInterrupt(item)) item.status = 'error'
+      }
       return
     }
 
@@ -1355,6 +1605,7 @@ export class InterruptManager<
       if (submissionError.scope === 'item') {
         const item = this.items.find(
           (candidate) =>
+            isClientOwnedInterrupt(candidate) &&
             candidate.descriptor.id === submissionError.interruptId,
         )
         if (item) {
@@ -1373,7 +1624,9 @@ export class InterruptManager<
     this.rootErrors = mergedBatchErrors.rootErrors
     this.submissionRootErrors = mergedBatchErrors.submissionRootErrors
     for (const item of this.items) {
-      if (item.status === 'submitting') item.status = 'error'
+      if (isClientOwnedInterrupt(item) && item.status === 'submitting') {
+        item.status = 'error'
+      }
     }
     this.retrySubmission = retryable && !nonRetryable ? submission : undefined
   }
@@ -1394,7 +1647,9 @@ export class InterruptManager<
         source,
         retryable,
         interruptIds: Object.freeze(
-          this.items.map((item) => item.descriptor.id),
+          this.items
+            .filter(isClientOwnedInterrupt)
+            .map((item) => item.descriptor.id),
         ),
         threadId: hydration.threadId,
         interruptedRunId: hydration.interruptedRunId,

@@ -27,10 +27,9 @@ function toolCallStart(fields: {
   return {
     type: EventType.TOOL_CALL_START,
     timestamp: Date.now(),
-    ...fields,
-    // `toolName` is the deprecated alias of `toolCallName`; mirror it
-    // so tests don't have to write both.
-    toolName: fields.toolName ?? fields.toolCallName,
+    toolCallId: fields.toolCallId,
+    toolCallName: fields.toolCallName,
+    ...(fields.metadata !== undefined ? { metadata: fields.metadata } : {}),
   }
 }
 
@@ -44,7 +43,8 @@ function toolCallArgs(fields: {
   return {
     type: EventType.TOOL_CALL_ARGS,
     timestamp: Date.now(),
-    ...fields,
+    toolCallId: fields.toolCallId,
+    delta: fields.delta,
   }
 }
 
@@ -61,9 +61,7 @@ function toolCallEnd(fields: {
   return {
     type: EventType.TOOL_CALL_END,
     timestamp: Date.now(),
-    ...fields,
-    // `toolName` is required on the merged event type; mirror the alias.
-    toolName: fields.toolName ?? fields.toolCallName ?? '',
+    toolCallId: fields.toolCallId,
   }
 }
 
@@ -191,8 +189,10 @@ describe('ToolCallManager', () => {
     // Should emit one TOOL_CALL_END event
     expect(emittedChunks).toHaveLength(1)
     expect(emittedChunks[0]?.type).toBe('TOOL_CALL_END')
-    expect(emittedChunks[0]?.toolCallId).toBe('call_123')
-    expect(emittedChunks[0]?.result).toContain('temp')
+    if (emittedChunks[0]?.type === 'TOOL_CALL_END') {
+      expect(emittedChunks[0].toolCallId).toBe('call_123')
+      expect(emittedChunks[0].result).toContain('temp')
+    }
 
     // Should return one tool result message
     expect(finalResult).toHaveLength(1)
@@ -398,8 +398,14 @@ describe('ToolCallManager', () => {
 
     // Should emit two TOOL_CALL_END events
     expect(chunks).toHaveLength(2)
-    expect(chunks[0]?.toolCallId).toBe('call_weather')
-    expect(chunks[1]?.toolCallId).toBe('call_calc')
+    expect(chunks[0]?.type).toBe('TOOL_CALL_END')
+    expect(chunks[1]?.type).toBe('TOOL_CALL_END')
+    if (chunks[0]?.type === 'TOOL_CALL_END') {
+      expect(chunks[0].toolCallId).toBe('call_weather')
+    }
+    if (chunks[1]?.type === 'TOOL_CALL_END') {
+      expect(chunks[1].toolCallId).toBe('call_calc')
+    }
 
     // Should return two tool result messages
     expect(toolResults).toHaveLength(2)
@@ -467,17 +473,69 @@ describe('ToolCallManager', () => {
         }),
       )
 
+      manager.addToolCallArgsEvent(
+        toolCallArgs({
+          toolCallId: 'call_123',
+          delta: '{"location":"New York"}',
+        }),
+      )
+
       manager.completeToolCall(
         toolCallEnd({
           toolCallId: 'call_123',
           toolCallName: 'get_weather',
-          input: { location: 'New York' },
         }),
       )
 
       const toolCalls = manager.getToolCalls()
       expect(toolCalls).toHaveLength(1)
       expect(toolCalls[0]?.function.arguments).toBe('{"location":"New York"}')
+    })
+
+    it('should ignore a repeat TOOL_CALL_START for an already-tracked toolCallId (same explicit index)', () => {
+      const manager = new ToolCallManager([mockWeatherTool])
+
+      // AG-UI's TOOL_CALL_START carries no `index`, but first-party adapter
+      // yields still attach one (see AdapterYieldChunk). Build the event
+      // directly so the explicit index survives, matching this issue's repro.
+      const startWithIndex = (index: number) =>
+        ({
+          ...toolCallStart({
+            toolCallId: 'call_123',
+            toolCallName: 'get_weather',
+          }),
+          index,
+        }) as ToolCallStartEvent
+
+      manager.addToolCallStartEvent(startWithIndex(0))
+      manager.addToolCallArgsEvent(
+        toolCallArgs({ toolCallId: 'call_123', delta: '{"location":"Paris"}' }),
+      )
+      // A malformed/custom-server stream re-sends START for the same id/index.
+      manager.addToolCallStartEvent(startWithIndex(0))
+
+      const toolCalls = manager.getToolCalls()
+      expect(toolCalls).toHaveLength(1)
+      // Accumulated arguments must survive the repeat START, not reset to ''.
+      expect(toolCalls[0]?.function.arguments).toBe('{"location":"Paris"}')
+    })
+
+    it('should ignore a repeat TOOL_CALL_START for an already-tracked toolCallId (no index)', () => {
+      const manager = new ToolCallManager([mockWeatherTool])
+
+      manager.addToolCallStartEvent(
+        toolCallStart({ toolCallId: 'call_123', toolCallName: 'get_weather' }),
+      )
+      // Repeat START with no index — must not insert a second row, which
+      // would otherwise make getToolCalls() return the id twice and run
+      // the tool twice.
+      manager.addToolCallStartEvent(
+        toolCallStart({ toolCallId: 'call_123', toolCallName: 'get_weather' }),
+      )
+
+      const toolCalls = manager.getToolCalls()
+      expect(toolCalls).toHaveLength(1)
+      expect(toolCalls.filter((tc) => tc.id === 'call_123')).toHaveLength(1)
     })
   })
 })
@@ -932,6 +990,32 @@ describe('executeToolCalls', () => {
   })
 
   describe('argument normalization', () => {
+    it('should return malformed arguments as an error result', async () => {
+      const execute = vi.fn(() => ({ ok: true }))
+      const tool: Tool = {
+        name: 'test_tool',
+        description: 'Test tool',
+        execute,
+      }
+      const result = await drainExecuteToolCalls(
+        [makeToolCall('call_1', 'test_tool', '{')],
+        [tool],
+      )
+
+      expect(execute).not.toHaveBeenCalled()
+      expect(result.results).toEqual([
+        {
+          toolCallId: 'call_1',
+          toolName: 'test_tool',
+          result: { error: 'Failed to parse tool arguments as JSON: {' },
+          input: {},
+          state: 'output-error',
+        },
+      ])
+      expect(result.needsApproval).toHaveLength(0)
+      expect(result.needsClientExecution).toHaveLength(0)
+    })
+
     it('should normalize empty arguments to empty object', async () => {
       const tool: Tool = {
         name: 'simple_tool',

@@ -11,8 +11,6 @@ keywords:
   - client authoritative
 ---
 
-# Persistence
-
 Your user reloads the page and the conversation is gone, because it only ever lived
 in memory. Or they open the app on their phone and none of it is there. Persistence
 fixes both, and it is two snippets: one middleware on the server, one option on the
@@ -23,11 +21,24 @@ streaming. That is [Resumable Streams](../resumable-streams/overview), a differe
 layer you can add on its own. Step 3 below combines them, which is what most apps
 end up wanting.
 
+When the provider sandbox is gone, the workspace files can also disappear. Use
+the same persistence object with
+[Keep Files After Reload](../sandbox/portable-snapshots-configure).
+
 ## Install
 
-```bash
-pnpm add @tanstack/ai-persistence
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-persistence
+vue: @tanstack/ai-persistence
+solid: @tanstack/ai-persistence
+svelte: @tanstack/ai-persistence
+preact: @tanstack/ai-persistence
+angular: @tanstack/ai-persistence
+vanilla: @tanstack/ai-persistence
+octane: @tanstack/ai-persistence
+
+<!-- ::end:tabs -->
 
 The client half needs no install. It ships in the framework package you already use
 (`@tanstack/ai-react`, `-vue`, `-solid`, `-svelte`, `-angular`, or
@@ -103,6 +114,9 @@ function Chat() {
 With `persistence: true` the client needs one `GET` to read from, which is step 3.
 With a storage adapter you are done: reload and the conversation is there.
 
+A long thread can page on hydrate. See [Client persistence](./client-persistence)
+for `history: { pageSize }`.
+
 ## 3. Survive a reload mid-answer
 
 Add a `GET` to the same route. It does two jobs, and the `if` picks one per request:
@@ -164,6 +178,7 @@ To make the `POST` resumable too, hand the same adapter to the response:
 | A reload mid-answer to pick the answer back up | Steps 1, 2 and 3 |
 | A dropped socket to resume with the page still open | [Resumable Streams](../resumable-streams/overview) alone |
 | To pause for a human approval and resume it days later | Step 1 with an `interrupts` store |
+| Sandbox files to come back after the provider sandbox is gone | [Keep Files After Reload](../sandbox/portable-snapshots-configure) |
 
 ## Where to go next
 

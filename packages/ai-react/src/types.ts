@@ -1,5 +1,6 @@
 import type {
   AnyClientTool,
+  InterruptDefinition,
   InferSchemaType,
   ModelMessage,
   RunAgentResumeItem,
@@ -10,7 +11,7 @@ import type {
   BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
-  ChatInterrupt,
+  ResolvableChatInterrupt,
   ChatInterruptState,
   ChatRequestBody,
   ChatResumeState,
@@ -26,6 +27,8 @@ import type {
   SendMessageOptions,
   UIMessage,
   WhenBusy,
+  SubagentClientAgent,
+  SubagentHandles,
 } from '@tanstack/ai-client'
 
 // Re-export types from ai-client
@@ -83,8 +86,11 @@ export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
 > = DistributedOmit<
-  ChatClientOptions<TTools, TContext>,
+  ChatClientOptions<TTools, TContext, TInterrupts>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -97,10 +103,7 @@ export type UseChatOptions<
   | 'onRunIdChange'
   | 'context'
   | 'devtools'
-  // `id` is not a hook option: the hook's identity is its `threadId`, which is
-  // also the persistence key. Persist across reloads by passing a stable
-  // `threadId`; there is no separate id to set.
-  | 'id'
+  | 'subagents'
 > & {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
@@ -116,6 +119,12 @@ export type UseChatOptions<
    * against the schema passed to `chat({ outputSchema })` on the server route.
    */
   outputSchema?: TSchema
+  /**
+   * Agents from `defineAgent`. This types `messages` parts and `subagents`.
+   * The hook does not call `run` and does not send the agents to the server.
+   * Pass the same array you give to `chat({ subagents: { agents } })`.
+   */
+  subagents?: TSubagents
 } & ClientContextOptionFromTools<TTools, TContext>
 
 /**
@@ -126,9 +135,14 @@ export type UseChatOptions<
 export type UseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
 > = BaseUseChatReturn<
   TTools,
-  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown
+  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
+  TInterrupts,
+  TSubagents
 > &
   (TSchema extends SchemaInput
     ? {
@@ -151,20 +165,33 @@ export type UseChatReturn<
 interface BaseUseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TData = unknown,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
 > {
   /**
    * Current messages in the conversation. When `outputSchema` is supplied,
    * `messages[i].parts.find(p => p.type === 'structured-output')` is typed
    * with the schema's inferred shape — `data: T`, `partial: DeepPartial<T>`.
+   * When `subagents` is supplied, a `type: 'subagent'` part narrows on
+   * `subagent.name`, and that child's `messages` use the agent's tools.
    */
-  messages: Array<UIMessage<TTools, TData>>
+  messages: Array<UIMessage<TTools, TData, TSubagents>>
+
+  /**
+   * Live child-agent invocations, nested cards included. Each entry is the
+   * same object as the matching `part.subagent`, including `stop()`.
+   * When `subagents` is supplied, `name` is one of those agent names.
+   */
+  subagents: Array<SubagentHandles<TSubagents>>
 
   /**
    * Send a message and get a response.
    * Can be a simple string or multimodal content with images, audio, etc.
    * By default, sends while busy are queued until the run settles successfully
    * (`queue: 'drop'` restores the old drop-while-busy behavior).
-   * Pass `{ whenBusy }` to override the policy for a single send.
+   * Pass `{ whenBusy }` to override the policy for a single send, or
+   * `{ body }` to merge per-call JSON into this request's `forwardedProps`.
    */
   sendMessage: (
     content: string | MultimodalContent,
@@ -218,14 +245,18 @@ interface BaseUseChatReturn<
    * it, correlate a log line).
    */
   runId: string | null
-  interrupts: BoundInterrupts<TTools>
+  interrupts: BoundInterrupts<TTools, TInterrupts>
   /** @deprecated Use `interrupts`. */
-  pendingInterrupts: BoundInterrupts<TTools>
-  interruptErrors: ChatInterruptState<TTools>['interruptErrors']
+  pendingInterrupts: BoundInterrupts<TTools, TInterrupts>
+  interruptErrors: ChatInterruptState<TTools, TInterrupts>['interruptErrors']
   resuming: boolean
   resolveInterrupts: {
     (approved: boolean): void
-    (resolver: (interrupt: ChatInterrupt<TTools>) => undefined): void
+    (
+      resolver: (
+        interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+      ) => undefined,
+    ): void
   }
   cancelInterrupts: () => void
   retryInterrupts: () => void
@@ -253,6 +284,16 @@ interface BaseUseChatReturn<
    * Whether a response is currently being generated
    */
   isLoading: boolean
+
+  /**
+   * True when the last hydrate or older-page response said more messages exist.
+   */
+  hasOlderMessages: boolean
+
+  /**
+   * Fetch the next older window and put it in front of the painted messages.
+   */
+  loadOlderMessages: () => Promise<void>
 
   /**
    * Current error, if any

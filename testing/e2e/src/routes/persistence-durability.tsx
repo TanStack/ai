@@ -53,6 +53,9 @@ export const Route = createFileRoute('/persistence-durability')({
 
 function PersistenceDurabilityPage() {
   const { scenario } = Route.useSearch()
+  const [interruptSource, setInterruptSource] = useState<
+    'hydrate' | 'live' | null
+  >(null)
   const isInterrupt = scenario === 'interrupt'
   const isServerInterrupt = scenario === 'server-interrupt'
   const chatId = isServerInterrupt
@@ -72,6 +75,9 @@ function PersistenceDurabilityPage() {
         ? interruptConnection
         : textConnection,
     persistence: isServerInterrupt ? true : store,
+    onInterruptStateChange: (_state, context) => {
+      setInterruptSource(context.source)
+    },
   })
 
   const [input, setInput] = useState('')
@@ -95,6 +101,9 @@ function PersistenceDurabilityPage() {
         data-count={String(messages.length)}
         hidden
       />
+      <div data-testid="interrupt-source" hidden>
+        {interruptSource}
+      </div>
 
       <div data-testid="message-list">
         {messages.map((message) => (

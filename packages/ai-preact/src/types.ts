@@ -1,5 +1,6 @@
 import type {
   AnyClientTool,
+  InterruptDefinition,
   ModelMessage,
   RunAgentResumeItem,
   SchemaInput,
@@ -9,7 +10,7 @@ import type {
   BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
-  ChatInterrupt,
+  ResolvableChatInterrupt,
   ChatInterruptState,
   ChatRequestBody,
   ChatResumeState,
@@ -59,8 +60,10 @@ export type {
 export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = InferredClientContext<TTools>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = DistributedOmit<
-  ChatClientOptions<TTools, TContext>,
+  ChatClientOptions<TTools, TContext, TInterrupts>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -73,10 +76,6 @@ export type UseChatOptions<
   | 'onRunIdChange'
   | 'context'
   | 'devtools'
-  // `id` is not a hook option: the hook's identity is its `threadId`, which is
-  // also the persistence key. Persist across reloads by passing a stable
-  // `threadId`; there is no separate id to set.
-  | 'id'
 > & {
   live?: boolean
   /** Display options for TanStack AI Devtools. */
@@ -92,6 +91,8 @@ export type UseChatOptions<
 
 export interface UseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   /**
    * Current messages in the conversation
@@ -101,6 +102,8 @@ export interface UseChatReturn<
   /**
    * Send a message and get a response.
    * Can be a simple string or multimodal content with images, audio, etc.
+   * Pass `{ whenBusy }` to override the queue policy for a single send, or
+   * `{ body }` to merge per-call JSON into this request's `forwardedProps`.
    */
   sendMessage: (
     content: string | MultimodalContent,
@@ -153,14 +156,18 @@ export interface UseChatReturn<
    * it, correlate a log line).
    */
   runId: string | null
-  interrupts: BoundInterrupts<TTools>
+  interrupts: BoundInterrupts<TTools, TInterrupts>
   /** @deprecated Use `interrupts`. */
-  pendingInterrupts: BoundInterrupts<TTools>
-  interruptErrors: ChatInterruptState<TTools>['interruptErrors']
+  pendingInterrupts: BoundInterrupts<TTools, TInterrupts>
+  interruptErrors: ChatInterruptState<TTools, TInterrupts>['interruptErrors']
   resuming: boolean
   resolveInterrupts: {
     (approved: boolean): void
-    (resolver: (interrupt: ChatInterrupt<TTools>) => undefined): void
+    (
+      resolver: (
+        interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+      ) => undefined,
+    ): void
   }
   cancelInterrupts: () => void
   retryInterrupts: () => void
@@ -188,6 +195,16 @@ export interface UseChatReturn<
    * Whether a response is currently being generated
    */
   isLoading: boolean
+
+  /**
+   * True when the last hydrate or older-page response said more messages exist.
+   */
+  hasOlderMessages: boolean
+
+  /**
+   * Fetch the next older window and put it in front of the painted messages.
+   */
+  loadOlderMessages: () => Promise<void>
 
   /**
    * Current error, if any

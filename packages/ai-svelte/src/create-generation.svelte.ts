@@ -11,6 +11,8 @@ import type {
   GenerationRestoredResult,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
+import type { ByokClient } from '@tanstack/ai-client/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
 
 /**
  * Options for the createGeneration function.
@@ -26,12 +28,12 @@ export interface CreateGenerationOptions<TInput, TResult, TOutput = TResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
   fetcher?: GenerationFetcher<TInput, TResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
+  byok?: ByokClient
+  /** Optional provider id. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
+  byokProvider?: () => ProviderId | undefined
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
@@ -53,8 +55,8 @@ export interface CreateGenerationOptions<TInput, TResult, TOutput = TResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -174,7 +176,7 @@ export function createGeneration<
 >(
   options: Omit<
     CreateGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: TResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -183,8 +185,6 @@ export function createGeneration<
   TInput
 > {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
-  const fallbackId = `gen-${Date.now()}-${Math.random().toString(36).substring(7)}`
-
   // Create reactive state using Svelte 5 runes
   let result = $state<TOutput | null>(null)
   let isLoading = $state(false)
@@ -198,19 +198,17 @@ export function createGeneration<
   // `exactOptionalPropertyTypes`. Assigning `undefined` directly would be
   // rejected — the optional caller `options.body` may be undefined, in which
   // case we want the key to be absent.
-  // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
-  const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
+  const clientOptions: Omit<
+    GenerationClientOptions<TInput, TResult, TOutput>,
+    'persistence' | 'threadId'
+  > = {
     body: options.body,
-    ...(options.threadId !== undefined
-      ? { threadId: options.threadId }
-      : { id: options.id ?? fallbackId }),
-    ...(options.persistence !== undefined && {
-      persistence: options.persistence,
-    }),
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
     }),
     ...(options.joinRun !== undefined && { joinRun: options.joinRun }),
+    ...(options.byok !== undefined && { byok: options.byok }),
+    byokProvider: () => options.byokProvider?.(),
     ...(options.reconstructResult
       ? { reconstructResult: options.reconstructResult }
       : {}),
@@ -257,16 +255,30 @@ export function createGeneration<
     },
   }
 
+  const persistenceProps =
+    typeof options.threadId === 'string' && options.persistence
+      ? {
+          persistence: options.persistence,
+          threadId: options.threadId,
+        }
+      : {
+          ...(options.threadId !== undefined && {
+            threadId: options.threadId,
+          }),
+        }
+
   let client: GenerationClient<TInput, TResult, TOutput>
 
   if (options.connection) {
     client = new GenerationClient<TInput, TResult, TOutput>({
       ...clientOptions,
+      ...persistenceProps,
       connection: options.connection,
     })
   } else if (options.fetcher) {
     client = new GenerationClient<TInput, TResult, TOutput>({
       ...clientOptions,
+      ...persistenceProps,
       fetcher: options.fetcher,
     })
   } else {

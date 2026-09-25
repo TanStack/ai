@@ -17,8 +17,9 @@ import type { Page } from '@playwright/test'
  * The mid-stream "rejoin an in-flight run via joinRun after reload" path is NOT
  * covered here: the harness stream completes in a single tick, so there is no
  * deterministic window to reload while a run is still producing. That resume
- * cursor is covered at the transport layer by `delivery-durability.spec.ts` and
- * in `@tanstack/ai-client` unit tests.
+ * cursor is covered at the transport layer by `delivery-durability.spec.ts`.
+ * A client-tool replay that must drain after `joinRun` (issue #1058) is in
+ * `join-run-client-tool.spec.ts`.
  */
 
 async function interruptCount(page: Page): Promise<number> {
@@ -85,6 +86,7 @@ test.describe('persistence durability (browser refresh)', () => {
       .poll(() => interruptCount(page), { timeout: 15_000 })
       .toBeGreaterThanOrEqual(1)
     await expect(page.getByTestId('interrupt-confirm-shipment')).toBeVisible()
+    await expect(page.getByTestId('interrupt-source')).toHaveText('live')
 
     // The combined record carries the resume half while the interrupt is pending.
     const stored = await page.evaluate(() =>
@@ -105,6 +107,7 @@ test.describe('persistence durability (browser refresh)', () => {
       .toBeGreaterThanOrEqual(1)
     await expect(page.getByTestId('interrupt-confirm-shipment')).toBeVisible()
     await expect(page.getByTestId('interrupt-kind')).toHaveText('generic')
+    await expect(page.getByTestId('interrupt-source')).toHaveText('hydrate')
   })
 
   test('restores a pending interrupt from the SERVER on a fresh load (persistence: true)', async ({
@@ -126,6 +129,7 @@ test.describe('persistence durability (browser refresh)', () => {
       .toBeGreaterThanOrEqual(1)
     await expect(page.getByTestId('interrupt-confirm-shipment')).toBeVisible()
     await expect(page.getByTestId('interrupt-kind')).toHaveText('generic')
+    await expect(page.getByTestId('interrupt-source')).toHaveText('hydrate')
     // Restored bound and resolvable — the reload can approve/reject, not just
     // view a dead paused tool call.
     await expect(page.getByTestId('interrupt-can-resolve')).toHaveText('true')
@@ -138,5 +142,194 @@ test.describe('persistence durability (browser refresh)', () => {
       ),
     )
     expect(stored).toBeNull()
+  })
+})
+
+test.describe('structured output persistence', () => {
+  test('restores a completed structured-output part from server persistence', async ({
+    request,
+  }) => {
+    const threadId = `structured-output-${crypto.randomUUID()}`
+    const runId = crypto.randomUUID()
+    const run = await request.post(
+      '/api/persistence-durability?scenario=structured-output',
+      { data: { threadId, runId } },
+    )
+    expect(run.ok()).toBe(true)
+
+    const hydration = await request.get(
+      `/api/persistence-durability?scenario=structured-output&threadId=${threadId}`,
+    )
+    expect(hydration.ok()).toBe(true)
+    const body = (await hydration.json()) as {
+      messages: Array<{
+        role: string
+        parts: Array<Record<string, unknown>>
+      }>
+    }
+    const assistants = body.messages.filter(
+      (message) => message.role === 'assistant',
+    )
+
+    expect(assistants).toHaveLength(2)
+    expect(assistants[0]?.parts).toEqual([
+      {
+        type: 'text',
+        content: 'PERSIST_OK the lighthouse still turns.',
+      },
+    ])
+    expect(assistants[1]?.parts).toEqual([
+      {
+        type: 'structured-output',
+        status: 'complete',
+        data: { name: 'Ada Lovelace' },
+        partial: { name: 'Ada Lovelace' },
+        raw: '{"name":"Ada Lovelace"}',
+      },
+    ])
+  })
+
+  test('restores event-sourced harness structured output from server persistence', async ({
+    request,
+  }) => {
+    const threadId = `harness-output-${crypto.randomUUID()}`
+    const runId = crypto.randomUUID()
+    const run = await request.post(
+      '/api/persistence-durability?scenario=harness-output',
+      { data: { threadId, runId } },
+    )
+    expect(run.ok()).toBe(true)
+
+    const hydration = await request.get(
+      `/api/persistence-durability?scenario=harness-output&threadId=${threadId}`,
+    )
+    expect(hydration.ok()).toBe(true)
+    const body = (await hydration.json()) as {
+      messages: Array<{
+        role: string
+        parts: Array<Record<string, unknown>>
+      }>
+    }
+    const assistants = body.messages.filter(
+      (message) => message.role === 'assistant',
+    )
+
+    expect(assistants).toHaveLength(2)
+    expect(assistants[0]?.parts).toEqual([
+      {
+        type: 'text',
+        content: 'looking around the repo',
+      },
+    ])
+    expect(assistants[1]?.parts).toEqual([
+      {
+        type: 'structured-output',
+        status: 'complete',
+        data: { name: 'Ada Lovelace' },
+        partial: { name: 'Ada Lovelace' },
+        raw: '{"name":"Ada Lovelace"}',
+      },
+    ])
+  })
+})
+
+test.describe('server persistence', () => {
+  test('stores cumulative usage across model calls', async ({ request }) => {
+    const run = await request.post(
+      '/api/persistence-durability?scenario=usage',
+      {
+        data: {
+          threadId: `usage-${crypto.randomUUID()}`,
+          runId: crypto.randomUUID(),
+        },
+      },
+    )
+    expect(run.ok()).toBe(true)
+    const body = (await run.json()) as {
+      usage?: {
+        promptTokens: number
+        completionTokens: number
+        totalTokens: number
+      }
+    }
+    expect(body.usage).toEqual({
+      promptTokens: 19,
+      completionTokens: 6,
+      totalTokens: 25,
+    })
+  })
+
+  test('reconstructChat with includeRuns returns run timings (issue #1061)', async ({
+    request,
+  }) => {
+    const threadId = `run-timings-${crypto.randomUUID()}`
+    const run = await request.post(
+      '/api/persistence-durability?scenario=usage',
+      { data: { threadId, runId: crypto.randomUUID() } },
+    )
+    expect(run.ok()).toBe(true)
+    const { runId } = (await run.json()) as { runId: string }
+
+    const hydrated = await request.get(
+      `/api/persistence-durability?scenario=usage&threadId=${encodeURIComponent(threadId)}`,
+    )
+    expect(hydrated.ok()).toBe(true)
+    const body = (await hydrated.json()) as {
+      runs?: Array<{
+        runId: string
+        status: string
+        startedAt: number
+        finishedAt?: number
+      }>
+      messages: Array<{
+        role: string
+        metadata?: {
+          tanstack?: {
+            run?: { id: string; startedAt?: number; finishedAt?: number }
+          }
+        }
+      }>
+    }
+
+    expect(body.runs).toHaveLength(1)
+    const [timing] = body.runs!
+    expect(timing).toMatchObject({ runId, status: 'completed' })
+    expect(timing!.finishedAt).toBeGreaterThanOrEqual(timing!.startedAt)
+    const assistant = body.messages.filter((m) => m.role === 'assistant')
+    expect(assistant.length).toBeGreaterThan(0)
+    for (const message of assistant) {
+      expect(message.metadata?.tanstack?.run).toEqual({
+        id: runId,
+        startedAt: timing!.startedAt,
+        finishedAt: timing!.finishedAt,
+      })
+    }
+  })
+
+  test('restores a failed server tool call as failed', async ({ request }) => {
+    const threadId = `tool-error-${crypto.randomUUID()}`
+    const run = await request.post(
+      '/api/persistence-durability?scenario=tool-error',
+      { data: { threadId, runId: crypto.randomUUID() } },
+    )
+    expect(run.ok()).toBe(true)
+
+    const hydration = await request.get(
+      `/api/persistence-durability?scenario=tool-error&threadId=${threadId}`,
+    )
+    expect(hydration.ok()).toBe(true)
+    const body = (await hydration.json()) as {
+      messages: Array<{ parts: Array<Record<string, unknown>> }>
+    }
+    const parts = body.messages.flatMap((message) => message.parts)
+
+    expect(parts).toContainEqual(
+      expect.objectContaining({
+        type: 'tool-result',
+        toolCallId: 'call-status',
+        state: 'error',
+        error: 'Status service unavailable',
+      }),
+    )
   })
 })

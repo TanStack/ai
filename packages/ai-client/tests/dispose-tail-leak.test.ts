@@ -32,7 +32,7 @@ function seededStore(): {
  */
 function mountedChatClient(
   options: ConstructorParameters<typeof ChatClient>[0],
-): ChatClient {
+) {
   const client = new ChatClient(options)
   client.attach()
   return client
@@ -250,7 +250,6 @@ describe('dispose stops a late hydration from opening a tail', () => {
     }
 
     const client = mountedChatClient({
-      id: 'chat-1',
       threadId: 't1',
       connection,
       persistence: store.adapter,

@@ -1,5 +1,6 @@
 {
   "extends": "./tsconfig.json",
-  "include": ["tests", "src"],
-  "exclude": []
+  // TypeDoc typechecks this program. Tests stay out: a failing test-d.ts
+  // makes convert() return nothing after the output dir is wiped.
+  "include": ["src"]
 }

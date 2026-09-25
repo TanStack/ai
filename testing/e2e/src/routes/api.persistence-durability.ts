@@ -3,21 +3,34 @@ import {
   INTERRUPT_BINDING_METADATA_KEY,
   INTERRUPT_BINDING_VERSION,
   canonicalInterruptJson,
+  chat,
   digestInterruptJson,
   memoryStream,
   resumeServerSentEventsResponse,
+  toolDefinition,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import type { StreamChunk } from '@tanstack/ai'
+import {
+  memoryPersistence,
+  reconstructChat,
+  withPersistence,
+} from '@tanstack/ai-persistence'
+import { z } from 'zod'
+import type {
+  AnyTextAdapter,
+  StreamChunk,
+  TokenUsage,
+  Tool,
+} from '@tanstack/ai'
 
 /**
  * Provider-free harness route for the browser-refresh persistence story. It
  * mirrors the production wiring of `examples/.../api.persistent-chat.ts` — a
  * `memoryStream(request)` delivery sink plus a GET resume handler that makes the
- * connection resumable — but streams a FIXED AG-UI sequence instead of calling
- * an LLM, so the e2e is deterministic with nothing to mock.
+ * connection resumable — but uses fixed AG-UI sequences and a fixed adapter
+ * instead of calling an LLM, so the e2e is deterministic with nothing to mock.
  *
- * Three scenarios (`?scenario=`):
+ * Five scenarios (`?scenario=`):
  *
  * - `text` (default) — a run that streams one assistant text message and
  *   finishes cleanly (`outcome: success`). The client persists the transcript
@@ -33,12 +46,181 @@ import type { StreamChunk } from '@tanstack/ai'
  *   GET below, which returns a `reconstructChat`-shaped JSON carrying a pending
  *   interrupt. Proves a fresh client (empty `localStorage`) re-prompts the
  *   approval from the server alone — the path that was previously broken.
+ * - `structured-output` — runs separate structured-output finalization through
+ *   `withPersistence`, then hydrates the completed structured-output part from
+ *   the server through `reconstructChat`.
+ * - `harness-output` — emits event-sourced structured output (the harness
+ *   adapter path) through `withPersistence`, then hydrates the prose message
+ *   and the structured-output message from `reconstructChat`.
+ * - `usage` — runs two provider calls through server persistence and returns
+ *   their stored cumulative usage.
+ * - `tool-error` — runs a server tool that throws through `withPersistence`,
+ *   then hydrates the failed tool call from `reconstructChat`.
  *
- * Exempt from the aimock policy: this route streams a fixed AG-UI sequence and
- * never reaches an LLM provider's HTTP layer, so there is nothing to mock.
+ * Exempt from the aimock policy: this route never reaches an LLM provider's HTTP
+ * layer, so there is nothing to mock.
  */
 
 const REPLY_TEXT = 'PERSIST_OK the lighthouse still turns.'
+
+const structuredOutputPersistence = memoryPersistence()
+const structuredOutputSchema = z.object({ name: z.string() })
+const structuredOutputTool = toolDefinition({
+  name: 'lookup_programmer',
+  description: 'Look up a programmer',
+  inputSchema: z.object({}),
+}).server(() => ({ found: true }))
+const structuredOutputAdapter: AnyTextAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  chatStream: ({ threadId, runId }: { threadId: string; runId: string }) =>
+    textRun(threadId, runId),
+  structuredOutput: () =>
+    Promise.resolve({
+      data: { name: 'Ada Lovelace' },
+      rawText: '{"name":"Ada Lovelace"}',
+    }),
+} as unknown as AnyTextAdapter
+
+const harnessOutputPersistence = memoryPersistence()
+const HARNESS_PROSE = 'looking around the repo'
+const HARNESS_RAW = '{"name":"Ada Lovelace"}'
+
+function harnessOutputRun(
+  threadId: string,
+  runId: string,
+): AsyncIterable<StreamChunk> {
+  return (async function* () {
+    yield {
+      type: 'RUN_STARTED',
+      threadId,
+      runId,
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TEXT_MESSAGE_START',
+      messageId: 'harness-prose',
+      role: 'assistant',
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TEXT_MESSAGE_CONTENT',
+      messageId: 'harness-prose',
+      delta: HARNESS_PROSE,
+      content: HARNESS_PROSE,
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TEXT_MESSAGE_END',
+      messageId: 'harness-prose',
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'CUSTOM',
+      name: 'structured-output.start',
+      value: { messageId: 'harness-so' },
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'CUSTOM',
+      name: 'structured-output.complete',
+      value: {
+        messageId: 'harness-so',
+        object: { name: 'Ada Lovelace' },
+        raw: HARNESS_RAW,
+      },
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'RUN_FINISHED',
+      threadId,
+      runId,
+      timestamp: Date.now(),
+      outcome: { type: 'success' },
+    } as StreamChunk
+  })()
+}
+
+const harnessOutputAdapter: AnyTextAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  supportsCombinedToolsAndSchema: () => true,
+  combinedStructuredOutputSource: () => 'event',
+  chatStream: ({ threadId, runId }: { threadId: string; runId: string }) =>
+    harnessOutputRun(threadId, runId),
+} as unknown as AnyTextAdapter
+
+const toolErrorPersistence = memoryPersistence()
+const failingTool = toolDefinition({
+  name: 'check_status',
+  description: 'Check the service status',
+  inputSchema: z.object({}),
+}).server(() => {
+  throw new Error('Status service unavailable')
+})
+
+function toolErrorRun(
+  threadId: string,
+  runId: string,
+  messages: ReadonlyArray<{ role: string }>,
+): AsyncIterable<StreamChunk> {
+  if (messages.some((message) => message.role === 'tool')) {
+    return textRun(threadId, runId)
+  }
+  return (async function* () {
+    yield {
+      type: 'RUN_STARTED',
+      threadId,
+      runId,
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TOOL_CALL_START',
+      toolCallId: 'call-status',
+      toolCallName: 'check_status',
+      toolName: 'check_status',
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TOOL_CALL_ARGS',
+      toolCallId: 'call-status',
+      delta: '{}',
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TOOL_CALL_END',
+      toolCallId: 'call-status',
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'RUN_FINISHED',
+      threadId,
+      runId,
+      finishReason: 'tool_calls',
+      timestamp: Date.now(),
+    } as StreamChunk
+  })()
+}
+
+const toolErrorAdapter: AnyTextAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  chatStream: ({
+    threadId,
+    runId,
+    messages,
+  }: {
+    threadId: string
+    runId: string
+    messages: ReadonlyArray<{ role: string }>
+  }) => toolErrorRun(threadId, runId, messages),
+} as unknown as AnyTextAdapter
 
 const confirmSchema = {
   type: 'object',
@@ -46,7 +228,11 @@ const confirmSchema = {
   required: ['confirmed'],
 }
 
-function textRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
+function textRun(
+  threadId: string,
+  runId: string,
+  usage?: TokenUsage,
+): AsyncIterable<StreamChunk> {
   return (async function* () {
     yield {
       type: 'RUN_STARTED',
@@ -78,8 +264,56 @@ function textRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
       runId,
       timestamp: Date.now(),
       outcome: { type: 'success' },
+      ...(usage ? { usage } : {}),
     } as StreamChunk
   })()
+}
+
+const usagePersistence = memoryPersistence()
+const usageTool: Tool = {
+  name: 'search',
+  description: 'Search',
+  execute: () => ({ hits: [] }),
+}
+const usageAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  chatStream: ({ threadId, runId }: { threadId: string; runId: string }) =>
+    textRun(threadId, runId, {
+      promptTokens: 12,
+      completionTokens: 4,
+      totalTokens: 16,
+    }),
+  structuredOutput: () =>
+    Promise.resolve({
+      data: { name: 'Ada Lovelace' },
+      rawText: '{"name":"Ada Lovelace"}',
+      usage: {
+        promptTokens: 7,
+        completionTokens: 2,
+        totalTokens: 9,
+      },
+    }),
+} as unknown as AnyTextAdapter
+
+async function cumulativeUsage(threadId: string, runId: string) {
+  const stream = chat({
+    adapter: usageAdapter,
+    messages: [{ role: 'user', content: 'Name the programmer' }],
+    tools: [usageTool],
+    outputSchema: {
+      type: 'object',
+      properties: { name: { type: 'string' } },
+    },
+    stream: true,
+    threadId,
+    runId,
+    middleware: [withPersistence(usagePersistence)],
+  })
+  for await (const _ of stream) void _
+  return usagePersistence.stores.runs?.get(runId)
 }
 
 function interruptRun(
@@ -135,11 +369,22 @@ function stringField(body: unknown, key: string): string | undefined {
 
 function scenarioOf(
   request: Request,
-): 'text' | 'interrupt' | 'server-interrupt' {
+):
+  | 'text'
+  | 'interrupt'
+  | 'server-interrupt'
+  | 'structured-output'
+  | 'harness-output'
+  | 'usage'
+  | 'tool-error' {
   try {
     const value = new URL(request.url).searchParams.get('scenario')
     if (value === 'interrupt') return 'interrupt'
     if (value === 'server-interrupt') return 'server-interrupt'
+    if (value === 'structured-output') return 'structured-output'
+    if (value === 'harness-output') return 'harness-output'
+    if (value === 'usage') return 'usage'
+    if (value === 'tool-error') return 'tool-error'
     return 'text'
   } catch {
     return 'text'
@@ -193,8 +438,52 @@ export const Route = createFileRoute('/api/persistence-durability')({
         const body: unknown = await request.json()
         const threadId = stringField(body, 'threadId') ?? 'persistence-thread'
         const runId = stringField(body, 'runId') ?? crypto.randomUUID()
+        const scenario = scenarioOf(request)
+        if (scenario === 'structured-output') {
+          const stream = chat({
+            adapter: structuredOutputAdapter,
+            messages: [{ role: 'user', content: 'Name the programmer' }],
+            tools: [structuredOutputTool],
+            outputSchema: structuredOutputSchema,
+            stream: true,
+            threadId,
+            runId,
+            middleware: [withPersistence(structuredOutputPersistence)],
+          })
+          for await (const _ of stream) void _
+          return Response.json({ runId, threadId })
+        }
+        if (scenario === 'harness-output') {
+          const stream = chat({
+            adapter: harnessOutputAdapter,
+            messages: [{ role: 'user', content: 'Name the programmer' }],
+            outputSchema: structuredOutputSchema,
+            stream: true,
+            threadId,
+            runId,
+            middleware: [withPersistence(harnessOutputPersistence)],
+          })
+          for await (const _ of stream) void _
+          return Response.json({ runId, threadId })
+        }
+        if (scenario === 'tool-error') {
+          const stream = chat({
+            adapter: toolErrorAdapter,
+            messages: [{ role: 'user', content: 'Is the service up?' }],
+            tools: [failingTool],
+            threadId,
+            runId,
+            middleware: [withPersistence(toolErrorPersistence)],
+          })
+          for await (const _ of stream) void _
+          return Response.json({ runId, threadId })
+        }
+        if (scenario === 'usage') {
+          const run = await cumulativeUsage(threadId, runId)
+          return Response.json({ runId, threadId, usage: run?.usage })
+        }
         const stream =
-          scenarioOf(request) === 'interrupt'
+          scenario === 'interrupt'
             ? interruptRun(threadId, runId)
             : textRun(threadId, runId)
         return toServerSentEventsResponse(stream, {
@@ -212,6 +501,27 @@ export const Route = createFileRoute('/api/persistence-durability')({
       //    `reconstructChat`-shaped JSON; the `server-interrupt` scenario carries
       //    a pending approval so a fresh client re-prompts it from the server.
       GET: ({ request }) => {
+        if (scenarioOf(request) === 'structured-output') {
+          return reconstructChat(structuredOutputPersistence, request, {
+            authorize: (threadId) => threadId.length > 0,
+          })
+        }
+        if (scenarioOf(request) === 'harness-output') {
+          return reconstructChat(harnessOutputPersistence, request, {
+            authorize: (threadId) => threadId.length > 0,
+          })
+        }
+        if (scenarioOf(request) === 'tool-error') {
+          return reconstructChat(toolErrorPersistence, request, {
+            authorize: (threadId) => threadId.length > 0,
+          })
+        }
+        if (scenarioOf(request) === 'usage') {
+          return reconstructChat(usagePersistence, request, {
+            authorize: (threadId) => threadId.length > 0,
+            includeRuns: true,
+          })
+        }
         const durability = memoryStream(request)
         if (durability.resumeFrom() !== null) {
           return resumeServerSentEventsResponse({ adapter: durability })

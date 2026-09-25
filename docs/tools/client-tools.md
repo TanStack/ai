@@ -65,8 +65,10 @@ Native client-tool execution shares the atomic interrupt **batch** lifecycle
 (it can gate multi-item submits) but is **auto-resolved** — you do not call
 `resolveInterrupt` for it. See [Interrupts](../interrupts/overview) for the
 ephemeral lifecycle, batches, and migration from the historical
-`tool-input-available` custom event. Durable recovery is optional and not part
-of the default client-tool path.
+`tool-input-available` custom event. After hydration, a pending client-tool
+execution is restored but not run again. See
+[Client persistence](../persistence/client-persistence#handle-restored-client-tools)
+for recovery policies.
 
 ## Approval is a separate axis
 
@@ -275,6 +277,16 @@ Client tools are **automatically executed** when the model calls them. The flow 
 3. Client automatically executes the matching tool implementation
 4. Result is sent back to server
 5. Conversation continues with the result
+
+## Expose Client Tools Through WebMCP
+
+The normal client-tool path belongs to a TanStack chat run. It returns the browser result to the server and continues the conversation.
+
+WebMCP provides a separate execution path for browser agents. It calls the client handler and returns the result directly to WebMCP.
+
+WebMCP execution does not call `addToolResult`. It does not continue a TanStack chat run.
+
+Register the same executable client tools with a framework lifecycle wrapper or `registerWebMCPTools`. See [WebMCP Tools](./webmcp) for setup and security rules.
 
 ## Client Runtime Context
 

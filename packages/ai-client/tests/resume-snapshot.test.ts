@@ -1,5 +1,11 @@
 ﻿import { describe, expect, it, vi } from 'vitest'
-import { INTERRUPT_BINDING_VERSION } from '@tanstack/ai/client'
+import {
+  EventType,
+  INTERRUPT_BINDING_VERSION,
+  hashSchemaInput,
+  toolDefinition,
+} from '@tanstack/ai/client'
+import { z } from 'zod'
 import { ChatPersistor } from '../src/client-persistor'
 import { normalizeConnectionAdapter } from '../src/connection-adapters'
 import { ChatClient } from '../src/chat-client'
@@ -48,7 +54,7 @@ function memoryAdapter(initial?: ChatPersistedState | Array<UIMessage>): {
  */
 function mountedChatClient(
   options: ConstructorParameters<typeof ChatClient>[0],
-): ChatClient {
+) {
   const client = new ChatClient(options)
   client.attach()
   return client
@@ -185,7 +191,7 @@ function runChunks(runId: string, threadId: string): Array<StreamChunk> {
       runId,
       threadId,
       timestamp: 5,
-      finishReason: 'stop',
+      metadata: { tanstack: { finishReason: 'stop' } },
     } as StreamChunk,
   ]
 }
@@ -220,7 +226,6 @@ describe('ChatClient auto-rejoin after reload', () => {
 
     let latest: Array<UIMessage> = []
     const client = mountedChatClient({
-      id: 'chat-1',
       threadId: 't1',
       connection,
       persistence: adapter,
@@ -240,6 +245,48 @@ describe('ChatClient auto-rejoin after reload', () => {
     // The restored user message survives alongside the rejoined assistant reply.
     expect(latest.some((m) => m.id === 'user-1')).toBe(true)
     void client
+  })
+
+  it('applies a replay in one batch without yielding', async () => {
+    const schedulerYield = vi.fn(() => Promise.resolve())
+    vi.stubGlobal('scheduler', { yield: schedulerYield })
+    let time = 0
+    const now = vi
+      .spyOn(performance, 'now')
+      .mockImplementation(() => (time += 9))
+    const joinRun = vi.fn(async function* () {
+      for (const chunk of runChunks('r1', 't1')) {
+        yield chunk
+      }
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+    }
+    let latest: Array<UIMessage> = []
+    const client = mountedChatClient({
+      threadId: 't1',
+      connection,
+      initialResumeSnapshot: {
+        resumeState: { threadId: 't1', runId: 'r1' },
+      },
+      onMessagesChange: (messages) => {
+        latest = messages
+      },
+    })
+
+    try {
+      await vi.waitFor(() => {
+        const assistant = latest.find((message) => message.role === 'assistant')
+        const text = assistant?.parts.find((part) => part.type === 'text')
+        expect(text && 'content' in text && text.content).toBe('world')
+      })
+      expect(schedulerYield).not.toHaveBeenCalled()
+    } finally {
+      client.dispose()
+      now.mockRestore()
+      vi.unstubAllGlobals()
+    }
   })
 
   it('persistence:true hydrates history AND tails a live run from the server on mount', async () => {
@@ -370,6 +417,96 @@ describe('ChatClient auto-rejoin after reload', () => {
     expect(joinRun).not.toHaveBeenCalled()
   })
 
+  it('publishes hydrate once before live client-tool cancellation', async () => {
+    const outputSchema = z.object({ accountId: z.string() })
+    const execute = vi.fn(async () => ({ accountId: 'account-1' }))
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up an account',
+      outputSchema,
+    }).client(execute)
+    const outputSchemaHash = hashSchemaInput(outputSchema)
+    const contexts: Array<RunAgentInputContext | undefined> = []
+    const connection: ResumableConnectConnectionAdapter = {
+      async *connect(_messages, _data, _signal, context) {
+        contexts.push(context)
+        const runId = context?.runId ?? 'run-cancelled'
+        const threadId = context?.threadId ?? 't1'
+        yield {
+          type: EventType.RUN_STARTED,
+          runId,
+          threadId,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          timestamp: Date.now(),
+          outcome: { type: 'success' },
+        }
+      },
+      joinRun: async function* () {},
+      hydrate: () =>
+        Promise.resolve({
+          messages: [createUIMessage('u1', 'look up the account', 'user')],
+          activeRun: null,
+          interrupts: {
+            runId: 'run-paused',
+            pending: [
+              {
+                id: 'client-1',
+                reason: 'tanstack:client_tool_execution',
+                toolCallId: 'call-1',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: INTERRUPT_BINDING_VERSION,
+                    kind: 'client-tool-execution',
+                    interruptId: 'client-1',
+                    interruptedRunId: 'run-paused',
+                    generation: 1,
+                    toolName: 'lookup',
+                    toolCallId: 'call-1',
+                    outputSchemaHash,
+                    responseSchemaHash: outputSchemaHash,
+                  },
+                },
+              },
+            ],
+          },
+        }),
+    }
+    const sources: Array<'hydrate' | 'live'> = []
+    let client: ChatClient
+    client = mountedChatClient({
+      threadId: 't1',
+      connection,
+      persistence: true,
+      tools: [lookup],
+      onInterruptStateChange: (_state, context) => {
+        sources.push(context.source)
+        // Cancelling here re-enters the manager; nested publications must be
+        // live instead of inheriting the outer hydration source.
+        if (context.source === 'hydrate') client.cancelInterrupts()
+      },
+    })
+
+    await vi.waitFor(() => expect(contexts).toHaveLength(1))
+    await vi.waitFor(() => expect(client.getResumeState()).toBeNull())
+
+    expect(sources[0]).toBe('hydrate')
+    expect(sources.filter((source) => source === 'hydrate')).toEqual([
+      'hydrate',
+    ])
+    expect(sources).toContain('live')
+    expect(contexts[0]?.parentRunId).toBe('run-paused')
+    expect(contexts[0]?.resume).toEqual([
+      { interruptId: 'client-1', status: 'cancelled' },
+    ])
+    expect(contexts).toHaveLength(1)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
   it('restores a pending interrupt even when hydrate also reports an activeRun', async () => {
     // A run paused on an interrupt can momentarily still read as `running` on the
     // server (the status settles just after the interrupt is persisted), so a
@@ -419,6 +556,58 @@ describe('ChatClient auto-rejoin after reload', () => {
     expect(client.getInterrupts()[0]?.canResolve).toBe(true)
     // Paused run is never tailed, even though hydrate reported it active.
     expect(joinRun).not.toHaveBeenCalled()
+  })
+
+  it('rejoins an active continuation run instead of restoring its parent interrupt', async () => {
+    // Run A paused on an interrupt. The resume started run B. The store commits
+    // A's interrupt only when B finishes, so while B streams, hydrate reports
+    // both B as active and A's interrupt as pending. The ids differ, so this is
+    // not the "same run just paused" race above: the client must join B.
+    const joinRun = vi.fn(async function* (runId: string) {
+      for (const chunk of runChunks(runId, 't1')) yield chunk
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+      hydrate: () =>
+        Promise.resolve({
+          messages: [createUIMessage('u1', 'send an email', 'user')],
+          activeRun: { runId: 'run-B' },
+          interrupts: {
+            runId: 'run-A',
+            pending: [
+              {
+                id: 'int-1',
+                reason: 'confirmation',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: INTERRUPT_BINDING_VERSION,
+                    kind: 'generic',
+                    interruptId: 'int-1',
+                    interruptedRunId: 'run-A',
+                    generation: 1,
+                    responseSchemaHash: 'none',
+                  },
+                },
+              },
+            ],
+          },
+        }),
+    }
+    let latest: Array<UIMessage> = []
+    const client = mountedChatClient({
+      threadId: 't1',
+      connection,
+      persistence: true,
+      onMessagesChange: (messages) => {
+        latest = messages
+      },
+    })
+    await vi.waitFor(() => {
+      expect(latest.some((m) => m.id === 'assistant-1')).toBe(true)
+    })
+    expect(joinRun).toHaveBeenCalledWith('run-B', expect.anything())
+    expect(client.getInterrupts()).toHaveLength(0)
   })
 
   it('rebuilds a hydrated in-flight partial in place (no duplicate) when tailing on mount', async () => {
@@ -585,7 +774,6 @@ describe('ChatClient auto-rejoin after reload', () => {
     }
     let status: string | undefined
     const client = mountedChatClient({
-      id: 'chat-quiet',
       threadId: 't1',
       connection,
       persistence: adapter,
@@ -632,7 +820,6 @@ describe('ChatClient auto-rejoin after reload', () => {
     }
     let status: string | undefined
     const client = mountedChatClient({
-      id: 'chat-dead',
       threadId: 't1',
       connection,
       persistence: adapter,
@@ -734,7 +921,6 @@ describe('ChatClient auto-rejoin after reload', () => {
     }
     const onError = vi.fn()
     const client = mountedChatClient({
-      id: 'chat-err',
       threadId: 't1',
       connection,
       persistence: adapter,

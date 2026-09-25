@@ -65,14 +65,14 @@ describe('chunkFingerprint', () => {
 
   it('normalizes nested objects and arrays deterministically', () => {
     const left = {
-      type: EventType.TOOL_CALL_START,
-      toolCallId: 't1',
-      meta: { b: 2, a: [1, { y: 2, x: 1 }] },
+      type: EventType.CUSTOM,
+      name: 'probe',
+      value: { b: 2, a: [1, { y: 2, x: 1 }] },
     } as unknown as StreamChunk
     const right = {
-      toolCallId: 't1',
-      type: EventType.TOOL_CALL_START,
-      meta: { a: [1, { x: 1, y: 2 }], b: 2 },
+      name: 'probe',
+      type: EventType.CUSTOM,
+      value: { a: [1, { x: 1, y: 2 }], b: 2 },
     } as unknown as StreamChunk
     expect(chunkFingerprint(left)).toBe(chunkFingerprint(right))
   })
@@ -97,14 +97,14 @@ describe('chunkFingerprint', () => {
     // keys or stringified nested values verbatim without recursing would treat
     // these as identical because the top-level `meta` key is "present" in both.
     const left = {
-      type: EventType.TOOL_CALL_ARGS,
-      toolCallId: 't1',
-      meta: { items: [{ id: 1, tags: ['a', 'b'] }] },
+      type: EventType.CUSTOM,
+      name: 'probe',
+      value: { items: [{ id: 1, tags: ['a', 'b'] }] },
     } as unknown as StreamChunk
     const right = {
-      type: EventType.TOOL_CALL_ARGS,
-      toolCallId: 't1',
-      meta: { items: [{ id: 1, tags: ['a', 'c'] }] },
+      type: EventType.CUSTOM,
+      name: 'probe',
+      value: { items: [{ id: 1, tags: ['a', 'c'] }] },
     } as unknown as StreamChunk
     expect(chunkFingerprint(left)).not.toBe(chunkFingerprint(right))
   })
@@ -112,6 +112,12 @@ describe('chunkFingerprint', () => {
   it('is a pure function of the chunk: fingerprinting twice yields the same string', () => {
     const chunk = textChunk({ messageId: 'm7', delta: 'z' })
     expect(chunkFingerprint(chunk)).toBe(chunkFingerprint(chunk))
+  })
+
+  it('treats leftover cumulative content as the same chunk as the spec delta', () => {
+    expect(chunkFingerprint(textChunk({ content: '12', delta: '2' }))).toBe(
+      chunkFingerprint(textChunk({ content: undefined, delta: '2' })),
+    )
   })
 
   it('round-trips through JSON.parse(JSON.stringify(...)) with an identical fingerprint', () => {

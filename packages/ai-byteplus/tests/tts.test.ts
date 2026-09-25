@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { generateSpeech } from '@tanstack/ai'
 import {
   BYTEPLUS_TTS_MAX_OUTPUT_SECONDS,
+  BYTEPLUS_TTS_MAX_REFERENCES,
   BytePlusTTSAdapter,
   createBytePlusSpeech,
   toDurationSeconds,
@@ -159,14 +160,53 @@ describe('BytePlusTTSAdapter', () => {
     ])
   })
 
-  it('forwards watermark when set', async () => {
-    const fetchMock = ttsFetch()
-    await generateSpeech({
-      adapter: adapterWith(fetchMock),
-      text: 'hi',
-      modelOptions: { watermark: true },
+  // The endpoint takes an object here, not the boolean the field looked like.
+  describe('watermark', () => {
+    it('normalizes `true` to the audible marker', async () => {
+      const fetchMock = ttsFetch()
+      await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+        modelOptions: { watermark: true },
+      })
+      expect(lastRequest(fetchMock).body.watermark).toEqual({
+        aigc_watermark: true,
+      })
     })
-    expect(lastRequest(fetchMock).body.watermark).toBe(true)
+
+    it('normalizes `false` to the audible marker off', async () => {
+      const fetchMock = ttsFetch()
+      await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+        modelOptions: { watermark: false },
+      })
+      expect(lastRequest(fetchMock).body.watermark).toEqual({
+        aigc_watermark: false,
+      })
+    })
+
+    it('forwards an explicit config unchanged', async () => {
+      const fetchMock = ttsFetch()
+      await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+        modelOptions: {
+          watermark: {
+            aigc_metadata: { enable: true, content_producer: 'guitar-store' },
+          },
+        },
+      })
+      expect(lastRequest(fetchMock).body.watermark).toEqual({
+        aigc_metadata: { enable: true, content_producer: 'guitar-store' },
+      })
+    })
+
+    it('omits watermark when unset', async () => {
+      const fetchMock = ttsFetch()
+      await generateSpeech({ adapter: adapterWith(fetchMock), text: 'hi' })
+      expect(lastRequest(fetchMock).body).not.toHaveProperty('watermark')
+    })
   })
 
   describe('format mapping', () => {
@@ -404,6 +444,160 @@ describe('BytePlusTTSAdapter', () => {
         (await generateSpeech({ adapter: adapterWith(missing), text: 'hi' }))
           .duration,
       ).toBeUndefined()
+    })
+  })
+
+  describe('dialogue turns', () => {
+    it('maps turns to references and a role-structured text_prompt', async () => {
+      const fetchMock = ttsFetch()
+      await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        turns: [
+          { text: 'Knock knock.', voice: 'test-voice-a' },
+          { text: 'Who is there?', voice: 'test-voice-b' },
+          { text: 'Seed.', voice: 'test-voice-a' },
+        ],
+      })
+
+      const { body } = lastRequest(fetchMock)
+      // One reference per distinct voice, in first-appearance order, and each
+      // line cites its voice by that 1-based position.
+      expect(body.references).toEqual([
+        { speaker: 'test-voice-a' },
+        { speaker: 'test-voice-b' },
+      ])
+      expect(body.text_prompt).toBe(
+        '@Audio1: Knock knock.\n@Audio2: Who is there?\n@Audio1: Seed.',
+      )
+    })
+
+    it('rejects more distinct voices than references allows', async () => {
+      const fetchMock = ttsFetch()
+      await expect(
+        generateSpeech({
+          adapter: adapterWith(fetchMock),
+          turns: [
+            { text: 'a', voice: 'v1' },
+            { text: 'b', voice: 'v2' },
+            { text: 'c', voice: 'v3' },
+            { text: 'd', voice: 'v4' },
+          ],
+        }),
+      ).rejects.toThrow(
+        `byteplus accepts at most ${BYTEPLUS_TTS_MAX_REFERENCES} distinct voices per request; received 4.`,
+      )
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('lets modelOptions.references override the turn-derived ones', async () => {
+      const fetchMock = ttsFetch()
+      await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        turns: [{ text: 'hi', voice: 'test-voice-a' }],
+        modelOptions: { references: [{ audio_url: 'https://example.test/a' }] },
+      })
+
+      const { body } = lastRequest(fetchMock)
+      expect(body.references).toEqual([{ audio_url: 'https://example.test/a' }])
+      // The prompt still carries the markers — they address references
+      // positionally, so a caller-supplied array lines up with them.
+      expect(body.text_prompt).toBe('@Audio1: hi')
+    })
+  })
+
+  describe('timestamps', () => {
+    const SUBTITLE = {
+      text: 'hi there',
+      sentences: [{ text: 'hi there', start_time: 0, end_time: 1200 }],
+      words: [
+        { text: 'hi', start_time: 0, end_time: 400 },
+        { text: 'there', start_time: 400, end_time: 1200 },
+      ],
+    }
+
+    it('sets audio_config.enable_subtitle', async () => {
+      const fetchMock = ttsFetch()
+      await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        text: 'hi there',
+        timestamps: true,
+      })
+      expect(lastRequest(fetchMock).body.audio_config.enable_subtitle).toBe(
+        true,
+      )
+    })
+
+    it('is off unless asked for', async () => {
+      const fetchMock = ttsFetch()
+      await generateSpeech({ adapter: adapterWith(fetchMock), text: 'hi' })
+      expect(
+        lastRequest(fetchMock).body.audio_config.enable_subtitle,
+      ).toBeUndefined()
+    })
+
+    it('lets an explicit modelOptions.enable_subtitle:false win', async () => {
+      const fetchMock = ttsFetch()
+      await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+        timestamps: true,
+        modelOptions: { enable_subtitle: false },
+      })
+      expect(lastRequest(fetchMock).body.audio_config.enable_subtitle).toBe(
+        false,
+      )
+    })
+
+    it('maps words to alignment and sentences to segments, in seconds', async () => {
+      const fetchMock = ttsFetch({
+        audio: 'QUJD',
+        duration: 1.2,
+        subtitle: SUBTITLE,
+      })
+      const result: BytePlusTTSResult = await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        text: 'hi there',
+        timestamps: true,
+      })
+
+      // Subtitle times are milliseconds on a response whose `duration` is
+      // seconds — the adapter is the only place that conversion happens.
+      expect(result.alignment).toEqual({
+        unit: 'word',
+        texts: ['hi', 'there'],
+        startSeconds: [0, 0.4],
+        endSeconds: [0.4, 1.2],
+      })
+      expect(result.segments).toEqual([
+        { startSeconds: 0, endSeconds: 1.2, text: 'hi there' },
+      ])
+      // The raw block stays put for callers already reading it.
+      expect(result.subtitle).toEqual(SUBTITLE)
+    })
+
+    it('drops subtitle entries that carry no timings', async () => {
+      const fetchMock = ttsFetch({
+        audio: 'QUJD',
+        subtitle: { words: [{ text: 'hi' }], sentences: [] },
+      })
+      const result: BytePlusTTSResult = await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+        timestamps: true,
+      })
+      expect(result.alignment).toBeUndefined()
+      expect(result.segments).toBeUndefined()
+    })
+
+    it('returns no alignment when the response has no subtitle', async () => {
+      const fetchMock = ttsFetch()
+      const result: BytePlusTTSResult = await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+        timestamps: true,
+      })
+      expect(result.alignment).toBeUndefined()
+      expect(result.segments).toBeUndefined()
     })
   })
 

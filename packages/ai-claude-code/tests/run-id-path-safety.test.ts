@@ -31,7 +31,11 @@ import {
 } from '@tanstack/ai-sandbox'
 import { claudeCodeText } from '../src/index'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { AnyTool, CapabilityContext, StreamChunk } from '@tanstack/ai'
+import type {
+  AdapterYieldChunk,
+  AnyTool,
+  CapabilityContext,
+} from '@tanstack/ai'
 import type {
   ProvisionedBridge,
   SandboxHandle,
@@ -184,7 +188,7 @@ interface RunPaths {
 /** Drive one run with the given caller-chosen runId and return BOTH paths it wrote. */
 async function pathsFor(runId: string): Promise<RunPaths> {
   const handle = recordingHandle()
-  const chunks: Array<StreamChunk> = []
+  const chunks: Array<AdapterYieldChunk> = []
   for await (const chunk of claudeCodeText(MODEL, {
     claudeExecutable: 'node fake-claude.mjs',
     streamPartials: false,

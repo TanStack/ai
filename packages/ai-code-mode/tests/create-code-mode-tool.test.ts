@@ -59,6 +59,20 @@ describe('createCodeModeTool', () => {
     expect(tool.description).toContain('external_dbQuery')
   })
 
+  it('tool description says discover_tools is a separate tool', () => {
+    const { driver } = createMockDriver()
+    const tool = createCodeModeTool({
+      driver,
+      tools: [
+        createMockTool('fetchWeather'),
+        { ...createMockTool('dbQuery'), lazy: true },
+      ],
+    })
+    expect(tool.description).toContain(
+      'discover_tools is a separate tool. It is not available inside this sandbox.',
+    )
+  })
+
   it('execute calls stripTypeScript then driver.createContext', async () => {
     const { driver, mockContext } = createMockDriver()
     const tool = createCodeModeTool({
@@ -256,11 +270,11 @@ describe('createCodeModeTool', () => {
     )
   })
 
-  it('getSkillBindings merges dynamic bindings into context', async () => {
+  it('getSnippetBindings merges dynamic bindings into context', async () => {
     const { driver } = createMockDriver()
 
-    const skillBinding = {
-      name: 'skill_greet',
+    const snippetBinding = {
+      name: 'snippet_greet',
       description: 'Greet someone',
       inputSchema: { type: 'object' },
       execute: vi.fn().mockResolvedValue('hi'),
@@ -269,7 +283,7 @@ describe('createCodeModeTool', () => {
     const tool = createCodeModeTool({
       driver,
       tools: [createMockTool('fetchWeather')],
-      getSkillBindings: async () => ({ skill_greet: skillBinding }),
+      getSnippetBindings: async () => ({ snippet_greet: snippetBinding }),
     })
 
     await tool.execute!({ typescriptCode: 'return 1' })
@@ -279,7 +293,7 @@ describe('createCodeModeTool', () => {
     if (!contextConfig) {
       throw new Error('Expected createContext to be called')
     }
-    expect(contextConfig.bindings).toHaveProperty('skill_greet')
+    expect(contextConfig.bindings).toHaveProperty('snippet_greet')
     expect(contextConfig.bindings).toHaveProperty('external_fetchWeather')
   })
 

@@ -33,7 +33,19 @@ export interface ContentPartUrlSource {
   mimeType?: string
 }
 
-export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
+export interface ContentPartFileSource {
+  type: 'file'
+  /** The opaque handle the provider issued (a file id or provider URI). */
+  value: string
+  /** Adapter name of the provider that issued the handle, when known. */
+  provider?: string
+  mimeType?: string
+}
+
+export type ContentPartSource =
+  | ContentPartDataSource
+  | ContentPartUrlSource
+  | ContentPartFileSource
 
 export interface TextPart {
   type: 'text'
@@ -65,6 +77,13 @@ export interface DocumentPart {
   metadata?: unknown
 }
 
+export type ContentPart =
+  | TextPart
+  | ImagePart
+  | AudioPart
+  | VideoPart
+  | DocumentPart
+
 export interface ToolCallPart<TMetadata = unknown> {
   type: 'tool-call'
   id: string
@@ -84,10 +103,14 @@ export interface ToolCallPart<TMetadata = unknown> {
 
 export interface ToolResultPart {
   type: 'tool-result'
+  id?: string
+  name?: string
   toolCallId: string
-  content: string
+  content: string | Array<ContentPart>
   state: ToolResultState
   error?: string
+  metadata?: Record<string, unknown>
+  createdAt?: Date
 }
 
 export interface ThinkingPart {
@@ -186,6 +209,36 @@ export interface UsageCostBreakdown {
 }
 
 /**
+ * Unit a billed quantity is counted in. The named members cover the units
+ * TanStack AI adapters bill in today; the `(string & {})` member keeps the
+ * union open for genuinely provider-specific units while preserving
+ * autocompletion for the common ones.
+ */
+export type BillingUnit =
+  | 'tokens'
+  | 'seconds'
+  | 'characters'
+  | 'images'
+  | 'videos'
+  | 'megapixels'
+  | 'requests'
+  | 'units'
+  | (string & {})
+
+/**
+ * A billed quantity paired with the unit it is counted in, so consumers can
+ * label and aggregate usage without out-of-band knowledge of the provider or
+ * activity. `unit: 'units'` marks an opaque provider-defined unit (e.g. fal's
+ * "fal units") whose price is only knowable from the provider's pricing page.
+ */
+export interface BilledUsage {
+  /** Number of units billed. */
+  quantity: number
+  /** The unit `quantity` is counted in. */
+  unit: BillingUnit
+}
+
+/**
  * Default value type for {@link TokenUsage.providerUsageDetails} when an adapter
  * does not supply a specific shape. Values are constrained to non-nullish
  * (`NonNullable<unknown>`, i.e. `{}`) rather than `unknown` so that `TokenUsage`
@@ -221,18 +274,27 @@ export interface TokenUsage<TProviderDetails = ProviderUsageDetails> {
   promptTokensDetails?: PromptTokensDetails
   /** Detailed breakdown of completion tokens by category */
   completionTokensDetails?: CompletionTokensDetails
-  /** Duration in seconds for duration-based billing (e.g., Whisper transcription) */
+  /**
+   * The primary non-token billed quantity, self-describing via its unit —
+   * e.g. `{ quantity: 8, unit: 'seconds' }` for a video generation or
+   * `{ quantity: 3, unit: 'units' }` for fal's opaque endpoint units. Absent
+   * when the activity bills purely in tokens (the token fields above are
+   * already self-describing). When a provider bills tokens *on top of* a media
+   * unit, the tokens stay in the token fields and `billed` carries the media
+   * unit. A quantity, distinct from the monetary `cost` / `costDetails`.
+   */
+  billed?: BilledUsage
+  /**
+   * @deprecated Read {@link TokenUsage.billed} instead, which pairs the same
+   * duration with an explicit `unit: 'seconds'`. Still populated alongside
+   * `billed` for backward compatibility; will be removed in a future release.
+   */
   durationSeconds?: number
   /**
-   * Number of priced units actually billed, for usage-based (non-token) billing.
-   * This is a bare count, not a cost and not a unit name — the unit itself
-   * (megapixels, seconds, images, …) is provider-defined and not carried here;
-   * providers typically expose it via a separate pricing API. Surfaced for media
-   * generation, where there are no tokens: fal returns this count in its
-   * `x-fal-billable-units` response header. Multiply by the unit price to get the
-   * exact cost (`unitsBilled * unitPrice`). The unit-priced analogue of
-   * `durationSeconds` (the time-priced case); both are quantities, distinct from
-   * the monetary `cost` / `costDetails`.
+   * @deprecated Read {@link TokenUsage.billed} instead, which pairs the same
+   * count with the unit it is denominated in (`seconds`, `units`, …) — this
+   * bare count is ambiguous across providers. Still populated alongside
+   * `billed` for backward compatibility; will be removed in a future release.
    */
   unitsBilled?: number
   /** Provider-specific usage details not covered by standard fields */
@@ -640,6 +702,36 @@ export interface RerankUsageEvent extends BaseEventContext {
 }
 
 // ===========================
+// Evaluate Events
+// ===========================
+
+/** Emitted when an evaluate request starts. */
+export interface EvaluateRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  /** Number of questions submitted for evaluation. */
+  questionCount: number
+}
+
+/** Emitted when evaluate completes. */
+export interface EvaluateRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  provider: string
+  model: string
+  /** Number of questions submitted for evaluation. */
+  questionCount: number
+  duration: number
+}
+
+/** Emitted when evaluate usage metrics are available. */
+export interface EvaluateUsageEvent extends BaseEventContext {
+  requestId: string
+  model: string
+  usage: TokenUsage
+}
+
+// ===========================
 // Image Events
 // ===========================
 
@@ -774,6 +866,46 @@ export interface SpeechUsageEvent extends BaseEventContext {
 }
 
 // ===========================
+// Voice Events
+// ===========================
+
+/** Emitted when a voice creation request starts. */
+export interface VoiceRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt?: string
+  name?: string
+  description?: string
+  /** Whether reference audio was supplied — the audio itself is never emitted. */
+  hasReferenceAudio: boolean
+}
+
+/** Emitted when a voice creation request completes. */
+export interface VoiceRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  voiceIds: Array<string>
+  voiceCount: number
+  previewText?: string
+  duration: number
+}
+
+/** Emitted when voice creation usage metrics are available. */
+export interface VoiceUsageEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  model: string
+  usage: TokenUsage
+}
+
+// ===========================
 // Transcription Events
 // ===========================
 
@@ -877,6 +1009,17 @@ export interface SpeechRequestErrorEvent extends BaseEventContext {
   duration: number
 }
 
+/** Emitted when a voice creation request fails. */
+export interface VoiceRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+}
+
 /** Emitted when a transcription request fails. */
 export interface TranscriptionRequestErrorEvent extends BaseEventContext {
   requestId: string
@@ -939,6 +1082,161 @@ export interface VideoUsageEvent extends BaseEventContext {
   model: string
   usage: TokenUsage
 }
+
+// ===========================
+// World Events
+// ===========================
+
+/** Emitted when a world generation request starts. */
+export interface WorldRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt: string
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a world generation request completes. */
+export interface WorldRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt: string
+  status: 'ready' | 'waiting'
+  duration: number
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a world generation request fails. */
+export interface WorldRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when world usage metrics are available. */
+export interface WorldUsageEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  model: string
+  usage: TokenUsage
+  modelOptions?: Record<string, unknown>
+}
+
+// ===========================
+// Live Events
+// ===========================
+
+/** Emitted when a live generation request starts. */
+export interface LiveVideoRequestStartedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt: string
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a live generation request completes. */
+export interface LiveVideoRequestCompletedEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  prompt: string
+  status: 'ready' | 'waiting'
+  duration: number
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when a live generation request fails. */
+export interface LiveVideoRequestErrorEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  provider: string
+  model: string
+  error: { message: string; name?: string }
+  duration: number
+  modelOptions?: Record<string, unknown>
+}
+
+/** Emitted when live usage metrics are available. */
+export interface LiveVideoUsageEvent extends BaseEventContext {
+  requestId: string
+  threadId?: string
+  runId?: string
+  model: string
+  usage: TokenUsage
+  modelOptions?: Record<string, unknown>
+}
+
+// ---------------------------------------------------------------------------
+// Compaction events
+// ---------------------------------------------------------------------------
+
+/** One message in a compaction preview list. */
+export interface CompactionMessagePreview {
+  role: string
+  tokens: number
+  text: string
+}
+
+/** Emitted when `withCompaction` starts rewriting provider context. */
+export interface CompactionStartedEvent extends BaseEventContext {
+  before?: number
+  messagesBefore?: number
+  reusedCheckpoint?: boolean
+  maxTokens?: number
+  strategyKey?: string
+}
+
+/** Emitted when `withCompaction` has a compacted transcript to inspect. */
+export interface CompactionStateEvent extends BaseEventContext {
+  /** Estimated tokens before compaction. */
+  before: number
+  /** Estimated tokens after compaction. */
+  after: number
+  /** Message count before compaction. */
+  messagesBefore: number
+  /** Message count after compaction. */
+  messagesAfter: number
+  /** True when a persisted checkpoint supplied the compacted prefix. */
+  reusedCheckpoint: boolean
+  /** Token budget that triggered compaction. */
+  maxTokens?: number
+  /** Strategy identity from `withCompaction`. */
+  strategyKey?: string
+  /** Messages removed or rewritten. */
+  dropped?: Array<CompactionMessagePreview>
+  /** Messages the model will see after compaction. */
+  result?: Array<CompactionMessagePreview>
+}
+
+/** Emitted when `withCompaction` finishes rewriting provider context. */
+export interface CompactionEndedEvent extends BaseEventContext {
+  after?: number
+  messagesAfter?: number
+  reusedCheckpoint?: boolean
+  maxTokens?: number
+  strategyKey?: string
+  durationMs?: number
+}
+
+/** @deprecated Use {@link CompactionStateEvent}. */
+export type CompactionAppliedEvent = CompactionStateEvent
 
 // ---------------------------------------------------------------------------
 // Memory events
@@ -1039,6 +1337,12 @@ export interface MemorySnapshotEvent extends BaseEventContext {
   data: unknown
   /** Flat fact list from `listFacts()`; `[]` when the adapter lacks it. */
   facts: Array<MemoryFactLite>
+}
+
+/** Emitted when portable `withSkills` sends its catalog over the chat stream. */
+export interface SkillsSnapshotEvent extends BaseEventContext {
+  catalog: Array<{ name: string; description: string }>
+  activated: Array<string>
 }
 
 // ===========================
@@ -1241,6 +1545,11 @@ export interface AIDevtoolsEventMap {
   'rerank:request:completed': RerankRequestCompletedEvent
   'rerank:usage': RerankUsageEvent
 
+  // Evaluate events
+  'evaluate:request:started': EvaluateRequestStartedEvent
+  'evaluate:request:completed': EvaluateRequestCompletedEvent
+  'evaluate:usage': EvaluateUsageEvent
+
   // Image events
   'image:request:started': ImageRequestStartedEvent
   'image:request:completed': ImageRequestCompletedEvent
@@ -1257,6 +1566,10 @@ export interface AIDevtoolsEventMap {
   'speech:request:completed': SpeechRequestCompletedEvent
   'speech:request:error': SpeechRequestErrorEvent
   'speech:usage': SpeechUsageEvent
+  'voice:request:started': VoiceRequestStartedEvent
+  'voice:request:completed': VoiceRequestCompletedEvent
+  'voice:request:error': VoiceRequestErrorEvent
+  'voice:usage': VoiceUsageEvent
 
   // Transcription events
   'transcription:request:started': TranscriptionRequestStartedEvent
@@ -1275,6 +1588,18 @@ export interface AIDevtoolsEventMap {
   'video:request:completed': VideoRequestCompletedEvent
   'video:usage': VideoUsageEvent
 
+  // World events
+  'world:request:started': WorldRequestStartedEvent
+  'world:request:completed': WorldRequestCompletedEvent
+  'world:request:error': WorldRequestErrorEvent
+  'world:usage': WorldUsageEvent
+
+  // Live events
+  'liveVideo:request:started': LiveVideoRequestStartedEvent
+  'liveVideo:request:completed': LiveVideoRequestCompletedEvent
+  'liveVideo:request:error': LiveVideoRequestErrorEvent
+  'liveVideo:usage': LiveVideoUsageEvent
+
   // Client events
   'client:created': ClientCreatedEvent
   'client:loading:changed': ClientLoadingChangedEvent
@@ -1283,6 +1608,12 @@ export interface AIDevtoolsEventMap {
   'client:reloaded': ClientReloadedEvent
   'client:stopped': ClientStoppedEvent
 
+  // Compaction events
+  'compaction:started': CompactionStartedEvent
+  'compaction:state': CompactionStateEvent
+  'compaction:ended': CompactionEndedEvent
+  'compaction:applied': CompactionAppliedEvent
+
   // Memory events
   'memory:retrieve:started': MemoryRetrieveStartedEvent
   'memory:retrieve:completed': MemoryRetrieveCompletedEvent
@@ -1290,6 +1621,7 @@ export interface AIDevtoolsEventMap {
   'memory:persist:completed': MemoryPersistCompletedEvent
   'memory:error': MemoryErrorEvent
   'memory:snapshot': MemorySnapshotEvent
+  'skills:snapshot': SkillsSnapshotEvent
 }
 
 class AiEventClient extends EventClient<AIDevtoolsEventMap> {

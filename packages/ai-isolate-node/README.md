@@ -1,3 +1,23 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
 # @tanstack/ai-isolate-node
 
 Node.js V8 isolate driver for TanStack AI Code Mode. Uses [`isolated-vm`](https://github.com/nicolo-ribaudo/isolated-vm) for fast, secure sandboxed execution.

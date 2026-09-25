@@ -19,11 +19,33 @@ keywords:
 
 > MCP tool execution is **server-side only**. The `createMCPClient` call lives in a server route (or serverless function) — never in browser code.
 
+## Server MCP and WebMCP
+
+Server MCP and WebMCP solve different problems.
+
+| Integration | Where it runs | What it does |
+|---|---|---|
+| Server MCP | Your server route | Connects TanStack `chat()` to tools, resources, and prompts from an MCP server. |
+| WebMCP | The browser page | Exposes executable client tools to a browser agent through `document.modelContext`. |
+
+WebMCP calls return directly to the browser agent. They do not become tool results in a TanStack chat run.
+
+See [WebMCP Tools](./webmcp) to expose browser actions. If your server needs MCP server tools, continue with this guide.
+
 ## Installation
 
-```bash
-pnpm add @tanstack/ai-mcp @modelcontextprotocol/sdk
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-mcp @modelcontextprotocol/sdk
+vue: @tanstack/ai-mcp @modelcontextprotocol/sdk
+solid: @tanstack/ai-mcp @modelcontextprotocol/sdk
+svelte: @tanstack/ai-mcp @modelcontextprotocol/sdk
+preact: @tanstack/ai-mcp @modelcontextprotocol/sdk
+angular: @tanstack/ai-mcp @modelcontextprotocol/sdk
+vanilla: @tanstack/ai-mcp @modelcontextprotocol/sdk
+octane: @tanstack/ai-mcp @modelcontextprotocol/sdk
+
+<!-- ::end:tabs -->
 
 ## Quick Start
 
@@ -235,16 +257,23 @@ const tools = await mcp.tools()
 // tools: ServerTool[]  — args typed unknown at compile time
 ```
 
-> **Task-based tools are excluded.** Tools that declare
-> `execution.taskSupport: 'required'` (the experimental MCP tasks feature)
-> can only run through the SDK's `tasks/callToolStream` flow, which
-> `@tanstack/ai-mcp` does not support yet — plain `callTool` is rejected by
-> the server with `-32600`. Discovery skips them so the model is never
-> offered a tool that cannot succeed.
+MCP schemas often use `$ref` or `oneOf`. On adapters built on the OpenAI API, those tools are sent without strict mode, and the adapter warns in development. See [Tools that cannot use strict mode](../adapters/openai.md#tools-that-cannot-use-strict-mode).
+
+> **Task-based tools are supported.** Tools that declare
+> `execution.taskSupport: 'required'` automatically run through the MCP SDK's
+> experimental `tasks/callToolStream` flow. TanStack AI waits through task
+> status updates and returns the terminal result to the model. Tools declaring
+> `taskSupport: 'optional'` continue to use ordinary `callTool` execution.
+> Task execution needs the server to declare the tasks capability for
+> `tools/call`; a server that lists a task-required tool without it is
+> skipped by auto-discovery (the tool could never be invoked).
+>
+> If the chat run aborts, TanStack AI stops waiting for the task and sends a
+> best-effort `tasks/cancel` for a remote task the server has already created.
 
 ### Mode 2 — Explicit definitions (`client.tools([...defs])`)
 
-Pass TanStack `toolDefinition()` instances to get full TypeScript types and Zod validation. Only the named tools are returned (allowlist). `MCPToolNotFoundError` is thrown if a name isn't on the server, and `MCPTaskRequiredToolError` if the named tool requires task-based execution (see the Mode 1 note).
+Pass TanStack `toolDefinition()` instances to get full TypeScript types and Zod validation. Only the named tools are returned (allowlist). `MCPToolNotFoundError` is thrown if a name isn't on the server. Task-required tools use the same automatic task execution described in Mode 1.
 
 ```ts
 import { toolDefinition } from '@tanstack/ai'
@@ -377,6 +406,89 @@ export function ToolCatalog() {
   )
 }
 ```
+
+## Limit and Gate Tools
+
+By default, the model gets every tool that the server lists, and each tool runs without approval. A server can expose tools that write or delete data. Two client options control this:
+
+- `toolFilter`: return `false` to hide a tool from the model.
+- `needsApproval`: return `true` to pause the run for [approval](./tool-approval) before each call to the tool.
+
+Both options receive the tool definition that the server sent. The definition has the native (unprefixed) `name`, the `title`, and the `annotations`. Both options are off by default.
+
+Send only the tools that the server marks read-only:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: 'https://my-mcp-server.example.com/mcp' },
+  toolFilter: (tool) => tool.annotations?.readOnlyHint === true,
+})
+
+const tools = await mcp.tools() // only read-only tools
+```
+
+A tool with no `annotations` does not pass this filter.
+
+On a server that you do not trust, filter by name. You control the names, and the server controls the hints:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const allowed = new Set(['search_issues', 'get_issue'])
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: 'https://my-mcp-server.example.com/mcp' },
+  toolFilter: (tool) => allowed.has(tool.name),
+})
+```
+
+Keep every tool, but ask the user before a tool runs:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const url = 'https://my-mcp-server.example.com/mcp'
+// Trust comes from your configuration, not from the server.
+const trustedServers = new Set(['https://my-mcp-server.example.com/mcp'])
+const serverIsTrusted = trustedServers.has(url)
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url },
+  // A read-only hint skips approval only on a server that you trust.
+  needsApproval: (tool) =>
+    !(serverIsTrusted && tool.annotations?.readOnlyHint === true),
+})
+```
+
+The run stops with an approval interrupt for each gated call. The client approves or denies it the same way as for any other tool. See [Tool Approval Flow](./tool-approval).
+
+In a [pool](#multi-server-pool), each server gets its own options:
+
+```ts
+import { createMCPClients } from '@tanstack/ai-mcp'
+
+const pool = await createMCPClients({
+  github: {
+    transport: { type: 'http', url: process.env.GITHUB_MCP_URL! },
+    toolFilter: (tool) => tool.annotations?.readOnlyHint === true,
+  },
+  docs: { transport: { type: 'http', url: process.env.DOCS_MCP_URL! } },
+})
+```
+
+The options apply in these places:
+
+- **`tools()`**: `toolFilter` hides tools, and `needsApproval` marks tools.
+- **`tools([...defs])`**: `toolFilter` applies. A definition that the filter hides throws `MCPToolNotFoundError`. `needsApproval` does not apply, because each `toolDefinition` has its own `needsApproval`.
+- **`chat({ mcp })`**: both apply, because `chat()` calls `tools()` on the client. See [Managed MCP](./mcp-managed).
+- **[MCP Apps](../mcp/apps) widget calls**: both apply. A widget cannot call a tool that the filter hides. A widget call has no approval step, so a call to a tool that `needsApproval` marks returns `{ ok: false }`.
+- **`callTool()`**: neither applies. Your code calls the tool directly, and the model is not involved.
+
+> **The hints come from the server.** A compromised server can mark a delete tool `readOnlyHint: true`. Use a name allowlist or `needsApproval` for a server that you do not trust.
+
+`McpTool` is exported if you need to name the type of the `tool` argument.
 
 ## Multi-Server Pool
 
@@ -591,6 +703,6 @@ The Quick Start above hands tools to `chat()` manually via `tools: await mcp.too
 | `MCPConnectionError` | `createMCPClient` fails to connect, or a method is called after `close()` |
 | `DuplicateToolNameError` | Two tools have the same name within one client or across the pool |
 | `MCPToolNotFoundError` | A `toolDefinition` name passed to `tools([...defs])` is not found on the server |
-| `MCPTaskRequiredToolError` | A `toolDefinition` passed to `tools([...defs])` names a tool that requires task-based execution (`execution.taskSupport: 'required'`) — such tools are also excluded from `tools()` auto-discovery |
+| `MCPTaskRequiredToolError` | A task-required tool was bound via `tools([...defs])` or called via `callTool()` but the server does not declare the tasks capability for `tools/call`, so the call could never execute |
 
 For the `MCPDuplicateToolNameError` thrown when merging tools from multiple sources inside a `chat({ mcp })` run, see [Managed MCP with `chat()`](./mcp-managed#tool-name-collisions).

@@ -1,0 +1,105 @@
+import { useMemo, useRef } from 'octane'
+import type { ComponentBody } from 'octane'
+
+type ComponentType<P = any> = ComponentBody<P>
+import type { InferredClientContext } from '@tanstack/ai-client'
+import type {
+  ChatUIInterruptsOf,
+  ChatUISchemaOf,
+  ChatUIToolsOf,
+} from '@tanstack/ai-client/ui'
+import { useChat as useUnboundChat } from '../use-chat.tsrx'
+import type { UseChatOptions } from '../types'
+import { createChatUI } from './create-ui.tsrx'
+import type { ChatUIFactoryConfig, ChatUIHost, InputProps } from './create-ui.tsrx'
+
+type HeadlessOptions<TOptions> = UseChatOptions<
+  ChatUIToolsOf<TOptions>,
+  ChatUISchemaOf<TOptions>,
+  InferredClientContext<ChatUIToolsOf<TOptions>>,
+  ChatUIInterruptsOf<TOptions>
+>
+
+type ChatInstanceOverrides<TOptions> = {
+  threadId?: string
+  live?: boolean
+  forwardedProps?: Record<string, any>
+  body?: Record<string, any>
+  initialMessages?: HeadlessOptions<TOptions>['initialMessages']
+}
+
+/**
+ * Bind chat options and UI widgets once at module scope.
+ *
+ * This matches Form `createFormHook` and Table `createTableHook`. The
+ * returned `useAppChat` creates a chat instance. `chat.AppChat` renders it.
+ * `useChatContext` reads that instance. Part and interrupt widgets take
+ * `part` / `interrupt` as props. Do not read those from context.
+ *
+ * Pass instance overrides such as `threadId` into `useAppChat()`.
+ *
+ * @example
+ * ```tsx
+ * const { useAppChat, useChatContext } = createChatHook({
+ *   options: chatOptions,
+ *   components: { layout: ChatLayout, message: ChatMessage },
+ *   partsComponents: { fallback: FallbackPart },
+ *   toolsComponents: { getWeather: WeatherTool, purchaseItem: PurchaseTool },
+ *   interruptsComponents: { generic: { choosePlan: ChoosePlan } },
+ * })
+ *
+ * function Support() {
+ *   const chat = useAppChat({ threadId: 'support-1' })
+ *   return <chat.AppChat />
+ * }
+ * ```
+ */
+export function createChatHook<
+  const TOptions,
+  TInput extends ComponentType<any> | undefined =
+    | ComponentType<InputProps<NoInfer<TOptions>>>
+    | undefined,
+>({
+  options,
+  ...chatComponents
+}: {
+  options: TOptions
+} & ChatUIFactoryConfig<NoInfer<TOptions>, TInput>) {
+  const ui = createChatUI(
+    options,
+    chatComponents as ChatUIFactoryConfig<NoInfer<TOptions>, TInput>,
+  )
+
+  function useAppChat(overrides?: ChatInstanceOverrides<TOptions>) {
+    const chat = (
+      overrides
+        ? useUnboundChat({
+            ...(options as HeadlessOptions<TOptions>),
+            ...overrides,
+          })
+        : useUnboundChat(options as HeadlessOptions<TOptions>)
+    ) as ChatUIHost<TOptions>
+
+    // `useChat` returns a fresh object on every render. The mixed Chat
+    // component must stay stable, or React remounts the tree on each
+    // update. Read the current instance from a ref.
+    const chatRef = useRef(chat)
+    chatRef.current = chat
+
+    const AppChat = useMemo(() => {
+      function AppChatImpl() {
+        return <ui.Chat chat={chatRef.current} />
+      }
+      return AppChatImpl
+    }, [])
+
+    return Object.assign(chat, { AppChat }) as ChatUIHost<TOptions> & {
+      AppChat: ComponentType
+    }
+  }
+
+  return {
+    useAppChat,
+    useChatContext: ui.useChatContext,
+  }
+}

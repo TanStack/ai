@@ -8,7 +8,7 @@ import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
-import { ThinkingPart } from '@tanstack/ai-react-ui'
+import { ThinkingPart } from '@tanstack/ai-react/ui'
 
 import type { UIMessage } from '@tanstack/ai-react'
 

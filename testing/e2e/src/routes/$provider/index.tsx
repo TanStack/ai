@@ -30,6 +30,7 @@ function ProviderPage() {
               mode: undefined,
               persistence: undefined,
               serverPersistence: false,
+              stampMetadata: false,
             }}
             className="p-3 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 transition-colors text-center text-sm"
           >

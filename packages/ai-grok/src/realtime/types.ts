@@ -35,7 +35,7 @@ export type GrokTurnDetection =
  * Options for the Grok realtime token adapter.
  */
 export interface GrokRealtimeTokenOptions {
-  /** Model to use (default: 'grok-voice-fast-1.0'). */
+  /** Model to use (default: 'grok-voice-think-fast-2.0'). */
   model?: GrokRealtimeModel
   /**
    * Enable debug logging for token creation.

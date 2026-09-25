@@ -145,14 +145,14 @@ records and rank them yourself.
 
 ## Step 2: Run the contract suite
 
-`@tanstack/ai-memory/tests/contract` exports `runMemoryAdapterContract`. Point it at a
-factory that returns a fresh adapter. It verifies the save then recall round-trip, scope
+`@tanstack/ai-memory/testkit` exports `runMemoryAdapterContract`. `inMemory` and `redis`
+run this suite. Point it at a factory that returns a fresh adapter. It verifies the save then recall round-trip, scope
 isolation, empty recall, receipt shape, and the optional introspection methods.
 
 ```ts ignore
 // ignore: imports the `../src/pgvector` module you wrote in Step 1.
 // tests/pgvector.test.ts
-import { runMemoryAdapterContract } from '@tanstack/ai-memory/tests/contract'
+import { runMemoryAdapterContract } from '@tanstack/ai-memory/testkit'
 import { pgvectorMemory } from '../src/pgvector'
 
 runMemoryAdapterContract('pgvectorMemory', async () => {

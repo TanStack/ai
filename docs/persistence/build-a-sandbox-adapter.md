@@ -11,8 +11,6 @@ keywords:
   - defineSandboxInstanceStore
 ---
 
-# Build a Sandbox Adapter
-
 Your agent runs in a sandbox, and you have to decide what survives a server
 restart, a second replica, or a user closing the tab. The answer is not one switch.
 A sandboxed run has two halves that persist separately:
@@ -26,6 +24,10 @@ place the two meet. It is the third of the adapter walkthroughs, next to
 [chat](./build-your-own-chat-adapter) and
 [generation](./build-your-own-generation-adapter), and it needs neither of their store
 contracts.
+
+To rebuild completed workspace files after the provider sandbox is gone, use
+[Keep Files After Reload](../sandbox/portable-snapshots-configure). Pass the same
+persistence object that `withPersistence` uses.
 
 ## Decide what you store
 

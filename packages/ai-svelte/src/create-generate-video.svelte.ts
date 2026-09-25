@@ -12,6 +12,8 @@ import type {
   VideoGenerateResult,
   VideoStatusInfo,
 } from '@tanstack/ai-client'
+import type { ByokClient } from '@tanstack/ai-client/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
 
 /**
  * Options for the createGenerateVideo function.
@@ -23,12 +25,12 @@ export interface CreateGenerateVideoOptions<TOutput = VideoGenerateResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function that returns a completed video result */
   fetcher?: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
+  byok?: ByokClient
+  /** Optional provider id. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
+  byokProvider?: () => ProviderId | undefined
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
@@ -50,8 +52,8 @@ export interface CreateGenerateVideoOptions<TOutput = VideoGenerateResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -161,7 +163,7 @@ export interface CreateGenerateVideoReturn<TOutput = VideoGenerateResult> {
 export function createGenerateVideo<TTransformed = void>(
   options: Omit<
     CreateGenerateVideoOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: VideoGenerateResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -172,7 +174,6 @@ export function createGenerateVideo<TTransformed = void>(
     VideoGenerateResult,
     TTransformed
   >
-  const fallbackId = `video-${Date.now()}-${Math.random().toString(36).substring(7)}`
 
   // Create reactive state using Svelte 5 runes
   let result = $state<TOutput | null>(null)
@@ -188,19 +189,24 @@ export function createGenerateVideo<TTransformed = void>(
   // is declared `body?: Record<string, any>` (absent vs. present) under
   // `exactOptionalPropertyTypes`. The optional caller `options.body` may be
   // undefined, in which case we want the key to be absent on the target.
-  // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
   const baseOptions = {
     body: options.body,
-    ...(options.threadId !== undefined
-      ? { threadId: options.threadId }
-      : { id: options.id ?? fallbackId }),
-    ...(options.persistence !== undefined && {
-      persistence: options.persistence,
-    }),
+    ...(typeof options.threadId === 'string' && options.persistence
+      ? {
+          persistence: options.persistence,
+          threadId: options.threadId,
+        }
+      : {
+          ...(options.threadId !== undefined && {
+            threadId: options.threadId,
+          }),
+        }),
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
     }),
     ...(options.joinRun !== undefined && { joinRun: options.joinRun }),
+    ...(options.byok !== undefined && { byok: options.byok }),
+    byokProvider: () => options.byokProvider?.(),
     devtoolsBridgeFactory: createVideoDevtoolsBridge,
     devtools: {
       ...options.devtools,

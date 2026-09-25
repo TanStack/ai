@@ -15,9 +15,18 @@ here.
 
 ## 1. Install the packages
 
-```bash
-npm i @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+vue: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+solid: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+svelte: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+preact: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+angular: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+vanilla: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+octane: @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-sandbox-docker
+
+<!-- ::end:tabs -->
 
 - `@tanstack/ai`: the core `chat()` pipeline.
 - `@tanstack/ai-grok-build`: the Grok Build **harness adapter**.
@@ -130,28 +139,56 @@ filesystem.
 Swap the provider for the local-process one to skip Docker entirely. It runs the
 agent directly on your host (no isolation), which makes for the fastest dev loop:
 
-```bash
-npm i @tanstack/ai-sandbox-local-process
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-sandbox-local-process
+vue: @tanstack/ai-sandbox-local-process
+solid: @tanstack/ai-sandbox-local-process
+svelte: @tanstack/ai-sandbox-local-process
+preact: @tanstack/ai-sandbox-local-process
+angular: @tanstack/ai-sandbox-local-process
+vanilla: @tanstack/ai-sandbox-local-process
+octane: @tanstack/ai-sandbox-local-process
+
+<!-- ::end:tabs -->
 
 ```ts
+import { chat } from '@tanstack/ai'
+import { grokBuildText } from '@tanstack/ai-grok-build'
+import {
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
-import { defineSandbox, defineWorkspace, githubRepo } from '@tanstack/ai-sandbox'
+import { messages } from './chat-context'
 
 export const repoSandbox = defineSandbox({
   id: 'bug-fixer',
-  provider: localProcessSandbox(),
+  provider: localProcessSandbox({
+    scrubEnv: ['XAI_API_KEY', 'GROK_API_KEY'],
+  }),
   workspace: defineWorkspace({
     source: githubRepo({ repo: 'owner/buggy-app' }),
     setup: ['corepack enable', 'pnpm install'],
   }),
   lifecycle: { reuse: 'thread' },
 })
+
+const stream = chat({
+  adapter: grokBuildText('composer-2.5', { authMode: 'host' }),
+  messages,
+  middleware: [withSandbox(repoSandbox)],
+})
 ```
 
-Because local-process inherits your host environment, you can drop the
-`XAI_API_KEY` secret and let Grok Build fall back to your grok.com login. For that
-(and for Daytona, Vercel, Sprites, and Cloudflare runtimes), see [Providers](./providers).
+Set `authMode: 'host'` so the adapter uses `grok login`. `scrubEnv` removes
+keys the host process inherited. Those keys would override the login.
+
+A local-process run can also be a CI runner. That machine has no browser
+login. Set `authMode: 'api-key'`. Then inject `XAI_API_KEY` as a workspace
+secret. The sandbox type does not pick this. See [Harness Auth](./auth).
 
 ## Docker Sandboxes microVM (sbx)
 

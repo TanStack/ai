@@ -561,7 +561,7 @@ describe('chunkFingerprintIgnoringThreadId', () => {
       type: EventType.CUSTOM,
       name: 'x',
       value: { threadId: value },
-      threadId: 't-outer',
+      metadata: { tanstack: { threadId: 't-outer' } },
       timestamp: 1,
     })
     expect(chunkFingerprintIgnoringThreadId(nested('a'))).not.toBe(

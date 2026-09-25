@@ -3,40 +3,31 @@ id: FileChangedEvent
 title: FileChangedEvent
 ---
 
-# Interface: FileChangedEvent
-
-Defined in: [packages/ai/src/types.ts:1440](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1440)
+Defined in: [packages/ai/src/types.ts:1525](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1525)
 
 Custom event for extensibility.
 
-@ag-ui/core provides: `name`, `value`
-TanStack AI adds: `model?`
+@ag-ui/core provides: `name`, `value`, `subagentRunId?`
 
 ## Extends
 
 - [`CustomEvent`](CustomEvent.md)
 
-## Indexable
-
-```ts
-[k: string]: unknown
-```
-
 ## Properties
 
-### model?
+### metadata?
 
 ```ts
-optional model: string;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1339](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1339)
+Defined in: [packages/ai/src/types.ts:1416](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1416)
 
-Model identifier for multi-model support
+Extra information attached to this event.
 
 #### Inherited from
 
-[`CustomEvent`](CustomEvent.md).[`model`](CustomEvent.md#model)
+[`CustomEvent`](CustomEvent.md).[`metadata`](CustomEvent.md#metadata)
 
 ***
 
@@ -46,7 +37,10 @@ Model identifier for multi-model support
 name: "file.changed";
 ```
 
-Defined in: [packages/ai/src/types.ts:1441](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1441)
+Defined in: [packages/ai/src/types.ts:1526](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1526)
+
+What this custom event is. Required: without it a consumer cannot route
+the value.
 
 #### Overrides
 
@@ -56,13 +50,29 @@ CustomEvent.name
 
 ***
 
+### type
+
+```ts
+type: "CUSTOM";
+```
+
+Defined in: [packages/ai/src/types.ts:1415](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1415)
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`type`](CustomEvent.md#type)
+
+***
+
 ### value
 
 ```ts
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1442](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1442)
+Defined in: [packages/ai/src/types.ts:1527](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1527)
+
+The payload. Any JSON value, and required.
 
 #### diff
 

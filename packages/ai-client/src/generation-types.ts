@@ -1,9 +1,15 @@
+import { tanstackMetadata } from '@tanstack/ai/client'
 import type {
   MediaPrompt,
   PersistedArtifactRef,
   StreamChunk,
 } from '@tanstack/ai/client'
-import type { TokenUsage, TranscriptionResponseFormat } from '@tanstack/ai'
+import type {
+  TokenUsage,
+  TranscriptionResponseFormat,
+  TTSTurn,
+} from '@tanstack/ai'
+import type { ByokClient } from './byok'
 import type { ConnectConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
 import type {
@@ -201,27 +207,23 @@ export interface GenerationResumeSnapshot {
 }
 
 /**
- * The `persistence` / `threadId` / `id` identity shared by every generation hook.
+ * The `persistence` / `threadId` identity shared by every generation hook.
  *
  * Turning persistence on **requires** a `threadId`, the stable scope runs are
  * filed under. Without one the client would hydrate by a generated id that
  * changes every reload, so nothing would ever restore; making it a type error
  * means the compiler asks for the scope instead of the runtime inventing one.
  *
- * `threadId` is the single identity for the hook, the AG-UI wire thread, and
- * persistence. Legacy `id` is deprecated and typed `never` whenever
- * `threadId` is supplied — pass one scope, not two.
+ * `threadId` is the only identity for the hook, the AG-UI wire thread, and
+ * persistence. There is no separate instance `id`.
  *
- * Ephemeral generations (no `persistence`, or `persistence: false`) may still
- * pass a deprecated `id` when they have no `threadId`, as a wire/devtools
- * fallback. Prefer giving them a `threadId` instead.
- *
- * USAGE: intersect this onto a hook's parameter and subtract the three keys
- * from the options interface, leaving that interface a plain (non-union)
+ * USAGE: intersect this onto a hook's parameter and subtract `persistence`
+ * and `threadId` from the options interface (plus any other keys the hook
+ * redeclares, such as `onResult`), leaving that interface a plain (non-union)
  * object so `Pick` / `Omit` composition elsewhere keeps working:
  *
  * ```ts
- * options: Omit<UseGenerateImageOptions, 'onResult' | 'persistence' | 'threadId' | 'id'> & {
+ * options: Omit<UseGenerateImageOptions, 'onResult' | 'persistence' | 'threadId'> & {
  *   onResult?: (result: ImageGenerationResult) => TTransformed
  * } & GenerationPersistenceOptions
  * ```
@@ -233,31 +235,13 @@ export interface GenerationResumeSnapshot {
 export type GenerationPersistenceOptions =
   | {
       persistence: true
-      /** Required by `persistence` — the stable scope runs are filed under. */
+      /** Required by `persistence`. The stable scope runs are filed under. */
       threadId: string
-      /**
-       * @deprecated Prefer `threadId`. Not allowed when `threadId` is set —
-       * `threadId` is the single identity for the hook, the wire, and persistence.
-       */
-      id?: never
     }
   | {
       persistence?: false | undefined
-      /** Stable scope for the generation slot (also the wire / devtools identity). */
-      threadId: string
-      /**
-       * @deprecated Prefer `threadId`. Not allowed when `threadId` is set.
-       */
-      id?: never
-    }
-  | {
-      persistence?: false | undefined
-      threadId?: undefined
-      /**
-       * @deprecated Prefer `threadId` as the single identity. Only allowed when
-       * `threadId` is omitted — legacy wire/devtools fallback for ephemeral runs.
-       */
-      id?: string
+      /** Stable scope for the generation slot (also the wire / DevTools identity). */
+      threadId?: string
     }
 
 // ===========================
@@ -292,6 +276,8 @@ export const GENERATION_EVENTS = {
 export interface GenerationFetcherOptions {
   /** AbortSignal that is triggered when the user calls `stop()` */
   signal: AbortSignal
+  /** Extra request headers for this run (e.g. BYOK keys). */
+  headers?: Record<string, string>
 }
 
 /**
@@ -331,27 +317,18 @@ export type GenerationTransport<TInput, TResult> =
 // eslint-disable-next-line @typescript-eslint/naming-convention -- _TInput is unused in the interface body but part of the public positional generic API (callers supply it for inference)
 export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   /**
-   * @deprecated Prefer {@link GenerationClientOptions.threadId}. Legacy instance
-   * id used only as a wire/devtools fallback when `threadId` is omitted. When
-   * both are passed, `threadId` wins and `id` is ignored. Framework hooks type
-   * `id` as `never` whenever `threadId` is set — see
-   * {@link GenerationPersistenceOptions}.
-   */
-  id?: string
-
-  /**
    * The **scope** this generation belongs to: a stable, app-chosen name for the
    * slot successive runs fill, not a link to a chat conversation. This is the
-   * single identity for the client — wire thread id, devtools hook id, and
+   * only identity for the client: wire thread id, DevTools hook id, and
    * persistence key.
    *
-   * A generation hook starts empty and produces many runs over its life — each
+   * A generation hook starts empty and produces many runs over its life. Each
    * run gets its own `runId`, but they all belong to one scope. Persistence
    * keys on this: server-driven hydrates the last run for it on mount. It is
    * also sent as the AG-UI thread id on the wire, since the protocol requires
    * one.
    *
-   * Derive it from your own domain — it must be meaningful before any media
+   * Derive it from your own domain. It must be meaningful before any media
    * exists and identical after a reload:
    *
    * ```ts
@@ -360,14 +337,26 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
    *
    * **Required whenever `persistence` is set.** An app that cannot name the
    * scope has nothing to restore *to*, and a generated fallback would key each
-   * reload differently — silently restoring nothing. Optional only for
-   * ephemeral runs, where it falls back to deprecated `id` (or a generated id)
-   * purely to satisfy the wire and nothing is written.
+   * reload differently, silently restoring nothing. Optional only for
+   * ephemeral runs. If omitted, the client mints a wire id after mount.
    */
   threadId?: string
 
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+
+  /**
+   * Optional BYOK keyring. On each generate the client prepares the resolved
+   * provider and stamps `x-byok-*` request headers. Keys never go in the body.
+   */
+  byok?: ByokClient
+
+  /**
+   * Optional provider id for this generation. If it returns a provider slug,
+   * only that key is prepared and sent. Otherwise `body.provider` is used.
+   * If no slug resolves, generate throws instead of attaching every stored key.
+   */
+  byokProvider?: () => string | undefined
 
   /** Metadata used to register this generation hook with TanStack AI Devtools */
   devtools?: Partial<AIDevtoolsClientMetadata>
@@ -493,8 +482,13 @@ export function updateGenerationResumeSnapshot(
   previous: GenerationResumeSnapshot | null | undefined,
   chunk: StreamChunk,
 ): GenerationResumeSnapshot {
-  const threadId = stringField(chunk, 'threadId')
-  const runId = stringField(chunk, 'runId')
+  const tanstack = tanstackMetadata(chunk)
+  const threadId =
+    stringField(chunk, 'threadId') ??
+    (typeof tanstack?.threadId === 'string' ? tanstack.threadId : undefined)
+  const runId =
+    stringField(chunk, 'runId') ??
+    (typeof tanstack?.runId === 'string' ? tanstack.runId : undefined)
   const carried = chunk.type === 'RUN_STARTED' ? undefined : previous
   const previousArtifacts = carried?.pendingArtifacts ?? []
   const next: GenerationResumeSnapshot = {
@@ -737,8 +731,18 @@ export interface AudioGenerateInput {
  * Input for text-to-speech generation.
  */
 export interface SpeechGenerateInput {
-  /** The text to convert to speech */
-  text: string
+  /** The text to convert to speech. Omit it when sending `turns`. */
+  text?: string
+  /**
+   * Multi-voice dialogue turns, mutually exclusive with `text`. The server
+   * rejects these unless the adapter declares `capabilities.maxSpeakers`.
+   */
+  turns?: Array<TTSTurn>
+  /**
+   * Ask for `alignment` / `segments` on the result. The server rejects it
+   * unless the adapter declares `capabilities.timestamps`.
+   */
+  timestamps?: boolean
   /** The voice to use for generation */
   voice?: string
   /** The output audio format */

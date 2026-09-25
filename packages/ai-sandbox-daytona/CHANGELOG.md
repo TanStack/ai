@@ -1,5 +1,36 @@
 # @tanstack/ai-sandbox-daytona
 
+## 0.3.4
+
+### Patch Changes
+
+- [#1484](https://github.com/TanStack/ai/pull/1484) [`61231d6`](https://github.com/TanStack/ai/commit/61231d61df2908ef14efd59801d8c0f9b82eb51b) - Add a package README to each sandbox provider: what it isolates with, the factory call, the auth and snapshot/resume behaviour that differs between them, and links to the sandbox docs.
+
+## 0.3.3
+
+### Patch Changes
+
+- [#1324](https://github.com/TanStack/ai/pull/1324) [`0a7b3c4`](https://github.com/TanStack/ai/commit/0a7b3c4393e9d3337637841aa73000d3fdabc58b) - fix: mount workspace secrets as Daytona organization Secrets so values never land in the sandbox record or command strings
+
+- Updated dependencies [[`53e2ec0`](https://github.com/TanStack/ai/commit/53e2ec082b40d8c3fcd09f408c29f0b895436198)]:
+  - @tanstack/ai-sandbox@0.5.7
+
+## 0.3.2
+
+### Patch Changes
+
+- Updated dependencies [[`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46)]:
+  - @tanstack/ai-sandbox@0.5.0
+
+## 0.3.1
+
+### Patch Changes
+
+- [#1108](https://github.com/TanStack/ai/pull/1108) [`9b5f841`](https://github.com/TanStack/ai/commit/9b5f841127743ed73fbdaa96038c9b45314e0db9) - Support filesystem metadata needed by portable sandbox snapshots.
+
+- Updated dependencies [[`9b5f841`](https://github.com/TanStack/ai/commit/9b5f841127743ed73fbdaa96038c9b45314e0db9)]:
+  - @tanstack/ai-sandbox@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes

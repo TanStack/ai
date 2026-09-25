@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/preact-ai-devtools",
-  "version": "0.1.70",
+  "version": "0.1.71",
   "description": "Preact Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.",
   "author": "tannerlinsley",
   "license": "MIT",
@@ -21,8 +21,6 @@
     "clean": "premove ./build ./dist",
     "lint:fix": "oxlint src --type-aware --fix",
     "test:oxlint": "oxlint src --type-aware",
-    "test:lib": "vitest --passWithNoTests",
-    "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc",
     "test:build": "publint --strict",
     "build": "vite build"
@@ -52,11 +50,10 @@
   ],
   "dependencies": {
     "@tanstack/ai-devtools-core": "workspace:^",
-    "@tanstack/devtools-utils": "^0.4.0"
+    "@tanstack/devtools-utils": "^0.7.0"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^8.1.4"
+    "vite": "^8.2.1"
   },
   "peerDependencies": {
     "preact": "^10.0.0"

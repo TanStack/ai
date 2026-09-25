@@ -22,16 +22,17 @@ import type {
  */
 export interface CreateGenerateSpeechOptions<TOutput = TTSResult> extends Pick<
   CreateGenerationOptions<SpeechGenerateInput, TTSResult, TOutput>,
-  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+  | 'persistence'
+  | 'threadId'
+  | 'hydrateGeneration'
+  | 'joinRun'
+  | 'byok'
+  | 'byokProvider'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for speech generation */
   fetcher?: GenerationFetcher<SpeechGenerateInput, TTSResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -102,7 +103,7 @@ export interface CreateGenerateSpeechReturn<TOutput = TTSResult> extends Omit<
 export function createGenerateSpeech<TTransformed = void>(
   options: Omit<
     CreateGenerateSpeechOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: TTSResult) => TTransformed
   } & GenerationPersistenceOptions,

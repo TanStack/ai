@@ -9,7 +9,10 @@ export type {
   ServerDescriptor,
   ToolsOptions,
 } from './types'
-export type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
+export type {
+  Tool as McpTool,
+  ToolAnnotations,
+} from '@modelcontextprotocol/sdk/types.js'
 export type {
   TransportConfig,
   TransportInput,

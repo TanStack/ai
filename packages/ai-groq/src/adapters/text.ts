@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { getGroqApiKeyFromEnv, withGroqDefaults } from '../utils/client'
-import { makeGroqStructuredOutputCompatible } from '../utils/schema-converter'
+import { makeGroqStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
 import type { Modality, TextOptions } from '@tanstack/ai'
 import type {
   GROQ_CHAT_MODELS,
@@ -11,6 +11,7 @@ import type {
 } from '../model-meta'
 import type { GroqMessageMetadataByModality } from '../message-types'
 import type { GroqClientConfig } from '../utils/client'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GroqChatModelToolCapabilitiesByName
@@ -20,7 +21,8 @@ type ResolveToolCapabilities<TModel extends string> =
 /**
  * Configuration for Groq text adapter
  */
-export interface GroqTextConfig extends GroqClientConfig {}
+export interface GroqTextConfig
+  extends GroqClientConfig, OpenAIBaseTextAdapterOptions {}
 
 /**
  * Re-export of the public provider options type
@@ -58,14 +60,76 @@ export class GroqTextAdapter<
   override readonly name = 'groq' as const
 
   constructor(config: GroqTextConfig, model: TModel) {
-    super(model, 'groq', new OpenAI(withGroqDefaults(config)))
+    super(model, 'groq', new OpenAI(withGroqDefaults(config)), config)
   }
 
-  protected override makeStructuredOutputCompatible(
+  protected override extractRejectedToolCall(
+    rawEvent: unknown,
+    fallbackMessage: string,
+  ):
+    | {
+        toolName: string
+        arguments: string
+        input?: unknown
+        error: string
+      }
+    | undefined {
+    if (
+      !isRecord(rawEvent) ||
+      rawEvent.code !== 'tool_use_failed' ||
+      typeof rawEvent.failed_generation !== 'string'
+    ) {
+      return undefined
+    }
+
+    let failedGeneration: unknown
+    try {
+      failedGeneration = JSON.parse(rawEvent.failed_generation)
+    } catch {
+      return undefined
+    }
+    if (
+      !isRecord(failedGeneration) ||
+      typeof failedGeneration.name !== 'string' ||
+      failedGeneration.name.trim().length === 0
+    ) {
+      return undefined
+    }
+
+    const rawArguments = failedGeneration.arguments
+    let argumentsJson: string
+    let input: unknown
+    if (typeof rawArguments === 'string') {
+      argumentsJson = rawArguments
+      try {
+        const parsed: unknown = JSON.parse(rawArguments)
+        if (isRecord(parsed)) input = parsed
+      } catch {
+        // The provider-rejected call remains non-executable with its raw input.
+      }
+    } else if (isRecord(rawArguments)) {
+      argumentsJson = JSON.stringify(rawArguments)
+      input = rawArguments
+    } else {
+      return undefined
+    }
+
+    return {
+      toolName: failedGeneration.name,
+      arguments: argumentsJson,
+      ...(input !== undefined && { input }),
+      error:
+        typeof rawEvent.message === 'string' && rawEvent.message.length > 0
+          ? rawEvent.message
+          : fallbackMessage,
+    }
+  }
+
+  protected override makeStructuredOutputCompatibleWithMap(
     schema: Record<string, any>,
     originalRequired?: Array<string>,
-  ): Record<string, any> {
-    return makeGroqStructuredOutputCompatible(schema, originalRequired)
+  ) {
+    return makeGroqStructuredOutputCompatibleWithMap(schema, originalRequired)
   }
 
   protected override async *processStreamChunks(
@@ -115,6 +179,10 @@ export class GroqTextAdapter<
   override supportsCombinedToolsAndSchema(): boolean {
     return false
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**

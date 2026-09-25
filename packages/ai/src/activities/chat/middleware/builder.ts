@@ -1,6 +1,9 @@
 import type { CapabilityHandle } from './capabilities'
 import type { AnyChatMiddleware, ChatMiddleware } from './types'
 import type { DefinedChatMiddleware } from './define'
+import type { InterruptDefinition } from '../../../interrupt-definition'
+
+type AnyInterruptDefinition = InterruptDefinition<any, any, any, any>
 
 /** Union of capability NAME literals from a tuple of handles. */
 export type NamesOf<T extends ReadonlyArray<CapabilityHandle>> =
@@ -67,19 +70,41 @@ export type CheckCoverage<TList extends ReadonlyArray<AnyChatMiddleware>> = [
 export interface ChatMiddlewareBuilder<
   TList extends ReadonlyArray<AnyChatMiddleware>,
   TProvided extends string,
+  TInterruptDefinitions extends AnyInterruptDefinition = never,
 > {
   use: <
     TRequires extends ReadonlyArray<CapabilityHandle>,
     TProvides extends ReadonlyArray<CapabilityHandle>,
     TContext = unknown,
+    TMiddlewareInterruptDefinitions extends AnyInterruptDefinition =
+      TInterruptDefinitions,
   >(
     middleware: [NamesOf<TRequires>] extends [TProvided]
-      ? DefinedChatMiddleware<TContext, TRequires, TProvides>
-      : DefinedChatMiddleware<TContext, TRequires, TProvides> &
+      ? DefinedChatMiddleware<
+          TContext,
+          TRequires,
+          TProvides,
+          TMiddlewareInterruptDefinitions
+        >
+      : DefinedChatMiddleware<
+          TContext,
+          TRequires,
+          TProvides,
+          TMiddlewareInterruptDefinitions
+        > &
           MissingCapabilities<Exclude<NamesOf<TRequires>, TProvided>>,
   ) => ChatMiddlewareBuilder<
-    readonly [...TList, DefinedChatMiddleware<TContext, TRequires, TProvides>],
-    TProvided | NamesOf<TProvides>
+    readonly [
+      ...TList,
+      DefinedChatMiddleware<
+        TContext,
+        TRequires,
+        TProvides,
+        TMiddlewareInterruptDefinitions
+      >,
+    ],
+    TProvided | NamesOf<TProvides>,
+    TInterruptDefinitions | TMiddlewareInterruptDefinitions
   >
 
   build: () => [...TList]

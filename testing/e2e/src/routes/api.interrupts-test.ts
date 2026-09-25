@@ -146,6 +146,20 @@ export const Route = createFileRoute('/api/interrupts-test')({
         const aimockPort =
           fp.aimockPort != null ? Number(fp.aimockPort) : undefined
         const isGeneric = scenario === 'feeding'
+        const scenarioTools = getServerToolsForScenario(scenario)
+        // The admit cancellation reproduces a stale approval after its schema changed.
+        const tools =
+          scenario === 'admit' &&
+          params.resume?.some((entry) => entry.status === 'cancelled')
+            ? scenarioTools.map((tool) => ({
+                ...tool,
+                inputSchema: z.object({
+                  species: z.string(),
+                  name: z.string(),
+                  source: z.string().optional(),
+                }),
+              }))
+            : scenarioTools
 
         const abortController = new AbortController()
 
@@ -153,7 +167,7 @@ export const Route = createFileRoute('/api/interrupts-test')({
           const stream = chat({
             ...createTextAdapter('openai', undefined, aimockPort, testId),
             messages: params.messages,
-            tools: getServerToolsForScenario(scenario),
+            tools,
             agentLoopStrategy: maxIterations(8),
             threadId: params.threadId,
             runId: params.runId,

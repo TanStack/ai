@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { EventType } from '@tanstack/ai'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 import { processConverseStream } from '../../src/converse/stream-processor'
 import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
 
@@ -128,8 +128,8 @@ describe('processConverseStream', () => {
 
   async function collect(
     ...events: Array<ConverseStreamFixture>
-  ): Promise<Array<StreamChunk>> {
-    const out: Array<StreamChunk> = []
+  ): Promise<Array<AdapterYieldChunk>> {
+    const out: Array<AdapterYieldChunk> = []
     for await (const c of processConverseStream(gen(...events), counter())) {
       out.push(c)
     }
@@ -173,6 +173,34 @@ describe('processConverseStream', () => {
         totalTokens: 18,
       })
     }
+  })
+
+  it('forwards cache read/write counts as promptTokensDetails', async () => {
+    const events = await collect(
+      { contentBlockDelta: { delta: { text: 'hi' }, contentBlockIndex: 0 } },
+      { messageStop: { stopReason: 'end_turn' } },
+      {
+        metadata: {
+          // inputTokens is the uncached part only; the cached prefix comes as
+          // its own fields.
+          usage: {
+            inputTokens: 3,
+            outputTokens: 4,
+            totalTokens: 8416,
+            cacheReadInputTokens: 0,
+            cacheWriteInputTokens: 8409,
+          },
+        },
+      },
+    )
+    const finished = events.find((e) => e.type === EventType.RUN_FINISHED)
+    expect((finished as { usage?: unknown }).usage).toEqual({
+      promptTokens: 3,
+      completionTokens: 4,
+      totalTokens: 8416,
+      // Zero is a real value here. The checkpoint was served, not missing.
+      promptTokensDetails: { cachedTokens: 0, cacheWriteTokens: 8409 },
+    })
   })
 
   it('drains a tool call that never received contentBlockStop (truncated stream)', async () => {
@@ -220,7 +248,7 @@ describe('processConverseStream', () => {
   })
 
   it('threads incoming threadId/parentRunId/model onto the lifecycle', async () => {
-    const out: Array<StreamChunk> = []
+    const out: Array<AdapterYieldChunk> = []
     for await (const c of processConverseStream(
       gen(
         { contentBlockDelta: { delta: { text: 'hi' }, contentBlockIndex: 0 } },

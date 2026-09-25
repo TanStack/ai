@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
 import * as fsp from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -12,6 +12,31 @@ import {
 import { localProcessSandbox } from '../src/index'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
+const lstatControl = vi.hoisted(() => {
+  let failure: Error | undefined
+  return {
+    getFailure: () => failure,
+    setFailure: (error: Error) => {
+      failure = error
+    },
+    reset: () => {
+      failure = undefined
+    },
+  }
+})
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return {
+    ...actual,
+    lstat: async (path: Parameters<typeof actual.lstat>[0]) => {
+      const failure = lstatControl.getFailure()
+      if (failure) throw failure
+      return actual.lstat(path)
+    },
+  }
+})
+
 const baseDir = path.join(os.tmpdir(), `tanstack-ai-lp-test-${Date.now()}`)
 const provider = localProcessSandbox({ baseDir, removeOnDestroy: true })
 
@@ -19,11 +44,29 @@ afterAll(async () => {
   await fsp.rm(baseDir, { recursive: true, force: true })
 })
 
+afterEach(() => {
+  lstatControl.reset()
+})
+
 async function fresh(): Promise<SandboxHandle> {
   return provider.create({})
 }
 
 describe('local-process fs', () => {
+  it('returns undefined for a missing path', async () => {
+    const sbx = await fresh()
+    await expect(sbx.fs.lstat!('/workspace/missing')).resolves.toBeUndefined()
+    await sbx.destroy()
+  })
+
+  it('rejects a non-missing lstat error', async () => {
+    const sbx = await fresh()
+    const error = new Error('permission denied')
+    lstatControl.setFailure(error)
+    await expect(sbx.fs.lstat!('/workspace/file')).rejects.toBe(error)
+    await sbx.destroy()
+  })
+
   it('writes, reads, lists, renames, removes', async () => {
     const sbx = await fresh()
     await sbx.fs.write('/workspace/a.txt', 'hello')
@@ -86,6 +129,30 @@ describe('local-process process', () => {
     const code = await proc.wait()
     expect(out.trim()).toContain('streamed')
     expect(code).toBe(0)
+    await sbx.destroy()
+  })
+
+  it('resolves wait() when the child closes before stdout is fully consumed', async () => {
+    const sbx = await fresh()
+    // Write digits as strings. `console.log(number)` colorizes under FORCE_COLOR
+    // (CI sets that), so the assertion would see `\u001b[33m0\u001b[39m`.
+    await sbx.fs.write(
+      '/workspace/count.mjs',
+      `for (let i = 0; i < 20; i++) process.stdout.write(String(i) + '\\n')`,
+    )
+    const proc = await sbx.process.spawn('node count.mjs', {
+      cwd: '/workspace',
+    })
+    let out = ''
+    for await (const chunk of proc.stdout) {
+      out += chunk
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    await expect(proc.wait()).resolves.toBe(0)
+    const lines = out.trimEnd().split(/\r?\n/)
+    expect(lines).toEqual(
+      Array.from({ length: 20 }, (_, index) => String(index)),
+    )
     await sbx.destroy()
   })
 
@@ -156,6 +223,52 @@ describe('local-process killTree — POSIX child.kill(signal) branch', () => {
       expect(survivors).toBe('')
 
       await sbx.destroy()
+    },
+    30_000,
+  )
+})
+
+describe('local-process stdin errors', () => {
+  posixOnly(
+    'a write to a child that closed its stdin rejects without an uncaught error (skipped on Windows: named pipes do not report EPIPE the same way)',
+    async () => {
+      const sbx = await fresh()
+      // `finally`: the `sleep 30` below outlives a failed assertion otherwise.
+      try {
+        // `exec 0<&-` makes the child close its own stdin while it keeps
+        // running: the write end stays open, and no process holds the read end.
+        const proc = await sbx.process.spawn(
+          'exec 0<&- ; echo closed ; sleep 30',
+        )
+        // The shell echoes after it closes fd 0. An earlier write only fills the
+        // pipe buffer and resolves, which would prove nothing.
+        let closed = false
+        for await (const chunk of proc.stdout) {
+          if (chunk.includes('closed')) {
+            closed = true
+            break
+          }
+        }
+        expect(closed).toBe(true)
+
+        const uncaught: Array<Error> = []
+        const onUncaught = (error: Error): void => {
+          uncaught.push(error)
+        }
+        process.on('uncaughtException', onUncaught)
+        try {
+          await expect(proc.stdin.write('probe\n')).rejects.toThrow(/EPIPE/)
+          // Node emits the socket's `error` event on a `nextTick` after the
+          // callback, and that queue always drains before a `setImmediate`.
+          await new Promise((resolve) => setImmediate(resolve))
+        } finally {
+          process.off('uncaughtException', onUncaught)
+        }
+
+        expect(uncaught).toEqual([])
+      } finally {
+        await sbx.destroy()
+      }
     },
     30_000,
   )

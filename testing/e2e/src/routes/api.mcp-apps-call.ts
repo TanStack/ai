@@ -26,6 +26,7 @@ export const Route = createFileRoute('/api/mcp-apps-call')({
           toolName?: unknown
           args?: unknown
           messageId?: unknown
+          needsApproval?: unknown
         }
         try {
           body = (await request.json()) as typeof body
@@ -50,6 +51,7 @@ export const Route = createFileRoute('/api/mcp-apps-call')({
         const widgets = await createMCPClient({
           transport: { type: 'http', url: `${origin}/api/mcp-apps-server` },
           prefix: 'widgets',
+          ...(body.needsApproval === true ? { needsApproval: () => true } : {}),
         })
         const handler = createMcpAppCallHandler({ clients: widgets })
 

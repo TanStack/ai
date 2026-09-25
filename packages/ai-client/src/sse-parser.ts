@@ -1,3 +1,4 @@
+import { ByokMissingError, isByokMissingBody } from '@tanstack/ai/byok'
 import {
   createResponseStreamTextDecoder,
   getResponseStreamReader,
@@ -51,6 +52,15 @@ export async function* parseSSEResponse(
   abortSignal?: AbortSignal,
 ): AsyncGenerator<StreamChunk> {
   if (!response.ok) {
+    if (response.status === 401) {
+      const body: unknown = await response
+        .clone()
+        .json()
+        .catch(() => null)
+      if (isByokMissingBody(body)) {
+        throw new ByokMissingError(body.error.provider)
+      }
+    }
     throw new Error(
       `HTTP error! status: ${response.status} ${response.statusText}`,
     )

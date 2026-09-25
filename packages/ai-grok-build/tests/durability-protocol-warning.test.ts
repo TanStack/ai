@@ -30,7 +30,7 @@ import { grokBuildText } from '../src/index'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   CapabilityContext,
-  StreamChunk,
+  AdapterYieldChunk,
   StreamDurability,
 } from '@tanstack/ai'
 import type { SandboxHandle, SandboxRunDurability } from '@tanstack/ai-sandbox'
@@ -90,9 +90,10 @@ new AgentSideConnection((conn) => ({
     return {
       protocolVersion: PROTOCOL_VERSION,
       agentCapabilities: { loadSession: true },
-      // 'grok.com' matches \`resolveGrokAcpAuthMethod\`'s fallback when no
-      // XAI_API_KEY/GROK_API_KEY env is set, so the real handshake picks it.
-      authMethods: [{ id: 'grok.com', name: 'grok.com', description: null }],
+      authMethods: [
+        { id: 'xai.api_key', name: 'xai.api_key', description: null },
+        { id: 'grok.com', name: 'grok.com', description: null },
+      ],
     }
   },
   async authenticate() {
@@ -190,14 +191,14 @@ function contextWith(
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }
 
-function textOf(chunks: Array<StreamChunk>): string {
+function textOf(chunks: Array<AdapterYieldChunk>): string {
   return chunks
     .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
     .map((c) => (c as { delta?: string }).delta ?? '')

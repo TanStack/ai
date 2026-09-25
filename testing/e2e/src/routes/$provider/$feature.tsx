@@ -10,6 +10,7 @@ import type {
 } from '@tanstack/ai-client'
 import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { Feature, Mode, Provider } from '@/lib/types'
+import { parseAimockPort } from '@/lib/devtools-test'
 import { ALL_FEATURES, ALL_PROVIDERS } from '@/lib/types'
 import { isSupported } from '@/lib/feature-support'
 import { addToCartToolDef } from '@/lib/tools'
@@ -21,22 +22,22 @@ import { TranscriptionUI } from '@/components/TranscriptionUI'
 import { VideoGenUI } from '@/components/VideoGenUI'
 import { AudioGenUI } from '@/components/AudioGenUI'
 import { EmbeddingUI } from '@/components/EmbeddingUI'
+import { VoiceDesignUI } from '@/components/VoiceDesignUI'
 
 const VALID_MODES = new Set<Mode>(['sse', 'http-stream', 'fetcher'])
+
+// A tiny MP4 `ftyp` box. aimock ignores the bytes and matches on the text
+// prompt, so any base64 works — this just gives the video-understanding
+// message a real video content part to route on.
+const AGENTIC_VIDEO_DATA = 'AAAAIGZ0eXBpc29tAAACAGlzb21pc28y'
 
 export const Route = createFileRoute('/$provider/$feature')({
   component: FeaturePage,
   validateSearch: (search: Record<string, unknown>) => {
-    const port =
-      typeof search.aimockPort === 'number'
-        ? search.aimockPort
-        : typeof search.aimockPort === 'string'
-          ? parseInt(search.aimockPort, 10)
-          : undefined
     const rawMode = typeof search.mode === 'string' ? search.mode : undefined
     return {
       testId: typeof search.testId === 'string' ? search.testId : undefined,
-      aimockPort: port != null && !isNaN(port) ? port : undefined,
+      aimockPort: parseAimockPort(search.aimockPort),
       mode:
         rawMode && VALID_MODES.has(rawMode as Mode)
           ? (rawMode as Mode)
@@ -47,6 +48,10 @@ export const Route = createFileRoute('/$provider/$feature')({
         search.serverPersistence === true ||
         search.serverPersistence === 1 ||
         search.serverPersistence === '1',
+      stampMetadata:
+        search.stampMetadata === true ||
+        search.stampMetadata === 1 ||
+        search.stampMetadata === '1',
     }
   },
 })
@@ -55,6 +60,7 @@ const MEDIA_FEATURES = new Set<Feature>([
   'image-gen',
   'image-to-image',
   'tts',
+  'voice-design',
   'transcription',
   'transcription-diarization',
   'video-gen',
@@ -226,6 +232,17 @@ function MediaFeature({
           aimockPort={aimockPort}
         />
       )
+    case 'voice-design':
+      // generateVoice() is Promise-based (no streaming), so this page has a
+      // single fetch flow and ignores the `mode` search param — same as
+      // embedding.
+      return (
+        <VoiceDesignUI
+          provider={provider}
+          testId={testId}
+          aimockPort={aimockPort}
+        />
+      )
     case 'transcription':
     case 'transcription-diarization':
       return (
@@ -304,13 +321,14 @@ function ChatFeature({
   const needsApproval = feature === 'tool-approval'
   const showImageInput =
     feature === 'multimodal-image' || feature === 'multimodal-structured'
+  const showDocumentInput = feature === 'multimodal-document'
 
   // Stable tools tuple so `useChat` / `BoundInterrupts` keep approval typing
   // (and ChatUI can accept `interrupts` without casts).
   const approvalTools = clientTools(addToCartClient)
   const tools = needsApproval ? approvalTools : undefined
 
-  const { testId, aimockPort, persistence, serverPersistence } =
+  const { testId, aimockPort, persistence, serverPersistence, stampMetadata } =
     Route.useSearch()
   const persistenceEnabled = persistence === 'localStorage'
   const serverPersistenceEnabled = serverPersistence === true
@@ -420,6 +438,14 @@ function ChatFeature({
   return (
     <>
       {runId && <div data-testid="run-id" data-run-id={runId} hidden />}
+      <div data-testid="user-metadata" hidden>
+        {JSON.stringify(messages.find((m) => m.role === 'user')?.metadata)}
+      </div>
+      <div data-testid="assistant-metadata" hidden>
+        {JSON.stringify(
+          messages.filter((m) => m.role === 'assistant').at(-1)?.metadata,
+        )}
+      </div>
       <div
         data-testid="pending-interrupt-count"
         data-count={String(interrupts.length)}
@@ -459,6 +485,40 @@ function ChatFeature({
         queue={queue}
         cancelQueued={cancelQueued}
         onSendMessage={(text) => {
+          if (stampMetadata) {
+            sendMessage({
+              content: text,
+              metadata: { author: { id: 'user-42', name: 'Dana' } },
+            })
+            return
+          }
+          // Exercises SendMessageOptions.body: the marker must reach the
+          // wire under forwardedProps, merged with the chat-level body
+          // keys. Asserted by per-call-body.spec.ts.
+          if (text.startsWith('[per-call-body]')) {
+            sendMessage(text, { body: { perCallBodyMarker: testId } })
+            return
+          }
+          // Agentic video understanding: attach a video part flagged
+          // `processing: 'agentic'` so geminiText routes through the
+          // Interactions API instead of generateContent.
+          if (feature === 'video-understanding') {
+            sendMessage({
+              content: [
+                { type: 'text', content: text },
+                {
+                  type: 'video',
+                  source: {
+                    type: 'data',
+                    value: AGENTIC_VIDEO_DATA,
+                    mimeType: 'video/mp4',
+                  },
+                  metadata: { processing: 'agentic' },
+                },
+              ],
+            })
+            return
+          }
           sendMessage(text)
         }}
         onSendMessageWithImage={
@@ -485,9 +545,35 @@ function ChatFeature({
               }
             : undefined
         }
+        onSendMessageWithDocument={
+          showDocumentInput
+            ? (text, file) => {
+                const reader = new FileReader()
+                reader.onload = () => {
+                  const base64 = (reader.result as string).split(',')[1]
+                  sendMessage({
+                    content: [
+                      { type: 'text', content: text },
+                      {
+                        type: 'document',
+                        source: {
+                          type: 'data',
+                          value: base64,
+                          mimeType: file.type,
+                        },
+                        metadata: { filename: file.name },
+                      },
+                    ],
+                  })
+                }
+                reader.readAsDataURL(file)
+              }
+            : undefined
+        }
         interrupts={needsApproval ? interrupts : undefined}
         hasPendingInterrupt={interrupts.some((i) => i.status === 'pending')}
         showImageInput={showImageInput}
+        showDocumentInput={showDocumentInput}
         onStop={stop}
       />
     </>

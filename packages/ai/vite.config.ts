@@ -9,7 +9,7 @@ const config = defineConfig({
     watch: false,
     globals: true,
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
@@ -37,8 +37,11 @@ export default mergeConfig(
       './src/middlewares/index.ts',
       './src/middlewares/otel.ts',
       './src/adapter-internals.ts',
+      './src/byok.ts',
+      './src/byok/server.ts',
     ],
     srcDir: './src',
+    exclude: ['./src/**/*.test.ts'],
     cjs: false,
   }),
 )

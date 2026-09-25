@@ -1,4 +1,5 @@
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import { GROK_DEFAULT_REALTIME_MODEL } from '../model-meta'
 import type {
   AnyClientTool,
   AudioVisualization,
@@ -89,7 +90,7 @@ export function grokRealtime(
       token: RealtimeToken,
       _clientTools?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
-      const model = token.config.model ?? 'grok-voice-fast-1.0'
+      const model = token.config.model ?? GROK_DEFAULT_REALTIME_MODEL
       logger.request(`activity=realtime provider=grok model=${model}`, {
         provider: 'grok',
         model,
@@ -115,7 +116,7 @@ async function createWebRTCConnection(
   token: RealtimeToken,
   logger: InternalLogger,
 ): Promise<RealtimeConnection> {
-  const model = token.config.model ?? 'grok-voice-fast-1.0'
+  const model = token.config.model ?? GROK_DEFAULT_REALTIME_MODEL
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
 
   const pc = new RTCPeerConnection()

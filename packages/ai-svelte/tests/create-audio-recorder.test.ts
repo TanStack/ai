@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  expectTypeOf,
+  it,
+  vi,
+} from 'vitest'
 import { createAudioRecorder } from '../src/create-audio-recorder.svelte'
 import type { AudioRecording } from '@tanstack/ai-client'
 
@@ -78,5 +86,34 @@ describe('createAudioRecorder (svelte)', () => {
     await expect(recorder.start()).rejects.toThrow('Permission denied')
     expect(onError).toHaveBeenCalledWith(denied)
     expect(recorder.isRecording).toBe(false)
+  })
+})
+
+describe('createAudioRecorder type inference (issue #1001)', () => {
+  it('keeps AudioRecording when options carry no onComplete', () => {
+    const _types = () => {
+      const { recording, stop } = createAudioRecorder({
+        onError: (_error: Error) => {},
+      })
+
+      expectTypeOf(recording).not.toBeUnknown()
+      expectTypeOf(recording).toEqualTypeOf<AudioRecording | null>()
+      expectTypeOf(stop).returns.toEqualTypeOf<Promise<AudioRecording>>()
+
+      if (recording) {
+        expectTypeOf(recording.base64).toBeString()
+      }
+
+      const withTransform = createAudioRecorder({
+        onComplete: (rec) => rec.base64,
+      })
+      expectTypeOf(withTransform.recording).toEqualTypeOf<string | null>()
+      expectTypeOf(withTransform.stop).returns.toEqualTypeOf<Promise<string>>()
+
+      const raw = createAudioRecorder()
+      expectTypeOf(raw.recording).toEqualTypeOf<AudioRecording | null>()
+      expectTypeOf(raw.stop).returns.toEqualTypeOf<Promise<AudioRecording>>()
+    }
+    expect(typeof _types).toBe('function')
   })
 })

@@ -32,7 +32,7 @@ import { opencodeText } from '../src/index'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   CapabilityContext,
-  StreamChunk,
+  AdapterYieldChunk,
   StreamDurability,
 } from '@tanstack/ai'
 import type {
@@ -147,10 +147,10 @@ function contextWith(
  * should not have happened.
  */
 async function collectWithin(
-  stream: AsyncIterable<StreamChunk>,
+  stream: AsyncIterable<AdapterYieldChunk>,
   ms: number,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   const iterator = stream[Symbol.asyncIterator]()
   const deadline = Date.now() + ms
   for (;;) {
@@ -172,7 +172,7 @@ async function collectWithin(
   return out
 }
 
-function errorMessageOf(chunks: Array<StreamChunk>): string | undefined {
+function errorMessageOf(chunks: Array<AdapterYieldChunk>): string | undefined {
   const err = chunks.find((c) => c.type === 'RUN_ERROR')
   return (err as { message?: string } | undefined)?.message
 }
@@ -197,7 +197,7 @@ function errorMessageOf(chunks: Array<StreamChunk>): string | undefined {
  * listener, which the runtime tears down on its own.
  */
 async function startUntilSpawn(
-  stream: AsyncIterable<StreamChunk>,
+  stream: AsyncIterable<AdapterYieldChunk>,
   sandbox: { spawns: Array<string> },
 ): Promise<void> {
   const iterator = stream[Symbol.asyncIterator]()

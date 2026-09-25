@@ -1,12 +1,20 @@
+import type { ModelMessage } from '@tanstack/ai'
 import type {
   GenerationRunRecord,
   GenerationRunStore,
   InterruptStore,
+  MessagePage,
   MessageStore,
   MetadataStore,
   RunRecord,
   RunStore,
 } from '../src'
+
+export function threadMessages(
+  loaded: Array<ModelMessage> | MessagePage,
+): Array<ModelMessage> {
+  return Array.isArray(loaded) ? loaded : loaded.messages
+}
 
 export function createMessageStore(
   onSave?: (threadId: string) => void,
@@ -88,6 +96,7 @@ export function createInterruptStore(): InterruptStore {
     create: () => Promise.resolve(),
     resolve: () => Promise.resolve(),
     cancel: () => Promise.resolve(),
+    commitBatch: () => Promise.resolve(),
     get: () => Promise.resolve(null),
     list: () => Promise.resolve([]),
     listPending: () => Promise.resolve([]),

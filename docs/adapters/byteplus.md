@@ -29,13 +29,18 @@ The BytePlus adapter connects TanStack AI to [BytePlus](https://www.byteplus.com
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-byteplus
-# or
-pnpm add @tanstack/ai-byteplus
-# or
-yarn add @tanstack/ai-byteplus
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-byteplus
+vue: @tanstack/ai-byteplus
+solid: @tanstack/ai-byteplus
+svelte: @tanstack/ai-byteplus
+preact: @tanstack/ai-byteplus
+angular: @tanstack/ai-byteplus
+vanilla: @tanstack/ai-byteplus
+octane: @tanstack/ai-byteplus
+
+<!-- ::end:tabs -->
 
 ## Two products, two keys
 
@@ -45,6 +50,8 @@ BytePlus splits these models across two products, and they do not share credenti
 | --- | --- | --- | --- |
 | `byteplusText`, `byteplusVideo`, `byteplusImage` | ModelArk (Ark) | `ARK_API_KEY` (falls back to `BYTEPLUS_API_KEY`) | `Authorization: Bearer` |
 | `byteplusSpeech`, `byteplusTranscription` | Seed Speech | `BYTEPLUS_VOICE_API_KEY` | `X-Api-Key` |
+
+BYOK uses two slugs because these are two keys: `byteplusByok` (Ark) and `byteplusVoiceByok` (Seed Speech), both from `@tanstack/ai-byteplus/byok`.
 
 ```bash
 # ModelArk: chat, Seedance video, Seedream image
@@ -332,7 +339,7 @@ Seedance options are model-specific, and **Ark rejects an inapplicable field wit
 
 `watermark` defaults to `false` for video (the opposite of Seedream images). `generate_audio` is accepted everywhere but only Seedance 2.5, 2.0 and 1.5-pro actually produce an audio track.
 
-Resolutions are per model too: there is **no 2K tier on any Seedance model**, `4k` exists only on `dreamina-seedance-2-0-260128`, Seedance 2.5 is **480p/720p only**, and `seedance-1-0-pro-fast-251015` does accept `1080p` despite older prose listing it as 480p/720p only. An unsupported combination is caught locally with a clear error before the request goes out.
+Resolutions are per model too: there is **no 2K tier on any Seedance model**, `4k` exists only on `dreamina-seedance-2-0-260128`, Seedance 2.5 accepts **480p/720p/1080p**, and `seedance-1-0-pro-fast-251015` does accept `1080p` despite older prose listing it as 480p/720p only. An unsupported combination is caught locally with a clear error before the request goes out.
 
 Reference media follows the shared [role hints](../media/video-generation#role-hints) — `start_frame`, `end_frame` and `reference`. Seedance 2.5 and the 2.0 family take full multimodal references (reference images, video and audio); Seedance 2.5 additionally accepts **audio-only** reference input and up to 30 reference images / 10 videos / 10 audio clips (2.0 is 9 / 3 / 3). The 1.x models take start/end frames only, and `seedance-1-0-pro-fast-251015` takes a start frame only.
 
@@ -347,7 +354,7 @@ import { byteplusVideo } from '@tanstack/ai-byteplus'
 const { jobId } = await generateVideo({
   adapter: byteplusVideo('dreamina-seedance-2-5-260628'),
   prompt: 'a guitar being played in a store',
-  size: '16:9_720p',
+  size: '16:9_1080p',
   duration: 10,
   modelOptions: {
     generate_audio: true,
@@ -360,7 +367,7 @@ const { jobId } = await generateVideo({
 | Capability | Seedance 2.5 |
 | --- | --- |
 | Duration | 4–30s, or `-1` (model chooses; required for video-editing tasks) |
-| Resolution | `480p`, `720p` (default `720p`) — no 1080p / 4k |
+| Resolution | `480p`, `720p`, `1080p` (default `720p`) — no 4k |
 | Reference media | images 1–30, videos 0–10, audio 0–10; **audio-only allowed** |
 | First + last frame | yes |
 | `priority` / `generate_audio` | yes |
@@ -449,7 +456,9 @@ The suffix on a voice id tells you which generation you are asking for:
 
 The full roster lives in the [BytePlus voice list](https://docs.byteplus.com/en/docs/byteplusvoice/voicelist) and changes far more often than this package ships, so any string is accepted.
 
-Output formats are `wav`, `mp3`, `pcm` and `ogg_opus`. Reach for `modelOptions` for `ogg_opus`, for an explicit `sample_rate`, for `references` (voice cloning — up to three 30-second audio clips, addressed from the text as `@Audio1`–`@Audio3`), for `watermark`, or for word-level timings:
+`speaker` also takes a voice you cloned through Voice Replication, not only a stock id. That field is the join between replication and synthesis.
+
+Output formats are `wav`, `mp3`, `pcm` and `ogg_opus`. Reach for `modelOptions` for `ogg_opus`, for an explicit `sample_rate`, for `references` (voice cloning, up to three 30-second audio clips, addressed from the text as `@Audio1` to `@Audio3`), for `watermark`, or for word-level timings:
 
 ```typescript
 import { generateSpeech } from '@tanstack/ai'
@@ -471,10 +480,79 @@ for (const sentence of result.subtitle?.sentences ?? []) {
 }
 ```
 
+Prefer the cross-provider `timestamps: true` over `modelOptions.enable_subtitle`
+unless you want the raw BytePlus block. It sets the same flag and maps the
+response onto `result.alignment` (per word) and `result.segments` (per
+sentence), already converted to seconds:
+
+```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { byteplusSpeech } from '@tanstack/ai-byteplus'
+
+const result = await generateSpeech({
+  adapter: byteplusSpeech('seed-audio-1.0'),
+  text: 'welcome to the guitar store',
+  timestamps: true,
+})
+
+console.log(result.alignment?.unit) // 'word'
+console.log(result.alignment?.endSeconds.at(-1)) // where speech stops
+```
+
+Seed Audio 1.0 also synthesizes multi-role dialogue in one pass. Pass `turns`
+and the adapter builds the `references` array and the role-structured prompt
+for you, up to **three distinct voices** per request:
+
+```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { byteplusSpeech } from '@tanstack/ai-byteplus'
+
+// Replace SECOND_VOICE with another voice id from the BytePlus voice list.
+const SECOND_VOICE = 'your-second-voice-id'
+
+const result = await generateSpeech({
+  adapter: byteplusSpeech('seed-audio-1.0'),
+  turns: [
+    { text: 'Do you sell picks?', voice: 'en_female_stokie_uranus_bigtts' },
+    { text: 'By the till.', voice: SECOND_VOICE },
+  ],
+  timestamps: true,
+})
+
+for (const segment of result.segments ?? []) {
+  console.log(segment.startSeconds, segment.text)
+}
+```
+
+### Watermarking speech
+
+Seed Audio takes an object here, not a flag. Two markers, both off by default:
+
+- `aigc_watermark`: appends an audible rhythm marker to the end of the clip.
+- `aigc_metadata`: writes provenance into the audio header. It writes nothing unless `enable` is `true`.
+
+```typescript
+import { generateSpeech } from '@tanstack/ai'
+import { byteplusSpeech } from '@tanstack/ai-byteplus'
+
+const result = await generateSpeech({
+  adapter: byteplusSpeech('seed-audio-1.0'),
+  text: 'welcome to the guitar store',
+  modelOptions: {
+    watermark: {
+      aigc_watermark: true,
+      aigc_metadata: { enable: true, content_producer: 'guitar-store' },
+    },
+  },
+})
+```
+
+`watermark: true` is shorthand for `{ aigc_watermark: true }`, so the audible marker is what a boolean gives you. Images and video keep their own boolean `watermark`. Only speech takes the object.
+
 Three things to plan around:
 
 - **Synthesis is capped at 120 seconds of output.** The cap applies to `originalDuration` (the length before `speech_rate` is applied), which is also what BytePlus bills on.
-- **Subtitle timings are milliseconds** while `duration` and `originalDuration` are seconds. The units genuinely differ.
+- **Subtitle timings are milliseconds** on the raw `subtitle` block, while `duration` and `originalDuration` are seconds. `alignment` and `segments` are always seconds.
 - The `url` on the result expires roughly two hours after generation — persist the base64 `audio`, not the link.
 
 The client half is the standard [`useGenerateSpeech` hook](../media/text-to-speech#streaming-mode-server-route--client-hook); nothing about it is BytePlus-specific.

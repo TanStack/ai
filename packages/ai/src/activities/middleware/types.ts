@@ -40,10 +40,14 @@ export type GenerationActivity =
   | 'video'
   | 'audio'
   | 'tts'
+  | 'voice'
   | 'transcription'
   | 'embedding'
   | 'rerank'
+  | 'evaluate'
   | 'summarize'
+  | 'world'
+  | 'liveVideo'
 
 /**
  * Stable context passed to every {@link GenerationMiddleware} hook. Created

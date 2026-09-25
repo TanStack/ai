@@ -45,6 +45,10 @@ const stream = chat({
 })
 ```
 
+The factory is what selects native provider behavior, not the public name. A plain function named `web_search`, `google_search`, or `code_execution` stays a custom function. Do not hand-build `{ name: 'web_search', metadata: ... }` and expect a native payload.
+
+You can put a factory tool and your own function in the same `chat({ tools })` call if the names differ. Tool names in one `tools` array must be unique. If you pass both `webSearchTool()` and your own function named `web_search`, `chat()` throws `DuplicateToolNameError` before it talks to the provider.
+
 ## Multi-turn persistence
 
 Provider tools run on the provider's own infrastructure, so their results
@@ -85,6 +89,34 @@ const followUp = chat({
 
 The search/fetch call surfaces as a provider-executed `tool-call` part on the
 assistant message; the agent loop never tries to run it client-side.
+
+OpenAI `applyPatchTool`, `localShellTool`, and `shellTool({ environment: { type: "local" } })` are different. The model returns the call, and your app runs it. See [OpenAI adapter](../adapters/openai.md#applypatchtool).
+
+### Read web search sources
+
+OpenAI and Gemini web search calls expose a common `metadata.sources` array on
+the assistant tool-call part. Each source has a `url` and can also include a
+`title` or `pageAge`. Use this list to render source links in your UI. The
+provider still owns search execution, so do not execute the tool call in your
+application.
+
+```typescript
+import { getProviderExecutedMetadata } from '@tanstack/ai'
+import type { UIMessage } from '@tanstack/ai'
+
+function logSources(message: UIMessage) {
+  for (const part of message.parts) {
+    if (part.type !== 'tool-call') continue
+    const sources = getProviderExecutedMetadata(part)?.sources ?? []
+    for (const source of sources) {
+      console.log(source.title ?? source.url, source.url)
+    }
+  }
+}
+```
+
+The raw provider response stays available for provider-specific handling under
+`metadata.openai` or `metadata.gemini`.
 
 ## Type-level guard
 

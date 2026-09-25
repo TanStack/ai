@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-persistence",
-  "version": "0.1.4",
+  "version": "0.6.7",
   "description": "Composable state persistence for TanStack AI messages, runs, interrupts, metadata, and locks.",
   "author": "",
   "license": "MIT",
@@ -43,6 +43,7 @@
     "clean": "premove ./build ./dist",
     "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc",
@@ -62,7 +63,7 @@
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14",
+    "@vitest/coverage-v8": "4.1.10",
     "vitest": "^4.1.10"
   }
 }

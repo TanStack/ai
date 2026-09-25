@@ -491,8 +491,8 @@ export type BytePlusVideoRatio =
  * Resolution tiers are model-specific (see
  * {@link BytePlusVideoModelResolutionByName}). Two findings that still
  * contradict older BytePlus prose: there is **no 2K tier on any Seedance
- * model**, and `4k` exists only on `dreamina-seedance-2-0-260128` (Seedance
- * 2.5 is 480p/720p only, per the live ModelArk docs).
+ * model**, and `4k` exists only on `dreamina-seedance-2-0-260128`. Seedance
+ * 2.5 accepts 480p/720p/1080p (ModelArk + fal spec, 2026-08-19).
  *
  * The API matches this field case-insensitively (`4K`, `4k` and `1080P` are
  * all accepted), so this package standardizes on the lowercase spelling.
@@ -607,12 +607,12 @@ export type BytePlusVideoModelInputModalitiesByName = {
  * Type-only map from video model name to the resolutions it accepts.
  *
  * 2.0 / 1.x cells were probe-verified on 2026-07-31; 2.5 comes from the
- * public ModelArk create-task docs (2026-08-07). Note
- * `seedance-1-0-pro-fast-251015` does accept `1080p`, despite older BytePlus
- * prose listing it as 480p/720p.
+ * public ModelArk create-task docs, refreshed 2026-08-19 when native 1080p
+ * shipped. Note `seedance-1-0-pro-fast-251015` does accept `1080p`, despite
+ * older BytePlus prose listing it as 480p/720p.
  */
 export type BytePlusVideoModelResolutionByName = {
-  [DREAMINA_SEEDANCE_2_5.name]: '480p' | '720p'
+  [DREAMINA_SEEDANCE_2_5.name]: '480p' | '720p' | '1080p'
   [DREAMINA_SEEDANCE_2_0.name]: '480p' | '720p' | '1080p' | '4k'
   [DREAMINA_SEEDANCE_2_0_FAST.name]: '480p' | '720p'
   [DREAMINA_SEEDANCE_2_0_MINI.name]: '480p' | '720p'

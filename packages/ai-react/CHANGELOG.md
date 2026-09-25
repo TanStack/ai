@@ -1,5 +1,323 @@
 # @tanstack/ai-react
 
+## 0.29.1
+
+### Patch Changes
+
+- Updated dependencies [[`54d39d3`](https://github.com/TanStack/ai/commit/54d39d30704bbdbdccea756af31530cc6713fc2e), [`e4827e2`](https://github.com/TanStack/ai/commit/e4827e223a84dcfaeead4ff0575a74ba0ba1a60b), [`a620c90`](https://github.com/TanStack/ai/commit/a620c90dcfab7de11da930926f57c5148e8da127), [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb), [`74b5823`](https://github.com/TanStack/ai/commit/74b582305471eaf37a3b68595e60ed1a6f42d914), [`abb0169`](https://github.com/TanStack/ai/commit/abb0169bf96c38f59791450ce060d089a7fcd26e), [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088), [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b)]:
+  - @tanstack/ai@0.61.0
+  - @tanstack/ai-client@0.35.1
+
+## 0.29.0
+
+### Minor Changes
+
+- [#1466](https://github.com/TanStack/ai/pull/1466) [`012fb0a`](https://github.com/TanStack/ai/commit/012fb0af0d9a3f4bf7e450882c41f0394571248d) - Give the WebMCP tools on a page to your chat as client tools.
+  - `getWebMCPTools()` and `subscribeWebMCPTools()` in `@tanstack/ai-client` read `document.modelContext` and return client tools. Each tool runs through WebMCP `executeTool()`. A `filter` option skips tools. Every framework package re-exports both functions.
+  - Reject duplicate page tool names after filtering so tools from different frames cannot silently replace each other in chat.
+  - New framework APIs return a reactive list: `usePageWebMCPTools` (React, Preact, Octane, Vue, Solid), `createPageWebMCPTools` (Svelte, Remix), and `injectPageWebMCPTools` (Angular).
+  - The chat APIs in Preact, Vue, Solid, Svelte, Remix, and Angular now pick up `tools` that change after the chat is created. Vue accepts a ref or getter. Angular accepts a `Signal` or getter. Solid, Svelte, and Remix read a `get tools()` getter.
+  - `useWebMCPTools`, `createWebMCPTools`, and `injectWebMCPTools` are now `useRegisterWebMCPTools`, `createRegisterWebMCPTools`, and `injectRegisterWebMCPTools`. The old names and their options types still work, but they are deprecated. They will be removed in 1.0.0.
+
+### Patch Changes
+
+- Updated dependencies [[`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd), [`012fb0a`](https://github.com/TanStack/ai/commit/012fb0af0d9a3f4bf7e450882c41f0394571248d)]:
+  - @tanstack/ai@0.60.0
+  - @tanstack/ai-client@0.35.0
+
+## 0.28.0
+
+### Minor Changes
+
+- [#1438](https://github.com/TanStack/ai/pull/1438) [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0) - Add first-class subagents. `chat({ subagents })` starts named child agents (router spawn, or a synthetic tool when there is no router). The stream emits AG-UI `SUBAGENT_*` events with `subagentRunId`. The client stores nested `type: 'subagent'` parts. `useChat().subagents` and `part.subagent` are the same live handle, including `stop()`.
+
+  In the React chat UI kit, pass the same agents to `options.subagents` that you pass to `chat()`. A subagent card can style its own child's parts: `<Parts partsComponents={...} toolsComponents={...} />`. Each entry replaces the root entry of the same key for that card and its nested children. Keys you do not set use the root widgets. The card's tool names, tool `input` and `output`, and approvals are typed from that agent's `tools`. The root `interruptsComponents` also accepts the children's approval tools and `interrupts`.
+
+  Pass the same `defineAgent` list to `useChat({ subagents })` when you are not using the chat UI factory. `part.subagent.name` narrows to those names, and that child's message parts use the agent's tools.
+
+  A child card keeps all of the child's work: text, reasoning, tool calls, tool results, approvals, and nested children. A child can stop for an approval or a client tool. Its `SUBAGENT_FINISHED` has `outcome: { type: 'suspended' }`, and the parent run ends with that interrupt. The resume continues the same child. Pass `parentRunId: ctx.parentRunId` and `resume: ctx.resume` to the child `chat()`.
+
+  The AI devtools Conversation tab shows each subagent as a card of steps, drawn like the parent's steps. The steps are the child's server iterations when server events reach the devtools, else they come from the browser messages. The User view shows the child's text and tool outputs. Nested children show the same way. The child's card updates while it streams, and a later turn keeps the earlier turns.
+
+  Child token usage is added to the parent `RUN_FINISHED.usage[]`. Child messages travel on the AG-UI wire as their own messages, tagged with `subagentRunId`.
+
+  `@tanstack/ai` now depends on `@ag-ui/core` 1.0.0. Subagent events come from that package.
+
+  AG-UI `{ type: 'file' }` content sources now cross the wire as `ContentPartFileSource`. No adapter reads them yet, so `chat()` throws before it calls the adapter.
+
+  `RUN_FINISHED.usage[]` now carries `cacheWriteInputTokens`. `metadata.tanstack.usage` still carries `promptTokensDetails.cacheWriteTokens`, so older readers see the same usage as before.
+
+  `chat({ subagentRunId })` puts that id on the middleware context as `ctx.subagentRunId`. A child `chat()` passes `subagentRunId: ctx.subagentRunId`, so a middleware inside the child knows it runs as a subagent and which card it belongs to. The field is absent on a top-level run.
+
+  `fromSpecTokenUsage` adds every entry of `RUN_FINISHED.usage[]`. Before, it read only the first entry. A run with more than one usage entry now reports the total.
+
+### Patch Changes
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+  - @tanstack/ai-client@0.34.0
+
+## 0.27.3
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+  - @tanstack/ai-client@0.33.2
+
+## 0.27.2
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+  - @tanstack/ai-client@0.33.1
+
+## 0.27.1
+
+### Patch Changes
+
+- Updated dependencies [[`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9), [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6)]:
+  - @tanstack/ai@0.56.0
+  - @tanstack/ai-client@0.33.0
+
+## 0.27.0
+
+### Minor Changes
+
+- [#1408](https://github.com/TanStack/ai/pull/1408) [`62ba217`](https://github.com/TanStack/ai/commit/62ba217d31231fe3ff43ae71b649e047d3a6c1b1) - Re-export the headless client from every framework package, and add a `/byok` subpath so you can import `defineByok` without installing `@tanstack/ai-client`.
+
+### Patch Changes
+
+- Updated dependencies [[`db79c23`](https://github.com/TanStack/ai/commit/db79c23e0591bf42f64e7809d3d50bf6950c2e61), [`3852e16`](https://github.com/TanStack/ai/commit/3852e16158168b911f544f6a23f377fb3db9cd45)]:
+  - @tanstack/ai-client@0.32.1
+
+## 0.26.0
+
+### Minor Changes
+
+- [#1400](https://github.com/TanStack/ai/pull/1400) [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410) - Page long chat threads on hydrate. Pass `history: { pageSize }` with `persistence: true`. Then call `loadOlderMessages()` to prepend older turns. `withPersistence` merges incoming messages by id so a short client list keeps stored extras. `loadThread` accepts optional `limit` / `before` and can return a `MessagePage`.
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+  - @tanstack/ai-client@0.32.0
+
+## 0.25.0
+
+### Minor Changes
+
+- [#1338](https://github.com/TanStack/ai/pull/1338) [`5ae2cd2`](https://github.com/TanStack/ai/commit/5ae2cd2c3c4e2cabf2758a1a2eca9c14d44cb626) - Render `TextPart` markdown with `@tanstack/markdown` instead of the per-framework unified stacks (`react-markdown`, `@crazydos/vue-markdown`, `solid-markdown` plus `remark-gfm`, `rehype-raw`, `rehype-highlight`, `rehype-sanitize`). This drops the unified dependency tree and uses TanStack Markdown's streaming profile (raw HTML escaped, executable URLs removed, empty trailing blocks suppressed while a response streams).
+
+  **Breaking:** the `remarkPlugins`, `rehypePlugins`, and `disableDefaultPlugins` props are removed. Use `extensions` (TanStack Markdown extensions) and `highlighter` (a synchronous `CodeHighlighter`, for example from `@tanstack/highlight/markdown`) instead. Fenced code renders as `<pre class="tm-code"><code class="language-…">` until a `highlighter` is passed. This is not a visible change: the previous chain ran `rehype-sanitize` last, which stripped the `hljs-*` classes `rehype-highlight` added, so the built-in `TextPart` never showed highlighted code. Raw HTML in message content is now escaped rather than sanitized and rendered. Bare URLs are not auto-linked. Task lists no longer get `contains-task-list` or `task-list-item`. The Solid `components` prop is removed. React keeps `components` as a tag-name map with normal HTML props (`href`, `className`). `inline` and `node` are not passed.
+
+### Patch Changes
+
+- Updated dependencies [[`db017f6`](https://github.com/TanStack/ai/commit/db017f662e8b2c9c7301c8510047568ff87f3ee6)]:
+  - @tanstack/ai@0.54.1
+
+## 0.24.1
+
+### Patch Changes
+
+- Updated dependencies [[`8de8242`](https://github.com/TanStack/ai/commit/8de8242beb973cc6b1d1d781c81d922bd296736e), [`c17bc95`](https://github.com/TanStack/ai/commit/c17bc951ca783d8023bf54d69035c19c0c72ea2f), [`53e2ec0`](https://github.com/TanStack/ai/commit/53e2ec082b40d8c3fcd09f408c29f0b895436198), [`8689cb5`](https://github.com/TanStack/ai/commit/8689cb5ed7fadfb6ca7208e989422bde9e8c6145), [`6269eff`](https://github.com/TanStack/ai/commit/6269eff90e770205ffd9cae8c5989b8ff02b57ce)]:
+  - @tanstack/ai-client@0.31.1
+  - @tanstack/ai@0.54.0
+
+## 0.24.0
+
+### Minor Changes
+
+- [#1302](https://github.com/TanStack/ai/pull/1302) [`82ced0f`](https://github.com/TanStack/ai/commit/82ced0f5018297e5756828ecc4d312ba78adeaab) - Add the `registerWebMCPTools` registrar to `@tanstack/ai-client`. Each framework package adds a lifecycle wrapper through `useWebMCPTools`, `createWebMCPTools`, or `injectWebMCPTools`.
+
+### Patch Changes
+
+- Updated dependencies [[`21775ee`](https://github.com/TanStack/ai/commit/21775ee2d23dd594cdc184678ff587341bd74871), [`82ced0f`](https://github.com/TanStack/ai/commit/82ced0f5018297e5756828ecc4d312ba78adeaab)]:
+  - @tanstack/ai@0.53.0
+  - @tanstack/ai-client@0.31.0
+
+## 0.23.0
+
+### Minor Changes
+
+- [#1252](https://github.com/TanStack/ai/pull/1252) [`a4ab03e`](https://github.com/TanStack/ai/commit/a4ab03e213dcda2cd1120c9e7bf4824650996fae) - Chat UI now lives on the framework packages at `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, `@tanstack/ai-vue/ui`, and `@tanstack/ai-svelte/ui`.
+
+  `createChatHook` registers widgets in named groups and returns `useAppChat` (Svelte: `createAppChat`) and `useChatContext`. `useAppChat()` mixes `AppChat` onto the instance, so you render `<chat.AppChat />`.
+
+  ```tsx
+  const { useAppChat, useChatContext } = createChatHook({
+    options: chatOptions,
+    context: { chatContext, partContext, interruptContext },
+    components: { input: ChatInput, layout: ChatLayout, message: ChatMessage },
+    toolsComponents: { getWeather: WeatherTool },
+    interruptsComponents: { generic: { choosePlan: ChoosePlan } },
+    partsComponents: { text: TextPart, fallback: FallbackPart },
+  })
+  ```
+
+  `layout` receives `Messages`, `Interrupts`, and `Input` as components, and `message` receives `Parts`. `Input` is on the props only when the config registers an `input`.
+
+  `createChatUI` takes the same groups as its second argument for manual traversal.
+
+- [#1252](https://github.com/TanStack/ai/pull/1252) [`a4ab03e`](https://github.com/TanStack/ai/commit/a4ab03e213dcda2cd1120c9e7bf4824650996fae) - Add typed headless `createChatUI()` adapters on `@tanstack/ai-react/ui`, `@tanstack/ai-solid/ui`, `@tanstack/ai-vue/ui`, and `@tanstack/ai-svelte/ui`. Chat options control the types of message parts, tools, structured output, and interrupts. `toolsComponents` requires a component for every tool name, and `interruptsComponents.generic` one for every registered interrupt id. `InterruptProps` pins a tool approval or a registered generic interrupt. Old Chat orchestration stays importable and deprecated until 1.0.
+
+### Patch Changes
+
+- Updated dependencies [[`a4ab03e`](https://github.com/TanStack/ai/commit/a4ab03e213dcda2cd1120c9e7bf4824650996fae)]:
+  - @tanstack/ai-client@0.30.0
+
+## 0.22.4
+
+### Patch Changes
+
+- Updated dependencies [[`49fc54c`](https://github.com/TanStack/ai/commit/49fc54ca0aacf2fc60bb36647a61a23559dda4bc), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7)]:
+  - @tanstack/ai@0.52.0
+  - @tanstack/ai-client@0.29.2
+
+## 0.22.3
+
+### Patch Changes
+
+- Updated dependencies [[`5dc4e1a`](https://github.com/TanStack/ai/commit/5dc4e1a08728b410f85956093ccef621d12b4d6b), [`a7e0798`](https://github.com/TanStack/ai/commit/a7e079872af372496728d25e6ec23149cd5e04b9), [`6a083bf`](https://github.com/TanStack/ai/commit/6a083bfcfaa4fd0c83368c4d10067e5c2298e22c)]:
+  - @tanstack/ai@0.51.0
+  - @tanstack/ai-client@0.29.1
+
+## 0.22.2
+
+### Patch Changes
+
+- Updated dependencies [[`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b), [`4e9c5d2`](https://github.com/TanStack/ai/commit/4e9c5d2887dc9a3d64fce6ed424aa68f451e20f6), [`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b)]:
+  - @tanstack/ai@0.50.0
+  - @tanstack/ai-client@0.29.0
+
+## 0.22.1
+
+### Patch Changes
+
+- Updated dependencies [[`ad3840c`](https://github.com/TanStack/ai/commit/ad3840c44bd09860b29cd22f24a0cdce3adaf9dc), [`67ce4e5`](https://github.com/TanStack/ai/commit/67ce4e529c42e64d4591f996c7e3e32458d5dd7c), [`365efb8`](https://github.com/TanStack/ai/commit/365efb870e5a3fe084d0969f71781ffc772e39a0), [`a955710`](https://github.com/TanStack/ai/commit/a9557101048286c225145bad058ca81ff275b330), [`a74817a`](https://github.com/TanStack/ai/commit/a74817a38e8deb4c7ff86d81067db12befbadf5d)]:
+  - @tanstack/ai-client@0.28.0
+  - @tanstack/ai@0.49.1
+
+## 0.22.0
+
+### Minor Changes
+
+- [#906](https://github.com/TanStack/ai/pull/906) [`b7ebcb0`](https://github.com/TanStack/ai/commit/b7ebcb0bbe63e425facb5e38f138bd0cd36637dd) - Add headless BYOK: `defineByok` in `@tanstack/ai-client/byok`, pass `byok` into chat and generation hooks, and read keys on the relay with `getByokKey` from `@tanstack/ai/byok/server`. Provider ids are open slugs (`x-byok-<slug>`). Each adapter exports a `{ id, label, env? }` object (`openaiByok`, …); `id` is required. `env` is the env var name(s) for the relay — names only; the client never reads `process.env`. A wrong key surfaces as the provider's own `401` through the relay, so no client-side key check is needed. OpenRouter PKCE (`@tanstack/ai-openrouter/pkce`) saves the minted key under `openrouterByok.id`.
+
+### Patch Changes
+
+- Updated dependencies [[`b7ebcb0`](https://github.com/TanStack/ai/commit/b7ebcb0bbe63e425facb5e38f138bd0cd36637dd)]:
+  - @tanstack/ai@0.49.0
+  - @tanstack/ai-client@0.27.0
+
+## 0.21.3
+
+### Patch Changes
+
+- Updated dependencies [[`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46)]:
+  - @tanstack/ai@0.48.0
+  - @tanstack/ai-client@0.26.0
+
+## 0.21.2
+
+### Patch Changes
+
+- [#1082](https://github.com/TanStack/ai/pull/1082) [`849d666`](https://github.com/TanStack/ai/commit/849d666fa3cfa2b29d814c80d1f9f8cc9abf42d7) - Fix audio-recorder transforming overloads so options without `onComplete`
+  (e.g. `{ onError }`) keep `AudioRecording` instead of collapsing
+  `recording`/`stop()` to `unknown` (issue [#1001](https://github.com/TanStack/ai/issues/1001)).
+
+  The transforming overload now requires `onComplete`, matching the fix already
+  landed in the Octane port ([#1000](https://github.com/TanStack/ai/issues/1000)). Runtime behavior is unchanged.
+
+- Updated dependencies [[`7c4b73a`](https://github.com/TanStack/ai/commit/7c4b73af5023e7ab7e113121644213c75d611aac), [`87e497f`](https://github.com/TanStack/ai/commit/87e497f2e282c2389579051ec743fa4cc8cf493e), [`2c7381c`](https://github.com/TanStack/ai/commit/2c7381c602d8fd05c20a0b41863f42b2568c0603), [`c0ba484`](https://github.com/TanStack/ai/commit/c0ba48402a807d6482e1cb36a0cf393d0cd26b2b), [`d34b6c0`](https://github.com/TanStack/ai/commit/d34b6c01fbc9ed83e5dc9bd2725eb05f6b03bfd4)]:
+  - @tanstack/ai@0.47.3
+  - @tanstack/ai-client@0.25.2
+
+## 0.21.1
+
+### Patch Changes
+
+- [#1121](https://github.com/TanStack/ai/pull/1121) [`bd221d9`](https://github.com/TanStack/ai/commit/bd221d986433fdf460d9dfc2a9e96ff9fa0f3342) - `onInterruptStateChange` now identifies snapshot restoration (`hydrate`) separately from streamed or client-initiated interrupt updates (`live`). The source follows each state publication, so cancelling a restored batch from the callback produces subsequent `live` updates without re-entering hydration. Client-tool interrupts remain hidden from the public list in both cases; `hydrate` lets an app cancel a restored batch without cancelling one that is still running.
+
+- Updated dependencies [[`bd221d9`](https://github.com/TanStack/ai/commit/bd221d986433fdf460d9dfc2a9e96ff9fa0f3342), [`8bd6f70`](https://github.com/TanStack/ai/commit/8bd6f7054248ddf9bda2929bb105a8aa5054b9d2), [`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d)]:
+  - @tanstack/ai-client@0.25.1
+  - @tanstack/ai@0.47.1
+
+## 0.21.0
+
+### Minor Changes
+
+- [#1102](https://github.com/TanStack/ai/pull/1102) [`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29) - Add first-party generic interrupts.
+
+  Use `defineInterrupt()` to describe a pause, register it on `chat()` and the client hooks, and return requests from `onInterruptBoundary`. The client gets typed payloads and `resolveInterrupt`. Resume validates the answer and runs `onInterruptResolution`.
+
+  `GenericInterrupt<typeof reviewPlan>` types one bound card. `INTERRUPT_BOUNDARY_PHASES` and `INTERRUPT_TOOL_RESUMES` are the shared phase and resume lists.
+
+### Patch Changes
+
+- Updated dependencies [[`5f68cbc`](https://github.com/TanStack/ai/commit/5f68cbccf3621b48dae73cedcb1e59cb4cbe72b4), [`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29)]:
+  - @tanstack/ai@0.47.0
+  - @tanstack/ai-client@0.25.0
+
+## 0.20.0
+
+### Minor Changes
+
+- [#969](https://github.com/TanStack/ai/pull/969) [`ecd12a4`](https://github.com/TanStack/ai/commit/ecd12a408987bc75649c21aada6948282a2a66dd) - WebSocket transport: a full-duplex, resumable third transport alongside SSE and
+  NDJSON, reusing the same delivery-durability seam.
+
+  On the server, `@tanstack/ai` adds `toWebSocketStream(socket, request, { onRun,
+durability, batch, heartbeatMs, idleTimeoutMs, debug })` — a portable core that
+  pumps a conversation over an already-accepted WHATWG `WebSocketLike` server
+  socket (Node via `ws`, Bun, etc.), and `toWebSocketResponse(request, { onRun,
+… })`, a thin wrapper that upgrades via `WebSocketPair` and returns a 101
+  `Response` on Cloudflare Workers/Durable Objects (it throws elsewhere, pointing
+  you at `toWebSocketStream`). Because one socket outlives many `chat()` turns
+  (client-tool resubmits, follow-up user messages), you pass an `onRun(ctx) =>
+AsyncIterable<StreamChunk>` factory instead of a prebuilt stream — the helper
+  calls it per inbound `RunAgentInput` frame. The socket is conversation-scoped:
+  it stays open across turns and closes on client close or the idle timeout
+  (which never fires while a turn is still streaming), with a periodic
+  `{ type: 'ping' }` heartbeat. An `{ type: 'abort', runId }` control frame
+  aborts only that turn, leaving the socket open. A turn that fails is surfaced
+  to the client as a live `RUN_ERROR` frame, mirroring the HTTP transports. Durability is keyed per turn and reuses
+  the existing `durableStreamSource`, so server→client frames carry the same
+  `{ id, chunk }` envelope as NDJSON. `resumeWebSocketStream(socket, { adapter })`
+  and `resumeWebSocketResponse({ adapter })` replay a run read-only from the
+  durability log (no model call).
+
+  On the client, `webSocket(url, options)` (in `@tanstack/ai-client`, re-exported
+  from `@tanstack/ai-react`, `-solid`, `-vue`, `-svelte`, and `-angular`) is a
+  full-duplex `subscribe` + `send` connection adapter for `useChat`. `send()`
+  writes a `RunAgentInput` frame; `subscribe()` yields inbound chunks, ignores
+  heartbeats, unwraps durable envelopes, and auto-reconnects a dropped durable run
+  by reopening with `?runId=&offset=` (browsers can't set a `Last-Event-ID`
+  handshake header, so the offset rides in the URL). The reconnect bookkeeping
+  (offset de-dupe, no-progress ceiling → `StreamReconnectLimitError`) is shared
+  with the HTTP adapters via the new `createReconnectTracker`, and a fatal drop
+  surfaces to the consumer (`StreamReadError` / `StreamReconnectLimitError`)
+  instead of hanging. Aborting a run (`stop()` in `useChat`) sends the
+  `{ type: 'abort', runId }` frame so the server cancels the turn instead of
+  generating to completion, and `joinRun()` opens its own replay socket so a
+  rejoin never collides with the live conversation socket.
+
+### Patch Changes
+
+- [#1154](https://github.com/TanStack/ai/pull/1154) [`f6b9d89`](https://github.com/TanStack/ai/commit/f6b9d89e7365f0cb30a41cf3a46b7dd237fbc73c) - Mint omitted `threadId` after the view mounts, not during render. DevTools binds the hook row to `threadId`. Persistence that is on (`true` or a storage adapter) requires a `threadId` at compile time, and throws at runtime if it is missing. Chat and generation clients no longer accept a separate `id` option. Use `threadId`.
+
+- Updated dependencies [[`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b), [`4599019`](https://github.com/TanStack/ai/commit/4599019eb02f72562ef155b69b8f61f9d25d187a), [`f6b9d89`](https://github.com/TanStack/ai/commit/f6b9d89e7365f0cb30a41cf3a46b7dd237fbc73c), [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b), [`ecd12a4`](https://github.com/TanStack/ai/commit/ecd12a408987bc75649c21aada6948282a2a66dd)]:
+  - @tanstack/ai@0.46.0
+  - @tanstack/ai-client@0.24.0
+
+## 0.19.3
+
+### Patch Changes
+
+- Updated dependencies [[`d10dfe6`](https://github.com/TanStack/ai/commit/d10dfe6eca788ae52631d45e5599aa0c45e9ba37), [`f492bc9`](https://github.com/TanStack/ai/commit/f492bc9d6c2848bebbaea03303df0640e80e6e5a), [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b), [`c63319e`](https://github.com/TanStack/ai/commit/c63319e34a2ca2f1d56b90addf28784f7c3e13ad), [`b09e010`](https://github.com/TanStack/ai/commit/b09e010b32932c812e65b1e14f6faa2b0e6d5cb8), [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d)]:
+  - @tanstack/ai@0.45.0
+  - @tanstack/ai-client@0.23.3
+
 ## 0.19.2
 
 ### Patch Changes

@@ -30,3 +30,16 @@ export function isProviderExecutedToolCall(
 ): boolean {
   return getProviderExecutedMetadata(toolCall) !== null
 }
+
+/**
+ * True when `id` is a `${parentId}-segment-${n}` message. The wire and the
+ * run loop split one provider turn into segments at thinking that follows a
+ * provider-executed tool call, to keep signed thinking order. Readers fold a
+ * segment back into its parent so the UI still shows one message.
+ */
+export function isAssistantSegmentOf(
+  id: string | undefined,
+  parentId: string,
+): boolean {
+  return id?.startsWith(`${parentId}-segment-`) === true
+}

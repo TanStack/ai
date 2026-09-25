@@ -1,5 +1,6 @@
 import type {
   AnyClientTool,
+  InterruptDefinition,
   InferSchemaType,
   ModelMessage,
   RunAgentResumeItem,
@@ -10,7 +11,7 @@ import type {
   BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
-  ChatInterrupt,
+  ResolvableChatInterrupt,
   ChatInterruptState,
   ChatRequestBody,
   ChatResumeState,
@@ -27,7 +28,7 @@ import type {
   UIMessage,
   WhenBusy,
 } from '@tanstack/ai-client'
-import type { DeepReadonly, ShallowRef } from 'vue'
+import type { DeepReadonly, MaybeRefOrGetter, ShallowRef } from 'vue'
 
 // Re-export types from ai-client
 export type {
@@ -80,8 +81,10 @@ export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = DistributedOmit<
-  ChatClientOptions<TTools, TContext>,
+  ChatClientOptions<TTools, TContext, TInterrupts>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -94,13 +97,15 @@ export type UseChatOptions<
   | 'onRunIdChange'
   | 'context'
   | 'devtools'
-  // `id` is not a hook option: the hook's identity is its `threadId`, which is
-  // also the persistence key. Persist across reloads by passing a stable
-  // `threadId`; there is no separate id to set.
-  | 'id'
+  | 'tools'
 > & {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /**
+   * Client-side tools with execution logic. Pass a ref or getter to change
+   * the tools after the chat is created.
+   */
+  tools?: MaybeRefOrGetter<TTools>
   live?: boolean
   /**
    * Standard-schema-compatible schema (Zod, Valibot, ArkType, or plain JSON
@@ -117,9 +122,12 @@ export type UseChatOptions<
 export type UseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = BaseUseChatReturn<
   TTools,
-  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown
+  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
+  TInterrupts
 > &
   (TSchema extends SchemaInput
     ? {
@@ -140,6 +148,8 @@ export type UseChatReturn<
 interface BaseUseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TData = unknown,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   /**
    * Current messages in the conversation. When `outputSchema` is supplied,
@@ -151,6 +161,8 @@ interface BaseUseChatReturn<
   /**
    * Send a message and get a response.
    * Can be a simple string or multimodal content with images, audio, etc.
+   * Pass `{ whenBusy }` to override the queue policy for a single send, or
+   * `{ body }` to merge per-call JSON into this request's `forwardedProps`.
    */
   sendMessage: (
     content: string | MultimodalContent,
@@ -203,16 +215,20 @@ interface BaseUseChatReturn<
    * it, correlate a log line).
    */
   runId: DeepReadonly<ShallowRef<string | null>>
-  interrupts: DeepReadonly<ShallowRef<BoundInterrupts<TTools>>>
+  interrupts: Readonly<ShallowRef<BoundInterrupts<TTools, TInterrupts>>>
   /** @deprecated Use `interrupts`. */
-  pendingInterrupts: DeepReadonly<ShallowRef<BoundInterrupts<TTools>>>
+  pendingInterrupts: Readonly<ShallowRef<BoundInterrupts<TTools, TInterrupts>>>
   interruptErrors: DeepReadonly<
-    ShallowRef<ChatInterruptState<TTools>['interruptErrors']>
+    ShallowRef<ChatInterruptState<TTools, TInterrupts>['interruptErrors']>
   >
   resuming: DeepReadonly<ShallowRef<boolean>>
   resolveInterrupts: {
     (approved: boolean): void
-    (resolver: (interrupt: ChatInterrupt<TTools>) => undefined): void
+    (
+      resolver: (
+        interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+      ) => undefined,
+    ): void
   }
   cancelInterrupts: () => void
   retryInterrupts: () => void
@@ -240,6 +256,16 @@ interface BaseUseChatReturn<
    * Whether a response is currently being generated
    */
   isLoading: DeepReadonly<ShallowRef<boolean>>
+
+  /**
+   * True when the last hydrate or older-page response said more messages exist.
+   */
+  hasOlderMessages: DeepReadonly<ShallowRef<boolean>>
+
+  /**
+   * Fetch the next older window and put it in front of the painted messages.
+   */
+  loadOlderMessages: () => Promise<void>
 
   /**
    * Current error, if any

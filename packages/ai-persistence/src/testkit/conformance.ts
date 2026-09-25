@@ -19,7 +19,9 @@
  * a SKIPPED case, never as a pass. Silent gaps are not allowed: a case that did
  * not run must never be indistinguishable from one that did. A chat-only
  * adapter therefore passes `skip: ['generationRuns', 'artifacts', 'blobs']`,
- * and a generation-only one skips the four state stores.
+ * and a generation-only one skips the four state stores. `listByParentRun` is
+ * the exception. Subagent support is opt-in, its cases skip on their own, and
+ * a `'runs.listByParentRun'` entry is accepted but has no effect.
  *
  * NOT COVERED HERE: the four durable-run fields on `RunRecord` (`sandboxKey`,
  * `detachedSince`, `cancelRequested`, `driverEpoch`). They exist for durable
@@ -52,10 +54,27 @@ type MakePersistence = () => Promise<AIPersistence> | AIPersistence
  * policy in `../types.ts`. It was optional for one release cycle and silently
  * disabled reconnect on every backend that had not caught up.
  */
-type OptionalRunStoreMethod = 'listByThread' | 'listReclaimable'
+type OptionalRunStoreMethod =
+  | 'listByThread'
+  | 'listByParentRun'
+  | 'listReclaimable'
 
 /** Dotted `store.method` key a backend passes to declare an omitted method. */
 export type PersistenceConformanceMethodKey = `runs.${OptionalRunStoreMethod}`
+
+/**
+ * Checks added after the suite shipped. They are off by default, so a backend
+ * that passed before still passes. Turn them on with `options.checks`.
+ *
+ * - `'messages.metadata'`: `saveThread` / `loadThread` keep message `metadata`,
+ *   including `metadata.tanstack.run.id` (run timings on reload need it).
+ * - `'runs.listByThread.state'`: `listByThread` returns each run's current
+ *   `status` and `finishedAt` after `update` (`reconstructChat`'s
+ *   `includeRuns` needs it).
+ */
+export type PersistenceConformanceCheck =
+  | 'messages.metadata'
+  | 'runs.listByThread.state'
 
 /**
  * Unwrap a value the store contract says must be present. Fails the test with a
@@ -105,8 +124,17 @@ export interface PersistenceConformanceOptions {
    * OPTIONAL store methods this backend intentionally does not implement, as
    * `'runs.listByThread'` and friends. A method that is absent and NOT listed
    * here fails the suite; a listed one is reported as a skipped case.
+   * `listByParentRun` is the exception. Subagent support is opt-in, its cases
+   * skip on their own, and a `'runs.listByParentRun'` entry is accepted but
+   * has no effect.
    */
   skipMethods?: Array<PersistenceConformanceMethodKey>
+  /**
+   * Opt-in checks, off by default so existing backends keep passing. A check
+   * that is not listed is reported as a skipped case. See
+   * {@link PersistenceConformanceCheck}.
+   */
+  checks?: Array<PersistenceConformanceCheck>
 }
 
 /**
@@ -123,6 +151,7 @@ export function runPersistenceConformance(
   const skipMethods = new Set<PersistenceConformanceMethodKey>(
     options?.skipMethods ?? [],
   )
+  const checks = new Set<PersistenceConformanceCheck>(options?.checks ?? [])
 
   describe(`AIPersistence conformance: ${name}`, () => {
     let persistence: AIPersistence
@@ -170,7 +199,18 @@ export function runPersistenceConformance(
       )
     }
 
+    // Subagent support is opt-in. A store without `listByParentRun` skips the
+    // subagent checks (vitest reports them as skipped) and needs no
+    // `skipMethods` entry.
+    function supportsSubagents(
+      runs: RunStore,
+    ): runs is RunStore & Required<Pick<RunStore, 'listByParentRun'>> {
+      return typeof runs.listByParentRun === 'function'
+    }
+
     describe('messages', () => {
+      // One-argument loadThread is the full-thread contract. Paging
+      // (`limit` / `before`) is an optional hint; this suite does not require it.
       it('round-trips a thread and returns [] for unknown threads', async (ctx) => {
         const store = resolveStore('messages')
         if (!store) return ctx.skip('store not provided')
@@ -181,7 +221,9 @@ export function runPersistenceConformance(
           { role: 'user', content: 'hi' },
           { role: 'assistant', content: 'hello' },
         ])
-        expect(await store.loadThread('thread-msg')).toEqual([
+        const loaded = await store.loadThread('thread-msg')
+        expect(Array.isArray(loaded)).toBe(true)
+        expect(loaded).toEqual([
           { role: 'user', content: 'hi' },
           { role: 'assistant', content: 'hello' },
         ])
@@ -253,6 +295,32 @@ export function runPersistenceConformance(
         await store.saveThread('thread-rich', rich)
         expect(await store.loadThread('thread-rich')).toEqual(rich)
       })
+
+      it('round-trips message metadata', async (ctx) => {
+        if (!checks.has('messages.metadata')) {
+          return ctx.skip(
+            "opt-in check: pass { checks: ['messages.metadata'] }",
+          )
+        }
+        const store = resolveStore('messages')
+        if (!store) return ctx.skip('store not provided')
+
+        const withMetadata: Array<ModelMessage> = [
+          {
+            role: 'user',
+            content: 'hi',
+            metadata: { author: { id: 'user-42' } },
+          },
+          {
+            role: 'assistant',
+            content: 'hello',
+            metadata: { tanstack: { run: { id: 'run-1' } }, custom: 1 },
+          },
+        ]
+
+        await store.saveThread('thread-metadata', withMetadata)
+        expect(await store.loadThread('thread-metadata')).toEqual(withMetadata)
+      })
     })
 
     describe('runs', () => {
@@ -298,6 +366,13 @@ export function runPersistenceConformance(
           finishedAt: 2000,
           usage: { promptTokens: 3, completionTokens: 4, totalTokens: 7 },
         })
+
+        const resumedAfterUpdate = await store.createOrResume({
+          runId: 'run-1',
+          threadId: 'thread-different',
+          startedAt: 9999,
+        })
+        expect(resumedAfterUpdate).toEqual(done)
 
         // `error` is a structured RunError: the prose `message` plus the
         // optional machine-branchable `code`. Both must survive the round-trip,
@@ -354,6 +429,66 @@ export function runPersistenceConformance(
           status: 'completed',
           startedAt: 10,
           finishedAt: 20,
+        })
+      })
+
+      // `parentRunId`, `subagentRunId`, and `name` travel with createOrResume.
+      // A parent row omits them. A child row keeps the values from the first
+      // insert. A later createOrResume for that runId must not overwrite them.
+      // Only a store with subagent support (`listByParentRun`) must keep them.
+      it('round-trips subagent link fields and ignores them on resume', async (ctx) => {
+        const store = resolveStore('runs')
+        if (!store) return ctx.skip('store not provided')
+        if (!supportsSubagents(store)) {
+          return ctx.skip('runs.listByParentRun not implemented')
+        }
+
+        const parent = await store.createOrResume({
+          runId: 'lp-parent',
+          threadId: 'lp-thread',
+          startedAt: 1,
+        })
+        expect(parent.parentRunId).toBeUndefined()
+        expect(parent.subagentRunId).toBeUndefined()
+        expect(parent.name).toBeUndefined()
+
+        const child = await store.createOrResume({
+          runId: 'lp-child',
+          threadId: 'subagent:lp-child',
+          startedAt: 2,
+          parentRunId: 'lp-parent',
+          subagentRunId: 'lp-sub',
+          name: 'researcher',
+        })
+        expect(child).toMatchObject({
+          runId: 'lp-child',
+          threadId: 'subagent:lp-child',
+          startedAt: 2,
+          parentRunId: 'lp-parent',
+          subagentRunId: 'lp-sub',
+          name: 'researcher',
+        })
+
+        const resumed = await store.createOrResume({
+          runId: 'lp-child',
+          threadId: 'lp-other-thread',
+          startedAt: 99,
+          parentRunId: 'lp-other-parent',
+          subagentRunId: 'lp-other-sub',
+          name: 'writer',
+        })
+        expect(resumed).toMatchObject({
+          runId: 'lp-child',
+          threadId: 'subagent:lp-child',
+          startedAt: 2,
+          parentRunId: 'lp-parent',
+          subagentRunId: 'lp-sub',
+          name: 'researcher',
+        })
+        expect(await store.get('lp-child')).toMatchObject({
+          parentRunId: 'lp-parent',
+          subagentRunId: 'lp-sub',
+          name: 'researcher',
         })
       })
 
@@ -430,6 +565,81 @@ export function runPersistenceConformance(
         })
         const listed = await runs.listByThread('lt')
         expect(listed.map((r) => r.runId)).toEqual(['lt-a', 'lt-b'])
+      })
+
+      it('lists runs by thread with their current status and finishedAt', async (ctx) => {
+        if (!checks.has('runs.listByThread.state')) {
+          return ctx.skip(
+            "opt-in check: pass { checks: ['runs.listByThread.state'] }",
+          )
+        }
+        const runs = resolveStore('runs')
+        if (!runs) return ctx.skip('store not provided')
+        if (!hasRunsMethod(runs, 'listByThread')) {
+          return ctx.skip('runs.listByThread not implemented')
+        }
+
+        await runs.createOrResume({
+          runId: 'lts-a',
+          threadId: 'lts',
+          startedAt: 1,
+        })
+        await runs.update('lts-a', { status: 'completed', finishedAt: 5 })
+
+        expect(await runs.listByThread('lts')).toEqual([
+          expect.objectContaining({
+            runId: 'lts-a',
+            status: 'completed',
+            startedAt: 1,
+            finishedAt: 5,
+          }),
+        ])
+      })
+
+      // `listByParentRun` is optional and is skipped when absent. A store that
+      // has it returns only that parent's children, oldest `startedAt` first,
+      // and [] for an unknown parent.
+      it('lists child runs by parent when supported', async (ctx) => {
+        const runs = resolveStore('runs')
+        if (!runs) return ctx.skip('store not provided')
+        if (!supportsSubagents(runs)) {
+          return ctx.skip('runs.listByParentRun not implemented')
+        }
+
+        await runs.createOrResume({
+          runId: 'lbp-parent',
+          threadId: 'lbp-thread',
+          startedAt: 1,
+        })
+        await runs.createOrResume({
+          runId: 'lbp-b',
+          threadId: 'subagent:lbp-b',
+          startedAt: 20,
+          parentRunId: 'lbp-parent',
+          subagentRunId: 'lbp-sub-b',
+          name: 'seo',
+        })
+        await runs.createOrResume({
+          runId: 'lbp-a',
+          threadId: 'subagent:lbp-a',
+          startedAt: 10,
+          parentRunId: 'lbp-parent',
+          subagentRunId: 'lbp-sub-a',
+          name: 'researcher',
+        })
+        await runs.createOrResume({
+          runId: 'lbp-other',
+          threadId: 'subagent:lbp-other',
+          startedAt: 5,
+          parentRunId: 'lbp-elsewhere',
+          subagentRunId: 'lbp-sub-other',
+          name: 'writer',
+        })
+
+        const listed = await runs.listByParentRun('lbp-parent')
+        expect(listed.map((run) => run.runId)).toEqual(['lbp-a', 'lbp-b'])
+        expect(listed.map((run) => run.name)).toEqual(['researcher', 'seo'])
+        expect(await runs.listByParentRun('lbp-missing')).toEqual([])
       })
 
       // `listReclaimable` is optional on the RunStore contract; a declared
@@ -922,24 +1132,24 @@ export function runPersistenceConformance(
 
         await store.save(
           artifact({
-            artifactId: 'art-a',
+            artifactId: '\u{10000}',
             blobKey: 'artifacts/run-art/art-a',
             createdAt: 100,
           }),
         )
         await store.save(
           artifact({
-            artifactId: 'art-b',
+            artifactId: '\u{e000}',
             sourceUrl: 'https://provider.example/expiring.png',
-            createdAt: 200,
+            createdAt: 100,
           }),
         )
         await store.save(
           artifact({ artifactId: 'art-c', runId: 'run-art-other' }),
         )
 
-        expect(await store.get('art-a')).toMatchObject({
-          artifactId: 'art-a',
+        expect(await store.get('\u{10000}')).toMatchObject({
+          artifactId: '\u{10000}',
           runId: 'run-art',
           threadId: 'thread-art',
           blobKey: 'artifacts/run-art/art-a',
@@ -948,26 +1158,91 @@ export function runPersistenceConformance(
           size: 3,
           createdAt: 100,
         })
-        expect(await store.get('art-b')).toMatchObject({
+        expect(await store.get('\u{e000}')).toMatchObject({
           sourceUrl: 'https://provider.example/expiring.png',
         })
 
         expect((await store.list('run-art')).map((r) => r.artifactId)).toEqual([
-          'art-a',
-          'art-b',
+          '\u{e000}',
+          '\u{10000}',
         ])
 
         // save() is insert-OR-OVERWRITE: re-saving an id corrects the record.
         await store.save(
-          artifact({ artifactId: 'art-a', name: 'renamed.png', size: 9 }),
+          artifact({ artifactId: '\u{10000}', name: 'renamed.png', size: 9 }),
         )
-        const updated = await store.get('art-a')
+        const updated = await store.get('\u{10000}')
         expect(updated).toMatchObject({ name: 'renamed.png', size: 9 })
         expect(updated?.blobKey).toBeUndefined()
         expect((await store.list('run-art')).map((r) => r.artifactId)).toEqual([
-          'art-a',
-          'art-b',
+          '\u{e000}',
+          '\u{10000}',
         ])
+      })
+
+      it('lists a thread in deterministic createdAt and artifactId order', async () => {
+        const store = resolveStore('artifacts')
+        if (!store) return
+
+        await store.save(
+          artifact({
+            artifactId: 'thread-b',
+            threadId: 'thread-order',
+            createdAt: 2,
+          }),
+        )
+        await store.save(
+          artifact({
+            artifactId: 'thread-a',
+            threadId: 'thread-order',
+            createdAt: 2,
+          }),
+        )
+        await store.save(
+          artifact({
+            artifactId: 'thread-early',
+            threadId: 'thread-order',
+            createdAt: 1,
+          }),
+        )
+        await store.save(
+          artifact({
+            artifactId: 'other',
+            threadId: 'thread-other',
+            createdAt: 0,
+          }),
+        )
+
+        expect(
+          (await store.listForThread('thread-order')).map((r) => r.artifactId),
+        ).toEqual(['thread-early', 'thread-a', 'thread-b'])
+      })
+
+      it('orders artifact IDs by UTF-8 bytes after createdAt', async () => {
+        const store = resolveStore('artifacts')
+        if (!store) return
+
+        await store.save(
+          artifact({
+            artifactId: '\u{10000}',
+            threadId: 'thread-utf8',
+            createdAt: 1,
+          }),
+        )
+        await store.save(
+          artifact({
+            artifactId: '\u{e000}',
+            threadId: 'thread-utf8',
+            createdAt: 1,
+          }),
+        )
+        await store.save(
+          artifact({ artifactId: 'a', threadId: 'thread-utf8', createdAt: 1 }),
+        )
+
+        expect(
+          (await store.listForThread('thread-utf8')).map((r) => r.artifactId),
+        ).toEqual(['a', '\u{e000}', '\u{10000}'])
       })
 
       it('deletes one artifact and every artifact for a run', async () => {

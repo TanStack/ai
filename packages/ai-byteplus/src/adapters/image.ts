@@ -1,4 +1,8 @@
-import { resolveMediaPrompt } from '@tanstack/ai'
+import {
+  isFileSource,
+  resolveMediaPrompt,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
@@ -69,6 +73,7 @@ const SUPPORTED_INPUT_ROLES: ReadonlySet<string> = new Set([
  */
 function imagePartToImageRef(part: ImagePart<MediaInputMetadata>): string {
   const { source } = part
+  if (isFileSource(source)) throw unsupportedFileSourceError('byteplus')
   if (source.type === 'url') return source.value
   if (source.value.startsWith('data:')) return source.value
   return `data:${source.mimeType.toLowerCase()};base64,${source.value}`
@@ -94,7 +99,9 @@ function describeFailures(
  *
  * BytePlus bills per generated image and does not count input tokens, so
  * `promptTokens` is always 0 and `generated_images` is surfaced as
- * `unitsBilled` — the count the price is applied to.
+ * `usage.billed` (`{ quantity, unit: 'images' }`) — the count the price is
+ * applied to. The deprecated `unitsBilled` is still populated for
+ * backward compatibility.
  */
 function buildBytePlusImageUsage(
   usage: BytePlusImageUsage | undefined,
@@ -107,6 +114,7 @@ function buildBytePlusImageUsage(
     completionTokens,
     totalTokens: usage.total_tokens ?? completionTokens,
     ...(usage.generated_images !== undefined && {
+      billed: { quantity: usage.generated_images, unit: 'images' },
       unitsBilled: usage.generated_images,
     }),
   }

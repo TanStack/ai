@@ -48,6 +48,11 @@ export interface OpenRouterModel {
   }
   per_request_limits?: Record<string, string> | null
   supported_parameters?: Array<string>
+  reasoning?: {
+    mandatory?: boolean
+    supported_efforts?: Array<string>
+    default_effort?: string
+  }
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url))

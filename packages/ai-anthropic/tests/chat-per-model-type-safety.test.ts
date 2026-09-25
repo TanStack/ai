@@ -227,6 +227,20 @@ describe('Anthropic per-model chat modelOptions gating', () => {
     })
   })
 
+  describe('claude-opus-5 — output_config effort', () => {
+    // The adapter writes `output_config.format` for this model and merges it
+    // over any caller-supplied `output_config`, so `effort` has to type-check.
+    it('accepts output_config effort', () => {
+      chat({
+        adapter: anthropicText('claude-opus-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          output_config: { effort: 'high' },
+        },
+      })
+    })
+  })
+
   describe('Model name type safety', () => {
     it('rejects unknown model names at the factory', () => {
       // @ts-expect-error - 'claude-fake-9000' is not a valid Anthropic chat model
@@ -271,6 +285,14 @@ describe('Anthropic provider options shape assertions', () => {
       expectTypeOf<Options>().not.toHaveProperty('temperature')
       expectTypeOf<Options>().not.toHaveProperty('top_p')
       expectTypeOf<Options>().not.toHaveProperty('top_k')
+    })
+  })
+
+  describe('claude-opus-5 — output_config alongside the schema', () => {
+    type Options = AnthropicChatModelProviderOptionsByName['claude-opus-5']
+
+    it('has output_config', () => {
+      expectTypeOf<Options>().toHaveProperty('output_config')
     })
   })
 

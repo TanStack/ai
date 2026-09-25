@@ -1,7 +1,25 @@
+import type { TokenUsage } from '@tanstack/ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { AnthropicTextAdapter } from '../src/adapters/text'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
+
+/** `chat()` restores a TokenUsage object on RUN_FINISHED. */
+function tokenUsageOf(chunk: unknown): TokenUsage | undefined {
+  if (typeof chunk !== 'object' || chunk === null || !('usage' in chunk)) {
+    return undefined
+  }
+  const usage = chunk.usage
+  if (
+    typeof usage !== 'object' ||
+    usage === null ||
+    Array.isArray(usage) ||
+    !('promptTokens' in usage)
+  ) {
+    return undefined
+  }
+  return usage as TokenUsage
+}
 
 const mocks = vi.hoisted(() => {
   const betaMessagesCreate = vi.fn()
@@ -91,7 +109,7 @@ describe('Anthropic usage extraction', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -153,7 +171,7 @@ describe('Anthropic usage extraction', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -163,7 +181,7 @@ describe('Anthropic usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.promptTokensDetails).toEqual({
+    expect(tokenUsageOf(doneChunk)?.promptTokensDetails).toEqual({
       cacheWriteTokens: 50,
       cachedTokens: 25,
     })
@@ -214,7 +232,7 @@ describe('Anthropic usage extraction', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -224,7 +242,7 @@ describe('Anthropic usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.providerUsageDetails).toMatchObject({
+    expect(tokenUsageOf(doneChunk)?.providerUsageDetails).toMatchObject({
       serverToolUse: {
         webSearchRequests: 3,
         webFetchRequests: 2,
@@ -273,7 +291,7 @@ describe('Anthropic usage extraction', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -286,8 +304,8 @@ describe('Anthropic usage extraction', () => {
     // No cache tokens and no server tool use: the detail objects must be
     // omitted entirely rather than emitted as empty `{}` (matches every other
     // adapter's guarded behavior).
-    expect(doneChunk?.usage?.promptTokensDetails).toBeUndefined()
-    expect(doneChunk?.usage?.providerUsageDetails).toBeUndefined()
+    expect(tokenUsageOf(doneChunk)?.promptTokensDetails).toBeUndefined()
+    expect(tokenUsageOf(doneChunk)?.providerUsageDetails).toBeUndefined()
   })
 
   it('defaults missing output_tokens to 0 instead of NaN', async () => {
@@ -331,7 +349,7 @@ describe('Anthropic usage extraction', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -341,8 +359,8 @@ describe('Anthropic usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.completionTokens).toBe(0)
-    expect(doneChunk?.usage?.totalTokens).toBe(100)
-    expect(Number.isNaN(doneChunk?.usage?.totalTokens)).toBe(false)
+    expect(tokenUsageOf(doneChunk)?.completionTokens).toBe(0)
+    expect(tokenUsageOf(doneChunk)?.totalTokens).toBe(100)
+    expect(Number.isNaN(tokenUsageOf(doneChunk)?.totalTokens)).toBe(false)
   })
 })

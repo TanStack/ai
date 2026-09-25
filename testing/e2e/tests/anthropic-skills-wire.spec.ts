@@ -76,4 +76,37 @@ test.describe('anthropic — code_execution skills wire format', () => {
       version: 'latest',
     })
   })
+
+  test('an ordinary function named web_search stays a custom tool', async ({
+    request,
+  }) => {
+    const res = await request.post('/api/anthropic-skills-wire')
+    expect(res.ok()).toBe(true)
+    const { ok, error, capturedRequest } = (await res.json()) as {
+      ok: boolean
+      error?: string
+      capturedRequest: {
+        body: Record<string, unknown> | null
+      } | null
+    }
+
+    if (!ok) {
+      throw new Error(`Route failed: ${error}`)
+    }
+
+    const tools = capturedRequest?.body?.['tools'] as
+      | Array<Record<string, unknown>>
+      | undefined
+    const customTool = tools?.find((tool) => tool['name'] === 'web_search')
+
+    expect(customTool).toMatchObject({
+      name: 'web_search',
+      type: 'custom',
+      description: 'Search an application index',
+      input_schema: {
+        properties: { query: { type: 'string' } },
+        required: ['query'],
+      },
+    })
+  })
 })

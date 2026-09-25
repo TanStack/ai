@@ -1,74 +1,124 @@
 import { describe, expect, it } from 'vitest'
-import { stripToSpec } from '../src/strip-to-spec-middleware'
+import { stripToSpec, toWireChunk } from '../src/strip-to-spec-middleware'
 import { EventType } from '../src/types'
-import type { StreamChunk } from '../src/types'
-
-function makeChunk<T extends StreamChunk['type']>(
-  type: T,
-  fields: Record<string, unknown>,
-): Extract<StreamChunk, { type: T }> {
-  return { type, timestamp: Date.now(), ...fields } as Extract<
-    StreamChunk,
-    { type: T }
-  >
-}
+import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
+import { isSpecTopLevelKey } from '../src/utilities/spec-event-keys'
 
 describe('stripToSpec', () => {
-  it('strips deprecated nested error from RUN_ERROR, keeps flat message/code', () => {
-    const chunk = makeChunk(EventType.RUN_ERROR, {
+  it('strips nested RUN_ERROR.error and top-level extras', () => {
+    const result = stripToSpec({
+      type: EventType.RUN_ERROR,
+      timestamp: 1,
       message: 'Something went wrong',
       code: 'INTERNAL_ERROR',
       error: { message: 'Something went wrong' },
-      model: 'gpt-4o',
+      model: 'gpt-5.5',
     })
-    const result = stripToSpec(chunk) as Record<string, unknown>
     expect(result).not.toHaveProperty('error')
-    expect(result).toHaveProperty('message', 'Something went wrong')
-    expect(result).toHaveProperty('code', 'INTERNAL_ERROR')
-    expect(result).toHaveProperty('model', 'gpt-4o')
+    expect(result).not.toHaveProperty('model')
+    expect(result).toMatchObject({
+      type: EventType.RUN_ERROR,
+      message: 'Something went wrong',
+      code: 'INTERNAL_ERROR',
+    })
   })
 
-  it('passes through all other events unchanged', () => {
-    const chunk = makeChunk(EventType.TOOL_CALL_START, {
+  it('keeps metadata and spec fields on TOOL_CALL_START', () => {
+    const result = stripToSpec({
+      type: EventType.TOOL_CALL_START,
       toolCallId: 'tc-1',
       toolCallName: 'getTodos',
       toolName: 'getTodos',
       index: 0,
       metadata: { foo: 'bar' },
-      model: 'gpt-4o',
+      model: 'gpt-5.5',
     })
-    const result = stripToSpec(chunk)
-    expect(result).toBe(chunk) // same reference, no copy
-  })
-
-  it('keeps model, content, finishReason, usage, result, etc.', () => {
-    const chunk = makeChunk(EventType.RUN_FINISHED, {
-      runId: 'run-1',
-      threadId: 'thread-1',
-      model: 'gpt-4o',
-      finishReason: 'stop',
-      usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
-    })
-    const result = stripToSpec(chunk) as Record<string, unknown>
-    expect(result).toHaveProperty('model', 'gpt-4o')
-    expect(result).toHaveProperty('finishReason', 'stop')
-    expect(result).toHaveProperty('usage')
-  })
-
-  it('keeps toolName, stepId, and other deprecated aliases (passthrough)', () => {
-    const chunk = makeChunk(EventType.TOOL_CALL_END, {
+    expect(result).toEqual({
+      type: EventType.TOOL_CALL_START,
       toolCallId: 'tc-1',
       toolCallName: 'getTodos',
-      toolName: 'getTodos',
-      input: { userId: '123' },
-      result: '{"items":[]}',
-      model: 'gpt-4o',
+      metadata: { foo: 'bar' },
     })
-    const result = stripToSpec(chunk) as Record<string, unknown>
-    expect(result).toHaveProperty('toolName', 'getTodos')
-    expect(result).toHaveProperty('toolCallName', 'getTodos')
-    expect(result).toHaveProperty('input')
-    expect(result).toHaveProperty('result')
-    expect(result).toHaveProperty('model', 'gpt-4o')
+    expect(result).not.toHaveProperty('toolName')
+    expect(result).not.toHaveProperty('index')
+    expect(result).not.toHaveProperty('model')
+  })
+
+  it('moves nothing and only keeps spec keys on RUN_FINISHED', () => {
+    const result = stripToSpec({
+      type: EventType.RUN_FINISHED,
+      runId: 'run-1',
+      threadId: 'thread-1',
+      model: 'gpt-5.5',
+      finishReason: 'stop',
+      usage: [{ inputTokens: 100, outputTokens: 50, totalTokens: 150 }],
+    } satisfies AdapterYieldChunk)
+    expect(result).not.toHaveProperty('model')
+    expect(result).not.toHaveProperty('finishReason')
+    expect(result).toMatchObject({
+      runId: 'run-1',
+      threadId: 'thread-1',
+      usage: [{ inputTokens: 100, outputTokens: 50, totalTokens: 150 }],
+    })
+    for (const key of Object.keys(result)) {
+      expect(isSpecTopLevelKey(EventType.RUN_FINISHED, key)).toBe(true)
+    }
+  })
+
+  it('converts TanStack TokenUsage to spec usage[] and leftover metadata', () => {
+    const result = stripToSpec({
+      type: EventType.RUN_FINISHED,
+      runId: 'run-1',
+      threadId: 'thread-1',
+      usage: {
+        promptTokens: 10,
+        completionTokens: 5,
+        totalTokens: 15,
+        cost: 0.02,
+        promptTokensDetails: { cachedTokens: 3, audioTokens: 1 },
+      },
+    })
+    if (result.type !== EventType.RUN_FINISHED) {
+      throw new Error('expected RUN_FINISHED')
+    }
+    expect(result.usage).toEqual([
+      {
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+        cachedInputTokens: 3,
+      },
+    ])
+    expect(result.metadata).toEqual({
+      tanstack: {
+        usage: {
+          cost: 0.02,
+          promptTokensDetails: { audioTokens: 1 },
+        },
+      },
+    })
+  })
+})
+
+describe('toWireChunk', () => {
+  it('moves leftover RUN_FINISHED finishReason into metadata.tanstack', () => {
+    const result = toWireChunk({
+      type: EventType.RUN_FINISHED,
+      runId: 'run-1',
+      threadId: 'thread-1',
+      finishReason: 'stop',
+      model: 'gpt-5.5',
+    } as AdapterYieldChunk)
+    expect(result).not.toHaveProperty('finishReason')
+    expect(result).not.toHaveProperty('model')
+    if (result.type !== EventType.RUN_FINISHED) {
+      throw new Error('expected RUN_FINISHED')
+    }
+    expect(result.metadata).toEqual({
+      tanstack: {
+        finishReason: 'stop',
+        model: 'gpt-5.5',
+      },
+    })
   })
 })

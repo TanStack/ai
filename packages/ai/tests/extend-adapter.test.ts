@@ -13,7 +13,8 @@ import { BaseTextAdapter } from '../src/activities/chat/adapter'
 import type { ExtendedModelDef } from '../src/extend-adapter'
 import { chat } from '../src/activities/chat'
 import { EventType } from '../src/types'
-import type { StreamChunk, TextOptions } from '../src/types'
+import type { TextOptions } from '../src/types'
+import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
 import type {
   StructuredOutputOptions,
   StructuredOutputResult,
@@ -91,7 +92,7 @@ class MockTextAdapter<TModel extends MockModel> extends BaseTextAdapter<
   /* eslint-disable @typescript-eslint/require-await */
   async *chatStream(
     _options: TextOptions<ResolveProviderOptions<TModel>>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     yield {
       type: EventType.TEXT_MESSAGE_CONTENT,
       messageId: 'mock-id',

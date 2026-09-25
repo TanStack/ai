@@ -96,20 +96,28 @@ individual interface.
 | `CodeModeExternalCallEvent` | `code_mode:external_call` | `{ function: string; args: unknown; timestamp: number }` | Code Mode, before a bound `external_*` function runs |
 | `CodeModeExternalResultEvent` | `code_mode:external_result` | `{ function: string; result: unknown; duration: number }` | Code Mode, after a successful `external_*` call |
 | `CodeModeExternalErrorEvent` | `code_mode:external_error` | `{ function: string; error: string; duration: number }` | Code Mode, when an `external_*` call throws |
-| `CodeModeSkillCallEvent` | `code_mode:skill_call` | `{ skill: string; input: unknown; timestamp: number }` | [Code Mode with Skills](../code-mode/code-mode-with-skills), before a skill runs |
-| `CodeModeSkillResultEvent` | `code_mode:skill_result` | `{ skill: string; result: unknown; duration: number; timestamp: number }` | Code Mode with Skills, after a successful skill run |
-| `CodeModeSkillErrorEvent` | `code_mode:skill_error` | `{ skill: string; error: string; duration: number; timestamp: number }` | Code Mode with Skills, when a skill throws |
-| `SkillRegisteredEvent` | `skill:registered` | `{ id: string; name: string; description: string; timestamp: number }` | when a skill is registered into the tool registry |
+| `CodeModeSnippetCallEvent` | `code_mode:snippet_call` | `{ snippet: string; input: unknown; timestamp: number }` | [Code Mode with Snippets](../code-mode/code-mode-with-snippets), before a snippet runs |
+| `CodeModeSnippetResultEvent` | `code_mode:snippet_result` | `{ snippet: string; result: unknown; duration: number; timestamp: number }` | Code Mode with Snippets, after a successful snippet run |
+| `CodeModeSnippetErrorEvent` | `code_mode:snippet_error` | `{ snippet: string; error: string; duration: number; timestamp: number }` | Code Mode with Snippets, when a snippet throws |
+| `SnippetRegisteredEvent` | `snippet:registered` | `{ id: string; name: string; description: string; timestamp: number }` | when a snippet is registered into the tool registry |
 | `StructuredOutputStartEvent` | `structured-output.start` | `{ messageId: string }` | [`chat({ outputSchema, stream: true })`](../structured-outputs/streaming), once per structured message |
 | `StructuredOutputCompleteEvent<T>` | `structured-output.complete` | `{ object: T; raw: string; reasoning?: string }` | structured-output streaming, once with the validated object |
 | `ApprovalRequestedEvent` | `approval-requested` | `{ toolCallId: string; toolName: string; input: unknown; approval: { id: string; needsApproval: true } }` | a server tool needs approval — the run pauses; see [Tool Approval Flow](../tools/tool-approval) |
 | `ToolInputAvailableEvent` | `tool-input-available` | `{ toolCallId: string; toolName: string; input: unknown }` | a client tool is invoked — the run pauses; see [Client Tools](../tools/client-tools) |
 | `UIResourceEvent` | `ui-resource` | `{ resource; serverId?: string; toolCallId: string; toolName: string; meta?: Record<string, unknown> }` | an MCP tool returns a `ui://` resource ([MCP Apps](../mcp/apps)) |
 
+## These stay CUSTOM
+
+Harness `*.session-id` events and `structured-output.start` / `structured-output.complete` stay `CUSTOM`. They are not fields on `RUN_FINISHED`.
+
+Read them with the same `chunk.type === "CUSTOM" && chunk.name === "..."` branch as the rest of this page. See [Streaming structured output](../structured-outputs/streaming) for the complete event.
+
 ## Your own custom events aren't in this union
 
-Tools can emit arbitrary, application-defined events through the
-`emitCustomEvent` context API:
+Tools and chat middleware can emit application-defined events through
+`emitCustomEvent`.
+
+A server tool receives `emitCustomEvent` on its execution context:
 
 ```ts
 import { toolDefinition } from "@tanstack/ai";
@@ -130,7 +138,48 @@ const importRows = toolDefinition({
 });
 ```
 
-These flow over the wire exactly like the built-in events — same `CUSTOM`
+Chat middleware calls the same helper on `ChatMiddlewareContext`. The engine
+yields the chunk while the hook is still running, so a long `onConfig` can
+send `started` before the work finishes:
+
+```ts
+import { type ChatMiddleware } from "@tanstack/ai";
+
+async function prepare() {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 1);
+  });
+}
+
+const progress: ChatMiddleware = {
+  name: "progress",
+  async onConfig(ctx) {
+    if (ctx.phase !== "beforeModel") return;
+    ctx.emitCustomEvent("my-app:progress", { step: "prepare" });
+    await prepare();
+    ctx.emitCustomEvent("my-app:progress", { step: "ready" });
+  },
+};
+```
+
+With durability on the response, each of these events flushes as soon as it
+is emitted, so `prepare` reaches the client while `prepare()` is still
+running. High-volume names stay in the durability batch:
+`process.stdout`, `process.stderr`, `sandbox.file`, and `sandbox.file.diff`.
+Pass `{ batch: true }` to keep one of your own events in that batch:
+
+```ts
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const noisy: ChatMiddleware = {
+  name: "noisy",
+  async onConfig(ctx) {
+    ctx.emitCustomEvent("my-app:ticks", { n: 1 }, { batch: true });
+  },
+};
+```
+
+These flow over the wire exactly like the built-in events: same `CUSTOM`
 chunk shape, same runtime behavior. But `'my-app:progress'` isn't one of the
 literal names in `KnownCustomEvent`, so it's intentionally absent from
 `ChatStream`'s type. This is the same tradeoff `StructuredOutputStream`
@@ -167,8 +216,9 @@ for the branches that read your own.
 
 ## Related
 
+- [Event metadata](./metadata) — `metadata.tanstack` fields a custom AG-UI server must send so `useChat` gets `finishReason` and model.
 - [Sandbox Events](../sandbox/events) — the sandbox- and harness-specific rows of this table, in context, plus `sandbox.file.diff`'s opt-in.
 - [Observability](../sandbox/observability) — the server-side hook accessors (`before()`/`after()`/`diff()`) that back `sandbox.file.diff`.
 - [Showing Code Mode in the UI](../code-mode/client-integration) — rendering the `code_mode:*` events live.
 - [Streaming UIs](../structured-outputs/streaming) — reading `structured-output.complete` end to end.
-- [Streaming](../chat/streaming) — the standard AG-UI `StreamChunk` lifecycle this union extends.
+- [Stream Events](../chat/stream-events) for the standard AG-UI `StreamChunk` lifecycle this union extends.

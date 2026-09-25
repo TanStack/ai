@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it, vi } from 'vitest'
-import { chat } from '@tanstack/ai'
+import { chat, createInterruptBinding, defineInterrupt } from '@tanstack/ai'
 import {
   EventType,
   canonicalInterruptJson,
@@ -25,7 +25,7 @@ import type {
 } from '@tanstack/ai/client'
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { InterruptManagerSubmission } from '../src/interrupt-manager'
-import type { ChatInterrupt } from '../src/types'
+import type { ResolvableChatInterrupt } from '../src/types'
 import type {
   ConnectConnectionAdapter,
   RunAgentInputContext,
@@ -150,6 +150,58 @@ describe('InterruptManager foreign-interrupt handling', () => {
     expect(item?.canResolve).toBe(false)
   })
 
+  it('keeps a raw generic binding resolvable when run id and schema hash match', () => {
+    const responseSchema = {
+      type: 'object',
+      properties: { confirmed: { type: 'boolean' } },
+      required: ['confirmed'],
+    }
+    const { manager } = createManager()
+    manager.hydrate({
+      threadId: 'foreign-1',
+      interruptedRunId: 'run-foreign-1',
+      generation: 0,
+      interrupts: [
+        {
+          id: 'ours',
+          reason: 'confirmation',
+          message: 'Confirm the shipment?',
+          responseSchema,
+          metadata: {
+            'tanstack:interruptBinding': {
+              v: INTERRUPT_BINDING_VERSION,
+              kind: 'generic',
+              interruptId: 'ours',
+              interruptedRunId: 'run-foreign-1',
+              generation: 0,
+              responseSchemaHash: digestInterruptJson(
+                canonicalInterruptJson(responseSchema),
+              ),
+            },
+          },
+        },
+        {
+          id: 'theirs',
+          reason: 'approval_requested',
+          message: 'Approve the deployment?',
+          metadata: { 'acme:workflowApproval': { stepId: 'deploy' } },
+        },
+      ],
+    })
+
+    const [ours, theirs] = manager.getInterrupts()
+    expect(ours).toMatchObject({
+      kind: 'generic',
+      canResolve: true,
+      id: 'ours',
+    })
+    expect(theirs).toMatchObject({
+      kind: 'unbound',
+      canResolve: false,
+      id: 'theirs',
+    })
+  })
+
   it('does not let an unbound interrupt block submission of the bound ones', async () => {
     const { manager, submit } = createManager()
     manager.hydrate({
@@ -240,7 +292,7 @@ describe('InterruptManager hydration', () => {
   })
 
   it('hydrates a real core client-tool terminal with distinct schema identity hashes', async () => {
-    const coreChunks: Array<StreamChunk> = [
+    const coreChunks = [
       {
         type: EventType.RUN_STARTED,
         runId: 'core-run',
@@ -251,7 +303,6 @@ describe('InterruptManager hydration', () => {
         type: EventType.TOOL_CALL_START,
         toolCallId: 'core-call',
         toolCallName: lookupDefinition.name,
-        toolName: lookupDefinition.name,
         timestamp: 1,
       },
       {
@@ -267,7 +318,7 @@ describe('InterruptManager hydration', () => {
         finishReason: 'tool_calls',
         timestamp: 1,
       },
-    ]
+    ] as Array<StreamChunk>
     const adapter: AnyTextAdapter = {
       kind: 'text',
       name: 'core-interrupt-test',
@@ -452,13 +503,19 @@ describe('InterruptManager hydration', () => {
   })
 
   it('resolves a generic item regardless of its wire response schema', () => {
+    const responseSchema = {
+      $schema: 'https://json-schema.org/draft/2019-09/schema',
+      type: 'object',
+    }
     const binding: InterruptBinding = {
       v: INTERRUPT_BINDING_VERSION,
       kind: 'generic',
       interruptId: 'generic-1',
       interruptedRunId: 'run-1',
       generation: 1,
-      responseSchemaHash: 'any-schema',
+      responseSchemaHash: digestInterruptJson(
+        canonicalInterruptJson(responseSchema),
+      ),
     }
     const { manager } = createManager()
     manager.hydrate({
@@ -470,23 +527,179 @@ describe('InterruptManager hydration', () => {
           // The library does not compile or validate the wire schema, so even a
           // schema in another dialect leaves the item resolvable. The
           // application validates the value itself before resolving.
-          responseSchema: {
-            $schema: 'https://json-schema.org/draft/2019-09/schema',
-            type: 'object',
-          },
+          responseSchema,
         }),
       ],
     })
 
     const item = manager.getInterrupts()[0]
-    expect(item?.kind).toBe('generic')
-    expect(item?.canResolve).toBe(true)
-    item?.cancel()
+    if (item?.kind !== 'generic') throw new Error('Expected generic interrupt')
+    expect(item.canResolve).toBe(true)
+    item.cancel()
     // Cancellation immediately submits the batch; submitting items are omitted
     // from the public interrupt list (not user-actionable while the resume
     // stream is in flight).
     expect(manager.getInterrupts()).toEqual([])
     expect(manager.getResuming()).toBe(true)
+  })
+
+  it('does not treat a generic binding as resumable when the schema hash does not match', () => {
+    const binding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'generic',
+      interruptId: 'generic-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      responseSchemaHash: 'other-hash',
+    }
+    const { manager } = createManager()
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [
+        descriptor(binding, {
+          responseSchema: { type: 'object' },
+        }),
+      ],
+    })
+
+    const item = manager.getInterrupts()[0]
+    expect(item).toMatchObject({ kind: 'generic', canResolve: false })
+  })
+
+  it('records a stale error when two first-party items share a batchIndex', () => {
+    const review = defineInterrupt({
+      id: 'approval',
+      responseSchema: z.object({ answer: z.number() }),
+    })
+    const responseSchema = convertSchemaToJsonSchema(review.responseSchema)
+    const hash = digestInterruptJson(canonicalInterruptJson(responseSchema))
+    const first: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'generic',
+      interruptId: 'generic-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      definitionId: 'approval',
+      key: 'one',
+      batchIndex: 0,
+      responseSchemaHash: hash,
+    }
+    const second: InterruptBinding = {
+      ...first,
+      interruptId: 'generic-2',
+      key: 'two',
+    }
+    const manager = new InterruptManager({
+      tools,
+      interrupts: [review],
+      submit: vi.fn(async () => undefined),
+    })
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [
+        descriptor(first, { responseSchema }),
+        descriptor(second, { responseSchema }),
+      ],
+    })
+
+    for (const item of manager.getInterrupts()) {
+      expect(item).toMatchObject({
+        kind: 'generic',
+        canResolve: false,
+        status: 'error',
+      })
+      if (item.kind === 'generic') {
+        expect(item.errors[0]?.code).toBe('stale')
+      }
+    }
+  })
+
+  it('hydrates a first-party item from the producer binding and schema hash', () => {
+    const review = defineInterrupt({
+      id: 'review-plan',
+      payloadSchema: z.object({
+        title: z.string(),
+        boundary: z.enum([
+          'beforeModel',
+          'afterModel',
+          'beforeTools',
+          'afterTools',
+        ]),
+      }),
+      responseSchema: z.object({
+        approved: z.boolean(),
+        note: z.string(),
+      }),
+    })
+    const request = review.interrupt({
+      key: 'generic-before-model-review',
+      reason: 'review_required',
+      message: 'Review the plan at beforeModel',
+      payload: {
+        title: 'Middleware review plan',
+        boundary: 'beforeModel' as const,
+      },
+    })
+    const emission = createInterruptBinding(request, { batchIndex: 0 })
+    const interruptId = 'interrupt-1'
+    const manager = new InterruptManager({
+      tools,
+      interrupts: [review],
+      submit: vi.fn(async () => undefined),
+    })
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      interrupts: [
+        {
+          id: interruptId,
+          reason: request.reason,
+          message: request.message,
+          ...(emission.descriptor.responseSchemaCanonicalJson !== undefined
+            ? {
+                responseSchema: JSON.parse(
+                  emission.descriptor.responseSchemaCanonicalJson,
+                ),
+              }
+            : {}),
+          metadata: {
+            'tanstack:interruptBinding': {
+              v: INTERRUPT_BINDING_VERSION,
+              kind: 'generic',
+              interruptId,
+              interruptedRunId: 'run-1',
+              generation: 0,
+              definitionId: emission.descriptor.definitionId,
+              key: emission.descriptor.key,
+              batchIndex: emission.descriptor.batchIndex,
+              ...(emission.descriptor.payloadSchemaHash !== undefined
+                ? { payloadSchemaHash: emission.descriptor.payloadSchemaHash }
+                : {}),
+              ...(emission.descriptor.responseSchemaHash !== undefined
+                ? {
+                    responseSchemaHash: emission.descriptor.responseSchemaHash,
+                  }
+                : {}),
+            },
+            ...(emission.payload !== undefined
+              ? { 'tanstack:interruptPayload': emission.payload }
+              : {}),
+          },
+        },
+      ],
+    })
+
+    const item = manager.getInterrupts()[0]
+    expect(item).toMatchObject({
+      kind: 'generic',
+      canResolve: true,
+      definitionId: 'review-plan',
+    })
   })
 })
 
@@ -505,7 +718,10 @@ describe('InterruptManager transactions', () => {
     first.resolveInterrupt('first')
     expect(multi.submit).not.toHaveBeenCalled()
     expect(multi.manager.getInterrupts()[0]?.status).toBe('staged')
-    multi.manager.getInterrupts()[1]?.cancel()
+    const second = multi.manager.getInterrupts()[1]
+    if (second?.kind !== 'generic')
+      throw new Error('Expected generic interrupt')
+    second.cancel()
     expect(multi.submit).toHaveBeenCalledTimes(1)
 
     const single = createManager()
@@ -602,7 +818,7 @@ describe('InterruptManager transactions', () => {
       throw new Error('transaction failed')
     })
     Reflect.apply(manager.resolve, manager, [
-      (item: ChatInterrupt<typeof tools>) => {
+      (item: ResolvableChatInterrupt<typeof tools>) => {
         item.cancel()
         return 'not undefined'
       },
@@ -743,9 +959,99 @@ describe('InterruptManager transactions', () => {
     manager.retry()
     expect(submit.mock.calls[1]?.[0]).toBe(firstSubmission)
     await settle()
-    manager.getInterrupts()[0]?.clearResolution()
+    const cleared = manager.getInterrupts()[0]
+    if (cleared && cleared.kind !== 'unbound') {
+      cleared.clearResolution()
+    }
     manager.retry()
     expect(submit).toHaveBeenCalledTimes(2)
+  })
+
+  it('ignores a submission failure after reset', async () => {
+    let rejectSubmission!: (reason?: unknown) => void
+    const submit = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectSubmission = reject
+        }),
+    )
+    const manager = new InterruptManager({ submit })
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [genericDescriptor('generic')],
+    })
+    const item = manager.getInterrupts()[0]
+    if (item?.kind !== 'generic') throw new Error('Expected generic interrupt')
+    item.resolveInterrupt('answer')
+
+    manager.reset()
+    const resetState = manager.getState()
+    rejectSubmission(new Error('offline'))
+    await settle()
+
+    expect(manager.getState()).toBe(resetState)
+    expect(manager.getInterruptErrors()).toEqual([])
+    expect(manager.getResuming()).toBe(false)
+  })
+
+  it('does not let a stale submission settle a rehydrated submission', async () => {
+    const operations: Array<{
+      resolve: () => void
+      reject: (reason?: unknown) => void
+    }> = []
+    const submit = vi.fn(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          operations.push({ resolve, reject })
+        }),
+    )
+    const manager = new InterruptManager({ submit })
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [genericDescriptor('old')],
+    })
+    const oldItem = manager.getInterrupts()[0]
+    if (oldItem?.kind !== 'generic') {
+      throw new Error('Expected generic interrupt')
+    }
+    oldItem.resolveInterrupt('old answer')
+
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-2',
+      generation: 2,
+      interrupts: [
+        descriptor({
+          v: INTERRUPT_BINDING_VERSION,
+          kind: 'generic',
+          interruptId: 'current',
+          interruptedRunId: 'run-2',
+          generation: 2,
+          responseSchemaHash: 'none',
+        }),
+      ],
+    })
+    const currentItem = manager.getInterrupts()[0]
+    if (currentItem?.kind !== 'generic') {
+      throw new Error('Expected generic interrupt')
+    }
+    currentItem.resolveInterrupt('current answer')
+
+    expect(operations).toHaveLength(2)
+    operations[0]!.reject(new Error('old failure'))
+    await settle()
+
+    expect(manager.getInterruptErrors()).toEqual([])
+    expect(manager.getResuming()).toBe(true)
+    expect(manager.getInterrupts()).toEqual([])
+
+    operations[1]!.resolve()
+    await settle()
+    expect(manager.getResuming()).toBe(false)
   })
 
   it('does not enable retry for expired/stale/conflict server failures', async () => {
@@ -946,7 +1252,11 @@ describe('InterruptManager transactions', () => {
     }
     firstItem.resolveInterrupt('first answer')
     await settle()
-    manager.getInterrupts()[0]?.clearResolution()
+    const clearedItem = manager.getInterrupts()[0]
+    if (clearedItem?.kind !== 'generic') {
+      throw new Error('Expected generic interrupt')
+    }
+    clearedItem.clearResolution()
     const secondItem = manager.getInterrupts()[0]
     if (secondItem?.kind !== 'generic') {
       throw new Error('Expected generic interrupt')
@@ -1099,9 +1409,247 @@ describe('ChatClient native interrupts', () => {
 
     expect(onInterruptStateChange).toHaveBeenLastCalledWith(
       client.getInterruptState(),
+      { source: 'hydrate' },
     )
     const state = onInterruptStateChange.mock.lastCall?.[0]
     expect(state?.interrupts).toBe(state?.pendingInterrupts)
+  })
+
+  it('reports source hydrate when a client-tool interrupt is restored', () => {
+    const onInterruptStateChange = vi.fn()
+    const outputSchemaHash = hashSchemaInput(lookupDefinition.outputSchema)
+    const client = new ChatClient({
+      connection: { async *connect() {} },
+      tools,
+      onInterruptStateChange,
+      initialResumeSnapshot: {
+        resumeState: { threadId: 'thread-1', runId: 'run-1' },
+        pendingInterrupts: [
+          descriptor({
+            v: INTERRUPT_BINDING_VERSION,
+            kind: 'client-tool-execution',
+            interruptId: 'client-1',
+            interruptedRunId: 'run-1',
+            generation: 1,
+            toolName: 'lookup',
+            toolCallId: 'call-2',
+            outputSchemaHash,
+            responseSchemaHash: outputSchemaHash,
+          }),
+        ],
+      },
+    })
+
+    // Restored client-tool items stay internal, but their hydration still
+    // publishes the state-change callback that lets an app recover the batch.
+    expect(client.getInterrupts()).toEqual([])
+    expect(onInterruptStateChange).toHaveBeenLastCalledWith(
+      client.getInterruptState(),
+      { source: 'hydrate' },
+    )
+  })
+
+  it('reports source hydrate when a first-party generic interrupt is restored', () => {
+    const onInterruptStateChange = vi.fn()
+    const approval = defineInterrupt({
+      id: 'approval',
+      responseSchema: z.object({ answer: z.number() }),
+    })
+    const binding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'generic',
+      interruptId: 'generic_review_one',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      definitionId: 'approval',
+      key: 'one',
+      batchIndex: 0,
+      responseSchemaHash: digestInterruptJson(
+        canonicalInterruptJson(
+          convertSchemaToJsonSchema(approval.responseSchema),
+        ),
+      ),
+    }
+    const client = new ChatClient({
+      connection: { async *connect() {} },
+      interrupts: [approval],
+      onInterruptStateChange,
+      initialResumeSnapshot: {
+        resumeState: { threadId: 'thread-1', runId: 'run-1' },
+        pendingInterrupts: [descriptor(binding)],
+      },
+    })
+
+    expect(client.getInterrupts()[0]?.kind).toBe('generic')
+    expect(onInterruptStateChange).toHaveBeenLastCalledWith(
+      client.getInterruptState(),
+      { source: 'hydrate' },
+    )
+  })
+
+  it.each([
+    ['a client-tool success lands after Stop', 'resolve-after'],
+    ['a client-tool error lands after Stop', 'reject-after'],
+    ['a native resume is queued before Stop', 'resolve-before'],
+    ['addToolResult is called after Stop', 'add-result-after'],
+  ] as const)('does not continue when %s', async (_label, toolTiming) => {
+    let resolveTool!: (value: { accountId: string }) => void
+    let rejectToolExecution!: (reason: unknown) => void
+    const toolResult = new Promise<{ accountId: string }>((resolve, reject) => {
+      resolveTool = resolve
+      rejectToolExecution = reject
+    })
+    const lookup = lookupDefinition.client(() => toolResult)
+    const responseSchema =
+      convertSchemaToJsonSchema(lookupDefinition.outputSchema) ?? {}
+    const outputSchemaHash = hashSchemaInput(lookupDefinition.outputSchema)
+    const responseSchemaHash = digestInterruptJson(
+      canonicalInterruptJson(responseSchema),
+    )
+    const contexts: Array<RunAgentInputContext | undefined> = []
+    let releaseFirstRun!: () => void
+    const firstRunHold = new Promise<void>((resolve) => {
+      releaseFirstRun = resolve
+    })
+    let calls = 0
+    const connection: ConnectConnectionAdapter = {
+      async *connect(_messages, _data, _signal, context) {
+        contexts.push(context)
+        calls++
+        const runId = context?.runId ?? `run-${calls}`
+        const threadId = context?.threadId ?? 'thread-1'
+        yield {
+          type: EventType.RUN_STARTED,
+          runId,
+          threadId,
+          timestamp: Date.now(),
+        }
+        if (calls === 1) {
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'call-1',
+            toolCallName: 'lookup',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: 'call-1',
+            delta: '{}',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.CUSTOM,
+            name: 'tool-input-available',
+            value: {
+              toolCallId: 'call-1',
+              toolName: 'lookup',
+              input: {},
+            },
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                descriptor(
+                  {
+                    v: INTERRUPT_BINDING_VERSION,
+                    kind: 'client-tool-execution',
+                    interruptId: 'client-1',
+                    interruptedRunId: runId,
+                    generation: 0,
+                    toolName: 'lookup',
+                    toolCallId: 'call-1',
+                    outputSchemaHash,
+                    responseSchemaHash,
+                  },
+                  { responseSchema },
+                ),
+              ],
+            },
+          }
+          await firstRunHold
+          return
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: `msg-${calls}`,
+          role: 'assistant',
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: `msg-${calls}`,
+          delta: 'ok',
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId: `msg-${calls}`,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          timestamp: Date.now(),
+          outcome: { type: 'success' },
+        }
+      },
+    }
+    const client = new ChatClient({
+      connection,
+      threadId: 'thread-1',
+      tools: [lookup],
+    })
+
+    const send = client.sendMessage('start')
+    await vi.waitFor(() => expect(client.getResumeState()).not.toBeNull())
+
+    if (toolTiming === 'resolve-before') {
+      resolveTool({ accountId: 'account-1' })
+      await vi.waitFor(() =>
+        expect(client.getInterruptState().resuming).toBe(true),
+      )
+    }
+    const messagesAtStop = structuredClone(client.getMessages())
+    client.stop()
+    if (toolTiming === 'resolve-after' || toolTiming === 'add-result-after') {
+      resolveTool({ accountId: 'account-1' })
+    } else if (toolTiming === 'reject-after') {
+      rejectToolExecution(new Error('tool failed'))
+    }
+    releaseFirstRun()
+    await send
+    await settle()
+
+    if (toolTiming === 'add-result-after') {
+      await client.addToolResult({
+        toolCallId: 'call-1',
+        tool: 'lookup',
+        output: { accountId: 'late-result' },
+        state: 'output-available',
+      })
+      await settle()
+    }
+
+    expect(contexts).toHaveLength(1)
+    expect(client.getMessages()).toEqual(messagesAtStop)
+    expect(client.getResumeState()).toBeNull()
+    expect(client.getInterruptState()).toMatchObject({
+      interrupts: [],
+      interruptErrors: [],
+      resuming: false,
+    })
+
+    await client.sendMessage('later')
+    expect(contexts).toHaveLength(2)
+    expect(contexts[1]?.parentRunId).toBeUndefined()
+    expect(contexts[1]?.resume).toBeUndefined()
   })
 
   it('owns one immutable interrupt state and resumes with a fresh child run', async () => {
@@ -1152,9 +1700,18 @@ describe('ChatClient native interrupts', () => {
         }
       },
     }
-    const client = new ChatClient({ connection, threadId: 'thread-1' })
+    const onInterruptStateChange = vi.fn()
+    const client = new ChatClient({
+      connection,
+      threadId: 'thread-1',
+      onInterruptStateChange,
+    })
 
     await client.sendMessage('start')
+    expect(onInterruptStateChange).toHaveBeenLastCalledWith(
+      client.getInterruptState(),
+      { source: 'live' },
+    )
     const state = client.getInterruptState()
     expect(Object.isFrozen(state)).toBe(true)
     expect(state.interrupts).toBe(state.pendingInterrupts)
@@ -1179,6 +1736,311 @@ describe('ChatClient native interrupts', () => {
     expect(contexts[1]?.runId).not.toBe(contexts[0]?.runId)
     expect(sentMessages[1]).not.toEqual([])
     expect(sentMessages[1]).toEqual(sentMessages[0])
+  })
+
+  it('sends first-party continuation on resume metadata', async () => {
+    const approval = defineInterrupt({
+      id: 'approval',
+      responseSchema: z.object({ answer: z.number() }),
+    })
+    const contexts: Array<RunAgentInputContext | undefined> = []
+    const binding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'generic',
+      interruptId: 'generic_review_one',
+      interruptedRunId: 'placeholder',
+      generation: 0,
+      definitionId: 'approval',
+      key: 'one',
+      batchIndex: 0,
+      responseSchemaHash: digestInterruptJson(
+        canonicalInterruptJson(
+          convertSchemaToJsonSchema(approval.responseSchema),
+        ),
+      ),
+    }
+    let call = 0
+    const connection: ConnectConnectionAdapter = {
+      async *connect(_messages, _data, _signal, context) {
+        contexts.push(context)
+        call++
+        const runId = context?.runId ?? `run-${call}`
+        const threadId = context?.threadId ?? 'thread-1'
+        yield {
+          type: EventType.RUN_STARTED,
+          runId,
+          threadId,
+          timestamp: Date.now(),
+        }
+        if (call === 1) {
+          binding.interruptedRunId = runId
+          binding.interruptId = `generic_${runId}_approval_one`
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                descriptor(binding, {
+                  responseSchema: convertSchemaToJsonSchema(
+                    approval.responseSchema,
+                  ),
+                }),
+              ],
+            },
+          }
+          return
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          timestamp: Date.now(),
+          outcome: { type: 'success' },
+        }
+      },
+    }
+    const client = new ChatClient({
+      connection,
+      threadId: 'thread-1',
+      interrupts: [approval],
+    })
+
+    await client.sendMessage('start')
+    const item = client.getInterrupts()[0]
+    if (item?.kind !== 'generic') throw new Error('Expected generic interrupt')
+    item.resolveInterrupt({ answer: 42 })
+
+    await vi.waitFor(() => expect(contexts).toHaveLength(2))
+    expect(contexts[1]).toMatchObject({
+      threadId: 'thread-1',
+      parentRunId: contexts[0]?.runId,
+      resume: [
+        {
+          interruptId: binding.interruptId,
+          status: 'resolved',
+          payload: { answer: 42 },
+          metadata: {
+            'tanstack:interruptContinuation': {
+              v: 1,
+              definitionId: 'approval',
+              key: 'one',
+              batchIndex: 0,
+              reason: 'confirmation',
+              message: '',
+              responseSchemaHash: binding.responseSchemaHash,
+            },
+          },
+        },
+      ],
+    })
+  })
+
+  it('does not auto-send after a completed tool when a generic interrupt is pending', async () => {
+    const review = defineInterrupt({
+      id: 'review-plan',
+      responseSchema: z.object({ approved: z.boolean() }),
+    })
+    const contexts: Array<RunAgentInputContext | undefined> = []
+    let call = 0
+    const connection: ConnectConnectionAdapter = {
+      async *connect(
+        _messages,
+        _data,
+        _signal,
+        context,
+      ): AsyncGenerator<StreamChunk> {
+        contexts.push(context)
+        call++
+        const runId = context?.runId ?? `run-${call}`
+        const threadId = context?.threadId ?? 'thread-1'
+        yield {
+          type: EventType.RUN_STARTED,
+          runId,
+          threadId,
+          timestamp: Date.now(),
+        }
+        if (call === 1) {
+          const interruptId = `generic_${runId}_review`
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'call-inspect',
+            toolCallName: 'inspectPlan',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: 'call-inspect',
+            delta: '{"planId":"PLAN-42"}',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.TOOL_CALL_END,
+            toolCallId: 'call-inspect',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.TOOL_CALL_RESULT,
+            toolCallId: 'call-inspect',
+            messageId: 'tool-result-inspect',
+            content: '{"inspected":true,"planId":"PLAN-42"}',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                descriptor(
+                  {
+                    v: INTERRUPT_BINDING_VERSION,
+                    kind: 'generic',
+                    interruptId,
+                    interruptedRunId: runId,
+                    generation: 0,
+                    definitionId: 'review-plan',
+                    key: 'afterTools-review',
+                    batchIndex: 0,
+                    responseSchemaHash: digestInterruptJson(
+                      canonicalInterruptJson(
+                        convertSchemaToJsonSchema(review.responseSchema),
+                      ),
+                    ),
+                  },
+                  { reason: 'review_required' },
+                ),
+              ],
+            },
+          }
+          return
+        }
+        throw new Error(`unexpected extra connect call ${call}`)
+      },
+    }
+    const client = new ChatClient({
+      connection,
+      threadId: 'thread-1',
+      interrupts: [review],
+    })
+
+    await client.sendMessage('inspect')
+    await vi.waitFor(() => expect(client.getInterrupts()).toHaveLength(1))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(call).toBe(1)
+    expect(contexts[0]?.resume).toBeUndefined()
+    expect(contexts[0]?.parentRunId).toBeUndefined()
+  })
+
+  it('does not auto-send after rejecting an afterTools generic interrupt', async () => {
+    const review = defineInterrupt({
+      id: 'review-plan',
+      responseSchema: z.object({ approved: z.boolean() }),
+    })
+    let call = 0
+    const connection: ConnectConnectionAdapter = {
+      async *connect(
+        _messages,
+        _data,
+        _signal,
+        context,
+      ): AsyncGenerator<StreamChunk> {
+        call++
+        const runId = context?.runId ?? `run-${call}`
+        const threadId = context?.threadId ?? 'thread-1'
+        yield {
+          type: EventType.RUN_STARTED,
+          runId,
+          threadId,
+          timestamp: Date.now(),
+        }
+        if (call === 1) {
+          const interruptId = `generic_${runId}_review`
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'call-inspect',
+            toolCallName: 'inspectPlan',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: 'call-inspect',
+            delta: '{"planId":"PLAN-42"}',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.TOOL_CALL_END,
+            toolCallId: 'call-inspect',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.TOOL_CALL_RESULT,
+            toolCallId: 'call-inspect',
+            messageId: 'tool-result-inspect',
+            content: '{"inspected":true,"planId":"PLAN-42"}',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                descriptor(
+                  {
+                    v: INTERRUPT_BINDING_VERSION,
+                    kind: 'generic',
+                    interruptId,
+                    interruptedRunId: runId,
+                    generation: 0,
+                    definitionId: 'review-plan',
+                    key: 'afterTools-review',
+                    batchIndex: 0,
+                    responseSchemaHash: digestInterruptJson(
+                      canonicalInterruptJson(
+                        convertSchemaToJsonSchema(review.responseSchema),
+                      ),
+                    ),
+                  },
+                  { reason: 'review_required' },
+                ),
+              ],
+            },
+          }
+          return
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          timestamp: Date.now(),
+          metadata: { tanstack: { finishReason: 'stop' } },
+          outcome: { type: 'success' },
+        }
+      },
+    }
+    const client = new ChatClient({
+      connection,
+      threadId: 'thread-1',
+      interrupts: [review],
+    })
+
+    await client.sendMessage('inspect')
+    const item = client.getInterrupts()[0]
+    if (item?.kind !== 'generic') throw new Error('Expected generic interrupt')
+    item.resolveInterrupt({ approved: false })
+    await vi.waitFor(() => expect(call).toBe(2))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(call).toBe(2)
+    expect(client.getInterrupts()).toHaveLength(0)
   })
 
   it('resumes a hydrated ephemeral batch with full history in a fresh child run', async () => {

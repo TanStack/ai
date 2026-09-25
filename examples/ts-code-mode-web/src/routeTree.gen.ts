@@ -24,7 +24,7 @@ import { Route as NpmGithubChatNpmGithubChatRouteImport } from './routes/_npm-gi
 import { Route as ExecutePromptExecutePromptRouteImport } from './routes/_execute-prompt/execute-prompt'
 import { Route as DatabaseDemoDatabaseDemoRouteImport } from './routes/_database-demo/database-demo'
 import { Route as BankingDemoBankingDemoRouteImport } from './routes/_banking-demo/banking-demo'
-import { Route as StructuredOutputApiStructuredOutputSkillsRouteImport } from './routes/_structured-output/api.structured-output-skills'
+import { Route as StructuredOutputApiStructuredOutputSnippetsRouteImport } from './routes/_structured-output/api.structured-output-snippets'
 import { Route as StructuredOutputApiStructuredOutputRouteImport } from './routes/_structured-output/api.structured-output'
 import { Route as ReportingApiReportsRouteImport } from './routes/_reporting/api.reports'
 import { Route as ReportingApiReportSseRouteImport } from './routes/_reporting/api.report-sse'
@@ -33,13 +33,13 @@ import { Route as ReportingApiReportDemoRouteImport } from './routes/_reporting/
 import { Route as ReportingApiInvalidateRouteImport } from './routes/_reporting/api.invalidate'
 import { Route as NpmGithubChatApiGeneratePdfRouteImport } from './routes/_npm-github-chat/api.generate-pdf'
 import { Route as NpmGithubChatApiCodemodeRouteImport } from './routes/_npm-github-chat/api.codemode'
-import { Route as HomeApiSkillsRouteImport } from './routes/_home/api.skills'
+import { Route as HomeApiSnippetsRouteImport } from './routes/_home/api.snippets'
 import { Route as HomeApiProductRegularRouteImport } from './routes/_home/api.product-regular'
 import { Route as HomeApiProductCodemodeRouteImport } from './routes/_home/api.product-codemode'
 import { Route as ExecutePromptApiRealtimeTokenRouteImport } from './routes/_execute-prompt/api.realtime-token'
 import { Route as ExecutePromptApiExecutePromptRouteImport } from './routes/_execute-prompt/api.execute-prompt'
 import { Route as DatabaseDemoApiJudgeRouteImport } from './routes/_database-demo/api.judge'
-import { Route as DatabaseDemoApiDbSkillsRouteImport } from './routes/_database-demo/api.db-skills'
+import { Route as DatabaseDemoApiDbSnippetsRouteImport } from './routes/_database-demo/api.db-snippets'
 import { Route as DatabaseDemoApiDatabaseDemoRouteImport } from './routes/_database-demo/api.database-demo'
 import { Route as BankingDemoApiBankingInitRouteImport } from './routes/_banking-demo/api.banking-init'
 import { Route as BankingDemoApiBankingDemoRouteImport } from './routes/_banking-demo/api.banking-demo'
@@ -116,10 +116,10 @@ const BankingDemoBankingDemoRoute = BankingDemoBankingDemoRouteImport.update({
   path: '/banking-demo',
   getParentRoute: () => BankingDemoRouteRoute,
 } as any)
-const StructuredOutputApiStructuredOutputSkillsRoute =
-  StructuredOutputApiStructuredOutputSkillsRouteImport.update({
-    id: '/api/structured-output-skills',
-    path: '/api/structured-output-skills',
+const StructuredOutputApiStructuredOutputSnippetsRoute =
+  StructuredOutputApiStructuredOutputSnippetsRouteImport.update({
+    id: '/api/structured-output-snippets',
+    path: '/api/structured-output-snippets',
     getParentRoute: () => StructuredOutputRouteRoute,
   } as any)
 const StructuredOutputApiStructuredOutputRoute =
@@ -165,9 +165,9 @@ const NpmGithubChatApiCodemodeRoute =
     path: '/api/codemode',
     getParentRoute: () => NpmGithubChatRouteRoute,
   } as any)
-const HomeApiSkillsRoute = HomeApiSkillsRouteImport.update({
-  id: '/api/skills',
-  path: '/api/skills',
+const HomeApiSnippetsRoute = HomeApiSnippetsRouteImport.update({
+  id: '/api/snippets',
+  path: '/api/snippets',
   getParentRoute: () => HomeRouteRoute,
 } as any)
 const HomeApiProductRegularRoute = HomeApiProductRegularRouteImport.update({
@@ -197,11 +197,12 @@ const DatabaseDemoApiJudgeRoute = DatabaseDemoApiJudgeRouteImport.update({
   path: '/api/judge',
   getParentRoute: () => DatabaseDemoRouteRoute,
 } as any)
-const DatabaseDemoApiDbSkillsRoute = DatabaseDemoApiDbSkillsRouteImport.update({
-  id: '/api/db-skills',
-  path: '/api/db-skills',
-  getParentRoute: () => DatabaseDemoRouteRoute,
-} as any)
+const DatabaseDemoApiDbSnippetsRoute =
+  DatabaseDemoApiDbSnippetsRouteImport.update({
+    id: '/api/db-snippets',
+    path: '/api/db-snippets',
+    getParentRoute: () => DatabaseDemoRouteRoute,
+  } as any)
 const DatabaseDemoApiDatabaseDemoRoute =
   DatabaseDemoApiDatabaseDemoRouteImport.update({
     id: '/api/database-demo',
@@ -233,13 +234,13 @@ export interface FileRoutesByFullPath {
   '/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/api/banking-init': typeof BankingDemoApiBankingInitRoute
   '/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
-  '/api/db-skills': typeof DatabaseDemoApiDbSkillsRoute
+  '/api/db-snippets': typeof DatabaseDemoApiDbSnippetsRoute
   '/api/judge': typeof DatabaseDemoApiJudgeRoute
   '/api/execute-prompt': typeof ExecutePromptApiExecutePromptRoute
   '/api/realtime-token': typeof ExecutePromptApiRealtimeTokenRoute
   '/api/product-codemode': typeof HomeApiProductCodemodeRoute
   '/api/product-regular': typeof HomeApiProductRegularRoute
-  '/api/skills': typeof HomeApiSkillsRoute
+  '/api/snippets': typeof HomeApiSnippetsRoute
   '/api/codemode': typeof NpmGithubChatApiCodemodeRoute
   '/api/generate-pdf': typeof NpmGithubChatApiGeneratePdfRoute
   '/api/invalidate': typeof ReportingApiInvalidateRoute
@@ -248,7 +249,7 @@ export interface FileRoutesByFullPath {
   '/api/report-sse': typeof ReportingApiReportSseRoute
   '/api/reports': typeof ReportingApiReportsRoute
   '/api/structured-output': typeof StructuredOutputApiStructuredOutputRoute
-  '/api/structured-output-skills': typeof StructuredOutputApiStructuredOutputSkillsRoute
+  '/api/structured-output-snippets': typeof StructuredOutputApiStructuredOutputSnippetsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof HomeIndexRoute
@@ -262,13 +263,13 @@ export interface FileRoutesByTo {
   '/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/api/banking-init': typeof BankingDemoApiBankingInitRoute
   '/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
-  '/api/db-skills': typeof DatabaseDemoApiDbSkillsRoute
+  '/api/db-snippets': typeof DatabaseDemoApiDbSnippetsRoute
   '/api/judge': typeof DatabaseDemoApiJudgeRoute
   '/api/execute-prompt': typeof ExecutePromptApiExecutePromptRoute
   '/api/realtime-token': typeof ExecutePromptApiRealtimeTokenRoute
   '/api/product-codemode': typeof HomeApiProductCodemodeRoute
   '/api/product-regular': typeof HomeApiProductRegularRoute
-  '/api/skills': typeof HomeApiSkillsRoute
+  '/api/snippets': typeof HomeApiSnippetsRoute
   '/api/codemode': typeof NpmGithubChatApiCodemodeRoute
   '/api/generate-pdf': typeof NpmGithubChatApiGeneratePdfRoute
   '/api/invalidate': typeof ReportingApiInvalidateRoute
@@ -277,7 +278,7 @@ export interface FileRoutesByTo {
   '/api/report-sse': typeof ReportingApiReportSseRoute
   '/api/reports': typeof ReportingApiReportsRoute
   '/api/structured-output': typeof StructuredOutputApiStructuredOutputRoute
-  '/api/structured-output-skills': typeof StructuredOutputApiStructuredOutputSkillsRoute
+  '/api/structured-output-snippets': typeof StructuredOutputApiStructuredOutputSnippetsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -299,13 +300,13 @@ export interface FileRoutesById {
   '/_banking-demo/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/_banking-demo/api/banking-init': typeof BankingDemoApiBankingInitRoute
   '/_database-demo/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
-  '/_database-demo/api/db-skills': typeof DatabaseDemoApiDbSkillsRoute
+  '/_database-demo/api/db-snippets': typeof DatabaseDemoApiDbSnippetsRoute
   '/_database-demo/api/judge': typeof DatabaseDemoApiJudgeRoute
   '/_execute-prompt/api/execute-prompt': typeof ExecutePromptApiExecutePromptRoute
   '/_execute-prompt/api/realtime-token': typeof ExecutePromptApiRealtimeTokenRoute
   '/_home/api/product-codemode': typeof HomeApiProductCodemodeRoute
   '/_home/api/product-regular': typeof HomeApiProductRegularRoute
-  '/_home/api/skills': typeof HomeApiSkillsRoute
+  '/_home/api/snippets': typeof HomeApiSnippetsRoute
   '/_npm-github-chat/api/codemode': typeof NpmGithubChatApiCodemodeRoute
   '/_npm-github-chat/api/generate-pdf': typeof NpmGithubChatApiGeneratePdfRoute
   '/_reporting/api/invalidate': typeof ReportingApiInvalidateRoute
@@ -314,7 +315,7 @@ export interface FileRoutesById {
   '/_reporting/api/report-sse': typeof ReportingApiReportSseRoute
   '/_reporting/api/reports': typeof ReportingApiReportsRoute
   '/_structured-output/api/structured-output': typeof StructuredOutputApiStructuredOutputRoute
-  '/_structured-output/api/structured-output-skills': typeof StructuredOutputApiStructuredOutputSkillsRoute
+  '/_structured-output/api/structured-output-snippets': typeof StructuredOutputApiStructuredOutputSnippetsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -330,13 +331,13 @@ export interface FileRouteTypes {
     | '/api/banking-demo'
     | '/api/banking-init'
     | '/api/database-demo'
-    | '/api/db-skills'
+    | '/api/db-snippets'
     | '/api/judge'
     | '/api/execute-prompt'
     | '/api/realtime-token'
     | '/api/product-codemode'
     | '/api/product-regular'
-    | '/api/skills'
+    | '/api/snippets'
     | '/api/codemode'
     | '/api/generate-pdf'
     | '/api/invalidate'
@@ -345,7 +346,7 @@ export interface FileRouteTypes {
     | '/api/report-sse'
     | '/api/reports'
     | '/api/structured-output'
-    | '/api/structured-output-skills'
+    | '/api/structured-output-snippets'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -359,13 +360,13 @@ export interface FileRouteTypes {
     | '/api/banking-demo'
     | '/api/banking-init'
     | '/api/database-demo'
-    | '/api/db-skills'
+    | '/api/db-snippets'
     | '/api/judge'
     | '/api/execute-prompt'
     | '/api/realtime-token'
     | '/api/product-codemode'
     | '/api/product-regular'
-    | '/api/skills'
+    | '/api/snippets'
     | '/api/codemode'
     | '/api/generate-pdf'
     | '/api/invalidate'
@@ -374,7 +375,7 @@ export interface FileRouteTypes {
     | '/api/report-sse'
     | '/api/reports'
     | '/api/structured-output'
-    | '/api/structured-output-skills'
+    | '/api/structured-output-snippets'
   id:
     | '__root__'
     | '/_banking-demo'
@@ -395,13 +396,13 @@ export interface FileRouteTypes {
     | '/_banking-demo/api/banking-demo'
     | '/_banking-demo/api/banking-init'
     | '/_database-demo/api/database-demo'
-    | '/_database-demo/api/db-skills'
+    | '/_database-demo/api/db-snippets'
     | '/_database-demo/api/judge'
     | '/_execute-prompt/api/execute-prompt'
     | '/_execute-prompt/api/realtime-token'
     | '/_home/api/product-codemode'
     | '/_home/api/product-regular'
-    | '/_home/api/skills'
+    | '/_home/api/snippets'
     | '/_npm-github-chat/api/codemode'
     | '/_npm-github-chat/api/generate-pdf'
     | '/_reporting/api/invalidate'
@@ -410,7 +411,7 @@ export interface FileRouteTypes {
     | '/_reporting/api/report-sse'
     | '/_reporting/api/reports'
     | '/_structured-output/api/structured-output'
-    | '/_structured-output/api/structured-output-skills'
+    | '/_structured-output/api/structured-output-snippets'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -531,11 +532,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BankingDemoBankingDemoRouteImport
       parentRoute: typeof BankingDemoRouteRoute
     }
-    '/_structured-output/api/structured-output-skills': {
-      id: '/_structured-output/api/structured-output-skills'
-      path: '/api/structured-output-skills'
-      fullPath: '/api/structured-output-skills'
-      preLoaderRoute: typeof StructuredOutputApiStructuredOutputSkillsRouteImport
+    '/_structured-output/api/structured-output-snippets': {
+      id: '/_structured-output/api/structured-output-snippets'
+      path: '/api/structured-output-snippets'
+      fullPath: '/api/structured-output-snippets'
+      preLoaderRoute: typeof StructuredOutputApiStructuredOutputSnippetsRouteImport
       parentRoute: typeof StructuredOutputRouteRoute
     }
     '/_structured-output/api/structured-output': {
@@ -594,11 +595,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NpmGithubChatApiCodemodeRouteImport
       parentRoute: typeof NpmGithubChatRouteRoute
     }
-    '/_home/api/skills': {
-      id: '/_home/api/skills'
-      path: '/api/skills'
-      fullPath: '/api/skills'
-      preLoaderRoute: typeof HomeApiSkillsRouteImport
+    '/_home/api/snippets': {
+      id: '/_home/api/snippets'
+      path: '/api/snippets'
+      fullPath: '/api/snippets'
+      preLoaderRoute: typeof HomeApiSnippetsRouteImport
       parentRoute: typeof HomeRouteRoute
     }
     '/_home/api/product-regular': {
@@ -636,11 +637,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DatabaseDemoApiJudgeRouteImport
       parentRoute: typeof DatabaseDemoRouteRoute
     }
-    '/_database-demo/api/db-skills': {
-      id: '/_database-demo/api/db-skills'
-      path: '/api/db-skills'
-      fullPath: '/api/db-skills'
-      preLoaderRoute: typeof DatabaseDemoApiDbSkillsRouteImport
+    '/_database-demo/api/db-snippets': {
+      id: '/_database-demo/api/db-snippets'
+      path: '/api/db-snippets'
+      fullPath: '/api/db-snippets'
+      preLoaderRoute: typeof DatabaseDemoApiDbSnippetsRouteImport
       parentRoute: typeof DatabaseDemoRouteRoute
     }
     '/_database-demo/api/database-demo': {
@@ -685,14 +686,14 @@ const BankingDemoRouteRouteWithChildren =
 interface DatabaseDemoRouteRouteChildren {
   DatabaseDemoDatabaseDemoRoute: typeof DatabaseDemoDatabaseDemoRoute
   DatabaseDemoApiDatabaseDemoRoute: typeof DatabaseDemoApiDatabaseDemoRoute
-  DatabaseDemoApiDbSkillsRoute: typeof DatabaseDemoApiDbSkillsRoute
+  DatabaseDemoApiDbSnippetsRoute: typeof DatabaseDemoApiDbSnippetsRoute
   DatabaseDemoApiJudgeRoute: typeof DatabaseDemoApiJudgeRoute
 }
 
 const DatabaseDemoRouteRouteChildren: DatabaseDemoRouteRouteChildren = {
   DatabaseDemoDatabaseDemoRoute: DatabaseDemoDatabaseDemoRoute,
   DatabaseDemoApiDatabaseDemoRoute: DatabaseDemoApiDatabaseDemoRoute,
-  DatabaseDemoApiDbSkillsRoute: DatabaseDemoApiDbSkillsRoute,
+  DatabaseDemoApiDbSnippetsRoute: DatabaseDemoApiDbSnippetsRoute,
   DatabaseDemoApiJudgeRoute: DatabaseDemoApiJudgeRoute,
 }
 
@@ -718,14 +719,14 @@ interface HomeRouteRouteChildren {
   HomeIndexRoute: typeof HomeIndexRoute
   HomeApiProductCodemodeRoute: typeof HomeApiProductCodemodeRoute
   HomeApiProductRegularRoute: typeof HomeApiProductRegularRoute
-  HomeApiSkillsRoute: typeof HomeApiSkillsRoute
+  HomeApiSnippetsRoute: typeof HomeApiSnippetsRoute
 }
 
 const HomeRouteRouteChildren: HomeRouteRouteChildren = {
   HomeIndexRoute: HomeIndexRoute,
   HomeApiProductCodemodeRoute: HomeApiProductCodemodeRoute,
   HomeApiProductRegularRoute: HomeApiProductRegularRoute,
-  HomeApiSkillsRoute: HomeApiSkillsRoute,
+  HomeApiSnippetsRoute: HomeApiSnippetsRoute,
 }
 
 const HomeRouteRouteWithChildren = HomeRouteRoute._addFileChildren(
@@ -772,15 +773,15 @@ const ReportingRouteRouteWithChildren = ReportingRouteRoute._addFileChildren(
 interface StructuredOutputRouteRouteChildren {
   StructuredOutputStructuredOutputRoute: typeof StructuredOutputStructuredOutputRoute
   StructuredOutputApiStructuredOutputRoute: typeof StructuredOutputApiStructuredOutputRoute
-  StructuredOutputApiStructuredOutputSkillsRoute: typeof StructuredOutputApiStructuredOutputSkillsRoute
+  StructuredOutputApiStructuredOutputSnippetsRoute: typeof StructuredOutputApiStructuredOutputSnippetsRoute
 }
 
 const StructuredOutputRouteRouteChildren: StructuredOutputRouteRouteChildren = {
   StructuredOutputStructuredOutputRoute: StructuredOutputStructuredOutputRoute,
   StructuredOutputApiStructuredOutputRoute:
     StructuredOutputApiStructuredOutputRoute,
-  StructuredOutputApiStructuredOutputSkillsRoute:
-    StructuredOutputApiStructuredOutputSkillsRoute,
+  StructuredOutputApiStructuredOutputSnippetsRoute:
+    StructuredOutputApiStructuredOutputSnippetsRoute,
 }
 
 const StructuredOutputRouteRouteWithChildren =

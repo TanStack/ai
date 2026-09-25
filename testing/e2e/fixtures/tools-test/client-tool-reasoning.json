@@ -1,0 +1,28 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[client-tool-reasoning] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "reasoning": "I should show a notification before confirming it was displayed.",
+        "toolCalls": [
+          {
+            "name": "show_notification",
+            "arguments": "{\"message\":\"Reasoning notification\",\"type\":\"info\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[client-tool-reasoning] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The notification has been shown after reasoning."
+      }
+    }
+  ]
+}

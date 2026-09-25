@@ -18,7 +18,10 @@ interface ChatUIProps<
   messages: Array<UIMessage>
   isLoading: boolean
   onSendMessage: (text: string) => void
+  /** Sends the typed prompt plus an attached image as an image content part. */
   onSendMessageWithImage?: (text: string, file: File) => void
+  /** Sends the typed prompt plus an attached PDF as a document content part. */
+  onSendMessageWithDocument?: (text: string, file: File) => void
   /**
    * Bound AG-UI interrupts from `useChat({ tools })` —
    * `BoundInterrupts<TTools>` (library type, not a harness DTO).
@@ -29,7 +32,10 @@ interface ChatUIProps<
     id: string
     approved: boolean
   }) => Promise<void>
+  /** Renders the image file input (multimodal image features only). */
   showImageInput?: boolean
+  /** Renders the PDF file input (multimodal-document feature only). */
+  showDocumentInput?: boolean
   onStop?: () => void
   /** When the streaming structured-output CUSTOM event lands, the page
    *  exposes the parsed object here so e2e tests can assert that the event
@@ -56,9 +62,11 @@ export function ChatUI<
   isLoading,
   onSendMessage,
   onSendMessageWithImage,
+  onSendMessageWithDocument,
   interrupts = [],
   addToolApprovalResponse,
   showImageInput,
+  showDocumentInput,
   onStop,
   structuredObject,
   contentDeltaCount,
@@ -326,6 +334,24 @@ export function ChatUI<
               if (file && text && onSendMessageWithImage) {
                 onSendMessageWithImage(text, file)
                 setInput('')
+              }
+            }}
+          />
+        )}
+        {showDocumentInput && (
+          <input
+            type="file"
+            accept="application/pdf,.pdf"
+            data-testid="document-attachment-input"
+            className="text-xs text-gray-400"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              // Same DOM-value read as the image input above.
+              const text = (inputRef.current?.value ?? input).trim()
+              if (file && text && onSendMessageWithDocument) {
+                onSendMessageWithDocument(text, file)
+                setInput('')
+                e.target.value = ''
               }
             }}
           />

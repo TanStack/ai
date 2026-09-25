@@ -145,6 +145,32 @@ export type FalModelVideoSizeInput<TModel extends string> =
     : { aspect_ratio?: string; resolution?: string }
 
 /**
+ * Extract the `duration` field type from a fal video model's input.
+ * Falls back to `string | number | undefined` for models not in the SDK's
+ * `EndpointTypeMap`.
+ *
+ * Shapes seen in the wild:
+ *  - `'5' | '10'` (Kling, Pika): discrete numeric strings
+ *  - `'5s' | '9s'` (Luma): keyword strings with unit
+ *  - `'4s' | '6s' | '8s'` (Veo3 via FAL): keyword strings
+ *  - `'2' | … | '15'` (WAN-25): discrete-range numeric strings
+ *  - undefined (Minimax, Hunyuan): no duration field; passing one is a type error
+ */
+export type FalModelVideoDuration<TModel extends string> =
+  TModel extends keyof EndpointTypeMap
+    ? 'duration' extends keyof EndpointTypeMap[TModel]['input']
+      ? Extract<
+          NonNullable<
+            EndpointTypeMap[TModel]['input'] extends { duration?: infer D }
+              ? D
+              : never
+          >,
+          string | number
+        >
+      : undefined
+    : string | number | undefined
+
+/**
  * Prompt input modalities for a fal image endpoint, derived from the SDK's
  * endpoint input type: an endpoint accepts image prompt parts exactly when
  * its input declares one of the known image-conditioning fields
@@ -194,7 +220,9 @@ export type FalVideoPromptModalitiesFor<TModel extends string> =
  */
 export type FalVideoProviderOptions<TModel extends string> =
   TModel extends keyof EndpointTypeMap
-    ? WithOptionalMediaInputFields<Omit<FalModelInput<TModel>, 'prompt'>>
+    ? WithOptionalMediaInputFields<
+        Omit<FalModelInput<TModel>, 'prompt' | 'duration'>
+      >
     : Record<string, unknown>
 
 /**

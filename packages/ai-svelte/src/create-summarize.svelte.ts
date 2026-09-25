@@ -24,16 +24,17 @@ export interface CreateSummarizeOptions<
   TOutput = SummarizationResult,
 > extends Pick<
   CreateGenerationOptions<SummarizeGenerateInput, SummarizationResult, TOutput>,
-  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+  | 'persistence'
+  | 'threadId'
+  | 'hydrateGeneration'
+  | 'joinRun'
+  | 'byok'
+  | 'byokProvider'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for summarization */
   fetcher?: GenerationFetcher<SummarizeGenerateInput, SummarizationResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -107,7 +108,7 @@ export interface CreateSummarizeReturn<
 export function createSummarize<TTransformed = void>(
   options: Omit<
     CreateSummarizeOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: SummarizationResult) => TTransformed
   } & GenerationPersistenceOptions,

@@ -1,5 +1,6 @@
 import type {
   ModelMessage,
+  MetadataStore,
   PersistedArtifactRef,
   RunStatus,
   RunStore,
@@ -11,7 +12,7 @@ import type {
 // `@tanstack/ai` or `@tanstack/ai-persistence`. See {@link Scope} security notes:
 // pair a client-visible `threadId` with a server-trusted `userId`/`tenantId`
 // before authorizing load/save (e.g. via `reconstructChat({ authorize })`).
-export type { Scope }
+export type { MetadataStore, Scope }
 
 // ===========================================================================
 // Store contracts
@@ -53,6 +54,29 @@ export type { Scope }
 // the boundary; do not mix the two on a single field.
 
 /**
+ * One page of a thread from {@link MessageStore.loadThread} when the caller
+ * passed a paging hint.
+ *
+ * Middleware omits the hint and always gets a full `Array<ModelMessage>`,
+ * never this shape.
+ *
+ * `truncated: true` requires `cursor`. Without a cursor the client cannot
+ * request the next older window, so `reconstructChat` treats that page as
+ * complete.
+ */
+export type MessagePage =
+  | {
+      messages: Array<ModelMessage>
+      truncated: false
+      cursor?: never
+    }
+  | {
+      messages: Array<ModelMessage>
+      truncated: true
+      cursor: string
+    }
+
+/**
  * Durable store for a thread's full message transcript.
  *
  * A "thread" is the unit of conversation history. The key is
@@ -69,13 +93,27 @@ export type { Scope }
  */
 export interface MessageStore {
   /**
-   * Return the full stored transcript for `threadId` ({@link Scope.threadId}),
+   * Return the stored transcript for `threadId` ({@link Scope.threadId}),
    * in insertion order.
+   *
+   * Call with only `threadId` (middleware, `onStart`, `onFinish`) and this
+   * MUST return the full transcript as an `Array<ModelMessage>`. Never a
+   * {@link MessagePage}.
+   *
+   * `options.limit` and `options.before` are an optional paging hint for
+   * hydrate. Adapters may ignore them and still return the full array. An
+   * adapter that pages returns a {@link MessagePage}.
    *
    * INVARIANT: returns an empty array (never `null`/`undefined`) for a thread
    * that was never saved. Callers treat `[]` as "no history".
    */
-  loadThread: (threadId: string) => Promise<Array<ModelMessage>>
+  loadThread: {
+    (threadId: string): Promise<Array<ModelMessage>>
+    (
+      threadId: string,
+      options: { limit?: number; before?: string },
+    ): Promise<Array<ModelMessage> | MessagePage>
+  }
   /**
    * Overwrite the stored transcript for `threadId` with `messages`.
    *
@@ -221,6 +259,18 @@ export interface InterruptRecord {
   response?: unknown
 }
 
+/** A terminal interrupt write for {@link InterruptStore.commitBatch}. */
+export type InterruptCommitEntry =
+  | {
+      interruptId: string
+      status: 'resolved'
+      response?: unknown
+    }
+  | {
+      interruptId: string
+      status: 'cancelled'
+    }
+
 /** Durable store for human-in-the-loop interrupts. */
 export interface InterruptStore {
   /**
@@ -249,6 +299,19 @@ export interface InterruptStore {
    * `interruptId` does not exist.
    */
   cancel: (interruptId: string) => Promise<void>
+  /**
+   * Commit terminal writes for a validated resume batch.
+   *
+   * Optional. When present, `withPersistence` calls it once instead of
+   * calling `resolve` and `cancel` for each entry. Apply every entry or none.
+   *
+   * Reject the whole batch (throw, writing nothing) when any entry has a
+   * duplicate `interruptId`, references an `interruptId` that does not exist,
+   * or references an interrupt whose status is not `'pending'`. This is
+   * stricter than `resolve` / `cancel`, which are no-ops for a missing
+   * `interruptId`.
+   */
+  commitBatch?: (entries: ReadonlyArray<InterruptCommitEntry>) => Promise<void>
   /** Return the interrupt for `interruptId`, or `null` if none exists. */
   get: (interruptId: string) => Promise<InterruptRecord | null>
   /**
@@ -265,37 +328,6 @@ export interface InterruptStore {
   listByRun: (runId: string) => Promise<Array<InterruptRecord>>
   /** Pending interrupts for a run, ordered by `requestedAt` ascending. */
   listPendingByRun: (runId: string) => Promise<Array<InterruptRecord>>
-}
-
-/**
- * Namespaced key/value store for arbitrary JSON metadata (app-owned).
- *
- * The first argument is an **app-defined namespace string**, not the shared
- * {@link Scope} identity type from `@tanstack/ai`. Composite identity is
- * `(namespace, key)` as two independent fields (SQL backends use a composite
- * primary key; the in-memory store uses nested maps). Do not encode both into a
- * single delimited string — `${namespace}:${key}` collides when either part
- * contains `:`.
- *
- * The same `key` under different namespaces is independent.
- */
-export interface MetadataStore {
-  /**
-   * Return the stored value for `(namespace, key)`, or `null` if absent.
-   *
-   * CAVEAT: the return type is `unknown | null`, where `| null` collapses into
-   * `unknown` — a stored value of `null` is therefore **indistinguishable from
-   * absence** at the type level. Callers that must persist a real `null`
-   * distinctly from "not set" should wrap it (e.g. store `{ value: null }`).
-   */
-  get: (namespace: string, key: string) => Promise<unknown | null>
-  /** Insert or overwrite the value for `(namespace, key)`. */
-  set: (namespace: string, key: string, value: unknown) => Promise<void>
-  /**
-   * Remove `(namespace, key)`. A no-op if absent. Does not affect other
-   * namespaces.
-   */
-  delete: (namespace: string, key: string) => Promise<void>
 }
 
 // ===========================================================================
@@ -388,8 +420,20 @@ export interface ArtifactStore {
   save: (record: ArtifactRecord) => Promise<void>
   /** Return the artifact for `artifactId`, or `null` if none exists. */
   get: (artifactId: string) => Promise<ArtifactRecord | null>
-  /** All artifacts for a run. Returns `[]` when the run has none. */
+  /**
+   * All artifacts for a run in deterministic snapshot order: `createdAt`
+   * ascending, then `artifactId` ascending by the unsigned UTF-8 bytes of
+   * each string (compare bytes left-to-right; shorter equal prefixes first).
+   * Returns `[]` when the run has none.
+   */
   list: (runId: string) => Promise<Array<ArtifactRecord>>
+  /**
+   * All artifacts for a thread in deterministic snapshot order.
+   * Records are ordered by `createdAt` ascending, then by `artifactId` using
+   * the unsigned UTF-8 bytes of each string (compare bytes left-to-right; shorter
+   * equal prefixes first).
+   */
+  listForThread: (threadId: string) => Promise<Array<ArtifactRecord>>
   /**
    * Delete a single artifact by id. A no-op if absent, mirroring
    * {@link BlobStore.delete} — the two are written and deleted as a pair, so

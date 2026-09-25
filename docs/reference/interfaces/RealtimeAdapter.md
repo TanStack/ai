@@ -3,8 +3,6 @@ id: RealtimeAdapter
 title: RealtimeAdapter
 ---
 
-# Interface: RealtimeAdapter
-
 Defined in: [packages/ai/src/realtime/types.ts:319](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L319)
 
 Adapter interface for connecting to realtime providers.
@@ -18,7 +16,7 @@ re-exports this type for backwards compatibility.
 
 ## Properties
 
-### connect()
+### connect
 
 ```ts
 connect: (token, clientTools?) => Promise<RealtimeConnection>;

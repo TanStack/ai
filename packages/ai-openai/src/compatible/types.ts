@@ -1,5 +1,6 @@
 import type { ExtendedModelDef } from '@tanstack/ai'
 import type { ClientOptions } from 'openai'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
 /** A model entry: either a bare id string or a rich createModel() def. */
 export type CompatibleModelInput = string | ExtendedModelDef
@@ -75,21 +76,24 @@ export type CompatibleApi = 'chat-completions' | 'responses'
 /** Provider-factory configuration. */
 export interface OpenAICompatibleConfig<
   TModels extends ReadonlyArray<CompatibleModelInput>,
-> extends Omit<ClientOptions, 'apiKey' | 'baseURL'> {
+>
+  extends
+    Omit<ClientOptions, 'apiKey' | 'baseURL'>,
+    OpenAIBaseTextAdapterOptions {
   name?: string
   baseURL: string
-  apiKey: string
+  apiKey: NonNullable<ClientOptions['apiKey']>
   models: TModels
   api?: CompatibleApi
 }
 
 /** One-shot helper configuration (single model). */
-export interface OpenAICompatibleTextConfig extends Omit<
-  ClientOptions,
-  'apiKey' | 'baseURL'
-> {
+export interface OpenAICompatibleTextConfig
+  extends
+    Omit<ClientOptions, 'apiKey' | 'baseURL'>,
+    OpenAIBaseTextAdapterOptions {
   name?: string
   baseURL: string
-  apiKey: string
+  apiKey: NonNullable<ClientOptions['apiKey']>
   api?: CompatibleApi
 }

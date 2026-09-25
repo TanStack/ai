@@ -3,11 +3,13 @@ import {
   chat,
   StreamProcessor,
   type Tool,
-  type StreamChunk,
+  type AdapterYieldChunk,
   type UIMessage,
 } from '@tanstack/ai'
+import { createAnthropicChatWithClient } from '../src'
 import { AnthropicTextAdapter } from '../src/adapters/text'
 import type { AnthropicTextProviderOptions } from '../src/adapters/text'
+import type { AnthropicDocumentMetadata } from '../src/message-types'
 import { ANTHROPIC_MAX_NONSTREAMING_TOKENS } from '../src/model-meta'
 import { z } from 'zod'
 
@@ -77,9 +79,135 @@ function createTextStream(text: string) {
   })()
 }
 
+describe('Anthropic client injection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('uses the injected messages client instead of constructing one', async () => {
+    const create = vi.fn().mockResolvedValueOnce(createTextStream('Hello'))
+    const client = {
+      beta: {
+        messages: {
+          create,
+        },
+      },
+    }
+
+    const adapter = createAnthropicChatWithClient('claude-opus-4-1', client)
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      // consume stream
+    }
+
+    expect(create).toHaveBeenCalledOnce()
+    expect(mocks.betaMessagesCreate).not.toHaveBeenCalled()
+  })
+})
+
 describe('Anthropic adapter option mapping', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('serializes only supported document metadata', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-opus-4-1')
+    const metadata = {
+      mediaType: 'application/pdf',
+      cache_control: { type: 'ephemeral' },
+      citations: { enabled: true },
+      context: 'Quarterly report',
+      filename: 'report.pdf',
+      placeholder: 'Attachment: report.pdf',
+    } as AnthropicDocumentMetadata & { placeholder: string }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'data',
+                value: 'JVBERi0xLjQ=',
+                mimeType: 'application/pdf',
+              },
+              metadata,
+            },
+          ],
+        },
+      ],
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+
+    expect(payload.messages[0].content[0]).toEqual({
+      type: 'document',
+      source: {
+        type: 'base64',
+        data: 'JVBERi0xLjQ=',
+        media_type: 'application/pdf',
+      },
+      cache_control: { type: 'ephemeral' },
+      citations: { enabled: true },
+      context: 'Quarterly report',
+      title: 'report.pdf',
+    })
+  })
+
+  it('prefers document title over filename and serializes only cache_control for images', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-opus-4-1')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'data',
+                value: 'JVBERi0xLjQ=',
+                mimeType: 'application/pdf',
+              },
+              metadata: { title: 'Q3 Report', filename: 'report.pdf' },
+            },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/a.png' },
+              metadata: {
+                mediaType: 'image/png',
+                cache_control: { type: 'ephemeral' },
+                filename: 'a.png',
+              },
+            },
+          ],
+        },
+      ],
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+
+    expect(payload.messages[0].content[0].title).toBe('Q3 Report')
+    expect(payload.messages[0].content[1]).toEqual({
+      type: 'image',
+      source: { type: 'url', url: 'https://example.com/a.png' },
+      cache_control: { type: 'ephemeral' },
+    })
   })
 
   it('passes systemPrompts as TextBlockParam[] for prompt caching support', async () => {
@@ -106,7 +234,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
@@ -301,7 +429,7 @@ describe('Anthropic adapter option mapping', () => {
     const adapter = createAdapter('claude-opus-4-1')
 
     // Consume the stream to trigger the API call
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [
@@ -395,6 +523,76 @@ describe('Anthropic adapter option mapping', () => {
     const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
     expect(payload.temperature).toBe(0.4)
     expect(payload.max_tokens).toBe(2048)
+  })
+
+  it('forwards context_management and attaches the required beta (issue #1074)', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-opus-4-1')
+    const contextManagement = {
+      edits: [{ type: 'clear_tool_uses_20250919' as const }],
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: {
+        context_management: contextManagement,
+      } satisfies AnthropicTextProviderOptions,
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.context_management).toEqual(contextManagement)
+    expect(payload.betas).toEqual(['context-management-2025-06-27'])
+  })
+
+  it('forwards mcp_servers and attaches the mcp-client beta (issue #1424)', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-opus-4-1')
+    const mcpServers = [
+      {
+        type: 'url' as const,
+        name: 'world-weather',
+        url: 'https://mcp.example.com',
+        tool_configuration: { enabled: true },
+      },
+    ]
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: {
+        mcp_servers: mcpServers,
+      } satisfies AnthropicTextProviderOptions,
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.mcp_servers).toEqual(mcpServers)
+    expect(payload.betas).toEqual(['mcp-client-2025-04-04'])
+  })
+
+  it('does not attach the mcp-client beta for an empty mcp_servers array', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-opus-4-1')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: {
+        mcp_servers: [],
+      } satisfies AnthropicTextProviderOptions,
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.betas).toBeUndefined()
   })
 
   it('forwards top-level cache_control from modelOptions instead of dropping it', async () => {
@@ -720,6 +918,83 @@ describe('Anthropic adapter option mapping', () => {
     expect(opus48.supportsCombinedToolsAndSchema()).toBe(true)
   })
 
+  it('native combined mode (#605): replays a prior structured turn as its own assistant message', async () => {
+    // Issue #613. Combined mode puts the JSON on a `structured-output` part,
+    // not a text part, so the assistant turn survives into the next request
+    // only if that part is re-serialized as content. When it isn't, the turn
+    // goes out empty, `mergeConsecutiveSameRoleMessages` filters it, and the
+    // two user turns left adjacent are merged into one.
+    const firstRecipe = JSON.stringify({
+      title: 'Classic Spaghetti Pomodoro',
+      servings: 2,
+    })
+    const secondRecipe = JSON.stringify({
+      title: 'Vegan Spaghetti Pomodoro',
+      servings: 2,
+    })
+
+    const adapter = new AnthropicTextAdapter(
+      { apiKey: 'test-key' },
+      'claude-sonnet-4-5',
+    )
+    const RecipeSchema = z.object({
+      title: z.string(),
+      servings: z.number(),
+    })
+
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createTextStream(firstRecipe),
+    )
+
+    const firstMessages = [
+      { role: 'user' as const, content: 'pasta dinner for two' },
+    ]
+    const processor = new StreamProcessor({
+      initialMessages: firstMessages as unknown as Array<UIMessage>,
+    })
+    for await (const chunk of chat({
+      adapter,
+      messages: firstMessages,
+      outputSchema: RecipeSchema,
+      stream: true,
+    })) {
+      processor.processChunk(chunk)
+    }
+    processor.finalizeStream()
+
+    const afterTurn1 = processor.getMessages()
+    const assistant = afterTurn1.find((m) => m.role === 'assistant')
+    expect(assistant?.parts.map((p) => p.type)).toEqual(['structured-output'])
+
+    // Turn 2: replay the conversation plus a new user turn.
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createTextStream(secondRecipe),
+    )
+
+    for await (const _ of chat({
+      adapter,
+      messages: [...afterTurn1, { role: 'user', content: 'now make it vegan' }],
+      outputSchema: RecipeSchema,
+      stream: true,
+    })) {
+      // consume stream
+    }
+
+    expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(2)
+    const [secondPayload] = mocks.betaMessagesCreate.mock.calls[1]!
+    const replayed = secondPayload.messages as Array<{
+      role: string
+      content: unknown
+    }>
+
+    // Three distinct turns, not two user turns merged around a dropped one.
+    expect(replayed.map((m) => m.role)).toEqual(['user', 'assistant', 'user'])
+    expect(JSON.stringify(replayed[0])).toContain('pasta dinner for two')
+    expect(JSON.stringify(replayed[1])).toContain('Classic Spaghetti Pomodoro')
+    expect(JSON.stringify(replayed[2])).toContain('now make it vegan')
+    expect(JSON.stringify(replayed[2])).not.toContain('pasta dinner for two')
+  })
+
   it('merges consecutive user messages when tool results precede a follow-up user message', async () => {
     // This is the core multi-turn bug: after a tool call + result, the next user message
     // creates consecutive role:'user' messages (tool_result as user + new user message).
@@ -752,7 +1027,7 @@ describe('Anthropic adapter option mapping', () => {
     const adapter = createAdapter('claude-opus-4-1')
 
     // Multi-turn: user -> assistant(tool_calls) -> tool_result -> follow-up user
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [
@@ -824,7 +1099,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [
@@ -883,7 +1158,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [
@@ -919,6 +1194,128 @@ describe('Anthropic adapter option mapping', () => {
     ])
   })
 
+  it('replays signed thinking on both sides of a provider-executed tool (issue #910)', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createTextStream('Follow-up answer'),
+    )
+
+    const adapter = createAdapter('claude-opus-4-1')
+    const providerToolMetadata = {
+      providerExecuted: true,
+      anthropic: {
+        serverToolType: 'web_search',
+        resultBlockType: 'web_search_tool_result',
+        result: [
+          {
+            type: 'web_search_result',
+            title: 'Example result',
+            url: 'https://example.com',
+            encrypted_content: 'opaque-provider-payload',
+          },
+        ],
+      },
+    }
+    const createBlockTool: Tool = {
+      name: 'createBlock',
+      description: 'Create a UI block',
+      inputSchema: z.object({
+        block: z.object({ type: z.string() }),
+      }),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        {
+          id: 'user-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Research top AI companies' }],
+        },
+        {
+          id: 'assistant-1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'thinking',
+              content: 'First signed thinking block',
+              signature: 'signature-1',
+            },
+            {
+              type: 'tool-call',
+              id: 'srvtoolu_search',
+              name: 'web_search',
+              arguments: '{"query":"top AI companies"}',
+              state: 'input-complete',
+              metadata: providerToolMetadata,
+            },
+            {
+              type: 'thinking',
+              content: 'Second signed thinking block',
+              signature: 'signature-2',
+            },
+            {
+              type: 'tool-call',
+              id: 'toolu_create_block',
+              name: 'createBlock',
+              arguments: '{"block":{"type":"entity-grid"}}',
+              state: 'complete',
+              output: { ok: true },
+            },
+            {
+              type: 'tool-result',
+              toolCallId: 'toolu_create_block',
+              content: '{"ok":true}',
+              state: 'complete',
+            },
+          ],
+        },
+        {
+          id: 'user-2',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Continue' }],
+        },
+      ],
+      tools: [createBlockTool],
+      modelOptions: {
+        thinking: { type: 'enabled', budget_tokens: 1024 },
+      } satisfies AnthropicTextProviderOptions,
+    })) {
+      // consume
+    }
+
+    expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    const replayedAssistant = (
+      payload.messages as Array<{
+        role: string
+        content: unknown
+      }>
+    ).find((message) => message.role === 'assistant')
+    expect(Array.isArray(replayedAssistant?.content)).toBe(true)
+    const blocks = replayedAssistant!.content as Array<{
+      type: string
+      thinking?: string
+      signature?: string
+    }>
+    expect(blocks.map((block) => block.type)).toEqual([
+      'thinking',
+      'server_tool_use',
+      'web_search_tool_result',
+      'thinking',
+      'tool_use',
+    ])
+    expect(blocks[0]).toMatchObject({
+      type: 'thinking',
+      thinking: 'First signed thinking block',
+      signature: 'signature-1',
+    })
+    expect(blocks[3]).toMatchObject({
+      type: 'thinking',
+      thinking: 'Second signed thinking block',
+      signature: 'signature-2',
+    })
+  })
+
   it('merges multiple consecutive tool result messages into one user message', async () => {
     // When multiple tools are called, each tool result becomes a role:'user' message.
     // These must be merged into a single user message.
@@ -949,7 +1346,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [
@@ -1065,7 +1462,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [
@@ -1177,7 +1574,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [
@@ -1241,7 +1638,7 @@ describe('Anthropic stream processing', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
@@ -1322,7 +1719,7 @@ describe('Anthropic stream processing', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Weather + fetch' }],
@@ -1348,7 +1745,9 @@ describe('Anthropic stream processing', () => {
       (c) =>
         c.type === 'TOOL_CALL_START' &&
         (c as { toolCallId: string }).toolCallId === 'srv_fetch',
-    ) as (StreamChunk & { metadata?: Record<string, unknown> }) | undefined
+    ) as
+      | (AdapterYieldChunk & { metadata?: Record<string, unknown> })
+      | undefined
     expect(serverStart).toBeDefined()
     expect(serverStart!.metadata).toMatchObject({
       providerExecuted: true,
@@ -1439,7 +1838,7 @@ describe('Anthropic stream processing', () => {
 
       const adapter = createAdapter('claude-opus-4-1')
 
-      const chunks: StreamChunk[] = []
+      const chunks: AdapterYieldChunk[] = []
       for await (const chunk of chat({
         adapter,
         messages: [{ role: 'user', content: 'Use the server tool' }],
@@ -1448,7 +1847,7 @@ describe('Anthropic stream processing', () => {
       }
 
       const start = chunks.find((c) => c.type === 'TOOL_CALL_START') as
-        | (StreamChunk & { metadata?: Record<string, unknown> })
+        | (AdapterYieldChunk & { metadata?: Record<string, unknown> })
         | undefined
       expect(start).toMatchObject({
         toolCallId: 'srv_only',
@@ -1742,7 +2141,7 @@ describe('Anthropic stream processing', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
@@ -1807,7 +2206,7 @@ describe('Anthropic stream processing', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
@@ -1817,11 +2216,15 @@ describe('Anthropic stream processing', () => {
     }
 
     const textStart = chunks.find(
-      (chunk): chunk is Extract<StreamChunk, { type: 'TEXT_MESSAGE_START' }> =>
+      (
+        chunk,
+      ): chunk is Extract<AdapterYieldChunk, { type: 'TEXT_MESSAGE_START' }> =>
         chunk.type === 'TEXT_MESSAGE_START',
     )
     const toolStart = chunks.find(
-      (chunk): chunk is Extract<StreamChunk, { type: 'TOOL_CALL_START' }> =>
+      (
+        chunk,
+      ): chunk is Extract<AdapterYieldChunk, { type: 'TOOL_CALL_START' }> =>
         chunk.type === 'TOOL_CALL_START',
     )
 
@@ -1846,7 +2249,7 @@ describe('Anthropic adapter error handling', () => {
     )
 
     const adapter = createAdapter('claude-opus-4-1')
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of adapter.chatStream({
       model: 'claude-opus-4-1',
       messages: [{ role: 'user', content: 'hi' }],

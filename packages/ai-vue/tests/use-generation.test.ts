@@ -136,6 +136,10 @@ function createErrorChunks(message: string): Array<StreamChunk> {
     {
       type: 'RUN_ERROR',
       runId: 'run-1',
+      message,
+      // Legacy `error.message` shape kept alongside the spec top-level
+      // `message` so both the spec read and the fallback branch in
+      // generation-client.ts stay covered.
       error: { message },
       timestamp: Date.now(),
     },

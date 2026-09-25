@@ -6,22 +6,99 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type { AnyTextAdapter, AdapterYieldChunk } from '@tanstack/ai'
 import type { TestRuntimeContext } from '@/lib/tools-test-tools'
 import { createTextAdapter } from '@/lib/providers'
-import { getToolsForScenario } from '@/lib/tools-test-tools'
+import {
+  getToolsForScenario,
+  STOP_CLIENT_TOOL_MESSAGE,
+} from '@/lib/tools-test-tools'
 
-const runtimeContextScenarios = new Set([
+const providerFreeScenarios = new Set([
   'server-context',
   'client-context',
   'client-server-context',
+  'client-tool-stop',
+  'client-tool-input-error',
+  'invalid-client-tool-retry',
+  'malformed-tool-arguments',
+  'provider-rejected-tool-call',
 ])
 
-function createRuntimeContextAdapter(scenario: string): AnyTextAdapter {
+function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
+  const stopsPendingTool = scenario === 'client-tool-stop'
+  const config =
+    scenario === 'provider-rejected-tool-call'
+      ? {
+          arguments: '{"component":"database","unexpected":true}',
+          initialText: 'Checking system status.',
+          input: { component: 'database', unexpected: true },
+          name: 'provider-rejected-tool-call-test',
+          responseText: 'Recovered from provider-rejected tool call.',
+          result: JSON.stringify({ error: 'Provider rejected tool call' }),
+          state: 'output-error' as const,
+          toolName: 'check_status',
+        }
+      : scenario === 'malformed-tool-arguments'
+        ? {
+            arguments: '{',
+            initialText: 'Checking system status.',
+            input: undefined,
+            name: 'malformed-tool-arguments-test',
+            responseText: 'Recovered from malformed tool arguments.',
+            result: undefined,
+            state: undefined,
+            toolName: 'check_status',
+          }
+        : scenario === 'client-tool-input-error' ||
+            scenario === 'invalid-client-tool-retry'
+          ? {
+              arguments: '{"message":42,"type":"info"}',
+              initialText: 'Showing a notification.',
+              input: { message: 42, type: 'info' },
+              name:
+                scenario === 'invalid-client-tool-retry'
+                  ? 'invalid-client-tool-retry-test'
+                  : 'client-tool-input-error-test',
+              responseText:
+                scenario === 'invalid-client-tool-retry'
+                  ? 'Recovered after client tool input retry.'
+                  : 'Unexpected client continuation.',
+              result: undefined,
+              state: undefined,
+              toolName: 'show_notification',
+            }
+          : {
+              arguments: stopsPendingTool
+                ? JSON.stringify({
+                    message: STOP_CLIENT_TOOL_MESSAGE,
+                    type: 'info',
+                  })
+                : '{}',
+              initialText: stopsPendingTool
+                ? 'Showing a notification.'
+                : 'Reading runtime context.',
+              input: stopsPendingTool
+                ? { message: STOP_CLIENT_TOOL_MESSAGE, type: 'info' }
+                : {},
+              name: stopsPendingTool
+                ? 'client-tool-stop-test'
+                : 'runtime-context-test',
+              responseText: stopsPendingTool
+                ? 'The notification was shown.'
+                : 'Runtime context was read.',
+              result: undefined,
+              state: undefined,
+              toolName: stopsPendingTool
+                ? 'show_notification'
+                : scenario === 'client-context'
+                  ? 'read_client_context'
+                  : 'read_server_context',
+            }
   return {
     kind: 'text',
-    name: 'runtime-context-test',
-    model: 'runtime-context-test',
+    name: config.name,
+    model: config.name,
     '~types': {
       providerOptions: {},
       inputModalities: ['text'],
@@ -30,14 +107,17 @@ function createRuntimeContextAdapter(scenario: string): AnyTextAdapter {
       toolCallMetadata: undefined,
       systemPromptMetadata: undefined,
     },
-    async *chatStream(options): AsyncGenerator<StreamChunk> {
-      const model = 'runtime-context-test'
+    async *chatStream(options): AsyncGenerator<AdapterYieldChunk> {
+      const model = config.name
       const runId = options.runId ?? 'runtime-context-run'
       const threadId = options.threadId ?? 'runtime-context-thread'
       const messageId = `${runId}-message`
-      const hasToolResult = options.messages.some(
+      const toolResultCount = options.messages.filter(
         (message) => message.role === 'tool',
-      )
+      ).length
+      const hasToolResult = toolResultCount > 0
+      const retryClientTool =
+        scenario === 'invalid-client-tool-retry' && toolResultCount === 1
 
       yield {
         type: EventType.RUN_STARTED,
@@ -47,12 +127,17 @@ function createRuntimeContextAdapter(scenario: string): AnyTextAdapter {
         timestamp: Date.now(),
       }
 
-      if (!hasToolResult) {
-        const toolName =
-          scenario === 'client-context'
-            ? 'read_client_context'
-            : 'read_server_context'
-        const toolCallId = `${scenario}-tool-call`
+      if (!hasToolResult || retryClientTool) {
+        const toolCallId =
+          scenario === 'invalid-client-tool-retry'
+            ? `${scenario}-tool-call-${toolResultCount + 1}`
+            : `${scenario}-tool-call`
+        const toolArguments = retryClientTool
+          ? '{"message":"done","type":"info"}'
+          : config.arguments
+        const toolInput = retryClientTool
+          ? { message: 'done', type: 'info' }
+          : config.input
 
         yield {
           type: EventType.TEXT_MESSAGE_START,
@@ -64,7 +149,7 @@ function createRuntimeContextAdapter(scenario: string): AnyTextAdapter {
         yield {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId,
-          delta: 'Reading runtime context.',
+          delta: config.initialText,
           model,
           timestamp: Date.now(),
         }
@@ -77,24 +162,27 @@ function createRuntimeContextAdapter(scenario: string): AnyTextAdapter {
         yield {
           type: EventType.TOOL_CALL_START,
           toolCallId,
-          toolCallName: toolName,
-          toolName,
+          toolCallName: config.toolName,
+          toolName: config.toolName,
           model,
           timestamp: Date.now(),
         }
         yield {
           type: EventType.TOOL_CALL_ARGS,
           toolCallId,
-          delta: '{}',
+          delta: toolArguments,
           model,
           timestamp: Date.now(),
         }
         yield {
           type: EventType.TOOL_CALL_END,
           toolCallId,
-          toolCallName: toolName,
-          toolName,
-          input: {},
+          toolCallName: config.toolName,
+          toolName: config.toolName,
+          ...(toolInput === undefined ? {} : { input: toolInput }),
+          ...(config.result === undefined
+            ? {}
+            : { result: config.result, state: config.state }),
           model,
           timestamp: Date.now(),
         }
@@ -119,7 +207,7 @@ function createRuntimeContextAdapter(scenario: string): AnyTextAdapter {
       yield {
         type: EventType.TEXT_MESSAGE_CONTENT,
         messageId,
-        delta: 'Runtime context was read.',
+        delta: config.responseText,
         model,
         timestamp: Date.now(),
       }
@@ -135,6 +223,226 @@ function createRuntimeContextAdapter(scenario: string): AnyTextAdapter {
         threadId,
         model,
         finishReason: 'stop',
+        timestamp: Date.now(),
+      }
+    },
+    structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+  }
+}
+
+/**
+ * Regression adapter for PR #1481.
+ *
+ * Streams wire arguments with an extra `region: null` (the shape OpenAI
+ * strict mode widens an optional field into), then sends the canonical
+ * `input` without it on TOOL_CALL_END. Once history holds a tool result, it
+ * echoes the tool-call arguments of that history as text. On a second user
+ * turn, that history comes from the client's tool-call part.
+ */
+function createCanonicalToolInputAdapter(): AnyTextAdapter {
+  const model = 'canonical-tool-input-test'
+  return {
+    kind: 'text',
+    name: model,
+    model,
+    '~types': {
+      providerOptions: {},
+      inputModalities: ['text'],
+      messageMetadataByModality: {},
+      toolCapabilities: [],
+      toolCallMetadata: undefined,
+      systemPromptMetadata: undefined,
+    },
+    async *chatStream(options): AsyncGenerator<AdapterYieldChunk> {
+      const runId = options.runId ?? 'canonical-tool-input-run'
+      const threadId = options.threadId ?? 'canonical-tool-input-thread'
+      const messageId = `${runId}-message`
+      const toolCallId = 'canonical-tool-input-tool-call'
+      const timestamp = Date.now()
+
+      yield { type: EventType.RUN_STARTED, runId, threadId, model, timestamp }
+
+      if (options.messages.some((message) => message.role === 'tool')) {
+        const historyArguments = options.messages
+          .flatMap((message) => message.toolCalls ?? [])
+          .map((toolCall) => toolCall.function.arguments)
+        yield {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId,
+          role: 'assistant',
+          model,
+          timestamp,
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId,
+          delta: `History arguments: ${historyArguments.join(' ')}`,
+          model,
+          timestamp,
+        }
+        yield { type: EventType.TEXT_MESSAGE_END, messageId, model, timestamp }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          model,
+          finishReason: 'stop',
+          timestamp,
+        }
+        return
+      }
+
+      yield {
+        type: EventType.TOOL_CALL_START,
+        toolCallId,
+        toolCallName: 'check_status',
+        toolName: 'check_status',
+        model,
+        timestamp,
+      }
+      yield {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        delta: '{"component":"database","region":null}',
+        model,
+        timestamp,
+      }
+      yield {
+        type: EventType.TOOL_CALL_END,
+        toolCallId,
+        toolCallName: 'check_status',
+        toolName: 'check_status',
+        input: { component: 'database' },
+        model,
+        timestamp,
+      }
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId,
+        threadId,
+        model,
+        finishReason: 'tool_calls',
+        timestamp,
+      }
+    },
+    structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+  }
+}
+
+/**
+ * Regression adapter for issue #1017.
+ *
+ * Emits a TEXT_MESSAGE_CONTENT delta between two TOOL_CALL_ARGS deltas.
+ * Pre-fix, the interleaved text force-completed the tool call with a
+ * lenient partial-JSON parse of the truncated arguments
+ * (`{"city":"New Yo"}`) and the later TOOL_CALL_END was skipped.
+ */
+function createInterleavedArgsAdapter(): AnyTextAdapter {
+  return {
+    kind: 'text',
+    name: 'interleaved-args-test',
+    model: 'interleaved-args-test',
+    '~types': {
+      providerOptions: {},
+      inputModalities: ['text'],
+      messageMetadataByModality: {},
+      toolCapabilities: [],
+      toolCallMetadata: undefined,
+      systemPromptMetadata: undefined,
+    },
+    async *chatStream(options): AsyncGenerator<AdapterYieldChunk> {
+      const model = 'interleaved-args-test'
+      const runId = options.runId ?? 'interleaved-args-run'
+      const threadId = options.threadId ?? 'interleaved-args-thread'
+      const messageId = `${runId}-message`
+      const toolCallId = 'interleaved-args-tool-call'
+      const hasToolResult = options.messages.some(
+        (message) => message.role === 'tool',
+      )
+
+      yield {
+        type: EventType.RUN_STARTED,
+        runId,
+        threadId,
+        model,
+        timestamp: Date.now(),
+      }
+
+      if (hasToolResult) {
+        yield {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId,
+          role: 'assistant',
+          model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId,
+          delta: 'It is 72F in New York City.',
+          model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId,
+          model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          model,
+          finishReason: 'stop',
+          timestamp: Date.now(),
+        }
+        return
+      }
+
+      yield {
+        type: EventType.TOOL_CALL_START,
+        toolCallId,
+        toolCallName: 'get_weather',
+        toolName: 'get_weather',
+        model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        delta: '{"city":"New Yo',
+        model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId,
+        delta: 'Let me check the weather. ',
+        model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        delta: 'rk City"}',
+        model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.TOOL_CALL_END,
+        toolCallId,
+        toolCallName: 'get_weather',
+        toolName: 'get_weather',
+        model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId,
+        threadId,
+        model,
+        finishReason: 'tool_calls',
         timestamp: Date.now(),
       }
     },
@@ -176,7 +484,7 @@ export const Route = createFileRoute('/api/tools-test')({
           // Special error scenario: return a stream that immediately errors
           if (scenario === 'error') {
             const errorStream =
-              (async function* (): AsyncGenerator<StreamChunk> {
+              (async function* (): AsyncGenerator<AdapterYieldChunk> {
                 yield {
                   type: EventType.RUN_STARTED,
                   runId: 'error-test',
@@ -200,9 +508,21 @@ export const Route = createFileRoute('/api/tools-test')({
             return toServerSentEventsResponse(errorStream, { abortController })
           }
 
-          const adapterOptions = runtimeContextScenarios.has(scenario)
-            ? { adapter: createRuntimeContextAdapter(scenario) }
-            : createTextAdapter('openai', undefined, aimockPort, testId)
+          const adapterOptions =
+            scenario === 'interleaved-args'
+              ? { adapter: createInterleavedArgsAdapter() }
+              : scenario === 'canonical-tool-input'
+                ? { adapter: createCanonicalToolInputAdapter() }
+                : providerFreeScenarios.has(scenario)
+                  ? { adapter: createProviderFreeAdapter(scenario) }
+                  : createTextAdapter(
+                      'openai',
+                      scenario === 'client-tool-reasoning'
+                        ? 'gpt-5.2'
+                        : undefined,
+                      aimockPort,
+                      testId,
+                    )
 
           const tools = getToolsForScenario(scenario)
           const runtimeContext: TestRuntimeContext =
@@ -226,7 +546,11 @@ export const Route = createFileRoute('/api/tools-test')({
             context: runtimeContext,
             threadId: params.threadId,
             runId: params.runId,
-            agentLoopStrategy: maxIterations(20),
+            ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
+            ...(params.resume ? { resume: params.resume } : {}),
+            agentLoopStrategy: maxIterations(
+              scenario === 'client-tool-input-error' ? 1 : 20,
+            ),
             abortController,
           })
 

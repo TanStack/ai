@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-preact",
-  "version": "0.12.2",
+  "version": "0.19.1",
   "description": "Preact hooks for TanStack AI streaming chat and typed messages.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -28,6 +28,14 @@
     "./mcp-apps": {
       "types": "./dist/esm/mcp-apps.d.ts",
       "import": "./dist/esm/mcp-apps.js"
+    },
+    "./ui": {
+      "types": "./dist/esm/ui.d.ts",
+      "import": "./dist/esm/ui.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
     }
   },
   "files": [
@@ -38,6 +46,7 @@
     "clean": "premove ./build ./dist",
     "lint:fix": "oxlint src --type-aware --fix",
     "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
     "test:lib": "vitest run",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc",
@@ -62,10 +71,10 @@
     "@mcp-ui/client": "^7.1.1",
     "@tanstack/ai": "workspace:*",
     "@testing-library/preact": "^3.2.4",
-    "@vitest/coverage-v8": "4.0.14",
-    "jsdom": "^27.2.0",
+    "@vitest/coverage-v8": "4.1.10",
+    "jsdom": "^27.4.0",
     "preact": "^10.26.9",
-    "vite": "^8.1.4"
+    "vite": "^8.2.1"
   },
   "peerDependencies": {
     "@mcp-ui/client": "^7",

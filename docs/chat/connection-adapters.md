@@ -32,7 +32,8 @@ This page covers every supported transport, when to pick which, and how to build
 | Code that **synchronously** returns an `AsyncIterable<StreamChunk>` (in-process `chat()`, an RSC stream, tests) | [`stream`](#server-functions-and-direct-async-iterables) |
 | An **async** call — a TanStack Start server function or any `Promise`-returning function — resolving to a `Response` or an `AsyncIterable<StreamChunk>` | [`fetcher`](#server-functions-via-fetcher) |
 | An RPC framework like Cap'n Web, gRPC-Web, or tRPC | [`rpcStream`](#rpc-streams) |
-| A single long-lived WebSocket (or BroadcastChannel, postMessage, shared worker) serving many runs | [Custom `subscribe` / `send` adapter](#persistent-transports-websockets-and-friends) |
+| A single long-lived, resumable WebSocket serving many runs | [`webSocket`](#websockets) |
+| BroadcastChannel, postMessage, a shared worker, or another persistent transport | [Custom `subscribe` / `send` adapter](#persistent-transports-websockets-and-friends) |
 | Standard SSE but with custom fetch wrapping (auth refresh, retries) | [`fetchServerSentEvents` with `fetchClient`](#custom-fetch-client) |
 | Something else entirely (HTTP/3, Server-Sent Events over a different protocol, etc.) | [Custom `connect` adapter](#custom-request-scoped-adapters) |
 
@@ -66,7 +67,7 @@ const { messages } = useChat({
 });
 ```
 
-**Static body.** Anything in `options.body` is merged into the AG-UI `forwardedProps` payload sent to your server. Per-message data passed to `sendMessage` wins over this:
+**Static body.** Anything in `options.body` is merged into the AG-UI `forwardedProps` payload sent to your server. Per-message `sendMessage` `body` wins over this:
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -78,7 +79,56 @@ const { messages } = useChat({
 });
 ```
 
-> **Tip:** `body` and `forwardedProps` populate the same wire field. Use `body` for static defaults, the `forwardedProps` constructor option (or per-`sendMessage` `data`) for dynamic values. Runtime values always win.
+> **Tip:** `body` and `forwardedProps` populate the same wire field. Use adapter `body` for static defaults. Use the `forwardedProps` constructor option, or `sendMessage(content, { body })`, for values that change. Runtime values always win.
+
+**Per-call body.** Pass extra JSON for one send in `sendMessage`'s second argument. It is shallow-merged into `forwardedProps` with the chat-level `body` (`{ ...chatBody, ...sendOptions.body }`). Shared keys take the `sendMessage` value. That merge is for this request only.
+
+```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { sendMessage } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+  forwardedProps: { provider: "openai" },
+});
+
+await sendMessage("Summarize the attached files", {
+  body: { attachmentIds: ["att_1", "att_2"] },
+});
+```
+
+Your server reads the merged object from `chatParamsFromRequest`. If the model must not see those keys, do not copy them into `messages`.
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const { messages, forwardedProps } = await chatParamsFromRequest(request);
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages,
+  });
+  if (
+    forwardedProps &&
+    typeof forwardedProps === "object" &&
+    "attachmentIds" in forwardedProps
+  ) {
+    const { attachmentIds } = forwardedProps
+    if (Array.isArray(attachmentIds) && attachmentIds.length > 0) {
+      // Look up the uploads. Do not add them to `messages`.
+    }
+  }
+  return toServerSentEventsResponse(stream);
+}
+```
+
+On `ChatClient` directly, the positional second argument is the same extra JSON. It shallow-merges with `sendOptions.body`. `sendOptions.body` wins on key collisions.
+
+`reload()` starts a new request. It uses chat-level `forwardedProps` / `body` only. It does not replay the previous send's per-call `body`.
 
 ### Resumable SSE
 
@@ -314,11 +364,47 @@ const { messages } = useChat({
 
 Like `stream()`, `rpcStream()` takes an optional second argument of persistence handlers (`{ hydrate, hydrateGeneration, joinRun }`) so server-driven persistence works over RPC — each handler is usually a one-line RPC call.
 
+## WebSockets
+
+For a persistent, resumable WebSocket, use the built-in `webSocket()` adapter instead of hand-rolling a `SubscribeConnectionAdapter`. It opens one socket for the whole conversation, reconnects a dropped durable run automatically, and pairs with the server's `toWebSocketStream` / `toWebSocketResponse`:
+
+```typescript
+import { useChat, webSocket } from "@tanstack/ai-react";
+
+const connection = webSocket("/api/chat-ws");
+
+const { messages, sendMessage } = useChat({ connection });
+```
+
+On Cloudflare Workers or Durable Objects, pair that client with `toWebSocketResponse`. Elsewhere, accept the socket yourself and pass it to `toWebSocketStream` (see [WebSockets](../resumable-streams/websockets)):
+
+```typescript
+import { chat, memoryStream, toWebSocketResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+export default {
+  fetch(request: Request): Response {
+    return toWebSocketResponse(request, {
+      durability: (ctx) => memoryStream(ctx.request),
+      onRun: ({ messages, threadId, runId }) =>
+        chat({
+          adapter: openaiText("gpt-5.5"),
+          messages,
+          threadId,
+          runId,
+        }),
+    });
+  },
+};
+```
+
+See [WebSockets](../resumable-streams/websockets) for the wire protocol, reconnect details, and hosting on Node vs Cloudflare.
+
 ## Persistent Transports (WebSockets and Friends)
 
 A persistent transport — WebSocket, BroadcastChannel, postMessage between iframes, a shared worker — is fundamentally different from request/response. You open the channel **once**, then send and receive over it for the lifetime of the client. `stream()`/`connect()` can't model this cleanly because they assume one async iterable per request.
 
-For these cases, implement the `SubscribeConnectionAdapter` interface directly. The shape (full definition in [The Adapter Interface](#the-adapter-interface)):
+The built-in `webSocket()` adapter above covers the common resumable WebSocket case. For anything else persistent, implement the `SubscribeConnectionAdapter` interface directly. The shape (full definition in [The Adapter Interface](#the-adapter-interface)):
 
 ```typescript
 import type { SubscribeConnectionAdapter } from "@tanstack/ai-react";
@@ -332,7 +418,9 @@ import type { SubscribeConnectionAdapter } from "@tanstack/ai-react";
 
 The runtime correlates them: chunks emitted on the subscription queue between `send()` and the next terminal event (`RUN_FINISHED` / `RUN_ERROR`) are attributed to that run.
 
-### WebSocket example
+### Custom WebSocket example
+
+Building your own protocol instead of the built-in `webSocket()` adapter (a different wire format, no resume support needed, or a server you don't control)? Implement `SubscribeConnectionAdapter` by hand:
 
 ```typescript
 import { useChat, type SubscribeConnectionAdapter } from "@tanstack/ai-react";
@@ -415,7 +503,7 @@ const { messages } = useChat({
 });
 ```
 
-> **Tip:** Your server is responsible for emitting `RUN_FINISHED` (or `RUN_ERROR`) at the end of each run. Without it, the client will not know the assistant turn has ended and will wait indefinitely. See [Streaming](./streaming) for the full event lifecycle.
+> **Tip:** Your server is responsible for emitting `RUN_FINISHED` (or `RUN_ERROR`) at the end of each run. Without it, the client will not know the assistant turn has ended and will wait indefinitely. See [Stream Events](./stream-events) for the full event lifecycle.
 
 ### When to choose persistent over request-scoped
 
@@ -465,7 +553,10 @@ const myAdapter: ConnectConnectionAdapter = {
   async *connect(messages, data, abortSignal, runContext) {
     const response = await fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...runContext?.headers,
+      },
       body: JSON.stringify({
         threadId: runContext?.threadId,
         runId: runContext?.runId,
@@ -502,7 +593,9 @@ const myAdapter: ConnectConnectionAdapter = {
 const { messages } = useChat({ connection: myAdapter });
 ```
 
-`runContext` carries `threadId`, `runId`, `clientTools`, and `forwardedProps`. Include them in your request payload so the server can build an AG-UI-compliant response.
+`runContext` carries `threadId`, `runId`, `clientTools`, `forwardedProps`, and `headers`. Include the first four in your JSON payload so the server can build an AG-UI-compliant response.
+
+Copy `runContext.headers` onto the **POST request headers**, not the body. Built-in fetch and XHR adapters do this. `stream()` and `rpcStream()` do not — they never see `runContext`. A custom `connect` that skips `headers` drops BYOK keys (`x-byok-*`). See [Bring Your Own Key](../advanced/byok).
 
 The runtime covers the terminal event either way:
 
@@ -523,6 +616,7 @@ export interface RunAgentInputContext {
   parentRunId?: string;
   clientTools?: Array<{ name: string; description: string; parameters: unknown }>;
   forwardedProps?: Record<string, unknown>;
+  headers?: Record<string, string>;
 }
 
 export interface ConnectConnectionAdapter {
@@ -551,7 +645,7 @@ export type ConnectionAdapter =
 
 Internally, `ChatClient` normalizes both shapes to a single `subscribe`/`send` pair via `normalizeConnectionAdapter()`:
 
-- Provide `connect` and it gets wrapped in an async queue.
+- Provide `connect` and it gets wrapped in an async queue. The wrapped `send()` waits until the active subscriber processes all events or exits.
 - Provide `subscribe` + `send` natively and they are used as-is.
 
 ## Authentication
@@ -622,7 +716,8 @@ Don't swallow `AbortError` — let it propagate so the client knows the abort su
 
 ## Next Steps
 
-- [Streaming](./streaming) — the full event lifecycle and `StreamChunk` types
+- [Stream Events](./stream-events) for the full event lifecycle and `StreamChunk` types
+- [Streaming](./streaming) for the server and client streaming path
 - [AG-UI Client Compliance](../migration/ag-ui-compliance) — the wire protocol your server emits
 - [Cloudflare Adapter](../community-adapters/cloudflare) — example of a custom `fetchClient` in production
 - [API Reference: `@tanstack/ai-client`](../api/ai-client) — full type signatures

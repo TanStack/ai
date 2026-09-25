@@ -117,12 +117,24 @@ export interface SandboxFs {
   remove: (path: string) => Promise<void>
   rename: (from: string, to: string) => Promise<void>
   exists: (path: string) => Promise<boolean>
+  /**
+   * Optional metadata lookup. Implementations must not follow symlinks.
+   * Returns undefined only for a confirmed missing path. All other errors reject.
+   */
+  lstat?: (path: string) => Promise<SandboxFsStat | undefined>
   /** Optional — present only when `capabilities.fs` providers advertise watch. */
   watch?: (
     path: string,
     onEvent: (event: { type: string; path: string }) => void,
   ) => Promise<{ stop: () => Promise<void> }>
 }
+
+export type SandboxFsStat =
+  // `mode` is the complete POSIX mode value, including the file-type bits.
+  | { type: 'file'; mode: number; size: number }
+  | { type: 'dir'; mode: number }
+  | { type: 'symlink'; mode: number }
+  | { type: 'other'; mode: number }
 
 /**
  * Uniform git surface. Implementations either delegate to the provider's

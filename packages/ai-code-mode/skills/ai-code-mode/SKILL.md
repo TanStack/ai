@@ -5,8 +5,8 @@ description: >
   createCodeModeTool() with isolate drivers (createNodeIsolateDriver,
   createQuickJSIsolateDriver, createQuickJSBunIsolateDriver,
   createCloudflareIsolateDriver),
-  codeModeWithSkills() for persistent skill libraries, trust strategies,
-  skill storage (FileSystem, LocalStorage, InMemory, Mongo), client-side
+  codeModeWithSnippets() for persistent snippet libraries, trust strategies,
+  snippet storage (FileSystem, LocalStorage, InMemory, Mongo), client-side
   execution progress via code_mode:* custom events in useChat.
 type: core
 library: tanstack-ai
@@ -14,7 +14,7 @@ library_version: '0.3.8'
 sources:
   - 'TanStack/ai:docs/code-mode/code-mode.md'
   - 'TanStack/ai:docs/code-mode/code-mode-isolates.md'
-  - 'TanStack/ai:docs/code-mode/code-mode-with-skills.md'
+  - 'TanStack/ai:docs/code-mode/code-mode-with-snippets.md'
   - 'TanStack/ai:docs/code-mode/client-integration.md'
   - 'TanStack/ai:docs/code-mode/lazy-tools.md'
 ---
@@ -26,11 +26,10 @@ sources:
 Complete Code Mode setup with Node.js isolate driver:
 
 ```typescript
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { createCodeModeTool } from '@tanstack/ai-code-mode'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
-import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
 // Define a tool that code can call
@@ -54,22 +53,37 @@ const codeModeTool = createCodeModeTool({
 })
 
 // Use in chat
-const stream = chat({
-  adapter: openaiText('gpt-5.2'),
-  messages,
-  tools: [codeModeTool],
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
 
-return toServerSentEventsResponse(stream)
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages,
+    tools: [codeModeTool],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 The recommended higher-level entry point is `createCodeMode()`, which returns both the tool and a matching system prompt:
 
 ```typescript
-import { chat } from '@tanstack/ai'
+import { chat, toServerSentEventsResponse, toolDefinition } from '@tanstack/ai'
 import { createCodeMode } from '@tanstack/ai-code-mode'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const fetchWeather = toolDefinition({
+  name: 'fetchWeather',
+  description: 'Get current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+  outputSchema: z.object({ temp: z.number(), condition: z.string() }),
+}).server(async ({ city }) => {
+  const res = await fetch(`https://api.weather.com/${city}`)
+  return res.json()
+})
 
 const { tool, systemPrompt } = createCodeMode({
   driver: createNodeIsolateDriver(),
@@ -77,12 +91,18 @@ const { tool, systemPrompt } = createCodeMode({
   timeout: 30_000,
 })
 
-const stream = chat({
-  adapter: openaiText('gpt-4o'),
-  systemPrompts: ['You are a helpful assistant.', systemPrompt],
-  tools: [tool],
-  messages,
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    systemPrompts: ['You are a helpful assistant.', systemPrompt],
+    tools: [tool],
+    messages,
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 `createCodeMode` calls `createCodeModeTool` and `createCodeModeSystemPrompt` internally. The system prompt includes generated TypeScript type stubs for each tool so the LLM writes correct calls.
@@ -149,68 +169,89 @@ const driver = createCloudflareIsolateDriver({
 | QuickJS Bun | Bun servers                 | None            | No              | Fast (native QuickJS) |
 | Cloudflare  | Edge deployments            | None            | N/A             | Fast (V8 on edge)     |
 
-### 2. Adding Persistent Skills with codeModeWithSkills()
+### 2. Adding Persistent Snippets with codeModeWithSnippets()
 
-Skills let the LLM save reusable code snippets. On future requests, relevant skills are loaded and exposed as callable tools.
+Snippets let the LLM save reusable code snippets. On future requests, relevant snippets are loaded and exposed as callable tools.
 
 ```typescript
-import { chat, maxIterations } from '@tanstack/ai'
-import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
-import { codeModeWithSkills } from '@tanstack/ai-code-mode-skills'
-import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
 import {
+  chat,
+  maxIterations,
+  toServerSentEventsResponse,
+  toolDefinition,
+} from '@tanstack/ai'
+import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
+import {
+  codeModeWithSnippets,
   createDefaultTrustStrategy,
-  createAlwaysTrustedStrategy,
-  createCustomTrustStrategy,
-} from '@tanstack/ai-code-mode-skills'
+} from '@tanstack/ai-code-mode-snippets'
+import { createFileSnippetStorage } from '@tanstack/ai-code-mode-snippets/storage'
 import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
 
-// Trust strategies control how skills earn trust through executions
-// Default: untrusted -> provisional (10+ runs, >=90%) -> trusted (100+ runs, >=95%)
-// Relaxed: untrusted -> provisional (3+ runs, >=80%) -> trusted (10+ runs, >=90%)
-// Always trusted: immediately trusted (dev/testing)
-// Custom: configurable thresholds
+const fetchWeather = toolDefinition({
+  name: 'fetchWeather',
+  description: 'Get current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+  outputSchema: z.object({ temp: z.number(), condition: z.string() }),
+}).server(async ({ city }) => {
+  const res = await fetch(`https://api.weather.com/${city}`)
+  return res.json()
+})
+
+// Trust strategies control how snippets earn trust through executions
+// Default (createDefaultTrustStrategy): untrusted -> provisional (10+ runs, >=90%) -> trusted (100+ runs, >=95%)
+// Relaxed (createRelaxedTrustStrategy): untrusted -> provisional (3+ runs, >=80%) -> trusted (10+ runs, >=90%)
+// Always trusted (createAlwaysTrustedStrategy): immediately trusted (dev/testing)
+// Custom (createCustomTrustStrategy): configurable thresholds
 const trustStrategy = createDefaultTrustStrategy()
 
 // Storage options: file system (production) or memory (testing)
-const storage = createFileSkillStorage({
-  directory: './.skills',
+const storage = createFileSnippetStorage({
+  directory: './.snippets',
   trustStrategy,
 })
 
 const driver = createNodeIsolateDriver()
 
-// High-level API: automatic LLM-based skill selection
-const { toolsRegistry, systemPrompt, selectedSkills } =
-  await codeModeWithSkills({
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  // High-level API: automatic LLM-based snippet selection
+  const { toolsRegistry, systemPrompt } = await codeModeWithSnippets({
     config: {
       driver,
-      tools: [myTool1, myTool2],
+      tools: [fetchWeather],
       timeout: 60_000,
       memoryLimit: 128,
     },
-    adapter: openaiText('gpt-4o-mini'), // cheap model for skill selection
-    skills: {
+    adapter: openaiText('gpt-5-mini'), // cheap model for snippet selection
+    snippets: {
       storage,
-      maxSkillsInContext: 5,
+      maxSnippetsInContext: 5,
     },
     messages,
   })
 
-const stream = chat({
-  adapter: openaiText('gpt-4o'),
-  tools: toolsRegistry.getTools(),
-  messages,
-  systemPrompts: ['You are a helpful assistant.', systemPrompt],
-  agentLoopStrategy: maxIterations(15),
-})
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    tools: toolsRegistry.getTools(),
+    messages,
+    systemPrompts: ['You are a helpful assistant.', systemPrompt],
+    agentLoopStrategy: maxIterations(15),
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
-The registry includes: `execute_typescript`, `search_skills`, `get_skill`, `register_skill`, and one tool per selected skill.
+The registry includes: `execute_typescript`, `search_snippets`, `get_snippet`, `register_snippet`, and one tool per selected snippet.
 
 Custom trust strategy example:
 
 ```typescript
+import { createCustomTrustStrategy } from '@tanstack/ai-code-mode-snippets'
+
 const strategy = createCustomTrustStrategy({
   initialLevel: 'untrusted',
   provisionalThreshold: { executions: 5, successRate: 0.85 },
@@ -221,13 +262,13 @@ const strategy = createCustomTrustStrategy({
 Storage implementations:
 
 ```typescript
-// File storage (production) -- persists skills as files on disk
-import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
-const fileStorage = createFileSkillStorage({ directory: './.skills' })
+// File storage (production) -- persists snippets as files on disk
+import { createFileSnippetStorage } from '@tanstack/ai-code-mode-snippets/storage'
+const fileStorage = createFileSnippetStorage({ directory: './.snippets' })
 
 // Memory storage (testing) -- in-memory, lost on restart
-import { createMemorySkillStorage } from '@tanstack/ai-code-mode-skills/storage'
-const memStorage = createMemorySkillStorage()
+import { createMemorySnippetStorage } from '@tanstack/ai-code-mode-snippets/storage'
+const memStorage = createMemorySnippetStorage()
 ```
 
 ### 3. Client-Side Execution Progress Display
@@ -244,7 +285,7 @@ Events emitted:
 | `code_mode:external_result`   | After successful external\_\* call   | `function`, `result`, `duration` |
 | `code_mode:external_error`    | When external\_\* call fails         | `function`, `error`, `duration`  |
 
-```typescript
+```tsx
 import { useCallback, useRef, useState } from 'react'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 
@@ -262,11 +303,7 @@ export function CodeModeChat() {
   const eventIdCounter = useRef(0)
 
   const handleCustomEvent = useCallback(
-    (
-      eventType: string,
-      data: unknown,
-      context: { toolCallId?: string },
-    ) => {
+    (eventType: string, data: unknown, context: { toolCallId?: string }) => {
       const { toolCallId } = context
       if (!toolCallId) return
 
@@ -296,9 +333,9 @@ export function CodeModeChat() {
     <div>
       {messages.map((message) => (
         <div key={message.id}>
-          {message.parts.map((part) => {
+          {message.parts.map((part, index) => {
             if (part.type === 'text') {
-              return <p key={part.id}>{part.content}</p>
+              return <p key={index}>{part.content}</p>
             }
             if (
               part.type === 'tool-call' &&
@@ -331,17 +368,21 @@ export function CodeModeChat() {
 The `onCustomEvent` callback signature is identical across all framework integrations (`@tanstack/ai-react`, `@tanstack/ai-solid`, `@tanstack/ai-vue`, `@tanstack/ai-svelte`):
 
 ```typescript
-(eventType: string, data: unknown, context: { toolCallId?: string }) => void
+type OnCustomEvent = (
+  eventType: string,
+  data: unknown,
+  context: { toolCallId?: string },
+) => void
 ```
 
-Skill-specific events (when using `codeModeWithSkills`):
+Snippet-specific events (when using `codeModeWithSnippets`):
 
-| Event                    | When               | Key fields                    |
-| ------------------------ | ------------------ | ----------------------------- |
-| `code_mode:skill_call`   | Skill tool invoked | `skill`, `input`, `timestamp` |
-| `code_mode:skill_result` | Skill completed    | `skill`, `result`, `duration` |
-| `code_mode:skill_error`  | Skill failed       | `skill`, `error`, `duration`  |
-| `skill:registered`       | New skill saved    | `id`, `name`, `description`   |
+| Event                      | When                 | Key fields                      |
+| -------------------------- | -------------------- | ------------------------------- |
+| `code_mode:snippet_call`   | Snippet tool invoked | `snippet`, `input`, `timestamp` |
+| `code_mode:snippet_result` | Snippet completed    | `snippet`, `result`, `duration` |
+| `code_mode:snippet_error`  | Snippet failed       | `snippet`, `error`, `duration`  |
+| `snippet:registered`       | New snippet saved    | `id`, `name`, `description`     |
 
 ### 4. Lazy Tools
 
@@ -349,9 +390,19 @@ When a large tool catalog would bloat the `execute_typescript` system prompt, ma
 
 **Marking a tool lazy:**
 
-```typescript
+```typescript group=lazy-tools
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
+
+const eagerTool = toolDefinition({
+  name: 'fetchWeather',
+  description: 'Get current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+  outputSchema: z.object({ temp: z.number(), condition: z.string() }),
+}).server(async ({ city }) => {
+  const res = await fetch(`https://api.weather.com/${city}`)
+  return res.json()
+})
 
 const rarelyUsedTool = toolDefinition({
   name: 'fetchStocks',
@@ -360,8 +411,8 @@ const rarelyUsedTool = toolDefinition({
   outputSchema: z.object({ price: z.number() }),
   lazy: true, // <-- opt out of full system-prompt documentation
 }).server(async ({ ticker }) => {
-  // ...
-  return { price: 0 }
+  const res = await fetch(`https://api.stocks.com/${ticker}`)
+  return res.json()
 })
 ```
 
@@ -369,8 +420,8 @@ const rarelyUsedTool = toolDefinition({
 
 `createCodeMode()` returns `{ tool, discoveryTool, tools, systemPrompt }`. When lazy tools are present `discoveryTool` is a `discover_tools` server tool; otherwise it is `null`. Always spread `tools` (not just `tool`) into `chat()` so the discovery tool is registered:
 
-```typescript
-import { chat } from '@tanstack/ai'
+```typescript group=lazy-tools
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { createCodeMode } from '@tanstack/ai-code-mode'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import { openaiText } from '@tanstack/ai-openai'
@@ -380,12 +431,18 @@ const { tools, systemPrompt } = createCodeMode({
   tools: [eagerTool, rarelyUsedTool], // rarelyUsedTool has lazy: true
 })
 
-const stream = chat({
-  adapter: openaiText('gpt-5.5'),
-  systemPrompts: ['You are a helpful assistant.', systemPrompt],
-  tools: [...tools, ...otherTools], // spread tools, not just tool
-  messages,
-})
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    systemPrompts: ['You are a helpful assistant.', systemPrompt],
+    tools: [...tools], // spread tools, not just tool
+    messages,
+  })
+
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 `tools` equals `[tool]` when there are no lazy tools (backward compatible) and `[tool, discoveryTool]` when lazy tools exist.
@@ -412,6 +469,10 @@ Control how much of each lazy tool's description appears in the Discoverable API
 | `'full'`           | `external_fetchStocks — Get stock prices. Returns a price quote.` |
 
 ```typescript
+import { createCodeMode } from '@tanstack/ai-code-mode'
+import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
+import { eagerTool, rarelyUsedTool } from './tools'
+
 const { tools, systemPrompt } = createCodeMode({
   driver: createNodeIsolateDriver(),
   tools: [eagerTool, rarelyUsedTool],
@@ -430,11 +491,17 @@ Code Mode executes LLM-generated code. Any secrets available in the sandbox cont
 Wrong:
 
 ```typescript
+import { toolDefinition } from '@tanstack/ai'
+import { createCodeModeTool } from '@tanstack/ai-code-mode'
+import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
+import { z } from 'zod'
+
 const codeModeTool = createCodeModeTool({
-  driver,
+  driver: createNodeIsolateDriver(),
   tools: [
     toolDefinition({
       name: 'callApi',
+      description: 'Call an HTTP API',
       inputSchema: z.object({ url: z.string(), apiKey: z.string() }),
       outputSchema: z.any(),
     }).server(async ({ url, apiKey }) =>
@@ -449,16 +516,22 @@ const codeModeTool = createCodeModeTool({
 Right:
 
 ```typescript
+import { toolDefinition } from '@tanstack/ai'
+import { createCodeModeTool } from '@tanstack/ai-code-mode'
+import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
+import { z } from 'zod'
+
 const codeModeTool = createCodeModeTool({
-  driver,
+  driver: createNodeIsolateDriver(),
   tools: [
     toolDefinition({
       name: 'callApi',
+      description: 'Call an HTTP API',
       inputSchema: z.object({ url: z.string() }),
       outputSchema: z.any(),
     }).server(async ({ url }) =>
       fetch(url, {
-        headers: { Authorization: process.env.API_KEY }, // secret stays in host
+        headers: { Authorization: `Bearer ${process.env.API_KEY}` }, // secret stays in host
       }),
     ),
   ],
@@ -474,12 +547,16 @@ LLM-generated code may contain infinite loops. The default timeout is 30s, but d
 Wrong:
 
 ```typescript
+import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
+
 const driver = createNodeIsolateDriver({ timeout: 0 })
 ```
 
 Right:
 
 ```typescript
+import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
+
 const driver = createNodeIsolateDriver({ timeout: 30_000 })
 ```
 

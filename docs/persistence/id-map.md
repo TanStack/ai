@@ -14,8 +14,6 @@ keywords:
   - useGenerateImage threadId
 ---
 
-# Id Map
-
 There are only two ids to know, and mixing them up is what makes persistence look
 broken.
 
@@ -26,6 +24,14 @@ broken.
 
 Persistence stores and restores by `threadId`. `runId` is what you read when you
 need to talk to your own server about the execution happening right now.
+
+If you omit `threadId`, the client mints one after the view mounts. That
+ephemeral id is the wire thread and the DevTools row for this session. A reload
+starts a new conversation. Persistence needs an explicit `threadId` from your
+app.
+
+Do not pass a separate `id`. `threadId` is the only identity on chat and
+generation clients.
 
 ```tsx
 import {
@@ -195,7 +201,7 @@ answers "here is what happened in it, and here is the run still going, if any."
 
 Only then does the client tail that run's delivery log. Run ids stay essential one
 layer down, they are just never the entry point. See
-[Threads and runs](../chat/streaming#threads-and-runs) for the protocol anatomy
+[Threads and runs](../chat/stream-events#threads-and-runs) for the protocol anatomy
 and [Resumable streams](../resumable-streams/overview) for the log itself.
 
 ## Both sides use the same thread id
@@ -251,10 +257,10 @@ option. Chat is the same shape: the `threadId` you pass `useChat` is the one
 
 ## When you can skip `threadId`
 
-Without persistence, `threadId` is optional. The hooks fall back to a generated id
-purely to satisfy the protocol, which requires a thread id on the wire. The run
-works, it just cannot be found again, which is fine for a one-shot image you show
-and forget.
+Without persistence, `threadId` is optional. After the view mounts, the client
+mints an ephemeral thread id to satisfy the protocol. That id is also the
+DevTools row for the session. The run works, it just cannot be found again,
+which is fine for a one-shot image you show and forget.
 
 Turn `persistence` on and `threadId` becomes required, on the hook and on the
 activity the middleware wraps. `withGenerationPersistence` throws when neither

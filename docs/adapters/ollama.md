@@ -18,9 +18,18 @@ The Ollama adapter provides access to local models running via Ollama, allowing 
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-ollama
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-ollama
+vue: @tanstack/ai-ollama
+solid: @tanstack/ai-ollama
+svelte: @tanstack/ai-ollama
+preact: @tanstack/ai-ollama
+angular: @tanstack/ai-ollama
+vanilla: @tanstack/ai-ollama
+octane: @tanstack/ai-ollama
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 
@@ -62,6 +71,21 @@ const adapter2 = createOllamaChat("llama3", {
   headers: { Authorization: "Bearer ..." },
 });
 ```
+
+## Behind a proxy
+
+Route every request through a gateway, such as Cloudflare AI Gateway or a corporate proxy, with `baseURL` and `defaultHeaders`. These two option names are the same on every TanStack AI adapter, so one gateway config works for all of them.
+
+```typescript
+import { createOllamaChat } from "@tanstack/ai-ollama";
+
+const adapter = createOllamaChat("llama3", {
+  baseURL: "https://gateway.example.com/ollama",
+  defaultHeaders: { Authorization: `Bearer ${process.env.GATEWAY_TOKEN}` },
+});
+```
+
+`host` and `headers` are aliases of the same two options. If you set both forms, `baseURL` and `defaultHeaders` win.
 
 ## Available Models
 
@@ -306,7 +330,7 @@ Creates an Ollama text/chat adapter with an explicit host or client config.
 **Parameters:**
 
 - `model` - Model name
-- `hostOrConfig?` - Either an `OLLAMA_HOST`-style URL string, or an `OllamaClientConfig` object (e.g. `{ host, headers, fetch }`).
+- `hostOrConfig?` - Either an `OLLAMA_HOST`-style URL string, or an `OllamaClientConfig` object (e.g. `{ baseURL, defaultHeaders }`). `host` and `headers` are aliases.
 
 ### `ollamaSummarize(model)` / `createOllamaSummarize(model, hostOrConfig?)`
 

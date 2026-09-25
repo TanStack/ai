@@ -12,6 +12,8 @@ import {
   Menu,
   Mic,
   Package,
+  Scissors,
+  Sparkles,
   Video,
   Volume2,
   X,
@@ -139,6 +141,42 @@ export default function Header() {
             </div>
           </Link>
 
+          <Link
+            to="/compaction"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Scissors size={20} />
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Compaction</span>
+              <span className="text-xs px-1.5 py-0.5 bg-cyan-500/20 text-cyan-400 rounded">
+                context
+              </span>
+            </div>
+          </Link>
+
+          <Link
+            to="/skills"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Sparkles size={20} />
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Skills</span>
+              <span className="text-xs px-1.5 py-0.5 bg-cyan-500/20 text-cyan-400 rounded">
+                load_skill
+              </span>
+            </div>
+          </Link>
+
           <div className="my-4 border-t border-gray-700" />
           <p className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
             Activities
@@ -182,6 +220,24 @@ export default function Header() {
             <Video size={20} />
             <div className="flex items-center gap-2">
               <span className="font-medium">Video Generation</span>
+              <span className="text-xs px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded">
+                Exp
+              </span>
+            </div>
+          </Link>
+
+          <Link
+            to="/video-understanding"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 transition-colors mb-2',
+            }}
+          >
+            <Video size={20} />
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Video Understanding</span>
               <span className="text-xs px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded">
                 Exp
               </span>

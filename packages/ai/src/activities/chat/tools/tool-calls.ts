@@ -1,12 +1,18 @@
 import { normalizeToolResult } from '../../../utilities/tool-result'
+import { tanstackMetadata } from '../../../utilities/merge-metadata'
+import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
+import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
 import type { ToolApprovalResolution } from '../../../interrupts'
 import type {
   AnyTool,
   ContentPart,
   CustomEvent,
+  EmitCustomEventOptions,
+  Interrupt,
   ModelMessage,
   RunFinishedEvent,
+  StreamChunk,
   Tool,
   ToolCall,
   ToolCallArgsEvent,
@@ -33,6 +39,25 @@ function safeJsonParse(value: string): unknown {
   } catch {
     return value
   }
+}
+
+/** Marks the synthetic tool that runs a subagent. */
+export const SUBAGENT_TOOL = Symbol.for('tanstack.ai.subagentTool')
+
+/** Set on the tool context of a subagent tool. Streams a child chunk live. */
+export const EMIT_STREAM_CHUNK = Symbol.for('tanstack.ai.emitStreamChunk')
+
+/** What a subagent tool's `execute` returns. */
+export interface SubagentToolOutcome {
+  subagentRunId: string
+  text: string
+  error?: string
+  /** Set when the child stopped for outside input. The tool call stays open. */
+  interrupts?: Array<Interrupt>
+}
+
+function isSubagentTool(tool: AnyTool): boolean {
+  return (tool as { [SUBAGENT_TOOL]?: true })[SUBAGENT_TOOL] === true
 }
 
 /**
@@ -231,10 +256,17 @@ export class ToolCallManager<
    * Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
    */
   addToolCallStartEvent(event: ToolCallStartEvent): void {
-    const index = event.index ?? this.toolCallsMap.size
-    const runtimeEvent = event as Partial<ToolCallStartEvent> &
-      Pick<ToolCallStartEvent, 'toolName'>
-    const name = runtimeEvent.toolCallName ?? runtimeEvent.toolName
+    // AG-UI's TOOL_CALL_START carries no index, and a non-first-party or
+    // malformed producer can send a second START for a toolCallId that is
+    // already tracked. Without this guard, a repeat with the same index
+    // overwrites the slot (wiping any TOOL_CALL_ARGS already accumulated),
+    // and a repeat with a missing/different index inserts a duplicate row
+    // that getToolCalls() returns twice, running the tool twice.
+    for (const toolCall of this.toolCallsMap.values()) {
+      if (toolCall.id === event.toolCallId) return
+    }
+    const index = (event as AdapterYieldChunk).index ?? this.toolCallsMap.size
+    const name = event.toolCallName ?? event.toolName
     this.toolCallsMap.set(index, {
       id: event.toolCallId,
       type: 'function',
@@ -250,10 +282,14 @@ export class ToolCallManager<
    * Add a TOOL_CALL_ARGS event to accumulate arguments (AG-UI)
    */
   addToolCallArgsEvent(event: ToolCallArgsEvent): void {
-    // Find the tool call by ID
+    const extra = event as AdapterYieldChunk
     for (const [, toolCall] of this.toolCallsMap.entries()) {
       if (toolCall.id === event.toolCallId) {
-        toolCall.function.arguments += event.delta
+        if (typeof extra.args === 'string' && extra.args !== '') {
+          toolCall.function.arguments = extra.args
+        } else {
+          toolCall.function.arguments += event.delta
+        }
         break
       }
     }
@@ -264,16 +300,13 @@ export class ToolCallManager<
    * Called when TOOL_CALL_END is received
    */
   completeToolCall(event: ToolCallEndEvent): void {
-    for (const [, toolCall] of this.toolCallsMap.entries()) {
-      if (toolCall.id === event.toolCallId) {
-        if (event.input !== undefined) {
-          // Normalize null/non-object to {} (e.g. Anthropic empty tool_use blocks)
-          const normalized =
-            event.input && typeof event.input === 'object' ? event.input : {}
-          toolCall.function.arguments = JSON.stringify(normalized)
-        }
-        break
-      }
+    for (const toolCall of this.toolCallsMap.values()) {
+      if (toolCall.id !== event.toolCallId) continue
+      if (event.input === undefined) return
+      const normalized =
+        event.input && typeof event.input === 'object' ? event.input : {}
+      toolCall.function.arguments = JSON.stringify(normalized)
+      return
     }
   }
 
@@ -301,7 +334,7 @@ export class ToolCallManager<
   async *executeTools(
     finishEvent: RunFinishedEvent,
     ...contextArgs: ExecuteToolsContextArgs<TContext>
-  ): AsyncGenerator<ToolCallEndEvent, Array<ModelMessage>, void> {
+  ): AsyncGenerator<AdapterYieldChunk, Array<ModelMessage>, void> {
     const toolCallsArray = this.getToolCalls()
     const toolResults: Array<ModelMessage> = []
     const hasRuntimeContext = contextArgs.length > 0
@@ -313,9 +346,6 @@ export class ToolCallManager<
       let toolResultContent: string | Array<ContentPart>
       let toolResultState: ToolOutputState | undefined
       // Holds the parsed/validated execution output before serialization.
-      // Surfaced on the emitted `TOOL_CALL_END` event as `output` so
-      // consumers can read it typed (via `TypedStreamChunk` distribution
-      // over the tools array) without re-parsing `result`.
       // Stays `undefined` when the tool has no `execute` (client-only
       // tools) or when execution throws.
       let toolOutput: unknown
@@ -397,7 +427,10 @@ export class ToolCallManager<
         toolCallId: toolCall.id,
         toolCallName: toolCall.function.name,
         toolName: toolCall.function.name,
-        model: finishEvent.model,
+        model: (() => {
+          const model = tanstackMetadata(finishEvent)?.model
+          return typeof model === 'string' ? model : undefined
+        })(),
         timestamp: Date.now(),
         // Typed parsed output (undefined for failed exec / client-only tools).
         ...(toolOutput !== undefined ? { output: toolOutput } : {}),
@@ -433,7 +466,7 @@ export interface ToolResult {
   duration?: number
   /**
    * Parsed tool input (after JSON parse + optional Standard Schema validation).
-   * Surfaced on engine-emitted `TOOL_CALL_END` events for TypedStreamChunk consumers.
+   * Parsed tool input after JSON parse + optional Standard Schema validation.
    */
   input?: unknown
   /**
@@ -494,6 +527,8 @@ interface ExecuteToolCallsResult {
   needsApproval: Array<ApprovalRequest>
   /** Tools that need client-side execution */
   needsClientExecution: Array<ClientToolRequest>
+  /** Interrupts raised by subagents that run as tools */
+  subagentInterrupts: Array<Interrupt>
 }
 
 /**
@@ -503,8 +538,8 @@ interface ExecuteToolCallsResult {
  */
 async function* executeWithEventPolling<T>(
   executionPromise: Promise<T>,
-  pendingEvents: Array<CustomEvent>,
-): AsyncGenerator<CustomEvent, T, void> {
+  pendingEvents: Array<CustomEvent | StreamChunk>,
+): AsyncGenerator<CustomEvent | StreamChunk, T, void> {
   // Use an object to track mutable state across the async boundary
   const state = { done: false, result: undefined as T }
   const executionWithFlag = executionPromise.then((r) => {
@@ -521,14 +556,14 @@ async function* executeWithEventPolling<T>(
     ])
 
     // Flush any pending events
-    let event: CustomEvent | undefined
+    let event: CustomEvent | StreamChunk | undefined
     while ((event = pendingEvents.shift()) !== undefined) {
       yield event
     }
   }
 
   // Final flush in case events were emitted right at completion
-  let event: CustomEvent | undefined
+  let event: CustomEvent | StreamChunk | undefined
   while ((event = pendingEvents.shift()) !== undefined) {
     yield event
   }
@@ -601,18 +636,58 @@ export async function* executeServerTool<TContext = unknown>(
   toolName: string,
   input: unknown,
   context: ToolExecutionContext<TContext>,
-  pendingEvents: Array<CustomEvent>,
+  pendingEvents: Array<CustomEvent | StreamChunk>,
   results: Array<ToolResult>,
   middlewareHooks?: ToolExecutionMiddlewareHooks,
-): AsyncGenerator<CustomEvent, void, void> {
+  subagentInterrupts?: Array<Interrupt>,
+): AsyncGenerator<CustomEvent | StreamChunk, void, void> {
   const startTime = Date.now()
   try {
     if (!tool.execute) {
       throw new Error(`Tool ${toolName} has no execute() implementation`)
     }
+    const subagent = isSubagentTool(tool)
+    if (subagent) {
+      Object.assign(context, {
+        [EMIT_STREAM_CHUNK]: (chunk: StreamChunk) => pendingEvents.push(chunk),
+      })
+    }
     const executionPromise = Promise.resolve(tool.execute(input, context))
     let result = yield* executeWithEventPolling(executionPromise, pendingEvents)
     const duration = Date.now() - startTime
+
+    if (subagent) {
+      const outcome = result as SubagentToolOutcome
+      if (outcome.interrupts?.length) {
+        // The child waits for outside input. Leave the call open so the
+        // resume run executes it again and continues the same child.
+        subagentInterrupts?.push(...outcome.interrupts)
+        return
+      }
+      const modelResult = outcome.error
+        ? { subagentRunId: outcome.subagentRunId, error: outcome.error }
+        : { subagentRunId: outcome.subagentRunId, result: outcome.text }
+      results.push({
+        toolCallId: toolCall.id,
+        toolName,
+        result: modelResult,
+        input,
+        output: modelResult,
+        duration,
+        ...(outcome.error ? { state: 'output-error' as const } : {}),
+      })
+      await middlewareHooks?.onAfterToolCall?.({
+        toolCall,
+        tool,
+        toolName,
+        toolCallId: toolCall.id,
+        duration,
+        ...(outcome.error
+          ? { ok: false as const, error: new Error(outcome.error) }
+          : { ok: true as const, result: modelResult }),
+      })
+      return
+    }
 
     // MCP Apps: if this tool links a ui:// resource, eagerly read it and queue
     // a `ui-resource` CUSTOM event. The MCP source stays live until the run
@@ -622,7 +697,7 @@ export async function* executeServerTool<TContext = unknown>(
     await emitUiResourceIfLinked(tool, context)
 
     // Flush remaining events (including any queued ui-resource event)
-    let pendingEvent: CustomEvent | undefined
+    let pendingEvent: CustomEvent | StreamChunk | undefined
     while ((pendingEvent = pendingEvents.shift()) !== undefined) {
       yield pendingEvent
     }
@@ -660,7 +735,7 @@ export async function* executeServerTool<TContext = unknown>(
     const duration = Date.now() - startTime
 
     // Flush remaining events
-    let pendingEvent: CustomEvent | undefined
+    let pendingEvent: CustomEvent | StreamChunk | undefined
     while ((pendingEvent = pendingEvents.shift()) !== undefined) {
       yield pendingEvent
     }
@@ -750,15 +825,17 @@ export async function* executeToolCalls<TContext = unknown>(
   createCustomEventChunk?: (
     eventName: string,
     value: Record<string, any>,
+    options?: EmitCustomEventOptions,
   ) => CustomEvent,
   middlewareHooks?: ToolExecutionMiddlewareHooks,
   userContext?: TContext,
   abortSignal?: AbortSignal,
   resumeState?: ToolResumeExecutionState,
-): AsyncGenerator<CustomEvent, ExecuteToolCallsResult, void> {
+): AsyncGenerator<CustomEvent | StreamChunk, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
   const needsClientExecution: Array<ClientToolRequest> = []
+  const subagentInterrupts: Array<Interrupt> = []
 
   // Create tool lookup map
   const toolMap = new Map<string, AnyTool>()
@@ -778,6 +855,11 @@ export async function* executeToolCalls<TContext = unknown>(
   })
 
   for (const toolCall of toolCalls) {
+    // Provider-executed tools (Anthropic web_search / web_fetch) already ran
+    // inside the provider response and carry their result on the call's
+    // metadata. They have no execute() and must not become client requests.
+    if (isProviderExecutedToolCall(toolCall)) continue
+
     const tool = toolMap.get(toolCall.function.name)
     const toolName = toolCall.function.name
 
@@ -813,7 +895,7 @@ export async function* executeToolCalls<TContext = unknown>(
       continue
     }
 
-    // Parse arguments, throwing error if invalid JSON
+    // Parse arguments
     let input: unknown = {}
     const argsStr = toolCall.function.arguments.trim() || '{}'
     if (argsStr) {
@@ -821,9 +903,17 @@ export async function* executeToolCalls<TContext = unknown>(
         const parsed = JSON.parse(argsStr)
         // Normalize null/non-object to {} (e.g. Anthropic empty tool_use blocks)
         input = parsed && typeof parsed === 'object' ? parsed : {}
-      } catch (parseError) {
-        // If parsing fails, throw error to fail fast
-        throw new Error(`Failed to parse tool arguments as JSON: ${argsStr}`)
+      } catch {
+        results.push({
+          toolCallId: toolCall.id,
+          toolName,
+          result: {
+            error: `Failed to parse tool arguments as JSON: ${argsStr}`,
+          },
+          input,
+          state: 'output-error',
+        })
+        continue
       }
     }
 
@@ -851,18 +941,26 @@ export async function* executeToolCalls<TContext = unknown>(
     }
 
     // Create a ToolExecutionContext for this tool call with event emission
-    const pendingEvents: Array<CustomEvent> = []
+    const pendingEvents: Array<CustomEvent | StreamChunk> = []
     const context = {
       toolCallId: toolCall.id,
       context: userContext,
       abortSignal,
-      emitCustomEvent: (eventName: string, value: Record<string, any>) => {
+      emitCustomEvent: (
+        eventName: string,
+        value: Record<string, any>,
+        options?: EmitCustomEventOptions,
+      ) => {
         if (createCustomEventChunk) {
           pendingEvents.push(
-            createCustomEventChunk(eventName, {
-              ...value,
-              toolCallId: toolCall.id,
-            }),
+            createCustomEventChunk(
+              eventName,
+              {
+                ...value,
+                toolCallId: toolCall.id,
+              },
+              options,
+            ),
           )
         }
       },
@@ -979,6 +1077,7 @@ export async function* executeToolCalls<TContext = unknown>(
             pendingEvents,
             results,
             middlewareHooks,
+            subagentInterrupts,
           )
         } else {
           // User declined
@@ -1027,8 +1126,9 @@ export async function* executeToolCalls<TContext = unknown>(
       pendingEvents,
       results,
       middlewareHooks,
+      subagentInterrupts,
     )
   }
 
-  return { results, needsApproval, needsClientExecution }
+  return { results, needsApproval, needsClientExecution, subagentInterrupts }
 }

@@ -3,8 +3,6 @@ id: createRealtimeEventEmitter
 title: createRealtimeEventEmitter
 ---
 
-# Function: createRealtimeEventEmitter()
-
 ```ts
 function createRealtimeEventEmitter(): object;
 ```
@@ -65,10 +63,4 @@ on<TEvent>(event, handler): () => void;
 
 #### Returns
 
-```ts
-(): void;
-```
-
-##### Returns
-
-`void`
+() => `void`

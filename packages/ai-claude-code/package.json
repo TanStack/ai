@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-claude-code",
-  "version": "0.3.2",
+  "version": "0.6.12",
   "description": "Claude Code harness adapter for TanStack AI — run Claude Code as a chat backend with local tool execution and stateful sessions.",
   "author": "",
   "license": "MIT",
@@ -30,6 +30,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
     }
   },
   "files": [
@@ -42,6 +46,7 @@
     "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
     "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -54,6 +59,6 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14"
+    "@vitest/coverage-v8": "4.1.10"
   }
 }

@@ -37,6 +37,7 @@ import { codexText } from '../src/index'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   CapabilityContext,
+  AdapterYieldChunk,
   StreamChunk,
   StreamDurability,
 } from '@tanstack/ai'
@@ -164,9 +165,9 @@ function durabilityWith(
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }
@@ -179,7 +180,7 @@ async function collect(
  * one id — the caller's on an attach, a generated one otherwise. Anything with
  * more than one entry means the resolution ran twice.
  */
-function threadIdsOf(chunks: Array<StreamChunk>): Array<string> {
+function threadIdsOf(chunks: Array<AdapterYieldChunk>): Array<string> {
   const seen = new Set<string>()
   for (const chunk of chunks) {
     const value = (chunk as { threadId?: unknown }).threadId
@@ -188,7 +189,7 @@ function threadIdsOf(chunks: Array<StreamChunk>): Array<string> {
   return [...seen]
 }
 
-function textOf(chunks: Array<StreamChunk>): string {
+function textOf(chunks: Array<AdapterYieldChunk>): string {
   return chunks
     .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
     .map((c) => (c as { delta?: string }).delta ?? '')
@@ -272,7 +273,7 @@ describe('codex attach wiring', () => {
     // `translateThreadEvents` emits first (see `translate.ts`'s `startRun`).
     // `chunkFingerprint` (what `alignToStoredLog` compares with) drops
     // `timestamp`, so an arbitrary placeholder there still matches.
-    const storedRunStarted: StreamChunk = {
+    const storedRunStarted: AdapterYieldChunk = {
       type: EventType.RUN_STARTED,
       runId,
       threadId,

@@ -15,7 +15,7 @@
  * `approvalId` is stable for a given (provider, kind, target) so a client grant
  * matches the same action on the resumed run.
  */
-import { EventType } from '@tanstack/ai'
+import { EventType, withTanstackMetadata } from '@tanstack/ai'
 import { evaluateCommand } from './policy'
 import type { SandboxPolicy } from './policy'
 import type { StreamChunk } from '@tanstack/ai'
@@ -81,16 +81,17 @@ export function buildApprovalRequestedEvent(input: {
   runId: string
   detail?: Record<string, unknown>
 }): StreamChunk {
-  return {
-    type: EventType.CUSTOM,
-    name: APPROVAL_REQUESTED_EVENT,
-    value: {
-      approvalId: input.approvalId,
-      title: input.title,
-      ...(input.detail ?? {}),
+  return withTanstackMetadata(
+    {
+      type: EventType.CUSTOM,
+      name: APPROVAL_REQUESTED_EVENT,
+      value: {
+        approvalId: input.approvalId,
+        title: input.title,
+        ...(input.detail ?? {}),
+      },
+      timestamp: Date.now(),
     },
-    timestamp: Date.now(),
-    threadId: input.threadId,
-    runId: input.runId,
-  }
+    { threadId: input.threadId, runId: input.runId },
+  ) as StreamChunk
 }

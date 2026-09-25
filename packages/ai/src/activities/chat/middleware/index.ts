@@ -18,7 +18,22 @@ export type {
   SandboxFileEvent,
   SandboxFileHookEvent,
   ChatSandboxHooks,
+  InterruptBoundaryPhase,
+  InterruptToolResume,
+  InterruptResolutionCollection,
+  GenericInterruptResolution,
+  InterruptBoundaryResult,
+  InterruptResolutionResult,
 } from './types'
+
+export { INTERRUPT_BOUNDARY_PHASES, INTERRUPT_TOOL_RESUMES } from './types'
+
+export {
+  GenericInterruptDefinitionRegistryCapability,
+  getGenericInterruptDefinitionRegistry,
+  provideGenericInterruptDefinitionRegistry,
+} from './generic-interrupts'
+export type { GenericInterruptDefinitionRegistry } from './generic-interrupts'
 
 export { MiddlewareRunner } from './compose'
 
@@ -51,6 +66,9 @@ export {
   defineLock,
 } from './locks'
 export type { LockStore } from './locks'
+
+export { MetadataCapability, getMetadata, provideMetadata } from './metadata'
+export type { MetadataStore } from './metadata'
 
 export {
   isRunStatus,

@@ -44,7 +44,7 @@ import { translateThreadEvents } from '../src/stream/translate'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   CapabilityContext,
-  StreamChunk,
+  AdapterYieldChunk,
   StreamDurability,
 } from '@tanstack/ai'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
@@ -100,12 +100,15 @@ async function* replay(): AsyncIterable<CodexThreadEvent> {
 
 async function fingerprintRun(genId: () => string): Promise<Array<string>> {
   const out: Array<string> = []
-  const chunks: AsyncIterable<StreamChunk> = translateThreadEvents(replay(), {
-    model: 'gpt-5.1-codex',
-    runId: 'run-1',
-    threadId: 'thread-1',
-    genId,
-  })
+  const chunks: AsyncIterable<AdapterYieldChunk> = translateThreadEvents(
+    replay(),
+    {
+      model: 'gpt-5.1-codex',
+      runId: 'run-1',
+      threadId: 'thread-1',
+      genId,
+    },
+  )
   for await (const chunk of chunks) out.push(chunkFingerprint(chunk))
   return out
 }
@@ -283,9 +286,9 @@ function pollStrategyHandle(handle: SandboxHandle): {
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }

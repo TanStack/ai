@@ -502,7 +502,157 @@ const CLAUDE_SONNET_5 = {
  * via the `speed` parameter, not a model id) were removed after Anthropic
  * turned them off.
  */
+const CLAUDE_OPUS_5 = {
+  name: 'claude-opus-5',
+  id: 'claude-opus-5',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 5,
+      cached: 0.5,
+    },
+    output: {
+      normal: 25,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions &
+    AnthropicOutputConfigOptions
+>
+
+const CLAUDE_OPUS_5_FAST = {
+  name: 'claude-opus-5-fast',
+  id: 'claude-opus-5-fast',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    tools: [],
+  },
+  pricing: {
+    input: {
+      normal: 10,
+      cached: 1,
+    },
+    output: {
+      normal: 50,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+>
+
+const CLAUDE_FABLE_5_1 = {
+  name: 'claude-fable-5-1',
+  id: 'claude-fable-5-1',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'computer_use',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 10,
+      cached: 0.25,
+    },
+    output: {
+      normal: 50,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicAdaptiveOnlyThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions &
+    AnthropicOutputConfigOptions
+>
+
+const CLAUDE_OPUS_5_5 = {
+  name: 'claude-opus-5-5',
+  id: 'claude-opus-5-5',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    // No 'computer_use': this model accepts only `computer_toolset_20260801`,
+    // and `computerUseTool()` sends the older versions, which return a 400.
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 4,
+      cached: 0.2,
+    },
+    output: {
+      normal: 20,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicAdaptiveOnlyThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions &
+    AnthropicOutputConfigOptions
+>
+
 export const ANTHROPIC_MODELS = [
+  CLAUDE_OPUS_5_5.id,
+  CLAUDE_FABLE_5_1.id,
+  CLAUDE_OPUS_5.id,
+  CLAUDE_OPUS_5_FAST.id,
   CLAUDE_OPUS_4_6.id,
   CLAUDE_OPUS_4_5.id,
   CLAUDE_SONNET_4_6.id,
@@ -516,6 +666,28 @@ export const ANTHROPIC_MODELS = [
   CLAUDE_FABLE_5.id,
   CLAUDE_SONNET_5.id,
 ] as const
+
+/**
+ * Claude chat models on Vertex AI / Gemini Enterprise Agent Platform.
+ * This list is the Google partner catalog, not the full Anthropic API catalog.
+ * Source: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/use-partner-models
+ */
+export const ANTHROPIC_VERTEX_CHAT_MODELS = [
+  CLAUDE_OPUS_5.id,
+  CLAUDE_SONNET_5.id,
+  CLAUDE_FABLE_5.id,
+  CLAUDE_OPUS_4_8.id,
+  CLAUDE_OPUS_4_7.id,
+  CLAUDE_OPUS_4_6.id,
+  CLAUDE_SONNET_4_6.id,
+  CLAUDE_OPUS_4_5.id,
+  CLAUDE_SONNET_4_5.id,
+  CLAUDE_OPUS_4_1.id,
+  CLAUDE_HAIKU_4_5.id,
+] as const
+
+export type AnthropicVertexChatModel =
+  (typeof ANTHROPIC_VERTEX_CHAT_MODELS)[number]
 
 /**
  * Fallback `max_tokens` ceiling for a model whose metadata carries no
@@ -552,6 +724,10 @@ const ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
   [CLAUDE_OPUS_4_8.id]: CLAUDE_OPUS_4_8.max_output_tokens,
   [CLAUDE_FABLE_5.id]: CLAUDE_FABLE_5.max_output_tokens,
   [CLAUDE_SONNET_5.id]: CLAUDE_SONNET_5.max_output_tokens,
+  [CLAUDE_OPUS_5.id]: CLAUDE_OPUS_5.max_output_tokens,
+  [CLAUDE_OPUS_5_FAST.id]: CLAUDE_OPUS_5_FAST.max_output_tokens,
+  [CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.max_output_tokens,
+  [CLAUDE_OPUS_5_5.id]: CLAUDE_OPUS_5_5.max_output_tokens,
 }
 
 /**
@@ -604,7 +780,10 @@ export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
   CLAUDE_OPUS_4_6.id,
   CLAUDE_OPUS_4_7.id,
   CLAUDE_OPUS_4_8.id,
+  CLAUDE_OPUS_5.id,
   CLAUDE_FABLE_5.id,
+  CLAUDE_FABLE_5_1.id,
+  CLAUDE_OPUS_5_5.id,
   CLAUDE_SONNET_5.id,
   CLAUDE_SONNET_4_5.id,
   CLAUDE_SONNET_4_6.id,
@@ -728,6 +907,43 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicToolChoiceOptions &
     AnthropicMaxTokensOptions &
     AnthropicOutputConfigOptions
+  [CLAUDE_OPUS_5.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions &
+    AnthropicOutputConfigOptions
+  [CLAUDE_OPUS_5_FAST.id]: AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions
+  [CLAUDE_FABLE_5_1.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicAdaptiveOnlyThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions &
+    AnthropicOutputConfigOptions
+  [CLAUDE_OPUS_5_5.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicAdaptiveOnlyThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicSamplingOptions &
+    AnthropicOutputConfigOptions
 }
 
 export type AnthropicChatModelToolCapabilitiesByName = {
@@ -741,6 +957,10 @@ export type AnthropicChatModelToolCapabilitiesByName = {
   [CLAUDE_OPUS_4_8.id]: typeof CLAUDE_OPUS_4_8.supports.tools
   [CLAUDE_FABLE_5.id]: typeof CLAUDE_FABLE_5.supports.tools
   [CLAUDE_SONNET_5.id]: typeof CLAUDE_SONNET_5.supports.tools
+  [CLAUDE_OPUS_5.id]: typeof CLAUDE_OPUS_5.supports.tools
+  [CLAUDE_OPUS_5_FAST.id]: typeof CLAUDE_OPUS_5_FAST.supports.tools
+  [CLAUDE_FABLE_5_1.id]: typeof CLAUDE_FABLE_5_1.supports.tools
+  [CLAUDE_OPUS_5_5.id]: typeof CLAUDE_OPUS_5_5.supports.tools
 }
 
 /**
@@ -765,4 +985,8 @@ export type AnthropicModelInputModalitiesByName = {
   [CLAUDE_OPUS_4_8.id]: typeof CLAUDE_OPUS_4_8.supports.input
   [CLAUDE_FABLE_5.id]: typeof CLAUDE_FABLE_5.supports.input
   [CLAUDE_SONNET_5.id]: typeof CLAUDE_SONNET_5.supports.input
+  [CLAUDE_OPUS_5.id]: typeof CLAUDE_OPUS_5.supports.input
+  [CLAUDE_OPUS_5_FAST.id]: typeof CLAUDE_OPUS_5_FAST.supports.input
+  [CLAUDE_FABLE_5_1.id]: typeof CLAUDE_FABLE_5_1.supports.input
+  [CLAUDE_OPUS_5_5.id]: typeof CLAUDE_OPUS_5_5.supports.input
 }

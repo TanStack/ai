@@ -3,8 +3,6 @@ id: ChatMCPOptions
 title: ChatMCPOptions
 ---
 
-# Interface: ChatMCPOptions
-
 Defined in: [packages/ai/src/activities/chat/mcp/types.ts:55](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L55)
 
 Options controlling MCP tool discovery and lifecycle for a `chat()` call.
@@ -26,7 +24,7 @@ The MCP clients or client pools to discover tools from and manage.
 ### connection?
 
 ```ts
-optional connection: MCPConnectionPolicy;
+optional connection?: MCPConnectionPolicy;
 ```
 
 Defined in: [packages/ai/src/activities/chat/mcp/types.ts:66](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L66)
@@ -40,7 +38,7 @@ Defaults to `'close'`.
 ### lazyTools?
 
 ```ts
-optional lazyTools: boolean;
+optional lazyTools?: boolean;
 ```
 
 Defined in: [packages/ai/src/activities/chat/mcp/types.ts:74](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L74)
@@ -52,10 +50,10 @@ Defaults to `false`.
 
 ***
 
-### onDiscoveryError()?
+### onDiscoveryError?
 
 ```ts
-optional onDiscoveryError: (error, source) => void | Promise<void>;
+optional onDiscoveryError?: (error, source) => void | Promise<void>;
 ```
 
 Defined in: [packages/ai/src/activities/chat/mcp/types.ts:85](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L85)

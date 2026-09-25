@@ -1,3 +1,23 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
 # @tanstack/ai-code-mode
 
 Code Mode for TanStack AI — let LLMs write and execute TypeScript in secure sandboxes with typed tool access.
@@ -89,7 +109,7 @@ Creates both the `execute_typescript` tool and its matching system prompt. This 
 - `tools` — Array of `ServerTool` or `ToolDefinition` instances. Exposed as `external_*` functions in the sandbox
 - `timeout` — Execution timeout in ms (default: 30000)
 - `memoryLimit` — Memory limit in MB (default: 128, supported by the Node, QuickJS, and QuickJS Bun drivers)
-- `getSkillBindings` — Optional async function returning dynamic bindings
+- `getSnippetBindings` — Optional async function returning dynamic bindings
 
 ### `createCodeModeTool(config)` / `createCodeModeSystemPrompt(config)`
 

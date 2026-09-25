@@ -13,8 +13,6 @@ keywords:
   - community adapter
 ---
 
-# Mynth
-
 The Mynth adapter gives you access to Mynth image generation models through TanStack AI. It is a community adapter for `generateImage()` with typed model IDs, normalized image results, image-to-image support, and Mynth-specific request options through `modelOptions`.
 
 Mynth is image-only in this package. Reach for it when you want TanStack AI's image generation workflow with Mynth models such as Flux, Recraft, Gemini, Qwen, Seedream, Wan, and Grok Imagine.
@@ -23,16 +21,18 @@ Quick note: Mynth is in public beta, so the model lineup and a few request optio
 
 ## Installation
 
-```sh
-# bun
-bun add @mynthio/tanstack-ai-adapter @tanstack/ai
+<!-- ::start:tabs variant="package-manager" mode="install" -->
 
-# pnpm
-pnpm add @mynthio/tanstack-ai-adapter @tanstack/ai
+react: @mynthio/tanstack-ai-adapter @tanstack/ai
+vue: @mynthio/tanstack-ai-adapter @tanstack/ai
+solid: @mynthio/tanstack-ai-adapter @tanstack/ai
+svelte: @mynthio/tanstack-ai-adapter @tanstack/ai
+preact: @mynthio/tanstack-ai-adapter @tanstack/ai
+angular: @mynthio/tanstack-ai-adapter @tanstack/ai
+vanilla: @mynthio/tanstack-ai-adapter @tanstack/ai
+octane: @mynthio/tanstack-ai-adapter @tanstack/ai
 
-# npm
-npm install @mynthio/tanstack-ai-adapter @tanstack/ai
-```
+<!-- ::end:tabs -->
 
 The adapter targets `@tanstack/ai` 0.34 and newer.
 

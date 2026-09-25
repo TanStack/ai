@@ -1,5 +1,215 @@
 # @tanstack/ai-byteplus
 
+## 0.4.5
+
+### Patch Changes
+
+- Updated dependencies [[`54d39d3`](https://github.com/TanStack/ai/commit/54d39d30704bbdbdccea756af31530cc6713fc2e), [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb), [`74b5823`](https://github.com/TanStack/ai/commit/74b582305471eaf37a3b68595e60ed1a6f42d914), [`790cb0a`](https://github.com/TanStack/ai/commit/790cb0a0d089c7d28756076488c9b24a92629848), [`abb0169`](https://github.com/TanStack/ai/commit/abb0169bf96c38f59791450ce060d089a7fcd26e), [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088), [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b)]:
+  - @tanstack/ai@0.61.0
+  - @tanstack/openai-base@0.11.1
+
+## 0.4.4
+
+### Patch Changes
+
+- [#915](https://github.com/TanStack/ai/pull/915) [`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd) - feat(ai): native Files API support across providers (upload adapters + `file` content source)
+
+  Adds first-class support for provider **Files / storage APIs** so callers can upload media once and reference it by a provider-issued handle instead of re-sending base64 or a public URL each request (lower latency/bandwidth, no re-buffering on memory-constrained runtimes).
+  - **New tree-shakeable `files` adapter kind** — `openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, `grokFiles()`, and `falFiles()`. Each exposes `upload()`, and (where the provider has a lifecycle API) `get()` / `delete()`. Drive them with the new `uploadFile()` / `getFile()` / `deleteFile()` activity functions. fal is upload-only.
+  - **New `{ type: 'file' }` arm on `ContentPartSource`**, matching the AG-UI `FileSource` arm field for field: `{ type: 'file', value, provider?, mimeType? }`. `value` is the opaque handle the provider issued; `provider` names the adapter that issued it. Each adapter maps `value` to its native wire field: OpenAI (Responses) `input_image`/`input_file` `file_id`, Anthropic `file_id` message source (with the `files-api-2025-04-14` beta), Gemini `fileData.fileUri`, fal storage URL, Grok public URL. `fileSourceFromHandle(handle)` builds the source.
+  - **Fail-closed capability preflight** — adapters that can consume file references declare `supportsFileSources`; `chat()` / `generateImage()` / `generateVideo()` / `embed()` reject `{ type: 'file' }` sources for every other adapter (Bedrock, Mistral, Groq, OpenRouter, Ollama, BytePlus, Cohere, and any future adapter that doesn't opt in) **before a request is built**, so a reference can never be silently mis-mapped onto a URL/data field. Endpoints that need raw bytes (image edits, Sora `input_reference`, Veo, Chat Completions images) throw endpoint-specific errors. A supporting adapter handed a source whose `provider` names a different adapter throws an error naming the issuer.
+  - **Provider-literal typed handles** — `FileHandle<'openai'>` etc. flow from each files adapter through `uploadFile()`, and `getFile()`/`deleteFile()` accept the handle itself, so cross-provider lifecycle calls fail at compile time. `fileSourceFromHandle` and `FileHandle` are also exported from the browser-safe `@tanstack/ai/client` entry. A `{ type: 'file' }` source cannot cross the chat wire format (which carries `data`/`url` sources only) and throws rather than being dropped, so a browser that holds a handle sends it in its own request body and the server builds the source.
+
+- Updated dependencies [[`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd), [`222ebed`](https://github.com/TanStack/ai/commit/222ebed91c4f1d7f5c338e07279de60d13c1d79f)]:
+  - @tanstack/ai@0.60.0
+  - @tanstack/openai-base@0.11.0
+
+## 0.4.3
+
+### Patch Changes
+
+- [#1438](https://github.com/TanStack/ai/pull/1438) [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0) - The BytePlus image and video adapters throw on an AG-UI `{ type: 'file' }` source. Pass a `data` or `url` source. Before this, a file handle was sent as a data URL.
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+  - @tanstack/openai-base@0.10.16
+
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+  - @tanstack/openai-base@0.10.15
+
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+  - @tanstack/openai-base@0.10.14
+
+## 0.4.0
+
+### Minor Changes
+
+- [#1396](https://github.com/TanStack/ai/pull/1396) [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6) - Add dialogue turns and timing alignment to the text-to-speech contract.
+
+  `generateSpeech()` takes `turns` (an array of `{ text, voice }`) in place of `text` for a multi-voice script, and `timestamps: true` to ask for timings. `TTSResult` gains `alignment` (per character or per word, with `alignment.unit` saying which, all times in seconds) and `segments` (one per turn for dialogue, one per sentence for a single voice). Use `alignment` rather than `duration` to find where speech stops.
+
+  Both are adapter capabilities, declared on `adapter.capabilities` as `maxSpeakers` and `timestamps`. The activity rejects a request the adapter cannot serve before it reaches the provider, so too many speakers is a typed error rather than a provider 422.
+
+  Wired through three adapters:
+  - `byteplusSpeech` (Seed Audio 1.0): up to 3 voices, mapped to `references` plus a role-structured `text_prompt`. `timestamps` sets `audio_config.enable_subtitle`, and the subtitle block becomes word alignment and sentence segments, converted from milliseconds to seconds.
+  - `elevenlabsSpeech`: up to 10 voices. Picks between `textToSpeech.convert`, `textToSpeech.convertWithTimestamps`, `textToDialogue.convert` and `textToDialogue.convertWithTimestamps` from `turns` and `timestamps`. Dialogue also returns per-turn `segments` with the voice that spoke each one.
+  - `geminiSpeech`: up to 2 voices, building `multiSpeakerVoiceConfig` and the labelled prompt from the turns.
+
+  Every addition is optional, so existing adapters and callers are unaffected.
+
+### Patch Changes
+
+- Updated dependencies [[`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9), [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6)]:
+  - @tanstack/ai@0.56.0
+  - @tanstack/openai-base@0.10.13
+
+## 0.3.7
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+  - @tanstack/openai-base@0.10.12
+
+## 0.3.6
+
+### Patch Changes
+
+- [#1394](https://github.com/TanStack/ai/pull/1394) [`88f8b21`](https://github.com/TanStack/ai/commit/88f8b21ba802ca295b3cc50df7b023787db0abb2) - fix(ai-byteplus): send Seed Speech `watermark` as the object the API expects
+
+  `byteplusSpeech` sent `watermark` as a boolean, but Seed Audio 1.0 reads an
+  object with `aigc_watermark` (an audible marker) and `aigc_metadata` (header
+  provenance). A boolean was ignored by the server, so callers who asked for a
+  watermark silently got unwatermarked audio.
+
+  `modelOptions.watermark` now accepts `boolean | BytePlusTTSWatermark`, and
+  `true` normalizes to `{ aigc_watermark: true }`, so existing callers get the
+  behavior they intended.
+
+- Updated dependencies [[`db017f6`](https://github.com/TanStack/ai/commit/db017f662e8b2c9c7301c8510047568ff87f3ee6)]:
+  - @tanstack/ai@0.54.1
+  - @tanstack/openai-base@0.10.11
+
+## 0.3.5
+
+### Patch Changes
+
+- Updated dependencies [[`c17bc95`](https://github.com/TanStack/ai/commit/c17bc951ca783d8023bf54d69035c19c0c72ea2f), [`53e2ec0`](https://github.com/TanStack/ai/commit/53e2ec082b40d8c3fcd09f408c29f0b895436198), [`6269eff`](https://github.com/TanStack/ai/commit/6269eff90e770205ffd9cae8c5989b8ff02b57ce)]:
+  - @tanstack/ai@0.54.0
+  - @tanstack/openai-base@0.10.11
+
+## 0.3.4
+
+### Patch Changes
+
+- Updated dependencies [[`21775ee`](https://github.com/TanStack/ai/commit/21775ee2d23dd594cdc184678ff587341bd74871)]:
+  - @tanstack/ai@0.53.0
+  - @tanstack/openai-base@0.10.10
+
+## 0.3.3
+
+### Patch Changes
+
+- Updated dependencies [[`49fc54c`](https://github.com/TanStack/ai/commit/49fc54ca0aacf2fc60bb36647a61a23559dda4bc), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7)]:
+  - @tanstack/ai@0.52.0
+  - @tanstack/openai-base@0.10.8
+
+## 0.3.2
+
+### Patch Changes
+
+- Updated dependencies [[`43b51f2`](https://github.com/TanStack/ai/commit/43b51f2e89db1c9fb23bb34b4ea4e052d370fb31), [`5dc4e1a`](https://github.com/TanStack/ai/commit/5dc4e1a08728b410f85956093ccef621d12b4d6b), [`a7e0798`](https://github.com/TanStack/ai/commit/a7e079872af372496728d25e6ec23149cd5e04b9), [`6a083bf`](https://github.com/TanStack/ai/commit/6a083bfcfaa4fd0c83368c4d10067e5c2298e22c)]:
+  - @tanstack/openai-base@0.10.7
+  - @tanstack/ai@0.51.0
+
+## 0.3.1
+
+### Patch Changes
+
+- [#1253](https://github.com/TanStack/ai/pull/1253) [`8147e66`](https://github.com/TanStack/ai/commit/8147e6680996fc6f6c2d73294135ee0ccd5d1697) - Stop requiring Zod as a peer dependency when the adapters do not import it at runtime.
+
+- Updated dependencies [[`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b), [`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b)]:
+  - @tanstack/ai@0.50.0
+  - @tanstack/openai-base@0.10.6
+
+## 0.3.0
+
+### Minor Changes
+
+- [#906](https://github.com/TanStack/ai/pull/906) [`b7ebcb0`](https://github.com/TanStack/ai/commit/b7ebcb0bbe63e425facb5e38f138bd0cd36637dd) - Add headless BYOK: `defineByok` in `@tanstack/ai-client/byok`, pass `byok` into chat and generation hooks, and read keys on the relay with `getByokKey` from `@tanstack/ai/byok/server`. Provider ids are open slugs (`x-byok-<slug>`). Each adapter exports a `{ id, label, env? }` object (`openaiByok`, …); `id` is required. `env` is the env var name(s) for the relay — names only; the client never reads `process.env`. A wrong key surfaces as the provider's own `401` through the relay, so no client-side key check is needed. OpenRouter PKCE (`@tanstack/ai-openrouter/pkce`) saves the minted key under `openrouterByok.id`.
+
+### Patch Changes
+
+- Updated dependencies [[`b7ebcb0`](https://github.com/TanStack/ai/commit/b7ebcb0bbe63e425facb5e38f138bd0cd36637dd)]:
+  - @tanstack/ai@0.49.0
+  - @tanstack/openai-base@0.10.4
+
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies [[`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46)]:
+  - @tanstack/ai@0.48.0
+  - @tanstack/openai-base@0.10.3
+
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [[`11c988b`](https://github.com/TanStack/ai/commit/11c988b8ea2153e0ee0f86ba58083f42c343fd75), [`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d)]:
+  - @tanstack/openai-base@0.10.0
+  - @tanstack/ai@0.47.1
+
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`5f68cbc`](https://github.com/TanStack/ai/commit/5f68cbccf3621b48dae73cedcb1e59cb4cbe72b4), [`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29)]:
+  - @tanstack/ai@0.47.0
+  - @tanstack/openai-base@0.9.16
+
+## 0.2.0
+
+### Minor Changes
+
+- [#896](https://github.com/TanStack/ai/pull/896) [`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b) - Add a self-describing `billed` field to `TokenUsage` so billed quantities carry the unit they are counted in ([#816](https://github.com/TanStack/ai/issues/816)). `usage.billed` is `{ quantity, unit }` with a `BillingUnit` union (`'seconds'`, `'units'`, `'images'`, `'tokens'`, ... open-ended). The deprecated `unitsBilled` / `durationSeconds` counts are still populated for backward compatibility. The fal adapters report `{ quantity, unit: 'units' }`, Grok video `{ quantity, unit: 'seconds' }`, the OpenAI/Grok/BytePlus duration-billed transcription paths `{ quantity, unit: 'seconds' }`, BytePlus Seedream images `{ quantity, unit: 'images' }`, BytePlus Seedance video `{ quantity, unit: 'tokens' }`, and Cohere/OpenRouter rerank `{ quantity, unit: 'units' }` (search units). Persistence sums `billed` when both reports use the same unit. `otelMiddleware` emits the pair as `tanstack.ai.usage.billed_quantity` / `tanstack.ai.usage.billed_unit` span attributes.
+
+### Patch Changes
+
+- Updated dependencies [[`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b), [`4599019`](https://github.com/TanStack/ai/commit/4599019eb02f72562ef155b69b8f61f9d25d187a), [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b), [`ecd12a4`](https://github.com/TanStack/ai/commit/ecd12a408987bc75649c21aada6948282a2a66dd)]:
+  - @tanstack/ai@0.46.0
+  - @tanstack/openai-base@0.9.15
+
+## 0.1.3
+
+### Patch Changes
+
+- [#1149](https://github.com/TanStack/ai/pull/1149) [`870e5cc`](https://github.com/TanStack/ai/commit/870e5ccf811479651f00a360a6a4eae195da6afe) - Allow 1080p on Seedance 2.5 (`dreamina-seedance-2-5-260628`).
+
+  BytePlus ModelArk and the live fal Seedance 2.5 spec now accept native
+  `480p` / `720p` / `1080p` (default still `720p`). `4k` remains exclusive
+  to `dreamina-seedance-2-0-260128`.
+
+## 0.1.2
+
+### Patch Changes
+
+- [#1132](https://github.com/TanStack/ai/pull/1132) [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b) - Timestamp native and fallback structured-output events when they are emitted so their lifecycle remains chronologically ordered.
+
+- Updated dependencies [[`d10dfe6`](https://github.com/TanStack/ai/commit/d10dfe6eca788ae52631d45e5599aa0c45e9ba37), [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b), [`c63319e`](https://github.com/TanStack/ai/commit/c63319e34a2ca2f1d56b90addf28784f7c3e13ad), [`b09e010`](https://github.com/TanStack/ai/commit/b09e010b32932c812e65b1e14f6faa2b0e6d5cb8), [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d)]:
+  - @tanstack/ai@0.45.0
+  - @tanstack/openai-base@0.9.13
+
 ## 0.1.1
 
 ### Patch Changes

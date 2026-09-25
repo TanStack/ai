@@ -18,9 +18,18 @@ The Mistral adapter provides access to Mistral's chat models, including Mistral 
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-mistral
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-mistral
+vue: @tanstack/ai-mistral
+solid: @tanstack/ai-mistral
+svelte: @tanstack/ai-mistral
+preact: @tanstack/ai-mistral
+angular: @tanstack/ai-mistral
+vanilla: @tanstack/ai-mistral
+octane: @tanstack/ai-mistral
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 
@@ -60,7 +69,7 @@ import {
 } from "@tanstack/ai-mistral";
 
 const config: Omit<MistralTextConfig, "apiKey"> = {
-  serverURL: "https://api.mistral.ai", // Optional, this is the default
+  baseURL: "https://api.mistral.ai", // Optional, this is the default
   defaultHeaders: {
     "X-Custom-Header": "value",
   },
@@ -72,6 +81,72 @@ const adapter = createMistralText(
   config,
 );
 ```
+
+## Behind a proxy
+
+Route every request through a gateway, such as Cloudflare AI Gateway or a corporate proxy, with `baseURL` and `defaultHeaders`. These two option names are the same on every TanStack AI adapter, so one gateway config works for all of them.
+
+```typescript
+import { createMistralText } from "@tanstack/ai-mistral";
+
+const adapter = createMistralText("mistral-large-latest", process.env.MISTRAL_API_KEY!, {
+  baseURL: "https://gateway.example.com/mistral",
+  defaultHeaders: { "cf-aig-authorization": `Bearer ${process.env.GATEWAY_TOKEN}` },
+});
+```
+
+`serverURL` is an alias of `baseURL`. If you set both, `baseURL` wins.
+
+## Mistral on Vertex
+
+Use `@tanstack/ai-mistral/vertex` when Mistral must run on Vertex AI. That
+path uses Google Cloud credentials and the publisher `rawPredict` endpoint.
+
+Mistral on Vertex is regional only. Use `us-central1` or `europe-west4`.
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-mistral google-auth-library
+vue: @tanstack/ai-mistral google-auth-library
+solid: @tanstack/ai-mistral google-auth-library
+svelte: @tanstack/ai-mistral google-auth-library
+preact: @tanstack/ai-mistral google-auth-library
+angular: @tanstack/ai-mistral google-auth-library
+vanilla: @tanstack/ai-mistral google-auth-library
+octane: @tanstack/ai-mistral google-auth-library
+
+<!-- ::end:tabs -->
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { mistralVertexText } from "@tanstack/ai-mistral/vertex";
+
+const stream = chat({
+  adapter: mistralVertexText("mistral-medium-3", {
+    project: "my-project",
+    location: "europe-west4",
+  }),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+`project` and `location` use the same names as `@tanstack/ai-vertex`.
+`location` is required.
+
+`mistralVertexText` accepts only the Mistral chat models that Vertex lists:
+
+- `mistral-medium-3`
+- `mistral-small-2503`
+- `codestral-2`
+
+Mistral API aliases such as `mistral-large-latest` and `mistral-medium-latest`
+are not Vertex model ids. Vertex also lists `mistral-ocr-2505`, but that
+model is OCR, not chat.
+
+Install `google-auth-library` for Application Default Credentials, or pass
+`authClient` or `getAccessToken`.
+
+Gemini on Vertex lives in [`@tanstack/ai-vertex`](./vertex).
 
 ## Example: Chat Completion
 
@@ -341,7 +416,7 @@ Creates a Mistral text adapter using the `MISTRAL_API_KEY` environment variable.
 **Parameters:**
 
 - `model` — The model name (e.g., `'mistral-large-latest'`)
-- `config.serverURL?` — Custom base URL (optional)
+- `config.baseURL?`: custom base URL (optional). `serverURL` is an alias.
 - `config.defaultHeaders?` — Headers to attach to every request (optional)
 
 **Returns:** A Mistral text adapter instance.
@@ -354,7 +429,7 @@ Creates a Mistral text adapter with an explicit API key.
 
 - `model` — The model name
 - `apiKey` — Your Mistral API key
-- `config.serverURL?` — Custom base URL (optional)
+- `config.baseURL?`: custom base URL (optional). `serverURL` is an alias.
 - `config.defaultHeaders?` — Headers to attach to every request (optional)
 
 **Returns:** A Mistral text adapter instance.

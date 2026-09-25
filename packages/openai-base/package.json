@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/openai-base",
-  "version": "0.9.12",
+  "version": "0.11.1",
   "description": "Shared OpenAI SDK base adapters for TanStack AI providers using Chat Completions and Responses APIs.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -36,6 +36,7 @@
     "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
     "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
     "test:lib": "vitest run",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -61,8 +62,8 @@
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^8.1.4",
+    "@vitest/coverage-v8": "4.1.10",
+    "vite": "^8.2.1",
     "zod": "^4.2.0"
   }
 }

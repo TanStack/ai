@@ -1,3 +1,9 @@
+import { ByokBlockedError, ByokMissingError } from '@tanstack/ai/byok'
+import { byokFallbackProviderId } from './byok/client'
+import {
+  prepareResolvedByokHeaders,
+  resolveByokProviderId,
+} from './byok/resolve'
 import {
   GENERATION_EVENTS,
   GENERATION_STREAM_TRUNCATED_MESSAGE,
@@ -10,7 +16,9 @@ import {
 } from './generation-types'
 import { createNoOpGenerationDevtoolsBridge } from './devtools-noop'
 import { parseSSEResponse } from './sse-parser'
+import { restoreInboundChunk } from '@tanstack/ai/client'
 import type { StreamChunk } from '@tanstack/ai/client'
+import type { ByokClient } from './byok'
 import type {
   ConnectConnectionAdapter,
   GenerationHydrationResult,
@@ -26,9 +34,11 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPersistenceOptions,
   GenerationRestoredResult,
   GenerationResumeSnapshot,
   GenerationResumeState,
+  GenerationTransport,
 } from './generation-types'
 
 /**
@@ -108,15 +118,17 @@ export class GenerationClient<
   private readonly joinRunHandler:
     | ConnectConnectionAdapter['joinRun']
     | undefined
-  private readonly uniqueId: string
+  private uniqueId: string
   private readonly devtoolsMetadata: AIDevtoolsClientMetadata
   private readonly devtoolsBridge: GenerationDevtoolsBridge<TOutput>
-  private readonly threadId: string
+  private threadId: string
   private readonly persistenceScope: string | undefined
   // Server-driven mode (`persistence: true`): no local snapshot store; on mount
   // the client hydrates the last generation for `threadId` from the server.
   private readonly serverDriven: boolean = false
   private body: Record<string, any>
+  private byok: ByokClient | undefined
+  private byokProvider: (() => string | undefined) | undefined
   private result: TOutput | null = null
   private input: TInput | null = null
   private progress: AIDevtoolsGenerationProgress | null = null
@@ -133,32 +145,28 @@ export class GenerationClient<
   private serverHydrationStarted = false
 
   constructor(
-    options: GenerationClientOptions<TInput, TResult, TOutput> &
-      (
-        | { connection: ConnectConnectionAdapter; fetcher?: never }
-        | {
-            fetcher: GenerationFetcher<TInput, TResult>
-            connection?: never
-          }
-      ),
+    options: Omit<
+      GenerationClientOptions<TInput, TResult, TOutput>,
+      'persistence' | 'threadId'
+    > &
+      GenerationPersistenceOptions &
+      GenerationTransport<TInput, TResult>,
   ) {
-    // `threadId` is the single identity. Deprecated `id` is only a fallback
-    // when no threadId is given (ephemeral runs / legacy call sites).
-    this.uniqueId =
-      options.threadId ?? options.id ?? this.generateUniqueId('generation')
-    // AG-UI requires a thread id on every run, so fall back to uniqueId. The
-    // generated fallback is for the WIRE ONLY: it is not stable across reloads,
-    // so persistence must never key on it — see `persistenceScope` below.
-    this.threadId = options.threadId ?? this.uniqueId
-    // The persistence scope: the explicit `threadId` and nothing else. The
-    // types require it whenever `persistence` is set; this field keeps the
-    // fallback from silently becoming a storage key for JS callers.
+    // `threadId` is the only identity. Do not mint a random id during
+    // construct: hooks build this client during render.
+    this.threadId = options.threadId ?? ''
+    this.uniqueId = this.threadId
+    // The persistence scope is the explicit `threadId` and nothing else.
+    // The types require it whenever `persistence` is set. This field keeps a
+    // generated wire id from becoming a storage key for JS callers.
     this.persistenceScope = options.threadId
     this.connection = options.connection
     this.fetcher = options.fetcher
     this.hydrateGenerationHandler = options.hydrateGeneration
     this.joinRunHandler = options.joinRun
     this.body = options.body ?? {}
+    this.byok = options.byok
+    this.byokProvider = options.byokProvider
     // `persistence` is `false`/omitted (ephemeral) or `true` (server-driven:
     // hydrate the last generation for `threadId` from the server on mount).
     this.serverDriven = options.persistence === true
@@ -199,10 +207,17 @@ export class GenerationClient<
   }
 
   private buildDevtoolsBridgeOptions(): GenerationDevtoolsBridgeOptions<TOutput> {
+    const client = this
     return {
-      hookId: this.uniqueId,
-      clientId: this.uniqueId,
-      threadId: this.threadId,
+      get hookId() {
+        return client.uniqueId
+      },
+      get clientId() {
+        return client.uniqueId
+      },
+      get threadId() {
+        return client.threadId
+      },
       metadata: this.devtoolsMetadata,
       getCoreState: () => ({
         input: this.input,
@@ -216,6 +231,7 @@ export class GenerationClient<
   }
 
   mountDevtools(): void {
+    this.ensureThreadId()
     // Mounting revives a disposed client. Framework hooks call this from
     // their mount effect, so a dispose → remount cycle (e.g. React
     // StrictMode's mount → cleanup → mount replay against the same memoized
@@ -260,9 +276,22 @@ export class GenerationClient<
     const { signal } = abortController
 
     try {
+      let headers: Record<string, string> | undefined
+      if (this.byok) {
+        const provider = resolveByokProviderId(
+          this.byokProvider,
+          this.body.provider,
+          byokFallbackProviderId(this.byok),
+        )
+        headers = await prepareResolvedByokHeaders(this.byok, provider)
+      }
+
       if (this.fetcher) {
         // Direct fetch path
-        const result = await this.fetcher(input, { signal })
+        const result = await this.fetcher(
+          input,
+          headers === undefined ? { signal } : { signal, headers },
+        )
         if (signal.aborted) return
         if (result instanceof Response) {
           // Server function returned SSE Response — parse stream
@@ -284,7 +313,7 @@ export class GenerationClient<
           [],
           mergedData,
           signal,
-          this.createRunContext(runId),
+          this.createRunContext(runId, headers),
         )
         await this.processStream(stream, runId, signal)
       } else {
@@ -307,6 +336,12 @@ export class GenerationClient<
     } catch (err: unknown) {
       if (signal.aborted) return
       const error = err instanceof Error ? err : new Error(String(err))
+      if (error instanceof ByokMissingError) {
+        this.byok?.request(error.provider, 'missing')
+      }
+      if (error instanceof ByokBlockedError && error.reason === 'locked') {
+        this.byok?.request(error.provider, 'locked')
+      }
       this.setError(error)
       this.setStatus('error')
       this.recordResumeSnapshotError(error)
@@ -345,9 +380,10 @@ export class GenerationClient<
     let streamRunId: string | undefined
     let sawTerminalChunk = false
 
-    for await (const chunk of source) {
+    for await (const raw of source) {
       if (signal.aborted) break
 
+      const chunk = restoreInboundChunk(raw)
       this.callbacksRef.onChunk?.(chunk)
       this.observeResumeSnapshot(chunk)
       const chunkRunId =
@@ -386,11 +422,9 @@ export class GenerationClient<
           this.devtoolsBridge.ensureRunStarted(
             chunkRunId ?? streamRunId ?? fallbackRunId,
           )
-          // Prefer spec `message`; fall back to deprecated `error.message`
+          // Spec RUN_ERROR message. Missing message uses this fallback.
           const msg =
-            (chunk.message as string | undefined) ||
-            chunk.error?.message ||
-            'An error occurred'
+            (chunk.message as string | undefined) || 'An error occurred'
           throw new Error(msg)
         }
         default:
@@ -458,12 +492,24 @@ export class GenerationClient<
     options: Partial<
       Pick<
         GenerationClientOptions<TInput, TResult, TOutput>,
-        'body' | 'onResult' | 'onError' | 'onProgress' | 'onChunk'
+        | 'body'
+        | 'byok'
+        | 'byokProvider'
+        | 'onResult'
+        | 'onError'
+        | 'onProgress'
+        | 'onChunk'
       >
     >,
   ): void {
     if (options.body !== undefined) {
       this.body = options.body ?? {}
+    }
+    if (options.byok !== undefined) {
+      this.byok = options.byok
+    }
+    if (options.byokProvider !== undefined) {
+      this.byokProvider = options.byokProvider
     }
     if (options.onResult !== undefined) {
       this.callbacksRef.onResult = options.onResult
@@ -629,14 +675,26 @@ export class GenerationClient<
     }
   }
 
+  private ensureThreadId(): string {
+    if (!this.threadId) {
+      this.threadId = this.generateUniqueId('generation')
+    }
+    this.uniqueId = this.threadId
+    return this.threadId
+  }
+
   private generateUniqueId(prefix: string): string {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
 
-  private createRunContext(runId: string): RunAgentInputContext {
+  private createRunContext(
+    runId: string,
+    headers?: Record<string, string>,
+  ): RunAgentInputContext {
     return {
       threadId: this.threadId,
       runId,
+      ...(headers ? { headers } : {}),
     }
   }
 

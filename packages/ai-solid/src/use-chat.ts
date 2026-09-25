@@ -5,13 +5,14 @@ import {
   createUniqueId,
   onCleanup,
   onMount,
+  untrack,
 } from 'solid-js'
 
 import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type {
   ChatClientState,
-  ChatInterrupt,
+  ResolvableChatInterrupt,
   ChatInterruptState,
   ChatResumeState,
   ConnectionStatus,
@@ -22,6 +23,7 @@ import type {
 } from '@tanstack/ai-client'
 import type {
   AnyClientTool,
+  InterruptDefinition,
   InferSchemaType,
   ModelMessage,
   RunAgentResumeItem,
@@ -43,17 +45,20 @@ export function useChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
 >(
-  options: UseChatOptions<TTools, TSchema, TContext> = {} as UseChatOptions<
+  options: UseChatOptions<
     TTools,
     TSchema,
-    TContext
-  >,
-): UseChatReturn<TTools, TSchema> {
-  // The hook's identity is its `threadId` — also the persistence key, so a
-  // reload with the same `threadId` restores the same conversation. `hookId` is
-  // only a stable fallback for client-recreation keying when no `threadId` is
-  // given (an ephemeral chat), never a persistence key.
+    TContext,
+    TInterrupts
+  > = {} as UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
+): UseChatReturn<TTools, TSchema, TInterrupts> {
+  // The hook's identity is its `threadId`. Reload with the same `threadId`
+  // restores the same conversation. `hookId` is only a recreation key when no
+  // `threadId` is given. It is never sent on the wire.
   const hookId = createUniqueId()
   const clientId = options.threadId ?? hookId
 
@@ -61,6 +66,7 @@ export function useChat<
     options.initialMessages || [],
   )
   const [isLoading, setIsLoading] = createSignal(false)
+  const [hasOlderMessages, setHasOlderMessages] = createSignal(false)
   const [error, setError] = createSignal<Error | undefined>(undefined)
   const [status, setStatus] = createSignal<ChatClientState>('ready')
   const [isSubscribed, setIsSubscribed] = createSignal(false)
@@ -70,7 +76,7 @@ export function useChat<
   const [queue, setQueue] = createSignal<Array<QueuedMessage>>([])
   const [runId, setRunId] = createSignal<string | null>(null)
   const [interruptState, setInterruptState] = createSignal<
-    ChatInterruptState<TTools>
+    ChatInterruptState<TTools, TInterrupts>
   >({
     interrupts: EMPTY_INTERRUPTS,
     pendingInterrupts: EMPTY_INTERRUPTS,
@@ -104,23 +110,39 @@ export function useChat<
     const transport = options.connection
       ? { connection: options.connection }
       : { fetcher: options.fetcher }
-    return new ChatClient<TTools, TContext>({
+    const instance = new ChatClient<TTools, TContext, TInterrupts>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       ...(options.initialMessages !== undefined && {
         initialMessages: options.initialMessages,
       }),
-      ...(options.persistence !== undefined && {
-        persistence: options.persistence,
-      }),
+      ...(typeof options.threadId === 'string' && options.persistence === true
+        ? {
+            persistence: true,
+            threadId: options.threadId,
+            ...(options.history !== undefined && {
+              history: options.history,
+            }),
+          }
+        : typeof options.threadId === 'string' && options.persistence
+          ? {
+              persistence: options.persistence,
+              threadId: options.threadId,
+            }
+          : {
+              ...(options.threadId !== undefined && {
+                threadId: options.threadId,
+              }),
+            }),
       ...(options.initialResumeSnapshot !== undefined && {
         initialResumeSnapshot: options.initialResumeSnapshot,
       }),
       body: options.body,
-      ...(options.threadId !== undefined && { threadId: options.threadId }),
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      ...(options.byok !== undefined && { byok: options.byok }),
+      byokProvider: () => options.byokProvider?.(),
       ...(options.context !== undefined && { context: options.context }),
       devtools: {
         ...options.devtools,
@@ -138,7 +160,12 @@ export function useChat<
       onError: (err) => {
         options.onError?.(err)
       },
-      tools: options.tools,
+      // Untracked: a tools change must not rebuild the client. The effect
+      // below syncs it instead.
+      tools: untrack(() => options.tools),
+      ...(options.interrupts !== undefined && {
+        interrupts: options.interrupts,
+      }),
       onCustomEvent: (eventType, data, context) =>
         options.onCustomEvent?.(eventType, data, context),
       ...(options.streamProcessor !== undefined && {
@@ -146,6 +173,7 @@ export function useChat<
       }),
       onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
         setMessages(newMessages)
+        setHasOlderMessages(instance.getHasOlderMessages())
       },
       onLoadingChange: (newIsLoading: boolean) => {
         setIsLoading(newIsLoading)
@@ -180,16 +208,18 @@ export function useChat<
           pendingInterrupts: nextPendingInterrupts,
         }))
       },
-      onInterruptStateChange: (nextInterruptState) => {
+      onInterruptStateChange: (nextInterruptState, context) => {
         setInterruptState(nextInterruptState)
-        options.onInterruptStateChange?.(nextInterruptState)
+        options.onInterruptStateChange?.(nextInterruptState, context)
       },
     })
     // Only recreate when clientId changes
     // Connection and other options are captured at creation time
+    return instance
   }, [clientId])
 
   setMessages(client().getMessages())
+  setHasOlderMessages(client().getHasOlderMessages())
   syncResumeState()
 
   // Sync body / forwardedProps changes to the client.
@@ -206,6 +236,13 @@ export function useChat<
       context: options.context,
       ...(options.queue !== undefined && { queue: options.queue }),
     })
+  })
+
+  // Sync tools, so a getter such as `get tools() { return pageTools() }`
+  // updates the client.
+  createEffect(() => {
+    const tools = options.tools
+    if (tools !== undefined) client().updateOptions({ tools })
   })
 
   // Apply initial live mode immediately on hook creation.
@@ -280,6 +317,11 @@ export function useChat<
     }
   }
 
+  const loadOlderMessages = async () => {
+    await client().loadOlderMessages()
+    setHasOlderMessages(client().getHasOlderMessages())
+  }
+
   const stop = () => {
     client().stop()
   }
@@ -323,7 +365,11 @@ export function useChat<
   }
 
   const resolveInterrupts = (
-    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+    resolution:
+      | boolean
+      | ((
+          interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+        ) => undefined),
   ) => {
     if (typeof resolution === 'boolean') {
       client().resolveInterrupts(resolution)
@@ -399,6 +445,8 @@ export function useChat<
     reload,
     stop,
     isLoading,
+    hasOlderMessages,
+    loadOlderMessages,
     error,
     status,
     isSubscribed,
@@ -421,5 +469,5 @@ export function useChat<
     resumeInterrupts,
     partial,
     final,
-  } as unknown as UseChatReturn<TTools, TSchema>
+  } as unknown as UseChatReturn<TTools, TSchema, TInterrupts>
 }

@@ -1,5 +1,6 @@
 import { EventType } from '@tanstack/ai'
-import type { RunFinishedEvent, StreamChunk } from '@tanstack/ai'
+import { buildConverseUsage } from './usage'
+import type { AdapterYieldChunk, TokenUsage } from '@tanstack/ai'
 import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
 
 /**
@@ -62,7 +63,7 @@ export async function* processConverseStream(
   stream: AsyncIterable<ConverseStreamOutput>,
   newMessageId: () => string,
   lifecycle: { threadId?: string; parentRunId?: string; model?: string } = {},
-): AsyncIterable<StreamChunk> {
+): AsyncIterable<AdapterYieldChunk> {
   const runId = newMessageId()
   const threadId = lifecycle.threadId ?? newMessageId()
   const { parentRunId, model } = lifecycle
@@ -89,13 +90,11 @@ export async function* processConverseStream(
   // Usage + finish-reason are captured during iteration and folded into the
   // single terminal RUN_FINISHED, matching openai-base's deferred-finish
   // contract (usage may arrive after the finish signal).
-  let usage:
-    | { promptTokens: number; completionTokens: number; totalTokens: number }
-    | undefined
-  let finishReason: NonNullable<RunFinishedEvent['finishReason']> | undefined
+  let usage: TokenUsage | undefined
+  let finishReason: NonNullable<AdapterYieldChunk['finishReason']> | undefined
 
   // Lazily emit RUN_STARTED exactly once, before the first content event.
-  function* ensureRunStarted(): Generator<StreamChunk> {
+  function* ensureRunStarted(): Generator<AdapterYieldChunk> {
     if (hasEmittedRunStarted) return
     hasEmittedRunStarted = true
     yield {
@@ -110,7 +109,7 @@ export async function* processConverseStream(
 
   // Close an open reasoning message before text/tool content begins, mirroring
   // openai-base which always emits REASONING_MESSAGE_END before TEXT_MESSAGE_START.
-  function* closeReasoning(): Generator<StreamChunk> {
+  function* closeReasoning(): Generator<AdapterYieldChunk> {
     if (reasoningMessageId && !hasClosedReasoning) {
       hasClosedReasoning = true
       yield {
@@ -257,11 +256,7 @@ export async function* processConverseStream(
     if ('metadata' in ev) {
       const u = ev.metadata?.usage
       if (u) {
-        usage = {
-          promptTokens: u.inputTokens ?? 0,
-          completionTokens: u.outputTokens ?? 0,
-          totalTokens: u.totalTokens ?? 0,
-        }
+        usage = buildConverseUsage(u)
       }
       continue
     }

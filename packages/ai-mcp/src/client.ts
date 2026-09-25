@@ -1,14 +1,20 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { ClientOptions } from '@modelcontextprotocol/sdk/client/index.js'
 import {
+  ListToolsResultSchema,
+  ToolListChangedNotificationSchema,
+} from '@modelcontextprotocol/sdk/types.js'
+import {
   DuplicateToolNameError,
   MCPConnectionError,
   MCPTaskRequiredToolError,
   MCPToolNotFoundError,
 } from './errors'
 import {
+  callMcpTool,
   makeMcpExecute,
   requiresTaskExecution,
+  serverSupportsTaskCalls,
   toolMcpMetadata,
   toServerTools,
 } from './tools'
@@ -27,12 +33,17 @@ import type {
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import type {
   GetPromptResult,
+  Tool as McpToolDef,
   Prompt,
   ReadResourceResult,
   Resource,
   ResourceTemplate,
 } from '@modelcontextprotocol/sdk/types.js'
 import type { ServerTool } from '@tanstack/ai'
+
+const MAX_TOOLS_LIST_PAGES = 100
+
+type ToolPolicy = Pick<MCPClientOptions, 'toolFilter' | 'needsApproval'>
 
 export interface MCPClient<
   TServer extends ServerDescriptor = AutomaticDescriptor,
@@ -67,9 +78,17 @@ export interface MCPClient<
     name: string,
     args?: Record<string, string>,
   ) => Promise<GetPromptResult>
+  /**
+   * Call a tool directly and return its raw MCP result. Tools declaring
+   * `execution.taskSupport: 'required'` automatically use task execution when
+   * the server declares the tasks capability for tools/call. Pass
+   * `options.signal` to abort — an in-flight task is best-effort cancelled on
+   * the server.
+   */
   callTool: (
     name: string,
     args?: Record<string, unknown>,
+    options?: { signal?: AbortSignal },
   ) => Promise<Awaited<ReturnType<Client['callTool']>>>
   /**
    * The ORIGINAL connection descriptor this client was created from — the
@@ -95,6 +114,8 @@ export interface MCPClient<
      * Optional so an existing hand-rolled `MCPClient` keeps compiling.
      */
     clientOptions?: ClientOptions
+    toolFilter?: MCPClientOptions['toolFilter']
+    needsApproval?: MCPClientOptions['needsApproval']
   }
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
@@ -106,6 +127,7 @@ class MCPClientImpl<
   capabilities: TServer['capabilities'] = {}
   readonly #client: Client
   #closed = false
+  #toolDefinitions?: Map<string, McpToolDef>
   private readonly prefix?: string
   // The ORIGINAL serializable transport config (undefined for clients built
   // from a ready-made Transport instance, which is single-use / not reconnectable).
@@ -114,6 +136,7 @@ class MCPClientImpl<
   // rebuilds a client per call from getInfo(), and a rebuilt client that lost
   // `jsonSchemaValidator` falls straight back to AJV.
   readonly #clientOptions: ClientOptions | undefined
+  readonly #policy: ToolPolicy
 
   constructor(
     prefix?: string,
@@ -121,10 +144,12 @@ class MCPClientImpl<
     version = '0.0.1',
     transport?: TransportConfig,
     clientOptions?: ClientOptions,
+    policy: ToolPolicy = {},
   ) {
     this.prefix = prefix
     this.#transport = transport
     this.#clientOptions = clientOptions
+    this.#policy = policy
     // `clientOptions` is spread rather than passed straight through so an
     // omitted option keeps the SDK's default. See MCPClientOptions.clientOptions
     // for why edge runtimes need `jsonSchemaValidator` in particular.
@@ -135,21 +160,75 @@ class MCPClientImpl<
     transport: TransportConfig | undefined
     prefix: string | undefined
     clientOptions?: ClientOptions
+    toolFilter?: MCPClientOptions['toolFilter']
+    needsApproval?: MCPClientOptions['needsApproval']
   } {
+    const { toolFilter, needsApproval } = this.#policy
     return {
       transport: this.#transport,
       prefix: this.prefix,
       ...(this.#clientOptions ? { clientOptions: this.#clientOptions } : {}),
+      ...(toolFilter ? { toolFilter } : {}),
+      ...(needsApproval ? { needsApproval } : {}),
     }
   }
 
   async connect(transport: Transport): Promise<void> {
     try {
+      // A tools/list_changed notification invalidates the cached definitions
+      // so the next callTool re-discovers each tool's execution mode.
+      this.#client.setNotificationHandler(
+        ToolListChangedNotificationSchema,
+        () => {
+          this.#toolDefinitions = undefined
+        },
+      )
       await this.#client.connect(transport)
       this.capabilities = this.#client.getServerCapabilities() ?? {}
     } catch (err) {
       throw new MCPConnectionError('Failed to connect to MCP server', err)
     }
+  }
+
+  /**
+   * Fetch every page of tools/list and refresh the definition cache.
+   *
+   * `raw: true` bypasses the SDK's `listTools()` wrapper so the SDK's own
+   * metadata caches (output-schema validators, task flags) are not armed —
+   * `callTool`'s lazy lookup must not switch a previously validation-free
+   * direct call over to strict structured-content validation.
+   *
+   * When `raw` is off, only the first page uses `listTools()`. Later pages
+   * are raw requests: `listTools()` clears the SDK metadata cache before
+   * writing the current page, which would drop validators for earlier tools.
+   */
+  async #listTools(options?: { raw?: boolean }): Promise<Array<McpToolDef>> {
+    const defs: Array<McpToolDef> = []
+    let cursor: string | undefined
+    let pageCount = 0
+    do {
+      pageCount++
+      if (pageCount > MAX_TOOLS_LIST_PAGES) {
+        throw new Error(
+          `MCP tools/list pagination exceeded ${MAX_TOOLS_LIST_PAGES} pages`,
+        )
+      }
+      const useRaw = options?.raw === true || pageCount > 1
+      const page = useRaw
+        ? await this.#client.request(
+            { method: 'tools/list', ...(cursor ? { params: { cursor } } : {}) },
+            ListToolsResultSchema,
+          )
+        : await this.#client.listTools(cursor ? { cursor } : undefined)
+      defs.push(...page.tools)
+      const nextCursor = page.nextCursor
+      if (nextCursor !== undefined && nextCursor === cursor) {
+        throw new Error('MCP tools/list pagination repeated a cursor')
+      }
+      cursor = nextCursor
+    } while (cursor)
+    this.#toolDefinitions = new Map(defs.map((def) => [def.name, def]))
+    return defs
   }
 
   async tools(
@@ -164,21 +243,32 @@ class MCPClientImpl<
       : // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         ((defsOrOptions as ToolsOptions) ?? {}) // SDK interop: defsOrOptions may be undefined at runtime even though TS types it as ToolsOptions here
 
+    const { toolFilter, needsApproval } = this.#policy
+    const listed = await this.#listTools()
+    const defs = toolFilter ? listed.filter((def) => toolFilter(def)) : listed
+
     let tools: Array<McpServerTool>
     if (isDefs) {
       // Explicit path: bind each TanStack toolDefinition to the server by name.
-      const available = new Map(
-        (await this.#client.listTools()).tools.map((t) => [t.name, t]),
-      )
+      const available = new Map(defs.map((tool) => [tool.name, tool]))
       tools = (defsOrOptions as ReadonlyArray<AnyToolDefinition>).map((def) => {
         const serverTool = available.get(def.name)
         if (!serverTool) throw new MCPToolNotFoundError(def.name)
-        // Explicitly binding a task-required tool is an error (it would fail
-        // on every callTool with -32600) — unlike discovery, which skips them.
-        if (requiresTaskExecution(serverTool))
+        // A task-required tool on a server without the tasks capability for
+        // tools/call cannot be invoked (every call fails) — refuse the binding.
+        if (
+          requiresTaskExecution(serverTool) &&
+          !serverSupportsTaskCalls(this.#client)
+        ) {
           throw new MCPTaskRequiredToolError(def.name)
+        }
         const bound = def.server(
-          makeMcpExecute(this.#client, def.name, Boolean(def.outputSchema)),
+          makeMcpExecute(
+            this.#client,
+            def.name,
+            Boolean(def.outputSchema),
+            requiresTaskExecution(serverTool),
+          ),
         ) as ServerTool
         // A caller-supplied definition may already carry its own `mcp` block,
         // and `metadata.mcp` is untyped there — only spread it when it really
@@ -210,10 +300,10 @@ class MCPClientImpl<
       })
     } else {
       // Auto-discovery path.
-      const defs = (await this.#client.listTools()).tools
       tools = toServerTools(this.#client, defs, {
         prefix: this.prefix,
         lazy: options.lazy,
+        needsApproval,
       })
     }
 
@@ -257,9 +347,36 @@ class MCPClientImpl<
   async callTool(
     name: string,
     args?: Record<string, unknown>,
+    options?: { signal?: AbortSignal },
   ): Promise<Awaited<ReturnType<Client['callTool']>>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
-    return this.#client.callTool({ name, arguments: args ?? {} })
+    if (!this.#toolDefinitions) {
+      // Lazy discovery so task-required tools work without a prior tools()
+      // call. Best-effort: a server whose tools/list fails (or omits the
+      // tool) still gets the plain tools/call it would have received before
+      // task support existed. Raw fetch — see #listTools.
+      try {
+        await this.#listTools({ raw: true })
+      } catch {
+        // fall through to a plain tools/call
+      }
+    }
+    const definition = this.#toolDefinitions?.get(name)
+    const taskRequired =
+      definition !== undefined && requiresTaskExecution(definition)
+    // A known task-required tool on a server without the tasks capability can
+    // never execute — fail with the clear local error rather than the server's
+    // opaque -32600 (mirrors the tools([...defs]) binding guard).
+    if (taskRequired && !serverSupportsTaskCalls(this.#client)) {
+      throw new MCPTaskRequiredToolError(name)
+    }
+    return callMcpTool(
+      this.#client,
+      name,
+      args ?? {},
+      taskRequired,
+      options?.signal,
+    )
   }
 
   async close(): Promise<void> {
@@ -285,6 +402,7 @@ export async function createMCPClient<
     // instance is single-use, so it is not retained as a descriptor.
     isTransportInstance(options.transport) ? undefined : options.transport,
     options.clientOptions,
+    { toolFilter: options.toolFilter, needsApproval: options.needsApproval },
   )
   await impl.connect(transport)
   return impl

@@ -34,7 +34,7 @@ export interface InjectGenerateSpeechResult<TOutput = TTSResult> extends Omit<
 export function injectGenerateSpeech<TTransformed = void>(
   options: Omit<
     InjectGenerateSpeechOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: TTSResult) => TTransformed
   } & GenerationPersistenceOptions,

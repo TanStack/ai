@@ -1,4 +1,4 @@
-import { useGeneration } from './use-generation'
+import { useGenerationWithDevtoolsIdentity } from './use-generation'
 import { reconstructSummarizeResult } from '@tanstack/ai-client'
 import type { StreamChunk, SummarizationResult } from '@tanstack/ai'
 import type {
@@ -10,6 +10,8 @@ import type {
   InferGenerationOutputFromReturn,
   SummarizeGenerateInput,
 } from '@tanstack/ai-client'
+import type { ByokClient } from '@tanstack/ai-client/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
 
 /**
  * Options for the useSummarize hook.
@@ -21,12 +23,12 @@ export interface UseSummarizeOptions<TOutput = SummarizationResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for summarization */
   fetcher?: GenerationFetcher<SummarizeGenerateInput, SummarizationResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
+  byok?: ByokClient
+  /** Optional provider id. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
+  byokProvider?: () => ProviderId | undefined
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
@@ -48,8 +50,8 @@ export interface UseSummarizeOptions<TOutput = SummarizationResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -143,28 +145,24 @@ export interface UseSummarizeReturn<TOutput = SummarizationResult> {
 export function useSummarize<TTransformed = void>(
   options: Omit<
     UseSummarizeOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: SummarizationResult) => TTransformed
   } & GenerationPersistenceOptions,
 ): UseSummarizeReturn<
   InferGenerationOutputFromReturn<SummarizationResult, TTransformed>
 > {
-  const devtools = {
-    ...options.devtools,
-    framework: 'react',
-    hookName: 'useSummarize',
-    outputKind: 'text' as const,
-  }
-  const generation = useGeneration<
+  const generation = useGenerationWithDevtoolsIdentity<
     SummarizeGenerateInput,
     SummarizationResult,
     TTransformed
-  >({
-    ...options,
-    devtools,
-    reconstructResult: reconstructSummarizeResult,
-  })
+  >(
+    { ...options, reconstructResult: reconstructSummarizeResult },
+    {
+      hookName: 'useSummarize',
+      outputKind: 'text',
+    },
+  )
 
   return generation
 }

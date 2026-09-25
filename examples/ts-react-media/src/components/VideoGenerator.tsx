@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Film, Loader2, Shuffle, Upload, Wand2, X } from 'lucide-react'
 import { useGenerateVideo } from '@tanstack/ai-react'
+import type { BilledUsage } from '@tanstack/ai'
 import type { VideoModel, VideoMode } from '@/lib/models'
 import type { AttachedMedia } from '@/lib/media'
 import type { MediaPrompt, MediaPromptPart } from '@tanstack/ai/client'
 import type { VideoBilling } from '@/lib/billing'
 
 import { generateVideoFn } from '@/lib/server-functions'
+import { byok, callWithByok, toByokProvider } from '@/lib/byok'
 import { VIDEO_MODELS } from '@/lib/models'
 import { getRandomVideoPrompt } from '@/lib/prompts'
 import { imageUrlToPart, readMediaFile, toVideoPart } from '@/lib/media'
@@ -57,6 +59,22 @@ function buildVideoPrompt(
   return parts.length === 1 ? request.prompt : parts
 }
 
+/**
+ * Human label for a billed quantity, driven by the unit the adapter reported —
+ * no guessing from provider identity or cost presence.
+ */
+function describeBilled({ quantity, unit }: BilledUsage): string {
+  const plural = quantity === 1 ? '' : 's'
+  switch (unit) {
+    case 'seconds':
+      return `${quantity} second${plural} of video`
+    case 'units':
+      return `${quantity} fal unit${plural}`
+    default:
+      return `${quantity} ${unit}`
+  }
+}
+
 export default function VideoGenerator({
   initialImageUrl,
 }: VideoGeneratorProps) {
@@ -98,7 +116,7 @@ export default function VideoGenerator({
   const omniInRun =
     selectedModel === 'all'
       ? geminiModels.length > 0
-      : selectedModel.startsWith('gemini-omni-flash-preview')
+      : selectedModel.startsWith('gemini-omni')
 
   // Each card runs its own generation, so the form is busy while any of them
   // reports that it is.
@@ -452,17 +470,22 @@ function VideoModelCard({
       // `options.signal` is the hook's abort signal. Forwarding it matters
       // more here than for images: cancelling the response is what ends the
       // server's polling loop instead of leaving it running to the timeout.
+      byok,
+      byokProvider: () => toByokProvider(model.provider),
       fetcher: (input, options) =>
-        generateVideoFn({
-          data: {
-            prompt: input.prompt,
-            model: model.id,
-            ...(previousInteractionRef.current
-              ? { previousInteractionId: previousInteractionRef.current }
-              : {}),
-          },
-          signal: options?.signal,
-        }),
+        callWithByok(
+          generateVideoFn({
+            data: {
+              prompt: input.prompt,
+              model: model.id,
+              ...(previousInteractionRef.current
+                ? { previousInteractionId: previousInteractionRef.current }
+                : {}),
+            },
+            signal: options?.signal,
+            headers: options?.headers,
+          }),
+        ),
       onChunk: (chunk) => {
         const usage = readVideoBilling(chunk)
         if (usage) setBilling(usage)
@@ -559,16 +582,15 @@ function VideoModelCard({
           {billing?.cost != null ? (
             <p className="text-xs text-gray-500">
               Billed ${billing.cost.toFixed(3)}
-              {billing.unitsBilled != null
-                ? ` for ${billing.unitsBilled} second${billing.unitsBilled === 1 ? '' : 's'} of video`
-                : ''}
+              {billing.billed ? ` for ${describeBilled(billing.billed)}` : ''}
             </p>
           ) : (
-            billing?.unitsBilled != null && (
+            billing?.billed && (
               <p className="text-xs text-gray-500">
-                Billed {billing.unitsBilled} fal unit
-                {billing.unitsBilled === 1 ? '' : 's'} — multiply by the
-                endpoint unit price for USD cost
+                Billed {describeBilled(billing.billed)}
+                {billing.billed.unit === 'units'
+                  ? ' — multiply by the endpoint unit price for USD cost'
+                  : ''}
               </p>
             )
           )}

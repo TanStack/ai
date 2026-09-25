@@ -23,15 +23,18 @@ import type {
   VideoGenerateResult,
   VideoStatusInfo,
 } from '@tanstack/ai-client'
+import type { ByokClient } from '@tanstack/ai-client/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
 import type { StreamChunk } from '@tanstack/ai'
-
-let nextId = 0
 
 export interface InjectGenerateVideoOptions<TOutput = VideoGenerateResult> {
   connection?: ConnectConnectionAdapter
   fetcher?: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
-  id?: string
   body?: ReactiveOption<Record<string, any>>
+  /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
+  byok?: ByokClient
+  /** Optional provider id. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
+  byokProvider?: () => ProviderId | undefined
   devtools?: AIDevtoolsDisplayOptions
   /**
    * How this generation persists across reloads.
@@ -52,8 +55,8 @@ export interface InjectGenerateVideoOptions<TOutput = VideoGenerateResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -103,7 +106,7 @@ export interface InjectGenerateVideoResult<TOutput = VideoGenerateResult> {
 export function injectGenerateVideo<TTransformed = void>(
   options: Omit<
     InjectGenerateVideoOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: VideoGenerateResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -132,19 +135,24 @@ export function injectGenerateVideo<TTransformed = void>(
   const bodySource =
     options.body !== undefined ? toReactive(options.body) : undefined
 
-  // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
   const baseOptions = {
     ...(bodySource !== undefined && { body: bodySource() }),
-    ...(options.threadId !== undefined
-      ? { threadId: options.threadId }
-      : { id: options.id ?? `injectGenerateVideo-${nextId++}` }),
-    ...(options.persistence !== undefined && {
-      persistence: options.persistence,
-    }),
+    ...(typeof options.threadId === 'string' && options.persistence
+      ? {
+          persistence: options.persistence,
+          threadId: options.threadId,
+        }
+      : {
+          ...(options.threadId !== undefined && {
+            threadId: options.threadId,
+          }),
+        }),
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
     }),
     ...(options.joinRun !== undefined && { joinRun: options.joinRun }),
+    ...(options.byok !== undefined && { byok: options.byok }),
+    byokProvider: () => options.byokProvider?.(),
     devtoolsBridgeFactory: createVideoDevtoolsBridge,
     devtools: {
       ...options.devtools,

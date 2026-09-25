@@ -3,7 +3,7 @@ import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import { onMount } from 'svelte'
 import type {
   ChatClientState,
-  ChatInterrupt,
+  ResolvableChatInterrupt,
   ChatInterruptState,
   ChatResumeState,
   ConnectionStatus,
@@ -14,6 +14,7 @@ import type {
 } from '@tanstack/ai-client'
 import type {
   AnyClientTool,
+  InterruptDefinition,
   InferSchemaType,
   ModelMessage,
   RunAgentResumeItem,
@@ -65,12 +66,16 @@ export function createChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
 >(
-  options: CreateChatOptions<TTools, TSchema, TContext>,
-): CreateChatReturn<TTools, TSchema, TContext> {
+  options: CreateChatOptions<TTools, TSchema, TContext, TInterrupts>,
+): CreateChatReturn<TTools, TSchema, TContext, TInterrupts> {
   // Create reactive state using Svelte 5 runes
   let messages = $state<Array<UIMessage<TTools>>>(options.initialMessages || [])
   let isLoading = $state(false)
+  let hasOlderMessages = $state(false)
   let error = $state<Error | undefined>(undefined)
   let status = $state<ChatClientState>('ready')
   let isSubscribed = $state(false)
@@ -78,7 +83,7 @@ export function createChat<
   let sessionGenerating = $state(false)
   let queue = $state<Array<QueuedMessage>>([])
   let runId = $state<string | null>(null)
-  let interruptState = $state.raw<ChatInterruptState<TTools>>({
+  let interruptState = $state.raw<ChatInterruptState<TTools, TInterrupts>>({
     interrupts: EMPTY_INTERRUPTS,
     pendingInterrupts: EMPTY_INTERRUPTS,
     interruptErrors: EMPTY_INTERRUPT_ERRORS,
@@ -106,26 +111,42 @@ export function createChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  // The hook's identity is its `threadId`, which ChatClient also uses as the
-  // persistence key — no separate `id`. When no `threadId` is given the client
-  // generates one, so an ephemeral chat still works but is not restored on reload.
-  const client = new ChatClient<TTools, TContext>({
+  // The hook's identity is its `threadId`. When no `threadId` is given the
+  // client mints one after mount, so an ephemeral chat still works but is not
+  // restored on reload.
+  const client = new ChatClient<TTools, TContext, TInterrupts>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(options.persistence !== undefined && {
-      persistence: options.persistence,
-    }),
+    ...(typeof options.threadId === 'string' && options.persistence === true
+      ? {
+          persistence: true,
+          threadId: options.threadId,
+          ...(options.history !== undefined && {
+            history: options.history,
+          }),
+        }
+      : typeof options.threadId === 'string' && options.persistence
+        ? {
+            persistence: options.persistence,
+            threadId: options.threadId,
+          }
+        : {
+            ...(options.threadId !== undefined && {
+              threadId: options.threadId,
+            }),
+          }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),
     ...(options.body !== undefined && { body: options.body }),
-    ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
+    ...(options.byok !== undefined && { byok: options.byok }),
+    byokProvider: () => options.byokProvider?.(),
     ...(options.context !== undefined && { context: options.context }),
     devtools: {
       ...options.devtools,
@@ -144,6 +165,9 @@ export function createChat<
       options.onError?.(err)
     },
     tools: options.tools,
+    ...(options.interrupts !== undefined && {
+      interrupts: options.interrupts,
+    }),
     ...(options.onCustomEvent !== undefined && {
       onCustomEvent: options.onCustomEvent,
     }),
@@ -152,6 +176,7 @@ export function createChat<
     }),
     onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
       messages = newMessages
+      hasOlderMessages = client.getHasOlderMessages()
     },
     onLoadingChange: (newIsLoading: boolean) => {
       isLoading = newIsLoading
@@ -179,9 +204,9 @@ export function createChat<
     onRunIdChange: (nextRunId) => {
       runId = nextRunId
     },
-    onInterruptStateChange: (nextInterruptState) => {
+    onInterruptStateChange: (nextInterruptState, context) => {
       interruptState = nextInterruptState
-      options.onInterruptStateChange?.(nextInterruptState)
+      options.onInterruptStateChange?.(nextInterruptState, context)
     },
   })
 
@@ -200,6 +225,16 @@ export function createChat<
   client.mountDevtools()
 
   if (typeof window !== 'undefined') {
+    try {
+      // Sync tools, so a getter such as `get tools() { return page.tools }`
+      // updates the client.
+      $effect.pre(() => {
+        const tools = options.tools
+        if (tools !== undefined) client.updateOptions({ tools })
+      })
+    } catch {
+      // Effects are only valid during component initialization.
+    }
     try {
       onMount(() => {
         // Delivery-durability resume is transparent: the resumable SSE
@@ -259,6 +294,11 @@ export function createChat<
     }
   }
 
+  const loadOlderMessages = async () => {
+    await client.loadOlderMessages()
+    hasOlderMessages = client.getHasOlderMessages()
+  }
+
   const stop = () => {
     client.stop()
   }
@@ -304,7 +344,11 @@ export function createChat<
   }
 
   const resolveInterrupts = (
-    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+    resolution:
+      | boolean
+      | ((
+          interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+        ) => undefined),
   ) => {
     if (typeof resolution === 'boolean') {
       client.resolveInterrupts(resolution)
@@ -390,6 +434,9 @@ export function createChat<
     get isLoading() {
       return isLoading
     },
+    get hasOlderMessages() {
+      return hasOlderMessages
+    },
     get error() {
       return error
     },
@@ -433,6 +480,7 @@ export function createChat<
     cancelQueued,
     append,
     reload,
+    loadOlderMessages,
     stop,
     dispose,
     setMessages,
@@ -447,5 +495,5 @@ export function createChat<
     updateBody,
     updateForwardedProps,
     updateContext,
-  } as unknown as CreateChatReturn<TTools, TSchema, TContext>
+  } as unknown as CreateChatReturn<TTools, TSchema, TContext, TInterrupts>
 }

@@ -3,9 +3,7 @@ id: StructuredOutputCompleteEvent
 title: StructuredOutputCompleteEvent
 ---
 
-# Interface: StructuredOutputCompleteEvent\<T\>
-
-Defined in: [packages/ai/src/types.ts:1360](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1360)
+Defined in: [packages/ai/src/types.ts:1437](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1437)
 
 Final event of a streaming structured-output run. Carries the validated
 `object` (typed as `T` after the orchestrator runs Standard Schema parsing),
@@ -34,27 +32,21 @@ if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
 
 `T` = `unknown`
 
-## Indexable
-
-```ts
-[k: string]: unknown
-```
-
 ## Properties
 
-### model?
+### metadata?
 
 ```ts
-optional model: string;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1339](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1339)
+Defined in: [packages/ai/src/types.ts:1416](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1416)
 
-Model identifier for multi-model support
+Extra information attached to this event.
 
 #### Inherited from
 
-[`CustomEvent`](CustomEvent.md).[`model`](CustomEvent.md#model)
+[`CustomEvent`](CustomEvent.md).[`metadata`](CustomEvent.md#metadata)
 
 ***
 
@@ -64,7 +56,10 @@ Model identifier for multi-model support
 name: "structured-output.complete";
 ```
 
-Defined in: [packages/ai/src/types.ts:1363](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1363)
+Defined in: [packages/ai/src/types.ts:1440](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1440)
+
+What this custom event is. Required: without it a consumer cannot route
+the value.
 
 #### Overrides
 
@@ -74,13 +69,29 @@ CustomEvent.name
 
 ***
 
+### type
+
+```ts
+type: "CUSTOM";
+```
+
+Defined in: [packages/ai/src/types.ts:1415](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1415)
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`type`](CustomEvent.md#type)
+
+***
+
 ### value
 
 ```ts
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1364](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1364)
+Defined in: [packages/ai/src/types.ts:1441](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1441)
+
+The payload. Any JSON value, and required.
 
 #### object
 
@@ -97,7 +108,7 @@ raw: string;
 #### reasoning?
 
 ```ts
-optional reasoning: string;
+optional reasoning?: string;
 ```
 
 #### Overrides

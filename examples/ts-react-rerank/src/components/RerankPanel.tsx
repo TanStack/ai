@@ -251,11 +251,14 @@ export default function RerankPanel() {
                   <dt>model</dt>
                   <dd className="font-mono text-gray-300">{result.model}</dd>
                 </div>
-                {usage?.unitsBilled !== undefined && (
+                {usage?.billed && (
                   <div className="flex justify-between gap-4">
-                    <dt>search units billed</dt>
+                    <dt>billed</dt>
                     <dd className="font-mono text-gray-300">
-                      {usage.unitsBilled}
+                      {usage.billed.quantity}{' '}
+                      {usage.billed.unit === 'units'
+                        ? `search unit${usage.billed.quantity === 1 ? '' : 's'}`
+                        : usage.billed.unit}
                     </dd>
                   </div>
                 )}

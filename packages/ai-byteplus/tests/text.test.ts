@@ -18,7 +18,12 @@ import {
   BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS,
   BYTEPLUS_THINKING_SUMMARY_MODELS,
 } from '../src/model-meta'
-import type { ContentPart, ModelMessage, StreamChunk, Tool } from '@tanstack/ai'
+import type {
+  AdapterYieldChunk,
+  ContentPart,
+  ModelMessage,
+  Tool,
+} from '@tanstack/ai'
 import type { BytePlusTextProviderOptions } from '../src/index'
 
 // Silent logger for adapter calls under test.
@@ -190,9 +195,9 @@ function thinkingStreamChunks(model: string): Array<Record<string, unknown>> {
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const chunks: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const chunks: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) chunks.push(chunk)
   return chunks
 }
@@ -779,7 +784,7 @@ describe('BytePlus text adapter', () => {
       )
       const adapter = createBytePlusText(UNSTRUCTURED_MODEL, 'ark-test-key')
 
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of chat({
         adapter,
         messages: [{ role: 'user', content: 'Say hi' }],

@@ -1,0 +1,10 @@
+---
+id: provideRunDetached
+title: provideRunDetached
+---
+
+```ts
+provideRunDetached: CapabilityProvider<true>;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:367](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L367)

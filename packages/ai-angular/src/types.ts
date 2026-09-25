@@ -1,5 +1,6 @@
 import type {
   AnyClientTool,
+  InterruptDefinition,
   InferSchemaType,
   ModelMessage,
   RunAgentResumeItem,
@@ -10,7 +11,7 @@ import type {
   BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
-  ChatInterrupt,
+  ResolvableChatInterrupt,
   ChatInterruptState,
   ChatRequestBody,
   ChatResumeState,
@@ -60,15 +61,17 @@ export type DeepPartial<T> =
  *
  * Mirrors the Vue `useChat` options, except:
  * - State-change callbacks are managed internally and exposed as signals.
- * - `body`, `forwardedProps`, and `live` accept a {@link ReactiveOption} so
+ * - `tools`, `body`, `forwardedProps`, and `live` accept a {@link ReactiveOption} so
  *   they can be a static value, a `Signal`, or a getter and stay reactive.
  */
 export type InjectChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = DistributedOmit<
-  ChatClientOptions<TTools, TContext>,
+  ChatClientOptions<TTools, TContext, TInterrupts>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -83,9 +86,12 @@ export type InjectChatOptions<
   | 'devtools'
   | 'body'
   | 'forwardedProps'
+  | 'tools'
 > & {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /** Client-side tools with execution logic. Reactive. */
+  tools?: ReactiveOption<TTools>
   /** Additional request body params. Reactive. */
   body?: ReactiveOption<Record<string, any>>
   /** Forwarded request props (preferred over `body`). Reactive. */
@@ -106,9 +112,12 @@ export type InjectChatOptions<
 export type InjectChatResult<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = BaseInjectChatResult<
   TTools,
-  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown
+  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
+  TInterrupts
 > &
   (TSchema extends SchemaInput
     ? {
@@ -122,10 +131,16 @@ export type InjectChatResult<
 interface BaseInjectChatResult<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TData = unknown,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   /** Current messages in the conversation. */
   messages: Signal<Array<UIMessage<TTools, TData>>>
-  /** Send a message (string or multimodal content). */
+  /**
+   * Send a message (string or multimodal content).
+   * Pass `{ whenBusy }` to override the queue policy for a single send, or
+   * `{ body }` to merge per-call JSON into this request's `forwardedProps`.
+   */
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,
@@ -162,16 +177,22 @@ interface BaseInjectChatResult<
    */
   runId: Signal<string | null>
   /** Immutable bound interrupts for the current interrupted run. */
-  interrupts: Signal<BoundInterrupts<TTools>>
+  interrupts: Signal<BoundInterrupts<TTools, TInterrupts>>
   /** @deprecated Use `interrupts`. */
-  pendingInterrupts: Signal<BoundInterrupts<TTools>>
+  pendingInterrupts: Signal<BoundInterrupts<TTools, TInterrupts>>
   /** Batch-level interrupt errors. */
-  interruptErrors: Signal<ChatInterruptState<TTools>['interruptErrors']>
+  interruptErrors: Signal<
+    ChatInterruptState<TTools, TInterrupts>['interruptErrors']
+  >
   /** Whether the client is submitting an interrupt batch. */
   resuming: Signal<boolean>
   resolveInterrupts: {
     (approved: boolean): void
-    (resolver: (interrupt: ChatInterrupt<TTools>) => undefined): void
+    (
+      resolver: (
+        interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+      ) => undefined,
+    ): void
   }
   cancelInterrupts: () => void
   retryInterrupts: () => void
@@ -185,6 +206,14 @@ interface BaseInjectChatResult<
   stop: () => void
   /** Whether a response is currently being generated. */
   isLoading: Signal<boolean>
+  /**
+   * True when the last hydrate or older-page response said more messages exist.
+   */
+  hasOlderMessages: Signal<boolean>
+  /**
+   * Fetch the next older window and put it in front of the painted messages.
+   */
+  loadOlderMessages: () => Promise<void>
   /** Current error, if any. */
   error: Signal<Error | undefined>
   /** Set messages manually. */

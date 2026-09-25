@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { buildProviderSupportsBody } from './provider-supports'
+import {
+  buildAnthropicProviderOptionsType,
+  buildProviderSupportsBody,
+} from './provider-supports'
 
 describe('buildProviderSupportsBody', () => {
   it('does not copy OpenAI computer_use or local_shell onto a new model', () => {
@@ -53,5 +56,49 @@ describe('buildProviderSupportsBody', () => {
     expect(body).toContain('tools: []')
     expect(body).toContain('tool_calling')
     expect(body).toContain('reasoning')
+  })
+})
+
+describe('buildAnthropicProviderOptionsType', () => {
+  it('uses adaptive-only thinking and no sampling when reasoning is mandatory', () => {
+    const type = buildAnthropicProviderOptionsType({
+      supportedParameters: [
+        'max_tokens',
+        'reasoning',
+        'tools',
+        'include_reasoning',
+        'reasoning_effort',
+      ],
+      reasoningMandatory: true,
+      hasCachedPricing: true,
+    })
+    expect(type).toContain('AnthropicCacheControlOptions')
+    expect(type).toContain('AnthropicAdaptiveOnlyThinkingOptions')
+    expect(type).toContain('AnthropicMaxTokensOptions')
+    expect(type).toContain('AnthropicOutputConfigOptions')
+    expect(type).not.toContain('AnthropicSamplingOptions')
+    expect(type).not.toContain('AnthropicThinkingOptions &')
+    expect(type).not.toContain('AnthropicAdaptiveThinkingOptions')
+    expect(type).not.toContain('AnthropicAdaptiveOrDisabledThinkingOptions')
+  })
+
+  it('uses adaptive-or-disabled thinking when reasoning is listed without sampling', () => {
+    const type = buildAnthropicProviderOptionsType({
+      supportedParameters: ['max_tokens', 'reasoning', 'stop'],
+      reasoningMandatory: false,
+    })
+    expect(type).toContain('AnthropicAdaptiveOrDisabledThinkingOptions')
+    expect(type).toContain('AnthropicMaxTokensOptions')
+    expect(type).not.toContain('AnthropicSamplingOptions')
+  })
+
+  it('keeps sampling plus budget thinking when temperature is listed and reasoning is not', () => {
+    const type = buildAnthropicProviderOptionsType({
+      supportedParameters: ['temperature', 'top_p', 'top_k', 'max_tokens'],
+    })
+    expect(type).toContain('AnthropicThinkingOptions')
+    expect(type).toContain('AnthropicSamplingOptions')
+    expect(type).not.toContain('AnthropicMaxTokensOptions')
+    expect(type).not.toContain('AnthropicAdaptiveOnlyThinkingOptions')
   })
 })

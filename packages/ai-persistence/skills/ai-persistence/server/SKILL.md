@@ -73,24 +73,39 @@ Named shapes: `ChatTranscriptPersistence` (floor), `ChatPersistence` (all four).
 the unparameterized type is the all-optional bag, and `withPersistence` rejects
 it because `stores.messages` is possibly `undefined`.
 
-## Authoritative-history contract
+## Merge incoming messages by id
 
-- **Non-empty `messages`** → finish **overwrites** the stored thread with that
-  array. Post the **complete** transcript, never a delta.
-- **Empty `messages`** → middleware **loads** the stored thread and continues.
+`withPersistence` merges incoming `messages` into the stored thread by id.
+
+- **Empty `messages`**: load the stored thread and continue.
+- **Non-empty `messages`**: merge by id. The last incoming id that already
+  exists in stored is a cutoff. Stored messages after it are dropped. If no
+  incoming id is in stored, every stored message stays. Same id: incoming
+  wins. New ids and messages with no id are appended.
+- `saveThread` replaces the thread with that merged list. Merge is middleware,
+  not the store.
 
 ## When state is written
 
-| Moment             | Writes                                                            | Best-effort?                     |
-| ------------------ | ----------------------------------------------------------------- | -------------------------------- |
-| `onStart`          | Pending turn snapshot (user + history)                            | Yes — failure does not abort     |
-| Interrupt boundary | New interrupts, run → `interrupted`, message snapshot             | No                               |
-| `onFinish`         | Full transcript **first**, then run → `completed`, commit resumes | No                               |
-| Stream (optional)  | Throttled partial assistant text                                  | Yes if `snapshotStreaming: true` |
-| `onError`          | Run → `failed`                                                    | Resumes stay pending             |
-| `onAbort`          | Run → `aborted` — **but only sometimes** (see below)              | Resumes stay pending             |
+| Moment             | Writes                                                                 | Best-effort?                     |
+| ------------------ | ---------------------------------------------------------------------- | -------------------------------- |
+| `onStart`          | Pending turn snapshot (user + history)                                 | Yes — failure does not abort     |
+| Interrupt boundary | New interrupts, run → `interrupted`, message snapshot                  | No                               |
+| `onFinish`         | Canonical transcript **first**, then run → `completed`, commit resumes | No                               |
+| Stream (optional)  | Throttled partial assistant text                                       | Yes if `snapshotStreaming: true` |
+| `onError`          | Run → `failed`                                                         | Resumes stay pending             |
+| `onAbort`          | Run → `aborted` — **but only sometimes** (see below)                   | Resumes stay pending             |
+
+The canonical transcript already contains the completed terminal assistant
+messages. Native-combined output keeps the structured result on its terminal
+assistant message. Separate finalization and event-sourced harness output can
+preserve plain-text and structured-output assistant messages separately when
+those messages use different ids.
 
 ```ts
+import { withPersistence } from '@tanstack/ai-persistence'
+import { persistence } from './persistence'
+
 withPersistence(persistence, {
   snapshotStreaming: true,
   snapshotIntervalMs: 1000, // default
@@ -152,6 +167,8 @@ Server-authoritative clients load history by `threadId` (often `GET`):
 
 ```ts
 import { reconstructChat } from '@tanstack/ai-persistence'
+import { persistence } from './persistence'
+import { sessionUserId, userOwnsThread } from './auth'
 
 export async function GET(request: Request) {
   return reconstructChat(persistence, request, {
@@ -164,11 +181,16 @@ export async function GET(request: Request) {
 }
 ```
 
-Returns `{ messages, activeRun, interrupts }`:
+Returns `{ messages, activeRun, interrupts, page? }`:
 
-- `messages` — UI messages for paint
-- `activeRun` — `{ runId }` if a run is still generating (`runs.findActiveRun`)
-- `interrupts` — pending human-in-the-loop state for re-prompt
+- `messages`: UI messages for this window
+- `activeRun`: `{ runId }` if a run is still generating (`runs.findActiveRun`)
+- `interrupts`: pending human-in-the-loop state for re-prompt
+- `page`: `{ truncated, cursor }` when the GET has a valid `limit`
+
+Paging is opt-in. No `limit` returns the full transcript and can omit `page`.
+`reconstructChat` reads `limit` and `before` from the query. `activeRun` and
+`interrupts` are not paged.
 
 **Without `authorize`, anyone who guesses `?threadId=` gets the transcript.**
 
@@ -180,9 +202,10 @@ activities (image, audio, TTS, video, transcription). Do not fake
 
 ## Common mistakes
 
-### CRITICAL: Posting a message delta as `messages`
+### CRITICAL: Merge inside `saveThread`
 
-Wipes the stored thread down to that delta. Always send full history or `[]`.
+Merge by id is `withPersistence`. `saveThread` must replace the merged list it
+receives.
 
 ### HIGH: Omitting `threadId` / `runId`
 

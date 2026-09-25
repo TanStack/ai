@@ -1,13 +1,6 @@
 import { GenerationClient } from '@tanstack/ai-client'
 import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import {
-  onMounted,
-  onScopeDispose,
-  readonly,
-  shallowRef,
-  useId,
-  watch,
-} from 'vue'
+import { onMounted, onScopeDispose, readonly, shallowRef, watch } from 'vue'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -19,6 +12,8 @@ import type {
   GenerationRestoredResult,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
+import type { ByokClient } from '@tanstack/ai-client/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
 import type { DeepReadonly, ShallowRef } from 'vue'
 
 /**
@@ -35,12 +30,12 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
   fetcher?: GenerationFetcher<TInput, TResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
+  byok?: ByokClient
+  /** Optional provider id. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
+  byokProvider?: () => ProviderId | undefined
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
@@ -62,8 +57,8 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -170,7 +165,7 @@ export function useGeneration<
 >(
   options: Omit<
     UseGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: TResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -179,7 +174,6 @@ export function useGeneration<
   TInput
 > {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
-  const hookId = useId()
 
   const result = shallowRef<TOutput | null>(null)
   const isLoading = shallowRef(false)
@@ -191,18 +185,17 @@ export function useGeneration<
   // Conditional spread on `body`: `GenerationClientOptions.body` is a strict
   // optional (`body?: Record<string, any>`), and under EOPT we must omit the
   // key when absent rather than assign `undefined`.
-  const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
+  const clientOptions: Omit<
+    GenerationClientOptions<TInput, TResult, TOutput>,
+    'persistence' | 'threadId'
+  > = {
     body: options.body,
-    ...(options.threadId !== undefined
-      ? { threadId: options.threadId }
-      : { id: options.id ?? hookId }),
-    ...(options.persistence !== undefined && {
-      persistence: options.persistence,
-    }),
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
     }),
     ...(options.joinRun !== undefined && { joinRun: options.joinRun }),
+    ...(options.byok !== undefined && { byok: options.byok }),
+    byokProvider: () => options.byokProvider?.(),
     ...(options.reconstructResult
       ? { reconstructResult: options.reconstructResult }
       : {}),
@@ -249,16 +242,30 @@ export function useGeneration<
     },
   }
 
+  const persistenceProps =
+    typeof options.threadId === 'string' && options.persistence
+      ? {
+          persistence: options.persistence,
+          threadId: options.threadId,
+        }
+      : {
+          ...(options.threadId !== undefined && {
+            threadId: options.threadId,
+          }),
+        }
+
   let client: GenerationClient<TInput, TResult, TOutput>
 
   if (options.connection) {
     client = new GenerationClient<TInput, TResult, TOutput>({
       ...clientOptions,
+      ...persistenceProps,
       connection: options.connection,
     })
   } else if (options.fetcher) {
     client = new GenerationClient<TInput, TResult, TOutput>({
       ...clientOptions,
+      ...persistenceProps,
       fetcher: options.fetcher,
     })
   } else {

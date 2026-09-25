@@ -15,10 +15,12 @@ export {
 } from './types'
 export type {
   MessageStore,
+  MessagePage,
   RunStatus,
   TerminalRunStatus,
   RunRecord,
   RunStore,
+  InterruptCommitEntry,
   InterruptRecord,
   InterruptStatus,
   InterruptStore,
@@ -53,6 +55,7 @@ export type {
   // Scope.threadId; authorize multi-user access with Scope.userId/tenantId.
   Scope,
 } from './types'
+export type { PersistenceCompletion } from './capabilities'
 // AIPersistenceStores is intentionally NOT re-exported — use a named chat
 // shape or AIPersistence<{ messages: MessageStore, … }>.
 
@@ -111,4 +114,7 @@ export {
   providePersistence,
   getInterrupts,
   provideInterrupts,
+  PersistenceCompletionCapability,
+  getPersistenceCompletion,
+  providePersistenceCompletion,
 } from './capabilities'

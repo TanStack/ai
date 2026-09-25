@@ -3,12 +3,12 @@ import * as path from 'node:path'
 import { EventType } from '@tanstack/ai'
 import { aiEventClient as baseAiEventClient } from '@tanstack/ai-event-client'
 import type { AIDevtoolsEventMap } from '@tanstack/ai-event-client'
-import type { StreamChunk, TokenUsage } from '@tanstack/ai'
+import type { AdapterYieldChunk, TokenUsage } from '@tanstack/ai'
 
 /**
  * Recording data structure matching the trace format produced by
  * `wrapAdapterForRecording` in `routes/api.chat.ts` and consumed by the stream
- * debugger. Each `chunk` is a `StreamChunk` (an AG-UI protocol event).
+ * debugger. Each `chunk` is a `AdapterYieldChunk` (an AG-UI protocol event).
  */
 export interface RecordedToolCall {
   id: string
@@ -23,7 +23,7 @@ export interface ChunkRecording {
   model: string
   provider: string
   chunks: Array<{
-    chunk: StreamChunk
+    chunk: AdapterYieldChunk
     timestamp: number
     index: number
   }>
@@ -53,7 +53,7 @@ const normalizeFinishReason = (finishReason: string | null): FinishReason => {
 //
 // The devtools event stream is already decomposed into per-kind chunks
 // (`text:chunk:content`, `text:chunk:tool-call`, ...). We reconstruct the
-// equivalent AG-UI `StreamChunk`s — including the START/END boundary events the
+// equivalent AG-UI `AdapterYieldChunk`s — including the START/END boundary events the
 // StreamProcessor needs to open and close messages and tool calls — so the
 // recorded trace replays the same way an adapter-recorded one (from
 // `wrapAdapterForRecording`) does.
@@ -63,7 +63,7 @@ const textMessageStart = (
   messageId: string,
   model: string,
   timestamp: number,
-): StreamChunk => ({
+): AdapterYieldChunk => ({
   type: EventType.TEXT_MESSAGE_START,
   messageId,
   role: 'assistant',
@@ -77,7 +77,7 @@ const textMessageContent = (
   delta: string | undefined,
   model: string,
   timestamp: number,
-): StreamChunk => ({
+): AdapterYieldChunk => ({
   type: EventType.TEXT_MESSAGE_CONTENT,
   messageId,
   delta: delta ?? '',
@@ -90,7 +90,7 @@ const textMessageEnd = (
   messageId: string,
   model: string,
   timestamp: number,
-): StreamChunk => ({
+): AdapterYieldChunk => ({
   type: EventType.TEXT_MESSAGE_END,
   messageId,
   model,
@@ -103,7 +103,7 @@ const toolCallStart = (
   index: number,
   model: string,
   timestamp: number,
-): StreamChunk => ({
+): AdapterYieldChunk => ({
   type: EventType.TOOL_CALL_START,
   toolCallId,
   toolCallName: toolName,
@@ -119,7 +119,7 @@ const toolCallArgs = (
   args: string,
   model: string,
   timestamp: number,
-): StreamChunk => ({
+): AdapterYieldChunk => ({
   type: EventType.TOOL_CALL_ARGS,
   toolCallId,
   delta,
@@ -134,7 +134,7 @@ const toolCallResult = (
   content: string,
   model: string,
   timestamp: number,
-): StreamChunk => ({
+): AdapterYieldChunk => ({
   type: EventType.TOOL_CALL_RESULT,
   messageId,
   toolCallId,
@@ -151,7 +151,7 @@ const runFinished = (
   usage: TokenUsage | undefined,
   model: string,
   timestamp: number,
-): StreamChunk => ({
+): AdapterYieldChunk => ({
   type: EventType.RUN_FINISHED,
   runId,
   threadId,
@@ -167,7 +167,7 @@ const runError = (
   message: string,
   model: string,
   timestamp: number,
-): StreamChunk => ({
+): AdapterYieldChunk => ({
   type: EventType.RUN_ERROR,
   runId,
   threadId,
@@ -181,7 +181,7 @@ const reasoningContent = (
   delta: string | undefined,
   model: string,
   timestamp: number,
-): StreamChunk => ({
+): AdapterYieldChunk => ({
   type: EventType.REASONING_MESSAGE_CONTENT,
   messageId,
   delta: delta ?? '',
@@ -209,7 +209,11 @@ export function createEventRecording(
   stop: () => void
   getStreamId: () => string | undefined
 } {
-  type RecordedChunk = { chunk: StreamChunk; timestamp: number; index: number }
+  type RecordedChunk = {
+    chunk: AdapterYieldChunk
+    timestamp: number
+    index: number
+  }
 
   // Per-stream recording state, including the AG-UI message/tool ids and the
   // boundary flags used to emit START/END events exactly once.
@@ -239,7 +243,7 @@ export function createEventRecording(
 
   const pushChunk = (
     stream: StreamState,
-    chunk: StreamChunk,
+    chunk: AdapterYieldChunk,
     timestamp: number,
   ): void => {
     stream.chunks.push({ chunk, timestamp, index: chunkIndex++ })

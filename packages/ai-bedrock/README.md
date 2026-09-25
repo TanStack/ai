@@ -1,3 +1,23 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
+</div>
+
+<br />
+
 # @tanstack/ai-bedrock
 
 Amazon Bedrock adapter for TanStack AI — the native Converse API (default) plus the OpenAI-compatible Chat Completions and Responses APIs, with streaming, tool calling, and reasoning.

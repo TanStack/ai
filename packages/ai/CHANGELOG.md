@@ -1,5 +1,445 @@
 # @tanstack/ai
 
+## 0.61.0
+
+### Minor Changes
+
+- [#1381](https://github.com/TanStack/ai/pull/1381) [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b) - Add `@tanstack/ai-worldlabs` with `worldlabsWorld()` for Marble world generation through `generateWorld()`. World Labs jobs return a viewer URL and splat/mesh assets. `WorldGenerationResult` now has optional `url`, `worldId`, `operationId`, and `assets` so job adapters can omit a live-session token.
+
+### Patch Changes
+
+- [#1469](https://github.com/TanStack/ai/pull/1469) [`54d39d3`](https://github.com/TanStack/ai/commit/54d39d30704bbdbdccea756af31530cc6713fc2e) - Keep Anthropic's signed thinking order when a provider-executed tool (web_search / web_fetch) runs inside the same response as thinking, and stop provider-executed calls from being classified as client tool interrupts.
+  - `uiMessagesToWire` now splits an assistant message into ordered segments at every thinking part that follows a provider-executed tool call (the rule `buildAssistantMessages` already applies), instead of emitting all `reasoning` messages first and one anchor with the joined text and every tool call. Later anchors get `${id}-segment-${n}` ids.
+  - The run loop records the iteration's thinking, text and tool calls in arrival order and writes one assistant `ModelMessage` per segment, so the interrupt `MESSAGES_SNAPSHOT` and the server-side continuation history keep the order too.
+  - `getBoundaryActionableToolRequests` and `executeToolCalls` skip provider-executed calls, so a run that mixes web search with a client tool no longer parks on "Client tool web_search is ready to run" interrupts.
+  - A `MESSAGES_SNAPSHOT` and `modelMessagesToUIMessages` fold `${id}-segment-${n}` messages back into their parent, so the UI still shows one assistant message per response.
+
+  Without this, the turn after such a response fails with Anthropic's `thinking or redacted_thinking blocks in the latest assistant message cannot be modified`.
+
+- [#1428](https://github.com/TanStack/ai/pull/1428) [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb) - Forward summarize maxLength through OpenAI-compatible adapters using the token-limit key for their API, regardless of the summarize wrapper name. Keep explicit caller limits unchanged.
+
+- [#1471](https://github.com/TanStack/ai/pull/1471) [`74b5823`](https://github.com/TanStack/ai/commit/74b582305471eaf37a3b68595e60ed1a6f42d914) - Keep a failed tool call's error on the tool message `chat()` adds to its message history. Persisted threads now restore the call with `state: 'error'` instead of `'complete'`.
+
+- [#1366](https://github.com/TanStack/ai/pull/1366) [`abb0169`](https://github.com/TanStack/ai/commit/abb0169bf96c38f59791450ce060d089a7fcd26e) - Stop a mid-stream resume from duplicating the reasoning block. A hydrated message has no `stepId` on its thinking part — the stored form has nowhere to keep one — so the reasoning replayed on rejoin, which is keyed by `stepId`, matched nothing and was appended, leaving the turn as thinking, text, thinking. `updateThinkingPart` now falls back to the first thinking part that has no `stepId` and adopts it, carrying its signature over so the provider's encrypted reasoning is not lost. Parts that already belong to another step are never adopted, so separate reasoning steps still get separate parts.
+
+- [#1427](https://github.com/TanStack/ai/pull/1427) [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088) - Structured output now reports a response that was cut off at the output cap (`finish_reason: "length"`) as a truncation error instead of a JSON parse error or a "no content" / "missing structured result" error. This covers `chat({ outputSchema })` in native combined mode (error code `max_tokens`), `structuredOutputStream()` in `openai-base` and `ai-openrouter` (`RUN_ERROR` with code `max_tokens`), and their non-stream `structuredOutput()`. A truncated document used to read as a schema failure; the error now says the token limit was reached.
+
+## 0.60.0
+
+### Minor Changes
+
+- [#915](https://github.com/TanStack/ai/pull/915) [`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd) - feat(ai): native Files API support across providers (upload adapters + `file` content source)
+
+  Adds first-class support for provider **Files / storage APIs** so callers can upload media once and reference it by a provider-issued handle instead of re-sending base64 or a public URL each request (lower latency/bandwidth, no re-buffering on memory-constrained runtimes).
+  - **New tree-shakeable `files` adapter kind** — `openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, `grokFiles()`, and `falFiles()`. Each exposes `upload()`, and (where the provider has a lifecycle API) `get()` / `delete()`. Drive them with the new `uploadFile()` / `getFile()` / `deleteFile()` activity functions. fal is upload-only.
+  - **New `{ type: 'file' }` arm on `ContentPartSource`**, matching the AG-UI `FileSource` arm field for field: `{ type: 'file', value, provider?, mimeType? }`. `value` is the opaque handle the provider issued; `provider` names the adapter that issued it. Each adapter maps `value` to its native wire field: OpenAI (Responses) `input_image`/`input_file` `file_id`, Anthropic `file_id` message source (with the `files-api-2025-04-14` beta), Gemini `fileData.fileUri`, fal storage URL, Grok public URL. `fileSourceFromHandle(handle)` builds the source.
+  - **Fail-closed capability preflight** — adapters that can consume file references declare `supportsFileSources`; `chat()` / `generateImage()` / `generateVideo()` / `embed()` reject `{ type: 'file' }` sources for every other adapter (Bedrock, Mistral, Groq, OpenRouter, Ollama, BytePlus, Cohere, and any future adapter that doesn't opt in) **before a request is built**, so a reference can never be silently mis-mapped onto a URL/data field. Endpoints that need raw bytes (image edits, Sora `input_reference`, Veo, Chat Completions images) throw endpoint-specific errors. A supporting adapter handed a source whose `provider` names a different adapter throws an error naming the issuer.
+  - **Provider-literal typed handles** — `FileHandle<'openai'>` etc. flow from each files adapter through `uploadFile()`, and `getFile()`/`deleteFile()` accept the handle itself, so cross-provider lifecycle calls fail at compile time. `fileSourceFromHandle` and `FileHandle` are also exported from the browser-safe `@tanstack/ai/client` entry. A `{ type: 'file' }` source cannot cross the chat wire format (which carries `data`/`url` sources only) and throws rather than being dropped, so a browser that holds a handle sends it in its own request body and the server builds the source.
+
+### Patch Changes
+
+- Updated dependencies [[`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd)]:
+  - @tanstack/ai-event-client@0.13.0
+
+## 0.59.0
+
+### Minor Changes
+
+- [#1438](https://github.com/TanStack/ai/pull/1438) [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0) - Add first-class subagents. `chat({ subagents })` starts named child agents (router spawn, or a synthetic tool when there is no router). The stream emits AG-UI `SUBAGENT_*` events with `subagentRunId`. The client stores nested `type: 'subagent'` parts. `useChat().subagents` and `part.subagent` are the same live handle, including `stop()`.
+
+  In the React chat UI kit, pass the same agents to `options.subagents` that you pass to `chat()`. A subagent card can style its own child's parts: `<Parts partsComponents={...} toolsComponents={...} />`. Each entry replaces the root entry of the same key for that card and its nested children. Keys you do not set use the root widgets. The card's tool names, tool `input` and `output`, and approvals are typed from that agent's `tools`. The root `interruptsComponents` also accepts the children's approval tools and `interrupts`.
+
+  Pass the same `defineAgent` list to `useChat({ subagents })` when you are not using the chat UI factory. `part.subagent.name` narrows to those names, and that child's message parts use the agent's tools.
+
+  A child card keeps all of the child's work: text, reasoning, tool calls, tool results, approvals, and nested children. A child can stop for an approval or a client tool. Its `SUBAGENT_FINISHED` has `outcome: { type: 'suspended' }`, and the parent run ends with that interrupt. The resume continues the same child. Pass `parentRunId: ctx.parentRunId` and `resume: ctx.resume` to the child `chat()`.
+
+  The AI devtools Conversation tab shows each subagent as a card of steps, drawn like the parent's steps. The steps are the child's server iterations when server events reach the devtools, else they come from the browser messages. The User view shows the child's text and tool outputs. Nested children show the same way. The child's card updates while it streams, and a later turn keeps the earlier turns.
+
+  Child token usage is added to the parent `RUN_FINISHED.usage[]`. Child messages travel on the AG-UI wire as their own messages, tagged with `subagentRunId`.
+
+  `@tanstack/ai` now depends on `@ag-ui/core` 1.0.0. Subagent events come from that package.
+
+  AG-UI `{ type: 'file' }` content sources now cross the wire as `ContentPartFileSource`. No adapter reads them yet, so `chat()` throws before it calls the adapter.
+
+  `RUN_FINISHED.usage[]` now carries `cacheWriteInputTokens`. `metadata.tanstack.usage` still carries `promptTokensDetails.cacheWriteTokens`, so older readers see the same usage as before.
+
+  `chat({ subagentRunId })` puts that id on the middleware context as `ctx.subagentRunId`. A child `chat()` passes `subagentRunId: ctx.subagentRunId`, so a middleware inside the child knows it runs as a subagent and which card it belongs to. The field is absent on a top-level run.
+
+  `fromSpecTokenUsage` adds every entry of `RUN_FINISHED.usage[]`. Before, it read only the first entry. A run with more than one usage entry now reports the total.
+
+### Patch Changes
+
+- [#1438](https://github.com/TanStack/ai/pull/1438) [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0) - Carry the failing subagent's own error message and code on the parent `RUN_ERROR` instead of a generic "A subagent failed", and keep the children's token usage on that terminal so a failed turn still reports what it spent. Also settle the routed-subagent persistence record when a run is stopped while the router is still deciding, which previously left the record `running` forever and made `reconstructChat` hand the client a run to tail that never emits.
+
+- [#1438](https://github.com/TanStack/ai/pull/1438) [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0) - A subagent run record stores `parentRunId`, `subagentRunId`, and `name`. Each child keeps its full transcript: text, reasoning, tool calls, and tool results. `reconstructChat` uses `listByParentRun` to put each child card back, with nested children and a child that waits for an approval. A later message keeps that link, so the next agent still sees the child text.
+
+  Subagent support in a store is optional. `runPersistenceConformance` checks the three link fields and `listByParentRun` only when the store has `listByParentRun`. A store without it passes with no change and no `skipMethods` entry.
+
+## 0.58.0
+
+### Minor Changes
+
+- [#1355](https://github.com/TanStack/ai/pull/1355) [`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db) - Flush CUSTOM events through the durability layer as soon as they are emitted, so progress events such as `compaction:started` reach the client at emit time. High-volume events (`process.stdout`, `process.stderr`, `sandbox.file`, `sandbox.file.diff`) still batch. Pass `{ batch: true }` on `emitCustomEvent` to opt an event into the batch.
+
+## 0.57.0
+
+### Minor Changes
+
+- [#1419](https://github.com/TanStack/ai/pull/1419) [`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329) - Add decide() and TypeSafe Jev evaluate adapters.
+
+  Callers await one decide({ adapter, state, questions }) call.
+  Questions use choice(), score(), and boolean(). Answers sit on the result (value, probability, confidence). Usage sits on result.meta.
+
+  Jev transports:
+  - @tanstack/ai-typesafe (typesafeDecider)
+  - @tanstack/ai-openrouter (openRouterDecider)
+  - @tanstack/ai-vercel-gateway (vercelGatewayDecider)
+  - @tanstack/ai-cloudflare (cloudflareDecider)
+
+- [#1390](https://github.com/TanStack/ai/pull/1390) [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7) - Add a `generateVoice()` activity for creating a voice, and refresh the ElevenLabs model lists.
+
+  **`generateVoice()`** creates a reusable voice and returns voice ids that `generateSpeech({ voice })` accepts. Providers create voices two ways, and the activity covers both: design one from a text `prompt`, or derive one from `referenceAudio`. Pass a `name` to keep the voice in the provider's library, and read `saved` on each returned voice to see what happened. Every returned voice also carries `status`, which is `'ready'` on every adapter today. Comes with `VoiceAdapter` / `BaseVoiceAdapter` for adapter authors, the `voice:request:*` and `voice:usage` devtools events, and a `voice_generation` OpenTelemetry operation name. See [Voice Creation](https://tanstack.com/ai/latest/docs/media/voice-creation).
+
+  **`listVoices()`** reads an account voice catalog back, for when you did not store the id `generateVoice()` returned. It filters by `origin` (`premade`, `generated`, `cloned`, `professional`). `listVoices` is an optional method on `TTSAdapter` rather than `VoiceAdapter`, because `voice` is a `generateSpeech()` option and that is where the id gets used. Only providers with a per-account catalog implement it; where the voice list is fixed the package publishes it directly (`GeminiTTSVoices` from `@tanstack/ai-gemini`, the `OpenAITTSVoice` union from `@tanstack/ai-openai`), which beats a network call, and calling `listVoices()` on such an adapter throws and points at those exports. `elevenlabsSpeech` implements it against `GET /v1/voices`.
+
+  **`elevenlabsVoiceDesign()`** implements voice creation on `eleven_ttv_v3` and `eleven_multilingual_ttv_v2`. ElevenLabs' design-then-create two-step is hidden inside the adapter. Only `eleven_ttv_v3` accepts `referenceAudio`, and it is a design reference rather than a straight clone: a `prompt` is still required, and `modelOptions.promptStrength` balances the description against the recording.
+
+  **ElevenLabs models.** `@elevenlabs/elevenlabs-js` moves to `^2.68.0` and `@elevenlabs/client` to `^1.25.0`. The bump is what makes the new music and transcription ids type-check: 2.44 pinned the music request to `modelId?: 'music_v1'` and typed speech-to-text as a two-member `'scribe_v2' | 'scribe_v1'` union. Adds `eleven_v3_conversational` (TTS), `scribe_v2_medical` (Scribe), and `music_v2_5` and `music_v2` (music). `eleven_turbo_v2`, `eleven_turbo_v2_5`, `eleven_monolingual_v1`, `scribe_v1`, and `music_v1` are still accepted and are commented as deprecated in `model-meta.ts`. `ELEVENLABS_AUDIO_MODELS` is now pinned to the SDK's own `MusicModelId | SfxModelId` with `satisfies`, so an id the SDK drops fails the build instead of the request.
+
+  **Breaking:** `eleven_text_to_sound_v1` is removed from `ELEVENLABS_AUDIO_MODELS`. ElevenLabs dropped it from the catalog and from the SDK's `SfxModelId`, so the adapter can no longer send it. Use `eleven_text_to_sound_v2`.
+
+### Patch Changes
+
+- Updated dependencies [[`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai-event-client@0.12.0
+
+## 0.56.0
+
+### Minor Changes
+
+- [#1396](https://github.com/TanStack/ai/pull/1396) [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6) - Add dialogue turns and timing alignment to the text-to-speech contract.
+
+  `generateSpeech()` takes `turns` (an array of `{ text, voice }`) in place of `text` for a multi-voice script, and `timestamps: true` to ask for timings. `TTSResult` gains `alignment` (per character or per word, with `alignment.unit` saying which, all times in seconds) and `segments` (one per turn for dialogue, one per sentence for a single voice). Use `alignment` rather than `duration` to find where speech stops.
+
+  Both are adapter capabilities, declared on `adapter.capabilities` as `maxSpeakers` and `timestamps`. The activity rejects a request the adapter cannot serve before it reaches the provider, so too many speakers is a typed error rather than a provider 422.
+
+  Wired through three adapters:
+  - `byteplusSpeech` (Seed Audio 1.0): up to 3 voices, mapped to `references` plus a role-structured `text_prompt`. `timestamps` sets `audio_config.enable_subtitle`, and the subtitle block becomes word alignment and sentence segments, converted from milliseconds to seconds.
+  - `elevenlabsSpeech`: up to 10 voices. Picks between `textToSpeech.convert`, `textToSpeech.convertWithTimestamps`, `textToDialogue.convert` and `textToDialogue.convertWithTimestamps` from `turns` and `timestamps`. Dialogue also returns per-turn `segments` with the voice that spoke each one.
+  - `geminiSpeech`: up to 2 voices, building `multiSpeakerVoiceConfig` and the labelled prompt from the turns.
+
+  Every addition is optional, so existing adapters and callers are unaffected.
+
+### Patch Changes
+
+- [#1197](https://github.com/TanStack/ai/pull/1197) [`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9) - Fix `ToolCallManager.addToolCallStartEvent` running a tool call twice (or wiping its accumulated arguments) when a producer sends a repeat `TOOL_CALL_START` for a `toolCallId` that is already tracked. AG-UI's `TOOL_CALL_START` carries no `index`, so a custom/malformed stream that re-sends START for the same id could either overwrite the tracked entry's arguments back to `''` (same index) or insert a duplicate row that `getToolCalls()` returned twice (missing/different index). Repeats for an already-tracked id are now ignored; first-party adapters, which only emit START once per call, are unaffected.
+
+## 0.55.0
+
+### Minor Changes
+
+- [#1400](https://github.com/TanStack/ai/pull/1400) [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410) - Page long chat threads on hydrate. Pass `history: { pageSize }` with `persistence: true`. Then call `loadOlderMessages()` to prepend older turns. `withPersistence` merges incoming messages by id so a short client list keeps stored extras. `loadThread` accepts optional `limit` / `before` and can return a `MessagePage`.
+
+### Patch Changes
+
+- [#1398](https://github.com/TanStack/ai/pull/1398) [`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74) - fix(chat): keep ui-resource parts emitted during the current run on the interrupt MESSAGES_SNAPSHOT. Server tools emitting `ui://` widgets via `ctx.emitCustomEvent('ui-resource', ...)` now have the resource recorded on the tool-call anchor ModelMessage, so the MESSAGES_SNAPSHOT emitted when the run pauses on a client tool no longer drops the widget from client state ([#1397](https://github.com/TanStack/ai/issues/1397)).
+
+## 0.54.1
+
+### Patch Changes
+
+- [#1395](https://github.com/TanStack/ai/pull/1395) [`db017f6`](https://github.com/TanStack/ai/commit/db017f662e8b2c9c7301c8510047568ff87f3ee6) - Return real WAV audio for ElevenLabs speech requests with `format: 'wav'` and reject unsupported AAC and FLAC formats instead of silently returning MP3. Preserve explicit `modelOptions.outputFormat` overrides and document the supported formats in the media-generation skill.
+
+## 0.54.0
+
+### Minor Changes
+
+- [#1321](https://github.com/TanStack/ai/pull/1321) [`c17bc95`](https://github.com/TanStack/ai/commit/c17bc951ca783d8023bf54d69035c19c0c72ea2f) - Add `generateWorld()` and `generateLiveVideo()` for prompt-steerable sessions, plus a first-party Reactor adapter (`reactorWorld`, `reactorVideo`) and fal `falLiveVideo()` for H3 Max Director. Reactor returns a session JWT. falLiveVideo returns the WMA app id on `result.model` so the browser can call `wma(live.model)`. `generateVideo()` stays the job path that polls for a file URL.
+
+### Patch Changes
+
+- [#1350](https://github.com/TanStack/ai/pull/1350) [`53e2ec0`](https://github.com/TanStack/ai/commit/53e2ec082b40d8c3fcd09f408c29f0b895436198) - docs(skills): type-check the code fences in every package skill with kiira and fix the ones that did not compile
+
+- [#1340](https://github.com/TanStack/ai/pull/1340) [`6269eff`](https://github.com/TanStack/ai/commit/6269eff90e770205ffd9cae8c5989b8ff02b57ce) - Emit the native structured result before RUN_FINISHED so clients receive the final object before the run closes. Emit only RUN_ERROR if parsing fails.
+
+  Wait for the active subscriber to process all events before resolving send, including streams that take more than 32 timer ticks to process.
+
+- Updated dependencies [[`c17bc95`](https://github.com/TanStack/ai/commit/c17bc951ca783d8023bf54d69035c19c0c72ea2f)]:
+  - @tanstack/ai-event-client@0.11.3
+
+## 0.53.0
+
+### Minor Changes
+
+- [#1309](https://github.com/TanStack/ai/pull/1309) [`21775ee`](https://github.com/TanStack/ai/commit/21775ee2d23dd594cdc184678ff587341bd74871) - Add `@tanstack/ai-cloudflare`: a Cloudflare adapter for Workers AI chat, summarization, embeddings, image generation, text-to-speech, and transcription over the `env.AI` binding or the REST API, with AI Gateway routing (`gateway` option and `cloudflareGateway()` helper for other providers). `@tanstack/ai` learns the `cloudflare` max-tokens key for summarize, lets `defineByokProvider` declare companion credentials with `with`, and adds `getByokKeys(request, { name: provider })` to `@tanstack/ai/byok/server`. `@tanstack/ai-client`'s `defineByok` takes `providers`: a send for a provider with companions (Cloudflare token plus account id) carries every `x-byok-*` header and prompts for each missing value.
+
+## 0.52.3
+
+### Patch Changes
+
+- [#1290](https://github.com/TanStack/ai/pull/1290) [`819e77c`](https://github.com/TanStack/ai/commit/819e77cee018106bdcd44870cea2c4f9b6d3004a) - Replay OpenAI Responses reasoning items with function_call on the next tool turn. Default `include: ['reasoning.encrypted_content']` only on reasoning models.
+
+## 0.52.2
+
+### Patch Changes
+
+- [#1303](https://github.com/TanStack/ai/pull/1303) [`452d6a4`](https://github.com/TanStack/ai/commit/452d6a405d669d00f2cc82d5725c53dfad8602cc) - fix: `createChatOptions` now preserves the runtime-context requirement on its return type. When tools or middleware declare a required context, the input already enforces `context` via `RuntimeContextOption`, but the return type declared it optional — so spreading the result into `chat()` failed to typecheck (`Type 'undefined' is not assignable to type '...'`). The return type now applies the same `RuntimeContextOption` conditional as the parameter, so the documented spread pattern compiles with context-typed tools. Type-level only; runtime is unchanged.
+
+## 0.52.1
+
+### Patch Changes
+
+- [#1271](https://github.com/TanStack/ai/pull/1271) [`cfb8454`](https://github.com/TanStack/ai/commit/cfb845469875e1b74def21b9525ee19d68a4abbd) - Keep the first text delta when a message speaks after a tool call and the text
+  arrives in more than one chunk.
+
+## 0.52.0
+
+### Minor Changes
+
+- [#1235](https://github.com/TanStack/ai/pull/1235) [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7) - Keep canonical chat history separate from compacted provider context. Reuse
+  validated compaction checkpoints through an optional persistence metadata store.
+
+- [#1235](https://github.com/TanStack/ai/pull/1235) [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7) - Add `ctx.emitCustomEvent` on chat middleware context. The engine yields
+  `CUSTOM` chunks while hooks such as `onConfig` are still running, so a long
+  middleware step can send progress before it finishes. Compaction uses this
+  to emit `compaction:started` before the strategy returns.
+
+### Patch Changes
+
+- [#1257](https://github.com/TanStack/ai/pull/1257) [`49fc54c`](https://github.com/TanStack/ai/commit/49fc54ca0aacf2fc60bb36647a61a23559dda4bc) - Preserve draft-07 tuple `items` arrays during structured-output conversion.
+
+  Keep a single widening map for homogeneous arrays so `undoNullWidening` applies it to every element.
+
+- Updated dependencies [[`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7)]:
+  - @tanstack/ai-event-client@0.11.2
+
+## 0.51.0
+
+### Minor Changes
+
+- [#1236](https://github.com/TanStack/ai/pull/1236) [`5dc4e1a`](https://github.com/TanStack/ai/commit/5dc4e1a08728b410f85956093ccef621d12b4d6b) - Add `@tanstack/ai-skills`: portable Agent Skills (`SKILL.md`) as a first-class `chat()` middleware.
+
+  `withSkills(sources, options?)` renders a skill catalog and a `load_skill` tool so any tool-calling model can load skills on demand, on any provider, with no server sandbox. Skills come from `inlineSkill`, `skillDirectory` (`/node`), or a build-time `staticSkills` bundle, and compose via `aggregate`/`dedupe`/`filter`/`cache`. `createResourceTool` exposes a skill's bundled files through `read_skill_resource`, and `runSkillSourceConformance` (`/testing`) validates custom `SkillSource` adapters. The catalog renders as `<available_skills>` XML for Anthropic models and markdown for others; portable and hosted (native) skills refuse to combine in one call.
+
+  Core `@tanstack/ai` now exports `SkillLimitError`. The native factories throw it (or add validation): `codeExecutionTool` (`@tanstack/ai-anthropic`) frames its 8-skill cap, and `shellTool` (`@tanstack/openai-base`) now validates `skill_id` format instead of nothing. `@tanstack/ai-sandbox` reuses the shared skill-directory walk from `@tanstack/ai-skills`.
+
+  `withSkills` sends a `skills:state` CUSTOM chunk so TanStack AI DevTools can show the catalog and which skills the model loaded.
+
+### Patch Changes
+
+- [#1244](https://github.com/TanStack/ai/pull/1244) [`a7e0798`](https://github.com/TanStack/ai/commit/a7e079872af372496728d25e6ec23149cd5e04b9) - Keep `append()` pending until the HTTP response is fully processed, including later `RUN_FINISHED` events in the same agent loop.
+
+- [#1248](https://github.com/TanStack/ai/pull/1248) [`6a083bf`](https://github.com/TanStack/ai/commit/6a083bfcfaa4fd0c83368c4d10067e5c2298e22c) - Fix `StreamProcessor` dropping the first `TEXT_MESSAGE_CONTENT` delta when a `TOOL_CALL_START` event's `parentMessageId` precedes that message's `TEXT_MESSAGE_START` — the normal AG-UI shape for "call a tool, then explain the result" as one assistant turn ([#1247](https://github.com/TanStack/ai/issues/1247)).
+
+- Updated dependencies [[`5dc4e1a`](https://github.com/TanStack/ai/commit/5dc4e1a08728b410f85956093ccef621d12b4d6b)]:
+  - @tanstack/ai-event-client@0.11.1
+
+## 0.50.0
+
+### Minor Changes
+
+- [#1204](https://github.com/TanStack/ai/pull/1204) [`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b) - Preserve tool-result identity, metadata, multimodal content, and timestamps across message conversions and hydration.
+
+  Correct the public `WireMessage` type. System and user messages now require content, and the union no longer includes outbound activity messages.
+
+  Keep structured multimodal content compatible with the AI devtools message store.
+
+### Patch Changes
+
+- [#1204](https://github.com/TanStack/ai/pull/1204) [`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b) - Preserve AG-UI message fields and UI state across serialization, snapshots, and persistence.
+
+- Updated dependencies [[`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b)]:
+  - @tanstack/ai-event-client@0.11.0
+
+## 0.49.1
+
+### Patch Changes
+
+- [#1217](https://github.com/TanStack/ai/pull/1217) [`67ce4e5`](https://github.com/TanStack/ai/commit/67ce4e529c42e64d4591f996c7e3e32458d5dd7c) - Allow cancelling a tool interrupt when its runtime tool is unavailable or its schema has changed
+
+## 0.49.0
+
+### Minor Changes
+
+- [#906](https://github.com/TanStack/ai/pull/906) [`b7ebcb0`](https://github.com/TanStack/ai/commit/b7ebcb0bbe63e425facb5e38f138bd0cd36637dd) - Add headless BYOK: `defineByok` in `@tanstack/ai-client/byok`, pass `byok` into chat and generation hooks, and read keys on the relay with `getByokKey` from `@tanstack/ai/byok/server`. Provider ids are open slugs (`x-byok-<slug>`). Each adapter exports a `{ id, label, env? }` object (`openaiByok`, …); `id` is required. `env` is the env var name(s) for the relay — names only; the client never reads `process.env`. A wrong key surfaces as the provider's own `401` through the relay, so no client-side key check is needed. OpenRouter PKCE (`@tanstack/ai-openrouter/pkce`) saves the minted key under `openrouterByok.id`.
+
+## 0.48.0
+
+### Minor Changes
+
+- [#1174](https://github.com/TanStack/ai/pull/1174) [`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46) - Put AG-UI extras under `metadata.tanstack`. SSE/HTTP wire events are spec-only.
+
+  `sendMessage({ content, metadata })` stamps user metadata on the user message.
+  In-process `chat()` still yields `toolName`, `TOOL_CALL_END.input`, and TanStack `TokenUsage`.
+  Thinking signatures round-trip on `REASONING_ENCRYPTED_VALUE`.
+  Wire messages use `content` / `toolCalls` / fan-out roles, not `parts`.
+
+### Patch Changes
+
+- Updated dependencies [[`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46)]:
+  - @tanstack/ai-event-client@0.10.0
+
+## 0.47.3
+
+### Patch Changes
+
+- [#938](https://github.com/TanStack/ai/pull/938) [`7c4b73a`](https://github.com/TanStack/ai/commit/7c4b73af5023e7ab7e113121644213c75d611aac) - Reject non-streaming text calls when their event stream ends with a `RUN_ERROR`.
+
+- [#931](https://github.com/TanStack/ai/pull/931) [`87e497f`](https://github.com/TanStack/ai/commit/87e497f2e282c2389579051ec743fa4cc8cf493e) - Preserve signed thinking blocks relative to tool calls when converting assistant UI messages. A thinking block that follows a provider-executed tool now starts a new assistant segment instead of being replayed before that tool.
+
+- [#1020](https://github.com/TanStack/ai/pull/1020) [`c0ba484`](https://github.com/TanStack/ai/commit/c0ba48402a807d6482e1cb36a0cf393d0cd26b2b) - Fix tool-call `input` corruption when a `TEXT_MESSAGE_CONTENT` event arrives between `TOOL_CALL_ARGS` events. Text events no longer force-complete in-flight tool calls, and `input` is only set when a strict `JSON.parse` of the accumulated arguments succeeds.
+
+- [#1016](https://github.com/TanStack/ai/pull/1016) [`d34b6c0`](https://github.com/TanStack/ai/commit/d34b6c01fbc9ed83e5dc9bd2725eb05f6b03bfd4) - New provider adapter: `@tanstack/ai-llmgateway` connects TanStack AI to
+  [LLM Gateway](https://llmgateway.io), an open-source, self-hostable AI
+  gateway that routes one OpenAI-compatible endpoint to hundreds of models
+  across many providers.
+  - `llmGatewayText` / `createLLMGatewayText` — streaming chat with tool
+    calling, structured outputs, multimodal (image) input, and reasoning
+    deltas (`reasoning_content`) surfaced as AG-UI `REASONING_*` events
+  - `llmGatewaySummarize` / `createLLMGatewaySummarize` — summarization via
+    the shared `ChatStreamSummarizeAdapter`
+  - `LLMGATEWAY_CHAT_MODELS` — a curated list of flagship model ids, with
+    per-model input modalities and tool capabilities resolved at the type
+    level, and any other model id from llmgateway.io/models accepted and
+    typed against the generic provider options
+  - `provider/model` ids pin routing to a specific provider; bare ids let
+    the gateway choose
+
+  `@tanstack/ai` registers `llmgateway` in the summarize wrapper's
+  provider-native token-key map, so `summarize({ maxLength })` reaches the
+  gateway as `max_tokens` instead of being dropped with a warning.
+
+## 0.47.2
+
+### Patch Changes
+
+- [#1175](https://github.com/TanStack/ai/pull/1175) [`17b4c60`](https://github.com/TanStack/ai/commit/17b4c60c8d237df53a63dcda18c43d8017d45449) - Route adapter-emitted `RUN_ERROR` events through middleware `onError` hooks and preserve provider error codes in persisted run failures.
+
+## 0.47.1
+
+### Patch Changes
+
+- [#1126](https://github.com/TanStack/ai/pull/1126) [`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d) - Persist completed structured outputs as structured-output message parts and restore them during chat hydration.
+
+## 0.47.0
+
+### Minor Changes
+
+- [#1102](https://github.com/TanStack/ai/pull/1102) [`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29) - Add first-party generic interrupts.
+
+  Use `defineInterrupt()` to describe a pause, register it on `chat()` and the client hooks, and return requests from `onInterruptBoundary`. The client gets typed payloads and `resolveInterrupt`. Resume validates the answer and runs `onInterruptResolution`.
+
+  `GenericInterrupt<typeof reviewPlan>` types one bound card. `INTERRUPT_BOUNDARY_PHASES` and `INTERRUPT_TOOL_RESUMES` are the shared phase and resume lists.
+
+### Patch Changes
+
+- [#1161](https://github.com/TanStack/ai/pull/1161) [`5f68cbc`](https://github.com/TanStack/ai/commit/5f68cbccf3621b48dae73cedcb1e59cb4cbe72b4) - Harden first-party generic interrupt resume.
+
+  Ephemeral continuation now rehydrates an already-parsed display payload instead of running `payloadSchema` again, so transforming schemas keep working. Invalid `expiresAt` values fail closed, binding parse uses one reader, and sequential interrupt-store writes preflight before changing records.
+
+## 0.46.0
+
+### Minor Changes
+
+- [#896](https://github.com/TanStack/ai/pull/896) [`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b) - Add a self-describing `billed` field to `TokenUsage` so billed quantities carry the unit they are counted in ([#816](https://github.com/TanStack/ai/issues/816)). `usage.billed` is `{ quantity, unit }` with a `BillingUnit` union (`'seconds'`, `'units'`, `'images'`, `'tokens'`, ... open-ended). The deprecated `unitsBilled` / `durationSeconds` counts are still populated for backward compatibility. The fal adapters report `{ quantity, unit: 'units' }`, Grok video `{ quantity, unit: 'seconds' }`, the OpenAI/Grok/BytePlus duration-billed transcription paths `{ quantity, unit: 'seconds' }`, BytePlus Seedream images `{ quantity, unit: 'images' }`, BytePlus Seedance video `{ quantity, unit: 'tokens' }`, and Cohere/OpenRouter rerank `{ quantity, unit: 'units' }` (search units). Persistence sums `billed` when both reports use the same unit. `otelMiddleware` emits the pair as `tanstack.ai.usage.billed_quantity` / `tanstack.ai.usage.billed_unit` span attributes.
+
+- [#969](https://github.com/TanStack/ai/pull/969) [`ecd12a4`](https://github.com/TanStack/ai/commit/ecd12a408987bc75649c21aada6948282a2a66dd) - WebSocket transport: a full-duplex, resumable third transport alongside SSE and
+  NDJSON, reusing the same delivery-durability seam.
+
+  On the server, `@tanstack/ai` adds `toWebSocketStream(socket, request, { onRun,
+durability, batch, heartbeatMs, idleTimeoutMs, debug })` — a portable core that
+  pumps a conversation over an already-accepted WHATWG `WebSocketLike` server
+  socket (Node via `ws`, Bun, etc.), and `toWebSocketResponse(request, { onRun,
+… })`, a thin wrapper that upgrades via `WebSocketPair` and returns a 101
+  `Response` on Cloudflare Workers/Durable Objects (it throws elsewhere, pointing
+  you at `toWebSocketStream`). Because one socket outlives many `chat()` turns
+  (client-tool resubmits, follow-up user messages), you pass an `onRun(ctx) =>
+AsyncIterable<StreamChunk>` factory instead of a prebuilt stream — the helper
+  calls it per inbound `RunAgentInput` frame. The socket is conversation-scoped:
+  it stays open across turns and closes on client close or the idle timeout
+  (which never fires while a turn is still streaming), with a periodic
+  `{ type: 'ping' }` heartbeat. An `{ type: 'abort', runId }` control frame
+  aborts only that turn, leaving the socket open. A turn that fails is surfaced
+  to the client as a live `RUN_ERROR` frame, mirroring the HTTP transports. Durability is keyed per turn and reuses
+  the existing `durableStreamSource`, so server→client frames carry the same
+  `{ id, chunk }` envelope as NDJSON. `resumeWebSocketStream(socket, { adapter })`
+  and `resumeWebSocketResponse({ adapter })` replay a run read-only from the
+  durability log (no model call).
+
+  On the client, `webSocket(url, options)` (in `@tanstack/ai-client`, re-exported
+  from `@tanstack/ai-react`, `-solid`, `-vue`, `-svelte`, and `-angular`) is a
+  full-duplex `subscribe` + `send` connection adapter for `useChat`. `send()`
+  writes a `RunAgentInput` frame; `subscribe()` yields inbound chunks, ignores
+  heartbeats, unwraps durable envelopes, and auto-reconnects a dropped durable run
+  by reopening with `?runId=&offset=` (browsers can't set a `Last-Event-ID`
+  handshake header, so the offset rides in the URL). The reconnect bookkeeping
+  (offset de-dupe, no-progress ceiling → `StreamReconnectLimitError`) is shared
+  with the HTTP adapters via the new `createReconnectTracker`, and a fatal drop
+  surfaces to the consumer (`StreamReadError` / `StreamReconnectLimitError`)
+  instead of hanging. Aborting a run (`stop()` in `useChat`) sends the
+  `{ type: 'abort', runId }` frame so the server cancels the turn instead of
+  generating to completion, and `joinRun()` opens its own replay socket so a
+  rejoin never collides with the live conversation socket.
+
+### Patch Changes
+
+- [#1147](https://github.com/TanStack/ai/pull/1147) [`4599019`](https://github.com/TanStack/ai/commit/4599019eb02f72562ef155b69b8f61f9d25d187a) - Preserve reasoning in server chat message history and interrupt snapshots.
+
+- [#932](https://github.com/TanStack/ai/pull/932) [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b) - Classify Anthropic, Gemini, and OpenAI native tools with stable runtime discriminators so ordinary functions can use the same public names without selecting provider-native behavior. Native tools must come from the adapter factory (`webSearchTool()`, `googleSearchTool()`, and the rest). A reserved `name` alone does not select a native converter. `chat()` throws `DuplicateToolNameError` when a factory tool and a custom function share the same public name.
+
+  Previously the converters picked provider-native behavior by `tool.name`. Tool names are public application identifiers, so a plain function called `web_search`, `google_search`, or `code_execution` was routed into a native converter: it lost its `inputSchema` and was sent as a provider-only payload (and on Anthropic could also flip on `code_execution` / skills beta headers). Native tools are now identified by adapter-owned metadata, which converters strip before building the wire payload, so provider API versions stay confined to the wire converters.
+
+  Also preserves Anthropic `webSearchTool` options (`max_uses`, `allowed_domains`, `blocked_domains`, `user_location`, `cache_control`) on the wire payload.
+
+  Also fixes `googleSearchTool({ searchTypes: … })` being silently dropped on the experimental `geminiTextInteractions()` adapter. The Interactions converter read a snake_case `search_types` array, but the public factory takes the Generate Content shape (`GoogleSearch.searchTypes: { webSearch?, imageSearch? }`), so the field never matched and every request fell back to the provider default of web-search-only. The camelCase config is now translated to the Interactions wire list.
+
+- Updated dependencies [[`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b)]:
+  - @tanstack/ai-event-client@0.9.0
+
+## 0.45.1
+
+### Patch Changes
+
+- [#1139](https://github.com/TanStack/ai/pull/1139) [`b97a11b`](https://github.com/TanStack/ai/commit/b97a11beaea57bd675b5646074d15c0041f4763a) - Return recoverable Groq `tool_use_failed` responses to the model as non-executable tool errors so the agent loop can repair them.
+
+## 0.45.0
+
+### Minor Changes
+
+- [#1110](https://github.com/TanStack/ai/pull/1110) [`c63319e`](https://github.com/TanStack/ai/commit/c63319e34a2ca2f1d56b90addf28784f7c3e13ad) - Harness adapters honor `chat({ outputSchema })` on the same turn.
+
+  Claude Code and Codex pass a native schema flag. OpenCode, Grok Build, and `acpCompatible` parse JSON from the final assistant text. The engine reads a `structured-output.complete` event so harness prose is not parsed as JSON.
+
+- [#1114](https://github.com/TanStack/ai/pull/1114) [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d) - Rename Code Mode "skills" to "snippets" to disambiguate them from agent skills (the `SKILL.md` packaging system).
+
+  **Breaking — package rename.** `@tanstack/ai-code-mode-skills` is now published as **`@tanstack/ai-code-mode-snippets`**. Update your dependency and imports. The `/storage` subpath is unchanged.
+
+  **Breaking — API rename.** Every `Skill`/`skill` identifier in the package public API becomes `Snippet`/`snippet`, for example:
+  - `codeModeWithSkills()` → `codeModeWithSnippets()`
+  - `skillsToTools()` / `skillToTool()` → `snippetsToTools()` / `snippetToTool()`
+  - `skillsToBindings()` / `skillsToSimpleBindings()` → `snippetsToBindings()` / `snippetsToSimpleBindings()`
+  - `selectRelevantSkills()` → `selectRelevantSnippets()`
+  - `createSkillManagementTools()` → `createSnippetManagementTools()`
+  - `createSkillsSystemPrompt()` → `createSnippetsSystemPrompt()`
+  - `generateSkillTypes()` → `generateSnippetTypes()`
+  - `createFileSkillStorage()` / `createMemorySkillStorage()` → `createFileSnippetStorage()` / `createMemorySnippetStorage()`
+  - Types: `Skill`, `SkillStorage`, `SkillIndexEntry`, `SkillStats`, `SkillBinding`, `SkillsConfig`, `CodeModeWithSkillsOptions`/`Result` → the `Snippet…` equivalents
+  - Options: `skills` → `snippets`, `skillsAsTools` → `snippetsAsTools`, `maxSkillsInContext` → `maxSnippetsInContext`
+  - Runtime tools: `search_skills` / `get_skill` / `register_skill` → `search_snippets` / `get_snippet` / `register_snippet`
+  - Sandbox bindings are now exposed with the `snippet_` prefix (was `skill_`)
+
+  **Breaking — sandbox hook (`@tanstack/ai-code-mode`).** The `createCodeModeTool` config option `getSkillBindings` is renamed to **`getSnippetBindings`** (same signature — an optional `() => Promise<Record<string, ToolBinding>>` returning dynamic bindings merged at execution time).
+
+  **Breaking — wire contract (`@tanstack/ai`).** The Code Mode custom events are renamed: `code_mode:skill_call` / `_result` / `_error` → `code_mode:snippet_*` (payload field `skill` → `snippet`), and `skill:registered` → `snippet:registered`. The exported event types `CodeModeSkillCallEvent` / `CodeModeSkillResultEvent` / `CodeModeSkillErrorEvent` / `SkillRegisteredEvent` are renamed to their `Snippet` equivalents.
+
+### Patch Changes
+
+- [#1116](https://github.com/TanStack/ai/pull/1116) [`d10dfe6`](https://github.com/TanStack/ai/commit/d10dfe6eca788ae52631d45e5599aa0c45e9ba37) - Preserve existing message IDs on interrupt `MESSAGES_SNAPSHOT` events.
+
+- [#1132](https://github.com/TanStack/ai/pull/1132) [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b) - Timestamp native and fallback structured-output events when they are emitted so their lifecycle remains chronologically ordered.
+
+- [#1134](https://github.com/TanStack/ai/pull/1134) [`b09e010`](https://github.com/TanStack/ai/commit/b09e010b32932c812e65b1e14f6faa2b0e6d5cb8) - Return malformed tool arguments to the model as an error result so the agent loop can repair them.
+
 ## 0.44.1
 
 ### Patch Changes

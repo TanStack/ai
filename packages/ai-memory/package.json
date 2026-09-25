@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-memory",
-  "version": "0.1.1",
+  "version": "0.2.6",
   "description": "Pluggable memory adapters for TanStack AI memoryMiddleware",
   "author": "",
   "license": "MIT",
@@ -16,6 +16,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./testkit": {
+      "types": "./dist/esm/testkit/contract.d.ts",
+      "import": "./dist/esm/testkit/contract.js"
     },
     "./in-memory": {
       "types": "./dist/esm/providers/in-memory/index.d.ts",
@@ -50,9 +54,32 @@
     "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
     "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --passWithNoTests --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
     "test:lib": "vitest --passWithNoTests",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
+  },
+  "nx": {
+    "targets": {
+      "test:lib": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      },
+      "test:coverage": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      },
+      "test:types": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      }
+    }
   },
   "keywords": [
     "ai",
@@ -70,7 +97,8 @@
     "@tanstack/ai": "workspace:^",
     "@vectorize-io/hindsight-client": ">=0.6.0",
     "ioredis": ">=5.0.0",
-    "redis": ">=4.0.0"
+    "redis": ">=4.0.0",
+    "vitest": "^4.1.10"
   },
   "peerDependenciesMeta": {
     "ioredis": {
@@ -84,14 +112,18 @@
     },
     "@honcho-ai/sdk": {
       "optional": true
+    },
+    "vitest": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@honcho-ai/sdk": "^2.1.1",
     "@tanstack/ai": "workspace:*",
     "@vectorize-io/hindsight-client": "^0.6.1",
-    "@vitest/coverage-v8": "4.0.14",
+    "@vitest/coverage-v8": "4.1.10",
     "ioredis-mock": "^8.9.0",
-    "redis": "^4.7.0"
+    "redis": "^4.7.0",
+    "vitest": "^4.1.10"
   }
 }

@@ -1,4 +1,9 @@
-export { makeStructuredOutputCompatible } from './utils/schema-converter'
+export {
+  makeStructuredOutputCompatible,
+  makeStructuredOutputCompatibleWithMap,
+  warnStrictFallback,
+} from './utils/schema-converter'
+export type { OpenAIBaseTextAdapterOptions } from './utils/schema-converter'
 export {
   buildChatCompletionsUsage,
   buildResponsesUsage,

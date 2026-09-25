@@ -1,5 +1,224 @@
 # @tanstack/ai-anthropic
 
+## 0.19.1
+
+### Patch Changes
+
+- [#1425](https://github.com/TanStack/ai/pull/1425) [`6aef938`](https://github.com/TanStack/ai/commit/6aef938bcc6870ea30db4d7222bae55c72ecfb8b) - Send the `mcp-client-2025-04-04` beta header when `modelOptions.mcp_servers` is a non-empty array. The servers were forwarded in the request body without the header the MCP connector requires, the same gap [#1074](https://github.com/TanStack/ai/issues/1074) had for `context_management`. This beta matches the `mcp_servers` shape the adapter types (`tool_configuration` on each server).
+
+- [#1381](https://github.com/TanStack/ai/pull/1381) [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b) - Give `claude-opus-5-5` its provider tools and structured output with tools. The model now accepts `webSearchTool()`, `webFetchTool()`, `codeExecutionTool()`, `bashTool()`, `textEditorTool()`, and `memoryTool()`. `computerUseTool()` stays off because this model accepts only `computer_toolset_20260801`. Structured output alongside tools now uses `output_config.format` in one request, and `modelOptions.output_config` is typed for this model.
+
+- [#1467](https://github.com/TanStack/ai/pull/1467) [`dfd9f3a`](https://github.com/TanStack/ai/commit/dfd9f3a0bdc4ad1a43c49d4291625cc4953d1e04) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`54d39d3`](https://github.com/TanStack/ai/commit/54d39d30704bbdbdccea756af31530cc6713fc2e), [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb), [`74b5823`](https://github.com/TanStack/ai/commit/74b582305471eaf37a3b68595e60ed1a6f42d914), [`abb0169`](https://github.com/TanStack/ai/commit/abb0169bf96c38f59791450ce060d089a7fcd26e), [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088), [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b)]:
+  - @tanstack/ai@0.61.0
+
+## 0.19.0
+
+### Minor Changes
+
+- [#915](https://github.com/TanStack/ai/pull/915) [`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd) - feat(ai): native Files API support across providers (upload adapters + `file` content source)
+
+  Adds first-class support for provider **Files / storage APIs** so callers can upload media once and reference it by a provider-issued handle instead of re-sending base64 or a public URL each request (lower latency/bandwidth, no re-buffering on memory-constrained runtimes).
+  - **New tree-shakeable `files` adapter kind** — `openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, `grokFiles()`, and `falFiles()`. Each exposes `upload()`, and (where the provider has a lifecycle API) `get()` / `delete()`. Drive them with the new `uploadFile()` / `getFile()` / `deleteFile()` activity functions. fal is upload-only.
+  - **New `{ type: 'file' }` arm on `ContentPartSource`**, matching the AG-UI `FileSource` arm field for field: `{ type: 'file', value, provider?, mimeType? }`. `value` is the opaque handle the provider issued; `provider` names the adapter that issued it. Each adapter maps `value` to its native wire field: OpenAI (Responses) `input_image`/`input_file` `file_id`, Anthropic `file_id` message source (with the `files-api-2025-04-14` beta), Gemini `fileData.fileUri`, fal storage URL, Grok public URL. `fileSourceFromHandle(handle)` builds the source.
+  - **Fail-closed capability preflight** — adapters that can consume file references declare `supportsFileSources`; `chat()` / `generateImage()` / `generateVideo()` / `embed()` reject `{ type: 'file' }` sources for every other adapter (Bedrock, Mistral, Groq, OpenRouter, Ollama, BytePlus, Cohere, and any future adapter that doesn't opt in) **before a request is built**, so a reference can never be silently mis-mapped onto a URL/data field. Endpoints that need raw bytes (image edits, Sora `input_reference`, Veo, Chat Completions images) throw endpoint-specific errors. A supporting adapter handed a source whose `provider` names a different adapter throws an error naming the issuer.
+  - **Provider-literal typed handles** — `FileHandle<'openai'>` etc. flow from each files adapter through `uploadFile()`, and `getFile()`/`deleteFile()` accept the handle itself, so cross-provider lifecycle calls fail at compile time. `fileSourceFromHandle` and `FileHandle` are also exported from the browser-safe `@tanstack/ai/client` entry. A `{ type: 'file' }` source cannot cross the chat wire format (which carries `data`/`url` sources only) and throws rather than being dropped, so a browser that holds a handle sends it in its own request body and the server builds the source.
+
+### Patch Changes
+
+- Updated dependencies [[`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd)]:
+  - @tanstack/ai@0.60.0
+
+## 0.18.13
+
+### Patch Changes
+
+- [#1423](https://github.com/TanStack/ai/pull/1423) [`7d8858a`](https://github.com/TanStack/ai/commit/7d8858addf16f163949f60bc242901a9308334d3) - Restore the provider tool list and combined tools-and-schema support for `claude-opus-5` and `claude-fable-5-1`.
+
+  Both models were inserted by the model sync with `supports.tools: []`, which the sync writes for every new Anthropic model. The curated list is filled in by hand afterwards, and that step was missed for these two. `ResolveToolCapabilities` reads the generated tool-capabilities map, so a caller on either model could not pass `webSearchTool`, `webFetchTool`, `codeExecutionTool`, `computerUseTool`, `bashTool`, `textEditorTool`, or `memoryTool` without a type error, while the same call type-checked on `claude-opus-4-1`.
+
+  The two models were also missing from `ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS`, so `supportsCombinedToolsAndSchema()` returned `false` and structured output alongside tools fell back to the forced-tool-use workaround kept for pre-4.5 models instead of `output_config.format`.
+
+  `claude-opus-5` also did not declare `AnthropicOutputConfigOptions` in its provider-options type. The adapter merges `output_config.format` over any caller-supplied `output_config`, so a caller on this model could not tune `output_config.effort` alongside the schema. Opus 4.7, Opus 4.8, Sonnet 5, Fable 5 and Fable 5.1 all declare it.
+
+  `claude-opus-5-fast` keeps an empty tool list: it is absent from the supported-model lists for code execution, computer use, and structured outputs. The per-model type-safety suite now asserts that it is the only registered model without provider tools, so the next model inserted with an empty list fails the suite instead of shipping.
+
+## 0.18.12
+
+### Patch Changes
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+
+## 0.18.11
+
+### Patch Changes
+
+- [#1443](https://github.com/TanStack/ai/pull/1443) [`77c4607`](https://github.com/TanStack/ai/commit/77c4607f23a194319c72eb2b3c7034c91c129ad2) - Add a package README: setup, chat, tools, thinking, prompt caching, summarization, provider tools, Claude on Vertex AI, and links to the docs.
+
+## 0.18.10
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+
+## 0.18.9
+
+### Patch Changes
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+
+## 0.18.8
+
+### Patch Changes
+
+- Updated dependencies [[`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9), [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6)]:
+  - @tanstack/ai@0.56.0
+
+## 0.18.7
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+
+## 0.18.6
+
+### Patch Changes
+
+- Updated dependencies [[`c17bc95`](https://github.com/TanStack/ai/commit/c17bc951ca783d8023bf54d69035c19c0c72ea2f), [`53e2ec0`](https://github.com/TanStack/ai/commit/53e2ec082b40d8c3fcd09f408c29f0b895436198), [`6269eff`](https://github.com/TanStack/ai/commit/6269eff90e770205ffd9cae8c5989b8ff02b57ce)]:
+  - @tanstack/ai@0.54.0
+
+## 0.18.5
+
+### Patch Changes
+
+- Updated dependencies [[`21775ee`](https://github.com/TanStack/ai/commit/21775ee2d23dd594cdc184678ff587341bd74871)]:
+  - @tanstack/ai@0.53.0
+
+## 0.18.4
+
+### Patch Changes
+
+- [#1288](https://github.com/TanStack/ai/pull/1288) [`c9f5ddd`](https://github.com/TanStack/ai/commit/c9f5ddd039034263f511d876d4f9604d099e507b) - Update model metadata from OpenRouter API
+
+## 0.18.3
+
+### Patch Changes
+
+- Updated dependencies [[`49fc54c`](https://github.com/TanStack/ai/commit/49fc54ca0aacf2fc60bb36647a61a23559dda4bc), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7)]:
+  - @tanstack/ai@0.52.0
+
+## 0.18.2
+
+### Patch Changes
+
+- [#1236](https://github.com/TanStack/ai/pull/1236) [`5dc4e1a`](https://github.com/TanStack/ai/commit/5dc4e1a08728b410f85956093ccef621d12b4d6b) - Add `@tanstack/ai-skills`: portable Agent Skills (`SKILL.md`) as a first-class `chat()` middleware.
+
+  `withSkills(sources, options?)` renders a skill catalog and a `load_skill` tool so any tool-calling model can load skills on demand, on any provider, with no server sandbox. Skills come from `inlineSkill`, `skillDirectory` (`/node`), or a build-time `staticSkills` bundle, and compose via `aggregate`/`dedupe`/`filter`/`cache`. `createResourceTool` exposes a skill's bundled files through `read_skill_resource`, and `runSkillSourceConformance` (`/testing`) validates custom `SkillSource` adapters. The catalog renders as `<available_skills>` XML for Anthropic models and markdown for others; portable and hosted (native) skills refuse to combine in one call.
+
+  Core `@tanstack/ai` now exports `SkillLimitError`. The native factories throw it (or add validation): `codeExecutionTool` (`@tanstack/ai-anthropic`) frames its 8-skill cap, and `shellTool` (`@tanstack/openai-base`) now validates `skill_id` format instead of nothing. `@tanstack/ai-sandbox` reuses the shared skill-directory walk from `@tanstack/ai-skills`.
+
+  `withSkills` sends a `skills:state` CUSTOM chunk so TanStack AI DevTools can show the catalog and which skills the model loaded.
+
+- Updated dependencies [[`5dc4e1a`](https://github.com/TanStack/ai/commit/5dc4e1a08728b410f85956093ccef621d12b4d6b), [`a7e0798`](https://github.com/TanStack/ai/commit/a7e079872af372496728d25e6ec23149cd5e04b9), [`6a083bf`](https://github.com/TanStack/ai/commit/6a083bfcfaa4fd0c83368c4d10067e5c2298e22c)]:
+  - @tanstack/ai@0.51.0
+
+## 0.18.1
+
+### Patch Changes
+
+- [#1253](https://github.com/TanStack/ai/pull/1253) [`8147e66`](https://github.com/TanStack/ai/commit/8147e6680996fc6f6c2d73294135ee0ccd5d1697) - Stop requiring Zod as a peer dependency when the adapters do not import it at runtime.
+
+- Updated dependencies [[`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b), [`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b)]:
+  - @tanstack/ai@0.50.0
+
+## 0.18.0
+
+### Minor Changes
+
+- [#906](https://github.com/TanStack/ai/pull/906) [`b7ebcb0`](https://github.com/TanStack/ai/commit/b7ebcb0bbe63e425facb5e38f138bd0cd36637dd) - Add headless BYOK: `defineByok` in `@tanstack/ai-client/byok`, pass `byok` into chat and generation hooks, and read keys on the relay with `getByokKey` from `@tanstack/ai/byok/server`. Provider ids are open slugs (`x-byok-<slug>`). Each adapter exports a `{ id, label, env? }` object (`openaiByok`, …); `id` is required. `env` is the env var name(s) for the relay — names only; the client never reads `process.env`. A wrong key surfaces as the provider's own `401` through the relay, so no client-side key check is needed. OpenRouter PKCE (`@tanstack/ai-openrouter/pkce`) saves the minted key under `openrouterByok.id`.
+
+### Patch Changes
+
+- Updated dependencies [[`b7ebcb0`](https://github.com/TanStack/ai/commit/b7ebcb0bbe63e425facb5e38f138bd0cd36637dd)]:
+  - @tanstack/ai@0.49.0
+
+## 0.17.1
+
+### Patch Changes
+
+- Updated dependencies [[`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46)]:
+  - @tanstack/ai@0.48.0
+
+## 0.17.0
+
+### Minor Changes
+
+- [#989](https://github.com/TanStack/ai/pull/989) [`75dbdfa`](https://github.com/TanStack/ai/commit/75dbdfa2fe4141cc240fe74307820fe43bd31e07) - Add `createAnthropicChatWithClient` and `anthropicVertexText` (from
+  `@tanstack/ai-anthropic/vertex`) so Claude can run on Vertex AI and other
+  Anthropic-compatible transports.
+
+- [#989](https://github.com/TanStack/ai/pull/989) [`75dbdfa`](https://github.com/TanStack/ai/commit/75dbdfa2fe4141cc240fe74307820fe43bd31e07) - Add Vertex AI factories for Grok (`grokVertexText`, `grokVertexSummarize`)
+  and Mistral (`mistralVertexText`) on `@tanstack/ai-grok/vertex` and
+  `@tanstack/ai-mistral/vertex`. Vertex factories accept only the chat
+  models in the Google partner catalog. `anthropicVertexText` now uses
+  the same Vertex Claude catalog.
+
+### Patch Changes
+
+- [#1021](https://github.com/TanStack/ai/pull/1021) [`5bf4402`](https://github.com/TanStack/ai/commit/5bf440252685d5bfd69eb7d1c066e6e2de5ee101) - Serialize only Anthropic-supported fields from document and image metadata; use `filename` as a fallback document title.
+
+- Updated dependencies [[`7c4b73a`](https://github.com/TanStack/ai/commit/7c4b73af5023e7ab7e113121644213c75d611aac), [`87e497f`](https://github.com/TanStack/ai/commit/87e497f2e282c2389579051ec743fa4cc8cf493e), [`c0ba484`](https://github.com/TanStack/ai/commit/c0ba48402a807d6482e1cb36a0cf393d0cd26b2b), [`d34b6c0`](https://github.com/TanStack/ai/commit/d34b6c01fbc9ed83e5dc9bd2725eb05f6b03bfd4)]:
+  - @tanstack/ai@0.47.3
+
+## 0.16.9
+
+### Patch Changes
+
+- [#1080](https://github.com/TanStack/ai/pull/1080) [`3bb55f3`](https://github.com/TanStack/ai/commit/3bb55f33524ccb52ee8262a06a3f90154a7db23a) - Fix `modelOptions.context_management` by attaching the required
+  `context-management-2025-06-27` beta. The option was typed and forwarded on the
+  request body, but Anthropic rejects context editing without the beta header —
+  so the feature typechecked and could not work (issue [#1074](https://github.com/TanStack/ai/issues/1074)).
+- Updated dependencies [[`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d)]:
+  - @tanstack/ai@0.47.1
+
+## 0.16.8
+
+### Patch Changes
+
+- Updated dependencies [[`5f68cbc`](https://github.com/TanStack/ai/commit/5f68cbccf3621b48dae73cedcb1e59cb4cbe72b4), [`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29)]:
+  - @tanstack/ai@0.47.0
+
+## 0.16.7
+
+### Patch Changes
+
+- [#932](https://github.com/TanStack/ai/pull/932) [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b) - Classify Anthropic, Gemini, and OpenAI native tools with stable runtime discriminators so ordinary functions can use the same public names without selecting provider-native behavior. Native tools must come from the adapter factory (`webSearchTool()`, `googleSearchTool()`, and the rest). A reserved `name` alone does not select a native converter. `chat()` throws `DuplicateToolNameError` when a factory tool and a custom function share the same public name.
+
+  Previously the converters picked provider-native behavior by `tool.name`. Tool names are public application identifiers, so a plain function called `web_search`, `google_search`, or `code_execution` was routed into a native converter: it lost its `inputSchema` and was sent as a provider-only payload (and on Anthropic could also flip on `code_execution` / skills beta headers). Native tools are now identified by adapter-owned metadata, which converters strip before building the wire payload, so provider API versions stay confined to the wire converters.
+
+  Also preserves Anthropic `webSearchTool` options (`max_uses`, `allowed_domains`, `blocked_domains`, `user_location`, `cache_control`) on the wire payload.
+
+  Also fixes `googleSearchTool({ searchTypes: … })` being silently dropped on the experimental `geminiTextInteractions()` adapter. The Interactions converter read a snake_case `search_types` array, but the public factory takes the Generate Content shape (`GoogleSearch.searchTypes: { webSearch?, imageSearch? }`), so the field never matched and every request fell back to the provider default of web-search-only. The camelCase config is now translated to the Interactions wire list.
+
+- Updated dependencies [[`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b), [`4599019`](https://github.com/TanStack/ai/commit/4599019eb02f72562ef155b69b8f61f9d25d187a), [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b), [`ecd12a4`](https://github.com/TanStack/ai/commit/ecd12a408987bc75649c21aada6948282a2a66dd)]:
+  - @tanstack/ai@0.46.0
+
+## 0.16.6
+
+### Patch Changes
+
+- [#1136](https://github.com/TanStack/ai/pull/1136) [`b7928f2`](https://github.com/TanStack/ai/commit/b7928f2fe75f8e329989ded720927375eae7aee3) - Register `claude-opus-5` and `claude-opus-5-fast` on the per-model tool-capabilities map so they match `ANTHROPIC_MODELS`.
+
+- [#1048](https://github.com/TanStack/ai/pull/1048) [`bc8c5e8`](https://github.com/TanStack/ai/commit/bc8c5e8684da159b08e63aba7cfc51b01289d4eb) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`d10dfe6`](https://github.com/TanStack/ai/commit/d10dfe6eca788ae52631d45e5599aa0c45e9ba37), [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b), [`c63319e`](https://github.com/TanStack/ai/commit/c63319e34a2ca2f1d56b90addf28784f7c3e13ad), [`b09e010`](https://github.com/TanStack/ai/commit/b09e010b32932c812e65b1e14f6faa2b0e6d5cb8), [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d)]:
+  - @tanstack/ai@0.45.0
+
 ## 0.16.5
 
 ### Patch Changes

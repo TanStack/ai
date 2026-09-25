@@ -3,15 +3,13 @@ id: RealtimeTokenAdapter
 title: RealtimeTokenAdapter
 ---
 
-# Interface: RealtimeTokenAdapter
-
 Defined in: [packages/ai/src/realtime/types.ts:77](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L77)
 
 Adapter interface for generating provider-specific tokens
 
 ## Properties
 
-### generateToken()
+### generateToken
 
 ```ts
 generateToken: () => Promise<RealtimeToken>;

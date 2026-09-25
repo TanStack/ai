@@ -8,10 +8,23 @@ export interface CohereClientConfig {
   /** Cohere API key. */
   apiKey: string
 
-  /** Optional base URL override (defaults to `https://api.cohere.com`). */
+  /**
+   * Base URL for every request (defaults to `https://api.cohere.com`). Same
+   * option name as the other adapters, so a gateway config can be spread into
+   * any of them. Wins over `baseUrl` when both are set.
+   */
+  baseURL?: string
+
+  /** Alias of `baseURL`. */
   baseUrl?: string
 
-  /** Optional default headers to include with every request. */
+  /**
+   * Headers sent with every request. Same option name as the other adapters.
+   * Wins over `headers` when both are set.
+   */
+  defaultHeaders?: Record<string, string>
+
+  /** Alias of `defaultHeaders`. */
   headers?: Record<string, string>
 
   /**
@@ -26,6 +39,21 @@ export interface CohereClientConfig {
 }
 
 export const COHERE_DEFAULT_BASE_URL = 'https://api.cohere.com'
+
+/** Resolve the effective base URL (no trailing slash) and headers. */
+export function resolveCohereTransport(config: CohereClientConfig): {
+  baseUrl: string
+  headers: Record<string, string>
+} {
+  return {
+    baseUrl: (
+      config.baseURL ??
+      config.baseUrl ??
+      COHERE_DEFAULT_BASE_URL
+    ).replace(/\/+$/, ''),
+    headers: config.defaultHeaders ?? config.headers ?? {},
+  }
+}
 
 /**
  * Gets Cohere API key from environment variables.

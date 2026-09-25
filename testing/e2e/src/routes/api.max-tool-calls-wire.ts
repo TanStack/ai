@@ -7,7 +7,11 @@ import {
   toolDefinition,
 } from '@tanstack/ai'
 import { z } from 'zod'
-import type { AnyTextAdapter, ChatMiddleware, StreamChunk } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  ChatMiddleware,
+  AdapterYieldChunk,
+} from '@tanstack/ai'
 
 /**
  * Wire-format regression for issue #964.
@@ -69,7 +73,7 @@ function createFatParallelAdapter(callCount: number): AnyTextAdapter {
       toolCallMetadata: undefined,
       systemPromptMetadata: undefined,
     },
-    async *chatStream(options): AsyncGenerator<StreamChunk> {
+    async *chatStream(options): AsyncGenerator<AdapterYieldChunk> {
       const model = 'max-tool-calls-test'
       const runId = options.runId ?? 'max-tool-calls-run'
       const threadId = options.threadId ?? 'max-tool-calls-thread'

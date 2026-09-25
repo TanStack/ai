@@ -1,0 +1,12 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[provider-tool-dispatch] preserve custom tool"
+      },
+      "response": {
+        "content": "ok"
+      }
+    }
+  ]
+}

@@ -55,8 +55,9 @@ export const HookDashboard: Component = () => {
 
   const handleSelect = (hook: HookRecord) => {
     selectHook(hook.id)
-    if (state.conversations[hook.id]) {
-      selectConversation(hook.id)
+    const conversationId = hook.id || hook.clientId || hook.threadId
+    if (conversationId && state.conversations[conversationId]) {
+      selectConversation(conversationId)
     }
   }
 

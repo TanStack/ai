@@ -113,6 +113,36 @@ test.describe('Batch interrupt resolution', () => {
     ).toBe(true)
   })
 
+  test('clear ignores a late interrupt submission failure', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const pageErrors: Array<Error> = []
+    page.on('pageerror', (error) => pageErrors.push(error))
+
+    await selectScenario(page, 'batch', testId, aimockPort)
+    await runTest(page)
+    await waitForApproval(page)
+    await waitForPendingApprovals(page, 3)
+
+    await approveAll(page)
+    await page.waitForFunction(
+      () =>
+        document
+          .getElementById('test-metadata')
+          ?.getAttribute('data-is-loading') === 'true',
+    )
+    await page.click('#clear-button')
+    await page.waitForTimeout(200)
+
+    const meta = await getMetadata(page)
+    expect(meta.hasError).toBe('false')
+    expect(meta.isLoading).toBe('false')
+    expect(meta.interruptCount).toBe('0')
+    expect(pageErrors).toEqual([])
+  })
+
   test.afterEach(async ({ page }, testInfo) => {
     if (testInfo.status !== testInfo.expectedStatus) {
       console.log('Metadata:', await getMetadata(page))

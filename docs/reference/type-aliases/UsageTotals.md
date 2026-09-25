@@ -3,13 +3,11 @@ id: UsageTotals
 title: UsageTotals
 ---
 
-# ~~Type Alias: UsageTotals~~
-
 ```ts
 type UsageTotals = TokenUsage;
 ```
 
-Defined in: [packages/ai/src/types.ts:1101](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1101)
+Defined in: [packages/ai/src/types.ts:1249](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1249)
 
 ## Deprecated
 

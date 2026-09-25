@@ -1,4 +1,12 @@
-import { EventType, uiMessagesToWire } from '@tanstack/ai/client'
+import {
+  EventType,
+  getChunkRunId as getNormalizedChunkRunId,
+  restoreInboundChunk,
+  tanstackMetadata,
+  uiMessagesToWire,
+  withTanstackMetadata,
+} from '@tanstack/ai/client'
+import { ByokMissingError, isByokMissingBody } from '@tanstack/ai/byok'
 import {
   createResponseStreamTextDecoder,
   getResponseStreamReader,
@@ -8,11 +16,11 @@ import type {
   ModelMessage,
   RunAgentResumeItem,
   RunErrorEvent,
-  RunFinishedEvent,
   StreamChunk,
   UIMessage,
 } from '@tanstack/ai/client'
 import type { ChatFetcher, ChatPendingInterrupt } from './types'
+import { normalizeMessagesDates } from './message-date-normalizer'
 
 /**
  * Associates connect-wrapped chunks with the run they were produced under.
@@ -34,12 +42,7 @@ export function getChunkRunId(chunk: StreamChunk): string | undefined {
   // the client's run identity to win when a provider stamps its own id; for
   // resumable reconnect/join the two ids match, so precedence is moot there.
   const requestRunId = chunkRunIds.get(chunk)
-  return (
-    requestRunId ??
-    ('runId' in chunk && typeof chunk.runId === 'string'
-      ? chunk.runId
-      : undefined)
-  )
+  return requestRunId ?? getNormalizedChunkRunId(chunk)
 }
 
 /**
@@ -135,6 +138,84 @@ function resolveReconnectOptions(
     )
   }
   return { maxAttempts, delayMs }
+}
+
+/**
+ * Reconnect bookkeeping shared by every resumable-stream driver: de-dupes
+ * offsets, tracks the last acknowledged offset, honors the SSE empty-id reset
+ * convention, and bounds consecutive no-progress reconnects behind a
+ * throttling delay. Extracted out of {@link resumableStream} so a WebSocket
+ * reconnect driver can reuse the exact same semantics.
+ */
+export interface ReconnectTracker {
+  /** The most recently accepted (non-duplicate, non-empty) offset, if any. */
+  readonly lastEventId: string | undefined
+  /**
+   * Record an incoming offset. Returns `'reset'` for an empty id (SSE's
+   * resume-cursor reset — clears the de-dupe set and `lastEventId`),
+   * `'duplicate'` for an already-seen id, and `'new'` otherwise (including
+   * `undefined`, which is untracked — no offset to remember).
+   */
+  note: (id: string | undefined) => 'new' | 'duplicate' | 'reset'
+  /**
+   * Throttle before a reconnect attempt. Resets the no-progress counter when
+   * `madeProgress` is true; otherwise increments it and throws
+   * {@link StreamReconnectLimitError} once it exceeds the configured ceiling.
+   */
+  waitBeforeReconnect: (
+    madeProgress: boolean,
+    signal?: AbortSignal,
+  ) => Promise<void>
+}
+
+/** Create a {@link ReconnectTracker} bound to the given reconnect bounds. */
+export function createReconnectTracker(
+  options?: ReconnectOptions,
+): ReconnectTracker {
+  const reconnect = resolveReconnectOptions(options)
+  // Retains every delivered offset for the run's lifetime. Intentionally
+  // bounded by run length (not evicted): a conforming server replays strictly
+  // after the acknowledged offset, so this only needs to catch the single
+  // boundary event on reconnect, but keeping the full set keeps de-dup
+  // correct even if a server replays a wider overlap.
+  const seen = new Set<string>()
+  let lastEventId: string | undefined
+  let reconnectAttempts = 0
+  return {
+    get lastEventId() {
+      return lastEventId
+    },
+    note(id) {
+      if (id === undefined) return 'new'
+      if (id === '') {
+        // SSE spec: an empty `id:` resets the resume cursor. Drop the last
+        // offset and clear the de-dupe set; the chunk itself still delivers.
+        lastEventId = undefined
+        seen.clear()
+        return 'reset'
+      }
+      if (seen.has(id)) return 'duplicate'
+      seen.add(id)
+      lastEventId = id
+      return 'new'
+    },
+    // Bound only CONSECUTIVE no-progress reconnects. A reconnect that made
+    // forward progress resets the counter, so a healthy long run (even one
+    // whose socket rolls after every event) never approaches the ceiling; it
+    // fires only when the run is genuinely stuck — reconnecting repeatedly
+    // with nothing new.
+    async waitBeforeReconnect(madeProgress, signal) {
+      if (madeProgress) {
+        reconnectAttempts = 0
+      } else {
+        reconnectAttempts += 1
+        if (reconnectAttempts > reconnect.maxAttempts) {
+          throw new StreamReconnectLimitError(reconnect.maxAttempts)
+        }
+      }
+      await abortableDelay(reconnect.delayMs, signal)
+    },
+  }
 }
 
 /** Resolve after `ms`, or immediately once `signal` aborts. Never rejects. */
@@ -307,6 +388,22 @@ function isNdjsonEnvelope(
   )
 }
 
+/** Rebuild pre-wire extras after SSE/NDJSON ingest. */
+function restoreInboundUsage(chunk: StreamChunk): StreamChunk {
+  return restoreInboundChunk(chunk)
+}
+
+function sseChunkModel(chunk: StreamChunk): string | undefined {
+  const tanstackModel = tanstackMetadata(chunk)?.model
+  if (typeof tanstackModel === 'string') return tanstackModel
+  const usage = 'usage' in chunk ? chunk.usage : undefined
+  if (Array.isArray(usage)) {
+    const model = (usage[0] as { model?: unknown } | undefined)?.model
+    if (typeof model === 'string') return model
+  }
+  return undefined
+}
+
 /**
  * Parse SSE-format lines into stream events, pairing each chunk with the `id:`
  * offset of the event it arrived on. Shared by the fetch- and XHR-backed SSE
@@ -353,27 +450,31 @@ async function* linesToSSEEvents(
     }
     const data = parseSseDataLine(line)
     if (data === '[DONE]') {
-      const synthetic: RunFinishedEvent = {
-        type: EventType.RUN_FINISHED,
-        threadId: lastThreadId ?? fallbackIds?.threadId ?? '',
-        runId: lastRunId ?? fallbackIds?.runId ?? '',
-        model: lastModel ?? '',
-        timestamp: Date.now(),
-        finishReason: 'stop',
+      yield {
+        chunk: withTanstackMetadata(
+          {
+            type: EventType.RUN_FINISHED,
+            threadId: lastThreadId ?? fallbackIds?.threadId ?? '',
+            runId: lastRunId ?? fallbackIds?.runId ?? '',
+            timestamp: Date.now(),
+          },
+          {
+            finishReason: 'stop',
+            ...(lastModel !== undefined ? { model: lastModel } : {}),
+          },
+        ) as StreamChunk,
       }
-      yield { chunk: synthetic }
       return
     }
-    const chunk = JSON.parse(data) as StreamChunk
+    const chunk = restoreInboundUsage(JSON.parse(data) as StreamChunk)
     if ('threadId' in chunk && typeof chunk.threadId === 'string') {
       lastThreadId = chunk.threadId
     }
     if ('runId' in chunk && typeof chunk.runId === 'string') {
       lastRunId = chunk.runId
     }
-    if ('model' in chunk && typeof chunk.model === 'string') {
-      lastModel = chunk.model
-    }
+    const model = sseChunkModel(chunk)
+    if (model !== undefined) lastModel = model
     const id = pendingId
     pendingId = undefined
     yield { chunk, ...(id !== undefined ? { id } : {}) }
@@ -392,19 +493,75 @@ async function* linesToNdjsonEvents(
   for await (const line of lines) {
     const parsed = JSON.parse(line) as unknown
     if (isNdjsonEnvelope(parsed)) {
-      yield { chunk: parsed.chunk, id: parsed.id }
+      yield { chunk: restoreInboundUsage(parsed.chunk), id: parsed.id }
     } else {
-      yield { chunk: parsed as StreamChunk }
+      yield { chunk: restoreInboundUsage(parsed as StreamChunk) }
     }
   }
 }
 
-function assertResponseOk(response: Response): void {
-  if (!response.ok) {
-    throw new Error(
-      `HTTP error! status: ${response.status} ${response.statusText}`,
-    )
+async function assertResponseOk(response: Response): Promise<void> {
+  if (response.ok) return
+  if (response.status === 401) {
+    const body: unknown = await response
+      .clone()
+      .json()
+      .catch(() => null)
+    if (isByokMissingBody(body)) {
+      throw new ByokMissingError(body.error.provider)
+    }
   }
+  throw new Error(
+    `HTTP error! status: ${response.status} ${response.statusText}`,
+  )
+}
+
+function errorFromXhrStatus(xhr: XMLHttpRequest): Error {
+  if (xhr.status === 401) {
+    let parsed: unknown = null
+    try {
+      parsed = JSON.parse(xhr.responseText)
+    } catch {
+      parsed = null
+    }
+    if (isByokMissingBody(parsed)) {
+      return new ByokMissingError(parsed.error.provider)
+    }
+  }
+  return new Error(`XHR error! status: ${xhr.status} ${xhr.statusText}`)
+}
+
+function chatHydrationSearchParams(
+  threadId: string,
+  options?: ChatHydrateOptions,
+): Record<string, string> {
+  const values: Record<string, string> = { threadId }
+  if (options?.limit !== undefined) {
+    values.limit = String(options.limit)
+  }
+  if (options?.before !== undefined) {
+    values.before = options.before
+  }
+  return values
+}
+
+function readChatHydrationPage(
+  value: unknown,
+): { truncated: false } | { truncated: true; cursor: string } {
+  if (value === null || typeof value !== 'object') {
+    return { truncated: false }
+  }
+  if (!('truncated' in value) || value.truncated !== true) {
+    return { truncated: false }
+  }
+  if (
+    !('cursor' in value) ||
+    typeof value.cursor !== 'string' ||
+    value.cursor === ''
+  ) {
+    return { truncated: false }
+  }
+  return { truncated: true, cursor: value.cursor }
 }
 
 /**
@@ -413,6 +570,9 @@ function assertResponseOk(response: Response): void {
  * the STABLE thread id, it returns the stored transcript and — if a run is still
  * generating — a cursor the caller tails via `joinRun`. Shared by every fetch/
  * XHR adapter so the client never has to know which transport is in use.
+ *
+ * Pass `limit` / `before` to page. Old servers that omit `page` are treated as
+ * a full list (`truncated: false`).
  */
 async function fetchThreadHydration(
   fetchClient: typeof globalThis.fetch,
@@ -420,17 +580,25 @@ async function fetchThreadHydration(
   headers: Record<string, string>,
   credentials: RequestCredentials,
   threadId: string,
+  options?: ChatHydrateOptions,
 ): Promise<ChatHydrationResult> {
-  const response = await fetchClient(withSearchParams(url, { threadId }), {
-    method: 'GET',
-    headers: { Accept: 'application/json', ...headers },
-    credentials,
-  })
-  assertResponseOk(response)
+  const response = await fetchClient(
+    withSearchParams(url, chatHydrationSearchParams(threadId, options)),
+    {
+      method: 'GET',
+      headers: { Accept: 'application/json', ...headers },
+      credentials,
+    },
+  )
+  await assertResponseOk(response)
   const data = (await response.json()) as {
     messages?: Array<UIMessage>
     activeRun?: { runId?: unknown } | null
-    interrupts?: { runId?: unknown; pending?: unknown } | null
+    interrupts?: {
+      runId?: unknown
+      pending?: unknown
+    } | null
+    page?: unknown
   }
   const activeRun =
     data.activeRun && typeof data.activeRun.runId === 'string'
@@ -447,9 +615,12 @@ async function fetchThreadHydration(
         }
       : null
   return {
-    messages: Array.isArray(data.messages) ? data.messages : [],
+    messages: Array.isArray(data.messages)
+      ? normalizeMessagesDates(data.messages)
+      : [],
     activeRun,
     interrupts,
+    page: readChatHydrationPage(data.page),
   }
 }
 
@@ -472,7 +643,7 @@ async function fetchGenerationHydration(
     headers: { Accept: 'application/json', ...headers },
     credentials,
   })
-  assertResponseOk(response)
+  await assertResponseOk(response)
   const raw: unknown = await response.json()
   // A 200 carrying `null` is a legitimate hydration miss — the server has no
   // record for this thread — and reading `.activeRun` off `null` would throw.
@@ -507,7 +678,7 @@ async function* responseToSSEEvents(
   abortSignal?: AbortSignal,
   fallbackIds?: { threadId?: string; runId?: string },
 ): AsyncGenerator<StreamEvent> {
-  assertResponseOk(response)
+  await assertResponseOk(response)
   const reader = getResponseStreamReader(response)
   yield* linesToSSEEvents(readStreamLines(reader, abortSignal), fallbackIds)
 }
@@ -517,7 +688,7 @@ async function* responseToNdjsonEvents(
   response: Response,
   abortSignal?: AbortSignal,
 ): AsyncGenerator<StreamEvent> {
-  assertResponseOk(response)
+  await assertResponseOk(response)
   const reader = getResponseStreamReader(response)
   yield* linesToNdjsonEvents(readStreamLines(reader, abortSignal))
 }
@@ -598,39 +769,14 @@ async function* resumableStream(
   abortSignal?: AbortSignal,
   reconnectOptions?: ReconnectOptions,
 ): AsyncGenerator<StreamChunk> {
-  // Retains every delivered offset for the run's lifetime. Intentionally bounded
-  // by run length (not evicted): a conforming server replays strictly after the
-  // acknowledged offset, so this only needs to catch the single boundary event
-  // on reconnect, but keeping the full set keeps de-dup correct even if a server
-  // replays a wider overlap.
-  const seen = new Set<string>()
-  let lastEventId: string | undefined
-  const reconnect = resolveReconnectOptions(reconnectOptions)
-  let reconnectAttempts = 0
-
-  // Throttle before re-issuing the request, and enforce the total ceiling so a
-  // producer that keeps dropping after each event is bounded rather than
-  // reconnecting forever.
-  // Bound only CONSECUTIVE no-progress reconnects. A reconnect that made forward
-  // progress resets the counter, so a healthy long run (even one whose socket
-  // rolls after every event) never approaches the ceiling; it fires only when
-  // the run is genuinely stuck — reconnecting repeatedly with nothing new.
-  async function waitBeforeReconnect(madeProgress: boolean): Promise<void> {
-    if (madeProgress) {
-      reconnectAttempts = 0
-    } else {
-      reconnectAttempts += 1
-      if (reconnectAttempts > reconnect.maxAttempts) {
-        throw new StreamReconnectLimitError(reconnect.maxAttempts)
-      }
-    }
-    await abortableDelay(reconnect.delayMs, abortSignal)
-  }
+  const tracker = createReconnectTracker(reconnectOptions)
 
   for (;;) {
     if (abortSignal?.aborted) return
     const extraHeaders: Record<string, string> =
-      lastEventId !== undefined ? { 'Last-Event-ID': lastEventId } : {}
+      tracker.lastEventId !== undefined
+        ? { 'Last-Event-ID': tracker.lastEventId }
+        : {}
 
     let sawTerminal = false
     let progressed = false
@@ -639,18 +785,7 @@ async function* resumableStream(
         extraHeaders,
         abortSignal,
       )) {
-        if (id !== undefined) {
-          if (id === '') {
-            // SSE spec: an empty `id:` resets the resume cursor. Drop the last
-            // offset and clear the de-dupe set; the chunk itself still delivers.
-            lastEventId = undefined
-            seen.clear()
-          } else {
-            if (seen.has(id)) continue
-            seen.add(id)
-            lastEventId = id
-          }
-        }
+        if (tracker.note(id) === 'duplicate') continue
         progressed = true
         if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
           sawTerminal = true
@@ -677,9 +812,9 @@ async function* resumableStream(
       if (
         (error instanceof StreamTruncatedError ||
           error instanceof StreamReadError) &&
-        lastEventId !== undefined
+        tracker.lastEventId !== undefined
       ) {
-        await waitBeforeReconnect(progressed)
+        await tracker.waitBeforeReconnect(progressed, abortSignal)
         continue
       }
       throw error
@@ -693,14 +828,14 @@ async function* resumableStream(
     // would re-open past the final offset and see an empty window.
     if (sawTerminal) return
 
-    if (lastEventId !== undefined) {
+    if (tracker.lastEventId !== undefined) {
       // A durable (id-tagged) run.
       if (progressed) {
         // Clean end WITHOUT a terminal event but we advanced — the producer is
         // still going (or the socket rolled over). Reconnect from the last
         // offset (backing off to avoid a hot loop against the origin). Progress
         // resets the no-progress ceiling.
-        await waitBeforeReconnect(true)
+        await tracker.waitBeforeReconnect(true, abortSignal)
         continue
       }
       // Ended without a terminal event AND made no forward progress on this
@@ -743,6 +878,8 @@ export interface RunAgentInputContext {
   }>
   /** Arbitrary user-controlled passthrough data. */
   forwardedProps?: Record<string, unknown>
+  /** Extra request headers for this run (e.g. BYOK keys). POST only. */
+  headers?: Record<string, string>
 }
 
 export interface ConnectConnectionAdapter {
@@ -786,7 +923,10 @@ export interface ConnectConnectionAdapter {
    * `fetchServerSentEvents` / `fetchHttpStream`, and on `stream()` /
    * `rpcStream()` when supplied via {@link StreamConnectionHandlers}.
    */
-  hydrate?: (threadId: string) => Promise<ChatHydrationResult>
+  hydrate?: (
+    threadId: string,
+    options?: ChatHydrateOptions,
+  ) => Promise<ChatHydrationResult>
 }
 
 /**
@@ -817,10 +957,22 @@ export interface GenerationHydrationResult {
 }
 
 /**
+ * Optional paging for a chat hydrate GET.
+ * Omit both fields to load the full thread.
+ */
+export interface ChatHydrateOptions {
+  limit?: number
+  before?: string
+}
+
+/**
  * Server-resolved hydration for a thread. `messages` is the stored transcript;
  * `activeRun` is a cursor to a run still generating for the thread (or `null`).
  * Keyed on the STABLE thread id — the client never handles a run id, so a turn
  * that spans several runs (interrupt/tool continuations) reconnects correctly.
+ *
+ * `page` is additive. Old servers omit it; treat that as a full list
+ * (`truncated: false`).
  */
 export interface ChatHydrationResult {
   messages: Array<UIMessage>
@@ -830,7 +982,15 @@ export interface ChatHydrationResult {
    * so a reload (or another device) re-prompts the approval from the server. The
    * client restores them exactly as a persisted resume snapshot would.
    */
-  interrupts: { runId: string; pending: Array<ChatPendingInterrupt> } | null
+  interrupts: {
+    runId: string
+    pending: Array<ChatPendingInterrupt>
+  } | null
+  /**
+   * Whether this window is a slice of a longer thread.
+   * `cursor` is set when `truncated` is true and is sent back as `before`.
+   */
+  page?: { truncated: false } | { truncated: true; cursor: string }
 }
 
 /**
@@ -854,7 +1014,10 @@ export interface ResumableConnectConnectionAdapter extends ConnectConnectionAdap
    * JSON GET (`?threadId`), so it is transport-agnostic regardless of how the
    * delivery stream is served.
    */
-  hydrate?: (threadId: string) => Promise<ChatHydrationResult>
+  hydrate?: (
+    threadId: string,
+    options?: ChatHydrateOptions,
+  ) => Promise<ChatHydrationResult>
 }
 
 export interface SubscribeConnectionAdapter {
@@ -886,7 +1049,10 @@ export interface SubscribeConnectionAdapter {
    * cursor). Present only when the underlying connection supports it. The client
    * calls it on mount to re-hydrate without any app-side loader or prop.
    */
-  hydrate?: (threadId: string) => Promise<ChatHydrationResult>
+  hydrate?: (
+    threadId: string,
+    options?: ChatHydrateOptions,
+  ) => Promise<ChatHydrationResult>
 }
 
 /**
@@ -944,6 +1110,7 @@ export function normalizeConnectionAdapter(
   // Legacy connect() wrapper
   let activeBuffer: Array<StreamChunk> = []
   let activeWaiters: Array<(chunk: StreamChunk | null) => void> = []
+  let activeSubscriber: typeof activeWaiters | undefined
 
   function push(chunk: StreamChunk, runId?: string): void {
     if (runId) {
@@ -957,6 +1124,26 @@ export function normalizeConnectionAdapter(
     }
   }
 
+  async function waitUntilSubscriberIdle(
+    abortSignal?: AbortSignal,
+  ): Promise<void> {
+    // Idle means the subscriber is waiting for the next chunk, so the
+    // previous chunk has left processIncomingChunk. Empty waiters with an
+    // empty buffer is in-flight delivery, not idle.
+    const idle = () =>
+      activeSubscriber !== activeWaiters ||
+      (activeBuffer.length === 0 &&
+        (activeWaiters.length > 0 || abortSignal?.aborted))
+    for (let i = 0; i < 16 && !abortSignal?.aborted; i++) {
+      if (idle()) return
+      await Promise.resolve()
+    }
+    while (!abortSignal?.aborted) {
+      if (idle()) return
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    }
+  }
+
   return {
     subscribe(abortSignal?: AbortSignal): AsyncIterable<StreamChunk> {
       // Transfer ownership to the latest subscriber so only one active
@@ -967,22 +1154,27 @@ export function normalizeConnectionAdapter(
       activeWaiters = myWaiters
 
       return (async function* () {
-        while (!abortSignal?.aborted) {
-          let chunk: StreamChunk | null
-          const buffered = myBuffer.shift()
-          if (buffered !== undefined) {
-            chunk = buffered
-          } else {
-            chunk = await new Promise<StreamChunk | null>((resolve) => {
-              const onAbort = () => resolve(null)
-              myWaiters.push((c) => {
-                abortSignal?.removeEventListener('abort', onAbort)
-                resolve(c)
+        activeSubscriber = myWaiters
+        try {
+          while (!abortSignal?.aborted) {
+            let chunk: StreamChunk | null
+            const buffered = myBuffer.shift()
+            if (buffered !== undefined) {
+              chunk = buffered
+            } else {
+              chunk = await new Promise<StreamChunk | null>((resolve) => {
+                const onAbort = () => resolve(null)
+                myWaiters.push((c) => {
+                  abortSignal?.removeEventListener('abort', onAbort)
+                  resolve(c)
+                })
+                abortSignal?.addEventListener('abort', onAbort, { once: true })
               })
-              abortSignal?.addEventListener('abort', onAbort, { once: true })
-            })
+            }
+            if (chunk !== null) yield chunk
           }
-          if (chunk !== null) yield chunk
+        } finally {
+          if (activeSubscriber === myWaiters) activeSubscriber = undefined
         }
       })()
     },
@@ -1016,21 +1208,24 @@ export function normalizeConnectionAdapter(
         // observed, but stamp the caller's request runId so getChunkRunId()
         // correlates to activeRunIds / currentRunId (same as real stream chunks).
         if (!abortSignal?.aborted && !hasTerminalEvent) {
-          const synthetic: RunFinishedEvent = {
-            type: EventType.RUN_FINISHED,
-            threadId: requireSyntheticId(
-              upstreamThreadId ?? runContext?.threadId,
-              'threadId',
-            ),
-            runId: requireSyntheticId(
-              upstreamRunId ?? runContext?.runId,
-              'runId',
-            ),
-            model: 'connect-wrapper',
-            timestamp: Date.now(),
-            finishReason: 'stop',
-          }
-          push(synthetic, runContext?.runId)
+          push(
+            withTanstackMetadata(
+              {
+                type: EventType.RUN_FINISHED,
+                threadId: requireSyntheticId(
+                  upstreamThreadId ?? runContext?.threadId,
+                  'threadId',
+                ),
+                runId: requireSyntheticId(
+                  upstreamRunId ?? runContext?.runId,
+                  'runId',
+                ),
+                timestamp: Date.now(),
+              },
+              { finishReason: 'stop', model: 'connect-wrapper' },
+            ) as StreamChunk,
+            runContext?.runId,
+          )
         }
       } catch (err) {
         if (!abortSignal?.aborted && !hasTerminalEvent) {
@@ -1061,6 +1256,7 @@ export function normalizeConnectionAdapter(
         }
         throw err
       }
+      await waitUntilSubscriberIdle(abortSignal)
     },
     // Expose joinRun only when the underlying connection is resumable. Require
     // a real function — `'joinRun' in connection` is true for
@@ -1081,7 +1277,10 @@ export function normalizeConnectionAdapter(
       // (no non-null assertion). Present only when the connection supports it.
       const hydrate = (connection as ResumableConnectConnectionAdapter).hydrate
       return typeof hydrate === 'function'
-        ? { hydrate: (threadId: string) => hydrate(threadId) }
+        ? {
+            hydrate: (threadId: string, options?: ChatHydrateOptions) =>
+              hydrate(threadId, options),
+          }
         : {}
     })(),
   }
@@ -1126,7 +1325,7 @@ function buildRunAgentInputBody(
 ): Record<string, unknown> {
   // Precedence (later spreads win): static adapter `body` is the base,
   // overridden by `runContext.forwardedProps`, overridden by per-message `data`.
-  const wireMessages = uiMessagesToWire(messages as Array<UIMessage>)
+  const wireMessages = uiMessagesToWire(messages)
   const forwardedProps = {
     ...options.body,
     ...(runContext?.forwardedProps ?? {}),
@@ -1200,6 +1399,7 @@ export function fetchServerSentEvents(
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         ...mergeHeaders(resolvedOptions.headers),
+        ...mergeHeaders(runContext?.headers),
         ...runIdHeader(runContext?.runId),
       }
 
@@ -1294,7 +1494,7 @@ export function fetchServerSentEvents(
         resolvedOptions.reconnect,
       )
     },
-    async hydrate(threadId) {
+    async hydrate(threadId, hydrateOptions) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions =
         typeof options === 'function' ? await options() : options
@@ -1304,6 +1504,7 @@ export function fetchServerSentEvents(
         mergeHeaders(resolvedOptions.headers),
         resolvedOptions.credentials || 'same-origin',
         threadId,
+        hydrateOptions,
       )
     },
     async hydrateGeneration(threadId) {
@@ -1371,6 +1572,7 @@ export function fetchHttpStream(
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         ...mergeHeaders(resolvedOptions.headers),
+        ...mergeHeaders(runContext?.headers),
         ...runIdHeader(runContext?.runId),
       }
 
@@ -1449,7 +1651,7 @@ export function fetchHttpStream(
         resolvedOptions.reconnect,
       )
     },
-    async hydrate(threadId) {
+    async hydrate(threadId, hydrateOptions) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions =
         typeof options === 'function' ? await options() : options
@@ -1459,6 +1661,7 @@ export function fetchHttpStream(
         mergeHeaders(resolvedOptions.headers),
         resolvedOptions.credentials || 'same-origin',
         threadId,
+        hydrateOptions,
       )
     },
     async hydrateGeneration(threadId) {
@@ -1524,7 +1727,7 @@ function readXhrLines(
 
   const enqueueDelta = () => {
     if (xhr.status !== 0 && (xhr.status < 200 || xhr.status >= 300)) {
-      error = new Error(`XHR error! status: ${xhr.status} ${xhr.statusText}`)
+      error = errorFromXhrStatus(xhr)
       done = true
       return
     }
@@ -1553,7 +1756,7 @@ function readXhrLines(
     // is an error, but status 0 here is not — treat the trailing buffer as a
     // truncation check instead of fabricating a bogus "status: 0" error.
     if (xhr.status !== 0 && (xhr.status < 200 || xhr.status >= 300)) {
-      error = new Error(`XHR error! status: ${xhr.status} ${xhr.statusText}`)
+      error = errorFromXhrStatus(xhr)
     } else if (buffer.trim() && !aborted) {
       error = new StreamTruncatedError()
     }
@@ -1649,6 +1852,7 @@ function createConfiguredXhrRequest(
   const requestHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     ...mergeHeaders(options.headers),
+    ...mergeHeaders(method === 'POST' ? runContext?.headers : undefined),
     // Client-chosen run id for durability (POST only; the GET join carries it
     // in the query instead).
     ...(method === 'POST' ? runIdHeader(runContext?.runId) : {}),
@@ -1786,7 +1990,7 @@ export function xhrServerSentEvents(
         resolvedOptions.reconnect,
       )
     },
-    async hydrate(threadId) {
+    async hydrate(threadId, hydrateOptions) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
       // Hydration is a non-streaming JSON GET, so fetch is fine even for the
@@ -1797,6 +2001,7 @@ export function xhrServerSentEvents(
         mergeHeaders(resolvedOptions.headers),
         resolvedOptions.withCredentials ? 'include' : 'same-origin',
         threadId,
+        hydrateOptions,
       )
     },
     async hydrateGeneration(threadId) {
@@ -1869,7 +2074,7 @@ export function xhrHttpStream(
         resolvedOptions.reconnect,
       )
     },
-    async hydrate(threadId) {
+    async hydrate(threadId, hydrateOptions) {
       const resolvedUrl = typeof url === 'function' ? url() : url
       const resolvedOptions = await resolveXhrConnectionOptions(options)
       // Hydration is a non-streaming JSON GET, so fetch is fine even for the
@@ -1880,6 +2085,7 @@ export function xhrHttpStream(
         mergeHeaders(resolvedOptions.headers),
         resolvedOptions.withCredentials ? 'include' : 'same-origin',
         threadId,
+        hydrateOptions,
       )
     },
     async hydrateGeneration(threadId) {
@@ -1894,6 +2100,412 @@ export function xhrHttpStream(
         resolvedOptions.withCredentials ? 'include' : 'same-origin',
         threadId,
       )
+    },
+  }
+}
+
+export interface WebSocketConnectionOptions {
+  protocols?: string | Array<string>
+  body?: Record<string, unknown>
+  reconnect?: ReconnectOptions
+  /** Override the WebSocket implementation (tests / non-browser runtimes). */
+  WebSocketImpl?: typeof WebSocket
+}
+
+function runIdQuery(url: string, runId: string | undefined): string {
+  return runId ? withSearchParams(url, { runId }) : url
+}
+
+function isPingFrame(parsed: unknown): boolean {
+  return (
+    typeof parsed === 'object' &&
+    parsed !== null &&
+    (parsed as { type?: unknown }).type === 'ping'
+  )
+}
+
+/** A subscribe() consumer's registration: receives chunks or a fatal error. */
+interface WebSocketChunkSink {
+  push: (chunk: StreamChunk) => void
+  fail: (error: unknown) => void
+}
+
+/**
+ * A push→pull bridge from socket callbacks to an async iterable: chunks queue
+ * until the consumer pulls, a recorded failure rejects the iterator, and
+ * `end()` (or the abort signal) finishes it cleanly. Shared by `webSocket()`'s
+ * `subscribe()` and `joinRun()`.
+ */
+function createChunkPipe(
+  abortSignal: AbortSignal | undefined,
+  onFinally: () => void,
+): {
+  push: (chunk: StreamChunk) => void
+  fail: (error: unknown) => void
+  end: () => void
+  iterable: AsyncIterable<StreamChunk>
+} {
+  const queue: Array<StreamChunk> = []
+  const waiters: Array<(c: StreamChunk | null) => void> = []
+  let failure: unknown
+  let ended = false
+  const wake = () => waiters.shift()?.(null)
+  const push = (chunk: StreamChunk) => {
+    const w = waiters.shift()
+    if (w) w(chunk)
+    else queue.push(chunk)
+  }
+  const fail = (error: unknown) => {
+    failure = error
+    wake()
+  }
+  const end = () => {
+    ended = true
+    wake()
+  }
+  const onAbort = () => wake()
+  abortSignal?.addEventListener('abort', onAbort)
+  const iterable = (async function* () {
+    try {
+      while (!abortSignal?.aborted) {
+        // Drain buffered chunks before ever awaiting a new promise — a
+        // fatal drop that lands while chunks are still queued (fail()
+        // finds no pending waiter, since the consumer hasn't caught up
+        // to its buffer yet) must not be lost.
+        const buffered = queue.shift()
+        if (buffered !== undefined) {
+          yield buffered
+          continue
+        }
+        // Buffer exhausted: surface a failure recorded while we were
+        // draining, rather than awaiting a promise that will never
+        // resolve (the connection is dead — no future push/fail).
+        if (failure !== undefined) throw failure
+        if (ended) return
+        const chunk = await new Promise<StreamChunk | null>((r) =>
+          waiters.push(r),
+        )
+        // The wait resolved because fail() woke us — surface the error
+        // instead of treating the null sentinel as a clean end. TS narrows
+        // `failure` to `undefined` from the check above and doesn't know
+        // the `fail()` closure can reassign it while we were awaiting —
+        // this check is very much still reachable.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        if (failure !== undefined) throw failure
+        if (chunk === null) return
+        yield chunk
+      }
+    } finally {
+      abortSignal?.removeEventListener('abort', onAbort)
+      onFinally()
+    }
+  })()
+  return { push, fail, end, iterable }
+}
+
+/**
+ * The send()-driven run currently owning auto-reconnect for a `webSocket()`
+ * connection: reconnect is scoped to the run `send()` is driving, so a drop
+ * with no established run is surfaced to subscribers rather than auto-resumed.
+ */
+interface WebSocketRunSession {
+  runId: string | undefined
+  readonly tracker: ReconnectTracker
+  sawTerminal: boolean
+  /** Made forward progress (a new, non-duplicate chunk) since the last (re)connect. */
+  progressed: boolean
+  signal: AbortSignal | undefined
+}
+
+/**
+ * Full-duplex, conversation-scoped WebSocket connection adapter. Pairs with the
+ * server `toWebSocketResponse` / `toWebSocketStream`. `send()` writes a
+ * RunAgentInput frame; `subscribe()` yields inbound chunks.
+ *
+ * Resumable: `send()` establishes a run session backed by a
+ * {@link createReconnectTracker}. If the socket closes before a terminal
+ * (`RUN_FINISHED`/`RUN_ERROR`) chunk is seen and the run is durable
+ * (offset-tagged `{ id, chunk }` envelopes), the socket is reopened at
+ * `?runId=&offset=<lastEventId>`, de-duping the replayed boundary. A drop with
+ * no offset ever observed (non-durable) surfaces {@link StreamReadError}
+ * instead of reconnecting — there is nothing to resume from.
+ */
+export function webSocket(
+  url: string | (() => string),
+  options: WebSocketConnectionOptions = {},
+): SubscribeConnectionAdapter & {
+  joinRun: (
+    runId: string,
+    abortSignal?: AbortSignal,
+  ) => AsyncIterable<StreamChunk>
+} {
+  const Impl = options.WebSocketImpl ?? WebSocket
+  let socket: WebSocket | undefined
+  // Whether the current socket is the conversation socket ('run') or a
+  // read-only replay connection opened by a reconnect ('resume'). Only the
+  // conversation socket accepts run frames server-side.
+  let socketMode: 'run' | 'resume' | undefined
+  // Memoized per-socket open promise. `openOnce` sets `onopen`/`onerror`
+  // exactly ONCE, at socket-creation time, and stores the resulting promise
+  // here. Without this, `waitOpen` assigning `onopen`/`onerror` on every call
+  // would clobber a still-pending prior caller's handlers: `openOnce` reuses
+  // the same in-flight socket for concurrent callers (`readyState <= 1`), so a
+  // second `send()` issued before the handshake completes would overwrite the
+  // first call's handlers and leave its promise permanently unresolved.
+  let openPromise: Promise<void> | undefined
+  const listeners = new Set<WebSocketChunkSink>()
+  let currentSession: WebSocketRunSession | undefined
+
+  function failAll(error: unknown): void {
+    for (const l of listeners) l.fail(error)
+  }
+
+  function openOnce(target: string, mode: 'run' | 'resume'): WebSocket {
+    // Only the conversation socket is reused — it multiplexes many turns. A
+    // 'resume' handshake carries ?offset and must reach the server as its own
+    // connection (reusing any open socket would discard that query, so no
+    // replay would ever be requested), and a run frame must never be written
+    // to a read-only resume socket (the server registers no message listener
+    // there, so the frame would be silently ignored).
+    if (
+      socket &&
+      socket.readyState <= 1 &&
+      mode === 'run' &&
+      socketMode === 'run'
+    ) {
+      return socket
+    }
+    const prior = socket
+    const ws = options.protocols
+      ? new Impl(target, options.protocols)
+      : new Impl(target)
+    socket = ws
+    socketMode = mode
+    openPromise = new Promise<void>((resolve, reject) => {
+      ws.onopen = () => resolve()
+      ws.onerror = (e) => reject(new StreamReadError(e))
+    })
+    // Attach a no-op handler so a socket nobody awaits can't raise an
+    // unhandled rejection if it errors. Awaiters of openPromise still see the rejection.
+    openPromise.catch(() => {})
+    ws.onmessage = (event: MessageEvent) => {
+      // A retired socket (a newer connection took over below) must not keep
+      // feeding the shared listeners.
+      if (ws !== socket) return
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(String(event.data))
+      } catch (error) {
+        failAll(new StreamReadError(error))
+        return
+      }
+      if (isPingFrame(parsed)) return
+      const envelopeId = isNdjsonEnvelope(parsed) ? parsed.id : undefined
+      const chunk = restoreInboundUsage(
+        isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
+      )
+
+      // Thread durable chunks through the active run session's tracker (if
+      // any) so a later reconnect knows the last offset and can skip a
+      // replayed boundary. A socket with no active session dispatches chunks
+      // as-is.
+      const session = currentSession
+      if (session) {
+        if (session.tracker.note(envelopeId) === 'duplicate') return
+        session.progressed = true
+        if (session.runId === undefined) {
+          session.runId = getChunkRunId(chunk)
+        }
+        if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+          session.sawTerminal = true
+        }
+      }
+      for (const l of listeners) l.push(chunk)
+    }
+    ws.onclose = () => {
+      // Retired deliberately in favor of a newer connection — not a drop.
+      if (ws !== socket) return
+      const session = currentSession
+      if (!session) {
+        // No run session (never established, or cleared by a prior failure).
+        // Surface the drop so subscribers do not stay parked on a dead socket.
+        failAll(new StreamReadError(new Error('WebSocket connection closed')))
+        return
+      }
+      if (session.signal?.aborted || session.sawTerminal) return
+      const lastEventId = session.tracker.lastEventId
+      if (lastEventId === undefined) {
+        // Non-durable run (no offset ever observed) — nothing to resume
+        // from. Surface a hard failure rather than silently reconnecting
+        // forever against a server that never tags its events.
+        currentSession = undefined
+        failAll(new StreamReadError(new Error('WebSocket connection closed')))
+        return
+      }
+      void reconnect(session, lastEventId)
+    }
+    // Retire a superseded socket (e.g. a lingering resume socket when send()
+    // opens the next conversation socket) so two sockets never feed the
+    // shared listeners at once. Its handlers see it is no longer current and
+    // ignore the close.
+    if (prior && prior.readyState <= 1) prior.close()
+    return ws
+  }
+
+  async function reconnect(
+    session: WebSocketRunSession,
+    offset: string,
+  ): Promise<void> {
+    try {
+      // Bounded by the shared tracker's consecutive-no-progress ceiling —
+      // mirrors resumableStream so a flapping server can't reconnect forever.
+      await session.tracker.waitBeforeReconnect(
+        session.progressed,
+        session.signal,
+      )
+    } catch (error) {
+      if (currentSession === session) currentSession = undefined
+      failAll(error)
+      return
+    }
+    if (session.signal?.aborted) return
+    // A send() issued during the backoff supersedes this resume: a newer run
+    // (or a resubmit of this one) already owns a fresh conversation socket,
+    // and its turn re-delivers from the durability log — the tracker de-dupes
+    // any overlap. Opening the resume socket anyway would retire that live
+    // conversation socket.
+    if (currentSession !== session) return
+    if (socket && socket.readyState <= 1) return
+    session.progressed = false
+    const base = typeof url === 'function' ? url() : url
+    const target = withSearchParams(base, {
+      ...(session.runId !== undefined ? { runId: session.runId } : {}),
+      offset,
+    })
+    openOnce(target, 'resume')
+  }
+
+  function waitOpen(ws: WebSocket): Promise<void> {
+    if (ws.readyState === 1) return Promise.resolve()
+    // Concurrent callers awaiting the SAME in-flight socket share the SAME
+    // memoized promise (set once in `openOnce`), so none of them clobber
+    // another's onopen/onerror handler.
+    return openPromise ?? Promise.resolve()
+  }
+
+  return {
+    subscribe(abortSignal?: AbortSignal): AsyncIterable<StreamChunk> {
+      const pipe = createChunkPipe(abortSignal, () => listeners.delete(sink))
+      const sink: WebSocketChunkSink = { push: pipe.push, fail: pipe.fail }
+      listeners.add(sink)
+      return pipe.iterable
+    },
+    async send(messages, data, abortSignal, runContext) {
+      const target = typeof url === 'function' ? url() : url
+      const ws = openOnce(runIdQuery(target, runContext?.runId), 'run')
+      await waitOpen(ws)
+      // Establish (or continue) the run session this socket is driving, so
+      // an unterminated drop can auto-resume it. A distinct runId starts a
+      // fresh tracker (a new run's offsets are unrelated to the last one's);
+      // the same runId reuses the tracker so a repeat send() on an
+      // already-tracked run doesn't lose its de-dupe/offset state.
+      if (!currentSession || currentSession.runId !== runContext?.runId) {
+        currentSession = {
+          runId: runContext?.runId,
+          tracker: createReconnectTracker(options.reconnect),
+          sawTerminal: false,
+          progressed: false,
+          signal: abortSignal,
+        }
+      } else {
+        // Same-runId resubmit (e.g. a client-tool continuation): keep the
+        // tracker, but this is a NEW turn — with the previous turn's
+        // `sawTerminal` left set, a drop during the resubmitted turn would
+        // neither reconnect nor surface an error.
+        currentSession.signal = abortSignal
+        currentSession.sawTerminal = false
+        currentSession.progressed = false
+      }
+      const session = currentSession
+      // stop() must reach the server: the conversation socket outlives the
+      // turn, so without an abort frame the model keeps generating (and
+      // billing) server-side. The frame aborts only this run's turn.
+      abortSignal?.addEventListener(
+        'abort',
+        () => {
+          const abortRunId = session.runId
+          const live = socket
+          if (
+            abortRunId === undefined ||
+            session.sawTerminal ||
+            socketMode !== 'run' ||
+            live === undefined ||
+            live.readyState !== 1
+          ) {
+            return
+          }
+          try {
+            live.send(JSON.stringify({ type: 'abort', runId: abortRunId }))
+          } catch {
+            // Socket is CLOSING/CLOSED — the server aborts the turn on close.
+          }
+        },
+        { once: true },
+      )
+      const body = buildRunAgentInputBody(messages, data, runContext, {
+        body: options.body,
+      })
+      ws.send(JSON.stringify(body))
+    },
+    joinRun(runId, abortSignal): AsyncIterable<StreamChunk> {
+      const target = withSearchParams(typeof url === 'function' ? url() : url, {
+        offset: '-1',
+        runId,
+      })
+      // A replay handshake must reach the server as its own connection:
+      // reusing the conversation socket would discard the ?offset query (no
+      // replay ever requested), and the conversation socket must not be
+      // replaced by a read-only replay socket. So joinRun owns a dedicated
+      // socket and never touches the shared socket or run session.
+      const ws = options.protocols
+        ? new Impl(target, options.protocols)
+        : new Impl(target)
+      const pipe = createChunkPipe(abortSignal, () => {
+        if (ws.readyState <= 1) ws.close()
+      })
+      ws.onmessage = (event: MessageEvent) => {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(String(event.data))
+        } catch (error) {
+          pipe.fail(new StreamReadError(error))
+          return
+        }
+        if (isPingFrame(parsed)) return
+        pipe.push(
+          restoreInboundUsage(
+            isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
+          ),
+        )
+      }
+      ws.onclose = (event?: CloseEvent) => {
+        // 1000 = the server finished replaying the log and closed cleanly.
+        // Anything else is a drop or a policy refusal (e.g. 1008 "no resume
+        // offset") and must surface — a joinRun socket never auto-reconnects.
+        if (event?.code === 1000) {
+          pipe.end()
+          return
+        }
+        const detail = event
+          ? `${event.code}${event.reason ? `: ${event.reason}` : ''}`
+          : 'unknown'
+        pipe.fail(
+          new StreamReadError(
+            new Error(`WebSocket connection closed (${detail})`),
+          ),
+        )
+      }
+      return pipe.iterable
     },
   }
 }
@@ -1914,7 +2526,10 @@ export interface StreamConnectionHandlers {
    * Server-driven chat hydration for `persistence: true`: the stored
    * transcript for `threadId` plus a cursor to an in-flight run.
    */
-  hydrate?: (threadId: string) => Promise<ChatHydrationResult>
+  hydrate?: (
+    threadId: string,
+    options?: ChatHydrateOptions,
+  ) => Promise<ChatHydrationResult>
   /**
    * Server-driven generation hydration for `persistence: true`: the last
    * generation's resume snapshot for `threadId` plus a cursor to a run still
@@ -2009,8 +2624,14 @@ export function fetcherToConnectionAdapter(
           data,
           threadId: runContext.threadId,
           runId: runContext.runId,
+          ...(runContext.parentRunId !== undefined
+            ? { parentRunId: runContext.parentRunId }
+            : {}),
+          ...(runContext.resume !== undefined
+            ? { resume: runContext.resume }
+            : {}),
         },
-        { signal: abortSignal },
+        { signal: abortSignal, headers: runContext.headers },
       )
       if (result instanceof Response) {
         yield* responseToSSEChunks(result, abortSignal)

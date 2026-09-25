@@ -1,5 +1,195 @@
 # @tanstack/ai-devtools-core
 
+## 0.5.20
+
+### Patch Changes
+
+- Updated dependencies [[`54d39d3`](https://github.com/TanStack/ai/commit/54d39d30704bbdbdccea756af31530cc6713fc2e), [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb), [`74b5823`](https://github.com/TanStack/ai/commit/74b582305471eaf37a3b68595e60ed1a6f42d914), [`abb0169`](https://github.com/TanStack/ai/commit/abb0169bf96c38f59791450ce060d089a7fcd26e), [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088), [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b)]:
+  - @tanstack/ai@0.61.0
+
+## 0.5.19
+
+### Patch Changes
+
+- Updated dependencies [[`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd)]:
+  - @tanstack/ai@0.60.0
+  - @tanstack/ai-event-client@0.13.0
+
+## 0.5.18
+
+### Patch Changes
+
+- [#1438](https://github.com/TanStack/ai/pull/1438) [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0) - Add first-class subagents. `chat({ subagents })` starts named child agents (router spawn, or a synthetic tool when there is no router). The stream emits AG-UI `SUBAGENT_*` events with `subagentRunId`. The client stores nested `type: 'subagent'` parts. `useChat().subagents` and `part.subagent` are the same live handle, including `stop()`.
+
+  In the React chat UI kit, pass the same agents to `options.subagents` that you pass to `chat()`. A subagent card can style its own child's parts: `<Parts partsComponents={...} toolsComponents={...} />`. Each entry replaces the root entry of the same key for that card and its nested children. Keys you do not set use the root widgets. The card's tool names, tool `input` and `output`, and approvals are typed from that agent's `tools`. The root `interruptsComponents` also accepts the children's approval tools and `interrupts`.
+
+  Pass the same `defineAgent` list to `useChat({ subagents })` when you are not using the chat UI factory. `part.subagent.name` narrows to those names, and that child's message parts use the agent's tools.
+
+  A child card keeps all of the child's work: text, reasoning, tool calls, tool results, approvals, and nested children. A child can stop for an approval or a client tool. Its `SUBAGENT_FINISHED` has `outcome: { type: 'suspended' }`, and the parent run ends with that interrupt. The resume continues the same child. Pass `parentRunId: ctx.parentRunId` and `resume: ctx.resume` to the child `chat()`.
+
+  The AI devtools Conversation tab shows each subagent as a card of steps, drawn like the parent's steps. The steps are the child's server iterations when server events reach the devtools, else they come from the browser messages. The User view shows the child's text and tool outputs. Nested children show the same way. The child's card updates while it streams, and a later turn keeps the earlier turns.
+
+  Child token usage is added to the parent `RUN_FINISHED.usage[]`. Child messages travel on the AG-UI wire as their own messages, tagged with `subagentRunId`.
+
+  `@tanstack/ai` now depends on `@ag-ui/core` 1.0.0. Subagent events come from that package.
+
+  AG-UI `{ type: 'file' }` content sources now cross the wire as `ContentPartFileSource`. No adapter reads them yet, so `chat()` throws before it calls the adapter.
+
+  `RUN_FINISHED.usage[]` now carries `cacheWriteInputTokens`. `metadata.tanstack.usage` still carries `promptTokensDetails.cacheWriteTokens`, so older readers see the same usage as before.
+
+  `chat({ subagentRunId })` puts that id on the middleware context as `ctx.subagentRunId`. A child `chat()` passes `subagentRunId: ctx.subagentRunId`, so a middleware inside the child knows it runs as a subagent and which card it belongs to. The field is absent on a top-level run.
+
+  `fromSpecTokenUsage` adds every entry of `RUN_FINISHED.usage[]`. Before, it read only the first entry. A run with more than one usage entry now reports the total.
+
+- Updated dependencies [[`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0), [`9ab4f76`](https://github.com/TanStack/ai/commit/9ab4f7691f39884eebe8153caa9653926ae12fd0)]:
+  - @tanstack/ai@0.59.0
+
+## 0.5.17
+
+### Patch Changes
+
+- Updated dependencies [[`796f2b5`](https://github.com/TanStack/ai/commit/796f2b5f7c05debe251ad3ecd4073d8cd119b3db)]:
+  - @tanstack/ai@0.58.0
+
+## 0.5.16
+
+### Patch Changes
+
+- [#1390](https://github.com/TanStack/ai/pull/1390) [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7) - Add a `generateVoice()` activity for creating a voice, and refresh the ElevenLabs model lists.
+
+  **`generateVoice()`** creates a reusable voice and returns voice ids that `generateSpeech({ voice })` accepts. Providers create voices two ways, and the activity covers both: design one from a text `prompt`, or derive one from `referenceAudio`. Pass a `name` to keep the voice in the provider's library, and read `saved` on each returned voice to see what happened. Every returned voice also carries `status`, which is `'ready'` on every adapter today. Comes with `VoiceAdapter` / `BaseVoiceAdapter` for adapter authors, the `voice:request:*` and `voice:usage` devtools events, and a `voice_generation` OpenTelemetry operation name. See [Voice Creation](https://tanstack.com/ai/latest/docs/media/voice-creation).
+
+  **`listVoices()`** reads an account voice catalog back, for when you did not store the id `generateVoice()` returned. It filters by `origin` (`premade`, `generated`, `cloned`, `professional`). `listVoices` is an optional method on `TTSAdapter` rather than `VoiceAdapter`, because `voice` is a `generateSpeech()` option and that is where the id gets used. Only providers with a per-account catalog implement it; where the voice list is fixed the package publishes it directly (`GeminiTTSVoices` from `@tanstack/ai-gemini`, the `OpenAITTSVoice` union from `@tanstack/ai-openai`), which beats a network call, and calling `listVoices()` on such an adapter throws and points at those exports. `elevenlabsSpeech` implements it against `GET /v1/voices`.
+
+  **`elevenlabsVoiceDesign()`** implements voice creation on `eleven_ttv_v3` and `eleven_multilingual_ttv_v2`. ElevenLabs' design-then-create two-step is hidden inside the adapter. Only `eleven_ttv_v3` accepts `referenceAudio`, and it is a design reference rather than a straight clone: a `prompt` is still required, and `modelOptions.promptStrength` balances the description against the recording.
+
+  **ElevenLabs models.** `@elevenlabs/elevenlabs-js` moves to `^2.68.0` and `@elevenlabs/client` to `^1.25.0`. The bump is what makes the new music and transcription ids type-check: 2.44 pinned the music request to `modelId?: 'music_v1'` and typed speech-to-text as a two-member `'scribe_v2' | 'scribe_v1'` union. Adds `eleven_v3_conversational` (TTS), `scribe_v2_medical` (Scribe), and `music_v2_5` and `music_v2` (music). `eleven_turbo_v2`, `eleven_turbo_v2_5`, `eleven_monolingual_v1`, `scribe_v1`, and `music_v1` are still accepted and are commented as deprecated in `model-meta.ts`. `ELEVENLABS_AUDIO_MODELS` is now pinned to the SDK's own `MusicModelId | SfxModelId` with `satisfies`, so an id the SDK drops fails the build instead of the request.
+
+  **Breaking:** `eleven_text_to_sound_v1` is removed from `ELEVENLABS_AUDIO_MODELS`. ElevenLabs dropped it from the catalog and from the SDK's `SfxModelId`, so the adapter can no longer send it. Use `eleven_text_to_sound_v2`.
+
+- Updated dependencies [[`04bfd8c`](https://github.com/TanStack/ai/commit/04bfd8c26ce337cca53f3f8d286f14ed0432a329), [`254ab5f`](https://github.com/TanStack/ai/commit/254ab5ff5b0a9ca945cb313588f4b56394c7ecf7)]:
+  - @tanstack/ai@0.57.0
+  - @tanstack/ai-event-client@0.12.0
+
+## 0.5.15
+
+### Patch Changes
+
+- Updated dependencies [[`7c4b25e`](https://github.com/TanStack/ai/commit/7c4b25ebefc64e4f209c282788f515939eca02e9), [`f60f736`](https://github.com/TanStack/ai/commit/f60f73612dd7621e2f1ad76abb1a640307dea3c6)]:
+  - @tanstack/ai@0.56.0
+
+## 0.5.14
+
+### Patch Changes
+
+- Updated dependencies [[`fa13446`](https://github.com/TanStack/ai/commit/fa13446fab9b9048de9433a5ebf55bc626f5fd74), [`0945a79`](https://github.com/TanStack/ai/commit/0945a79b0923b31a5122d0bf28c115879341a410)]:
+  - @tanstack/ai@0.55.0
+
+## 0.5.13
+
+### Patch Changes
+
+- Updated dependencies [[`c17bc95`](https://github.com/TanStack/ai/commit/c17bc951ca783d8023bf54d69035c19c0c72ea2f), [`53e2ec0`](https://github.com/TanStack/ai/commit/53e2ec082b40d8c3fcd09f408c29f0b895436198), [`6269eff`](https://github.com/TanStack/ai/commit/6269eff90e770205ffd9cae8c5989b8ff02b57ce)]:
+  - @tanstack/ai@0.54.0
+  - @tanstack/ai-event-client@0.11.3
+
+## 0.5.12
+
+### Patch Changes
+
+- Updated dependencies [[`21775ee`](https://github.com/TanStack/ai/commit/21775ee2d23dd594cdc184678ff587341bd74871)]:
+  - @tanstack/ai@0.53.0
+
+## 0.5.11
+
+### Patch Changes
+
+- [#1235](https://github.com/TanStack/ai/pull/1235) [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7) - Show compaction in TanStack AI DevTools. `withCompaction` injects
+  `compaction:started`, `compaction:state`, and `compaction:ended` CUSTOM
+  stream events. State includes before/after counts, the token budget, and
+  dropped vs sent message previews. The chat client re-emits the same three
+  events. The AI panel has a Compaction tab and started/state/ended steps on
+  the iteration.
+- Updated dependencies [[`49fc54c`](https://github.com/TanStack/ai/commit/49fc54ca0aacf2fc60bb36647a61a23559dda4bc), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7), [`e04ff6a`](https://github.com/TanStack/ai/commit/e04ff6abcb86c5ede17cd8c1c96df82e9aae03d7)]:
+  - @tanstack/ai@0.52.0
+  - @tanstack/ai-event-client@0.11.2
+
+## 0.5.10
+
+### Patch Changes
+
+- [#1236](https://github.com/TanStack/ai/pull/1236) [`5dc4e1a`](https://github.com/TanStack/ai/commit/5dc4e1a08728b410f85956093ccef621d12b4d6b) - Add `@tanstack/ai-skills`: portable Agent Skills (`SKILL.md`) as a first-class `chat()` middleware.
+
+  `withSkills(sources, options?)` renders a skill catalog and a `load_skill` tool so any tool-calling model can load skills on demand, on any provider, with no server sandbox. Skills come from `inlineSkill`, `skillDirectory` (`/node`), or a build-time `staticSkills` bundle, and compose via `aggregate`/`dedupe`/`filter`/`cache`. `createResourceTool` exposes a skill's bundled files through `read_skill_resource`, and `runSkillSourceConformance` (`/testing`) validates custom `SkillSource` adapters. The catalog renders as `<available_skills>` XML for Anthropic models and markdown for others; portable and hosted (native) skills refuse to combine in one call.
+
+  Core `@tanstack/ai` now exports `SkillLimitError`. The native factories throw it (or add validation): `codeExecutionTool` (`@tanstack/ai-anthropic`) frames its 8-skill cap, and `shellTool` (`@tanstack/openai-base`) now validates `skill_id` format instead of nothing. `@tanstack/ai-sandbox` reuses the shared skill-directory walk from `@tanstack/ai-skills`.
+
+  `withSkills` sends a `skills:state` CUSTOM chunk so TanStack AI DevTools can show the catalog and which skills the model loaded.
+
+- Updated dependencies [[`5dc4e1a`](https://github.com/TanStack/ai/commit/5dc4e1a08728b410f85956093ccef621d12b4d6b), [`a7e0798`](https://github.com/TanStack/ai/commit/a7e079872af372496728d25e6ec23149cd5e04b9), [`6a083bf`](https://github.com/TanStack/ai/commit/6a083bfcfaa4fd0c83368c4d10067e5c2298e22c)]:
+  - @tanstack/ai@0.51.0
+  - @tanstack/ai-event-client@0.11.1
+
+## 0.5.9
+
+### Patch Changes
+
+- [#1204](https://github.com/TanStack/ai/pull/1204) [`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b) - Preserve tool-result identity, metadata, multimodal content, and timestamps across message conversions and hydration.
+
+  Correct the public `WireMessage` type. System and user messages now require content, and the union no longer includes outbound activity messages.
+
+  Keep structured multimodal content compatible with the AI devtools message store.
+
+- Updated dependencies [[`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b), [`62c19ed`](https://github.com/TanStack/ai/commit/62c19edce7a814d868491ca920003899ec4c486b)]:
+  - @tanstack/ai@0.50.0
+  - @tanstack/ai-event-client@0.11.0
+
+## 0.5.8
+
+### Patch Changes
+
+- [#1186](https://github.com/TanStack/ai/pull/1186) [`0279284`](https://github.com/TanStack/ai/commit/0279284957b2d1baf5473c3f18763e6a3df0c782) - Add the Svelte plugin and panel package for TanStack AI Devtools, and update the existing Devtools packages to `@tanstack/devtools-utils` 0.7.
+
+- Updated dependencies [[`67ce4e5`](https://github.com/TanStack/ai/commit/67ce4e529c42e64d4591f996c7e3e32458d5dd7c)]:
+  - @tanstack/ai@0.49.1
+
+## 0.5.7
+
+### Patch Changes
+
+- Updated dependencies [[`b7ebcb0`](https://github.com/TanStack/ai/commit/b7ebcb0bbe63e425facb5e38f138bd0cd36637dd)]:
+  - @tanstack/ai@0.49.0
+
+## 0.5.6
+
+### Patch Changes
+
+- Updated dependencies [[`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46)]:
+  - @tanstack/ai@0.48.0
+  - @tanstack/ai-event-client@0.10.0
+
+## 0.5.5
+
+### Patch Changes
+
+- Updated dependencies [[`5f68cbc`](https://github.com/TanStack/ai/commit/5f68cbccf3621b48dae73cedcb1e59cb4cbe72b4), [`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29)]:
+  - @tanstack/ai@0.47.0
+
+## 0.5.4
+
+### Patch Changes
+
+- Updated dependencies [[`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b), [`4599019`](https://github.com/TanStack/ai/commit/4599019eb02f72562ef155b69b8f61f9d25d187a), [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b), [`ecd12a4`](https://github.com/TanStack/ai/commit/ecd12a408987bc75649c21aada6948282a2a66dd)]:
+  - @tanstack/ai-event-client@0.9.0
+  - @tanstack/ai@0.46.0
+
+## 0.5.3
+
+### Patch Changes
+
+- Updated dependencies [[`d10dfe6`](https://github.com/TanStack/ai/commit/d10dfe6eca788ae52631d45e5599aa0c45e9ba37), [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b), [`c63319e`](https://github.com/TanStack/ai/commit/c63319e34a2ca2f1d56b90addf28784f7c3e13ad), [`b09e010`](https://github.com/TanStack/ai/commit/b09e010b32932c812e65b1e14f6faa2b0e6d5cb8), [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d)]:
+  - @tanstack/ai@0.45.0
+
 ## 0.5.2
 
 ### Patch Changes

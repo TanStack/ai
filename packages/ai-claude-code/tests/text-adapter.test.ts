@@ -16,7 +16,7 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { SandboxCapability } from '@tanstack/ai-sandbox'
 import { claudeCodeText } from '../src/index'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { CapabilityContext, StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk, CapabilityContext } from '@tanstack/ai'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
 const baseDir = path.join(os.tmpdir(), `tanstack-ai-cc-test-${Date.now()}`)
@@ -34,9 +34,15 @@ const FAKE_CLAUDE = [
   `process.stdin.on('end', () => {`,
   `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
   `  w({ type: 'system', subtype: 'init', session_id: 'sess-abc', model: 'haiku', tools: [] })`,
-  // Echo IS_SANDBOX so the test can assert the adapter sets it (claude refuses
-  // bypassPermissions as root without it).
-  `  w({ type: 'assistant', message: { id: 'msg-1', content: [{ type: 'text', text: 'pong IS_SANDBOX=' + process.env.IS_SANDBOX }] }, parent_tool_use_id: null })`,
+  `  w({ type: 'stream_event', event: { type: 'message_start', message: { id: 'msg-1' } }, parent_tool_use_id: null })`,
+  `  w({ type: 'stream_event', event: { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'toolu-1', name: 'Read' } }, parent_tool_use_id: null })`,
+  `  w({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"file":' } }, parent_tool_use_id: null })`,
+  `  w({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '"a.ts"}' } }, parent_tool_use_id: null })`,
+  `  w({ type: 'stream_event', event: { type: 'content_block_stop', index: 0 }, parent_tool_use_id: null })`,
+  `  w({ type: 'assistant', message: { id: 'msg-1', content: [{ type: 'tool_use', id: 'toolu-1', name: 'Read', input: { file: 'a.ts' } }] }, parent_tool_use_id: null })`,
+  `  w({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu-1', content: 'file contents' }] }, parent_tool_use_id: null })`,
+  // Echo IS_SANDBOX so the test can assert local-process does not set it.
+  `  w({ type: 'assistant', message: { id: 'msg-2', content: [{ type: 'text', text: 'pong IS_SANDBOX=' + process.env.IS_SANDBOX }] }, parent_tool_use_id: null })`,
   `  w({ type: 'result', subtype: 'success', result: 'pong', usage: { input_tokens: 1, output_tokens: 1 } })`,
   `})`,
 ].join('\n')
@@ -61,9 +67,9 @@ function capabilityContextWith(handle: SandboxHandle): CapabilityContext {
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }
@@ -76,7 +82,6 @@ describe('claude-code in-sandbox adapter', () => {
     const adapter = claudeCodeText('haiku', {
       // Relative executable + cwd=/workspace (mapped to the sandbox root).
       claudeExecutable: 'node fake-claude.mjs',
-      streamPartials: false,
       emitDiff: false,
     })
 
@@ -107,9 +112,12 @@ describe('claude-code in-sandbox adapter', () => {
       .map((c) => (c as { delta?: string }).delta ?? '')
       .join('')
     expect(text).toContain('pong')
-    // The adapter must set IS_SANDBOX=1 in the CLI env (claude refuses
-    // `--dangerously-skip-permissions`/bypassPermissions as root otherwise).
-    expect(text).toContain('IS_SANDBOX=1')
+    // Isolated sandboxes set IS_SANDBOX=1. local-process must not.
+    expect(text).toContain('IS_SANDBOX=undefined')
+
+    const args = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
+    expect(args.map((chunk) => chunk.delta)).toEqual(['{"file":', '"a.ts"}'])
+    expect(args.every((chunk) => !('args' in chunk))).toBe(true)
 
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
 
@@ -160,5 +168,145 @@ describe('claude-code in-sandbox adapter', () => {
     expect(chunks.some((c) => c.type === 'RUN_ERROR')).toBe(false)
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
     await sbx.destroy()
+  })
+
+  it('passes --json-schema and emits structured-output.complete', async () => {
+    const fake = [
+      `import { writeFileSync } from 'node:fs'`,
+      `writeFileSync('argv.txt', process.argv.slice(2).join(' '))`,
+      `let input = ''`,
+      `process.stdin.on('data', (d) => { input += d })`,
+      `process.stdin.on('end', () => {`,
+      `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
+      `  w({ type: 'system', subtype: 'init', session_id: 'sess-so', model: 'haiku', tools: [] })`,
+      `  w({ type: 'assistant', message: { id: 'msg-1', content: [{ type: 'text', text: 'looking' }] }, parent_tool_use_id: null })`,
+      `  w({ type: 'result', subtype: 'success', result: 'done', structured_output: { summary: 'ok' }, usage: { input_tokens: 1, output_tokens: 1 } })`,
+      `})`,
+    ].join('\n')
+
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-claude.mjs', fake)
+
+    const adapter = claudeCodeText('haiku', {
+      claudeExecutable: 'node fake-claude.mjs',
+      streamPartials: false,
+      emitDiff: false,
+      settingSources: ['project', 'local'],
+    })
+
+    const chunks = await collect(
+      adapter.chatStream({
+        model: 'haiku',
+        messages: [{ role: 'user', content: 'summarize' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+        outputSchema: {
+          type: 'object',
+          properties: { summary: { type: 'string' } },
+          required: ['summary'],
+        },
+      }),
+    )
+
+    const argv = await sbx.fs.read('/workspace/argv.txt')
+    expect(argv).not.toContain('--bare')
+    expect(argv).toContain('--setting-sources')
+    expect(argv).toContain('project,local')
+    expect(argv).toContain('--json-schema')
+    expect(argv).toContain('"type":"object"')
+    expect(argv).toContain('"summary"')
+    expect(argv).not.toContain('tanstack-output-schema')
+    expect(argv).not.toMatch(/--json-schema\s+\./)
+
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete).toBeDefined()
+    if (complete?.type === 'CUSTOM') {
+      expect(complete.value).toEqual(
+        expect.objectContaining({ object: { summary: 'ok' } }),
+      )
+    }
+
+    await sbx.destroy()
+  })
+
+  it('uses project as the default setting source', async () => {
+    const fake = [
+      `import { writeFileSync } from 'node:fs'`,
+      `writeFileSync('argv.txt', process.argv.slice(2).join(' '))`,
+      `let input = ''`,
+      `process.stdin.on('data', (d) => { input += d })`,
+      `process.stdin.on('end', () => {`,
+      `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
+      `  w({ type: 'system', subtype: 'init', session_id: 'sess-default', model: 'haiku', tools: [] })`,
+      `  w({ type: 'result', subtype: 'success', result: 'ok', usage: { input_tokens: 1, output_tokens: 1 } })`,
+      `})`,
+    ].join('\n')
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-claude.mjs', fake)
+
+    try {
+      const adapter = claudeCodeText('haiku', {
+        claudeExecutable: 'node fake-claude.mjs',
+        streamPartials: false,
+        emitDiff: false,
+      })
+      await collect(
+        adapter.chatStream({
+          model: 'haiku',
+          messages: [{ role: 'user', content: 'hi' }],
+          logger: noopLogger,
+          capabilities: capabilityContextWith(sbx),
+        }),
+      )
+
+      expect(await sbx.fs.read('/workspace/argv.txt')).toMatch(
+        /--setting-sources project(?:\s|$)/,
+      )
+    } finally {
+      await sbx.destroy()
+    }
+  })
+
+  it('copies ANTHROPIC_API_KEY from the host process into the CLI env', async () => {
+    const fake = [
+      `import { writeFileSync } from 'node:fs'`,
+      `writeFileSync('auth-probe.txt', process.env.ANTHROPIC_API_KEY ? 'set' : 'missing')`,
+      `let input = ''`,
+      `process.stdin.on('data', (d) => { input += d })`,
+      `process.stdin.on('end', () => {`,
+      `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
+      `  w({ type: 'system', subtype: 'init', session_id: 'sess-auth', model: 'haiku', tools: [] })`,
+      `  w({ type: 'assistant', message: { id: 'msg-1', content: [{ type: 'text', text: 'ok' }] }, parent_tool_use_id: null })`,
+      `  w({ type: 'result', subtype: 'success', result: 'ok', usage: { input_tokens: 1, output_tokens: 1 } })`,
+      `})`,
+    ].join('\n')
+
+    const previous = process.env.ANTHROPIC_API_KEY
+    process.env.ANTHROPIC_API_KEY = 'sk-test-not-a-real-key'
+    const sbx = await provider.create({})
+    try {
+      await sbx.fs.write('/workspace/fake-claude.mjs', fake)
+      const adapter = claudeCodeText('haiku', {
+        claudeExecutable: 'node fake-claude.mjs',
+        streamPartials: false,
+        emitDiff: false,
+      })
+      const chunks = await collect(
+        adapter.chatStream({
+          model: 'haiku',
+          messages: [{ role: 'user', content: 'hi' }],
+          logger: noopLogger,
+          capabilities: capabilityContextWith(sbx),
+        }),
+      )
+      expect(chunks.some((c) => c.type === 'RUN_ERROR')).toBe(false)
+      expect(await sbx.fs.read('/workspace/auth-probe.txt')).toBe('set')
+    } finally {
+      if (previous === undefined) delete process.env.ANTHROPIC_API_KEY
+      else process.env.ANTHROPIC_API_KEY = previous
+      await sbx.destroy()
+    }
   })
 })

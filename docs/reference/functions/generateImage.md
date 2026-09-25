@@ -3,13 +3,11 @@ id: generateImage
 title: generateImage
 ---
 
-# Function: generateImage()
-
 ```ts
 function generateImage<TAdapter, TStream>(options): ImageActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateImage/index.ts:221](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/index.ts#L221)
+Defined in: [packages/ai/src/activities/generateImage/index.ts:246](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/index.ts#L246)
 
 Image activity - generates images from text prompts.
 
@@ -37,6 +35,8 @@ Uses AI image generation models to create images based on natural language descr
 
 ## Examples
 
+**Generate a single image**
+
 ```ts
 import { generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
@@ -48,6 +48,8 @@ const result = await generateImage({
 
 console.log(result.images[0].url)
 ```
+
+**Generate multiple images**
 
 ```ts
 const result = await generateImage({
@@ -61,6 +63,8 @@ result.images.forEach((image, i) => {
   console.log(`Image ${i + 1}: ${image.url}`)
 })
 ```
+
+**With provider-specific options**
 
 ```ts
 const result = await generateImage({

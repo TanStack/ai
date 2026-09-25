@@ -9,6 +9,7 @@ import type {
   DocumentPart,
   ImagePart,
   InferSchemaType,
+  InterruptDefinition,
   InferToolInput,
   InferToolOutput,
   InputSchemaOf,
@@ -21,9 +22,12 @@ import type {
   SchemaInput,
   StreamChunk,
   StructuredOutputPart,
+  SubagentHandleData,
+  SubagentStatus,
   UIResourcePart,
   VideoPart,
 } from '@tanstack/ai/client'
+import type { ByokClient } from './byok'
 import type { ConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
 import type { ChatDevtoolsBridgeFactory } from './devtools-noop'
@@ -86,6 +90,51 @@ export interface GenericAGUIInterrupt extends BoundInterruptBase {
   resolveInterrupt: (payload: unknown) => void
 }
 
+type InterruptResponseInput<TDefinition> =
+  TDefinition extends InterruptDefinition<any, any, infer TResponseSchema, any>
+    ? InferSchemaType<TResponseSchema>
+    : never
+
+type RegisteredGenericInterruptFor<
+  TDefinition extends InterruptDefinition<any, any, any, any>,
+> =
+  TDefinition extends InterruptDefinition<
+    infer TDefinitionId,
+    any,
+    any,
+    infer TPayload
+  >
+    ? BoundInterruptBase & {
+        readonly kind: 'generic'
+        readonly definitionId: TDefinitionId
+        readonly key: string
+        readonly payload: TPayload | undefined
+        readonly binding: Readonly<
+          Extract<InterruptBinding, { kind: 'generic' }> & {
+            definitionId: TDefinitionId
+            key: string
+            batchIndex: number
+          }
+        >
+        resolveInterrupt: (
+          response: InterruptResponseInput<TDefinition>,
+        ) => void
+      }
+    : never
+
+export type RegisteredGenericInterrupt<
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+> = TInterrupts[number] extends infer TDefinition
+  ? TDefinition extends InterruptDefinition<any, any, any, any>
+    ? RegisteredGenericInterruptFor<TDefinition>
+    : never
+  : never
+
+/** A bound generic interrupt for one `defineInterrupt()` definition. */
+export type GenericInterrupt<
+  TDefinition extends InterruptDefinition<any, any, any, any>,
+> = RegisteredGenericInterruptFor<TDefinition>
+
 /**
  * An interrupt that arrived on the stream carrying no resume binding this
  * client understands — no `tanstack:interruptBinding`, or one written at a
@@ -98,7 +147,10 @@ export interface GenericAGUIInterrupt extends BoundInterruptBase {
  * send an answer no one is waiting for. Render it, or route it to whatever
  * actually owns the pause.
  */
-export interface UnboundInterrupt extends BoundInterruptBase {
+export interface UnboundInterrupt extends Omit<
+  BoundInterruptBase,
+  'cancel' | 'clearResolution'
+> {
   readonly kind: 'unbound'
   readonly binding?: undefined
   readonly canResolve: false
@@ -188,18 +240,37 @@ type ApprovalInterrupts<TTools extends ReadonlyArray<AnyClientTool>> =
 // union.
 export type ChatInterrupt<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
-> = GenericAGUIInterrupt | UnboundInterrupt | ApprovalInterrupts<TTools>
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> =
+  | GenericAGUIInterrupt
+  | RegisteredGenericInterrupt<TInterrupts>
+  | UnboundInterrupt
+  | ApprovalInterrupts<TTools>
+
+export type ResolvableChatInterrupt<
+  TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> =
+  | GenericAGUIInterrupt
+  | RegisteredGenericInterrupt<TInterrupts>
+  | ApprovalInterrupts<TTools>
 
 export type BoundInterrupts<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
-> = ReadonlyArray<ChatInterrupt<TTools>>
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> = ReadonlyArray<ChatInterrupt<TTools, TInterrupts>>
 
 export interface ChatInterruptState<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
-  readonly interrupts: BoundInterrupts<TTools>
+  readonly interrupts: BoundInterrupts<TTools, TInterrupts>
   /** @deprecated Use `interrupts`. Same snapshot today. */
-  readonly pendingInterrupts: BoundInterrupts<TTools>
+  readonly pendingInterrupts: BoundInterrupts<TTools, TInterrupts>
   readonly interruptErrors: ReadonlyArray<BatchInterruptError>
   readonly resuming: boolean
 }
@@ -223,6 +294,8 @@ export interface ChatFetcherInput {
 export interface ChatFetcherOptions {
   /** Fires when `stop()` is called or the request is superseded. */
   signal: AbortSignal
+  /** Extra request headers for this run (e.g. BYOK keys). */
+  headers?: Record<string, string>
 }
 
 /**
@@ -329,6 +402,18 @@ export interface MultimodalContent {
    * If not provided, a unique ID will be generated.
    */
   id?: string
+  /**
+   * Optional AG-UI metadata bag copied onto the resulting UIMessage.
+   *
+   * @example
+   * ```ts
+   * await client.sendMessage({
+   *   content: 'Show me failed logins',
+   *   metadata: { author: { id: 'user-42', name: 'Dana' } },
+   * })
+   * ```
+   */
+  metadata?: Record<string, any>
 }
 
 /**
@@ -394,9 +479,9 @@ export interface QueueConfig {
  * function form (no `batch` via function). Per-call `sendOptions.whenBusy`
  * overrides the strategy for that send.
  *
- * Actions match {@link WhenBusy}: `'queue' | 'drop' | 'interrupt'`. Concurrent
- * streams are not supported. `pending.id` is the id that will be stored if the
- * action is `'queue'` (safe to pass to `cancelQueued`).
+ * Actions match {@link WhenBusy}. Concurrent streams are not supported.
+ * `pending.id` is the id that will be stored if the action is `'queue'`
+ * (safe to pass to `cancelQueued`).
  */
 export type QueueStrategy = (ctx: {
   pending: QueuedMessage
@@ -411,6 +496,16 @@ export type QueueOption = WhenBusy | QueueConfig | QueueStrategy
 export interface SendMessageOptions {
   /** Overrides the configured `whenBusy` for this one send. */
   whenBusy?: WhenBusy
+  /**
+   * Extra JSON merged into this request's wire `forwardedProps`.
+   * Shallow merge: `{ ...chatBody, ...positionalBody, ...body }`.
+   * This field wins on key collisions.
+   *
+   * Framework hooks (`useChat`, `injectChat`, `createChat`) expose
+   * `sendMessage(content, options)` with no positional body, so this field
+   * is the per-call body channel on those surfaces.
+   */
+  body?: Record<string, any>
 }
 
 /**
@@ -419,6 +514,20 @@ export interface SendMessageOptions {
 export interface TextPart {
   type: 'text'
   content: string
+}
+
+/**
+ * Tool-call part for a bare `{ name }` tool, such as a server tool
+ * definition a subagent carries. No `approval` field.
+ */
+type ToolCallPartForNamedTool<T extends { name: string }> = {
+  type: 'tool-call'
+  id: string
+  name: T['name']
+  arguments: string
+  input?: InferToolInput<T>
+  state: ToolCallState
+  output?: InferToolOutput<T>
 }
 
 /**
@@ -456,7 +565,9 @@ type ToolCallPartForTool<T> = T extends AnyClientTool
       : // Tools without `needsApproval: true` never carry an approval field.
         // `& unknown` is a no-op intersection (adds nothing).
         unknown)
-  : never
+  : T extends { name: string }
+    ? ToolCallPartForNamedTool<T>
+    : never
 
 /**
  * Fallback tool-call part type when tools are not typed
@@ -488,24 +599,28 @@ type UntypedToolCallPart = {
  * }
  * ```
  */
-export type ToolCallPart<TTools extends ReadonlyArray<AnyClientTool> = any> =
+export type ToolCallPart<TTools extends ReadonlyArray<{ name: string }> = any> =
   // Check if we have a concrete tools array (not 'any' or 'never')
   [TTools] extends [never]
     ? UntypedToolCallPart
     : unknown extends TTools
       ? UntypedToolCallPart
       : TTools extends ReadonlyArray<infer Tool>
-        ? Tool extends AnyClientTool
+        ? Tool extends { name: string }
           ? ToolCallPartForTool<Tool>
           : UntypedToolCallPart
         : UntypedToolCallPart
 
 export interface ToolResultPart {
   type: 'tool-result'
+  id?: string
+  name?: string
   toolCallId: string
   content: string | Array<ContentPart>
   state: ToolResultState
   error?: string // Error message if state is "error"
+  metadata?: Record<string, unknown>
+  createdAt?: Date
 }
 
 export interface ThinkingPart {
@@ -513,9 +628,97 @@ export interface ThinkingPart {
   content: string
 }
 
+export type { SubagentStatus }
+
+export interface SubagentHandle extends SubagentHandleData {
+  /**
+   * Set by ChatClient on every card it holds, streamed, restored, or initial,
+   * nested cards included. Calling it marks the card `error` (`Stopped`),
+   * ignores that child's later chunks until the same child starts again, and
+   * aborts the local request, parent stream included. A durable server run
+   * keeps going.
+   */
+  stop?: () => void
+}
+
+export interface SubagentPart {
+  type: 'subagent'
+  subagent: SubagentHandle
+}
+
+/**
+ * The slice of a server `defineAgent` result that the client reads for types.
+ * The client does not call `run`. Put tool definitions (from
+ * `toolDefinition`) in `tools` to type the child's tool calls and approvals.
+ */
+export type SubagentClientAgent = {
+  name: string
+  description?: string
+  tools?: ReadonlyArray<{ name: string }>
+  interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
+  outputSchema?: SchemaInput
+}
+
+type AgentToolList<TAgent> = TAgent extends { tools?: infer TTools }
+  ? [undefined] extends [TTools]
+    ? [TTools] extends [undefined]
+      ? any
+      : Exclude<TTools, undefined> extends ReadonlyArray<infer TTool>
+        ? [TTool] extends [never]
+          ? any
+          : Exclude<TTools, undefined>
+        : any
+    : TTools extends ReadonlyArray<infer TTool>
+      ? [TTool] extends [never]
+        ? any
+        : TTools
+      : any
+  : any
+
+type AgentOutputData<TAgent> = TAgent extends { outputSchema?: infer TSchema }
+  ? Exclude<TSchema, undefined> extends SchemaInput
+    ? [Exclude<TSchema, undefined>] extends [never]
+      ? unknown
+      : InferSchemaType<Exclude<TSchema, undefined>>
+    : unknown
+  : unknown
+
+/** One child handle. `name` is the discriminant. */
+export type SubagentHandleOf<TAgent extends SubagentClientAgent> = Omit<
+  SubagentHandle,
+  'name' | 'messages'
+> & {
+  name: TAgent['name']
+  messages: Array<UIMessage<AgentToolList<TAgent>, AgentOutputData<TAgent>>>
+}
+
+export type SubagentHandles<
+  TAgents extends ReadonlyArray<SubagentClientAgent> | undefined,
+> = [TAgents] extends [undefined]
+  ? SubagentHandle
+  : unknown extends TAgents
+    ? SubagentHandle
+    : TAgents extends ReadonlyArray<infer TAgent>
+      ? TAgent extends SubagentClientAgent
+        ? SubagentHandleOf<TAgent>
+        : SubagentHandle
+      : SubagentHandle
+
+export type SubagentPartOf<
+  TAgents extends ReadonlyArray<SubagentClientAgent> | undefined,
+> = [TAgents] extends [undefined]
+  ? SubagentPart
+  : unknown extends TAgents
+    ? SubagentPart
+    : {
+        type: 'subagent'
+        subagent: SubagentHandles<TAgents>
+      }
+
 export type MessagePart<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TTools extends ReadonlyArray<{ name: string }> = any,
   TData = unknown,
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
 > =
   | TextPart
   | ImagePart
@@ -527,6 +730,7 @@ export type MessagePart<
   | ThinkingPart
   | StructuredOutputPart<TData>
   | UIResourcePart
+  | SubagentPartOf<TSubagents>
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
@@ -541,13 +745,20 @@ export type MessagePart<
  * is typed without manual casts.
  */
 export interface UIMessage<
-  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TTools extends ReadonlyArray<{ name: string }> = any,
   TData = unknown,
+  TSubagents extends ReadonlyArray<SubagentClientAgent> | undefined = undefined,
 > {
   id: string
   role: 'system' | 'user' | 'assistant'
-  parts: Array<MessagePart<TTools, TData>>
+  name?: string
+  parts: Array<MessagePart<TTools, TData, TSubagents>>
   createdAt?: Date
+  /**
+   * Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
+   * User keys stay at the top.
+   */
+  metadata?: Record<string, any>
 }
 
 /**
@@ -627,6 +838,45 @@ export interface ChatClientPersistence<
 export type ChatPersistenceOption<
   TTools extends ReadonlyArray<AnyClientTool> = any,
 > = boolean | ChatClientPersistence<TTools>
+
+/**
+ * The `persistence` / `threadId` pairing for `ChatClient` and the chat hooks.
+ *
+ * Persistence that is on (`true` or a storage adapter) requires a `threadId`.
+ * A minted id changes every reload, so nothing would restore. The compiler
+ * asks for the conversation id instead.
+ *
+ * Omit `persistence`, or set it to `false`, and `threadId` stays optional.
+ * The client then mints one after mount for the wire and DevTools.
+ *
+ * Intersect this onto `ChatClientOptions`. Do not apply a later plain `Omit`
+ * to that type: it collapses the union and the requirement disappears. Use
+ * {@link DistributedOmit}.
+ */
+export type ChatPersistenceOptions<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> =
+  | {
+      persistence: true
+      threadId: string
+      /**
+       * Newest-window size for server hydrate. Only with `persistence: true`.
+       * Without this, hydrate still loads the full thread.
+       */
+      history?: {
+        pageSize: number
+      }
+    }
+  | {
+      persistence: ChatClientPersistence<TTools>
+      threadId: string
+      history?: never
+    }
+  | {
+      persistence?: false | undefined
+      threadId?: string
+      history?: never
+    }
 
 type IsUnknown<T> = unknown extends T
   ? [T] extends [unknown]
@@ -712,48 +962,13 @@ export type ClientContextOptionFromTools<TTools, TContext> = [
 export interface ChatClientBaseOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   /**
    * Initial messages to populate the chat
    */
   initialMessages?: Array<UIMessage<TTools>>
-
-  /**
-   * How this chat persists across reloads. See {@link ChatPersistenceOption}.
-   *
-   * - Omit or `false`: ephemeral, in-memory only.
-   * - `true`: server-authoritative. The client caches nothing and hydrates the
-   *   thread from the server by its `threadId` on mount (needs a connection with
-   *   a `hydrate` handler). Big transcripts never touch the browser, and the same
-   *   thread opens the same way on another device.
-   * - a {@link ChatClientPersistence} adapter: client-authoritative. The combined
-   *   {@link ChatPersistedState} record (transcript plus resume pointer) is cached
-   *   in the browser, restoring the transcript, pending interrupts, and an
-   *   in-flight run on reload.
-   *
-   * Use `initialResumeSnapshot` for a host-supplied in-memory rehydrate instead.
-   */
-  persistence?: ChatPersistenceOption<TTools>
-
-  /**
-   * Optional storage-key override for this chat instance, and the devtools
-   * instance id. Persistence keys on `threadId` by default; set `id` only when
-   * you need the persisted record keyed separately from the wire thread.
-   * Prefer a stable `threadId` for the common case.
-   *
-   * The framework hooks (`useChat` / `createChat`) do NOT expose `id`: a hook's
-   * identity is its `threadId`. This lower-level escape hatch exists only for
-   * direct `ChatClient` construction.
-   */
-  id?: string
-
-  /**
-   * The conversation id for this chat, stable across sends and reloads. It is
-   * the AG-UI thread key on the wire AND the key client persistence stores the
-   * conversation under, so set a stable `threadId` to have a reload restore the
-   * same conversation. If omitted, a unique thread id is generated per session.
-   */
-  threadId?: string
 
   /**
    * Initial resumable run state, useful when rehydrating a persisted client
@@ -781,6 +996,29 @@ export interface ChatClientBaseOptions<
    * migrated yet. Will be removed in a future major release.
    */
   body?: Record<string, any>
+
+  /**
+   * Optional BYOK keyring. On each send the client prepares the resolved
+   * provider and stamps `x-byok-*` request headers. Keys never go in the body.
+   */
+  byok?: ByokClient
+
+  /**
+   * The agents you pass to `chat({ subagents: { agents } })`, for types only.
+   * The client does not call `run`. `createChatHook` from
+   * `@tanstack/ai-react/ui` requires a `subagentsComponents` entry for every
+   * agent name.
+   */
+  subagents?: ReadonlyArray<SubagentClientAgent>
+
+  /**
+   * Optional provider id for this chat. If it returns a provider slug,
+   * only that key is prepared and sent. Otherwise the merged `provider`
+   * from `forwardedProps`, `body`, and per-call `sendMessage` `body` is
+   * used. Later sources win. If no slug resolves, the send throws
+   * instead of attaching every stored key.
+   */
+  byokProvider?: () => string | undefined
 
   /**
    * Client-local runtime context passed to client tool implementations.
@@ -871,7 +1109,7 @@ export interface ChatClientBaseOptions<
    */
   onResumeStateChange?: (
     resumeState: ChatResumeState | null,
-    pendingInterrupts: BoundInterrupts<TTools>,
+    pendingInterrupts: BoundInterrupts<TTools, TInterrupts>,
   ) => void
 
   /**
@@ -880,8 +1118,15 @@ export interface ChatClientBaseOptions<
    */
   onRunIdChange?: (runId: string | null) => void
 
-  /** Callback when the immutable interrupt state snapshot changes. */
-  onInterruptStateChange?: (state: ChatInterruptState<TTools>) => void
+  /**
+   * Callback when the immutable interrupt state snapshot changes.
+   * Snapshot restoration passes `{ source: 'hydrate' }`; streamed and
+   * client-initiated updates pass `{ source: 'live' }`.
+   */
+  onInterruptStateChange?: (
+    state: ChatInterruptState<TTools, TInterrupts>,
+    context: { source: 'hydrate' | 'live' },
+  ) => void
 
   /**
    * Callback when a custom event is received from a server-side tool.
@@ -902,6 +1147,9 @@ export interface ChatClientBaseOptions<
    * When provided, tools with execute functions will be called automatically
    */
   tools?: TTools
+
+  /** First-party generic interrupts this client can type and resolve. */
+  interrupts?: TInterrupts
 
   /**
    * Devtools hook metadata for this client instance.
@@ -932,14 +1180,21 @@ export interface ChatClientBaseOptions<
 
 /**
  * Options for `ChatClient`. Exactly one of `connection` or `fetcher` must be
- * provided — the type-level XOR is enforced via `ChatTransport`.
+ * provided — the type-level XOR is enforced via `ChatTransport`. Persistence
+ * that is on requires a `threadId` via {@link ChatPersistenceOptions}.
  */
 export type ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = InferredClientContext<TTools>,
-> = DistributedOmit<ChatClientBaseOptions<TTools, TContext>, 'context'> &
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> = DistributedOmit<
+  ChatClientBaseOptions<TTools, TContext, TInterrupts>,
+  'context'
+> &
   ClientContextOptionFromTools<TTools, TContext> &
-  ChatTransport
+  ChatTransport &
+  ChatPersistenceOptions<TTools>
 
 export interface ChatRequestBody {
   messages: Array<ModelMessage>
@@ -986,9 +1241,12 @@ export function clientTools<const T extends Array<AnyClientTool>>(
 export function createChatClientOptions<
   const TTools extends ReadonlyArray<AnyClientTool>,
   TContext = InferredClientContext<TTools>,
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
 >(
-  options: ChatClientOptions<TTools, TContext>,
-): ChatClientOptions<TTools, TContext> {
+  options: ChatClientOptions<TTools, TContext, TInterrupts>,
+): ChatClientOptions<TTools, TContext, TInterrupts> {
   return options
 }
 

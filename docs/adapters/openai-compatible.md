@@ -21,7 +21,7 @@ keywords:
 
 Many providers expose the OpenAI **Chat Completions** API (`/chat/completions`) — DeepSeek, Moonshot/Kimi, Together, Fireworks, Cerebras, Alibaba Qwen, Perplexity, NVIDIA NIM, and local servers like LM Studio, Ollama, and vLLM. Instead of a dedicated package per provider, TanStack AI ships one generic adapter: point it at any compatible `baseURL`, give it your models, and you get the same type-safe `chat()` experience as the first-class adapters.
 
-Use this when your provider speaks the OpenAI Chat Completions wire format but doesn't have its own `@tanstack/ai-*` package. If a dedicated adapter exists (OpenAI, Grok, Groq, OpenRouter), prefer it — those carry curated per-model metadata. For Vercel AI Gateway, install `@tanstack/ai-vercel-gateway` and use `vercelGatewayText`. See [Vercel AI Gateway](./vercel-gateway.md).
+Use this when your provider speaks the OpenAI Chat Completions wire format but doesn't have its own `@tanstack/ai-*` package. If a dedicated adapter exists (OpenAI, Grok, Groq, OpenRouter), prefer it. Those carry curated per-model metadata. For Vercel AI Gateway, install `@tanstack/ai-vercel-gateway` and use `vercelGatewayText`. See [Vercel AI Gateway](./vercel-gateway.md). For Lovable AI Gateway, install `@tanstack/ai-lovable` and use `lovableText` (plus image, video, embeddings, and speech factories). See [Lovable AI Gateway](./lovable.md).
 
 Perplexity Sonar chat stays on this adapter. [`@tanstack/ai-perplexity`](./perplexity.md) is Search/grounding only — it does not replace `openaiCompatible` for `chat()`. Optional: pass `defaultHeaders: getPerplexityIntegrationHeaders()` from that package to send Perplexity's `X-Pplx-Integration` attribution header.
 
@@ -29,9 +29,18 @@ Perplexity Sonar chat stays on this adapter. [`@tanstack/ai-perplexity`](./perpl
 
 The adapter ships inside `@tanstack/ai-openai` under the `/compatible` subpath — no extra install:
 
-```bash
-npm install @tanstack/ai-openai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-openai
+vue: @tanstack/ai-openai
+solid: @tanstack/ai-openai
+svelte: @tanstack/ai-openai
+preact: @tanstack/ai-openai
+angular: @tanstack/ai-openai
+vanilla: @tanstack/ai-openai
+octane: @tanstack/ai-openai
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 
@@ -117,7 +126,12 @@ const provider = openaiCompatible({
 
 ## Chat Completions vs Responses
 
-By default the adapter targets the **Chat Completions** API (`/chat/completions`) — the surface virtually every compatible provider implements. For the rare provider that also implements OpenAI's **Responses** API (e.g. Azure OpenAI), opt in with `api: "responses"`:
+By default the adapter targets the **Chat Completions** API (`/chat/completions`). For providers that implement the **Responses** API, select `api: "responses"`. This API choice also controls how `ChatStreamSummarizeAdapter` forwards `maxLength`, regardless of the wrapper name:
+
+- Chat Completions uses `max_tokens`.
+- Responses uses `max_output_tokens`.
+
+An explicit token limit in `modelOptions` takes precedence over `maxLength`.
 
 ```typescript
 import { openaiCompatible } from "@tanstack/ai-openai/compatible";
@@ -129,6 +143,8 @@ const provider = openaiCompatible({
   api: "responses", // default is "chat-completions"
 });
 ```
+
+**Reasoning:** Reasoning deltas stream as thinking content. Endpoints frozen on the pre-July-2025 OpenAI spec may still emit the legacy event name `response.reasoning.delta` (removed from the spec in favor of `response.reasoning_text.delta`); the adapter recognizes both and maps them identically.
 
 ## Supported Providers
 
@@ -149,6 +165,8 @@ Any provider implementing the OpenAI Chat Completions API works. Common ones are
 | Mistral | `https://api.mistral.ai/v1` | `mistral-large-latest` |
 | Nebius | `https://api.studio.nebius.ai/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | Z.AI (GLM) | `https://api.z.ai/api/paas/v4` | `glm-4.6` |
+| Upstage (Solar) | `https://api.upstage.ai/v1` | `solar-pro4`, `solar-mini` |
+| Liner | `https://platform.liner.com/api/v1` | `liner-mark-1.0` |
 | Baseten | `https://inference.baseten.co/v1` | model-dependent |
 | Hugging Face (router) | `https://router.huggingface.co/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | NVIDIA NIM | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.3-70b-instruct` |

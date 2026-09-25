@@ -3,13 +3,11 @@ id: parseWithStandardSchema
 title: parseWithStandardSchema
 ---
 
-# Function: parseWithStandardSchema()
-
 ```ts
 function parseWithStandardSchema<T>(schema, data): T;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:443](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L443)
+Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:456](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L456)
 
 Synchronously validates data against a Standard Schema compliant schema.
 Note: Some Standard Schema implementations may only support async validation.

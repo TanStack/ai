@@ -3,6 +3,7 @@ import { EventType } from '@tanstack/ai/client'
 import {
   fetchHttpStream,
   fetchServerSentEvents,
+  fetcherToConnectionAdapter,
   normalizeConnectionAdapter,
   rpcStream,
   stream,
@@ -26,7 +27,110 @@ describe('connection-adapters', () => {
     vi.clearAllMocks()
   })
 
+  it('forwards resume on a fetcher adapter', async () => {
+    const fetcher = vi.fn(async function* () {})
+    const adapter = fetcherToConnectionAdapter(fetcher)
+    const signal = new AbortController().signal
+
+    for await (const _chunk of adapter.connect([], { source: 'test' }, signal, {
+      threadId: 'thread-1',
+      runId: 'resume-run',
+      parentRunId: 'interrupted-run',
+      resume: [
+        {
+          interruptId: 'generic-1',
+          status: 'cancelled',
+          metadata: {
+            'tanstack:interruptContinuation': {
+              v: 1,
+              definitionId: 'review',
+              key: 'one',
+              batchIndex: 0,
+              reason: 'review',
+              message: 'Review',
+            },
+          },
+        },
+      ],
+    })) {
+      // Consume the terminal event.
+    }
+
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: 'thread-1',
+        runId: 'resume-run',
+        parentRunId: 'interrupted-run',
+        resume: [
+          {
+            interruptId: 'generic-1',
+            status: 'cancelled',
+            metadata: {
+              'tanstack:interruptContinuation': {
+                v: 1,
+                definitionId: 'review',
+                key: 'one',
+                batchIndex: 0,
+                reason: 'review',
+                message: 'Review',
+              },
+            },
+          },
+        ],
+      }),
+      { signal },
+    )
+  })
+
   describe('fetchServerSentEvents', () => {
+    it('sends generic continuation on resume metadata, not state', async () => {
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => ({
+            read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+            releaseLock: vi.fn(),
+          }),
+        },
+      }
+      fetchMock.mockResolvedValue(mockResponse as any)
+      const adapter = fetchServerSentEvents('/api/chat')
+      const resume = [
+        {
+          interruptId: 'generic-1',
+          status: 'cancelled' as const,
+          metadata: {
+            'tanstack:interruptContinuation': {
+              v: 1,
+              definitionId: 'review',
+              key: 'one',
+              batchIndex: 0,
+              reason: 'review',
+              message: 'Review',
+            },
+          },
+        },
+      ]
+
+      for await (const _chunk of adapter.connect(
+        [{ role: 'user', content: 'Resume' }],
+        undefined,
+        undefined,
+        {
+          threadId: 'thread-1',
+          runId: 'run-2',
+          resume,
+        },
+      )) {
+        // Consume the empty stream.
+      }
+
+      const request = fetchMock.mock.calls[0]?.[1] as RequestInit
+      const body = JSON.parse(String(request.body))
+      expect(body.resume).toEqual(resume)
+      expect(body.state).toEqual({})
+    })
+
     it('should handle SSE format with data: prefix', async () => {
       const mockReader = {
         read: vi
@@ -650,7 +754,7 @@ describe('connection-adapters', () => {
           .mockResolvedValueOnce({
             done: false,
             value: new TextEncoder().encode(
-              'data: {"type":"RUN_FINISHED","runId":"run-1","finishReason":"stop","timestamp":300}\n\n',
+              'data: {"type":"RUN_FINISHED","runId":"run-1","threadId":"thread-1","timestamp":300,"metadata":{"tanstack":{"finishReason":"stop"}}}\n\n',
             ),
           })
           .mockResolvedValueOnce({ done: true, value: undefined }),
@@ -679,6 +783,78 @@ describe('connection-adapters', () => {
   })
 
   describe('fetchHttpStream', () => {
+    it('normalizes only owned dates during fetch hydration', async () => {
+      const metadata = {
+        createdAt: 'message-metadata',
+        tanstack: { createdAt: 'metadata-tanstack-date' },
+        nested: { createdAt: 'nested-date' },
+      }
+      const content = [
+        {
+          type: 'text',
+          content: 'result',
+          metadata: { createdAt: 'content-date' },
+        },
+      ]
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          messages: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              createdAt: '2026-08-20T00:00:00.000Z',
+              parts: [
+                {
+                  type: 'tool-result',
+                  toolCallId: 'call-1',
+                  content,
+                  state: 'complete',
+                  createdAt: '2026-08-20T00:00:01.000Z',
+                  metadata: { createdAt: 'part-metadata' },
+                },
+              ],
+              metadata,
+            },
+            {
+              id: 'a2',
+              role: 'assistant',
+              createdAt: 'invalid-message-date',
+              parts: [
+                {
+                  type: 'tool-result',
+                  toolCallId: 'call-2',
+                  content: 'ok',
+                  state: 'complete',
+                  createdAt: 'invalid-part-date',
+                },
+              ],
+            },
+          ],
+          activeRun: null,
+        }),
+      })
+      const adapter = fetchHttpStream('/api/chat')
+      if (adapter.hydrate === undefined)
+        throw new Error('expected hydration support')
+
+      const result = await adapter.hydrate('thread-1')
+
+      expect(result.messages[0]?.createdAt).toEqual(
+        new Date('2026-08-20T00:00:00.000Z'),
+      )
+      expect(result.messages[0]?.parts[0]).toHaveProperty(
+        'createdAt',
+        new Date('2026-08-20T00:00:01.000Z'),
+      )
+      expect(result.messages[0]?.metadata).toEqual(metadata)
+      const part = result.messages[0]?.parts[0]
+      expect(part).toHaveProperty('metadata', { createdAt: 'part-metadata' })
+      expect(part).toHaveProperty('content', content)
+      expect(result.messages[1]).not.toHaveProperty('createdAt')
+      expect(result.messages[1]?.parts[0]).not.toHaveProperty('createdAt')
+    })
+
     it('should parse newline-delimited JSON', async () => {
       const mockReader = {
         read: vi
@@ -958,7 +1134,7 @@ describe('connection-adapters', () => {
           .mockResolvedValueOnce({
             done: false,
             value: new TextEncoder().encode(
-              '{"type":"RUN_FINISHED","runId":"run-1","finishReason":"stop","timestamp":300}\n',
+              '{"type":"RUN_FINISHED","runId":"run-1","threadId":"thread-1","timestamp":300,"metadata":{"tanstack":{"finishReason":"stop"}}}\n',
             ),
           })
           .mockResolvedValueOnce({ done: true, value: undefined }),
@@ -1020,7 +1196,7 @@ describe('connection-adapters', () => {
           threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         }
       })
 
@@ -1177,9 +1353,6 @@ describe('connection-adapters', () => {
           type: EventType.RUN_ERROR,
           message: 'already failed',
           timestamp: Date.now(),
-          error: {
-            message: 'already failed',
-          },
         }
         throw new Error('connect exploded')
       })
@@ -1205,7 +1378,7 @@ describe('connection-adapters', () => {
       expect(received).toHaveLength(1)
       expect(received[0]?.type).toBe('RUN_ERROR')
       if (received[0]?.type === 'RUN_ERROR') {
-        expect(received[0].error?.message).toBe('already failed')
+        expect(received[0].message).toBe('already failed')
       }
     })
   })
@@ -1248,7 +1421,7 @@ describe('connection-adapters', () => {
           threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         }
       })
 
@@ -1355,6 +1528,115 @@ describe('connection-adapters', () => {
       await expect(arrayAdapter.hydrateGeneration!('t1')).rejects.toThrow(
         /an array/,
       )
+    })
+  })
+
+  describe('chat hydrate paging', () => {
+    function jsonHydrationResponse(body: {
+      messages?: Array<{
+        id: string
+        role: 'user' | 'assistant' | 'system'
+        parts: Array<{ type: 'text'; content: string }>
+      }>
+      activeRun?: { runId: string } | null
+      page?: { truncated: boolean; cursor?: string }
+    }) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => body,
+      }
+    }
+
+    it('includes limit and before as search params when hydrate options are passed', async () => {
+      fetchMock.mockResolvedValue(
+        jsonHydrationResponse({
+          messages: [],
+          activeRun: null,
+          page: { truncated: true, cursor: 'c1' },
+        }),
+      )
+      const adapter = fetchHttpStream('/api/chat')
+      if (adapter.hydrate === undefined) {
+        throw new Error('expected hydration support')
+      }
+
+      const result = await adapter.hydrate('thread-1', {
+        limit: 50,
+        before: 'cursor-a',
+      })
+
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        '/api/chat?threadId=thread-1&limit=50&before=cursor-a',
+      )
+      expect(result.page).toEqual({ truncated: true, cursor: 'c1' })
+    })
+
+    it('treats truncated true without a cursor as a full list', async () => {
+      fetchMock.mockResolvedValue(
+        jsonHydrationResponse({
+          messages: [],
+          activeRun: null,
+          page: { truncated: true },
+        }),
+      )
+      const adapter = fetchHttpStream('/api/chat')
+      if (adapter.hydrate === undefined) {
+        throw new Error('expected hydration support')
+      }
+
+      const result = await adapter.hydrate('thread-1')
+
+      expect(result.page).toEqual({ truncated: false })
+    })
+
+    it('treats a missing page as a full list', async () => {
+      fetchMock.mockResolvedValue(
+        jsonHydrationResponse({
+          messages: [
+            {
+              id: 'm1',
+              role: 'user',
+              parts: [{ type: 'text', content: 'hi' }],
+            },
+          ],
+          activeRun: null,
+        }),
+      )
+      const adapter = fetchHttpStream('/api/chat')
+      if (adapter.hydrate === undefined) {
+        throw new Error('expected hydration support')
+      }
+
+      const result = await adapter.hydrate('thread-1')
+
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/chat?threadId=thread-1')
+      expect(result.page).toEqual({ truncated: false })
+      expect(result.messages.map((message) => message.id)).toEqual(['m1'])
+    })
+
+    it('forwards hydrate paging options through normalizeConnectionAdapter', async () => {
+      const hydration = {
+        messages: [],
+        activeRun: null,
+        interrupts: null,
+      }
+      const hydrate = vi.fn(async () => hydration)
+      const normalized = normalizeConnectionAdapter({
+        connect: async function* () {},
+        hydrate,
+      })
+
+      const result = await normalized.hydrate?.('t1', {
+        limit: 50,
+        before: 'c1',
+      })
+
+      expect(result).toEqual(hydration)
+      expect(hydrate).toHaveBeenCalledWith('t1', {
+        limit: 50,
+        before: 'c1',
+      })
     })
   })
 })

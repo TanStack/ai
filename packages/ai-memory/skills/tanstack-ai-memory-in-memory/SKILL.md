@@ -30,7 +30,11 @@ import { inMemory } from '@tanstack/ai-memory/in-memory'
 
 const memory = inMemory()
 
-memoryMiddleware({ adapter: memory, scope })
+// A static scope is fine for dev/tests; derive it from the session in real apps.
+memoryMiddleware({
+  adapter: memory,
+  scope: { threadId: 'demo-thread', userId: 'alice' },
+})
 ```
 
 ## Options

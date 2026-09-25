@@ -3,6 +3,7 @@ import {
   chat,
   chatParamsFromRequestBody,
   createCapability,
+  EventType,
   maxIterations,
   toServerSentEventsResponse,
   toolDefinition,
@@ -10,6 +11,7 @@ import {
 import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
 import { memoryMiddleware } from '@tanstack/ai-memory'
 import type { MemoryAdapter } from '@tanstack/ai-memory'
+import { clientContextToolDefinition } from '@/lib/middleware-test-tools'
 import {
   getMemoryCapture,
   recordMemoryConfig,
@@ -18,7 +20,12 @@ import {
 } from '@/lib/memory-capture'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { z } from 'zod'
-import type { ChatMiddleware, StreamChunk, Tool } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  ChatMiddleware,
+  StreamChunk,
+  Tool,
+} from '@tanstack/ai'
 import type {
   AttributeValue,
   Attributes,
@@ -34,11 +41,26 @@ import type {
 import { guitarRecommendationSchema } from '@/lib/schemas'
 import {
   getPhaseCapture,
+  recordGenericBoundary,
+  recordGenericPolicy,
+  recordGenericResolution,
+  recordGenericToolExecution,
+  recordOnError,
   recordOnFinish,
   recordPhase,
   recordYieldedChunk,
   resetPhaseCapture,
 } from '@/lib/phase-capture'
+import {
+  boundaryForScenario,
+  deleteReviewTool,
+  inspectReviewTool,
+  isGenericScenario,
+  renderReviewTool,
+  reviewPlan,
+  toolResumeForScenario,
+} from '@/lib/generic-middleware-interrupts'
+import type { GenericScenario } from '@/lib/generic-middleware-interrupts'
 import { createTextAdapter } from '@/lib/providers'
 import {
   getOtelCapture,
@@ -63,6 +85,60 @@ const weatherTool = toolDefinition({
   JSON.stringify({ city: args.city, temperature: 72, condition: 'sunny' }),
 )
 
+function createRunErrorAdapter(): AnyTextAdapter {
+  return {
+    kind: 'text',
+    name: 'run-error-test',
+    model: 'run-error-test',
+    '~types': {
+      providerOptions: {},
+      inputModalities: ['text'],
+      messageMetadataByModality: {},
+      toolCapabilities: [],
+      toolCallMetadata: undefined,
+      systemPromptMetadata: undefined,
+    },
+    async *chatStream(options): AsyncGenerator<StreamChunk> {
+      yield {
+        type: EventType.RUN_STARTED,
+        runId: options.runId ?? 'run-error-test',
+        threadId: options.threadId ?? 'run-error-test',
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.RUN_ERROR,
+        message: 'Provider failed',
+        code: 'provider_error',
+        timestamp: Date.now(),
+      }
+    },
+    structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+  }
+}
+
+const runErrorBoundaryMiddleware: ChatMiddleware<unknown, typeof reviewPlan> = {
+  name: 'run-error-boundary',
+  onInterruptBoundary(ctx) {
+    if (ctx.phase !== 'afterModel') return
+    return {
+      interrupts: [
+        reviewPlan.interrupt({
+          key: 'run-error-review',
+          reason: 'review_required',
+          message: 'Review the response',
+          payload: { title: 'Run error review', boundary: ctx.phase },
+        }),
+      ],
+    }
+  },
+}
+
+/** The adapter's accumulated `content`. The AG-UI 1.0 event type omits it. */
+function accumulated(chunk: StreamChunk): string {
+  const content: unknown = Reflect.get(chunk, 'content')
+  return typeof content === 'string' ? content : ''
+}
+
 const chunkTransformMiddleware: ChatMiddleware = {
   name: 'chunk-transform',
   onChunk(_ctx, chunk) {
@@ -70,7 +146,7 @@ const chunkTransformMiddleware: ChatMiddleware = {
       return {
         ...chunk,
         delta: '[MW] ' + chunk.delta,
-        content: '[MW] ' + (chunk.content || ''),
+        content: '[MW] ' + accumulated(chunk),
       }
     }
     return chunk
@@ -126,7 +202,7 @@ const prefixConsumerMiddleware: ChatMiddleware = {
       return {
         ...chunk,
         delta: prefix + ' ' + chunk.delta,
-        content: prefix + ' ' + (chunk.content || ''),
+        content: prefix + ' ' + accumulated(chunk),
       }
     }
     return chunk
@@ -154,6 +230,9 @@ function createPhaseRecorderMiddleware(captureId: string): ChatMiddleware {
     onFinish() {
       recordOnFinish(captureId)
     },
+    onError() {
+      recordOnError(captureId)
+    },
   }
 }
 
@@ -167,10 +246,97 @@ async function* teeForPhaseCapture(
   source: AsyncIterable<StreamChunk>,
   captureId: string,
 ): AsyncIterable<StreamChunk> {
+  let currentRunId: string | undefined
   for await (const chunk of source) {
-    recordYieldedChunk(captureId, { type: chunk.type })
+    if (chunk.type === 'RUN_STARTED' && typeof chunk.runId === 'string') {
+      currentRunId = chunk.runId
+    }
+    const runId =
+      'runId' in chunk && typeof chunk.runId === 'string'
+        ? chunk.runId
+        : currentRunId
+    recordYieldedChunk(captureId, {
+      type: chunk.type,
+      ...(runId !== undefined ? { runId } : {}),
+      ...(chunk.type === 'RUN_FINISHED' && chunk.outcome
+        ? { outcomeType: chunk.outcome.type }
+        : {}),
+      ...(chunk.type === 'RUN_FINISHED' && chunk.outcome?.type === 'interrupt'
+        ? { interruptCount: chunk.outcome.interrupts.length }
+        : {}),
+    })
     yield chunk
   }
+}
+
+function lifecycleMiddlewareStack(
+  existing: Array<ChatMiddleware>,
+  extra: ChatMiddleware<unknown, typeof reviewPlan>,
+): Array<ChatMiddleware<unknown, typeof reviewPlan>> {
+  return [...existing, extra]
+}
+
+function createGenericLifecycleMiddleware(
+  captureId: string,
+  scenario: GenericScenario,
+): ChatMiddleware<unknown, typeof reviewPlan> {
+  const boundary = boundaryForScenario(scenario)
+  return {
+    name: 'generic-lifecycle',
+    onInterruptBoundary(ctx) {
+      if (ctx.phase !== boundary || ctx.parentRunId) return
+      recordGenericBoundary(captureId, { phase: ctx.phase, runId: ctx.runId })
+      return {
+        interrupts: [
+          reviewPlan.interrupt({
+            key: `${scenario}-review`,
+            reason: 'review_required',
+            message: `Review the plan at ${ctx.phase}`,
+            payload: { title: 'Middleware review plan', boundary: ctx.phase },
+          }),
+        ],
+      }
+    },
+    onInterruptResolution(_ctx, resolutions) {
+      for (const resolution of resolutions.for(reviewPlan)) {
+        recordGenericResolution(captureId, {
+          definitionId: resolution.request.definition.id,
+          status: resolution.status,
+          ...(resolution.status === 'resolved'
+            ? { response: resolution.response }
+            : {}),
+        })
+      }
+      const policy = toolResumeForScenario(scenario)
+      recordGenericPolicy(captureId, policy)
+      return { toolResume: policy }
+    },
+  }
+}
+
+function genericTools(captureId: string, scenario: GenericScenario) {
+  if (scenario === 'generic-after-tools') {
+    return [
+      inspectReviewTool.server(async ({ reviewId }) => {
+        recordGenericToolExecution(captureId, {
+          name: 'inspect_review',
+          side: 'server',
+        })
+        return { inspected: true, reviewId }
+      }),
+    ]
+  }
+  if (boundaryForScenario(scenario) !== 'beforeTools') return []
+  return [
+    deleteReviewTool.server(async ({ reviewId }) => {
+      recordGenericToolExecution(captureId, {
+        name: 'delete_review',
+        side: 'server',
+      })
+      return { deleted: true, reviewId }
+    }),
+    renderReviewTool.client(),
+  ]
 }
 
 /**
@@ -377,14 +543,24 @@ export const Route = createFileRoute('/api/middleware-test')({
           typeof fp.model === 'string' ? fp.model : undefined
 
         try {
-          const adapterOptions = createTextAdapter(
-            provider as Parameters<typeof createTextAdapter>[0],
-            modelOverride,
-            aimockPort,
-            testId,
-          )
+          const adapterOptions =
+            scenario === 'run-error'
+              ? { adapter: createRunErrorAdapter() }
+              : createTextAdapter(
+                  provider as Parameters<typeof createTextAdapter>[0],
+                  modelOverride,
+                  aimockPort,
+                  testId,
+                )
 
           const middleware: Array<ChatMiddleware> = []
+          let genericLifecycleMiddleware:
+            | ChatMiddleware<unknown, typeof reviewPlan>
+            | undefined =
+            scenario === 'run-error' ? runErrorBoundaryMiddleware : undefined
+          const genericScenario = isGenericScenario(scenario)
+            ? scenario
+            : undefined
 
           if (middlewareMode === 'chunk-transform')
             middleware.push(chunkTransformMiddleware)
@@ -409,6 +585,25 @@ export const Route = createFileRoute('/api/middleware-test')({
             }
             resetPhaseCapture(testId)
             middleware.push(createPhaseRecorderMiddleware(testId))
+          }
+          if (middlewareMode === 'generic-lifecycle') {
+            if (!testId || !genericScenario) {
+              return new Response(
+                JSON.stringify({
+                  error:
+                    'generic-lifecycle mode requires testId and a generic scenario',
+                }),
+                {
+                  status: 400,
+                  headers: { 'Content-Type': 'application/json' },
+                },
+              )
+            }
+            if (!params.parentRunId) resetPhaseCapture(testId)
+            genericLifecycleMiddleware = createGenericLifecycleMiddleware(
+              testId,
+              genericScenario,
+            )
           }
           if (middlewareMode === 'memory') {
             if (!testId) {
@@ -452,20 +647,28 @@ export const Route = createFileRoute('/api/middleware-test')({
             )
           }
 
-          const tools = scenario === 'with-tool' ? [weatherTool] : []
+          const tools =
+            genericScenario && testId
+              ? genericTools(testId, genericScenario)
+              : scenario === 'with-tool'
+                ? [weatherTool]
+                : scenario === 'structured-client-tool-wait'
+                  ? [clientContextToolDefinition]
+                  : []
 
-          // The two `structured-output*` scenarios both bind the same
-          // guitar schema; they differ only in what the spec asserts (phases
-          // observed vs RUN_STARTED/RUN_FINISHED uniqueness). A single
-          // outputSchema branch keeps the route narrow.
+          // Structured scenarios bind the same guitar schema. The client-tool
+          // variant also passes an isomorphic tool definition so the first
+          // server invocation can stop at the browser-execution boundary.
           const isStructured =
             scenario === 'structured-output' ||
-            scenario === 'structured-output-stream'
+            scenario === 'structured-output-stream' ||
+            scenario === 'structured-client-tool-wait'
 
           const rawStream = isStructured
             ? chat({
                 ...adapterOptions,
                 messages: params.messages,
+                tools,
                 middleware,
                 threadId: params.threadId,
                 runId: params.runId,
@@ -473,22 +676,44 @@ export const Route = createFileRoute('/api/middleware-test')({
                 stream: true,
                 abortController,
               })
-            : chat({
-                ...adapterOptions,
-                messages: params.messages,
-                tools,
-                middleware,
-                threadId: params.threadId,
-                runId: params.runId,
-                agentLoopStrategy: maxIterations(10),
-                abortController,
-              })
+            : genericLifecycleMiddleware
+              ? chat({
+                  ...adapterOptions,
+                  messages: params.messages,
+                  tools,
+                  middleware: lifecycleMiddlewareStack(
+                    middleware,
+                    genericLifecycleMiddleware,
+                  ),
+                  threadId: params.threadId,
+                  runId: params.runId,
+                  parentRunId: params.parentRunId,
+                  resume: params.resume,
+                  interrupts: [reviewPlan] as const,
+                  agentLoopStrategy: maxIterations(10),
+                  abortController,
+                })
+              : chat({
+                  ...adapterOptions,
+                  messages: params.messages,
+                  tools,
+                  middleware,
+                  threadId: params.threadId,
+                  runId: params.runId,
+                  parentRunId: params.parentRunId,
+                  resume: params.resume,
+                  interrupts: genericScenario ? [reviewPlan] : undefined,
+                  agentLoopStrategy: maxIterations(10),
+                  abortController,
+                })
 
           // Tee the post-middleware stream when `phase-recorder` is active
           // so the spec can assert on what the consumer ultimately sees
           // (e.g. exactly one RUN_STARTED/RUN_FINISHED pair).
           const stream =
-            middlewareMode === 'phase-recorder' && testId
+            (middlewareMode === 'phase-recorder' ||
+              middlewareMode === 'generic-lifecycle') &&
+            testId
               ? teeForPhaseCapture(rawStream, testId)
               : rawStream
 

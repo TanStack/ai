@@ -25,9 +25,18 @@ It does not support `chat()`, `summarize()`, or media generation. Use OpenAI, An
 
 ## Installation
 
-```bash
-npm install @tanstack/ai @tanstack/ai-cohere
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-cohere
+vue: @tanstack/ai @tanstack/ai-cohere
+solid: @tanstack/ai @tanstack/ai-cohere
+svelte: @tanstack/ai @tanstack/ai-cohere
+preact: @tanstack/ai @tanstack/ai-cohere
+angular: @tanstack/ai @tanstack/ai-cohere
+vanilla: @tanstack/ai @tanstack/ai-cohere
+octane: @tanstack/ai @tanstack/ai-cohere
+
+<!-- ::end:tabs -->
 
 ## Embeddings
 
@@ -196,6 +205,21 @@ const embedAdapter = createCohereEmbedding(
 const rerankAdapter = createCohereRerank("rerank-v3.5", "your-cohere-api-key");
 ```
 
+## Behind a proxy
+
+Route every request through a gateway, such as Cloudflare AI Gateway or a corporate proxy, with `baseURL` and `defaultHeaders`. These two option names are the same on every TanStack AI adapter, so one gateway config works for all of them.
+
+```typescript
+import { createCohereEmbedding } from "@tanstack/ai-cohere";
+
+const adapter = createCohereEmbedding("embed-v4.0", process.env.COHERE_API_KEY!, {
+  baseURL: "https://gateway.example.com/cohere",
+  defaultHeaders: { "cf-aig-authorization": `Bearer ${process.env.GATEWAY_TOKEN}` },
+});
+```
+
+`baseUrl` and `headers` are aliases of the same two options. If you set both forms, `baseURL` and `defaultHeaders` win.
+
 ## API Reference
 
 ### `cohereEmbedding(model, config?)`
@@ -203,8 +227,8 @@ const rerankAdapter = createCohereRerank("rerank-v3.5", "your-cohere-api-key");
 Creates an embedding adapter using `COHERE_API_KEY` from the environment.
 
 - `model`: `"embed-v4.0"`
-- `config.baseUrl`: override the API base URL (default `https://api.cohere.com`)
-- `config.headers`: extra request headers
+- `config.baseURL`: override the API base URL (default `https://api.cohere.com`). `baseUrl` is an alias.
+- `config.defaultHeaders`: extra request headers. `headers` is an alias.
 - `config.allowUrlFetch`: download `http(s)` image URLs and inline them as base64 (default `false`)
 
 ### `createCohereEmbedding(model, apiKey, config?)`
@@ -216,8 +240,8 @@ Same as `cohereEmbedding` with an explicit API key.
 Creates a rerank adapter using `COHERE_API_KEY` from the environment.
 
 - `model`: one of the rerank models above
-- `config.baseUrl`: override the API base URL (default `https://api.cohere.com`)
-- `config.headers`: extra request headers
+- `config.baseURL`: override the API base URL (default `https://api.cohere.com`). `baseUrl` is an alias.
+- `config.defaultHeaders`: extra request headers. `headers` is an alias.
 
 ### `createCohereRerank(model, apiKey, config?)`
 
