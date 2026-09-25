@@ -102,7 +102,7 @@ There is no baseline file to keep in sync, and nothing to update when a package 
 
 Read the numbers from the PR's Checks tab: open the `Coverage` job. When at least one package with `test:coverage` is affected, the job summary has a per-package table with deltas, pass or fail. It is not posted as a PR comment.
 
-Re-measuring the merge-base is usually close to free. A separate `Coverage` workflow runs `test:coverage:all` on every push to `main`, which populates the Nx Cloud cache; because `test:coverage` declares its `coverage/` directory as a task output, the base-side run generally restores cached summaries rather than re-running any tests.
+Re-measuring the merge-base is usually close to free. On every push to `main`, a separate `Coverage` workflow runs `test:coverage` for every package with the same forwarded args as the PR job, and fills the Nx Cloud cache. `test:coverage` declares its `coverage/` directory as a task output, so the base-side run restores the cached summaries and does not run the tests again. If that workflow did not finish for the merge-base commit (for example, a newer push to `main` cancelled it), the base-side tests run again. Keep the `--` args in `coverage.yml` and `pr.yml` identical: Nx hashes them, so any difference causes a cache miss.
 
 ### If the job says coverage dropped
 
@@ -111,7 +111,7 @@ Add tests covering the code you changed. That's the whole remedy — there is no
 Two known limitations:
 
 - Uncovered `.tsx` files can't be remapped by the coverage provider and are dropped from the report with a `Failed to parse ... Excluding it from coverage` warning. `.tsx` files that tests _do_ load are measured normally, so the UI packages read higher than their real coverage.
-- `preact-ai-devtools`, `react-ai-devtools`, and `solid-ai-devtools` have no tests. They may be omitted (0 statements after `.tsx` remap failure) or show ~0% of remaining `.ts`; they do not gate the job.
+- `preact-ai-devtools`, `react-ai-devtools`, `solid-ai-devtools`, and `svelte-ai-devtools` have no tests. They may be omitted (0 statements after `.tsx` remap failure) or show ~0% of remaining `.ts`; they do not gate the job.
 
 A **new package that defines `test:coverage`** shows as `new` and cannot fail the comparison. Packages without that script are not measured.
 

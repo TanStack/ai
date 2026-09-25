@@ -30,4 +30,6 @@ jobs:
       - name: Setup Tools
         uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
       - name: Run Coverage
-        run: pnpm run test:coverage:all
+        # Keep the args after `--` identical to both runs in pr.yml. Nx puts
+        # forwarded args in the task hash, so any difference is a cache miss.
+        run: pnpm exec nx run-many --targets=test:coverage --exclude='examples/**,testing/**' -- --coverage.reporter=json-summary --coverage.include='src/**'

@@ -1,5 +1,12 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -170,7 +177,7 @@ describe('compare', () => {
       env: { ...process.env, GITHUB_STEP_SUMMARY: summary },
     })
     expect(r.status).toBe(1)
-    const md = require('node:fs').readFileSync(summary, 'utf8') as string
+    const md = readFileSync(summary, 'utf8')
     expect(md).toMatch(/Coverage dropped/)
     expect(md).toMatch(/pkg/)
   })
@@ -188,9 +195,7 @@ describe('collect', () => {
     )
     const r = run(['--collect', out], { cwd: root })
     expect(r.status).toBe(0)
-    const written = JSON.parse(
-      require('node:fs').readFileSync(join(out, 'ai.json'), 'utf8'),
-    )
+    const written = JSON.parse(readFileSync(join(out, 'ai.json'), 'utf8'))
     expect(written).toEqual(metrics(90))
     expect(r.stdout).toMatch(/Collected 1 /)
   })
@@ -229,8 +234,6 @@ describe('collect', () => {
       { cwd: root },
     )
     expect(r.status).toBe(0)
-    expect(require('node:fs').existsSync(join(out, 'ai-devtools.json'))).toBe(
-      true,
-    )
+    expect(existsSync(join(out, 'ai-devtools.json'))).toBe(true)
   })
 })
