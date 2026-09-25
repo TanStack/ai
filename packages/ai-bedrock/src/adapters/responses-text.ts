@@ -10,8 +10,10 @@ import type {
   ResolveInputModalities,
 } from '../model-meta'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
-export interface BedrockResponsesConfig extends BedrockClientConfig {}
+export interface BedrockResponsesConfig
+  extends BedrockClientConfig, OpenAIBaseTextAdapterOptions {}
 
 export type { ExternalResponsesProviderOptions as BedrockResponsesProviderOptions } from '../text/responses-provider-options'
 
@@ -57,6 +59,7 @@ export class BedrockResponsesTextAdapter<
       model,
       'bedrock-responses',
       new OpenAI(withBedrockDefaults(config, 'mantle', model)),
+      config,
     )
   }
 }
