@@ -50,11 +50,13 @@ export async function runSpeech(ctx: RunContext, text: string): Promise<void> {
     { output: str(ctx.options.output), outputDir: str(ctx.options.outputDir) },
     ctx.now,
   )
+  // -o - sent the bytes to stdout. Anything more would corrupt them.
+  if (path === null) return
 
   if (ctx.mode === 'pretty') {
     await renderArtifactPath({
       label: `Speech generated with ${result.model}`,
-      path: path ?? '(stdout)',
+      path,
       meta: result.duration ? { duration: `${result.duration}s` } : undefined,
     })
     return

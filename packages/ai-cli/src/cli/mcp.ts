@@ -70,10 +70,25 @@ export async function runMcpServer(cliVersion: string): Promise<void> {
           options: z
             .record(z.string(), z.any())
             .optional()
-            .describe('Command options (model, size, etc.) as a JSON object.'),
+            .describe(
+              `Command options as a JSON object. Allowed keys: ${[...MCP_ALLOWED_OPTIONS].join(', ')}.`,
+            ),
         },
       },
       async (args: { prompt?: string; options?: Record<string, unknown> }) => {
+        const blocked = blockedMcpOptions(args.options)
+        if (blocked.length > 0) {
+          const message = `Options not allowed over MCP: ${blocked.join(', ')}.`
+          return {
+            isError: true,
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({ error: { code: 'USAGE', message } }),
+              },
+            ],
+          }
+        }
         const result = await invokeSelf(binPath, spec.name, args)
         return { content: [{ type: 'text' as const, text: result }] }
       },
@@ -86,6 +101,45 @@ export async function runMcpServer(cliVersion: string): Promise<void> {
 
   const transport = new StdioServerTransport()
   await server.connect(transport)
+}
+
+/**
+ * Option keys an MCP client may set. The client can be a prompt-injected
+ * agent, so keys that pick a host or key (`baseURL`, `apiKey`), touch local
+ * files (`output`, `outputDir`, `attachment`), or run code (`mcp`,
+ * `codeMode`) stay CLI-only.
+ */
+const MCP_ALLOWED_OPTIONS = new Set([
+  'model',
+  'modelOptions',
+  'system',
+  'messages',
+  'schema',
+  'threadId',
+  'maxSteps',
+  'size',
+  'count',
+  'wait',
+  'duration',
+  'voice',
+  'format',
+  'speed',
+  'language',
+  'maxLength',
+  'style',
+  'focus',
+])
+
+/** Keys in an MCP tool call's `options` that the server must refuse. */
+export function blockedMcpOptions(
+  options: Record<string, unknown> = {},
+): Array<string> {
+  return Object.keys(options).filter(
+    (key) =>
+      !MCP_ALLOWED_OPTIONS.has(key) ||
+      // A string `schema` is read as a file path. Only accept an inline object.
+      (key === 'schema' && typeof options[key] !== 'object'),
+  )
 }
 
 function invokeSelf(

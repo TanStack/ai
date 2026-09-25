@@ -78,11 +78,13 @@ export async function runVideo(ctx: RunContext, prompt: string): Promise<void> {
     { output, outputDir },
     ctx.now,
   )
+  // -o - sent the bytes to stdout. Anything more would corrupt them.
+  if (path === null) return
 
   if (ctx.mode === 'pretty') {
     await renderArtifactPath({
       label: `Video generated with ${job.model}`,
-      path: path ?? '(stdout)',
+      path,
     })
     return
   }

@@ -28,9 +28,15 @@ export async function dispatchCommand(
 
   switch (spec.name) {
     case 'chat': {
-      const prompt = await resolvePrompt(positional, { required: false })
+      // With --messages the history is the input, so stdin is not read. A
+      // harness can leave stdin open, and the read would then never end.
+      const hasMessages = ctx.options.messages !== undefined
+      const prompt = await resolvePrompt(positional, {
+        required: false,
+        stdin: !hasMessages,
+      })
       // No prompt on a TTY → drop into the interactive REPL.
-      if (!prompt && ctx.mode === 'pretty') {
+      if (!prompt && !hasMessages && ctx.mode === 'pretty') {
         const { runChatRepl } = await import('./interactive')
         const model =
           typeof ctx.options.model === 'string' && ctx.options.model

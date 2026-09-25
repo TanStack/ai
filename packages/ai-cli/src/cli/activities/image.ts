@@ -91,6 +91,8 @@ export async function runImage(ctx: RunContext, prompt: string): Promise<void> {
     )
     written.push({ path, mimeType, revisedPrompt: image.revisedPrompt })
   }
+  // -o - sent the bytes to stdout. Anything more would corrupt them.
+  if (output === '-') return
 
   if (ctx.mode === 'pretty') {
     const previewable: Array<{ path: string; revisedPrompt?: string }> = []

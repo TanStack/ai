@@ -71,11 +71,13 @@ export async function runAudio(ctx: RunContext, prompt: string): Promise<void> {
     { output, outputDir },
     ctx.now,
   )
+  // -o - sent the bytes to stdout. Anything more would corrupt them.
+  if (path === null) return
 
   if (ctx.mode === 'pretty') {
     await renderArtifactPath({
       label: `Audio generated with ${result.model}`,
-      path: path ?? '(stdout)',
+      path,
       meta: result.audio.duration
         ? { duration: `${result.audio.duration}s` }
         : undefined,

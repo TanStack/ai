@@ -53,7 +53,7 @@ function registerGenerationCommand(program: Command, spec: CommandSpec): void {
       _opts,
       command: Command,
     ) => {
-      const raw = coerceFlags(spec, command.opts())
+      const raw = coerceFlags(spec, explicitOpts(command))
       const args = Array.isArray(positional)
         ? positional
         : positional
@@ -71,7 +71,10 @@ function registerGenerationCommand(program: Command, spec: CommandSpec): void {
     for (const flag of COMMON_FLAGS) applyFlag(status, flag)
     status.action(async (jobId: string, _opts, command: Command) => {
       // Options can land on the parent `video` command or on `status`; merge both.
-      const merged = { ...(command.parent?.opts() ?? {}), ...command.opts() }
+      const merged = {
+        ...(command.parent ? explicitOpts(command.parent) : {}),
+        ...explicitOpts(command),
+      }
       const raw = coerceFlags(spec, merged)
       const { createRunContext } = await import('./context')
       const { runVideoStatus } = await import('./activities/video')
@@ -130,7 +133,20 @@ function applyFlag(cmd: Command, flag: FlagSpec): void {
       ...previous,
       value,
     ])
-    option.default([])
   }
   cmd.addOption(option)
+}
+
+/**
+ * The options the user actually passed. Commander fills in defaults (a `--no-x`
+ * flag defaults to `true`), and those would win over `--config` in
+ * mergeOptions(). The handlers apply their own defaults after the merge.
+ */
+function explicitOpts(cmd: Command): Record<string, unknown> {
+  const opts = cmd.opts()
+  return Object.fromEntries(
+    Object.entries(opts).filter(
+      ([key]) => cmd.getOptionValueSource(key) !== 'default',
+    ),
+  )
 }

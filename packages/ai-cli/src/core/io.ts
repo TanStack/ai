@@ -39,12 +39,12 @@ export async function readStdinBytes(): Promise<Buffer> {
  */
 export async function resolvePrompt(
   positional: Array<string>,
-  options: { required?: boolean } = {},
+  options: { required?: boolean; stdin?: boolean } = {},
 ): Promise<string> {
   const fromArgs = positional.join(' ').trim()
   if (fromArgs) return fromArgs
 
-  const fromStdin = (await readStdin()).trim()
+  const fromStdin = options.stdin === false ? '' : (await readStdin()).trim()
   if (!fromStdin && options.required) {
     throw new CliError(
       'USAGE',

@@ -1,11 +1,14 @@
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   bundledProviders,
   factoryCandidatesForProvider,
+  instantiateAdapter,
   resolveApiKey,
   resolveModelSlug,
 } from '../src/core/providers'
+import { buildProgram } from '../src/cli/program'
+import { dispatchCommand } from '../src/cli/dispatch'
 import { mergeOptions } from '../src/core/config'
 import { resolveOutputMode } from '../src/core/output'
 import { coerceFlags } from '../src/cli/options'
@@ -13,9 +16,14 @@ import { CliError, ExitCode, toCliError } from '../src/core/exit-codes'
 import { inferMimeType, resolvePrompt } from '../src/core/io'
 import { tokenizeCommand } from '../src/cli/mcp-clients'
 import { resolveOutputPath } from '../src/cli/artifact'
-import { describeMcpServer } from '../src/cli/mcp'
+import { blockedMcpOptions, describeMcpServer } from '../src/cli/mcp'
 import { findCommand } from '../src/manifest/manifest'
 import type { CommandSpec } from '../src/manifest/types'
+
+vi.mock('../src/cli/dispatch', () => ({ dispatchCommand: vi.fn() }))
+vi.mock('@tanstack/ai-ollama', () => ({
+  createOllamaChat: vi.fn((...args: Array<unknown>) => ({ args })),
+}))
 
 describe('resolveModelSlug', () => {
   it('parses a provider/model slug', () => {
@@ -104,6 +112,24 @@ describe('resolveApiKey', () => {
   })
 })
 
+describe('ollama provider', () => {
+  const { entry } = resolveModelSlug('ollama/llama3')
+
+  it('needs no API key', () => {
+    expect(resolveApiKey(entry, 'ollama', undefined, {})).toBe('')
+  })
+
+  it('passes the host, not the API key, as the second factory argument', async () => {
+    const adapter = await instantiateAdapter({
+      resolved: resolveModelSlug('ollama/llama3'),
+      activity: 'chat',
+      apiKey: 'not-a-host',
+      config: { baseURL: 'http://gpu-box:11434' },
+    })
+    expect(adapter).toEqual({ args: ['llama3', 'http://gpu-box:11434'] })
+  })
+})
+
 describe('bundledProviders', () => {
   it('lists exactly the five zero-install providers', () => {
     expect(bundledProviders().sort()).toEqual(
@@ -123,6 +149,84 @@ describe('mergeOptions', () => {
       size: '1024x1024',
       extra: true,
     })
+  })
+})
+
+describe('flag defaults do not hide --config values', () => {
+  async function parsedFlags(argv: Array<string>) {
+    vi.mocked(dispatchCommand).mockClear()
+    await buildProgram('0.0.0').parseAsync(argv, { from: 'user' })
+    return vi.mocked(dispatchCommand).mock.calls[0]?.[2] ?? {}
+  }
+
+  it('lets config set repeatable and --no-x options when the flags are absent', async () => {
+    const flags = await parsedFlags(['video', 'a cat'])
+    const merged = mergeOptions(flags, {
+      attachment: ['in.png'],
+      wait: false,
+      preview: false,
+    })
+    expect(merged).toMatchObject({
+      attachment: ['in.png'],
+      wait: false,
+      preview: false,
+    })
+  })
+
+  it('still lets explicit flags win over config', async () => {
+    const flags = await parsedFlags([
+      'chat',
+      'hi',
+      '--mcp',
+      'a',
+      '--mcp',
+      'b',
+      '--no-preview',
+    ])
+    const merged = mergeOptions(flags, { mcp: ['config'], preview: true })
+    expect(merged).toMatchObject({ mcp: ['a', 'b'], preview: false })
+  })
+})
+
+describe('blockedMcpOptions (ts-ai mcp trust boundary)', () => {
+  it('allows generation options', () => {
+    expect(
+      blockedMcpOptions({
+        model: 'openai/gpt-5.6',
+        size: '1024x1024',
+        modelOptions: { quality: 'high' },
+        schema: { type: 'object' },
+      }),
+    ).toEqual([])
+  })
+
+  it('blocks keys that change the host, leak the key, touch files, or run commands', () => {
+    expect(
+      blockedMcpOptions({
+        model: 'openai/gpt-5.6',
+        baseURL: 'https://attacker.example',
+        apiKey: 'sk-x',
+        output: '/etc/cron.d/x',
+        outputDir: '/tmp',
+        attachment: ['~/.ssh/id_rsa'],
+        mcp: ['rm -rf /'],
+        codeMode: true,
+      }),
+    ).toEqual([
+      'baseURL',
+      'apiKey',
+      'output',
+      'outputDir',
+      'attachment',
+      'mcp',
+      'codeMode',
+    ])
+  })
+
+  it('blocks a string schema, which the CLI reads as a file path', () => {
+    expect(blockedMcpOptions({ schema: '/home/me/secrets.json' })).toEqual([
+      'schema',
+    ])
   })
 })
 
@@ -208,6 +312,27 @@ describe('io helpers', () => {
   it('uses positional args as the prompt without touching stdin', async () => {
     // No stdin read happens because positional args are present.
     expect(await resolvePrompt(['hello', 'world'])).toBe('hello world')
+  })
+
+  it('does not read stdin when told not to (chat --messages)', async () => {
+    const tty = process.stdin.isTTY
+    Object.defineProperty(process.stdin, 'isTTY', {
+      value: false,
+      configurable: true,
+    })
+    const read = vi
+      .spyOn(process.stdin, Symbol.asyncIterator)
+      .mockImplementation(() => [][Symbol.iterator]() as never)
+    try {
+      expect(await resolvePrompt([], { stdin: false })).toBe('')
+      expect(read).not.toHaveBeenCalled()
+    } finally {
+      read.mockRestore()
+      Object.defineProperty(process.stdin, 'isTTY', {
+        value: tty,
+        configurable: true,
+      })
+    }
   })
 
   it('rejects a stale find for aliases', () => {

@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 /**
  * Load a conventional `.env` from the current working directory into
  * `process.env`. Existing env vars are never overridden, so real environment
- * values and `--apiKey` always win. Parsing is intentionally minimal:
+ * values and `--api-key` always win. Parsing is intentionally minimal:
  * `KEY=VALUE` lines, `#` comments, optional surrounding quotes.
  */
 export function loadDotEnv(cwd: string = process.cwd()): void {

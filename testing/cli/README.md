@@ -17,7 +17,7 @@ pnpm --filter @tanstack/ai-cli build
 pnpm --filter @tanstack/ai-cli-tests test:e2e
 ```
 
-The contract tests above need no API keys — they exercise version, introspect,
-and the error/exit-code paths. Tests that perform real generations point a
-provider `baseURL` at a local mock (aimock for chat/text; media-endpoint mock
-routes are added here as those commands gain coverage) and supply a dummy key.
+The contract tests need no API keys. They cover version, introspect, and the
+error and exit-code paths. `tests/mock-provider.spec.ts` runs real generations
+(`chat`, `speech`) against a small OpenAI-shaped `node:http` mock. It sets the
+provider `baseURL` with `--config` and uses a dummy key.

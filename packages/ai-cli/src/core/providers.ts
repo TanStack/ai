@@ -25,8 +25,10 @@ interface ProviderEntry {
    * How the factory receives the API key:
    * - `'apiKeyArg'` (default): `create(model, apiKey, config)` — openai, anthropic, …
    * - `'configObject'`: `create(model, { apiKey, ...config })` — fal.
+   * - `'hostArg'`: `create(model, host)` with no API key (ollama). The host is
+   *   `baseURL` from `--config`, else `OLLAMA_HOST`, else the adapter default.
    */
-  configStyle?: 'apiKeyArg' | 'configObject'
+  configStyle?: 'apiKeyArg' | 'configObject' | 'hostArg'
   /**
    * Alternate factory name prefix to try when `create<Prefix><Activity>` is
    * absent — e.g. fal exposes `falImage` / `falVideo` rather than
@@ -72,7 +74,8 @@ const PROVIDERS: Record<string, ProviderEntry> = {
     pkg: '@tanstack/ai-ollama',
     factoryPrefix: 'Ollama',
     bundled: false,
-    envKeys: ['OLLAMA_API_KEY'],
+    envKeys: [],
+    configStyle: 'hostArg',
   },
   grok: {
     pkg: '@tanstack/ai-grok',
@@ -175,8 +178,8 @@ export function resolveModelSlug(rawModel: string): ResolvedModel {
 }
 
 /**
- * Resolve the API key: explicit `--apiKey` wins, otherwise the first matching
- * conventional env var.
+ * Resolve the API key: explicit `--api-key` wins, otherwise the first matching
+ * conventional env var. A `hostArg` provider (ollama) needs no key.
  */
 export function resolveApiKey(
   entry: ProviderEntry,
@@ -189,9 +192,10 @@ export function resolveApiKey(
     const value = env[key]
     if (value) return value
   }
+  if (entry.configStyle === 'hostArg') return ''
   throw new CliError(
     'USAGE',
-    `No API key for "${provider}". Pass --apiKey or set ${entry.envKeys.join(' / ')}.`,
+    `No API key for "${provider}". Pass --api-key or set ${entry.envKeys.join(' / ')}.`,
     { provider },
   )
 }
@@ -219,6 +223,9 @@ export async function instantiateAdapter(params: {
     const factory = moduleExports[name]
     if (typeof factory === 'function') {
       const fn = factory as (...factoryArgs: Array<unknown>) => unknown
+      if (entry.configStyle === 'hostArg') {
+        return fn(model, config?.baseURL ?? process.env.OLLAMA_HOST)
+      }
       return entry.configStyle === 'configObject'
         ? fn(model, { apiKey, ...config })
         : fn(model, apiKey, config)

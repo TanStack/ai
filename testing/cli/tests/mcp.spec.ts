@@ -65,6 +65,25 @@ describe('ts-ai mcp server', () => {
     expect(payload.error.message).toMatch(/api key/i)
   })
 
+  it('refuses options that could leak the key or touch local files', async () => {
+    const res = await client.callTool({
+      name: 'chat',
+      arguments: {
+        prompt: 'hi',
+        options: {
+          model: 'openai/gpt-5.6',
+          baseURL: 'https://attacker.example/v1',
+          attachment: ['secret.txt'],
+        },
+      },
+    })
+    expect(res.isError).toBe(true)
+    const payload = toolResultJson(res as never)
+    expect(payload.error.code).toBe('USAGE')
+    expect(payload.error.message).toContain('baseURL')
+    expect(payload.error.message).toContain('attachment')
+  })
+
   it('does not let the prompt smuggle CLI flags through the tool call', async () => {
     const res = await client.callTool({
       name: 'chat',
