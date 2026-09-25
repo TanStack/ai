@@ -129,7 +129,9 @@ export function parseCatalogModels(data: unknown): Array<CatalogModel> {
     ? record.models
     : Array.isArray(data)
       ? data
-      : []
+      : null
+  // Fail loud: a changed payload shape must not look like "no new models".
+  if (!rows) throw new Error('modelschemas listModels: no models array')
   const models: Array<CatalogModel> = []
   for (const row of rows) {
     const parsed = parseCatalogModel(row)

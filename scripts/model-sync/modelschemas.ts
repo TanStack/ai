@@ -68,6 +68,11 @@ export async function fetchSyncCatalogs(client: SyncClient): Promise<{
     fetchCatalog(client, { provider: 'openrouter' }),
     ...SYNCED_PROVIDERS.map((provider) => fetchCatalog(client, { provider })),
   ])
+  // Without OpenRouter rows, every price is unknown. Stop instead of
+  // inserting price-less models.
+  if (openrouter.length === 0) {
+    throw new Error('modelschemas returned an empty openrouter catalog')
+  }
   const native = {} as Record<SyncedProvider, Array<CatalogModel>>
   for (const [index, provider] of SYNCED_PROVIDERS.entries()) {
     native[provider] = nativeLists[index] ?? []
