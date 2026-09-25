@@ -626,6 +626,38 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     vi.clearAllMocks()
   })
 
+  it('reports RUN_ERROR when the stream ends before response.completed (#1447)', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.output_text.delta',
+        sequenceNumber: 1,
+        itemId: 'msg_1',
+        outputIndex: 0,
+        contentIndex: 0,
+        delta: 'The answer is ',
+      },
+    ])
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const c of chat({
+      adapter: createAdapter(),
+      messages: [{ role: 'user', content: 'hi' }],
+    })) {
+      chunks.push(c)
+    }
+
+    const last = chunks.at(-1)
+    expect(last?.type).toBe('RUN_ERROR')
+    if (last?.type === 'RUN_ERROR') {
+      expect(last.code).toBe('incomplete-stream')
+    }
+    expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(false)
+  })
+
   it('finishes chat() on response.completed without waiting for EOF (#1445)', async () => {
     const { iterable, state } = createOpenAsyncIterable([
       {

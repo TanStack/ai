@@ -289,6 +289,50 @@ describe('chat({ outputSchema, stream: true })', () => {
     })
   })
 
+  describe('provider errors', () => {
+    it('keeps the provider error body from a native stream as the cause (#1005)', async () => {
+      const providerBody = {
+        code: 400,
+        message: 'Provider returned error',
+        metadata: {
+          provider_name: 'Alibaba',
+          raw: "'messages' must contain the word 'json' in some form",
+        },
+      }
+      const adapter = makeAdapter({
+        structuredOutputStream: () =>
+          (async function* () {
+            yield {
+              type: EventType.RUN_STARTED,
+              runId: 'run-1',
+              threadId: 'thread-1',
+              timestamp: Date.now(),
+            }
+            yield {
+              type: EventType.RUN_ERROR,
+              message: 'Provider returned error',
+              code: '400',
+              rawEvent: providerBody,
+              timestamp: Date.now(),
+            }
+          })(),
+      })
+
+      const error = await chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+      }).catch((e: unknown) => e)
+
+      expect(error).toBeInstanceOf(Error)
+      expect(error).toMatchObject({
+        message: 'Provider returned error',
+        code: '400',
+        cause: providerBody,
+      })
+    })
+  })
+
   describe('parse errors', () => {
     it('puts the full raw text on the error from a native stream (#1485)', async () => {
       const one = JSON.stringify({ ...validPerson, name: 'x'.repeat(150) })

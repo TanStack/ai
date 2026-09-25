@@ -100,6 +100,8 @@ interface SandboxRunState {
   snapshotClosed?: boolean
   snapshotLost?: Error
   snapshotCleaned?: boolean
+  /** The run paused at an interrupt (client tool, approval, or middleware wait). */
+  interrupted?: boolean
   snapshotConfig?: NonNullable<SandboxMiddlewareOptions['snapshots']>
   snapshotPolicy?: SandboxSnapshotPolicy
   snapshotRuntime?: {
@@ -1009,6 +1011,7 @@ export function withSandbox<TOffset extends string = string>(
         chunk.type === 'RUN_FINISHED' &&
         chunk.outcome?.type === 'interrupt'
       ) {
+        state.interrupted = true
         await drainWatcher(state, 'pause')
         await stopSnapshotLease(state, { closePortable: true })
       }
@@ -1016,7 +1019,10 @@ export function withSandbox<TOffset extends string = string>(
 
     async onFinish(ctx) {
       const state = runState.get(ctx)
-      if (!state) return
+      // `chat()` also calls `onFinish` when the run pauses at an interrupt. The
+      // run is not complete, so keep the sandbox: no after-run snapshot and no
+      // `destroyOnComplete`. `onChunk` already stopped the watcher and the lease.
+      if (!state || state.interrupted) return
       const { handle, ensureCtx } = state
 
       // Last chance before persistence writes the transcript. Only matters if a

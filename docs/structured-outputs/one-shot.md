@@ -189,6 +189,24 @@ try {
 
 Provider-level errors (auth failure, rate limit, network) throw the same way — wrap the call in `try` / `catch` to handle both.
 
+### Read the provider's error
+
+When the provider rejects the request, the message can be short, for example `Provider returned error`. The provider's full error body is on `error.cause`:
+
+```typescript
+try {
+  const result = await chat({
+    adapter: openaiText("gpt-6-astra"),
+    messages: [{ role: "user", content: "..." }],
+    outputSchema: MySchema,
+  });
+} catch (error) {
+  if (error instanceof Error) {
+    console.error(error.message, error.cause);
+  }
+}
+```
+
 ### Recover the model's text
 
 Sometimes a model returns a valid JSON object and then more text, for example a second copy of the object. The JSON parse then fails and `chat()` throws. The error message shows only the first 200 characters. The full text is on `error.rawText`:

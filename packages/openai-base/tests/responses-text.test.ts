@@ -244,6 +244,41 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
   })
 
   describe('streaming event sequence', () => {
+    it('reports RUN_ERROR when the stream ends before response.completed (#1447)', async () => {
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        { type: 'response.output_text.delta', delta: 'The answer is ' },
+      ])
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of chat({
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'Hello' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const last = chunks.at(-1)
+      expect(last?.type).toBe('RUN_ERROR')
+      if (last?.type === 'RUN_ERROR') {
+        expect(last.code).toBe('incomplete-stream')
+      }
+      expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(false)
+      // The partial text still reaches the caller.
+      expect(
+        chunks.some(
+          (c) =>
+            c.type === 'TEXT_MESSAGE_CONTENT' && c.delta === 'The answer is ',
+        ),
+      ).toBe(true)
+    })
+
     it('finishes chat() on response.completed without waiting for EOF (#1445)', async () => {
       const { iterable, state } = createOpenAsyncIterable([
         {
