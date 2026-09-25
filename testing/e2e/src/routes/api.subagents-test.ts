@@ -6,7 +6,8 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import type { Tool } from '@tanstack/ai'
+import { z } from 'zod'
+import type { DefinedAgent, Tool } from '@tanstack/ai'
 import { createTextAdapter } from '@/lib/providers'
 import {
   deleteLogs,
@@ -27,6 +28,8 @@ import type { SubagentScenario } from '@/lib/subagents-test'
  *   the same child.
  * - `tool`: no router. The parent model calls the `researcher` tool, the
  *   child answers, and the parent reads its result.
+ * - `brief`: no router. The parent model writes a `task` for `researcher`,
+ *   and the child's only message is that task.
  */
 function subagentsFor(
   scenario: SubagentScenario,
@@ -71,6 +74,26 @@ function subagentsFor(
       deleteLogs.server(({ folder }) => ({ deleted: folder })),
     ])
     return { agents: [cleaner], router: () => 'cleaner' }
+  }
+  if (scenario === 'brief') {
+    const researcher = defineAgent({
+      name: 'researcher',
+      description: 'Researches one focused task',
+      inputSchema: z.object({ task: z.string() }),
+      run: (ctx) =>
+        chat({
+          ...createTextAdapter('openai', undefined, aimockPort, testId),
+          messages: [{ role: 'user', content: ctx.input.task }],
+          threadId: ctx.threadId,
+          runId: ctx.runId,
+          parentRunId: ctx.parentRunId,
+          subagentRunId: ctx.subagentRunId,
+          resume: ctx.resume,
+        }),
+    })
+    // Each branch returns its own bag, so give them one agent type.
+    const agents: Array<DefinedAgent> = [researcher]
+    return { agents }
   }
   return { agents: [child('researcher', [])] }
 }

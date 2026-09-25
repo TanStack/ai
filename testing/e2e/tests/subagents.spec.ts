@@ -14,7 +14,7 @@ async function run(page: Page) {
 
 function open(
   page: Page,
-  scenario: 'route' | 'approval' | 'tool',
+  scenario: 'route' | 'approval' | 'tool' | 'brief',
   testId: string,
   aimockPort: number,
 ) {
@@ -109,6 +109,27 @@ test.describe('subagents', () => {
     )
     await expect(page.getByTestId('card-researcher')).toContainText(
       'text:Squids have three hearts.',
+    )
+  })
+
+  test('the parent model writes the brief the child runs on', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'brief', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('parent-text')).toHaveText(
+      'The comparison is ready.',
+    )
+    await expect(page.getByTestId('card-status-researcher')).toHaveText(
+      'finished',
+    )
+    // The child's fixture matches only the brief. A child that got the
+    // transcript instead would get no reply.
+    await expect(page.getByTestId('card-researcher')).toContainText(
+      'text:Squids have three hearts and blue blood.',
     )
   })
 })
