@@ -3,17 +3,14 @@ id: ContentPartSource
 title: ContentPartSource
 ---
 
-# Type Alias: ContentPartSource
-
 ```ts
 type ContentPartSource = 
   | ContentPartDataSource
-  | ContentPartUrlSource;
+  | ContentPartUrlSource
+  | ContentPartFileSource;
 ```
 
-Defined in: [packages/ai/src/types.ts:258](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L258)
+Defined in: [packages/ai/src/types.ts:265](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L265)
 
-Source specification for multimodal content.
-Discriminated union supporting both inline data (base64) and URL-based content.
-- For 'data' sources: mimeType is required
-- For 'url' sources: mimeType is optional
+Where a media part's bytes come from: inline data, a URL, or a provider
+file handle. Same members as AG-UI `PartSource`.

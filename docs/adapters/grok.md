@@ -228,22 +228,9 @@ console.log(result.summary);
 
 ## Image Generation
 
-Generate images with Grok 2 Image:
+Generate images with a Grok Imagine model.
 
-```typescript
-import { generateImage } from "@tanstack/ai";
-import { grokImage } from "@tanstack/ai-grok";
-
-const result = await generateImage({
-  adapter: grokImage("grok-2-image-1212"),
-  prompt: "A futuristic cityscape at sunset",
-  numberOfImages: 1,
-});
-
-console.log(result.images);
-```
-
-The grok-imagine models (`grok-imagine-image`, `grok-imagine-image-2.0`,
+The image models (`grok-imagine-image`, `grok-imagine-image-2.0`,
 `grok-imagine-image-quality`) are aspect-ratio sized — `size` takes an
 `aspectRatio_resolution` template like `"16:9_2k"` (the `_2k` suffix is
 optional). `grok-imagine-image-2.0` is xAI's recommended model and adds a
@@ -293,9 +280,7 @@ const result = await generateImage({
 ```
 
 URL sources are fetched by xAI's servers, so they must be publicly
-reachable; use a `data` source for private images. `grok-2-image-1212` is
-text-to-image only — image prompt parts are a compile-time type error and
-throw at runtime.
+reachable; use a `data` source for private images.
 
 ## Video Generation (Experimental)
 

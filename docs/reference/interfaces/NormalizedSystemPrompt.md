@@ -3,8 +3,6 @@ id: NormalizedSystemPrompt
 title: NormalizedSystemPrompt
 ---
 
-# Interface: NormalizedSystemPrompt\<TMetadata\>
-
 Defined in: [packages/ai/src/system-prompts.ts:52](https://github.com/TanStack/ai/blob/main/packages/ai/src/system-prompts.ts#L52)
 
 Normalised shape adapters see after the chat layer turns string entries

@@ -3,8 +3,6 @@ title: Chat Persistence
 id: chat-persistence
 ---
 
-# Chat Persistence
-
 You want a conversation to outlive a single request: the transcript, whether
 each run finished or is still waiting on an interrupt, all still there after the
 process restarts. `withPersistence` is a chat middleware that writes that
@@ -101,16 +99,48 @@ a run id it may no longer know. The store resolves the thread's live run with
 [Id map](./id-map) covers how to choose a thread id and what both ids mean on the
 generation hooks. [How persistence works](./internals) has the rest.
 
-## Send the full transcript, or none of it
+## Subagent cards on reload
 
-`withPersistence` follows one rule, the authoritative-history contract:
+When the run store keeps the child link, a refresh shows each subagent as a card.
 
-- A request with a **non-empty** `messages` array is the full conversation. On
-  finish it **overwrites** the stored thread. Post the complete transcript, not
-  a delta, or you replace the stored thread with just the newest message.
-- A request with an **empty** `messages` array continues a stored thread. The
-  middleware loads the stored transcript and the run picks up from there, so the
-  client does not have to re-send history.
+Save these three fields on the child run. `createOrResume` writes them on the first insert:
+
+- `parentRunId`: the chat run that started the child.
+- `subagentRunId`: the child run id.
+- `name`: the agent name.
+
+`reconstructChat` calls `listByParentRun`. It puts one card on the parent assistant message for each child. Each card gets the child's full transcript back: text, reasoning, tool calls, and tool results. Nested children come back as nested cards.
+
+A child that waits for an approval comes back with `status: 'suspended'`, and its interrupt stays pending. The reloaded client can answer it, and the next run continues that child.
+
+A child that a tool call started sits on the message with that tool call. `reconstructChat` finds its parent run with `listByThread`, so implement that method too.
+
+Put `withPersistence` on the parent `chat()` only, not on a child `chat()`. The parent stores the child runs. A child with its own `withPersistence` stores the same child a second time, and its interrupt records conflict with the parent's.
+
+Subagent support is optional. If the store omits `listByParentRun`, a reload shows the saved text and the cards stay absent. The conformance suite skips the subagent checks with no `skipMethods` entry.
+
+The columns and the method are in the [store reference](./store-reference).
+
+## Keep every stored message
+
+`withPersistence` merges incoming `messages` into the stored thread by id.
+
+If `messages` is empty, the middleware loads the stored transcript and the run
+continues from there.
+
+If `messages` is not empty, the middleware merges by id:
+
+- The last incoming id that already exists in stored is a cutoff. Stored
+  messages after it are dropped. That is how reload removes the old assistant.
+- If no incoming id is in stored, every stored message stays (a new turn).
+- Same id in both lists: incoming wins.
+- New ids and messages with no id are appended.
+
+`saveThread` replaces the stored thread with that merged list.
+
+A client with `history: { pageSize }` posts only the new turn. Reload posts
+the last user. Resume posts from that user through the painted assistant.
+See [Client persistence](./client-persistence).
 
 ## Compaction keeps the transcript complete
 

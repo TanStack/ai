@@ -3,8 +3,6 @@ id: convertMessagesToModelMessages
 title: convertMessagesToModelMessages
 ---
 
-# Function: convertMessagesToModelMessages()
-
 ```ts
 function convertMessagesToModelMessages(messages): ModelMessage<
   | string
@@ -12,7 +10,7 @@ function convertMessagesToModelMessages(messages): ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/messages.ts:136](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/messages.ts#L136)
+Defined in: [packages/ai/src/activities/chat/messages.ts:175](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/messages.ts#L175)
 
 Convert UIMessages or ModelMessages to ModelMessages
 
@@ -21,11 +19,11 @@ Convert UIMessages or ModelMessages to ModelMessages
 ### messages
 
 (
+  \| [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>
   \| [`ModelMessage`](../interfaces/ModelMessage.md)\<
   \| `string`
   \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`, `unknown`\>[]
-  \| `null`\>
-  \| [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>)[]
+  \| `null`\>)[]
 
 ## Returns
 

@@ -3,8 +3,6 @@ id: NoSchema
 title: NoSchema
 ---
 
-# Type Alias: NoSchema
-
 ```ts
 type NoSchema = typeof noSchema;
 ```

@@ -82,6 +82,17 @@ describe('memoryPersistence', () => {
   })
 
   describe('messages', () => {
+    const twoMessageTranscript = [
+      { role: 'user', content: 'first' },
+      { role: 'assistant', content: 'second' },
+    ] as const
+
+    async function saveTwoMessageThread() {
+      const { messages } = memoryPersistence().stores
+      await messages.saveThread('t-two', [...twoMessageTranscript])
+      return messages
+    }
+
     it('round-trips a thread transcript', async () => {
       const { messages } = memoryPersistence().stores
       expect(await messages!.loadThread('t1')).toEqual([])
@@ -89,6 +100,23 @@ describe('memoryPersistence', () => {
       expect(await messages!.loadThread('t1')).toEqual([
         { role: 'user', content: 'hi' },
       ])
+    })
+
+    it('returns the full saved array when loadThread is called with no options', async () => {
+      const messages = await saveTwoMessageThread()
+      const loaded = await messages.loadThread('t-two')
+      expect(Array.isArray(loaded)).toBe(true)
+      expect(loaded).toEqual(twoMessageTranscript)
+    })
+
+    it('does not throw when loadThread is given limit and before', async () => {
+      const messages = await saveTwoMessageThread()
+      expect(
+        await messages.loadThread('t-two', {
+          limit: 1,
+          before: 'cursor-1',
+        }),
+      ).toEqual(twoMessageTranscript)
     })
   })
 

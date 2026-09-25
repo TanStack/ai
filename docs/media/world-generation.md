@@ -2,25 +2,25 @@
 title: World Generation
 id: world-generation
 order: 7
-description: "Open a live, prompt-steerable world session with generateWorld(). Mint a token on the server, connect in the browser, and steer the stream with new prompts."
+description: "Generate a world with generateWorld(). Live adapters mint a session token. Job adapters return a finished 3D world URL."
 keywords:
   - tanstack ai
   - world generation
   - generateWorld
   - reactor
+  - worldlabs
+  - marble
   - orbis
   - infinite world
   - live video
   - experimental
 ---
 
-# World Generation (Experimental)
+You want a world from a prompt. Some providers open a live session you can steer. Other providers generate a finished 3D world. Open `world.url` to view it. Asset URLs on `world.assets` are often signed.
 
-You want a world that generates while the viewer watches or changes the prompt. A finite video job stops. `generateWorld()` opens a live session instead.
+Call `generateWorld()` on the server with a world adapter. Reactor mints a session token. World Labs returns a Marble viewer URL after the job finishes.
 
-Call `generateWorld()` on the server. It returns a short-lived token, a model slug, and the prompt. The browser connects, sets the prompt, and starts the stream. LingBot also needs a seed image after connect.
-
-> **Experimental.** The API can change. World models bill per session-second while a GPU is held.
+> **Experimental.** The API can change. Live world models bill per session-second while a GPU is held. World Labs bills in credits per generation.
 
 ## 1. Mint a session on the server
 
@@ -128,7 +128,7 @@ await reactor.sendCommand('start', {})
 
 The video element now plays a live world. A new `set_prompt` during the run morphs the scene at the next chunk.
 
-LingBot and LingBot World 2 start from a seed image. Pass a `File` from `<input type="file" accept="image/png,image/jpeg">`. The SDK uploads the file. Do not send base64. `start` still needs `set_prompt`. Send a short default, then steer after the first frame.
+LingBot and LingBot World 2 start from a seed image. Pass a `File` from `<input type="file" accept="image/png,image/jpeg">`. The SDK uploads the file. Do not send base64. `start` also needs `set_prompt`. Write the prompt to describe what the image shows. When the prompt and the image disagree, the image wins and the world drifts.
 
 ```ts group=world-browser
 const picker = document.querySelector('input[type="file"]')
@@ -141,7 +141,7 @@ if (file === undefined) {
 }
 const image = await reactor.uploadFile(file)
 await reactor.sendCommand('set_image', { image })
-await reactor.sendCommand('set_prompt', { prompt: 'Follow the seed image.' })
+await reactor.sendCommand('set_prompt', { prompt })
 await reactor.sendCommand('start', {})
 ```
 
@@ -159,8 +159,24 @@ await reactor.sendCommand('start', {})
 
 Happy Oyster (`happy-oyster-adventure`, `happy-oyster-director`) uses `createWorld` and `startTravel` after connect. See the [Reactor adapter](../adapters/reactor) for every id. Helios also works with `generateLiveVideo()` and `reactorVideo()`. See [Live Generation](./live-generation).
 
-A full app lives in [`examples/ts-react-media`](https://github.com/TanStack/ai/tree/main/examples/ts-react-media). Open the World tab.
+A full app lives in [`examples/ts-react-media`](https://github.com/TanStack/ai/tree/main/examples/ts-react-media). Open the World tab. Pick a Reactor model for a live stream, or a Marble model for a finished 3D world. If splat files are present, the example loads one SPZ in Spark. If not, it shows a thumbnail and an Open in Marble link.
+
+## Finished 3D worlds (World Labs)
+
+World Labs Marble is a job, not a live stream. `generateWorld()` waits until the world is ready, then returns a viewer URL and asset links.
+
+```ts
+import { generateWorld } from '@tanstack/ai'
+import { worldlabsWorld } from '@tanstack/ai-worldlabs'
+
+const world = await generateWorld({
+  adapter: worldlabsWorld('marble-1.1'),
+  prompt: 'A mystical forest with glowing mushrooms',
+})
+```
+
+`world.url` is the Marble viewer. Do not iframe it. `world.assets` is optional and holds splat, mesh, and panorama URLs when the provider returns them. See the [World Labs adapter](../adapters/worldlabs) for image and video inputs, models, and `wait: false`. `wait: false` returns `operationId`. This SDK cannot resume that id.
 
 ## What you have now
 
-A server route that mints a world session, and a browser that streams it. Change the prompt while the video plays to steer the world.
+A server route that mints a live world session, or a server call that returns a finished Marble world. For Reactor, connect in the browser and change the prompt to steer the stream. The media example can save a Reactor session as MP4 when recording is enabled for that model or plan, and download Marble files when the response includes them.

@@ -22,6 +22,21 @@ describe('BedrockTextAdapter', () => {
     expect(a.model).toBe('openai.gpt-oss-120b-1:0')
   })
 
+  it('uses config mantlePath for Gemma 4 on mantle (#925)', () => {
+    class Probe extends BedrockTextAdapter<'google.gemma-4-31b'> {
+      url() {
+        return this.client.baseURL
+      }
+    }
+    const a = new Probe(
+      { apiKey: 'k', region: 'eu-central-1', endpoint: 'mantle' },
+      'google.gemma-4-31b',
+    )
+    expect(a.url()).toBe(
+      'https://bedrock-mantle.eu-central-1.api.aws/openai/v1',
+    )
+  })
+
   describe('extractReasoning (cast-free)', () => {
     // Access the protected hook through a tiny typed subclass — no `as` casts.
     class Probe extends BedrockTextAdapter<'openai.gpt-oss-120b-1:0'> {
@@ -72,6 +87,21 @@ describe('BedrockResponsesTextAdapter', () => {
     expect(a.name).toBe('bedrock-responses')
     expect(a.kind).toBe('text')
   })
+
+  it('uses config mantlePath for Gemma 4 (#925)', () => {
+    class Probe extends BedrockResponsesTextAdapter<'google.gemma-4-31b'> {
+      url() {
+        return this.client.baseURL
+      }
+    }
+    const a = new Probe(
+      { apiKey: 'k', region: 'eu-central-1' },
+      'google.gemma-4-31b',
+    )
+    expect(a.url()).toBe(
+      'https://bedrock-mantle.eu-central-1.api.aws/openai/v1',
+    )
+  })
 })
 
 describe('createBedrockText (branching factory)', () => {
@@ -104,6 +134,29 @@ describe('createBedrockText (branching factory)', () => {
   it("explicit api: 'chat' returns the chat adapter", () => {
     const a = createBedrockText('openai.gpt-oss-120b-1:0', 'k', { api: 'chat' })
     expect(a).toBeInstanceOf(ChatAdapter)
+  })
+
+  it('accepts Gemma 4 on chat and responses (#925)', () => {
+    expect(
+      createBedrockText('google.gemma-4-31b', 'k', {
+        api: 'chat',
+        endpoint: 'mantle',
+        region: 'eu-central-1',
+      }),
+    ).toBeInstanceOf(ChatAdapter)
+    expect(
+      createBedrockText('google.gemma-4-31b', 'k', {
+        api: 'responses',
+        region: 'eu-central-1',
+      }),
+    ).toBeInstanceOf(RespAdapter)
+  })
+
+  it('rejects Gemma 4 on the default Converse path (compile-time) and throws at runtime', () => {
+    expect(() => {
+      // @ts-expect-error — Gemma 4 is chat/responses only, not Converse
+      createBedrockText('google.gemma-4-31b', 'k')
+    }).toThrowError(/Converse-capable models:/)
   })
 
   it('rejects a chat-only model with api:responses (compile-time) and throws at runtime', () => {

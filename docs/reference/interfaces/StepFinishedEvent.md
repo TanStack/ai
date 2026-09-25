@@ -3,9 +3,7 @@ id: StepFinishedEvent
 title: StepFinishedEvent
 ---
 
-# Interface: StepFinishedEvent
-
-Defined in: [packages/ai/src/types.ts:1326](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1326)
+Defined in: [packages/ai/src/types.ts:1380](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1380)
 
 Emitted when a thinking/reasoning step finishes.
 
@@ -14,9 +12,3 @@ Emitted when a thinking/reasoning step finishes.
 ## Extends
 
 - `StepFinishedEvent`
-
-## Indexable
-
-```ts
-[k: string]: unknown
-```

@@ -3,8 +3,6 @@ id: ResolvedMediaPrompt
 title: ResolvedMediaPrompt
 ---
 
-# Interface: ResolvedMediaPrompt
-
 Defined in: [packages/ai/src/utilities/media-prompt.ts:23](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/media-prompt.ts#L23)
 
 A [MediaPrompt](../type-aliases/MediaPrompt.md) decomposed into the views adapters consume.

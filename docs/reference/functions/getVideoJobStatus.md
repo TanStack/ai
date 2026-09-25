@@ -3,13 +3,11 @@ id: getVideoJobStatus
 title: getVideoJobStatus
 ---
 
-# Function: getVideoJobStatus()
-
 ```ts
 function getVideoJobStatus<TAdapter>(options): Promise<VideoJobStatusResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/index.ts:911](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L911)
+Defined in: [packages/ai/src/activities/generateVideo/index.ts:917](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L917)
 
 **`Experimental`**
 

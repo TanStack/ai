@@ -1,5 +1,10 @@
 import { FinishReason } from '@google/genai'
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  EventType,
+  fileReferenceFor,
+  isFileSource,
+  normalizeSystemPrompts,
+} from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
@@ -107,8 +112,11 @@ function contentPartToInteraction(part: ContentPart): InteractionContent {
     source.type === 'data'
       ? source.mimeType
       : (source.mimeType ?? DEFAULT_MEDIA_MIME_TYPES[part.type])
-  const base =
-    source.type === 'data'
+  // A Gemini Files API handle maps to the `uri` field, same as a public URL;
+  // `fileReferenceFor` throws when another provider issued it.
+  const base = isFileSource(source)
+    ? { uri: fileReferenceFor(source, 'gemini'), mime_type: mimeType }
+    : source.type === 'data'
       ? { data: source.value, mime_type: mimeType }
       : { uri: source.value, mime_type: mimeType }
 
@@ -216,6 +224,8 @@ export class GeminiTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'gemini' as const
+  // Consumes Gemini Files API references (geminiFiles()) as fileData.fileUri.
+  override readonly supportsFileSources = true
 
   private readonly client: GoogleGenAI
 
@@ -417,9 +427,7 @@ export class GeminiTextAdapter<
       try {
         parsed = JSON.parse(rawText)
       } catch {
-        throw new Error(
-          `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
-        )
+        throw new Error(jsonContentParseError(rawText, 'structured output'))
       }
 
       return {
@@ -439,6 +447,113 @@ export class GeminiTextAdapter<
           ? error.message
           : 'An unknown error occurred during structured output generation.',
       )
+    }
+  }
+
+  /**
+   * Stream schema-constrained JSON from Gemini natively.
+   *
+   * `chat({ outputSchema, stream: true })` calls this when the adapter
+   * implements it. Without it, the engine buffers `structuredOutput()` and
+   * emits one synthetic delta.
+   */
+  async *structuredOutputStream(
+    options: StructuredOutputOptions<GeminiTextProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const { chatOptions: requestedChatOptions, outputSchema } = options
+    const chatOptions = {
+      ...requestedChatOptions,
+      runId: requestedChatOptions.runId ?? generateId(this.name),
+    }
+    const mappedOptions = this.mapCommonOptionsToGemini(chatOptions)
+
+    try {
+      chatOptions.logger.request(
+        `activity=structuredOutputStream provider=gemini model=${this.model} messages=${chatOptions.messages.length}`,
+        { provider: 'gemini', model: this.model },
+      )
+      const result = await this.client.models.generateContentStream({
+        ...mappedOptions,
+        config: {
+          ...mappedOptions.config,
+          responseMimeType: 'application/json',
+          responseSchema: outputSchema,
+        },
+      })
+
+      let rawText = ''
+      let finished:
+        | Extract<AdapterYieldChunk, { type: typeof EventType.RUN_FINISHED }>
+        | undefined
+      let failed = false
+      for await (const chunk of this.processStreamChunks(
+        result,
+        chatOptions,
+        chatOptions.logger,
+      )) {
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+          rawText += chunk.delta
+        }
+        if (chunk.type === EventType.RUN_ERROR) failed = true
+        if (chunk.type === EventType.RUN_FINISHED) {
+          finished = chunk
+        } else {
+          yield chunk
+        }
+      }
+
+      if (failed) return
+      if (!finished) {
+        yield structuredStreamError(
+          chatOptions,
+          'Gemini structured-output stream ended without a terminal event',
+          'truncated-stream',
+        )
+        return
+      }
+      if (!rawText) {
+        yield structuredStreamError(
+          chatOptions,
+          'Gemini structured-output stream contained no content',
+          'empty-response',
+        )
+        return
+      }
+
+      let object: unknown
+      try {
+        object = JSON.parse(rawText)
+      } catch {
+        yield structuredStreamError(
+          chatOptions,
+          jsonContentParseError(rawText, 'Gemini structured-output stream'),
+          'parse-error',
+        )
+        return
+      }
+
+      yield {
+        type: EventType.CUSTOM,
+        name: 'structured-output.complete',
+        value: { object, raw: rawText },
+        model: chatOptions.model,
+        timestamp: Date.now(),
+      }
+      yield { ...finished, timestamp: Date.now() }
+    } catch (error) {
+      const rawEvent = toRunErrorRawEvent(error)
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'An unknown error occurred during structured output streaming.'
+      chatOptions.logger.errors('gemini.structuredOutputStream fatal', {
+        error,
+        source: 'gemini.structuredOutputStream',
+      })
+      yield {
+        ...structuredStreamError(chatOptions, message, 'provider-error'),
+        ...(rawEvent !== undefined && { rawEvent }),
+      }
     }
   }
 
@@ -815,6 +930,13 @@ export class GeminiTextAdapter<
       case 'audio':
       case 'video':
       case 'document': {
+        // File references (Gemini Files API) and public URLs both pass
+        // through as `fileData`; Gemini fetches the URI server-side. A
+        // file source's handle is the file URI (throws when another provider
+        // issued it).
+        const fileUri = isFileSource(part.source)
+          ? fileReferenceFor(part.source, this.name)
+          : part.source.value
         const geminiPart: Part =
           part.source.type === 'data'
             ? {
@@ -825,7 +947,7 @@ export class GeminiTextAdapter<
               }
             : {
                 fileData: {
-                  fileUri: part.source.value,
+                  fileUri,
                   // For URL sources, use provided mimeType or fall back to
                   // reasonable defaults.
                   mimeType:
@@ -940,6 +1062,9 @@ export class GeminiTextAdapter<
                 },
               })
             } else {
+              const fileUri = isFileSource(part.source)
+                ? fileReferenceFor(part.source, this.name)
+                : part.source.value
               const defaultMimeType = {
                 image: 'image/jpeg',
                 audio: 'audio/mp3',
@@ -948,7 +1073,7 @@ export class GeminiTextAdapter<
               }[part.type]
               mediaParts.push({
                 fileData: {
-                  fileUri: part.source.value,
+                  fileUri,
                   mimeType: part.source.mimeType ?? defaultMimeType,
                 },
               })
@@ -992,7 +1117,7 @@ export class GeminiTextAdapter<
    * user messages in multi-turn conversations.
    *
    * Also filters out empty model messages (e.g., from a previous failed request)
-   * and deduplicates functionResponse parts with the same name (tool call ID).
+   * and deduplicates functionResponse parts with the same id (tool call ID).
    */
   private mergeConsecutiveSameRoleMessages(
     messages: Array<Content>,
@@ -1023,16 +1148,20 @@ export class GeminiTextAdapter<
       }
     }
 
-    // Deduplicate functionResponse parts with the same name (tool call ID)
+    // Deduplicate functionResponse parts with the same id (tool call ID).
+    // Two parallel calls to the *same* tool share a `name` but have distinct
+    // `id`s — keying on `name` dropped every response but the first for
+    // same-tool parallel calls, leaving Gemini with fewer response parts
+    // than call parts and a 400 on the next request.
     for (const msg of merged) {
       if (!msg.parts) continue
-      const seenFunctionResponseNames = new Set<string>()
+      const seenFunctionResponseIds = new Set<string>()
       msg.parts = msg.parts.filter((part) => {
-        if ('functionResponse' in part && part.functionResponse?.name) {
-          if (seenFunctionResponseNames.has(part.functionResponse.name)) {
+        if ('functionResponse' in part && part.functionResponse?.id) {
+          if (seenFunctionResponseIds.has(part.functionResponse.id)) {
             return false
           }
-          seenFunctionResponseNames.add(part.functionResponse.name)
+          seenFunctionResponseIds.add(part.functionResponse.id)
         }
         return true
       })
@@ -1109,6 +1238,11 @@ export class GeminiTextAdapter<
         ...(systemInstruction !== undefined && { systemInstruction }),
         tools: convertToolsToProviderFormat(options.tools),
         ...(combinedSchemaConfig ?? {}),
+        // Forward the caller's abort signal so cancellation reaches the SDK
+        // request, matching the OpenAI-compatible adapters (issue #1374).
+        ...(options.request?.signal != null && {
+          abortSignal: options.request.signal,
+        }),
       },
     }
 
@@ -1123,6 +1257,28 @@ export class GeminiTextAdapter<
    */
   supportsCombinedToolsAndSchema(): boolean {
     return GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(this.model)
+  }
+}
+
+function jsonContentParseError(rawText: string, label: string) {
+  const snippet = rawText.slice(0, 200)
+  const ellipsis = rawText.length > 200 ? '...' : ''
+  return `Failed to parse ${label} as JSON. Content: ${snippet}${ellipsis}`
+}
+
+function structuredStreamError(
+  options: TextOptions<GeminiTextProviderOptions>,
+  message: string,
+  code: string,
+): Extract<AdapterYieldChunk, { type: typeof EventType.RUN_ERROR }> {
+  return {
+    type: EventType.RUN_ERROR,
+    runId: options.runId,
+    model: options.model,
+    timestamp: Date.now(),
+    message,
+    code,
+    error: { message, code },
   }
 }
 

@@ -9,6 +9,7 @@
   "ignoreWorkspaces": [
     "examples/**",
     "testing/**",
+    "tools/**",
     "packages/ai-code-mode/models-eval"
   ],
   "ignore": [
@@ -72,6 +73,9 @@
     "packages/ai-bedrock": {},
     "packages/ai-grok-build": {
       "ignoreDependencies": ["@tanstack/ai-acp"]
+    },
+    "packages/ai-worldlabs": {
+      "ignore": ["src/generated/**"]
     }
   }
 }

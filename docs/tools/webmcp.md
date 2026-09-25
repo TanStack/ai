@@ -9,9 +9,9 @@ keywords:
   - browser agents
   - client tools
   - registerWebMCPTools
-  - useWebMCPTools
-  - createWebMCPTools
-  - injectWebMCPTools
+  - useRegisterWebMCPTools
+  - createRegisterWebMCPTools
+  - injectRegisterWebMCPTools
 ---
 
 You have a browser action that a page agent needs to discover and execute. WebMCP exposes your TanStack client tools through `document.modelContext`.
@@ -19,6 +19,8 @@ You have a browser action that a page agent needs to discover and execute. WebMC
 > **Experimental:** WebMCP support is experimental. Use it as progressive enhancement, not as a required application path.
 
 During SSR, in insecure contexts, or in unsupported browsers, registration resolves without adding tools. Your application continues to work without WebMCP.
+
+This page sends your tools to WebMCP. To give the WebMCP tools on a page to your own chat, see [Page WebMCP Tools in Chat](./webmcp-page-tools).
 
 ## 1. Install the packages
 
@@ -80,10 +82,10 @@ Use the lifecycle wrapper for your framework. Each wrapper removes its registrat
 
 # React
 
-Call `useWebMCPTools` in a component. If its contents do not change, keep the tool array stable.
+Call `useRegisterWebMCPTools` in a component. If its contents do not change, keep the tool array stable.
 
 ```tsx
-import { useWebMCPTools } from '@tanstack/ai-react'
+import { useRegisterWebMCPTools } from '@tanstack/ai-react'
 import { webMCPTools } from './tools'
 
 const webMCPOptions = {
@@ -93,7 +95,7 @@ const webMCPOptions = {
 }
 
 export function HelpPage() {
-  useWebMCPTools(webMCPTools, webMCPOptions)
+  useRegisterWebMCPTools(webMCPTools, webMCPOptions)
 
   return (
     <section id="help-panel" popover="auto">
@@ -105,14 +107,14 @@ export function HelpPage() {
 
 # Vue
 
-Call `useWebMCPTools` in a setup scope. Vue removes the registrations during scope disposal.
+Call `useRegisterWebMCPTools` in a setup scope. Vue removes the registrations during scope disposal.
 
 ```vue
 <script setup lang="ts">
-import { useWebMCPTools } from '@tanstack/ai-vue'
+import { useRegisterWebMCPTools } from '@tanstack/ai-vue'
 import { webMCPTools } from './tools'
 
-useWebMCPTools(webMCPTools, {
+useRegisterWebMCPTools(webMCPTools, {
   onError: (error) => console.error('WebMCP registration failed', error),
 })
 </script>
@@ -126,14 +128,14 @@ useWebMCPTools(webMCPTools, {
 
 # Solid
 
-Call `useWebMCPTools` in a reactive owner. Solid removes the registrations during owner cleanup.
+Call `useRegisterWebMCPTools` in a reactive owner. Solid removes the registrations during owner cleanup.
 
 ```tsx
-import { useWebMCPTools } from '@tanstack/ai-solid'
+import { useRegisterWebMCPTools } from '@tanstack/ai-solid'
 import { webMCPTools } from './tools'
 
 export function HelpPage() {
-  useWebMCPTools(webMCPTools, {
+  useRegisterWebMCPTools(webMCPTools, {
     onError: (error) => console.error('WebMCP registration failed', error),
   })
 
@@ -147,14 +149,14 @@ export function HelpPage() {
 
 # Svelte
 
-Call `createWebMCPTools` in the component script. Svelte removes the registrations during component destruction.
+Call `createRegisterWebMCPTools` in the component script. Svelte removes the registrations during component destruction.
 
 ```svelte
 <script lang="ts">
-  import { createWebMCPTools } from '@tanstack/ai-svelte'
+  import { createRegisterWebMCPTools } from '@tanstack/ai-svelte'
   import { webMCPTools } from './tools'
 
-  createWebMCPTools(webMCPTools, {
+  createRegisterWebMCPTools(webMCPTools, {
     onError: (error) => console.error('WebMCP registration failed', error),
   })
 </script>
@@ -166,10 +168,10 @@ Call `createWebMCPTools` in the component script. Svelte removes the registratio
 
 # Preact
 
-Call `useWebMCPTools` in a component. If its contents do not change, keep the tool array stable.
+Call `useRegisterWebMCPTools` in a component. If its contents do not change, keep the tool array stable.
 
 ```tsx
-import { useWebMCPTools } from '@tanstack/ai-preact'
+import { useRegisterWebMCPTools } from '@tanstack/ai-preact'
 import { webMCPTools } from './tools'
 
 const webMCPOptions = {
@@ -179,7 +181,7 @@ const webMCPOptions = {
 }
 
 export function HelpPage() {
-  useWebMCPTools(webMCPTools, webMCPOptions)
+  useRegisterWebMCPTools(webMCPTools, webMCPOptions)
 
   return (
     <section id="help-panel" popover="auto">
@@ -191,11 +193,11 @@ export function HelpPage() {
 
 # Angular
 
-Call `injectWebMCPTools` in an injection context. Angular removes the registrations through `DestroyRef`.
+Call `injectRegisterWebMCPTools` in an injection context. Angular removes the registrations through `DestroyRef`.
 
 ```ts ignore
 import { Component } from '@angular/core'
-import { injectWebMCPTools } from '@tanstack/ai-angular'
+import { injectRegisterWebMCPTools } from '@tanstack/ai-angular'
 import { webMCPTools } from './tools'
 
 @Component({
@@ -204,7 +206,7 @@ import { webMCPTools } from './tools'
   template: '<section id="help-panel" popover><h2>Help</h2></section>',
 })
 export class HelpPage {
-  webMCP = injectWebMCPTools(webMCPTools, {
+  webMCP = injectRegisterWebMCPTools(webMCPTools, {
     onError: (error) => console.error('WebMCP registration failed', error),
   })
 }
@@ -212,10 +214,10 @@ export class HelpPage {
 
 # Octane
 
-Call `useWebMCPTools` in a component. If its contents do not change, keep the tool array stable.
+Call `useRegisterWebMCPTools` in a component. If its contents do not change, keep the tool array stable.
 
 ```tsx
-import { useWebMCPTools } from '@tanstack/ai-octane'
+import { useRegisterWebMCPTools } from '@tanstack/ai-octane'
 import { webMCPTools } from './tools'
 
 const webMCPOptions = {
@@ -225,7 +227,7 @@ const webMCPOptions = {
 }
 
 export function HelpPage() {
-  useWebMCPTools(webMCPTools, webMCPOptions)
+  useRegisterWebMCPTools(webMCPTools, webMCPOptions)
 
   return (
     <section id="help-panel" popover="auto">
@@ -237,17 +239,17 @@ export function HelpPage() {
 
 # Remix
 
-Pass the component `Handle` to `createWebMCPTools`. Remix uses `handle.signal` for cleanup.
+Pass the component `Handle` to `createRegisterWebMCPTools`. Remix uses `handle.signal` for cleanup.
 
 ```tsx
-import { createWebMCPTools } from '@tanstack/ai-remix'
+import { createRegisterWebMCPTools } from '@tanstack/ai-remix'
 import { clientEntry, createElement } from 'remix/ui'
 import { webMCPTools } from './tools'
 
 export const HelpPage = clientEntry(
   import.meta.url,
   function HelpPage(handle) {
-    createWebMCPTools(handle, webMCPTools, {
+    createRegisterWebMCPTools(handle, webMCPTools, {
       onError: (error) => console.error('WebMCP registration failed', error),
     })
 
@@ -266,6 +268,18 @@ export const HelpPage = clientEntry(
 Changes to the `tools` or `options` value replace registrations in React, Preact, and Octane. Stable values prevent unnecessary registry changes.
 
 All wrappers accept `toolOptions`, `context`, and `onError`. A contextual client tool makes `context` and the options argument required.
+
+### Migrate from the earlier wrapper names
+
+The earlier names still work, but they are deprecated. They will be removed in 1.0.0:
+
+| Deprecated name     | Current name                |
+| ------------------- | --------------------------- |
+| `useWebMCPTools`    | `useRegisterWebMCPTools`    |
+| `createWebMCPTools` | `createRegisterWebMCPTools` |
+| `injectWebMCPTools` | `injectRegisterWebMCPTools` |
+
+The options types have the same change, for example `UseWebMCPToolsOptions` becomes `UseRegisterWebMCPToolsOptions`.
 
 ## Use the framework-neutral registrar
 

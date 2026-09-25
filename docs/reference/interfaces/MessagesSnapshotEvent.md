@@ -3,9 +3,7 @@ id: MessagesSnapshotEvent
 title: MessagesSnapshotEvent
 ---
 
-# Interface: MessagesSnapshotEvent
-
-Defined in: [packages/ai/src/types.ts:1339](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1339)
+Defined in: [packages/ai/src/types.ts:1393](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1393)
 
 Emitted to provide a snapshot of all messages in a conversation.
 
@@ -20,9 +18,3 @@ Use converters to transform to/from TanStack UIMessage format.
 ## Extends
 
 - `MessagesSnapshotEvent`
-
-## Indexable
-
-```ts
-[k: string]: unknown
-```

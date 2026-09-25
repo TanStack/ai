@@ -3,13 +3,11 @@ id: toSpecTokenUsage
 title: toSpecTokenUsage
 ---
 
-# Function: toSpecTokenUsage()
-
 ```ts
 function toSpecTokenUsage(usage, options?): object;
 ```
 
-Defined in: [packages/ai/src/utilities/ag-ui-usage.ts:47](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-usage.ts#L47)
+Defined in: [packages/ai/src/utilities/ag-ui-usage.ts:40](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-usage.ts#L40)
 
 ## Parameters
 
@@ -34,5 +32,5 @@ optional leftover?: TokenUsageLeftover;
 ### usage
 
 ```ts
-usage: SpecTokenUsage[];
+usage: TokenUsage[];
 ```

@@ -179,3 +179,26 @@ export default defineComponent({
 Tool approvals sit in the tool when you read the `interrupt` prop. Put a component on `interruptsComponents.tools` to send that approval to the list instead. Generic interrupts always sit in the list under `interruptsComponents.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. Branch on `interrupt.kind === 'unbound'` if the copy must differ.
 
 The full map is on the [React page](./react).
+
+## Render markdown
+
+Model replies arrive as markdown. `TextPart` from `@tanstack/ai-vue/ui` renders it with [TanStack Markdown](https://tanstack.com/markdown). By default, raw HTML is escaped and executable URLs are removed.
+
+```ts
+import { defineComponent, h } from 'vue'
+import { TextPart } from '@tanstack/ai-vue/ui'
+
+export default defineComponent({
+  props: { content: { type: String, required: true } },
+  setup(props) {
+    return () => h(TextPart, { content: props.content })
+  },
+})
+```
+
+Fenced code stays plain until you pass a `highlighter`. Build one with TanStack Highlight: [Highlight markdown code](./markdown). A custom `highlighter` returns trusted HTML. Use `createTanStackMarkdownHighlighter`, or another highlighter that escapes source text.
+
+- `highlighter`: a synchronous `CodeHighlighter`.
+- `extensions`: extra TanStack Markdown extensions. The streaming extension is always on.
+
+If you still pass `remarkPlugins`, `rehypePlugins`, or `disableDefaultPlugins`, see [TextPart markdown](../migration/text-part-markdown).

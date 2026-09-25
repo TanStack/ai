@@ -11,8 +11,6 @@ keywords:
   - client authoritative
 ---
 
-# Persistence
-
 Your user reloads the page and the conversation is gone, because it only ever lived
 in memory. Or they open the app on their phone and none of it is there. Persistence
 fixes both, and it is two snippets: one middleware on the server, one option on the
@@ -115,6 +113,9 @@ function Chat() {
 
 With `persistence: true` the client needs one `GET` to read from, which is step 3.
 With a storage adapter you are done: reload and the conversation is there.
+
+A long thread can page on hydrate. See [Client persistence](./client-persistence)
+for `history: { pageSize }`.
 
 ## 3. Survive a reload mid-answer
 

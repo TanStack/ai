@@ -1,6 +1,6 @@
 import { expectTypeOf, test } from 'vitest'
 import { createModel } from '@tanstack/ai'
-import { openaiCompatible } from '../src/compatible/index'
+import { openaiCompatible, openaiCompatibleText } from '../src/compatible/index'
 import type { ModelNameOf, ResolveCompatInput } from '../src/compatible/types'
 
 const models = [
@@ -35,4 +35,17 @@ test('provider rejects unknown model names', () => {
   // @ts-expect-error 'nope' is not a declared model
   p('nope')
   p('known')
+})
+
+test('apiKey accepts an OpenAI token-provider function', () => {
+  const tokenProvider = async () => 'token'
+  openaiCompatible({
+    baseURL: 'https://x/v1',
+    apiKey: tokenProvider,
+    models: ['known'] as const,
+  })
+  openaiCompatibleText('known', {
+    baseURL: 'https://x/v1',
+    apiKey: tokenProvider,
+  })
 })

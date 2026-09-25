@@ -3,9 +3,7 @@ id: RunStore
 title: RunStore
 ---
 
-# Interface: RunStore
-
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:179](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L179)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:197](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L197)
 
 Durable store for run lifecycle records.
 
@@ -17,9 +15,10 @@ whose answer is legitimately `null`, so reconnect would silently do nothing
 instead of failing at build time. It was optional for exactly one release
 cycle and cost precisely that.
 
-OPTIONAL: `listByThread`, `listReclaimable`. Each serves one higher-level
-feature (thread history, reclaim reaping) and callers feature-detect them,
-degrading gracefully when a backend omits them.
+OPTIONAL: `listByThread`, `listByParentRun`, `listReclaimable`. Each serves
+one higher-level feature (thread history, subagent card reload, reclaim
+reaping) and callers feature-detect them, degrading when a backend omits
+them.
 
 ## Properties
 
@@ -29,14 +28,16 @@ degrading gracefully when a backend omits them.
 createOrResume: (input) => Promise<RunRecord>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:188](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L188)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:208](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L208)
 
 Create a run record, or return the existing one unchanged if `runId` is
 already present.
 
 INVARIANT (idempotency): an existing record is returned **unchanged** and
-the passed `threadId`/`startedAt`/`status` are ignored. This is what makes
-resuming a run safe. `status` defaults to `'running'` on first creation.
+the passed `threadId`, `startedAt`, `status`, `parentRunId`,
+`subagentRunId`, and `name` are ignored. This is what makes resuming a
+run safe. `status` defaults to `'running'` on first creation. The three
+link fields are copied only on the first insert.
 
 #### Parameters
 
@@ -56,7 +57,7 @@ resuming a run safe. `status` defaults to `'running'` on first creation.
 findActiveRun: (threadId) => Promise<RunRecord | null>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:255](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L255)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:287](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L287)
 
 The most recent `'running'` run for `threadId`, or `null` if none is active.
 
@@ -89,7 +90,7 @@ tiers belong at the store level, not the method level.
 get: (runId) => Promise<RunRecord | null>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:216](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L216)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:239](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L239)
 
 Current record, or null when unknown.
 
@@ -105,16 +106,43 @@ Current record, or null when unknown.
 
 ***
 
+### listByParentRun?
+
+```ts
+optional listByParentRun?: (parentRunId) => Promise<RunRecord[]>;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:253](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L253)
+
+Child runs started by `parentRunId`, ascending by `startedAt`.
+OPTIONAL. `reconstructChat` uses this to put subagent cards back
+on the parent assistant message. A store that omits it reloads the
+text and not the cards.
+
+#### Parameters
+
+##### parentRunId
+
+`string`
+
+#### Returns
+
+`Promise`\<[`RunRecord`](RunRecord.md)[]\>
+
+***
+
 ### listByThread?
 
 ```ts
 optional listByThread?: (threadId) => Promise<RunRecord[]>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:221](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L221)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:246](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L246)
 
-Every run in a conversation, ascending by `startedAt`. OPTIONAL: only
-needed to render a thread's past agent activity. Consumers feature-detect.
+Every run in a conversation, ascending by `startedAt`. OPTIONAL.
+`reconstructChat` calls it to find the parent runs of children that a
+tool call started. Without it those cards stay absent on reload.
+Consumers feature-detect.
 
 #### Parameters
 
@@ -134,7 +162,7 @@ needed to render a thread's past agent activity. Consumers feature-detect.
 optional listReclaimable?: (opts) => Promise<RunRecord[]>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:237](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L237)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:269](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L269)
 
 Runs that may be reclaimed: ALL THREE of `status === 'running'`,
 `detachedSince` is set, and `detachedSince <= now - ttlMs`. The cutoff is
@@ -174,7 +202,7 @@ method cannot be reaped at all.
 update: (runId, patch) => Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:199](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L199)
+Defined in: [packages/ai/src/activities/chat/middleware/run-store.ts:222](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/run-store.ts#L222)
 
 Patch a record's mutable fields.
 
