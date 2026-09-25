@@ -155,7 +155,7 @@
           "label": "Subagents",
           "to": "chat/subagents",
           "addedAt": "2026-09-21",
-          "updatedAt": "2026-09-24"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Agentic Cycle",
