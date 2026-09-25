@@ -483,7 +483,7 @@ The options apply in these places:
 - **`tools()`**: `toolFilter` hides tools, and `needsApproval` marks tools.
 - **`tools([...defs])`**: `toolFilter` applies. A definition that the filter hides throws `MCPToolNotFoundError`. `needsApproval` does not apply, because each `toolDefinition` has its own `needsApproval`.
 - **`chat({ mcp })`**: both apply, because `chat()` calls `tools()` on the client. See [Managed MCP](./mcp-managed).
-- **[MCP Apps](../mcp/apps) widget calls**: `toolFilter` applies. A widget cannot call a tool that the filter hides.
+- **[MCP Apps](../mcp/apps) widget calls**: both apply. A widget cannot call a tool that the filter hides. A widget call has no approval step, so a call to a tool that `needsApproval` marks returns `{ ok: false }`.
 - **`callTool()`**: neither applies. Your code calls the tool directly, and the model is not involved.
 
 > **The hints come from the server.** A compromised server can mark a delete tool `readOnlyHint: true`. Use a name allowlist or `needsApproval` for a server that you do not trust.

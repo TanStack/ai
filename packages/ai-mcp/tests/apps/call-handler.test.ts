@@ -12,6 +12,7 @@ const closeMock = vi.fn(async () => {})
 // `metadata.mcp.serverToolName` (the UNPREFIXED server-native tool name).
 type MockTool = {
   name: string
+  needsApproval?: boolean
   metadata?: { mcp?: { serverToolName?: string } }
 }
 // Per-test variable so individual tests can override the exposed tool list.
@@ -34,6 +35,7 @@ type ServerInfo = {
   transport: TransportDescriptor | undefined
   prefix: string | undefined
   toolFilter?: (tool: { name: string }) => boolean
+  needsApproval?: (tool: { name: string }) => boolean
 }
 
 // A method the call handler must never reach in these tests. Calling it is a
@@ -146,6 +148,49 @@ describe('createMcpAppCallHandler', () => {
       transport: { type: 'http', url: 'https://x/mcp' },
       prefix: 'weather',
       toolFilter,
+    })
+  })
+
+  it('rejects a tool that the client needsApproval marks, without calling callTool', async () => {
+    // A widget call has no approval step, so it must not run a tool that the
+    // model can run only after approval.
+    const needsApproval = (tool: { name: string }) =>
+      tool.name === 'place_order'
+    mockToolsList = [{ name: 'place_order', needsApproval: true }]
+    const handler = createMcpAppCallHandler({
+      clients: fakePool({ weather: { ...WEATHER_HTTP, needsApproval } }),
+    })
+    const res = await handler({
+      threadId: 't1',
+      serverId: 'weather',
+      toolName: 'place_order',
+    })
+    expect(res).toEqual({
+      ok: false,
+      error: 'Tool needs approval: place_order',
+    })
+    expect(createMCPClient).toHaveBeenCalledWith({
+      transport: { type: 'http', url: 'https://x/mcp' },
+      prefix: 'weather',
+      needsApproval,
+    })
+    expect(callToolMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the client needsApproval when a store returns a descriptor without it', async () => {
+    const needsApproval = (tool: { name: string }) =>
+      tool.name === 'place_order'
+    const store = inMemoryMcpSessionStore()
+    await store.set('t1', { weather: JSON.parse(JSON.stringify(WEATHER_HTTP)) })
+    const handler = createMcpAppCallHandler({
+      clients: fakePool({ weather: { ...WEATHER_HTTP, needsApproval } }),
+      store,
+    })
+    await handler({ threadId: 't1', serverId: 'weather', toolName: 'x' })
+    expect(createMCPClient).toHaveBeenCalledWith({
+      transport: { type: 'http', url: 'https://x/mcp' },
+      prefix: 'weather',
+      needsApproval,
     })
   })
 

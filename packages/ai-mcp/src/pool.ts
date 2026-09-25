@@ -49,6 +49,7 @@ export interface MCPClients<
       prefix: string | undefined
       clientOptions?: ClientOptions
       toolFilter?: MCPClientOptions['toolFilter']
+      needsApproval?: MCPClientOptions['needsApproval']
     }
   >
   /** Close every client. */
@@ -156,6 +157,7 @@ export async function createMCPClients<
         prefix: string | undefined
         clientOptions?: ClientOptions
         toolFilter?: MCPClientOptions['toolFilter']
+        needsApproval?: MCPClientOptions['needsApproval']
       }
     > {
       // Keyed by config key (serverId / default prefix). Read each underlying

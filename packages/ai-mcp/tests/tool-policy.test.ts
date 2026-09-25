@@ -105,4 +105,18 @@ describe('needsApproval', () => {
     const [tool] = await client.tools([setAlert])
     expect(tool?.needsApproval).toBeFalsy()
   })
+
+  it('reports both policies on getInfo so an MCP Apps widget call keeps them', async () => {
+    const { clientTransport } = await makeServerWithMixedTools()
+    const needsApproval = () => true
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      toolFilter: readOnly,
+      needsApproval,
+    })
+    expect(client.getInfo()).toMatchObject({
+      toolFilter: readOnly,
+      needsApproval,
+    })
+  })
 })

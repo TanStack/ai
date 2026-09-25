@@ -129,12 +129,14 @@ function buildRegistry(clients: McpAppClientsInput): AppRegistry {
     prefix: string | undefined
     clientOptions?: McpServerDescriptor['clientOptions']
     toolFilter?: McpServerDescriptor['toolFilter']
+    needsApproval?: McpServerDescriptor['needsApproval']
   }) => {
     const descriptor: McpServerDescriptor = {
       transport: info.transport,
       prefix: info.prefix,
       ...(info.clientOptions ? { clientOptions: info.clientOptions } : {}),
       ...(info.toolFilter ? { toolFilter: info.toolFilter } : {}),
+      ...(info.needsApproval ? { needsApproval: info.needsApproval } : {}),
     }
     total += 1
     const key = info.prefix
@@ -237,9 +239,12 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
     }
 
     // A persistent store cannot serialize a function, so a stored descriptor
-    // can come back without `toolFilter`. Fall back to the filter of the same
-    // server in `clients`, or a widget could call a tool the model cannot see.
+    // can come back without `toolFilter` or `needsApproval`. Fall back to the
+    // policy of the same server in `clients`, or a widget could call a tool the
+    // model cannot see, or run one the model can run only after approval.
     const toolFilter = descriptor.toolFilter ?? fromRegistry?.toolFilter
+    const needsApproval =
+      descriptor.needsApproval ?? fromRegistry?.needsApproval
     const client = await createMCPClient({
       transport: descriptor.transport,
       prefix: descriptor.prefix,
@@ -247,6 +252,7 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
         ? { clientOptions: descriptor.clientOptions }
         : {}),
       ...(toolFilter ? { toolFilter } : {}),
+      ...(needsApproval ? { needsApproval } : {}),
     })
 
     try {
@@ -255,14 +261,18 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
       // against the native names the server exposes — carried on
       // `metadata.mcp.serverToolName` (falling back to `name` for unprefixed
       // clients) — and forward `req.toolName` unchanged to `client.callTool`.
-      const exposedNative = new Set(
-        (await client.tools()).map((t) => serverToolNameOf(t)),
+      const exposed: ServerTool | undefined = (await client.tools()).find(
+        (t) => serverToolNameOf(t) === req.toolName,
       )
-      const inExposed = exposedNative.has(req.toolName)
       const customOk = opts.allowTool ? await opts.allowTool(req) : true
 
-      if (!inExposed || !customOk) {
+      if (!exposed || !customOk) {
         return { ok: false, error: `Tool not allowed: ${req.toolName}` }
+      }
+      // A widget call has no approval step. `tools()` marks the tools that the
+      // client's `needsApproval` selects, so refuse those here.
+      if (exposed.needsApproval) {
+        return { ok: false, error: `Tool needs approval: ${req.toolName}` }
       }
 
       // Reject a malformed args payload (array, primitive, null) rather than

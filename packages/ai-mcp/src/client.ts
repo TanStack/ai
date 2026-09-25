@@ -115,6 +115,7 @@ export interface MCPClient<
      */
     clientOptions?: ClientOptions
     toolFilter?: MCPClientOptions['toolFilter']
+    needsApproval?: MCPClientOptions['needsApproval']
   }
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
@@ -160,13 +161,15 @@ class MCPClientImpl<
     prefix: string | undefined
     clientOptions?: ClientOptions
     toolFilter?: MCPClientOptions['toolFilter']
+    needsApproval?: MCPClientOptions['needsApproval']
   } {
-    const { toolFilter } = this.#policy
+    const { toolFilter, needsApproval } = this.#policy
     return {
       transport: this.#transport,
       prefix: this.prefix,
       ...(this.#clientOptions ? { clientOptions: this.#clientOptions } : {}),
       ...(toolFilter ? { toolFilter } : {}),
+      ...(needsApproval ? { needsApproval } : {}),
     }
   }
 

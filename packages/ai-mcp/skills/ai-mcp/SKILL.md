@@ -254,6 +254,8 @@ const mcp = await createMCPClient({
   apply to `callTool()`.
 - `needsApproval` does not change `tools([defs])`: each `toolDefinition` keeps
   its own `needsApproval`.
+- MCP Apps widget calls have no approval step, so the call handler refuses a
+  tool that `needsApproval` marks (`{ ok: false, error: 'Tool needs approval: <name>' }`).
 - Annotations are server-declared hints. For an untrusted server, filter by
   `tool.name` instead.
 

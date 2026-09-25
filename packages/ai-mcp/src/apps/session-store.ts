@@ -18,6 +18,8 @@ export interface McpServerDescriptor {
   clientOptions?: ClientOptions
   /** Carried so a reconnect hides the same tools from widgets as from the model. */
   toolFilter?: MCPClientOptions['toolFilter']
+  /** Carried so a widget cannot run a tool that the model can run only after approval. */
+  needsApproval?: MCPClientOptions['needsApproval']
 }
 
 export interface McpSessionStore {
