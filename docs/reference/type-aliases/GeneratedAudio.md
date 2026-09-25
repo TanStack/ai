@@ -3,13 +3,11 @@ id: GeneratedAudio
 title: GeneratedAudio
 ---
 
-# Type Alias: GeneratedAudio
-
 ```ts
 type GeneratedAudio = GeneratedMediaSource & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:2093](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2093)
+Defined in: [packages/ai/src/types.ts:2191](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2191)
 
 A single generated audio output
 

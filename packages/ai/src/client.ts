@@ -3,6 +3,7 @@ import type {
   ImageGenerationOptions,
   TTSOptions,
   TranscriptionOptions,
+  VoiceGenerationOptions,
   VideoGenerationOptions,
   WorldGenerationOptions,
   LiveVideoGenerationOptions,
@@ -12,6 +13,7 @@ export type GenerationKind =
   | 'image'
   | 'audio'
   | 'tts'
+  | 'voice'
   | 'video'
   | 'transcription'
   | 'world'
@@ -21,6 +23,7 @@ type GenerationInputByKind = {
   image: Omit<ImageGenerationOptions, 'logger' | 'model'>
   audio: Omit<AudioGenerationOptions, 'logger' | 'model'>
   tts: Omit<TTSOptions, 'logger' | 'model'>
+  voice: Omit<VoiceGenerationOptions, 'logger' | 'model'>
   video: Omit<VideoGenerationOptions, 'logger' | 'model'>
   transcription: Omit<TranscriptionOptions, 'logger' | 'model'>
   world: Omit<WorldGenerationOptions, 'logger' | 'model'>
@@ -38,6 +41,7 @@ const generationKinds = [
   'image',
   'audio',
   'tts',
+  'voice',
   'video',
   'transcription',
   'world',
@@ -69,6 +73,31 @@ function assertGenerationKind(kind: unknown): asserts kind is GenerationKind {
   }
 }
 
+/**
+ * The input field(s) that identify a generation body for a kind. Most kinds
+ * have exactly one; `voice` accepts either of its two creation modes, so any
+ * one of its keys is enough.
+ */
+function requiredKeysForKind(kind: GenerationKind): Array<string> {
+  // Enumerated rather than defaulted so a new generation kind has to declare
+  // the field that identifies its body instead of silently inheriting
+  // `prompt`.
+  switch (kind) {
+    case 'tts':
+      return ['text']
+    case 'transcription':
+      return ['audio']
+    case 'voice':
+      return ['prompt', 'referenceAudio']
+    case 'image':
+    case 'audio':
+    case 'video':
+    case 'world':
+    case 'liveVideo':
+      return ['prompt']
+  }
+}
+
 function assertInputForKind(
   kind: GenerationKind,
   input: unknown,
@@ -77,21 +106,19 @@ function assertInputForKind(
     throw new Error(`Generation ${kind} input must be an object.`)
   }
 
-  const requiredKey =
-    kind === 'tts' ? 'text' : kind === 'transcription' ? 'audio' : 'prompt'
+  const requiredKeys = requiredKeysForKind(kind)
 
-  if (!hasOwnKey(input, requiredKey)) {
-    throw new Error(`Generation ${kind} input must include ${requiredKey}.`)
+  if (!requiredKeys.some((key) => hasOwnKey(input, key))) {
+    throw new Error(
+      `Generation ${kind} input must include ${requiredKeys.join(' or ')}.`,
+    )
   }
 }
 
 function isInputForKind(kind: GenerationKind, input: unknown): boolean {
   if (!isRecord(input)) return false
 
-  const requiredKey =
-    kind === 'tts' ? 'text' : kind === 'transcription' ? 'audio' : 'prompt'
-
-  return hasOwnKey(input, requiredKey)
+  return requiredKeysForKind(kind).some((key) => hasOwnKey(input, key))
 }
 
 function forwardedPropsFromEnvelope(
@@ -197,41 +224,25 @@ export async function generationParamsFromRequest<TKind extends GenerationKind>(
   return generationParamsFromBody(kind, body)
 }
 
-export enum EventType {
-  TEXT_MESSAGE_START = 'TEXT_MESSAGE_START',
-  TEXT_MESSAGE_CONTENT = 'TEXT_MESSAGE_CONTENT',
-  TEXT_MESSAGE_END = 'TEXT_MESSAGE_END',
-  TEXT_MESSAGE_CHUNK = 'TEXT_MESSAGE_CHUNK',
-  TOOL_CALL_START = 'TOOL_CALL_START',
-  TOOL_CALL_ARGS = 'TOOL_CALL_ARGS',
-  TOOL_CALL_END = 'TOOL_CALL_END',
-  TOOL_CALL_CHUNK = 'TOOL_CALL_CHUNK',
-  TOOL_CALL_RESULT = 'TOOL_CALL_RESULT',
-  THINKING_START = 'THINKING_START',
-  THINKING_END = 'THINKING_END',
-  THINKING_TEXT_MESSAGE_START = 'THINKING_TEXT_MESSAGE_START',
-  THINKING_TEXT_MESSAGE_CONTENT = 'THINKING_TEXT_MESSAGE_CONTENT',
-  THINKING_TEXT_MESSAGE_END = 'THINKING_TEXT_MESSAGE_END',
-  STATE_SNAPSHOT = 'STATE_SNAPSHOT',
-  STATE_DELTA = 'STATE_DELTA',
-  MESSAGES_SNAPSHOT = 'MESSAGES_SNAPSHOT',
-  ACTIVITY_SNAPSHOT = 'ACTIVITY_SNAPSHOT',
-  ACTIVITY_DELTA = 'ACTIVITY_DELTA',
-  RAW = 'RAW',
-  CUSTOM = 'CUSTOM',
-  RUN_STARTED = 'RUN_STARTED',
-  RUN_FINISHED = 'RUN_FINISHED',
-  RUN_ERROR = 'RUN_ERROR',
-  STEP_STARTED = 'STEP_STARTED',
-  STEP_FINISHED = 'STEP_FINISHED',
-  REASONING_START = 'REASONING_START',
-  REASONING_MESSAGE_START = 'REASONING_MESSAGE_START',
-  REASONING_MESSAGE_CONTENT = 'REASONING_MESSAGE_CONTENT',
-  REASONING_MESSAGE_END = 'REASONING_MESSAGE_END',
-  REASONING_MESSAGE_CHUNK = 'REASONING_MESSAGE_CHUNK',
-  REASONING_END = 'REASONING_END',
-  REASONING_ENCRYPTED_VALUE = 'REASONING_ENCRYPTED_VALUE',
-}
+export { EventType } from '@ag-ui/core'
+
+export {
+  defineAgent,
+  type DefinedAgent,
+  type SubagentChoiceOptions,
+  type SubagentRunContext,
+} from './activities/chat/agents/define-agent'
+export {
+  subagentRoute,
+  type SubagentRouteOptions,
+} from './activities/chat/agents/route'
+export type {
+  SubagentOrder,
+  SubagentRouterPick,
+  SubagentRouterPlan,
+  SubagentStep,
+  SubagentStepsPlan,
+} from './activities/chat/agents/spawn'
 
 export {
   toolDefinition,
@@ -318,10 +329,20 @@ export type { AdapterYieldChunk } from './utilities/adapter-yield-chunk'
 export { getChunkRunId, getChunkThreadId } from './utilities/chunk-ids'
 export type { WireMessage } from './utilities/ag-ui-wire'
 
+// A browser client that received an uploaded handle from its server can build
+// the `{ type: 'file' }` content source itself — `fileSourceFromHandle` is a
+// pure object builder, so exporting it here keeps the documented client flow
+// from pulling in the server entry.
+export { fileSourceFromHandle } from './activities/files/index'
+export type { FileHandle } from './activities/files/adapter'
+
 export type {
   AudioPart,
   ContentPart,
   ContentPartDataSource,
+  ContentPartFileSource,
+  SubagentHandleData,
+  SubagentStatus,
   ContentPartSource,
   ContentPartUrlSource,
   CustomEvent,

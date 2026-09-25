@@ -35,8 +35,13 @@ export default mergeConfig(
       './src/providers/hindsight/index.ts',
       './src/providers/mem0/index.ts',
       './src/providers/honcho/index.ts',
+      './src/testkit/contract.ts',
     ],
     srcDir: './src',
+    // The contract testkit imports Vitest; keep it external so the built
+    // artifact references the consumer's Vitest at test time instead of
+    // bundling the runner.
+    externalDeps: ['vitest'],
     cjs: false,
   }),
 )

@@ -3,8 +3,6 @@ id: InterruptResumeValidationError
 title: InterruptResumeValidationError
 ---
 
-# Class: InterruptResumeValidationError
-
 Defined in: [packages/ai/src/interrupt-resume.ts:77](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L77)
 
 ## Extends

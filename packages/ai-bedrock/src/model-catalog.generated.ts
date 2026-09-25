@@ -85,4 +85,22 @@ export const GENERATED_BEDROCK_MODELS = [
     output: ['text'],
     apis: { converse: true, chat: false, responses: false },
   },
+  {
+    id: 'google.gemma-4-31b',
+    input: ['text', 'image'],
+    output: ['text'],
+    apis: { converse: false, chat: true, responses: true },
+  },
+  {
+    id: 'google.gemma-4-26b-a4b',
+    input: ['text', 'image'],
+    output: ['text'],
+    apis: { converse: false, chat: true, responses: true },
+  },
+  {
+    id: 'google.gemma-4-e2b',
+    input: ['text', 'image'],
+    output: ['text'],
+    apis: { converse: false, chat: true, responses: true },
+  },
 ] as const

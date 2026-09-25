@@ -3,13 +3,11 @@ id: createChatOptions
 title: createChatOptions
 ---
 
-# Function: createChatOptions()
-
 ```ts
-function createChatOptions<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware>(options): Omit<TextActivityOptions<TAdapter, TSchema, TStream, InferredContext<TTools, TMiddleware>>, "middleware" | "tools" | "interrupts" | "context"> & object & RuntimeContextOption<TTools, TMiddleware, TContext>;
+function createChatOptions<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware>(options): Omit<TextActivityOptions<TAdapter, TSchema, TStream, InferredContext<TTools, TMiddleware>, readonly DefinedAgent<string, readonly SubagentTool[], SchemaInput | undefined, readonly InterruptDefinition<any, any, any, any, any>[]>[]>, "middleware" | "tools" | "interrupts" | "context"> & object & RuntimeContextOption<TTools, TMiddleware, TContext>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/index.ts:594](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L594)
+Defined in: [packages/ai/src/activities/chat/index.ts:642](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L642)
 
 Create typed options for the chat() function without executing.
 This is useful for pre-defining configurations with full type inference.
@@ -60,7 +58,7 @@ This is useful for pre-defining configurations with full type inference.
 
 ## Returns
 
-`Omit`\<`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`, `InferredContext`\<`TTools`, `TMiddleware`\>\>, `"middleware"` \| `"tools"` \| `"interrupts"` \| `"context"`\> & `object` & `RuntimeContextOption`\<`TTools`, `TMiddleware`, `TContext`\>
+`Omit`\<`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`, `InferredContext`\<`TTools`, `TMiddleware`\>, readonly [`DefinedAgent`](../interfaces/DefinedAgent.md)\<`string`, readonly `SubagentTool`[], [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined`, readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[]\>[]\>, `"middleware"` \| `"tools"` \| `"interrupts"` \| `"context"`\> & `object` & `RuntimeContextOption`\<`TTools`, `TMiddleware`, `TContext`\>
 
 ## Example
 

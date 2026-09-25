@@ -25,7 +25,7 @@ svelte: @tanstack/ai-svelte
 
 <!-- ::end:tabs -->
 
-## `createWebMCPTools(tools, options?)`
+## `createRegisterWebMCPTools(tools, options?)`
 
 Register executable client tools during Svelte component initialization. Svelte removes them when the component is destroyed.
 
@@ -34,25 +34,43 @@ For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
 ```svelte
 <script lang="ts">
   import {
-    createWebMCPTools,
-    type CreateWebMCPToolsOptions,
+    createRegisterWebMCPTools,
+    type CreateRegisterWebMCPToolsOptions,
   } from "@tanstack/ai-svelte";
   import { searchProducts } from "./tools";
 
   const tools = [searchProducts];
-  const options: CreateWebMCPToolsOptions<typeof tools> = {
+  const options: CreateRegisterWebMCPToolsOptions<typeof tools> = {
     onError(error) {
       console.error(error);
     },
   };
 
-  createWebMCPTools(tools, options);
+  createRegisterWebMCPTools(tools, options);
 </script>
 ```
 
-`CreateWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The factory owns the registration signal.
+`CreateRegisterWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The factory owns the registration signal.
 
 The `context` field is required when a tool declares a required runtime context.
+
+## `createPageWebMCPTools(options?)`
+
+Read the WebMCP tools on the page as client tools. The `tools` field starts empty and updates when the page adds or removes a tool. Read it in a `get tools()` getter on `createChat`.
+
+```svelte
+<script lang="ts">
+  import { createPageWebMCPTools } from "@tanstack/ai-svelte";
+
+  const page = createPageWebMCPTools({
+    filter: (tool) => tool.origin === location.origin,
+  });
+</script>
+
+<p>{page.tools.length} page tools</p>
+```
+
+`filter` skips a tool when it returns `false`. `onError` gets a failed WebMCP read. For a complete guide, see [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
 
 ## `createChatHook(options)`
 
@@ -120,7 +138,7 @@ const chat = createChat(chatOptions);
 Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state callbacks):
 
 - `connection` - Connection adapter (required)
-- `tools?` - Array of client tool implementations (with `.client()` method)
+- `tools?` - Array of client tool implementations (with `.client()` method). In a component, read reactive state in a `get tools()` getter to change the tools after the chat is created.
 - `initialMessages?` - Initial messages array
 - `threadId?` - The only identity for this chat. Required when persistence is on. If omitted, minted after mount.
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-5.5' }`)

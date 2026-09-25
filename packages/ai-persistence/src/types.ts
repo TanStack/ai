@@ -54,6 +54,29 @@ export type { MetadataStore, Scope }
 // the boundary; do not mix the two on a single field.
 
 /**
+ * One page of a thread from {@link MessageStore.loadThread} when the caller
+ * passed a paging hint.
+ *
+ * Middleware omits the hint and always gets a full `Array<ModelMessage>`,
+ * never this shape.
+ *
+ * `truncated: true` requires `cursor`. Without a cursor the client cannot
+ * request the next older window, so `reconstructChat` treats that page as
+ * complete.
+ */
+export type MessagePage =
+  | {
+      messages: Array<ModelMessage>
+      truncated: false
+      cursor?: never
+    }
+  | {
+      messages: Array<ModelMessage>
+      truncated: true
+      cursor: string
+    }
+
+/**
  * Durable store for a thread's full message transcript.
  *
  * A "thread" is the unit of conversation history. The key is
@@ -70,13 +93,27 @@ export type { MetadataStore, Scope }
  */
 export interface MessageStore {
   /**
-   * Return the full stored transcript for `threadId` ({@link Scope.threadId}),
+   * Return the stored transcript for `threadId` ({@link Scope.threadId}),
    * in insertion order.
+   *
+   * Call with only `threadId` (middleware, `onStart`, `onFinish`) and this
+   * MUST return the full transcript as an `Array<ModelMessage>`. Never a
+   * {@link MessagePage}.
+   *
+   * `options.limit` and `options.before` are an optional paging hint for
+   * hydrate. Adapters may ignore them and still return the full array. An
+   * adapter that pages returns a {@link MessagePage}.
    *
    * INVARIANT: returns an empty array (never `null`/`undefined`) for a thread
    * that was never saved. Callers treat `[]` as "no history".
    */
-  loadThread: (threadId: string) => Promise<Array<ModelMessage>>
+  loadThread: {
+    (threadId: string): Promise<Array<ModelMessage>>
+    (
+      threadId: string,
+      options: { limit?: number; before?: string },
+    ): Promise<Array<ModelMessage> | MessagePage>
+  }
   /**
    * Overwrite the stored transcript for `threadId` with `messages`.
    *

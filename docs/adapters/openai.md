@@ -638,8 +638,9 @@ const stream = chat({
 
 ### `localShellTool`
 
-Provides the model with a local shell for executing system commands. Takes no
-arguments — the tool is enabled simply by including it in the `tools` array.
+The model returns a `local_shell` tool call. Your app runs the command. Then your app sends the output back on the next request. `localShellTool()` takes no arguments. Add it to `tools`.
+
+Match `toolName` on `TOOL_CALL_START`. Read `input` on the `TOOL_CALL_END` with the same `toolCallId`. `input.command` is the command. `input.env` is the environment variables.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -647,19 +648,31 @@ import { openaiText } from "@tanstack/ai-openai";
 import { localShellTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.6"),
   messages: [{ role: "user", content: "Run the test suite and summarise failures" }],
   tools: [localShellTool()],
 });
+
+let localShellCallId: string | undefined;
+for await (const chunk of stream) {
+  if (chunk.type === "TOOL_CALL_START" && chunk.toolName === "local_shell") {
+    localShellCallId = chunk.toolCallId;
+  }
+  if (chunk.type === "TOOL_CALL_END" && chunk.toolCallId === localShellCallId) {
+    console.log(chunk.input);
+  }
+}
 ```
+
+Send the command output as the tool result. Use `{ output: string }`, or a string. The next request sends `local_shell_call_output`.
 
 **Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `shellTool`
 
-A function-style shell tool that exposes shell execution as a structured
-function call. Pass an `environment` object to attach container config and
-hosted skills.
+`shellTool()` gives the model a shell. A container environment runs on OpenAI. A local environment runs in your app.
+
+When your app must run the commands, pass `environment: { type: "local" }`. Match `toolName` on `TOOL_CALL_START`. Read `input` on the `TOOL_CALL_END` with the same `toolCallId`. `input.commands` is the command list. `input.timeout_ms` is the time limit. `input.max_output_length` is the output limit.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -667,11 +680,39 @@ import { openaiText } from "@tanstack/ai-openai";
 import { shellTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.6"),
   messages: [{ role: "user", content: "Count lines in all JS files" }],
-  tools: [shellTool()],
+  tools: [shellTool({ environment: { type: "local" } })],
 });
+
+let shellCallId: string | undefined;
+for await (const chunk of stream) {
+  if (chunk.type === "TOOL_CALL_START" && chunk.toolName === "shell") {
+    shellCallId = chunk.toolCallId;
+  }
+  if (chunk.type === "TOOL_CALL_END" && chunk.toolCallId === shellCallId) {
+    console.log(chunk.input);
+  }
+}
 ```
+
+Return one result per command:
+
+```typescript
+const shellResult = {
+  output: [
+    {
+      stdout: "12\n",
+      stderr: "",
+      outcome: { type: "exit" as const, exit_code: 0 },
+    },
+  ],
+};
+```
+
+`outcome.type` is `"exit"` or `"timeout"`. The next request sends `shell_call_output`. If the same response has no `shell_call_output`, a shell call with no environment comes back to your app.
+
+A container environment does not come back as a tool call. Pass `environment` to attach that container and hosted skills.
 
 **Supported models:** GPT-5.x and other agent-capable models. Responses API
 only — Chat Completions does not support the shell tool. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
@@ -713,8 +754,9 @@ Anthropic equivalent — see [Provider Skills](../tools/provider-skills.md).
 
 ### `applyPatchTool`
 
-Lets the model apply unified-diff patches to modify files directly. Takes no
-arguments — include it in the `tools` array to enable patch application.
+The model returns an `apply_patch` tool call. Your app applies the diff. Then your app sends the result back. `applyPatchTool()` takes no arguments. Add it to `tools`.
+
+Match `toolName` on `TOOL_CALL_START`. Read `input` on the `TOOL_CALL_END` with the same `toolCallId`. `input.operation` is one file change. `operation.type` is `create_file`, `update_file`, or `delete_file`. `operation.path` is the file path. `create_file` and `update_file` also include `operation.diff`.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -722,11 +764,32 @@ import { openaiText } from "@tanstack/ai-openai";
 import { applyPatchTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.6"),
   messages: [{ role: "user", content: "Fix the import paths in src/index.ts" }],
   tools: [applyPatchTool()],
 });
+
+let patchCallId: string | undefined;
+for await (const chunk of stream) {
+  if (chunk.type === "TOOL_CALL_START" && chunk.toolName === "apply_patch") {
+    patchCallId = chunk.toolCallId;
+  }
+  if (chunk.type === "TOOL_CALL_END" && chunk.toolCallId === patchCallId) {
+    console.log(chunk.input);
+  }
+}
 ```
+
+Send this object as the tool result. The next request sends `apply_patch_call_output`.
+
+```typescript
+const patchResult = {
+  status: "completed" as const,
+  output: "Updated src/index.ts",
+};
+```
+
+If the patch fails, set `status` to `"failed"`. Put the error text in `output`. Keep `applyPatchTool()` in `tools` on the next request. Use the stream. `chat({ stream: false })` returns only text. A patch-only turn then looks empty.
 
 **Supported models:** GPT-5.x and other agent-capable models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 

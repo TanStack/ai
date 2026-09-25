@@ -1,6 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
+import {
+  InMemoryTaskMessageQueue,
+  InMemoryTaskStore,
+} from '@modelcontextprotocol/sdk/experimental/tasks'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 
 /**
@@ -28,12 +33,22 @@ import { z } from 'zod'
 const WIDGET_URI = 'ui://show_widget'
 const WIDGET_HTML =
   '<!doctype html><html><body><div id="widget">MCP_APPS_WIDGET_OK</div></body></html>'
+const taskStore = new InMemoryTaskStore()
+const taskMessageQueue = new InMemoryTaskMessageQueue()
 
 function createMockAppsMcpServer(): McpServer {
-  const server = new McpServer({
-    name: 'mcp-apps-mock',
-    version: '0.0.1',
-  })
+  const server = new McpServer(
+    {
+      name: 'mcp-apps-mock',
+      version: '0.0.1',
+    },
+    {
+      capabilities: { tasks: { requests: { tools: { call: {} } } } },
+      taskStore,
+      taskMessageQueue,
+      defaultTaskPollInterval: 1,
+    },
+  )
 
   // A tool that links a ui:// resource via the MCP Apps `_meta.ui.resourceUri`
   // convention. `@tanstack/ai-mcp` discovery stamps this onto the ServerTool's
@@ -56,6 +71,40 @@ function createMockAppsMcpServer(): McpServer {
   // `registerTool`'s config doesn't accept `_meta` directly in the SDK; the
   // RegisteredTool exposes `_meta` as a mutable property surfaced at list time.
   widgetTool._meta = { ui: { resourceUri: WIDGET_URI } }
+
+  // A task-required action exercises the Apps call handler's direct
+  // MCPClient.callTool path, which must select task execution after discovery.
+  server.experimental.tasks.registerToolTask(
+    'run_widget_task',
+    {
+      description: 'Run a task-required action from an MCP App',
+      inputSchema: { action: z.string() },
+      execution: { taskSupport: 'required' },
+    },
+    {
+      async createTask({ action }, { taskStore: store, taskRequestedTtl }) {
+        const task = await store.createTask({
+          ttl: taskRequestedTtl,
+          pollInterval: 1,
+        })
+        await store.storeTaskResult(task.taskId, 'completed', {
+          content: [
+            {
+              type: 'text',
+              text: `MCP_APPS_TASK_CALL_OK:${action}`,
+            },
+          ],
+        })
+        return { task }
+      },
+      async getTask(_args, { taskId, taskStore: store }) {
+        return store.getTask(taskId)
+      },
+      async getTaskResult(_args, { taskId, taskStore: store }) {
+        return CallToolResultSchema.parse(await store.getTaskResult(taskId))
+      },
+    },
+  )
 
   // The linked ui:// resource — its HTML is what the client widget would
   // render. We only assert OUR plumbing carries this HTML, not that any

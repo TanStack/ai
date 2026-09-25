@@ -1,0 +1,69 @@
+{
+  "name": "@tanstack/ai-typesafe",
+  "version": "0.1.4",
+  "description": "TypeSafe Jev adapter for TanStack AI — typed evaluate decisions over HTTP.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-typesafe"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "typesafe",
+    "jev",
+    "adapter",
+    "evaluate",
+    "decide"
+  ],
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^"
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@vitest/coverage-v8": "4.1.10",
+    "vite": "^8.2.1"
+  },
+  "dependencies": {
+    "@tanstack/ai-utils": "workspace:^"
+  }
+}

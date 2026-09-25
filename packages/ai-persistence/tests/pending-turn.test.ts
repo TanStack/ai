@@ -8,6 +8,7 @@ import type {
 } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
+import { threadMessages } from './persistence-fixtures'
 
 /**
  * Storing the user's pending turn BEFORE a slow `setup`.
@@ -73,7 +74,9 @@ function slowMiddleware(
     name: 'slow-probe',
     async setup(ctx: ChatMiddlewareContext) {
       await getPendingTurn(ctx, { optional: true })?.snapshot()
-      const thread = await messagesOf(persistence).loadThread(ctx.threadId)
+      const thread = threadMessages(
+        await messagesOf(persistence).loadThread(ctx.threadId),
+      )
       seen.stored = thread.map((m) => m.role)
     },
   })
@@ -145,7 +148,9 @@ describe('pending-turn snapshot', () => {
       // drain
     }
 
-    const thread = await messagesOf(persistence).loadThread('t1')
+    const thread = threadMessages(
+      await messagesOf(persistence).loadThread('t1'),
+    )
     expect(thread.map((m) => m.role)).toContain('user')
   })
 })

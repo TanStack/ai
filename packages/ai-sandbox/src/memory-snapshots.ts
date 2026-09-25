@@ -682,6 +682,9 @@ async function createMemorySandboxSnapshots(): Promise<{
           threadId: string
           status?: RunRecord['status']
           startedAt: number
+          parentRunId?: string
+          subagentRunId?: string
+          name?: string
         }) => {
           const existing = runs.get(input.runId)
           if (existing) return existing
@@ -706,6 +709,10 @@ async function createMemorySandboxSnapshots(): Promise<{
         listByThread: async (threadId: string) =>
           [...runs.values()]
             .filter((run) => run.threadId === threadId)
+            .sort((a, b) => a.startedAt - b.startedAt),
+        listByParentRun: async (parentRunId: string) =>
+          [...runs.values()]
+            .filter((run) => run.parentRunId === parentRunId)
             .sort((a, b) => a.startedAt - b.startedAt),
         listReclaimable: async (input: { now: number; ttlMs: number }) =>
           [...runs.values()].filter(

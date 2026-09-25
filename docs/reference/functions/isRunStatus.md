@@ -3,8 +3,6 @@ id: isRunStatus
 title: isRunStatus
 ---
 
-# Function: isRunStatus()
-
 ```ts
 function isRunStatus(value): value is RunStatus;
 ```

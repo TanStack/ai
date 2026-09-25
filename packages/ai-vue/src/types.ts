@@ -28,7 +28,7 @@ import type {
   UIMessage,
   WhenBusy,
 } from '@tanstack/ai-client'
-import type { DeepReadonly, ShallowRef } from 'vue'
+import type { DeepReadonly, MaybeRefOrGetter, ShallowRef } from 'vue'
 
 // Re-export types from ai-client
 export type {
@@ -97,9 +97,15 @@ export type UseChatOptions<
   | 'onRunIdChange'
   | 'context'
   | 'devtools'
+  | 'tools'
 > & {
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /**
+   * Client-side tools with execution logic. Pass a ref or getter to change
+   * the tools after the chat is created.
+   */
+  tools?: MaybeRefOrGetter<TTools>
   live?: boolean
   /**
    * Standard-schema-compatible schema (Zod, Valibot, ArkType, or plain JSON
@@ -250,6 +256,16 @@ interface BaseUseChatReturn<
    * Whether a response is currently being generated
    */
   isLoading: DeepReadonly<ShallowRef<boolean>>
+
+  /**
+   * True when the last hydrate or older-page response said more messages exist.
+   */
+  hasOlderMessages: DeepReadonly<ShallowRef<boolean>>
+
+  /**
+   * Fetch the next older window and put it in front of the painted messages.
+   */
+  loadOlderMessages: () => Promise<void>
 
   /**
    * Current error, if any

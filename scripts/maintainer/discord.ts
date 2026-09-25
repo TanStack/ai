@@ -92,7 +92,11 @@ export function buildScorecardEmbeds(
             .map((t) => `[#${t.item.number}](${t.item.url})`)
             .join(' ')}`
         : ''
-    return `${mention(q.github, q.discord)}: ${q.assignedPRs.length} PRs, ${q.assignedIssues.length} issues${fresh}`
+    const latency =
+      q.medianTimeToFirstReviewHours === null
+        ? 'no timed first reviews'
+        : `median first review ${formatDuration(q.medianTimeToFirstReviewHours)} (n=${q.reviewLatencySampleSize})`
+    return `${mention(q.github, q.discord)}: ${q.assignedPRs.length} PRs, ${q.assignedIssues.length} issues · ${q.reviewsCompleted7d} reviews/7d · ${latency}${fresh}`
   })
   embeds.push({
     title: '👀 Your queue',
@@ -155,7 +159,7 @@ export function buildScorecardEmbeds(
   }
   if (scorecard.unassignable.length > 0) {
     statLines.push(
-      `🤷 Unassignable (everyone at cap): ${scorecard.unassignable
+      `🤷 Unassignable (no eligible maintainer): ${scorecard.unassignable
         .map((t) => `[#${t.item.number}](${t.item.url})`)
         .join(' ')}`,
     )

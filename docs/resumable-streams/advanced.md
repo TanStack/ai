@@ -12,8 +12,6 @@ keywords:
   - cloudflare durable streams
 ---
 
-# Resumable Streams: Advanced
-
 The [Overview](./overview) covers the common case: pick an adapter, wrap your
 response, add a `GET` handler. This page covers the rest.
 

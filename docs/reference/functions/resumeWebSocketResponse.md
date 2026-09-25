@@ -3,8 +3,6 @@ id: resumeWebSocketResponse
 title: resumeWebSocketResponse
 ---
 
-# Function: resumeWebSocketResponse()
-
 ```ts
 function resumeWebSocketResponse<TOffset>(options): Response;
 ```

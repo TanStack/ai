@@ -431,6 +431,10 @@ const importData = importDataDef.server<ImportContext>(async (input, { context, 
 });
 ```
 
+Each `emitCustomEvent` call flushes through durability immediately, so the
+client can show progress while the tool still runs. Pass `{ batch: true }`
+only for a high-volume stream. See [Custom Events](../protocol/custom-events).
+
 See [Server Tools](./server-tools) for the full runtime-context pattern.
 
 ## Tool States

@@ -1,4 +1,4 @@
-import { EventType } from '@tanstack/ai'
+import { EventType, fileReferenceFor, isFileSource } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { parse as parsePartialJSON } from 'partial-json'
 import {
@@ -200,6 +200,8 @@ export class GeminiTextInteractionsAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'gemini-text-interactions' as const
+  // Consumes Gemini Files API references (geminiFiles()) as content `uri`s.
+  override readonly supportsFileSources = true
 
   private readonly client: GoogleGenAI
   // Tracks the most recent server-assigned interaction id per threadId
@@ -279,7 +281,7 @@ export class GeminiTextInteractionsAdapter<
       const stream = (await this.client.interactions.create(
         { ...request, stream: true } as GeminiInteractionsRequestBody &
           Parameters<typeof this.client.interactions.create>[0],
-        { signal: options.abortController?.signal },
+        { signal: abortSignalFromOptions(options) },
       )) as AsyncIterable<InteractionSSEEvent>
 
       for await (const chunk of translateInteractionEvents(
@@ -427,7 +429,7 @@ export class GeminiTextInteractionsAdapter<
       )
       const result = (await this.client.interactions.create(
         request as Parameters<typeof this.client.interactions.create>[0],
-        { signal: chatOptions.abortController?.signal },
+        { signal: abortSignalFromOptions(chatOptions) },
       )) as Interaction
 
       const rawText = extractTextFromInteraction(result)
@@ -442,9 +444,7 @@ export class GeminiTextInteractionsAdapter<
       try {
         parsed = JSON.parse(rawText)
       } catch {
-        throw new Error(
-          `Failed to parse structured output as JSON. Content: ${rawText.slice(0, 200)}${rawText.length > 200 ? '...' : ''}`,
-        )
+        throw new Error(jsonContentParseError(rawText, 'structured output'))
       }
 
       return { data: parsed, rawText }
@@ -462,6 +462,166 @@ export class GeminiTextInteractionsAdapter<
         { cause: error },
       )
     }
+  }
+
+  async *structuredOutputStream(
+    options: StructuredOutputOptions<GeminiTextInteractionsProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const { chatOptions, outputSchema } = options
+    const runId = chatOptions.runId ?? generateId(this.name)
+    const threadId = chatOptions.threadId ?? generateId(this.name)
+    const timestamp = Date.now()
+    const effectivePreviousInteractionId =
+      chatOptions.modelOptions?.previous_interaction_id ??
+      this.interactionIdByThread.get(threadId)
+    const baseRequest = buildInteractionsRequest({
+      ...chatOptions,
+      modelOptions: {
+        ...chatOptions.modelOptions,
+        previous_interaction_id: effectivePreviousInteractionId,
+      },
+    })
+    const request: GeminiInteractionsRequestBody = {
+      ...baseRequest,
+      stream: true,
+      response_format: {
+        type: 'text',
+        mime_type: 'application/json',
+        schema: outputSchema,
+      },
+    }
+
+    try {
+      chatOptions.logger.request(
+        `activity=structuredOutputStream provider=gemini-text-interactions model=${this.model} messages=${chatOptions.messages.length}`,
+        { provider: this.name, model: this.model, request },
+      )
+      const stream = (await this.client.interactions.create(
+        request as GeminiInteractionsRequestBody &
+          Parameters<typeof this.client.interactions.create>[0],
+        { signal: abortSignalFromOptions(chatOptions) },
+      )) as AsyncIterable<InteractionSSEEvent>
+
+      let rawText = ''
+      let finished:
+        | Extract<AdapterYieldChunk, { type: typeof EventType.RUN_FINISHED }>
+        | undefined
+      let failed = false
+      for await (const chunk of translateInteractionEvents(
+        stream,
+        chatOptions.model,
+        runId,
+        threadId,
+        chatOptions.parentRunId,
+        timestamp,
+        this.name,
+        chatOptions.logger,
+      )) {
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+          rawText += chunk.delta
+        if (
+          chunk.type === EventType.CUSTOM &&
+          chunk.name === 'gemini.interactionId'
+        ) {
+          const value =
+            chunk.value as GeminiInteractionsCustomEventValue<'gemini.interactionId'>
+          this.interactionIdByThread.set(threadId, value.interactionId)
+        }
+        if (chunk.type === EventType.RUN_ERROR) failed = true
+        if (chunk.type === EventType.RUN_FINISHED) finished = chunk
+        else yield chunk
+      }
+
+      if (failed) return
+      if (!finished) {
+        yield interactionsStructuredStreamError(
+          chatOptions,
+          runId,
+          'Gemini Interactions structured-output stream ended without a terminal event',
+          'truncated-stream',
+        )
+        return
+      }
+      if (!rawText) {
+        yield interactionsStructuredStreamError(
+          chatOptions,
+          runId,
+          'Gemini Interactions structured-output stream contained no content',
+          'empty-response',
+        )
+        return
+      }
+      let object: unknown
+      try {
+        object = JSON.parse(rawText)
+      } catch {
+        yield interactionsStructuredStreamError(
+          chatOptions,
+          runId,
+          jsonContentParseError(
+            rawText,
+            'Gemini Interactions structured-output stream',
+          ),
+          'parse-error',
+        )
+        return
+      }
+      yield {
+        type: EventType.CUSTOM,
+        name: 'structured-output.complete',
+        value: { object, raw: rawText },
+        model: chatOptions.model,
+        timestamp: Date.now(),
+      }
+      yield { ...finished, timestamp: Date.now() }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'An unknown error occurred during structured output streaming.'
+      chatOptions.logger.errors(
+        'gemini-text-interactions.structuredOutputStream fatal',
+        { error, source: 'gemini-text-interactions.structuredOutputStream' },
+      )
+      yield interactionsStructuredStreamError(
+        chatOptions,
+        runId,
+        message,
+        'provider-error',
+      )
+    }
+  }
+}
+
+function abortSignalFromOptions(
+  options: Pick<
+    TextOptions<GeminiTextInteractionsProviderOptions>,
+    'request' | 'abortController'
+  >,
+) {
+  return options.request?.signal ?? options.abortController?.signal
+}
+
+function jsonContentParseError(rawText: string, label: string) {
+  const snippet = rawText.slice(0, 200)
+  const ellipsis = rawText.length > 200 ? '...' : ''
+  return `Failed to parse ${label} as JSON. Content: ${snippet}${ellipsis}`
+}
+
+function interactionsStructuredStreamError(
+  options: TextOptions<GeminiTextInteractionsProviderOptions>,
+  runId: string,
+  message: string,
+  code: string,
+): Extract<AdapterYieldChunk, { type: typeof EventType.RUN_ERROR }> {
+  return {
+    type: EventType.RUN_ERROR,
+    runId,
+    model: options.model,
+    timestamp: Date.now(),
+    message,
+    code,
+    error: { message, code },
   }
 }
 
@@ -753,6 +913,13 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
   if (part.type === 'text') {
     return { type: 'text', text: part.content }
   }
+  // A Gemini Files API handle maps to the `uri` field (isData stays false),
+  // same as a public URL. `fileReferenceFor` checks the issuer against
+  // 'gemini', the name geminiFiles() stamps on its handles, not this
+  // adapter's own name.
+  const sourceValue = isFileSource(part.source)
+    ? fileReferenceFor(part.source, 'gemini')
+    : part.source.value
   const isData = part.source.type === 'data'
   switch (part.type) {
     case 'image': {
@@ -762,8 +929,8 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
         'image',
       )
       return isData
-        ? { type: 'image', data: part.source.value, mime_type }
-        : { type: 'image', uri: part.source.value, mime_type }
+        ? { type: 'image', data: sourceValue, mime_type }
+        : { type: 'image', uri: sourceValue, mime_type }
     }
     case 'audio': {
       const mime_type = validateMime(
@@ -772,8 +939,8 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
         'audio',
       )
       return isData
-        ? { type: 'audio', data: part.source.value, mime_type }
-        : { type: 'audio', uri: part.source.value, mime_type }
+        ? { type: 'audio', data: sourceValue, mime_type }
+        : { type: 'audio', uri: sourceValue, mime_type }
     }
     case 'video': {
       const mime_type = validateMime(
@@ -782,8 +949,8 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
         'video',
       )
       return isData
-        ? { type: 'video', data: part.source.value, mime_type }
-        : { type: 'video', uri: part.source.value, mime_type }
+        ? { type: 'video', data: sourceValue, mime_type }
+        : { type: 'video', uri: sourceValue, mime_type }
     }
     case 'document': {
       const mime_type = validateMime(
@@ -792,8 +959,8 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
         'document',
       )
       return isData
-        ? { type: 'document', data: part.source.value, mime_type }
-        : { type: 'document', uri: part.source.value, mime_type }
+        ? { type: 'document', data: sourceValue, mime_type }
+        : { type: 'document', uri: sourceValue, mime_type }
     }
   }
 }

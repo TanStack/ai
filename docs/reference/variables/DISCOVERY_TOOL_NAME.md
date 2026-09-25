@@ -3,8 +3,6 @@ id: DISCOVERY_TOOL_NAME
 title: DISCOVERY_TOOL_NAME
 ---
 
-# Variable: DISCOVERY\_TOOL\_NAME
-
 ```ts
 const DISCOVERY_TOOL_NAME: "__lazy__tool__discovery__" = '__lazy__tool__discovery__';
 ```
