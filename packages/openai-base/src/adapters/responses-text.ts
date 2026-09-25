@@ -12,9 +12,15 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
-import { makeStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
+import {
+  makeStructuredOutputCompatibleWithMap,
+  warnStrictFallback,
+} from '../utils/schema-converter'
 import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
-import type { StructuredOutputCompatibility } from '../utils/schema-converter'
+import type {
+  OpenAIBaseTextAdapterOptions,
+  StructuredOutputCompatibility,
+} from '../utils/schema-converter'
 import { buildResponsesUsage } from '../usage'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
 import {
@@ -162,10 +168,19 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   readonly name: string
   protected client: OpenAI
 
-  constructor(model: TModel, name: string, client: OpenAI) {
+  /** See {@link OpenAIBaseTextAdapterOptions.strictFallbackWarning}. */
+  protected readonly strictFallbackWarning: boolean
+
+  constructor(
+    model: TModel,
+    name: string,
+    client: OpenAI,
+    options: OpenAIBaseTextAdapterOptions = {},
+  ) {
     super({}, model)
     this.name = name
     this.client = client
+    this.strictFallbackWarning = options.strictFallbackWarning ?? true
   }
 
   async *chatStream(
@@ -603,7 +618,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           const response = chunk.response
           if (response.usage) usage = response.usage
           if (response.model) model = response.model
-          continue
+          // Terminal event: do not wait for the HTTP body to close (#1445).
+          break
         }
 
         if (chunk.type === 'response.failed') {
@@ -1837,6 +1853,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             finishReason,
           }
           runFinishedEmitted = true
+          // Terminal event: do not wait for the HTTP body to close (#1445).
+          return
         }
 
         if (chunk.type === 'error') {
@@ -1865,10 +1883,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
 
-      // Synthetic terminal RUN_FINISHED if the stream ended without a
-      // response.completed event (e.g. truncated upstream connection). This
-      // mirrors the chat-completions adapter's behavior so consumers always
-      // see a terminal event for every started run.
+      // The stream ended without a terminal event (e.g. a truncated
+      // connection). Completion was never confirmed, so this is not a
+      // successful stop (#1447). The partial text was already emitted.
       if (!runFinishedEmitted && aguiState.hasEmittedRunStarted) {
         yield* closeReasoning()
         if (hasEmittedTextMessageStart) {
@@ -1879,17 +1896,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             timestamp: Date.now(),
           }
         }
-        // Omit `usage` entirely (vs `usage: undefined`) — the synthetic
-        // RUN_FINISHED for truncated streams has no usage data, and AG-UI's
-        // `RunFinishedEvent.usage` is optional without `| undefined` under
-        // `exactOptionalPropertyTypes`.
+        const message = 'Response stream ended before response.completed'
         yield {
-          type: EventType.RUN_FINISHED,
-          runId: aguiState.runId,
-          threadId: aguiState.threadId,
+          type: EventType.RUN_ERROR,
           model: model || options.model,
           timestamp: Date.now(),
-          finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
+          message,
+          code: 'incomplete-stream',
+          error: { message, code: 'incomplete-stream' },
         }
       }
     } catch (error: unknown) {
@@ -1931,6 +1945,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   ): Omit<ResponseCreateParams, 'stream'> {
     const input = this.convertMessagesToInput(options.messages)
 
+    if (this.strictFallbackWarning) {
+      warnStrictFallback(options.tools, options.logger)
+    }
     const tools = options.tools
       ? convertToolsToResponsesFormat(
           options.tools,

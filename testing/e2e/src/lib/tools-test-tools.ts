@@ -84,6 +84,24 @@ export const serverTools = {
     })
   }),
 
+  get_screenshot: toolDefinition({
+    name: 'get_screenshot',
+    description: 'Get a screenshot of the layout',
+    inputSchema: z.object({}),
+  }).server(async () => [
+    { type: 'text' as const, content: 'Layout screenshot' },
+    {
+      type: 'image' as const,
+      source: {
+        type: 'data' as const,
+        // 1x1 transparent PNG
+        value:
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/1eYAAAAAElFTkSuQmCC',
+        mimeType: 'image/png',
+      },
+    },
+  ]),
+
   delete_file: toolDefinition({
     name: 'delete_file',
     description: 'Delete a file (requires approval)',
@@ -203,6 +221,11 @@ export const SCENARIO_LIST = [
   {
     id: 'sequence-server-client',
     label: 'Server \u2192 Client Sequence',
+    category: 'basic',
+  },
+  {
+    id: 'multimodal-server-tool',
+    label: 'Multimodal Server Tool Result (Regression #1283)',
     category: 'basic',
   },
   { id: 'parallel-tools', label: 'Parallel Tools', category: 'basic' },
@@ -334,6 +357,9 @@ export function getToolsForScenario(scenario: string) {
 
     case 'sequence-server-client':
       return [serverTools.fetch_data, clientToolDefinitions.display_chart]
+
+    case 'multimodal-server-tool':
+      return [serverTools.get_screenshot]
 
     case 'parallel-tools':
       return [serverTools.get_weather, serverTools.get_time]

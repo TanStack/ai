@@ -3622,6 +3622,9 @@ importers:
       '@tanstack/ai-sandbox':
         specifier: workspace:*
         version: link:../../packages/ai-sandbox
+      '@tanstack/ai-sandbox-local-process':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox-local-process
       '@tanstack/ai-skills':
         specifier: workspace:*
         version: link:../../packages/ai-skills

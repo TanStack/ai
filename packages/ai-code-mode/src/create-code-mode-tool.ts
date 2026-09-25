@@ -354,7 +354,7 @@ function buildToolDescription(tools: Array<CodeModeTool>): string {
   const externalFunctions = eager.map((t) => `external_${t.name}`).join(', ')
 
   const discoverable = hasLazy
-    ? ` Additional functions can be discovered via the discover_tools tool.`
+    ? ` To get more functions, call the discover_tools tool before you run code here. discover_tools is a separate tool. It is not available inside this sandbox.`
     : ''
 
   return (

@@ -1102,6 +1102,63 @@ describe('sandbox snapshot lifecycle foundation', () => {
     }
   })
 
+  it('keeps the sandbox when chat pauses at an approval wait', async () => {
+    const f = fixture()
+    const approvalAdapter: AnyTextAdapter = {
+      ...adapter,
+      chatStream: async function* () {
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          timestamp: 1,
+        }
+        yield {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'call-1',
+          toolCallName: 'deploy',
+          timestamp: 1,
+        }
+        yield {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'call-1',
+          delta: '{}',
+          timestamp: 1,
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+          finishReason: 'tool_calls',
+          timestamp: 1,
+        }
+      },
+    }
+    await drain(
+      chat({
+        adapter: approvalAdapter,
+        messages: [{ role: 'user', content: 'deploy' }],
+        runId: 'run-1',
+        threadId: 'thread-1',
+        tools: [
+          {
+            name: 'deploy',
+            description: 'Deploy the app',
+            needsApproval: true,
+            execute: async () => 'deployed',
+          },
+        ],
+        middleware: [
+          withSandbox(afterRunDefinition(f), { instances: f.instances }),
+        ],
+      }),
+    )
+    const methods = f.events.map((event) => event.method)
+    expect(methods).toContain('create')
+    expect(methods).not.toContain('destroy')
+    expect(methods).not.toContain('handle.snapshot')
+  })
+
   it('releases portable ownership on a real durable disconnect and later skips capture', async () => {
     const f = fixture()
     const ctx = makeMiddlewareCtx({ threadId: 'thread-1', runId: 'run-1' })
