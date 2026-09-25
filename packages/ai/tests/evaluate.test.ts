@@ -294,6 +294,33 @@ describe('decide()', () => {
     })
   })
 
+  it('passes the response id and provider through to meta (#1456)', async () => {
+    const withIds = mockEvaluateAdapter(async () => ({
+      ...adapterResult(mixedWireAnswers),
+      id: 'gen-dec-1',
+      provider: 'TypeSafe',
+    }))
+    const withoutIds = mockEvaluateAdapter(async () =>
+      adapterResult(mixedWireAnswers),
+    )
+
+    const result = await decide({
+      adapter: withIds,
+      state: 'x',
+      questions: mixedQuestions,
+    })
+    const plain = await decide({
+      adapter: withoutIds,
+      state: 'x',
+      questions: mixedQuestions,
+    })
+
+    expect(result.meta.id).toBe('gen-dec-1')
+    expect(result.meta.provider).toBe('TypeSafe')
+    expect('id' in plain.meta).toBe(false)
+    expect('provider' in plain.meta).toBe(false)
+  })
+
   it('forwards a JSON array as one state, not a batch', async () => {
     const state = [{ id: 1 }, { id: 2 }]
     const adapter = mockEvaluateAdapter(async () =>

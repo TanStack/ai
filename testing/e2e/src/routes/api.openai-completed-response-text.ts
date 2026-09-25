@@ -1,14 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
+import { z } from 'zod'
 
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 const FINAL_TEXT = 'Recovered from response.completed'
 
-function makeCompletionOnlyResponsesStream(): ReadableStream<Uint8Array> {
+function makeCompletionOnlyResponsesStream(
+  missingStructuredTerminal = false,
+): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
   const responseId = 'resp_completion_only'
-  const events = [
+  const events: Array<Record<string, unknown>> = [
     {
       type: 'response.created',
       response: {
@@ -53,6 +56,12 @@ function makeCompletionOnlyResponsesStream(): ReadableStream<Uint8Array> {
       },
     },
   ]
+  if (missingStructuredTerminal) {
+    events.splice(1, 2, {
+      type: 'response.output_text.delta',
+      delta: '{"answer":"partial"}',
+    })
+  }
 
   return new ReadableStream<Uint8Array>({
     start(controller) {
@@ -68,14 +77,44 @@ function makeCompletionOnlyResponsesStream(): ReadableStream<Uint8Array> {
 export const Route = createFileRoute('/api/openai-completed-response-text')({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        const missingStructuredTerminal =
+          new URL(request.url).searchParams.get('scenario') ===
+          'structured-missing-terminal'
         const adapter = createOpenaiChat('gpt-5.2', DUMMY_KEY, {
           fetch: async () =>
-            new Response(makeCompletionOnlyResponsesStream(), {
-              status: 200,
-              headers: { 'Content-Type': 'text/event-stream' },
-            }),
+            new Response(
+              makeCompletionOnlyResponsesStream(missingStructuredTerminal),
+              {
+                status: 200,
+                headers: { 'Content-Type': 'text/event-stream' },
+              },
+            ),
         })
+
+        if (missingStructuredTerminal) {
+          let text = ''
+          let errorCode: string | undefined
+          let completed = false
+          const events: Array<string> = []
+          for await (const chunk of chat({
+            adapter,
+            messages: [{ role: 'user', content: 'Extract an answer' }],
+            outputSchema: z.object({ answer: z.string() }),
+            stream: true,
+          })) {
+            events.push(chunk.type)
+            if (chunk.type === 'TEXT_MESSAGE_CONTENT') text += chunk.delta
+            if (chunk.type === 'RUN_ERROR') errorCode = chunk.code
+            if (
+              chunk.type === 'CUSTOM' &&
+              chunk.name === 'structured-output.complete'
+            ) {
+              completed = true
+            }
+          }
+          return Response.json({ events, text, errorCode, completed })
+        }
 
         const text = await chat({
           adapter,

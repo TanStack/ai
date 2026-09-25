@@ -6,7 +6,7 @@
   "useInferencePlugins": false,
   "plugins": ["@tanstack/workspace-plugin"],
   "analytics": false,
-  "parallel": 15,
+  "parallel": 4,
   "tui": {
     "enabled": false
   },

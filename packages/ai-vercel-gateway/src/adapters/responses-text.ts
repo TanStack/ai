@@ -16,8 +16,10 @@ import type {
 import type { VercelGatewayMessageMetadataByModality } from '../message-types'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
 import type { VercelGatewayClientConfig } from '../utils/client'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
-export interface VercelGatewayResponsesTextConfig extends VercelGatewayClientConfig {}
+export interface VercelGatewayResponsesTextConfig
+  extends VercelGatewayClientConfig, OpenAIBaseTextAdapterOptions {}
 
 export type VercelGatewayResponsesTextProviderOptions =
   ExternalResponsesProviderOptions
@@ -55,6 +57,7 @@ export class VercelGatewayResponsesTextAdapter<
       model,
       'vercel-gateway',
       new OpenAI(withVercelGatewayDefaults(config)),
+      config,
     )
   }
 

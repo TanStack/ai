@@ -159,6 +159,46 @@ describe('reconstructChat', () => {
     expect(after.activeRun).toBeNull()
   })
 
+  it('lists finished runs with their timings when includeRuns is set (#1061)', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages.saveThread('t1', [
+      { id: 'u1', role: 'user', content: 'one' },
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: 'two',
+        metadata: { tanstack: { run: { id: 'r1' } } },
+      },
+      { id: 'u2', role: 'user', content: 'three' },
+    ])
+    const runs = persistence.stores.runs
+    await runs.createOrResume({ runId: 'r1', threadId: 't1', startedAt: 1000 })
+    await runs.update('r1', { status: 'completed', finishedAt: 4000 })
+    await runs.createOrResume({ runId: 'r2', threadId: 't1', startedAt: 5000 })
+    await runs.update('r2', { status: 'failed', finishedAt: 6000 })
+    await runs.createOrResume({ runId: 'r3', threadId: 't1', startedAt: 7000 })
+
+    const withRuns = await body(
+      await reconstructChat(persistence, new Request(chatUrl()), {
+        includeRuns: true,
+      }),
+    )
+    const plain = await hydrate(persistence, chatUrl())
+
+    expect(withRuns.runs).toEqual([
+      { runId: 'r1', status: 'completed', startedAt: 1000, finishedAt: 4000 },
+      { runId: 'r2', status: 'failed', startedAt: 5000, finishedAt: 6000 },
+    ])
+    expect(withRuns.activeRun).toEqual({ runId: 'r3' })
+    // The assistant message of each run carries that run's timings.
+    expect(withRuns.messages[1]?.metadata?.tanstack).toEqual({
+      run: { id: 'r1', startedAt: 1000, finishedAt: 4000 },
+    })
+    expect(withRuns.messages[0]?.metadata?.tanstack?.run).toBeUndefined()
+    expect('runs' in plain).toBe(false)
+    expect(plain.messages[1]?.metadata?.tanstack?.run).toEqual({ id: 'r1' })
+  })
+
   it('returns an empty transcript and no active run when threadId is missing or unknown', async () => {
     const persistence = memoryPersistence()
     const missing = await hydrate(persistence, chatUrl(''))

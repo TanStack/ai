@@ -1,5 +1,6 @@
 import type { ClientOptions } from '@modelcontextprotocol/sdk/client/index.js'
 import type { TransportConfig } from '../transport'
+import type { MCPClientOptions } from '../types'
 
 export interface McpServerDescriptor {
   /**
@@ -15,6 +16,8 @@ export interface McpServerDescriptor {
    * `jsonSchemaValidator` — an edge runtime cannot use the SDK's AJV default.
    */
   clientOptions?: ClientOptions
+  /** Carried so a reconnect hides the same tools from widgets as from the model. */
+  toolFilter?: MCPClientOptions['toolFilter']
 }
 
 export interface McpSessionStore {

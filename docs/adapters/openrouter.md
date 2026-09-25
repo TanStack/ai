@@ -580,6 +580,8 @@ console.log(result.queue.confidence);
 console.log(result.meta.usage);
 ```
 
+To bill per request, read `result.meta.usage.cost`. To look the request up later with `GET /api/v1/generation?id=`, read `result.meta.id`. `result.meta.provider` names the upstream provider that served the request.
+
 `openRouterDecider` reads `OPENROUTER_API_KEY` from the environment. Pass a
 key explicitly with `createOpenRouterDecider("~typesafe/jev-latest", "sk-or-...")`.
 

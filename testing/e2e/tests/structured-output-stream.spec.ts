@@ -7,6 +7,23 @@ import {
 } from './helpers'
 import { providersFor } from './test-matrix'
 
+test('OpenAI Responses structured output reports EOF without response.completed', async ({
+  request,
+}) => {
+  const response = await request.post(
+    '/api/openai-completed-response-text?scenario=structured-missing-terminal',
+  )
+
+  expect(response.ok()).toBe(true)
+  const result = await response.json()
+  expect(result.text).toBe('{"answer":"partial"}')
+  expect(result.events).toContain('TEXT_MESSAGE_CONTENT')
+  expect(result.events.at(-1)).toBe('RUN_ERROR')
+  expect(result.errorCode).toBe('incomplete-stream')
+  expect(result.completed).toBe(false)
+  expect(result.events).not.toContain('RUN_FINISHED')
+})
+
 for (const provider of providersFor('structured-output-stream')) {
   test.describe(`${provider} — structured-output-stream`, () => {
     test('streams structured JSON deltas in a single request', async ({

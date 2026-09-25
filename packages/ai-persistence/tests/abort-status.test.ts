@@ -347,9 +347,8 @@ describe('interrupt status shape', () => {
 /**
  * Adapter that reaches an interrupt boundary and then hangs until the signal
  * aborts, so the abort lands on a run the middleware already marked
- * `'interrupted'`. That is the real shape: `chat()` skips its terminal hook at
- * an actionable-wait/interrupt boundary, so the `finally` block routes any
- * later cancellation to `onAbort`.
+ * `'interrupted'`. The abort lands before the invocation ends, so `chat()`
+ * routes it to `onAbort` and not to `onFinish`.
  */
 function interruptThenHangAdapter(signal: AbortSignal): AnyTextAdapter {
   return {

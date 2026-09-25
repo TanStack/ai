@@ -1219,10 +1219,10 @@
           "min": 256001
         }
       ],
-      "output": "0.0000025",
+      "output": "0.0000024",
       "output_tiers": [
         {
-          "cost": "0.0000025",
+          "cost": "0.0000024",
           "min": 0,
           "max": 256001
         },
@@ -2013,7 +2013,8 @@
     "pricing": {
       "input": "0.000004",
       "output": "0.000012",
-      "input_cache_read": "0.0000005"
+      "input_cache_read": "0.0000005",
+      "input_cache_write": "0.000005"
     }
   },
   {
@@ -6046,7 +6047,7 @@
     "released": 1787270400,
     "owned_by": "deepseek",
     "name": "DeepSeek V4 Flash Vision Exp",
-    "description": "DeepSeek-V4-Flash-Vision-Exp is the first experimental multimodal model in the DeepSeek-V4 family. It builds on DeepSeek-V4-Flash by adding visual modules and continued training for visual understanding, with substantially improved multimodal agent capabilities while remaining comparable on text-only agent tasks.",
+    "description": "DeepSeek-V4-Flash-Vision-Exp is an experimental multimodal model that combines the agentic reasoning, coding, and world knowledge capabilities of DeepSeek-V4-Flash with advanced visual understanding. It delivers major gains on vision-dependent agent workflows while performing strongly across leading coding, repository, data science, automation, and multimodal benchmarks.",
     "context_window": 1048576,
     "max_tokens": 1048576,
     "type": "language",
@@ -6085,11 +6086,10 @@
         "values": ["none", "low", "medium", "high"]
       }
     ],
-    "deprecated_at": 1790294400000,
     "pricing": {
-      "input": "0.00000022",
-      "output": "0.00000066",
-      "input_cache_read": "0.000000007",
+      "input": "0.0000002156",
+      "output": "0.0000006468",
+      "input_cache_read": "0.0000000068",
       "varies_by_provider": true
     }
   },
@@ -6287,6 +6287,50 @@
           "input_cache_read": "0.000000007"
         }
       }
+    }
+  },
+  {
+    "id": "fireworks/ember-1",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790121600,
+    "owned_by": "fireworks",
+    "name": "Ember-1",
+    "description": "Ember-1 is Fireworks’ research-preview reasoning model built on Kimi K3 for coding and agentic workflows. It supports image input, function calling, and a 1M-token context window. Fireworks reports approximately 40% fewer generated tokens while maintaining comparable quality across its evaluations, helping reduce the cost of workloads with extensive reasoning.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": ["implicit-caching", "reasoning", "tool-use", "vision"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000003",
+      "output": "0.000015",
+      "input_cache_read": "0.0000003"
     }
   },
   {
@@ -9808,7 +9852,6 @@
       }
     ],
     "knowledge": "2026-01-04",
-    "deprecated_at": 1790294400000,
     "pricing": {
       "input": "0.00000035",
       "output": "0.0000015",
@@ -11793,7 +11836,7 @@
     "context_window": 16385,
     "max_tokens": 4096,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": ["tool-use"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -11826,7 +11869,7 @@
     "context_window": 128000,
     "max_tokens": 4096,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": ["tool-use", "vision"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -11859,7 +11902,7 @@
     "context_window": 1047576,
     "max_tokens": 32768,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -11916,7 +11959,7 @@
     "context_window": 1047576,
     "max_tokens": 32768,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -11961,7 +12004,7 @@
     "context_window": 1047576,
     "max_tokens": 32768,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -12018,7 +12061,7 @@
     "context_window": 1047576,
     "max_tokens": 32768,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -12063,7 +12106,7 @@
     "context_window": 1047576,
     "max_tokens": 32768,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -12121,7 +12164,7 @@
     "context_window": 1047576,
     "max_tokens": 32768,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -12166,7 +12209,7 @@
     "context_window": 128000,
     "max_tokens": 16384,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -12223,7 +12266,7 @@
     "context_window": 128000,
     "max_tokens": 16384,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -12268,7 +12311,7 @@
     "context_window": 128000,
     "max_tokens": 16384,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -12325,7 +12368,7 @@
     "context_window": 128000,
     "max_tokens": 16384,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -12418,7 +12461,7 @@
     "context_window": 400000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -12541,7 +12584,7 @@
     "context_window": 400000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -12594,7 +12637,7 @@
     "context_window": 400000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -12665,7 +12708,7 @@
     "context_window": 400000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -12718,7 +12761,7 @@
     "context_window": 400000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -12778,7 +12821,7 @@
     "context_window": 400000,
     "max_tokens": 272000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": ["file-input", "reasoning", "tool-use", "vision", "web-search"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -12988,7 +13031,7 @@
     "context_window": 400000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -13063,7 +13106,7 @@
     "context_window": 400000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -13120,7 +13163,7 @@
     "context_window": 400000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -13252,7 +13295,7 @@
     "context_window": 400000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -13310,7 +13353,7 @@
     "context_window": 400000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "tool-use",
@@ -13361,7 +13404,7 @@
     "context_window": 400000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -13431,7 +13474,7 @@
     "context_window": 400000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -13489,7 +13532,7 @@
     "context_window": 1050000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -13649,7 +13692,7 @@
     "context_window": 1050000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -13715,7 +13758,7 @@
     "context_window": 400000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -13803,7 +13846,7 @@
     "context_window": 400000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -13869,7 +13912,7 @@
     "context_window": 400000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -13941,7 +13984,7 @@
     "context_window": 1050000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -14283,7 +14326,7 @@
     "context_window": 1000000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "reasoning",
@@ -17520,7 +17563,7 @@
     "context_window": 200000,
     "max_tokens": 100000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -17570,7 +17613,7 @@
     "context_window": 200000,
     "max_tokens": 100000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -17640,7 +17683,7 @@
     "context_window": 200000,
     "max_tokens": 100000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -17693,7 +17736,7 @@
     "context_window": 200000,
     "max_tokens": 100000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": ["implicit-caching", "reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -17736,7 +17779,7 @@
     "context_window": 200000,
     "max_tokens": 100000,
     "type": "language",
-    "zdr": "none",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "reasoning",
@@ -17787,7 +17830,7 @@
     "context_window": 200000,
     "max_tokens": 100000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -17857,7 +17900,7 @@
     "context_window": 200000,
     "max_tokens": 100000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": [
       "file-input",
@@ -20878,11 +20921,11 @@
     "released": 1789430400,
     "owned_by": "typesafe-ai",
     "name": "Jev",
-    "description": "Jev is TypeSafe AI’s System One evaluation model for fast, structured decisions in software. It evaluates shared state against typed questions and returns choices, scores, and boolean probabilities, supporting classification, routing, rubric-based assessment, and automated verification. Multiple questions can be evaluated in parallel within a single request.",
+    "description": "TypeSafe AI System One evaluation model. Accepts shared state and typed questions, returning choices, scores, and boolean probabilities. Limits: 64,000 tokens total per request; 32,000 tokens for the state plus the longest question. No streaming or output-token limit.",
     "context_window": 32000,
     "max_tokens": 0,
     "type": "evaluation",
-    "zdr": "all",
+    "zdr": "none",
     "no_training": "all",
     "supported_specifications": ["v4"],
     "modalities": {
@@ -21904,15 +21947,20 @@
       "input_cache_read": "0.00000016",
       "varies_by_provider": true,
       "fast": {
-        "input": "0.0000021",
-        "output": "0.0000066",
-        "input_cache_read": "0.00000021"
+        "input": "0.0000028",
+        "output": "0.0000088",
+        "input_cache_read": "0.00000056"
       },
       "regional": {
         "us": {
           "input": "0.0000014",
           "output": "0.0000044",
-          "input_cache_read": "0.00000014"
+          "input_cache_read": "0.00000014",
+          "fast": {
+            "input": "0.0000021",
+            "output": "0.0000066",
+            "input_cache_read": "0.00000021"
+          }
         }
       }
     }
@@ -21924,7 +21972,7 @@
     "released": 1782172800,
     "owned_by": "zai",
     "name": "GLM 5.2 Fast",
-    "description": "Fast version of GLM 5.2 with 120-250 TPS.",
+    "description": "GLM-5.2-Fast-Preview is the high-speed variant of Zhipu AI&#39;s GLM-5.2, with 1M context and capabilities on par with the standard version. Inference-optimized to deliver 1.5–2× the output TPS, it fits latency-sensitive use cases such as real-time chat, multi-turn agents, and streaming code generation.",
     "context_window": 1000000,
     "max_tokens": 128000,
     "type": "language",
@@ -21958,11 +22006,10 @@
         "values": ["none", "low", "medium", "high"]
       }
     ],
-    "deprecated_at": 1790294400000,
     "pricing": {
-      "input": "0.0000021",
-      "output": "0.0000066",
-      "input_cache_read": "0.00000021",
+      "input": "0.0000028",
+      "output": "0.0000088",
+      "input_cache_read": "0.00000056",
       "varies_by_provider": true,
       "regional": {
         "us": {
