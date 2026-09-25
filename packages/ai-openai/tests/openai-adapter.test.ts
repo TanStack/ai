@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { chat, type AdapterYieldChunk, type Tool } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAITextAdapter } from '../src/adapters/text'
 import type { OpenAITextProviderOptions } from '../src/adapters/text'
 
@@ -25,6 +26,81 @@ function createMockChatCompletionsStream(
     },
   }
 }
+
+describe('strict fallback warning (#1213)', () => {
+  it('warns once per tool when its schema cannot be sent as strict', async () => {
+    const warn = vi.fn()
+    const logger = resolveDebugOption({
+      logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() },
+    })
+    const refTool: Tool = {
+      name: 'lookup_user',
+      description: 'Find a user',
+      inputSchema: {
+        type: 'object',
+        properties: { user: { $ref: '#/$defs/user' } },
+        required: ['user'],
+      },
+    }
+    const adapter = createAdapter('gpt-4o-mini')
+    ;(adapter as any).client = {
+      responses: {
+        create: vi.fn(async () => createMockChatCompletionsStream([])),
+      },
+    }
+
+    for (let i = 0; i < 2; i++) {
+      for await (const _ of adapter.chatStream({
+        logger,
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: [refTool, weatherTool],
+      })) {
+        // drain
+      }
+    }
+
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]![0]).toContain('"lookup_user"')
+    expect(warn.mock.calls[0]![0]).toContain('$ref')
+  })
+
+  it('does not warn when the config sets strictFallbackWarning: false', async () => {
+    const warn = vi.fn()
+    const logger = resolveDebugOption({
+      logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() },
+    })
+    const refTool: Tool = {
+      name: 'lookup_user',
+      description: 'Find a user',
+      inputSchema: {
+        type: 'object',
+        properties: { user: { $ref: '#/$defs/user' } },
+        required: ['user'],
+      },
+    }
+    const adapter = new OpenAITextAdapter(
+      { apiKey: 'test-key', strictFallbackWarning: false },
+      'gpt-4o-mini',
+    )
+    ;(adapter as any).client = {
+      responses: {
+        create: vi.fn(async () => createMockChatCompletionsStream([])),
+      },
+    }
+
+    for await (const _ of adapter.chatStream({
+      logger,
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [refTool],
+    })) {
+      // drain
+    }
+
+    expect(warn).not.toHaveBeenCalled()
+  })
+})
 
 describe('OpenAI adapter option mapping', () => {
   beforeEach(() => {

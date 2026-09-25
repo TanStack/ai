@@ -953,6 +953,8 @@ class TextEngine<
     message: string
     code?: string
     cause?: unknown
+    /** Full model text, when a structured-output parse failed (#1485). */
+    rawText?: string
   } | null = null
   private combinedCompleteEmitted = false
   private readonly finalStructuredOutput?: {
@@ -1190,8 +1192,52 @@ class TextEngine<
     message: string
     code?: string
     cause?: unknown
+    rawText?: string
   } | null {
     return this.finalizationError
+  }
+
+  private async runTerminalHook(): Promise<void> {
+    if (this.terminalHookCalled || this.isCancelled()) return
+
+    this.terminalHookCalled = true
+
+    if (this.finalizationError) {
+      const errForHook = new Error(
+        this.finalizationError.message,
+        this.finalizationError.cause !== undefined
+          ? { cause: this.finalizationError.cause }
+          : undefined,
+      )
+      if (this.finalizationError.code !== undefined) {
+        Object.defineProperty(errForHook, 'code', {
+          value: this.finalizationError.code,
+          enumerable: true,
+        })
+      }
+      if (this.finalizationError.rawText !== undefined) {
+        Object.defineProperty(errForHook, 'rawText', {
+          value: this.finalizationError.rawText,
+          enumerable: true,
+        })
+      }
+      await this.middlewareRunner.runOnError(this.middlewareCtx, {
+        error: errForHook,
+        duration: Date.now() - this.streamStartTime,
+      })
+      return
+    }
+
+    this.addTerminalAssistantMessages()
+    await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
+      finishReason: this.lastFinishReason,
+      duration: Date.now() - this.streamStartTime,
+      content: this.accumulatedContent,
+      usage: rebuildTokenUsage(
+        this.finishedEvent?.usage,
+        tanstackMetadata(this.finishedEvent ?? undefined)?.usage,
+      ),
+    })
   }
 
   async *run(): AsyncGenerator<StreamChunk> {
@@ -1239,7 +1285,8 @@ class TextEngine<
       }
 
       const pendingPhase = yield* this.checkForPendingToolCalls()
-      if (pendingPhase === 'wait') {
+      if (pendingPhase === 'stop' || pendingPhase === 'wait') {
+        await this.runTerminalHook()
         return
       }
 
@@ -1348,46 +1395,11 @@ class TextEngine<
         }
       }
 
-      // Call terminal hook (skip when waiting for client — stream is paused, not finished).
-      // Priority: finalizationError → onError; otherwise normal onFinish.
-      // Skip on cancellation — the finally block routes aborts to onAbort.
-      if (
-        !this.terminalHookCalled &&
-        this.toolPhase !== 'wait' &&
-        !this.isCancelled()
-      ) {
-        if (this.finalizationError) {
-          this.terminalHookCalled = true
-          const errForHook = new Error(
-            this.finalizationError.message,
-            this.finalizationError.cause !== undefined
-              ? { cause: this.finalizationError.cause }
-              : undefined,
-          )
-          if (this.finalizationError.code !== undefined) {
-            Object.defineProperty(errForHook, 'code', {
-              value: this.finalizationError.code,
-              enumerable: true,
-            })
-          }
-          await this.middlewareRunner.runOnError(this.middlewareCtx, {
-            error: errForHook,
-            duration: Date.now() - this.streamStartTime,
-          })
-        } else {
-          this.addTerminalAssistantMessages()
-          this.terminalHookCalled = true
-          await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
-            finishReason: this.lastFinishReason,
-            duration: Date.now() - this.streamStartTime,
-            content: this.accumulatedContent,
-            usage: rebuildTokenUsage(
-              this.finishedEvent?.usage,
-              tanstackMetadata(this.finishedEvent ?? undefined)?.usage,
-            ),
-          })
-        }
-      }
+      // A client-tool or approval wait ends this server-side chat invocation.
+      // Structured-output finalization stays paused until the caller submits
+      // the result in a new invocation, but middleware must still observe one
+      // terminal hook for the current invocation.
+      await this.runTerminalHook()
     } catch (error: unknown) {
       if (
         error instanceof Error &&
@@ -3857,6 +3869,9 @@ class TextEngine<
     // Track whether a RUN_ERROR has been yielded to streaming consumers so
     // we don't emit a duplicate synthetic one at the end.
     let runErrorYielded = false
+    // The full model text. Adapter errors carry only a 200-character preview,
+    // so a Promise caller could not recover the answer (#1485).
+    let rawText = ''
 
     // Pipe chunks through middleware; yield to consumer only when yieldChunks=true
     for await (const raw of providerStream) {
@@ -3968,14 +3983,20 @@ class TextEngine<
           await this.runOnUsageFromChunk(chunk)
         }
 
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+          rawText += chunk.delta
+        }
+
         if (chunk.type === EventType.RUN_ERROR) {
           // RunErrorEvent already exposes `message` and `code` after narrowing.
+          // A native stream has no adapter error to capture, but its RUN_ERROR
+          // can carry the provider's error body as `rawEvent` (#1005).
+          const cause = fallbackAdapterError ?? chunk.rawEvent
           this.finalizationError = {
             message: chunk.message,
             ...(chunk.code ? { code: chunk.code } : {}),
-            ...(fallbackAdapterError !== undefined
-              ? { cause: fallbackAdapterError }
-              : {}),
+            ...(cause !== undefined ? { cause } : {}),
+            ...(rawText ? { rawText } : {}),
           }
         }
 
@@ -4159,6 +4180,7 @@ class TextEngine<
             message: `Failed to parse structured output as JSON. Content: ${detail}`,
             code: 'structured-output-parse-failed',
             cause: err,
+            rawText,
           }
         }
       }
@@ -5749,6 +5771,12 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
     if (finalizationError.code !== undefined) {
       Object.defineProperty(err, 'code', {
         value: finalizationError.code,
+        enumerable: true,
+      })
+    }
+    if (finalizationError.rawText !== undefined) {
+      Object.defineProperty(err, 'rawText', {
+        value: finalizationError.rawText,
         enumerable: true,
       })
     }

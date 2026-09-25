@@ -10,13 +10,15 @@ import type {
 } from '../model-meta'
 import type { LovableMessageMetadataByModality } from '../message-types'
 import type { LovableClientConfig } from '../utils/client'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof LovableChatModelToolCapabilitiesByName
     ? NonNullable<LovableChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
-export interface LovableTextConfig extends LovableClientConfig {}
+export interface LovableTextConfig
+  extends LovableClientConfig, OpenAIBaseTextAdapterOptions {}
 
 export type { ExternalTextProviderOptions as LovableTextProviderOptions } from '../text/text-provider-options'
 
@@ -44,6 +46,6 @@ export class LovableTextAdapter<
   override readonly name = 'lovable' as const
 
   constructor(config: LovableTextConfig, model: TModel) {
-    super(model, 'lovable', new OpenAI(withLovableDefaults(config)))
+    super(model, 'lovable', new OpenAI(withLovableDefaults(config)), config)
   }
 }

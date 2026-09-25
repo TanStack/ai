@@ -1,0 +1,32 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[multimodal-server-tool] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Let me take a screenshot.",
+        "toolCalls": [{ "name": "get_screenshot", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[multimodal-server-tool] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Here is the screenshot."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[multimodal-server-tool] run test",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "I still see the screenshot."
+      }
+    }
+  ]
+}

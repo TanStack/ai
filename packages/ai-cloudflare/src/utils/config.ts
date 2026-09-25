@@ -1,6 +1,7 @@
 import { getApiKeyFromEnv } from '@tanstack/ai-utils'
 import type { Ai, GatewayOptions } from '@cloudflare/workers-types'
 import type { ClientOptions } from 'openai'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
 /**
  * AI Gateway routing options. `id` is the gateway id (use `"default"` for the
@@ -43,9 +44,11 @@ export interface CloudflareTextRestConfig
 
 export type CloudflareConfig = CloudflareBindingConfig | CloudflareRestConfig
 
-export type CloudflareTextConfig =
+export type CloudflareTextConfig = (
   | CloudflareBindingConfig
   | CloudflareTextRestConfig
+) &
+  OpenAIBaseTextAdapterOptions
 
 /**
  * What the env-reading factories accept: a binding, or REST fields with any

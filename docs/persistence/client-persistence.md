@@ -231,6 +231,34 @@ run through the replay branch above. You never handle a run id, and a second
 device resumes the live run the same way the original tab does. See
 [Chat persistence](./chat-persistence).
 
+### Show how long each turn took
+
+A live turn can time itself on the client. After a reload, that time is gone. Pass `includeRuns: true` to get it back from the server:
+
+```ts
+import { reconstructChat } from '@tanstack/ai-persistence'
+import { persistence } from './persistence'
+
+export function GET(request: Request): Promise<Response> {
+  return reconstructChat(persistence, request, { includeRuns: true })
+}
+```
+
+Each assistant message of a finished run then has the run's timings, in epoch ms, on `metadata.tanstack.run`:
+
+```tsx
+import type { UIMessage } from '@tanstack/ai'
+
+function TurnDuration({ message }: { message: UIMessage }) {
+  const run = message.metadata?.tanstack?.run
+  if (!run?.finishedAt) return null
+  const seconds = Math.round((run.finishedAt - run.startedAt) / 1000)
+  return <span>Worked for {seconds}s</span>
+}
+```
+
+The response also has a top-level `runs` list with `runId`, `status`, `startedAt`, and `finishedAt` for each finished run. The timings need a `runs` store that implements `listByThread`, and messages that were saved by `withPersistence` with this version or later.
+
 | Mode | Caches on client | Authoritative history | Reach for it when |
 | --- | --- | --- | --- |
 | `persistence: store` | transcript + resume pointer | client | SPA / offline, one device, small to moderate history |

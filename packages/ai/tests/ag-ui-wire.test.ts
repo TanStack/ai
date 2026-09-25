@@ -74,6 +74,21 @@ describe('uiMessagesToWire', () => {
     expect(wire[0]).not.toHaveProperty('parts')
   })
 
+  it('keeps the run id and drops the run timings on the wire (#1061)', () => {
+    const [wire] = uiMessagesToWire([
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [{ type: 'text', content: 'hi' }],
+        metadata: {
+          tanstack: { run: { id: 'r1', startedAt: 1, finishedAt: 2 } },
+        },
+      },
+    ])
+
+    expect(wire?.metadata?.tanstack).toEqual({ run: { id: 'r1' } })
+  })
+
   it('mirrors a user UIMessage with a text-only parts list to a string content', () => {
     const messages: Array<UIMessage> = [
       { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
