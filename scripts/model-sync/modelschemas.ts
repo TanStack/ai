@@ -14,7 +14,7 @@ export function createSyncClient(options?: {
   apiKey?: string
   fetch?: typeof globalThis.fetch
   baseUrl?: string
-}) {
+}): ReturnType<typeof createModelschemasClient> {
   const apiKey = options?.apiKey ?? process.env.MODELSCHEMAS_API_KEY
   return createModelschemasClient({
     baseUrl: options?.baseUrl ?? MODELSCHEMAS_BASE_URL,
