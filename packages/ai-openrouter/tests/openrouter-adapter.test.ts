@@ -1708,10 +1708,13 @@ describe('OpenRouter structured output', () => {
       ([args]: Array<any>) => args.chatRequest.responseFormat,
     )
     expect(structuredCall).toBeDefined()
-    expect(structuredCall[0].chatRequest).not.toHaveProperty('streamOptions')
-    expect(
-      ChatRequest$outboundSchema.parse(structuredCall[0].chatRequest),
-    ).not.toHaveProperty('stream_options')
+    // The SDK sends JSON.stringify of the outbound schema result.
+    const body = JSON.parse(
+      JSON.stringify(
+        ChatRequest$outboundSchema.parse(structuredCall[0].chatRequest),
+      ),
+    )
+    expect(body).not.toHaveProperty('stream_options')
   })
 
   it('parses JSON response content correctly', async () => {
@@ -2611,10 +2614,11 @@ describe('OpenRouter stream_options conversion', () => {
     }
 
     const [rawParams] = mockSend.mock.calls[0]!
-    expect(rawParams.chatRequest).not.toHaveProperty('streamOptions')
-    expect(
-      ChatRequest$outboundSchema.parse(rawParams.chatRequest),
-    ).not.toHaveProperty('stream_options')
+    // The SDK sends JSON.stringify of the outbound schema result.
+    const body = JSON.parse(
+      JSON.stringify(ChatRequest$outboundSchema.parse(rawParams.chatRequest)),
+    )
+    expect(body).not.toHaveProperty('stream_options')
   })
 
   it('propagates the abort signal to the SDK call', async () => {

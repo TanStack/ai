@@ -340,7 +340,7 @@ const stream = chat({
 Provider slugs are the lowercase ids shown on OpenRouter's model pages (`"anthropic"`, `"openai"`, `"groq"`, …). Other fields on `provider`:
 
 - `only` / `ignore`: allow-list or deny-list of provider slugs, merged with your account-wide provider settings for this request.
-- `requireParameters`: only route to providers that support every parameter in the request. Without it, OpenRouter sends each provider only the parameters it supports and silently drops the rest, so a `responseFormat` or a sampling option can be ignored without an error.
+- `requireParameters`: only route to providers that support every parameter in the request. Without it, OpenRouter sends each provider only the parameters it supports and silently drops the rest, so a `responseFormat` or a sampling option can be ignored without an error. When you stream with `requireParameters: true`, also set `modelOptions.streamOptions: { includeUsage: false }`. Without it, the adapter sends `stream_options`, and OpenRouter returns a 404 for providers that do not support that parameter.
 - `sort`: `"price"`, `"throughput"`, or `"latency"`, or an object with `by` and `partition`, applied when `order` is not set. Setting it disables load balancing.
 - `maxPrice`: the highest pricing you accept. It takes `prompt` and `completion` in USD per million tokens, plus `request` (per-request pricing) and `image` (per image) where a provider offers them. Providers above the limit are skipped.
 - `quantizations`: restrict to providers serving the model at given quantization levels (e.g. `"fp8"`, `"int4"`).

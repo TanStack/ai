@@ -64,6 +64,7 @@ import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
 import { Route as ApiOtelTranscriptionRouteImport } from './routes/api.otel-transcription'
 import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
+import { Route as ApiOpenrouterStreamOptionsWireRouteImport } from './routes/api.openrouter-stream-options-wire'
 import { Route as ApiOpenrouterRetryCodesRouteImport } from './routes/api.openrouter-retry-codes'
 import { Route as ApiOpenrouterReasoningWireRouteImport } from './routes/api.openrouter-reasoning-wire'
 import { Route as ApiOpenrouterJsonObjectWireRouteImport } from './routes/api.openrouter-json-object-wire'
@@ -112,8 +113,8 @@ import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-too
 import { Route as ApiAnthropicThinkingOrderWireRouteImport } from './routes/api.anthropic-thinking-order-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
-import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
+import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
@@ -405,6 +406,12 @@ const ApiOpenrouterWebToolsWireRoute =
     path: '/api/openrouter-web-tools-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenrouterStreamOptionsWireRoute =
+  ApiOpenrouterStreamOptionsWireRouteImport.update({
+    id: '/api/openrouter-stream-options-wire',
+    path: '/api/openrouter-stream-options-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenrouterRetryCodesRoute = ApiOpenrouterRetryCodesRouteImport.update({
   id: '/api/openrouter-retry-codes',
   path: '/api/openrouter-retry-codes',
@@ -658,16 +665,16 @@ const ApiAnthropicSkillsWireRoute = ApiAnthropicSkillsWireRouteImport.update({
   path: '/api/anthropic-skills-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAnthropicMultiTurnStructuredWireRoute =
-  ApiAnthropicMultiTurnStructuredWireRouteImport.update({
-    id: '/api/anthropic-multi-turn-structured-wire',
-    path: '/api/anthropic-multi-turn-structured-wire',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiAnthropicOpus5CombinedWireRoute =
   ApiAnthropicOpus5CombinedWireRouteImport.update({
     id: '/api/anthropic-opus-5-combined-wire',
     path: '/api/anthropic-opus-5-combined-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicMultiTurnStructuredWireRoute =
+  ApiAnthropicMultiTurnStructuredWireRouteImport.update({
+    id: '/api/anthropic-multi-turn-structured-wire',
+    path: '/api/anthropic-multi-turn-structured-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
@@ -789,6 +796,7 @@ export interface FileRoutesByFullPath {
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
+  '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -903,6 +911,7 @@ export interface FileRoutesByTo {
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
+  '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -1018,6 +1027,7 @@ export interface FileRoutesById {
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
+  '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -1134,6 +1144,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-retry-codes'
+    | '/api/openrouter-stream-options-wire'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1248,6 +1259,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-retry-codes'
+    | '/api/openrouter-stream-options-wire'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1362,6 +1374,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-json-object-wire'
     | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-retry-codes'
+    | '/api/openrouter-stream-options-wire'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1477,6 +1490,7 @@ export interface RootRouteChildren {
   ApiOpenrouterJsonObjectWireRoute: typeof ApiOpenrouterJsonObjectWireRoute
   ApiOpenrouterReasoningWireRoute: typeof ApiOpenrouterReasoningWireRoute
   ApiOpenrouterRetryCodesRoute: typeof ApiOpenrouterRetryCodesRoute
+  ApiOpenrouterStreamOptionsWireRoute: typeof ApiOpenrouterStreamOptionsWireRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiOtelMediaRoute: typeof ApiOtelMediaRoute
   ApiOtelTranscriptionRoute: typeof ApiOtelTranscriptionRoute
@@ -1891,6 +1905,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenrouterWebToolsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openrouter-stream-options-wire': {
+      id: '/api/openrouter-stream-options-wire'
+      path: '/api/openrouter-stream-options-wire'
+      fullPath: '/api/openrouter-stream-options-wire'
+      preLoaderRoute: typeof ApiOpenrouterStreamOptionsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openrouter-retry-codes': {
       id: '/api/openrouter-retry-codes'
       path: '/api/openrouter-retry-codes'
@@ -2227,18 +2248,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAnthropicSkillsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/anthropic-multi-turn-structured-wire': {
-      id: '/api/anthropic-multi-turn-structured-wire'
-      path: '/api/anthropic-multi-turn-structured-wire'
-      fullPath: '/api/anthropic-multi-turn-structured-wire'
-      preLoaderRoute: typeof ApiAnthropicMultiTurnStructuredWireRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/anthropic-opus-5-combined-wire': {
       id: '/api/anthropic-opus-5-combined-wire'
       path: '/api/anthropic-opus-5-combined-wire'
       fullPath: '/api/anthropic-opus-5-combined-wire'
       preLoaderRoute: typeof ApiAnthropicOpus5CombinedWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-multi-turn-structured-wire': {
+      id: '/api/anthropic-multi-turn-structured-wire'
+      path: '/api/anthropic-multi-turn-structured-wire'
+      fullPath: '/api/anthropic-multi-turn-structured-wire'
+      preLoaderRoute: typeof ApiAnthropicMultiTurnStructuredWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-bug-test': {
@@ -2435,6 +2456,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenrouterJsonObjectWireRoute: ApiOpenrouterJsonObjectWireRoute,
   ApiOpenrouterReasoningWireRoute: ApiOpenrouterReasoningWireRoute,
   ApiOpenrouterRetryCodesRoute: ApiOpenrouterRetryCodesRoute,
+  ApiOpenrouterStreamOptionsWireRoute: ApiOpenrouterStreamOptionsWireRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiOtelMediaRoute: ApiOtelMediaRoute,
   ApiOtelTranscriptionRoute: ApiOtelTranscriptionRoute,
