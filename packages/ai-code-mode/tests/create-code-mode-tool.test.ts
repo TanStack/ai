@@ -59,6 +59,20 @@ describe('createCodeModeTool', () => {
     expect(tool.description).toContain('external_dbQuery')
   })
 
+  it('tool description says discover_tools is a separate tool', () => {
+    const { driver } = createMockDriver()
+    const tool = createCodeModeTool({
+      driver,
+      tools: [
+        createMockTool('fetchWeather'),
+        { ...createMockTool('dbQuery'), lazy: true },
+      ],
+    })
+    expect(tool.description).toContain(
+      'discover_tools is a separate tool. It is not available inside this sandbox.',
+    )
+  })
+
   it('execute calls stripTypeScript then driver.createContext', async () => {
     const { driver, mockContext } = createMockDriver()
     const tool = createCodeModeTool({

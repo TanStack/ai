@@ -2286,9 +2286,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // and durable (`RunRecord.cancelRequested`, the only channel that reaches
       // a run being driven elsewhere).
       // A run paused at an interrupt boundary is waiting for a HUMAN, not for
-      // this socket. `chat()` skips its terminal hook at an actionable-wait
-      // boundary, so its `finally` routes the disconnect here — and
-      // terminalizing then produced a record claiming the run finished while
+      // this socket. A disconnect can land after the interrupt boundary but
+      // before the invocation ends, and `chat()` then routes it here instead
+      // of to `onFinish` — and terminalizing then produced a record claiming the run finished while
       // the interrupt rows stayed `'pending'` and `validatePendingResumes`
       // still threw on the next request. An explicit cancel is different: the
       // user gave up on the approval, so the cancel band stays authoritative.

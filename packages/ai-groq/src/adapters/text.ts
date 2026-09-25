@@ -11,6 +11,7 @@ import type {
 } from '../model-meta'
 import type { GroqMessageMetadataByModality } from '../message-types'
 import type { GroqClientConfig } from '../utils/client'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GroqChatModelToolCapabilitiesByName
@@ -20,7 +21,8 @@ type ResolveToolCapabilities<TModel extends string> =
 /**
  * Configuration for Groq text adapter
  */
-export interface GroqTextConfig extends GroqClientConfig {}
+export interface GroqTextConfig
+  extends GroqClientConfig, OpenAIBaseTextAdapterOptions {}
 
 /**
  * Re-export of the public provider options type
@@ -58,7 +60,7 @@ export class GroqTextAdapter<
   override readonly name = 'groq' as const
 
   constructor(config: GroqTextConfig, model: TModel) {
-    super(model, 'groq', new OpenAI(withGroqDefaults(config)))
+    super(model, 'groq', new OpenAI(withGroqDefaults(config)), config)
   }
 
   protected override extractRejectedToolCall(

@@ -60,4 +60,37 @@ test.describe('joinRun client-tool continuation (issue #1058)', () => {
       timeout: 15_000,
     })
   })
+
+  test('a reload mid continuation run joins it, not the parent interrupt (issue #1429)', async ({
+    page,
+  }) => {
+    // The first run pauses on the client tool and the continuation is held.
+    // Hydrate then reports the continuation as active AND the parent interrupt
+    // as pending (the store commits it only when the continuation ends).
+    const threadId = `join-run-continuation-${crypto.randomUUID()}`
+    await page.goto(
+      `/join-run-client-tool?threadId=${encodeURIComponent(threadId)}`,
+    )
+    await expect(page.getByTestId('hydration-marker')).toBeAttached()
+    await page.evaluate((key) => {
+      sessionStorage.setItem(key, '1')
+    }, ALLOW_TOOL_KEY)
+
+    await sendMessage(page, 'continue')
+    await expect(page.getByTestId('assistant-text')).toContainText('JOIN_OK', {
+      timeout: 15_000,
+    })
+
+    // Block the tool so a restored parent interrupt cannot produce JOIN_OK
+    // again. Only a joinRun replay of the continuation can.
+    await page.evaluate((key) => {
+      sessionStorage.removeItem(key)
+    }, ALLOW_TOOL_KEY)
+    await page.reload()
+    await expect(page.getByTestId('hydration-marker')).toBeAttached()
+
+    await expect(page.getByTestId('assistant-text')).toContainText('JOIN_OK', {
+      timeout: 15_000,
+    })
+  })
 })

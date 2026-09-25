@@ -1,4 +1,6 @@
 import type { NullWideningMap } from '@tanstack/ai-utils'
+import type { Tool } from '@tanstack/ai'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 
 /**
  * String `format` values accepted by OpenAI's strict Structured Outputs subset.
@@ -161,12 +163,65 @@ const TYPE_INDICATOR_KEYWORDS: ReadonlyArray<string> = [
  * verdict that 400s the whole request.
  */
 export function isStrictModeCompatible(schema: unknown): boolean {
-  return (
-    !containsStrictUnsupportedKeyword(schema) &&
-    !containsTypelessSchema(schema) &&
-    !containsOpenObject(schema) &&
-    !containsUntrackableAnyOfWidening(schema)
-  )
+  return strictModeFallbackReason(schema) === undefined
+}
+
+/**
+ * Why `schema` must be sent with `strict: false`, or `undefined` when it can be
+ * strict. Runs the same checks as `isStrictModeCompatible`, in the same order.
+ */
+export function strictModeFallbackReason(schema: unknown): string | undefined {
+  const keyword = findStrictUnsupportedKeyword(schema)
+  if (keyword !== undefined) {
+    return `schema uses ${keyword}, which strict mode does not support`
+  }
+  if (containsTypelessSchema(schema)) {
+    return 'schema has a node with no type (for example z.any() or z.unknown())'
+  }
+  if (containsOpenObject(schema)) {
+    return 'schema has an open object (for example z.record())'
+  }
+  if (containsUntrackableAnyOfWidening(schema)) {
+    return 'schema has an optional field inside an anyOf variant'
+  }
+  return undefined
+}
+
+/** Options that every `openai-base` text adapter accepts in its config. */
+export interface OpenAIBaseTextAdapterOptions {
+  /**
+   * In development, warn once per tool that is sent with `strict: false`
+   * because its schema cannot be strict. Set to `false` to turn the warning
+   * off. It never runs when `NODE_ENV` is `production`. Default: `true`.
+   */
+  strictFallbackWarning?: boolean
+}
+
+// ponytail: keyed on the Tool object, so a tool defined once warns once per
+// process. Tools rebuilt per request (e.g. from MCP) warn once per request.
+const warnedStrictFallback = new WeakSet<Tool>()
+
+/**
+ * Warn once per tool that is sent with `strict: false` because its schema
+ * cannot be strict. The tool still works, but the model is not held to the
+ * schema, so the developer must know (#1213).
+ */
+export function warnStrictFallback(
+  tools: Array<Tool> | undefined,
+  logger: InternalLogger,
+): void {
+  // Development only. `process` is absent on some runtimes (e.g. Workers).
+  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'production')
+    return
+  for (const tool of tools ?? []) {
+    if (!tool.inputSchema || warnedStrictFallback.has(tool)) continue
+    const reason = strictModeFallbackReason(tool.inputSchema)
+    if (reason === undefined) continue
+    warnedStrictFallback.add(tool)
+    logger.warn(`tool "${tool.name}" sent with strict: false: ${reason}`, {
+      tool: tool.name,
+    })
+  }
 }
 
 /**
@@ -219,16 +274,21 @@ function containsOpenObject(node: unknown): boolean {
   return Object.values(schema).some(containsOpenObject)
 }
 
-function containsStrictUnsupportedKeyword(node: unknown): boolean {
+function findStrictUnsupportedKeyword(node: unknown): string | undefined {
   if (Array.isArray(node)) {
-    return node.some(containsStrictUnsupportedKeyword)
+    for (const item of node) {
+      const found = findStrictUnsupportedKeyword(item)
+      if (found !== undefined) return found
+    }
+    return undefined
   }
-  if (node === null || typeof node !== 'object') return false
+  if (node === null || typeof node !== 'object') return undefined
   for (const [key, value] of Object.entries(node)) {
-    if (STRICT_UNSUPPORTED_KEYWORDS.includes(key)) return true
-    if (containsStrictUnsupportedKeyword(value)) return true
+    if (STRICT_UNSUPPORTED_KEYWORDS.includes(key)) return key
+    const found = findStrictUnsupportedKeyword(value)
+    if (found !== undefined) return found
   }
-  return false
+  return undefined
 }
 
 /** A schema-position node that declares no type and so 400s strict mode. */
