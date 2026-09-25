@@ -236,7 +236,12 @@ device resumes the live run the same way the original tab does. See
 A live turn can time itself on the client. After a reload, that time is gone. Pass `includeRuns: true` to get it back from the server:
 
 ```ts
-return reconstructChat(persistence, request, { includeRuns: true })
+import { reconstructChat } from '@tanstack/ai-persistence'
+import { persistence } from './persistence'
+
+export function GET(request: Request): Promise<Response> {
+  return reconstructChat(persistence, request, { includeRuns: true })
+}
 ```
 
 Each assistant message of a finished run then has the run's timings, in epoch ms, on `metadata.tanstack.run`:
