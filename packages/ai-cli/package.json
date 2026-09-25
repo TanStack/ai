@@ -36,7 +36,7 @@
   },
   "sideEffects": false,
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "files": [
     "assets",
@@ -56,15 +56,15 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-anthropic": "workspace:*",
-    "@tanstack/ai-code-mode": "workspace:*",
-    "@tanstack/ai-fal": "workspace:*",
-    "@tanstack/ai-gemini": "workspace:*",
-    "@tanstack/ai-isolate-node": "workspace:*",
-    "@tanstack/ai-mcp": "workspace:*",
-    "@tanstack/ai-openai": "workspace:*",
-    "@tanstack/ai-openrouter": "workspace:*",
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-anthropic": "workspace:^",
+    "@tanstack/ai-code-mode": "workspace:^",
+    "@tanstack/ai-fal": "workspace:^",
+    "@tanstack/ai-gemini": "workspace:^",
+    "@tanstack/ai-isolate-node": "workspace:^",
+    "@tanstack/ai-mcp": "workspace:^",
+    "@tanstack/ai-openai": "workspace:^",
+    "@tanstack/ai-openrouter": "workspace:^",
     "commander": "^13.1.0",
     "ink": "^7.0.5",
     "react": "^19.2.3",

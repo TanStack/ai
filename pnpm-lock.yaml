@@ -6,40 +6,6 @@ settings:
 
 overrides:
   abbrev: ^3.0.0
-  '@tanstack/ai': workspace:*
-  '@tanstack/ai-anthropic': workspace:*
-  '@tanstack/ai-cli': workspace:*
-  '@tanstack/ai-client': workspace:*
-  '@tanstack/ai-code-mode': workspace:*
-  '@tanstack/ai-code-mode-models-eval': workspace:*
-  '@tanstack/ai-code-mode-skills': workspace:*
-  '@tanstack/ai-devtools-core': workspace:*
-  '@tanstack/ai-elevenlabs': workspace:*
-  '@tanstack/ai-event-client': workspace:*
-  '@tanstack/ai-fal': workspace:*
-  '@tanstack/ai-gemini': workspace:*
-  '@tanstack/ai-grok': workspace:*
-  '@tanstack/ai-groq': workspace:*
-  '@tanstack/ai-isolate-cloudflare': workspace:*
-  '@tanstack/ai-isolate-node': workspace:*
-  '@tanstack/ai-isolate-quickjs': workspace:*
-  '@tanstack/ai-mcp': workspace:*
-  '@tanstack/ai-ollama': workspace:*
-  '@tanstack/ai-openai': workspace:*
-  '@tanstack/ai-openrouter': workspace:*
-  '@tanstack/ai-preact': workspace:*
-  '@tanstack/ai-react': workspace:*
-  '@tanstack/ai-react-ui': workspace:*
-  '@tanstack/ai-solid': workspace:*
-  '@tanstack/ai-solid-ui': workspace:*
-  '@tanstack/ai-svelte': workspace:*
-  '@tanstack/ai-utils': workspace:*
-  '@tanstack/ai-vue': workspace:*
-  '@tanstack/ai-vue-ui': workspace:*
-  '@tanstack/openai-base': workspace:*
-  '@tanstack/preact-ai-devtools': workspace:*
-  '@tanstack/react-ai-devtools': workspace:*
-  '@tanstack/solid-ai-devtools': workspace:*
 
 packageExtensionsChecksum: sha256-TJ1mU2/7WHrzH26P7N/SH79HTTR1L5lzW4Ndk6Eqkdk=
 
@@ -1988,10 +1954,10 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       '@tanstack/ai-event-client':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-event-client
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
       partial-json:
         specifier: ^0.1.7
@@ -2032,7 +1998,7 @@ importers:
   packages/ai-angular:
     dependencies:
       '@tanstack/ai-client':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-client
       tslib:
         specifier: ^2.8.1
@@ -2090,7 +2056,7 @@ importers:
         specifier: ^0.97.1
         version: 0.97.1(zod@4.2.1)
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
     devDependencies:
       '@anthropic-ai/sdk-v112':
@@ -2127,10 +2093,10 @@ importers:
         specifier: ^4.14.2
         version: 4.15.0
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
       '@tanstack/openai-base':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -2146,10 +2112,10 @@ importers:
   packages/ai-byteplus:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
       '@tanstack/openai-base':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -2186,31 +2152,31 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
       '@tanstack/ai-anthropic':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-anthropic
       '@tanstack/ai-code-mode':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-code-mode
       '@tanstack/ai-fal':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-fal
       '@tanstack/ai-gemini':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-gemini
       '@tanstack/ai-isolate-node':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-isolate-node
       '@tanstack/ai-mcp':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-mcp
       '@tanstack/ai-openai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-openai
       '@tanstack/ai-openrouter':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-openrouter
       commander:
         specifier: ^13.1.0
@@ -2250,13 +2216,13 @@ importers:
   packages/ai-client:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
       '@tanstack/ai-event-client':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-event-client
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
     devDependencies:
       '@standard-schema/spec':
@@ -2278,10 +2244,10 @@ importers:
         specifier: ^4.20260317.1
         version: 4.20260317.1
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
       '@tanstack/openai-base':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -2316,10 +2282,10 @@ importers:
   packages/ai-code-mode-snippets:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
       '@tanstack/ai-code-mode':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-code-mode
     devDependencies:
       '@tanstack/ai-anthropic':
@@ -2408,7 +2374,7 @@ importers:
   packages/ai-cohere:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
@@ -2433,10 +2399,10 @@ importers:
   packages/ai-devtools:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
       '@tanstack/ai-event-client':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-event-client
       '@tanstack/devtools-ui':
         specifier: ^0.5.1
@@ -2491,7 +2457,7 @@ importers:
         specifier: ^2.68.0
         version: 2.68.0
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
@@ -2517,7 +2483,7 @@ importers:
         specifier: ^1.10.1
         version: 1.10.1
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
@@ -2536,7 +2502,7 @@ importers:
         specifier: ^2.10.0
         version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
       partial-json:
         specifier: ^0.1.7
@@ -2558,10 +2524,10 @@ importers:
   packages/ai-grok:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
       '@tanstack/openai-base':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -2602,13 +2568,13 @@ importers:
   packages/ai-groq:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
       '@tanstack/openai-base':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -2624,7 +2590,7 @@ importers:
   packages/ai-isolate-cloudflare:
     dependencies:
       '@tanstack/ai-code-mode':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-code-mode
     devDependencies:
       '@cloudflare/workers-types':
@@ -2652,7 +2618,7 @@ importers:
   packages/ai-isolate-node:
     dependencies:
       '@tanstack/ai-code-mode':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-code-mode
       isolated-vm:
         specifier: ^6.0.2
@@ -2665,7 +2631,7 @@ importers:
   packages/ai-isolate-quickjs:
     dependencies:
       '@tanstack/ai-code-mode':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-code-mode
       quickjs-emscripten:
         specifier: ^0.31.0
@@ -2678,7 +2644,7 @@ importers:
   packages/ai-isolate-quickjs-bun:
     dependencies:
       '@tanstack/ai-code-mode':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-code-mode
       quickjs-bun:
         specifier: 0.1.2
@@ -2697,10 +2663,10 @@ importers:
   packages/ai-llmgateway:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
       '@tanstack/openai-base':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -2719,10 +2685,10 @@ importers:
   packages/ai-lovable:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
       '@tanstack/openai-base':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -2744,7 +2710,7 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
     devDependencies:
       '@vitest/coverage-v8':
@@ -2769,7 +2735,7 @@ importers:
   packages/ai-memory:
     dependencies:
       '@tanstack/ai-event-client':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-event-client
       ioredis:
         specifier: '>=5.0.0'
@@ -2856,7 +2822,7 @@ importers:
   packages/ai-ollama:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
       ollama:
         specifier: ^0.6.3
@@ -2875,10 +2841,10 @@ importers:
   packages/ai-openai:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
       '@tanstack/openai-base':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -2919,7 +2885,7 @@ importers:
         specifier: 0.13.20
         version: 0.13.20
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
@@ -2953,7 +2919,7 @@ importers:
   packages/ai-persistence:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
@@ -2969,7 +2935,7 @@ importers:
   packages/ai-preact:
     dependencies:
       '@tanstack/ai-client':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-client
     devDependencies:
       '@mcp-ui/client':
@@ -2997,7 +2963,7 @@ importers:
   packages/ai-react:
     dependencies:
       '@tanstack/ai-client':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-client
       '@tanstack/markdown':
         specifier: ^0.0.13
@@ -3037,7 +3003,7 @@ importers:
   packages/ai-react-ui:
     dependencies:
       '@tanstack/ai-react':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-react
     devDependencies:
       '@types/react':
@@ -3053,7 +3019,7 @@ importers:
   packages/ai-reactor:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
@@ -3069,7 +3035,7 @@ importers:
   packages/ai-remix:
     dependencies:
       '@tanstack/ai-client':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-client
     devDependencies:
       '@tanstack/ai':
@@ -3265,7 +3231,7 @@ importers:
   packages/ai-skills:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
     devDependencies:
       '@vitest/coverage-v8':
@@ -3281,7 +3247,7 @@ importers:
   packages/ai-solid:
     dependencies:
       '@tanstack/ai-client':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-client
       '@tanstack/markdown':
         specifier: ^0.0.13
@@ -3327,7 +3293,7 @@ importers:
   packages/ai-solid-ui:
     dependencies:
       '@tanstack/ai-solid':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-solid
     devDependencies:
       solid-js:
@@ -3340,7 +3306,7 @@ importers:
   packages/ai-svelte:
     dependencies:
       '@tanstack/ai-client':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-client
     devDependencies:
       '@standard-schema/spec':
@@ -3380,7 +3346,7 @@ importers:
   packages/ai-typesafe:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
@@ -3408,13 +3374,13 @@ importers:
   packages/ai-vercel-gateway:
     dependencies:
       '@tanstack/ai':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
       '@tanstack/openai-base':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../openai-base
       openai:
         specifier: ^6.41.0
@@ -3430,7 +3396,7 @@ importers:
   packages/ai-vertex:
     dependencies:
       '@tanstack/ai-gemini':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-gemini
     devDependencies:
       '@google/genai':
@@ -3449,7 +3415,7 @@ importers:
   packages/ai-vue:
     dependencies:
       '@tanstack/ai-client':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-client
       '@tanstack/markdown':
         specifier: ^0.0.13
@@ -3498,7 +3464,7 @@ importers:
   packages/ai-vue-ui:
     dependencies:
       '@tanstack/ai-vue':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-vue
     devDependencies:
       vue:
@@ -3508,7 +3474,7 @@ importers:
   packages/ai-worldlabs:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
     devDependencies:
       '@hey-api/openapi-ts':
@@ -3527,7 +3493,7 @@ importers:
   packages/openai-base:
     dependencies:
       '@tanstack/ai-utils':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-utils
       openai:
         specifier: ^6.41.0
@@ -3549,7 +3515,7 @@ importers:
   packages/preact-ai-devtools:
     dependencies:
       '@tanstack/ai-devtools-core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
         specifier: ^0.7.0
@@ -3568,7 +3534,7 @@ importers:
   packages/react-ai-devtools:
     dependencies:
       '@tanstack/ai-devtools-core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
         specifier: ^0.7.0
@@ -3590,7 +3556,7 @@ importers:
   packages/solid-ai-devtools:
     dependencies:
       '@tanstack/ai-devtools-core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
         specifier: ^0.7.0
@@ -3612,7 +3578,7 @@ importers:
   packages/svelte-ai-devtools:
     dependencies:
       '@tanstack/ai-devtools-core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
         specifier: ^0.7.0
