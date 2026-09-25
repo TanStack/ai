@@ -35,14 +35,7 @@ const LABS_LEANSTRAL_1_5 = {
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'reasoning'],
   },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0,
-    },
-  },
+  pricing: {},
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
 const LABS_LEANSTRAL_1_5_1 = {
@@ -54,14 +47,7 @@ const LABS_LEANSTRAL_1_5_1 = {
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'reasoning'],
   },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0,
-    },
-  },
+  pricing: {},
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
 const MINISTRAL_14B_2512 = {
@@ -94,14 +80,7 @@ const MINISTRAL_14B_LATEST = {
     endpoints: ['chat'],
     features: ['streaming', 'tools'],
   },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0,
-    },
-  },
+  pricing: {},
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
 const MINISTRAL_3B_2512 = {
@@ -176,14 +155,7 @@ const MISTRAL_MEDIUM = {
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'reasoning'],
   },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0,
-    },
-  },
+  pricing: {},
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
 const MISTRAL_MEDIUM_2604 = {
@@ -195,14 +167,7 @@ const MISTRAL_MEDIUM_2604 = {
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'reasoning'],
   },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0,
-    },
-  },
+  pricing: {},
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
 const MISTRAL_MEDIUM_3_5 = {
