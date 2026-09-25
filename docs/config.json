@@ -1154,7 +1154,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Perplexity Search",
@@ -1320,7 +1320,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "@tanstack/ai-client",
