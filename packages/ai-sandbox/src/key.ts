@@ -54,6 +54,11 @@ export function computeWorkspaceHash(
 ): string {
   if (!workspace) return fnv1a('no-workspace')
   const { secrets: _secrets, ...rest } = workspace
+  const { source } = rest
+  if (source.type === 'git' && source.auth) {
+    const { token: _token, ...auth } = source.auth
+    return fnv1a(canonical({ ...rest, source: { ...source, auth } }))
+  }
   return fnv1a(canonical(rest))
 }
 
