@@ -3,8 +3,6 @@ id: ArtifactCreatedPayload
 title: ArtifactCreatedPayload
 ---
 
-# Interface: ArtifactCreatedPayload
-
 Defined in: [packages/ai/src/custom-events.ts:69](https://github.com/TanStack/ai/blob/main/packages/ai/src/custom-events.ts#L69)
 
 ## Properties

@@ -207,6 +207,43 @@ describe('chat({ outputSchema, stream: true }) — native combined mode (#605)',
     ).rejects.toThrow()
   })
 
+  // #1426: a final turn cut off at the output cap is a truncation, not a
+  // schema failure, whether it holds partial JSON or no text at all.
+  it.each([
+    ['truncated JSON', '{"name":"Ja'],
+    ['no text', ''],
+  ])(
+    'reports finishReason=length as the token limit (%s)',
+    async (_label, json) => {
+      const turn = textTurn(json)
+        .filter((c) => json || c.type !== EventType.TEXT_MESSAGE_CONTENT)
+        .map((c) =>
+          c.type === EventType.RUN_FINISHED
+            ? { ...c, finishReason: 'length' as const }
+            : c,
+        )
+      const { adapter } = createMockAdapter({
+        iterations: [turn],
+        supportsCombinedToolsAndSchema: true,
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'extract' }],
+          outputSchema: PersonSchema,
+          stream: true,
+        }),
+      )
+
+      const runError = chunks.find((c) => c.type === EventType.RUN_ERROR) as
+        | { code?: string; message?: string }
+        | undefined
+      expect(runError?.code).toBe('max_tokens')
+      expect(runError?.message).toMatch(/maximum token limit was reached/)
+    },
+  )
+
   it('emits a RUN_ERROR on the streaming path when the final-turn text is not valid JSON', async () => {
     const { adapter } = createMockAdapter({
       iterations: [textTurn('not-json-at-all')],

@@ -39,3 +39,9 @@ export type CloudflareTranscriptionModel =
   | '@cf/openai/whisper-large-v3-turbo'
   | '@cf/deepgram/nova-3'
   | (string & {})
+
+/**
+ * Evaluate model id. TypeSafe Jev on Workers AI is `typesafe/jev`.
+ * Any other id works too.
+ */
+export type CloudflareEvaluateModel = 'typesafe/jev' | (string & {})

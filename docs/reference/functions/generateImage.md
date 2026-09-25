@@ -3,13 +3,11 @@ id: generateImage
 title: generateImage
 ---
 
-# Function: generateImage()
-
 ```ts
 function generateImage<TAdapter, TStream>(options): ImageActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateImage/index.ts:245](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/index.ts#L245)
+Defined in: [packages/ai/src/activities/generateImage/index.ts:246](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/index.ts#L246)
 
 Image activity - generates images from text prompts.
 

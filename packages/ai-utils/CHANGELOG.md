@@ -1,5 +1,11 @@
 # @tanstack/ai-utils
 
+## 0.4.1
+
+### Patch Changes
+
+- [#1436](https://github.com/TanStack/ai/pull/1436) [`8bcfb88`](https://github.com/TanStack/ai/commit/8bcfb883bf7447c84cc0148bf838e9324dc5f1d3) - Add a package README listing the shared helpers (`generateId`, `getApiKeyFromEnv`, the base64 helpers, `transformNullsToUndefined`, `undoNullWidening`) and when to use each.
+
 ## 0.4.0
 
 ### Minor Changes

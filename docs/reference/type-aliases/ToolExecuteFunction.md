@@ -3,8 +3,6 @@ id: ToolExecuteFunction
 title: ToolExecuteFunction
 ---
 
-# Type Alias: ToolExecuteFunction\<TInput, TOutput, TContext\>
-
 ```ts
 type ToolExecuteFunction<TInput, TOutput, TContext> = undefined extends TContext ? (args, context?) => 
   | Promise<InferSchemaType<TOutput>>
@@ -13,7 +11,7 @@ type ToolExecuteFunction<TInput, TOutput, TContext> = undefined extends TContext
 | InferSchemaType<TOutput>;
 ```
 
-Defined in: [packages/ai/src/types.ts:667](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L667)
+Defined in: [packages/ai/src/types.ts:723](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L723)
 
 ## Type Parameters
 

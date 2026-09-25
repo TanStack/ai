@@ -3,8 +3,6 @@ id: StandardSchemaValidationError
 title: StandardSchemaValidationError
 ---
 
-# Class: StandardSchemaValidationError
-
 Defined in: [packages/ai/src/activities/chat/tools/schema-converter.ts:431](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/schema-converter.ts#L431)
 
 Error thrown when Standard Schema validation fails. Carries the original

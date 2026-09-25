@@ -10,8 +10,6 @@ keywords:
   - middleware lifecycle
 ---
 
-# How Persistence Works
-
 Read this when something surprised you, or before you write a backend. To simply set
 persistence up, [the overview](./overview) is three snippets.
 
@@ -78,19 +76,25 @@ to the store contracts.
 
 ## Who owns history when both sides persist
 
-One rule decides which copy wins, and you pick it per turn by what the client sends
-as `messages`:
+`withPersistence` merges incoming `messages` into the stored thread by id:
 
-- **Non-empty `messages`** means "this is the full history". On finish the server
-  overwrites its stored thread with it. The client stays authoritative and the server
-  mirrors.
-- **Empty `messages`** means "continue from your own copy". The server loads its
-  stored transcript and runs from there. The server is authoritative and the client is
-  a cache.
+- **Empty `messages`**: continue from the stored transcript. The server loads
+  its copy and runs from there.
+- **Non-empty `messages`**: merge by id. The last incoming id that already
+  exists in stored is a cutoff. Stored messages after it are dropped. Incoming
+  wins on the same id. New ids are appended.
 
-That single rule lets both copies coexist with no merge. Two postures fall out of it:
-client-authoritative, closest to a pure SPA, and server-authoritative, which is what
-makes the same thread open identically on another device.
+`saveThread` replaces the stored thread with that merged list.
+
+Two postures:
+
+- **Client-authoritative**, closest to a pure SPA. The client sends its
+  in-memory list. Merge keeps stored extras the client omitted, unless a
+  shared id cuts the stored tail (reload).
+- **Server-authoritative**: the same thread opens on another device. With
+  `history: { pageSize }`, the client posts only the new turn. Reload posts
+  the last user. Resume posts from that user through the painted assistant.
+  Merge keeps stored extras that sit before the cutoff.
 
 ## What a reload restores
 
@@ -108,8 +112,10 @@ what it finds:
 A dropped connection while the page is still open is simpler: delivery durability
 reconnects on its own. Persistence matters once the page itself is gone.
 
-Server-authoritative mode paints from a server read instead of `localStorage`. The
-delivery log cannot supply that history, because it holds one run, not the thread.
+Server-authoritative mode paints from a server read instead of `localStorage`.
+A GET with `limit` returns the newest window and `page`. An older window uses
+`before`. The delivery log cannot supply that history, because it holds one
+run, not the thread.
 
 Both layers assume the work itself is over by the time the client comes back:
 replaying a log and reading a transcript are both reads of something already
@@ -172,8 +178,8 @@ server event state, not the client's rendered messages.
    stores exist.
 2. `onConfig` creates or resumes the run, seeds usage from the existing run
    record, loads pending interrupts, and validates the request's resume batch
-   against them, then merges stored messages into the request when the request
-   carries no history.
+   against them, then merges stored messages into the request by id. An empty
+   list loads the stored thread.
 3. `onUsage` accumulates each provider terminal.
 4. `onChunk` reacts only to a `RUN_FINISHED` interrupt outcome. A direct adapter
    terminal arrives before `onUsage`, so the handler includes its usage and
@@ -200,10 +206,11 @@ accepting a resume and reaching that boundary leaves the interrupt pending and a
 retry with the same resume succeeds. The canonical AG-UI chunk stream remains
 unchanged; persistence does not create a second event stream.
 
-When a request carries a non-empty `messages` array it is treated as the full
-authoritative history and, on finish, overwrites the stored thread. To continue
-a stored thread without resending history, pass an empty `messages` array, and the
-stored transcript is loaded and used.
+`withPersistence` merges incoming `messages` into the stored thread by id.
+If `messages` is empty, the stored transcript is loaded and used.
+If `messages` is not empty, stored extras stay, new ids append, and the same
+id uses the incoming message. `saveThread` replaces the stored thread with
+that merged list.
 
 ## Reading the stores from your own middleware
 

@@ -29,6 +29,8 @@ import {
   providePersistence,
   providePersistenceCompletion,
 } from './capabilities'
+import { mergeStoredMessages } from './merge-stored'
+import { createSubagentRunRecorder } from './subagent-runs'
 import {
   validateChatPersistenceStores,
   validateGenerationPersistenceStores,
@@ -47,6 +49,7 @@ import type {
   GenerationMiddleware,
   GenerationMiddlewareContext,
   Interrupt,
+  ModelMessage,
   PendingInterruptResumeRecord,
   PersistedArtifactActivity,
   PersistedArtifactRef,
@@ -66,6 +69,7 @@ import type {
   ChatTranscriptStores,
   InterruptCommitEntry,
   InterruptRecord,
+  MessagePage,
   RunStore,
 } from './types'
 import { artifactBlobKey } from './retrieve'
@@ -1907,26 +1911,12 @@ function detachableRun(ctx: ChatMiddlewareContext): boolean {
 // Chat middleware
 // ---------------------------------------------------------------------------
 
-/**
- * Chat-only **state** persistence middleware. Provides durable transcript,
- * run records, and interrupts for `chat()`. Does **not** provide locks —
- * use `withLocks` from `@tanstack/ai` for multi-instance coordination.
- *
- * This middleware never mutates the chunk stream; delivery durability
- * (replaying a disconnected/reloaded stream) is a separate transport-layer
- * concern (see the resumable-streams docs).
- *
- * Requires `stores.messages`. When `stores.interrupts` is present,
- * `stores.runs` is also required.
- *
- * ⚠️ AUTHORITATIVE-HISTORY CONTRACT: when a request carries a non-empty
- * `messages` array it is treated as the FULL conversation history and, on
- * finish, **overwrites** the entire stored thread. Post only the complete
- * transcript, never a delta — sending just the newest message(s) will replace
- * (and thereby destroy) the stored thread. To continue a stored thread without
- * resending history, pass an empty `messages` array and the stored transcript
- * is loaded and used.
- */
+function threadMessages(
+  loaded: Array<ModelMessage> | MessagePage,
+): Array<ModelMessage> {
+  return Array.isArray(loaded) ? loaded : loaded.messages
+}
+
 export interface WithPersistenceOptions {
   /**
    * Also persist a throttled snapshot of the in-progress assistant reply while
@@ -1939,12 +1929,31 @@ export interface WithPersistenceOptions {
   snapshotStreaming?: boolean
   /**
    * Minimum milliseconds between streaming snapshots when `snapshotStreaming`
-   * is on. Defaults to 1000.
+   * is on. Defaults to 1000. A streaming subagent child always uses the same
+   * interval for its transcript writes, with or without `snapshotStreaming`.
    */
   snapshotIntervalMs?: number
 }
 
 /**
+ * Chat-only **state** persistence middleware. Provides durable transcript,
+ * run records, and interrupts for `chat()`. Does **not** provide locks —
+ * use `withLocks` from `@tanstack/ai` for multi-instance coordination.
+ *
+ * This middleware never mutates the chunk stream; delivery durability
+ * (replaying a disconnected/reloaded stream) is a separate transport-layer
+ * concern (see the resumable-streams docs).
+ *
+ * Requires `stores.messages`. When `stores.interrupts` is present,
+ * `stores.runs` is also required.
+ *
+ * Incoming `messages` merge into the stored thread by id. An empty list loads
+ * the stored thread. The last incoming id that already exists in stored is a
+ * cutoff; stored messages after it are dropped (reload). If no incoming id is
+ * in stored, every stored message stays. Same id: incoming wins. New ids and
+ * messages with no id are appended. `saveThread` still replaces the thread
+ * with that merged list.
+ *
  * @param persistence - Must satisfy {@link ChatTranscriptStores} (messages
  *   required). Known-absent `messages` or `interrupts` without `runs` fail at
  *   compile time; fully dynamic bags are checked at runtime.
@@ -1972,8 +1981,18 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
     ...(wantsInterrupts ? [InterruptsCapability] : []),
   ]
 
+  const subagentRuns = createSubagentRunRecorder({
+    messages: messageStore,
+    runs,
+    intervalMs: snapshotIntervalMs,
+    ...(wantsInterrupts && persistence.stores.interrupts
+      ? { interrupts: persistence.stores.interrupts }
+      : {}),
+  })
+
   return defineChatMiddleware({
     name: 'chat-persistence',
+    routedSubagentPersistence: subagentRuns,
     provides,
     setup(ctx: ChatMiddlewareContext) {
       providePersistence(ctx, persistence)
@@ -2019,11 +2038,12 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // it behaves exactly as before. See `PendingTurnCapability`.
       providePendingTurn(ctx, {
         snapshot: async () => {
-          const stored = await messageStore.loadThread(ctx.threadId)
-          // The SAME rule `onConfig` applies when it merges. Kept here, in the
-          // owner, because `saveThread` REPLACES the thread: a caller that stored
-          // only the newly-sent list would delete the history.
-          const list = ctx.messages.length > 0 ? [...ctx.messages] : stored
+          const stored = threadMessages(
+            await messageStore.loadThread(ctx.threadId),
+          )
+          // Same merge as onConfig. saveThread replaces the thread, so a short
+          // incoming list must not drop stored extras.
+          const list = mergeStoredMessages(stored, ctx.messages)
           await messageStore.saveThread(ctx.threadId, list)
         },
       })
@@ -2088,8 +2108,10 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       if (state && storedUsage) state.usage = storedUsage
       if (!state?.merged) {
         if (state) state.merged = true
-        const stored = await messageStore.loadThread(ctx.threadId)
-        patch.messages = config.messages.length > 0 ? config.messages : stored
+        const stored = threadMessages(
+          await messageStore.loadThread(ctx.threadId),
+        )
+        patch.messages = mergeStoredMessages(stored, config.messages)
       }
 
       return Object.keys(patch).length > 0 ? patch : undefined
@@ -2108,6 +2130,11 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
     },
 
     async onChunk(ctx: ChatMiddlewareContext, chunk: StreamChunk) {
+      await subagentRuns.chunk({
+        threadId: ctx.threadId,
+        runId: ctx.runId,
+        chunk,
+      })
       // Capture the current assistant turn's identity for optional in-progress
       // snapshots. Completed messages already live in `ctx.messages`.
       if (snapshotStreaming && ctx.phase === 'modelStream') {

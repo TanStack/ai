@@ -1,5 +1,10 @@
 import { OpenRouter } from '@openrouter/sdk'
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  EventType,
+  isFileSource,
+  normalizeSystemPrompts,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   toRunErrorPayload,
@@ -49,7 +54,14 @@ import type {
   OpenRouterMessageMetadataByModality,
 } from '../message-types'
 
-export interface OpenRouterConfig extends SDKOptions {}
+export interface OpenRouterConfig extends SDKOptions {
+  /**
+   * HTTP status codes the SDK retries using `retryConfig`, e.g.
+   * `['429', '5XX']`. The SDK only accepts this per call (default `['5XX']`),
+   * so the adapter forwards it to every `chat.send`.
+   */
+  retryCodes?: Array<string>
+}
 export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
 
 export type OpenRouterTextModelOptions = ExternalTextProviderOptions
@@ -128,10 +140,13 @@ export class OpenRouterTextAdapter<
   readonly name = 'openrouter' as const
 
   protected orClient: OpenRouter
+  private readonly retryCodes: Array<string> | undefined
 
   constructor(config: OpenRouterConfig, model: TModel) {
     super({}, model)
-    this.orClient = new OpenRouter(config)
+    const { retryCodes, ...sdkOptions } = config
+    this.orClient = new OpenRouter(sdkOptions)
+    this.retryCodes = retryCodes
   }
 
   async *chatStream(
@@ -171,6 +186,7 @@ export class OpenRouterTextAdapter<
         {
           ...(reqOptions.signal != null && { signal: reqOptions.signal }),
           ...(reqOptions.headers && { headers: reqOptions.headers }),
+          ...(this.retryCodes && { retryCodes: this.retryCodes }),
         },
       )
 
@@ -263,6 +279,7 @@ export class OpenRouterTextAdapter<
         {
           ...(reqOptions.signal != null && { signal: reqOptions.signal }),
           ...(reqOptions.headers && { headers: reqOptions.headers }),
+          ...(this.retryCodes && { retryCodes: this.retryCodes }),
         },
       )
 
@@ -270,7 +287,19 @@ export class OpenRouterTextAdapter<
       // rather than letting it cascade into a JSON-parse error on '' — the
       // root cause (the model returned no content for the structured request)
       // is then visible in logs.
-      const message = response.choices[0]?.message
+      const choice = response.choices[0]
+
+      // A response cut off at the output cap is a truncated JSON document —
+      // or, for reasoning models, no content at all once the budget went to
+      // reasoning. Report it as truncation before the empty-content and
+      // parse errors, which would read like a schema failure (issue #1426).
+      if (choice?.finishReason === 'length') {
+        throw new Error(
+          `${this.name}.structuredOutput: the response was cut off because the maximum token limit was reached (finish_reason=length); raise maxCompletionTokens`,
+        )
+      }
+
+      const message = choice?.message
       const rawText =
         typeof message?.content === 'string' ? message.content : ''
       if (rawText.length === 0) {
@@ -355,6 +384,7 @@ export class OpenRouterTextAdapter<
     let hasClosedReasoning = false
     let stepId: string | undefined
     let lastModel: string | undefined
+    let finishReason: string | null | undefined
     let lastUsage: ChatStreamChunk['usage'] | undefined
 
     const closeReasoningLifecycle = function* (this: {
@@ -424,6 +454,7 @@ export class OpenRouterTextAdapter<
         {
           ...(reqOptions.signal != null && { signal: reqOptions.signal }),
           ...(reqOptions.headers && { headers: reqOptions.headers }),
+          ...(this.retryCodes && { retryCodes: this.retryCodes }),
         },
       )
 
@@ -488,6 +519,7 @@ export class OpenRouterTextAdapter<
 
         const choice = chunk.choices[0]
         if (!choice) continue
+        if (choice.finishReason) finishReason = choice.finishReason
 
         const deltaContent = choice.delta.content
         if (deltaContent) {
@@ -526,6 +558,22 @@ export class OpenRouterTextAdapter<
           model: lastModel || chatOptions.model,
           timestamp: Date.now(),
         }
+      }
+
+      // Same truncation check as `structuredOutput()`: report the token limit
+      // before the empty-content and parse errors (issue #1426).
+      if (finishReason === 'length') {
+        const message = `${this.name}.structuredOutputStream: the response was cut off because the maximum token limit was reached (finish_reason=length); raise maxCompletionTokens`
+        yield {
+          type: EventType.RUN_ERROR,
+          runId: aguiState.runId,
+          model: lastModel || chatOptions.model,
+          timestamp: Date.now(),
+          message,
+          code: 'max_tokens',
+          error: { message, code: 'max_tokens' },
+        }
+        return
       }
 
       if (accumulatedContent.length === 0) {
@@ -1390,19 +1438,29 @@ export class OpenRouterTextAdapter<
 
   /** OpenRouter content-part converter (camelCase imageUrl/inputAudio/videoUrl). */
   protected convertContentPart(part: ContentPart): ChatContentItems | null {
+    if (part.type === 'text') {
+      return { type: 'text', text: part.content }
+    }
+    // Narrow once so the branches below can only see url/data sources — a
+    // `{ type: 'file' }` reference has no `value` to mis-map. A part without
+    // a source (unknown/malformed type) falls through to the base's
+    // unsupported-content-part guard, matching the old default branch.
+    const source = (part as { source?: typeof part.source }).source
+    if (source === undefined) return null
+    if (isFileSource(source)) {
+      throw unsupportedFileSourceError(this.name)
+    }
     switch (part.type) {
-      case 'text':
-        return { type: 'text', text: part.content }
       case 'image': {
         const meta = part.metadata as OpenRouterImageMetadata | undefined
-        const value = part.source.value
+        const value = source.value
         // Default to `application/octet-stream` when the source didn't
         // provide a MIME type — interpolating `undefined` into the URI
         // ("data:undefined;base64,...") produces an invalid data URI the
         // API rejects.
-        const imageMime = part.source.mimeType || 'application/octet-stream'
+        const imageMime = source.mimeType || 'application/octet-stream'
         const url =
-          part.source.type === 'data' && !value.startsWith('data:')
+          source.type === 'data' && !value.startsWith('data:')
             ? `data:${imageMime};base64,${value}`
             : value
         return {
@@ -1418,32 +1476,32 @@ export class OpenRouterTextAdapter<
         // base64 slot. The Responses adapter does have an `input_file`
         // URL variant and routes URLs there directly — see
         // `responses-text.ts`.
-        if (part.source.type === 'url') {
+        if (source.type === 'url') {
           return {
             type: 'text',
-            text: `[Audio: ${part.source.value}]`,
+            text: `[Audio: ${source.value}]`,
           }
         }
         return {
           type: 'input_audio',
-          inputAudio: { data: part.source.value, format: 'mp3' },
+          inputAudio: { data: source.value, format: 'mp3' },
         }
       case 'video':
         return {
           type: 'video_url',
-          videoUrl: { url: part.source.value },
+          videoUrl: { url: source.value },
         }
       case 'document':
         // The chat-completions SDK has no document_url type. For URL
         // sources, surface a text reference so the model at least sees
-        // the link. For data sources, `part.source.value` is the raw
+        // the link. For data sources, `source.value` is the raw
         // base64 payload — inlining it into the prompt would blow the
         // context window with megabytes of binary and leak the document
         // content verbatim. Throw instead so the caller can either
         // switch to the Responses adapter (which has proper input_file
         // support for data documents) or strip the document before
         // sending.
-        if (part.source.type === 'data') {
+        if (source.type === 'data') {
           throw new Error(
             `${this.name} chat-completions does not support inline (data) document content parts. ` +
               `Use the Responses adapter (openRouterResponsesText) for document data, ` +
@@ -1452,7 +1510,7 @@ export class OpenRouterTextAdapter<
         }
         return {
           type: 'text',
-          text: `[Document: ${part.source.value}]`,
+          text: `[Document: ${source.value}]`,
         }
       default:
         return null
@@ -1524,14 +1582,14 @@ function extractReasoningText(chunk: ChatStreamChunk): string {
 export function createOpenRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
   apiKey: string,
-  config?: Omit<SDKOptions, 'apiKey'>,
+  config?: Omit<OpenRouterConfig, 'apiKey'>,
 ): OpenRouterTextAdapter<TModel, ResolveToolCapabilities<TModel>> {
   return new OpenRouterTextAdapter({ apiKey, ...config }, model)
 }
 
 export function openRouterText<TModel extends OpenRouterTextModels>(
   model: TModel,
-  config?: Omit<SDKOptions, 'apiKey'>,
+  config?: Omit<OpenRouterConfig, 'apiKey'>,
 ): OpenRouterTextAdapter<TModel, ResolveToolCapabilities<TModel>> {
   const apiKey = getOpenRouterApiKeyFromEnv()
   return createOpenRouterText(model, apiKey, config)

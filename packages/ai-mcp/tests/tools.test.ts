@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import {
+  callMcpTool,
   makeMcpExecute,
   mcpContentToTanstack,
   toServerTools,
@@ -25,6 +27,7 @@ function mcpToolDef(def: {
   title?: string
   description?: string
   inputSchema?: { type: 'object'; properties?: Record<string, unknown> }
+  execution?: { taskSupport?: 'optional' | 'required' | 'forbidden' }
   annotations?: {
     title?: string
     readOnlyHint?: boolean
@@ -49,7 +52,10 @@ function mcpToolDef(def: {
 function fakeMcpClient(
   callTool: (...args: Array<any>) => Promise<CallToolResult>,
 ): Client {
-  return { callTool } as unknown as Client
+  return {
+    callTool,
+    getServerCapabilities: () => undefined,
+  } as unknown as Client
 }
 
 describe('mcpContentToTanstack', () => {
@@ -130,6 +136,161 @@ describe('mcpContentToTanstack', () => {
   })
 })
 
+describe('callMcpTool', () => {
+  it('drains task status updates and returns the terminal result', async () => {
+    const controller = new AbortController()
+    const callToolStream = vi.fn(() =>
+      (async function* () {
+        yield {
+          type: 'taskStatus' as const,
+          task: {
+            taskId: 'task-1',
+            status: 'working' as const,
+            createdAt: new Date().toISOString(),
+            lastUpdatedAt: new Date().toISOString(),
+            ttl: 60_000,
+          },
+        }
+        yield {
+          type: 'result' as const,
+          result: { content: [{ type: 'text' as const, text: 'done' }] },
+        }
+      })(),
+    )
+    const client = {
+      experimental: { tasks: { callToolStream } },
+    } as unknown as Client
+
+    await expect(
+      callMcpTool(client, 'research', { query: 'x' }, true, controller.signal),
+    ).resolves.toEqual({ content: [{ type: 'text', text: 'done' }] })
+    expect(callToolStream).toHaveBeenCalledWith(
+      { name: 'research', arguments: { query: 'x' } },
+      CallToolResultSchema,
+      { signal: controller.signal, task: {} },
+    )
+  })
+
+  it('throws a terminal task-stream error', async () => {
+    const error = new Error('task failed')
+    const client = {
+      experimental: {
+        tasks: {
+          callToolStream: () =>
+            (async function* () {
+              yield { type: 'error' as const, error }
+            })(),
+        },
+      },
+    } as unknown as Client
+
+    await expect(callMcpTool(client, 'research', {}, true)).rejects.toBe(error)
+  })
+
+  it('does not wait for tasks/cancel before rethrowing abort', async () => {
+    const abortError = new DOMException('Aborted', 'AbortError')
+    const controller = new AbortController()
+    let cancelFinished = false
+    const client = {
+      experimental: {
+        tasks: {
+          callToolStream: () =>
+            (async function* () {
+              yield {
+                type: 'taskCreated' as const,
+                task: {
+                  taskId: 'task-1',
+                  status: 'working' as const,
+                  createdAt: new Date().toISOString(),
+                  lastUpdatedAt: new Date().toISOString(),
+                  ttl: 60_000,
+                },
+              }
+              controller.abort()
+              yield { type: 'error' as const, error: abortError }
+            })(),
+          cancelTask: () =>
+            new Promise<void>((resolve) => {
+              setTimeout(() => {
+                cancelFinished = true
+                resolve()
+              }, 200)
+            }),
+        },
+      },
+    } as unknown as Client
+
+    const started = Date.now()
+    await expect(
+      callMcpTool(client, 'research', {}, true, controller.signal),
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(Date.now() - started).toBeLessThan(100)
+    expect(cancelFinished).toBe(false)
+  })
+
+  it('stops waiting when abort fires while the task stream is idle', async () => {
+    const controller = new AbortController()
+    let created = false
+    const cancelTask = vi.fn().mockResolvedValue(undefined)
+    const client = {
+      experimental: {
+        tasks: {
+          callToolStream: () =>
+            (async function* () {
+              yield {
+                type: 'taskCreated' as const,
+                task: {
+                  taskId: 'task-1',
+                  status: 'working' as const,
+                  createdAt: new Date().toISOString(),
+                  lastUpdatedAt: new Date().toISOString(),
+                  ttl: 60_000,
+                },
+              }
+              created = true
+              await new Promise<never>(() => {})
+            })(),
+          cancelTask,
+        },
+      },
+    } as unknown as Client
+
+    const pending = callMcpTool(client, 'research', {}, true, controller.signal)
+    await vi.waitFor(() => {
+      expect(created).toBe(true)
+    })
+    controller.abort()
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(cancelTask).toHaveBeenCalledWith('task-1')
+  })
+
+  it('throws if a task stream ends without a terminal message', async () => {
+    const client = {
+      experimental: {
+        tasks: {
+          callToolStream: () =>
+            (async function* () {
+              yield {
+                type: 'taskStatus' as const,
+                task: {
+                  taskId: 'task-1',
+                  status: 'working' as const,
+                  createdAt: new Date().toISOString(),
+                  lastUpdatedAt: new Date().toISOString(),
+                  ttl: 60_000,
+                },
+              }
+            })(),
+        },
+      },
+    } as unknown as Client
+
+    await expect(callMcpTool(client, 'research', {}, true)).rejects.toThrow(
+      /ended without a result or error/,
+    )
+  })
+})
+
 describe('makeMcpExecute', () => {
   it('throws an error naming the tool when the MCP tool returns isError', async () => {
     const { clientTransport } = await makeServerWithFailingTool()
@@ -170,7 +331,7 @@ describe('makeMcpExecute', () => {
     )
     expect(callTool).toHaveBeenCalledWith(
       { name: 'x', arguments: {} },
-      undefined,
+      CallToolResultSchema,
       { signal: controller.signal },
     )
   })
@@ -331,6 +492,25 @@ describe('toServerTools', () => {
     )
     expect(JSON.stringify(result)).toContain('Sunny in Brooklyn')
     await client.close()
+  })
+
+  it('keeps task-optional tools on ordinary callTool execution', async () => {
+    const callTool = vi
+      .fn()
+      .mockResolvedValue({ content: [{ type: 'text', text: 'plain' }] })
+    const tools = toServerTools(
+      fakeMcpClient(callTool),
+      [
+        mcpToolDef({
+          name: 'optional_task',
+          execution: { taskSupport: 'optional' },
+        }),
+      ],
+      {},
+    )
+
+    await expect(tools[0]!.execute!({})).resolves.toBe('plain')
+    expect(callTool).toHaveBeenCalledOnce()
   })
 
   it('applies a prefix', async () => {

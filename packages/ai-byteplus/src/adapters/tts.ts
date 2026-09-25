@@ -9,7 +9,13 @@ import {
   readJsonBody,
   withBytePlusVoiceDefaults,
 } from '../utils/client'
-import type { TTSOptions } from '@tanstack/ai'
+import type {
+  TTSAlignment,
+  TTSCapabilities,
+  TTSOptions,
+  TTSSegment,
+  TTSTurn,
+} from '@tanstack/ai'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { BytePlusVoiceConfig } from '../utils/client'
 import type { BytePlusTTSModel } from '../model-meta'
@@ -18,6 +24,9 @@ import type {
   BytePlusTTSAudioFormat,
   BytePlusTTSCreateRequest,
   BytePlusTTSCreateResponse,
+  BytePlusTTSReference,
+  BytePlusTTSSubtitle,
+  BytePlusTTSSubtitleEntry,
 } from '../audio/wire-types'
 import type {
   BytePlusTTSProviderOptions,
@@ -78,6 +87,13 @@ export const BYTEPLUS_DEFAULT_TTS_SPEAKER = 'en_female_stokie_uranus_bigtts'
 export const BYTEPLUS_TTS_MAX_OUTPUT_SECONDS = 120
 
 /**
+ * Hard cap on the `references` array, and therefore on the number of distinct
+ * voices one dialogue request can use. The markers that cite them in
+ * `text_prompt` run `@Audio1`..`@Audio3`.
+ */
+export const BYTEPLUS_TTS_MAX_REFERENCES = 3
+
+/**
  * BytePlus Seed Speech text-to-speech adapter.
  *
  * Talks to `POST {baseURL}/api/v3/tts/create` on the Seed Speech voice host.
@@ -113,6 +129,16 @@ export class BytePlusTTSAdapter<
 > extends BaseTTSAdapter<TModel, BytePlusTTSProviderOptions> {
   readonly name = 'byteplus' as const
 
+  /**
+   * Seed Audio 1.0 does multi-role dialogue in one pass, addressed through
+   * `references` (capped at 3 entries), and returns word/sentence timings
+   * when `audio_config.enable_subtitle` is set.
+   */
+  override readonly capabilities: TTSCapabilities = {
+    maxSpeakers: BYTEPLUS_TTS_MAX_REFERENCES,
+    timestamps: true,
+  }
+
   private readonly apiKey: string
   private readonly baseURL: string
   private readonly defaultHeaders: Record<string, string>
@@ -130,7 +156,8 @@ export class BytePlusTTSAdapter<
   async generateSpeech(
     options: TTSOptions<BytePlusTTSProviderOptions>,
   ): Promise<BytePlusTTSResult> {
-    const { logger, model, text, voice, format, speed, modelOptions } = options
+    const { logger, model, text, voice, format, speed, modelOptions, turns } =
+      options
 
     logger.request(`activity=generateSpeech provider=byteplus model=${model}`, {
       provider: 'byteplus',
@@ -140,10 +167,12 @@ export class BytePlusTTSAdapter<
     const { body, audioFormat, sampleRate } = buildTTSRequestBody({
       model,
       text,
+      turns,
       voice,
       format,
       speed,
       modelOptions,
+      timestamps: options.timestamps,
       logger,
     })
 
@@ -208,6 +237,7 @@ export class BytePlusTTSAdapter<
         ...(duration !== undefined && { duration }),
         ...(originalDuration !== undefined && { originalDuration }),
         ...(data.subtitle !== undefined && { subtitle: data.subtitle }),
+        ...toAlignmentFields(data.subtitle),
         ...(data.url !== undefined && { url: data.url }),
       }
     } catch (error) {
@@ -231,17 +261,22 @@ export class BytePlusTTSAdapter<
 export function buildTTSRequestBody(options: {
   model: string
   text: string
+  /** Dialogue turns, when the caller asked for multi-role synthesis. */
+  turns?: Array<TTSTurn>
   voice: string | undefined
   format: TTSOptions['format'] | undefined
   speed: number | undefined
   modelOptions: BytePlusTTSProviderOptions | undefined
+  /** Core `timestamps: true` — turns on `audio_config.enable_subtitle`. */
+  timestamps?: boolean
   logger: InternalLogger
 }): {
   body: BytePlusTTSCreateRequest
   audioFormat: BytePlusTTSAudioFormat
   sampleRate: number
 } {
-  const { model, text, voice, format, speed, modelOptions, logger } = options
+  const { model, text, turns, voice, format, speed, modelOptions, logger } =
+    options
 
   const audioFormat = pickAudioFormat(modelOptions?.format, format, logger)
   // Always explicit: the documented server default (40000) is not one of the
@@ -258,8 +293,13 @@ export function buildTTSRequestBody(options: {
   if (modelOptions?.loudness_rate !== undefined) {
     audioConfig.loudness_rate = modelOptions.loudness_rate
   }
-  if (modelOptions?.enable_subtitle !== undefined) {
-    audioConfig.enable_subtitle = modelOptions.enable_subtitle
+  // `modelOptions.enable_subtitle` still wins, so an explicit `false` can
+  // opt out of the flag even when core asked for timestamps. A `timestamps`
+  // the caller never set stays off the body entirely.
+  const enableSubtitle =
+    modelOptions?.enable_subtitle ?? (options.timestamps || undefined)
+  if (enableSubtitle !== undefined) {
+    audioConfig.enable_subtitle = enableSubtitle
   }
 
   // An explicit `speech_rate` always wins over the derived one — it is the
@@ -271,22 +311,29 @@ export function buildTTSRequestBody(options: {
     audioConfig.speech_rate = speechRate
   }
 
+  const dialogue = turns ? buildDialoguePrompt(turns) : undefined
+
   const body: BytePlusTTSCreateRequest = {
     model,
-    [TTS_TEXT_FIELD]: text,
+    [TTS_TEXT_FIELD]: dialogue?.textPrompt ?? text,
     // The voice belongs inside `references`, not at the top level — a
-    // top-level `speaker` is silently ignored by the server. The flat member
-    // shape here is the best-supported reading of the docs; see
-    // `BytePlusTTSReference` for the unresolved part and the live-probe flag.
-    references: modelOptions?.references ?? [
-      {
-        speaker: modelOptions?.speaker ?? voice ?? BYTEPLUS_DEFAULT_TTS_SPEAKER,
-      },
-    ],
+    // top-level `speaker` is silently ignored by the server.
+    references: modelOptions?.references ??
+      dialogue?.references ?? [
+        {
+          speaker:
+            modelOptions?.speaker ?? voice ?? BYTEPLUS_DEFAULT_TTS_SPEAKER,
+        },
+      ],
     audio_config: audioConfig,
   }
   if (modelOptions?.watermark !== undefined) {
-    body.watermark = modelOptions.watermark
+    // The endpoint wants an object. `true` means the audible marker, which is
+    // what a caller passing a boolean is asking for.
+    body.watermark =
+      typeof modelOptions.watermark === 'boolean'
+        ? { aigc_watermark: modelOptions.watermark }
+        : modelOptions.watermark
   }
 
   return { body, audioFormat, sampleRate }
@@ -383,6 +430,81 @@ export function getContentType(
     case 'pcm':
       return `audio/L16;rate=${sampleRate ?? 24000}`
   }
+}
+
+/**
+ * Turn dialogue turns into the one-prompt form Seed Audio 1.0 takes: each
+ * distinct voice becomes a `references` entry, and every line of the script
+ * cites its voice by the reference's 1-based position (`@Audio1`..`@Audio3`),
+ * which is the marker convention the reference array already uses.
+ *
+ * **The prompt form is unprobed.** The flat `references[]` member shape is
+ * confirmed (see `BytePlusTTSReference`), and the model card documents
+ * multi-role dialogue and positional reference markers, but no worked
+ * multi-speaker example was available and no Seed Speech key existed to
+ * confirm how lines should cite their voice.
+ */
+function buildDialoguePrompt(turns: Array<TTSTurn>): {
+  textPrompt: string
+  references: Array<BytePlusTTSReference>
+} {
+  const voices = [...new Set(turns.map((turn) => turn.voice))]
+  return {
+    textPrompt: turns
+      .map((turn) => `@Audio${voices.indexOf(turn.voice) + 1}: ${turn.text}`)
+      .join('\n'),
+    references: voices.map((speaker) => ({ speaker })),
+  }
+}
+
+/**
+ * Map the BytePlus `subtitle` block onto the cross-provider `alignment` /
+ * `segments` fields.
+ *
+ * `words` is the finest granularity Seed Speech reports, so it becomes
+ * `alignment`; `sentences` is utterance segmentation, so it becomes
+ * `segments`. **Subtitle times are milliseconds** while the rest of the
+ * response is seconds — the conversion happens here, once.
+ *
+ * The raw block stays on {@link BytePlusTTSResult.subtitle} for callers
+ * already reading it.
+ */
+function toAlignmentFields(subtitle: BytePlusTTSSubtitle | undefined): {
+  alignment?: TTSAlignment
+  segments?: Array<TTSSegment>
+} {
+  if (!subtitle) return {}
+  const fields: { alignment?: TTSAlignment; segments?: Array<TTSSegment> } = {}
+  const words = subtitle.words?.filter(isTimedEntry)
+  if (words && words.length > 0) {
+    fields.alignment = {
+      unit: 'word',
+      texts: words.map((word) => word.text ?? ''),
+      startSeconds: words.map((word) => word.start_time / 1000),
+      endSeconds: words.map((word) => word.end_time / 1000),
+    }
+  }
+  const sentences = subtitle.sentences?.filter(isTimedEntry)
+  if (sentences && sentences.length > 0) {
+    fields.segments = sentences.map((sentence) => ({
+      startSeconds: sentence.start_time / 1000,
+      endSeconds: sentence.end_time / 1000,
+      ...(sentence.text !== undefined && { text: sentence.text }),
+    }))
+  }
+  return fields
+}
+
+/** Both times present, so the entry can be placed on the timeline. */
+function isTimedEntry(
+  entry: BytePlusTTSSubtitleEntry,
+): entry is BytePlusTTSSubtitleEntry & {
+  start_time: number
+  end_time: number
+} {
+  return (
+    typeof entry.start_time === 'number' && typeof entry.end_time === 'number'
+  )
 }
 
 /**

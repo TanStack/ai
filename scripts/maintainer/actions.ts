@@ -46,6 +46,7 @@ export const MANAGED_LABELS: Array<{
 const MANAGED_LABEL_NAMES = new Set(MANAGED_LABELS.map((l) => l.name))
 
 export type Mutation =
+  | { kind: 'request-review'; number: number; reviewer: string }
   | { kind: 'assign'; number: number; assignee: string }
   | { kind: 'comment'; number: number; body: string; note: string }
   | { kind: 'add-labels'; number: number; labels: Array<string> }
@@ -53,6 +54,8 @@ export type Mutation =
 
 export function describeMutation(m: Mutation): string {
   switch (m.kind) {
+    case 'request-review':
+      return `request review #${m.number} → @${m.reviewer}`
     case 'assign':
       return `assign #${m.number} → @${m.assignee}`
     case 'comment':
@@ -112,6 +115,13 @@ async function executeOne(
   m: Mutation,
 ): Promise<void> {
   switch (m.kind) {
+    case 'request-review':
+      await client.rest(
+        'POST',
+        `/repos/${repo}/pulls/${m.number}/requested_reviewers`,
+        { reviewers: [m.reviewer] },
+      )
+      break
     case 'assign':
       await client.rest('POST', `/repos/${repo}/issues/${m.number}/assignees`, {
         assignees: [m.assignee],

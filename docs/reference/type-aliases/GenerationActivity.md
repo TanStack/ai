@@ -3,8 +3,6 @@ id: GenerationActivity
 title: GenerationActivity
 ---
 
-# Type Alias: GenerationActivity
-
 ```ts
 type GenerationActivity = 
   | "chat"
@@ -12,10 +10,14 @@ type GenerationActivity =
   | "video"
   | "audio"
   | "tts"
+  | "voice"
   | "transcription"
   | "embedding"
   | "rerank"
-  | "summarize";
+  | "evaluate"
+  | "summarize"
+  | "world"
+  | "liveVideo";
 ```
 
 Defined in: [packages/ai/src/activities/middleware/types.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/middleware/types.ts#L37)

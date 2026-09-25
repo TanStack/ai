@@ -12,8 +12,6 @@ keywords:
   - last-event-id
 ---
 
-# Resumable Streams
-
 A resumable stream lets a client reconnect to an in-flight response after a page
 refresh, a dropped connection, or a suspended tab, without calling the provider
 again.

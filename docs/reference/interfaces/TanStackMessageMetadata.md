@@ -3,9 +3,7 @@ id: TanStackMessageMetadata
 title: TanStackMessageMetadata
 ---
 
-# Interface: TanStackMessageMetadata
-
-Defined in: [packages/ai/src/types.ts:528](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L528)
+Defined in: [packages/ai/src/types.ts:558](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L558)
 
 Shape of `metadata.tanstack` on a message.
 `createdAt` is an ISO-8601 string.
@@ -18,7 +16,7 @@ Shape of `metadata.tanstack` on a message.
 optional createdAt?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:529](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L529)
+Defined in: [packages/ai/src/types.ts:559](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L559)
 
 ***
 
@@ -28,7 +26,19 @@ Defined in: [packages/ai/src/types.ts:529](https://github.com/TanStack/ai/blob/m
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:530](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L530)
+Defined in: [packages/ai/src/types.ts:560](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L560)
+
+***
+
+### runId?
+
+```ts
+optional runId?: string;
+```
+
+Defined in: [packages/ai/src/types.ts:562](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L562)
+
+Parent chat run that produced this assistant message.
 
 ***
 
@@ -38,7 +48,7 @@ Defined in: [packages/ai/src/types.ts:530](https://github.com/TanStack/ai/blob/m
 optional signature?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:532](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L532)
+Defined in: [packages/ai/src/types.ts:566](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L566)
 
 Thinking signature for a `role: 'reasoning'` fan-out message.
 
@@ -50,7 +60,7 @@ Thinking signature for a `role: 'reasoning'` fan-out message.
 optional structuredOutput?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:540](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L540)
+Defined in: [packages/ai/src/types.ts:574](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L574)
 
 #### data?
 
@@ -90,13 +100,25 @@ optional status?: "error" | "complete" | "streaming";
 
 ***
 
+### subagent?
+
+```ts
+optional subagent?: SubagentWireInfo;
+```
+
+Defined in: [packages/ai/src/types.ts:564](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L564)
+
+Card data on a child wire message. See `uiMessagesToWire`.
+
+***
+
 ### toolCallMetadata?
 
 ```ts
 optional toolCallMetadata?: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/types.ts:534](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L534)
+Defined in: [packages/ai/src/types.ts:568](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L568)
 
 Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignature).
 
@@ -108,7 +130,7 @@ Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignat
 optional toolResult?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:535](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L535)
+Defined in: [packages/ai/src/types.ts:569](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L569)
 
 #### content?
 
@@ -136,4 +158,4 @@ optional id?: string;
 optional uiResources?: UIResourcePart[];
 ```
 
-Defined in: [packages/ai/src/types.ts:548](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L548)
+Defined in: [packages/ai/src/types.ts:582](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L582)

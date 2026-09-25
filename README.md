@@ -240,6 +240,7 @@ Official adapters include:
 | [`@tanstack/ai-byteplus`](https://tanstack.com/ai/latest/docs/adapters/byteplus)     | BytePlus Seed chat, Seedance video, Seedream image, and Seed Speech TTS/ASR            |
 | [`@tanstack/ai-fal`](https://tanstack.com/ai/latest/docs/adapters/fal)               | fal.ai image, video, audio, speech, and transcription models                           |
 | [`@tanstack/ai-reactor`](https://tanstack.com/ai/latest/docs/adapters/reactor)       | Reactor live world and video generation (Orbis, Happy Oyster, LingBot, Helios, FastH3) |
+| [`@tanstack/ai-worldlabs`](https://tanstack.com/ai/latest/docs/adapters/worldlabs)   | World Labs Marble persistent 3D world generation                                       |
 | [`@tanstack/ai-cloudflare`](https://tanstack.com/ai/latest/docs/adapters/cloudflare) | Cloudflare Workers AI chat, embeddings, image, speech, transcription, and AI Gateway   |
 
 The adapter system is tree-shakeable by activity. Import `openaiText` for chat,

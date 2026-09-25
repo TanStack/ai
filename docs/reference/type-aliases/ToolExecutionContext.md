@@ -3,13 +3,11 @@ id: ToolExecutionContext
 title: ToolExecutionContext
 ---
 
-# Type Alias: ToolExecutionContext\<TContext\>
-
 ```ts
 type ToolExecutionContext<TContext> = RuntimeContextField<TContext> & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:636](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L636)
+Defined in: [packages/ai/src/types.ts:686](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L686)
 
 Context passed to tool execute functions, providing capabilities like
 emitting custom events during execution.
@@ -29,7 +27,7 @@ e.g. MCP `callTool` — should forward this to cancel in-flight work.
 ### emitCustomEvent
 
 ```ts
-emitCustomEvent: (eventName, value) => void;
+emitCustomEvent: (eventName, value, options?) => void;
 ```
 
 Emit a custom event during tool execution.
@@ -48,6 +46,13 @@ Name of the custom event
 `Record`\<`string`, `any`\>
 
 Event payload value
+
+##### options?
+
+[`EmitCustomEventOptions`](../interfaces/EmitCustomEventOptions.md)
+
+Pass `{ batch: true }` to keep this event in the
+  durability batch instead of flushing it immediately
 
 #### Returns
 

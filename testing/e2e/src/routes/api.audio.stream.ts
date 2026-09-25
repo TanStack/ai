@@ -9,10 +9,7 @@ import type { Feature, Provider } from '@/lib/types'
 // only in which `music_v1` / `eleven_text_to_sound_v*` model the
 // elevenlabs branch hardcodes.
 function modelToFeature(model: ElevenLabsAudioModel | undefined): Feature {
-  if (
-    model === 'eleven_text_to_sound_v1' ||
-    model === 'eleven_text_to_sound_v2'
-  ) {
+  if (model === 'eleven_text_to_sound_v2') {
     return 'sound-effects'
   }
   return 'audio-gen'

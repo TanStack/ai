@@ -11,8 +11,6 @@ keywords:
   - defineSandboxInstanceStore
 ---
 
-# Build a Sandbox Adapter
-
 Your agent runs in a sandbox, and you have to decide what survives a server
 restart, a second replica, or a user closing the tab. The answer is not one switch.
 A sandboxed run has two halves that persist separately:

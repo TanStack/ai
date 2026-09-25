@@ -3,20 +3,15 @@ id: CustomEvent
 title: CustomEvent
 ---
 
-# Interface: CustomEvent
-
-Defined in: [packages/ai/src/types.ts:1363](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1363)
+Defined in: [packages/ai/src/types.ts:1414](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1414)
 
 Custom event for extensibility.
 
-@ag-ui/core provides: `name`, `value`
-
-Uses `Pick` (not `extends`) so the Zod passthrough index signature does not
-erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCustomEvent.md) unions.
+@ag-ui/core provides: `name`, `value`, `subagentRunId?`
 
 ## Extends
 
-- `Pick`\<`AGUICustomEvent`, `"name"` \| `"value"` \| `"timestamp"` \| `"rawEvent"`\>
+- `Omit`\<`AGUICustomEvent`, `"type"`\>
 
 ## Extended by
 
@@ -47,7 +42,15 @@ erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCu
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1368](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1368)
+Defined in: [packages/ai/src/types.ts:1416](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1416)
+
+Extra information attached to this event.
+
+#### Overrides
+
+```ts
+Omit.metadata
+```
 
 ***
 
@@ -57,4 +60,4 @@ Defined in: [packages/ai/src/types.ts:1368](https://github.com/TanStack/ai/blob/
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1367](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1367)
+Defined in: [packages/ai/src/types.ts:1415](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1415)

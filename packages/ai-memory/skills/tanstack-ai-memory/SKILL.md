@@ -96,7 +96,7 @@ BEFORE using it.
 - `hindsight()` — bank `{tenant|_}__{user}__{threadId}`.
 - `mem0()` — `user_id` + `run_id` (`threadId`); no `tenantId`.
 - `honcho()` — session `{tenant|_}__{threadId}`; peer tenant-prefixed when set.
-- Custom — implement `recall`/`save` and run `@tanstack/ai-memory/tests/contract`.
+- Custom — implement `recall`/`save` and run `runMemoryAdapterContract` from `@tanstack/ai-memory/testkit`.
 
 ## Failure modes
 
