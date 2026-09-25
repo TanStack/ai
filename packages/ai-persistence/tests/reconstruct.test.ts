@@ -371,6 +371,51 @@ describe('reconstructChat paging', () => {
     )
   })
 
+  describe('with stored activity', () => {
+    // Full UI transcript: u1, act-early, a1, u2, a2, u3, act-late, a3.
+    async function activityThread() {
+      const persistence = await saveThread([
+        { id: 'u1', role: 'user', content: 'one' },
+        { id: 'a1', role: 'assistant', content: 'one' },
+        { id: 'u2', role: 'user', content: 'two' },
+        { id: 'a2', role: 'assistant', content: 'two' },
+        { id: 'u3', role: 'user', content: 'three' },
+        { id: 'a3', role: 'assistant', content: 'three' },
+      ])
+      await persistence.stores.activities.saveActivities('t1', [
+        { id: 'act-early', activityType: 'PLAN', content: {}, index: 1 },
+        { id: 'act-late', activityType: 'PLAN', content: {}, index: 6 },
+      ])
+      return persistence
+    }
+
+    it('puts each activity only on the newest page that holds its index', async () => {
+      const parsed = await hydrate(
+        await activityThread(),
+        chatUrl('threadId=t1&limit=3'),
+      )
+      expect(idsOf(parsed)).toEqual(['u3', 'act-late', 'a3'])
+      expect(parsed.page).toEqual({ truncated: true, cursor: 'u3' })
+    })
+
+    it('walks older pages without repeating or moving activity', async () => {
+      const persistence = await activityThread()
+      const middle = await hydrate(
+        persistence,
+        chatUrl('threadId=t1&limit=3&before=u3'),
+      )
+      expect(idsOf(middle)).toEqual(['a1', 'u2', 'a2'])
+      expect(middle.page).toEqual({ truncated: true, cursor: 'a1' })
+
+      const oldest = await hydrate(
+        persistence,
+        chatUrl('threadId=t1&limit=3&before=a1'),
+      )
+      expect(idsOf(oldest)).toEqual(['u1', 'act-early'])
+      expect(oldest.page).toEqual({ truncated: false })
+    })
+  })
+
   it('loads an older window from the minted cursor without overlapping ids', async () => {
     const persistence = await saveThread(threeTurnThread)
     const older = await hydrate(

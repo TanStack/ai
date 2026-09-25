@@ -1531,6 +1531,133 @@ describe('withPersistence (state-only)', () => {
       )
     }
   })
+
+  it('keeps activity metadata from the stream and from inbound rows', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.ACTIVITY_SNAPSHOT,
+          messageId: 'act-live',
+          activityType: 'SEARCH',
+          content: { q: 'x' },
+          metadata: { source: 'stream' },
+          timestamp: 1,
+        },
+        ev.text('hello'),
+        ev.runFinished(),
+      ],
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'hi' },
+          {
+            id: 'act-inbound',
+            role: 'activity',
+            parts: [{ type: 'activity', activityType: 'PLAN', content: {} }],
+            metadata: { source: 'client' },
+          },
+        ],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const records = await persistence.stores.activities.loadActivities('t1')
+    expect(
+      records.map((record) => [record.id, record.metadata?.source]),
+    ).toEqual([
+      ['act-inbound', 'client'],
+      ['act-live', 'stream'],
+    ])
+
+    const reconstructed = (await (
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat?threadId=t1'),
+      )
+    ).json()) as { messages: Array<{ id: string; metadata?: unknown }> }
+    expect(
+      reconstructed.messages.filter((message) => message.id.startsWith('act-')),
+    ).toEqual([
+      expect.objectContaining({
+        id: 'act-inbound',
+        metadata: { source: 'client' },
+      }),
+      expect.objectContaining({
+        id: 'act-live',
+        metadata: { source: 'stream' },
+      }),
+    ])
+  })
+
+  describe('when the activity store fails', () => {
+    function failingActivityPersistence() {
+      const memory = memoryPersistence()
+      return {
+        memory,
+        persistence: defineAIPersistence({
+          stores: {
+            ...memory.stores,
+            activities: {
+              loadActivities: () => Promise.resolve([]),
+              saveActivities: () =>
+                Promise.reject(new Error('activity store down')),
+            },
+          },
+        }),
+      }
+    }
+
+    it('still completes the run', async () => {
+      const { memory, persistence } = failingActivityPersistence()
+      const { adapter } = mockAdapter([
+        [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+      ])
+
+      const chunks = await collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'hi' }],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+        false,
+      )
+      expect((await memory.stores.runs.get('r1'))?.status).toBe('completed')
+      expect(await memory.stores.messages.loadThread('t1')).toEqual([
+        { role: 'user', content: 'hi' },
+        expect.objectContaining({ role: 'assistant', content: 'hello' }),
+      ])
+    })
+
+    it('still marks an interrupted run interrupted', async () => {
+      const { memory, persistence } = failingActivityPersistence()
+      const { adapter } = mockAdapter([[ev.runStarted(), ev.interrupted()]])
+
+      await collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'hi' }],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect((await memory.stores.runs.get('r1'))?.status).toBe('interrupted')
+      expect(await memory.stores.interrupts.listPending('t1')).toHaveLength(1)
+    })
+  })
 })
 
 describe('withPersistence (merge by id)', () => {

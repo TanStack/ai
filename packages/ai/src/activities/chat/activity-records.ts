@@ -29,6 +29,9 @@ export function activityRecordToUIMessage(record: ActivityRecord): UIMessage {
         content: structuredClone(record.content),
       },
     ],
+    ...(record.metadata != null
+      ? { metadata: structuredClone(record.metadata) }
+      : {}),
   }
 }
 
@@ -62,6 +65,7 @@ export function peelInboundActivities(
     role?: string
     id?: string
     parts?: UIMessage['parts']
+    metadata?: unknown
   }>,
 ): Array<ActivityRecord> {
   const records: Array<ActivityRecord> = []
@@ -74,6 +78,9 @@ export function peelInboundActivities(
       activityType: part.activityType,
       content: structuredClone(part.content),
       index,
+      ...(isActivityContent(message.metadata)
+        ? { metadata: structuredClone(message.metadata) }
+        : {}),
     })
   }
   return records
@@ -191,6 +198,9 @@ function uiMessagesToActivityRecords(
         activityType: part?.activityType ?? '',
         content: structuredClone(part?.content ?? {}),
         index: prev?.index ?? nextIndex,
+        ...(message.metadata != null
+          ? { metadata: structuredClone(message.metadata) }
+          : {}),
       }
     })
 }

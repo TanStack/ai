@@ -1975,9 +1975,17 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
   }
   const activityStore = persistence.stores.activities
 
+  // Best-effort: the activity store is an optional sidecar, so a failed save
+  // must never fail the run or block the message, run, and interrupt writes.
   async function persistActivities(ctx: ChatMiddlewareContext): Promise<void> {
     if (!activityStore) return
-    await activityStore.saveActivities(ctx.threadId, [...ctx.activities])
+    try {
+      await activityStore.saveActivities(ctx.threadId, [
+        ...(ctx.activities ?? []),
+      ])
+    } catch {
+      // ponytail: dropped silently, add a logger hook if users need to see it.
+    }
   }
 
   const provides = [
@@ -2123,8 +2131,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           const storedActivities = await activityStore.loadActivities(
             ctx.threadId,
           )
-          patch.activities =
-            ctx.activities.length > 0 ? [...ctx.activities] : storedActivities
+          patch.activities = ctx.activities?.length
+            ? [...ctx.activities]
+            : storedActivities
         }
       }
 
@@ -2252,8 +2261,8 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       state.usage = usage
       await interruptRun(runs, ctx.runId, usage)
       await messageStore.saveThread(ctx.threadId, [...ctx.messages])
-      await persistActivities(ctx)
       state.interrupted = true
+      await persistActivities(ctx)
     },
 
     onUsage(ctx: ChatMiddlewareContext, usage: TokenUsage) {
@@ -2271,9 +2280,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // "finished" run whose transcript is missing the terminal turn.
       try {
         await messageStore.saveThread(ctx.threadId, [...ctx.messages])
-        await persistActivities(ctx)
         await commitPendingResumes(state, persistence.stores.interrupts)
         await completeRun(runs, ctx.runId, state?.usage ?? info.usage)
+        await persistActivities(ctx)
         state?.completion?.resolve()
       } catch (error) {
         // Core has already selected its terminal hook. Persist the failed run

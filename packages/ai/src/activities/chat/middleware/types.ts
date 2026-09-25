@@ -291,9 +291,10 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   messages: ReadonlyArray<ModelMessage>
   /**
    * Frontend-only AG-UI activity sidecar. Never model input. Persistence
-   * writes this when an ActivityStore is configured.
+   * writes this when an ActivityStore is configured. Optional so code that
+   * builds its own context keeps working; the engine always sets it.
    */
-  activities: ReadonlyArray<ActivityRecord>
+  activities?: ReadonlyArray<ActivityRecord>
   /** Generate a unique ID with the given prefix */
   createId: (prefix: string) => string
   /**

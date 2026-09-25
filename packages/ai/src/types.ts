@@ -474,6 +474,8 @@ export interface ActivityRecord {
   activityType: string
   content: Record<string, unknown>
   index: number
+  /** The activity message's `metadata`, kept so a reload restores it. */
+  metadata?: Record<string, unknown>
 }
 
 /**
