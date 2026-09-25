@@ -516,6 +516,12 @@ export const Route = createFileRoute('/api/persistence-durability')({
             authorize: (threadId) => threadId.length > 0,
           })
         }
+        if (scenarioOf(request) === 'usage') {
+          return reconstructChat(usagePersistence, request, {
+            authorize: (threadId) => threadId.length > 0,
+            includeRuns: true,
+          })
+        }
         const durability = memoryStream(request)
         if (durability.resumeFrom() !== null) {
           return resumeServerSentEventsResponse({ adapter: durability })

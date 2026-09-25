@@ -48,6 +48,7 @@ export interface MCPClients<
       transport: TransportConfig | undefined
       prefix: string | undefined
       clientOptions?: ClientOptions
+      toolFilter?: MCPClientOptions['toolFilter']
     }
   >
   /** Close every client. */
@@ -154,6 +155,7 @@ export async function createMCPClients<
         transport: TransportConfig | undefined
         prefix: string | undefined
         clientOptions?: ClientOptions
+        toolFilter?: MCPClientOptions['toolFilter']
       }
     > {
       // Keyed by config key (serverId / default prefix). Read each underlying

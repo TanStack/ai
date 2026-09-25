@@ -84,6 +84,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'deepseek/deepseek-v4-pro',
   'deepseek/deepseek-v4-pro-0813',
   'deepseek/deepseek-v4.1-flash',
+  'fireworks/ember-1',
   'fish-audio/s1',
   'fish-audio/s2-pro',
   'fish-audio/s2.1-pro',
@@ -316,6 +317,7 @@ export const VERCEL_GATEWAY_PROVIDERS = [
   'bytedance',
   'cohere',
   'deepseek',
+  'fireworks',
   'fish-audio',
   'google',
   'inception',
@@ -1208,6 +1210,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
+    >
+  'fireworks/ember-1': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
     >
   'fish-audio/s1': VercelGatewayCommonOptions
   'fish-audio/s2-pro': VercelGatewayCommonOptions
@@ -3543,6 +3555,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'deepseek/deepseek-v4-pro': readonly ['text']
   'deepseek/deepseek-v4-pro-0813': readonly ['text']
   'deepseek/deepseek-v4.1-flash': readonly ['text', 'image']
+  'fireworks/ember-1': readonly ['text', 'image']
   'fish-audio/s1': readonly ['text']
   'fish-audio/s2-pro': readonly ['text']
   'fish-audio/s2.1-pro': readonly ['text']

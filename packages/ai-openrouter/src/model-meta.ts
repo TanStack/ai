@@ -159,7 +159,7 @@ const _DEEPSEEK_DEEPSEEK_FLASH_LATEST = {
         cached: 0.01,
       },
       output: {
-        normal: 1,
+        normal: 0.49,
       },
     },
     image: 0,
@@ -192,11 +192,11 @@ const _DEEPSEEK_DEEPSEEK_PRO_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.39,
-        cached: 0.25,
+        normal: 0.2528,
+        cached: 0.08832,
       },
       output: {
-        normal: 2.9,
+        normal: 2.88,
       },
     },
     image: 0,
@@ -331,11 +331,11 @@ const _MOONSHOTAI_KIMI_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 1.4,
-        cached: 0.3,
+        normal: 0.8845,
+        cached: 0.33,
       },
       output: {
-        normal: 10.75,
+        normal: 10.5346,
       },
     },
     image: 0,
@@ -590,11 +590,11 @@ const _Z_AI_GLM_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.5625,
-        cached: 0.125,
+        normal: 0.5614,
+        cached: 0.10426,
       },
       output: {
-        normal: 2.5,
+        normal: 1.7644,
       },
     },
     image: 0,
@@ -2639,11 +2639,11 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH = {
   pricing: {
     text: {
       input: {
-        normal: 0.088606,
-        cached: 0.0177212,
+        normal: 0.049,
+        cached: 0.0098,
       },
       output: {
-        normal: 0.177212,
+        normal: 0.098,
       },
     },
     image: 0,
@@ -2752,11 +2752,11 @@ const DEEPSEEK_DEEPSEEK_V4_PRO = {
   pricing: {
     text: {
       input: {
-        normal: 0.9396,
-        cached: 0.0783,
+        normal: 0.783,
+        cached: 0.06525,
       },
       output: {
-        normal: 1.8792,
+        normal: 1.566,
       },
     },
     image: 0,
@@ -2822,15 +2822,15 @@ const DEEPSEEK_DEEPSEEK_V4_1_FLASH = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 131072,
+  max_output_tokens: 393216,
   pricing: {
     text: {
       input: {
-        normal: 0.14,
-        cached: 0.0042,
+        normal: 0.15,
+        cached: 0.003,
       },
       output: {
-        normal: 0.42,
+        normal: 0.6,
       },
     },
     image: 0,
@@ -5642,6 +5642,39 @@ const MISTRALAI_CODESTRAL_2508_BATCH = {
     image: 0,
   },
 } as const
+const MISTRALAI_DEVSTRAL_2512 = {
+  id: 'mistralai/devstral-2512',
+  name: 'Mistral: Devstral 2 2512',
+  supports: {
+    input: ['text', 'document'],
+    output: ['text'],
+    supports: [
+      'frequencyPenalty',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'responseFormat',
+      'seed',
+      'stop',
+      'temperature',
+      'toolChoice',
+      'topP',
+    ],
+  },
+  context_window: 262144,
+  max_output_tokens: 209715,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.4,
+        cached: 0.04,
+      },
+      output: {
+        normal: 2,
+      },
+    },
+    image: 0,
+  },
+} as const
 const MISTRALAI_MINISTRAL_14B_2512 = {
   id: 'mistralai/ministral-14b-2512',
   name: 'Mistral: Ministral 3 14B 2512',
@@ -5835,6 +5868,39 @@ const MISTRALAI_MISTRAL_LARGE_2407 = {
       },
       output: {
         normal: 6,
+      },
+    },
+    image: 0,
+  },
+} as const
+const MISTRALAI_MISTRAL_LARGE_2512 = {
+  id: 'mistralai/mistral-large-2512',
+  name: 'Mistral: Mistral Large 3 2512',
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    supports: [
+      'frequencyPenalty',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'responseFormat',
+      'seed',
+      'stop',
+      'temperature',
+      'toolChoice',
+      'topP',
+    ],
+  },
+  context_window: 262144,
+  max_output_tokens: 209715,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.5,
+        cached: 0.05,
+      },
+      output: {
+        normal: 1.5,
       },
     },
     image: 0,
@@ -11512,15 +11578,15 @@ const QWEN_QWEN3_VL_30B_A3B_INSTRUCT = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 32768,
+  max_output_tokens: 16384,
   pricing: {
     text: {
       input: {
-        normal: 0.13,
+        normal: 0.15,
         cached: 0,
       },
       output: {
-        normal: 0.52,
+        normal: 0.6,
       },
     },
     image: 0,
@@ -14174,11 +14240,11 @@ const Z_AI_GLM_4_7 = {
   pricing: {
     text: {
       input: {
-        normal: 0.4,
-        cached: 0.08,
+        normal: 0.6,
+        cached: 0.11,
       },
       output: {
-        normal: 1.75,
+        normal: 2.2,
       },
     },
     image: 0,
@@ -14310,15 +14376,15 @@ const Z_AI_GLM_5_1 = {
     ],
   },
   context_window: 204800,
-  max_output_tokens: 128000,
+  max_output_tokens: 131072,
   pricing: {
     text: {
       input: {
-        normal: 0.966,
-        cached: 0.1794,
+        normal: 0.9646,
+        cached: 0.17914,
       },
       output: {
-        normal: 3.036,
+        normal: 3.0316,
       },
     },
     image: 0,
@@ -14418,15 +14484,15 @@ const Z_AI_GLM_5_3 = {
     ],
   },
   context_window: 1310720,
-  max_output_tokens: 131072,
+  max_output_tokens: 943717,
   pricing: {
     text: {
       input: {
-        normal: 0.84,
-        cached: 0.156,
+        normal: 1.4,
+        cached: 0.26,
       },
       output: {
-        normal: 2.64,
+        normal: 4.4,
       },
     },
     image: 0,
@@ -14456,15 +14522,15 @@ const Z_AI_GLM_5_3_FLASH = {
     ],
   },
   context_window: 1310720,
-  max_output_tokens: 943718,
+  max_output_tokens: 128000,
   pricing: {
     text: {
       input: {
-        normal: 0.15,
-        cached: 0.05,
+        normal: 0.045,
+        cached: 0.01,
       },
       output: {
-        normal: 0.5,
+        normal: 0.14,
       },
     },
     image: 0,
@@ -16768,6 +16834,19 @@ export type OpenRouterModelOptionsByName = {
       | 'toolChoice'
       | 'topP'
     >
+  [MISTRALAI_DEVSTRAL_2512.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
+      | 'seed'
+      | 'stop'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topP'
+    >
   [MISTRALAI_MINISTRAL_14B_2512.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -16834,6 +16913,19 @@ export type OpenRouterModelOptionsByName = {
       | 'topP'
     >
   [MISTRALAI_MISTRAL_LARGE_2407.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'responseFormat'
+      | 'seed'
+      | 'stop'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topP'
+    >
+  [MISTRALAI_MISTRAL_LARGE_2512.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
@@ -20506,12 +20598,16 @@ export type OpenRouterModelInputModalitiesByName = {
   [MINIMAX_MINIMAX_M3.id]: ReadonlyArray<'text' | 'image' | 'video'>
   [MISTRALAI_CODESTRAL_2508.id]: ReadonlyArray<'text' | 'document'>
   [MISTRALAI_CODESTRAL_2508_BATCH.id]: ReadonlyArray<'text' | 'document'>
+  [MISTRALAI_DEVSTRAL_2512.id]: ReadonlyArray<'text' | 'document'>
   [MISTRALAI_MINISTRAL_14B_2512.id]: ReadonlyArray<'text' | 'image'>
   [MISTRALAI_MINISTRAL_3B_2512.id]: ReadonlyArray<'text' | 'image'>
   [MISTRALAI_MINISTRAL_8B_2512.id]: ReadonlyArray<'text' | 'image'>
   [MISTRALAI_MINISTRAL_8B_2512_BATCH.id]: ReadonlyArray<'text' | 'image'>
   [MISTRALAI_MISTRAL_LARGE.id]: ReadonlyArray<'text' | 'document'>
   [MISTRALAI_MISTRAL_LARGE_2407.id]: ReadonlyArray<'text' | 'document'>
+  [MISTRALAI_MISTRAL_LARGE_2512.id]: ReadonlyArray<
+    'text' | 'image' | 'document'
+  >
   [MISTRALAI_MISTRAL_LARGE_2512_BATCH.id]: ReadonlyArray<
     'text' | 'image' | 'document'
   >
@@ -20994,12 +21090,14 @@ export const OPENROUTER_CHAT_MODELS = [
   MINIMAX_MINIMAX_M3.id,
   MISTRALAI_CODESTRAL_2508.id,
   MISTRALAI_CODESTRAL_2508_BATCH.id,
+  MISTRALAI_DEVSTRAL_2512.id,
   MISTRALAI_MINISTRAL_14B_2512.id,
   MISTRALAI_MINISTRAL_3B_2512.id,
   MISTRALAI_MINISTRAL_8B_2512.id,
   MISTRALAI_MINISTRAL_8B_2512_BATCH.id,
   MISTRALAI_MISTRAL_LARGE.id,
   MISTRALAI_MISTRAL_LARGE_2407.id,
+  MISTRALAI_MISTRAL_LARGE_2512.id,
   MISTRALAI_MISTRAL_LARGE_2512_BATCH.id,
   MISTRALAI_MISTRAL_MEDIUM_3.id,
   MISTRALAI_MISTRAL_MEDIUM_3_5.id,
@@ -21910,12 +22008,14 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     MINIMAX_MINIMAX_M3.id,
     MISTRALAI_CODESTRAL_2508.id,
     MISTRALAI_CODESTRAL_2508_BATCH.id,
+    MISTRALAI_DEVSTRAL_2512.id,
     MISTRALAI_MINISTRAL_14B_2512.id,
     MISTRALAI_MINISTRAL_3B_2512.id,
     MISTRALAI_MINISTRAL_8B_2512.id,
     MISTRALAI_MINISTRAL_8B_2512_BATCH.id,
     MISTRALAI_MISTRAL_LARGE.id,
     MISTRALAI_MISTRAL_LARGE_2407.id,
+    MISTRALAI_MISTRAL_LARGE_2512.id,
     MISTRALAI_MISTRAL_LARGE_2512_BATCH.id,
     MISTRALAI_MISTRAL_MEDIUM_3.id,
     MISTRALAI_MISTRAL_MEDIUM_3_5.id,

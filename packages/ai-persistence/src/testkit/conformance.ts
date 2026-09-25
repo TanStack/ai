@@ -63,6 +63,20 @@ type OptionalRunStoreMethod =
 export type PersistenceConformanceMethodKey = `runs.${OptionalRunStoreMethod}`
 
 /**
+ * Checks added after the suite shipped. They are off by default, so a backend
+ * that passed before still passes. Turn them on with `options.checks`.
+ *
+ * - `'messages.metadata'`: `saveThread` / `loadThread` keep message `metadata`,
+ *   including `metadata.tanstack.run.id` (run timings on reload need it).
+ * - `'runs.listByThread.state'`: `listByThread` returns each run's current
+ *   `status` and `finishedAt` after `update` (`reconstructChat`'s
+ *   `includeRuns` needs it).
+ */
+export type PersistenceConformanceCheck =
+  | 'messages.metadata'
+  | 'runs.listByThread.state'
+
+/**
  * Unwrap a value the store contract says must be present. Fails the test with a
  * readable message instead of a non-null assertion (banned in this package) or
  * an early `return` that would pass silently.
@@ -115,6 +129,12 @@ export interface PersistenceConformanceOptions {
    * has no effect.
    */
   skipMethods?: Array<PersistenceConformanceMethodKey>
+  /**
+   * Opt-in checks, off by default so existing backends keep passing. A check
+   * that is not listed is reported as a skipped case. See
+   * {@link PersistenceConformanceCheck}.
+   */
+  checks?: Array<PersistenceConformanceCheck>
 }
 
 /**
@@ -131,6 +151,7 @@ export function runPersistenceConformance(
   const skipMethods = new Set<PersistenceConformanceMethodKey>(
     options?.skipMethods ?? [],
   )
+  const checks = new Set<PersistenceConformanceCheck>(options?.checks ?? [])
 
   describe(`AIPersistence conformance: ${name}`, () => {
     let persistence: AIPersistence
@@ -273,6 +294,32 @@ export function runPersistenceConformance(
 
         await store.saveThread('thread-rich', rich)
         expect(await store.loadThread('thread-rich')).toEqual(rich)
+      })
+
+      it('round-trips message metadata', async (ctx) => {
+        if (!checks.has('messages.metadata')) {
+          return ctx.skip(
+            "opt-in check: pass { checks: ['messages.metadata'] }",
+          )
+        }
+        const store = resolveStore('messages')
+        if (!store) return ctx.skip('store not provided')
+
+        const withMetadata: Array<ModelMessage> = [
+          {
+            role: 'user',
+            content: 'hi',
+            metadata: { author: { id: 'user-42' } },
+          },
+          {
+            role: 'assistant',
+            content: 'hello',
+            metadata: { tanstack: { run: { id: 'run-1' } }, custom: 1 },
+          },
+        ]
+
+        await store.saveThread('thread-metadata', withMetadata)
+        expect(await store.loadThread('thread-metadata')).toEqual(withMetadata)
       })
     })
 
@@ -518,6 +565,35 @@ export function runPersistenceConformance(
         })
         const listed = await runs.listByThread('lt')
         expect(listed.map((r) => r.runId)).toEqual(['lt-a', 'lt-b'])
+      })
+
+      it('lists runs by thread with their current status and finishedAt', async (ctx) => {
+        if (!checks.has('runs.listByThread.state')) {
+          return ctx.skip(
+            "opt-in check: pass { checks: ['runs.listByThread.state'] }",
+          )
+        }
+        const runs = resolveStore('runs')
+        if (!runs) return ctx.skip('store not provided')
+        if (!hasRunsMethod(runs, 'listByThread')) {
+          return ctx.skip('runs.listByThread not implemented')
+        }
+
+        await runs.createOrResume({
+          runId: 'lts-a',
+          threadId: 'lts',
+          startedAt: 1,
+        })
+        await runs.update('lts-a', { status: 'completed', finishedAt: 5 })
+
+        expect(await runs.listByThread('lts')).toEqual([
+          expect.objectContaining({
+            runId: 'lts-a',
+            status: 'completed',
+            startedAt: 1,
+            finishedAt: 5,
+          }),
+        ])
       })
 
       // `listByParentRun` is optional and is skipped when absent. A store that

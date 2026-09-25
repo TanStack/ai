@@ -128,11 +128,13 @@ function buildRegistry(clients: McpAppClientsInput): AppRegistry {
     transport: McpServerDescriptor['transport']
     prefix: string | undefined
     clientOptions?: McpServerDescriptor['clientOptions']
+    toolFilter?: McpServerDescriptor['toolFilter']
   }) => {
     const descriptor: McpServerDescriptor = {
       transport: info.transport,
       prefix: info.prefix,
       ...(info.clientOptions ? { clientOptions: info.clientOptions } : {}),
+      ...(info.toolFilter ? { toolFilter: info.toolFilter } : {}),
     }
     total += 1
     const key = info.prefix
@@ -210,9 +212,10 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
     // Resolve server descriptor. The store WINS when it has an entry; otherwise
     // we fall back to the static `clients` registry (the base). A store miss
     // (null) must not reject when the registry can serve the request.
+    const fromRegistry = resolveFromRegistry(req.serverId)
     const descriptor =
       (opts.store ? await opts.store.get(req.threadId, req.serverId) : null) ??
-      resolveFromRegistry(req.serverId)
+      fromRegistry
 
     if (!descriptor) {
       // serverId omitted but resolution was ambiguous (zero or multiple
@@ -233,12 +236,17 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
       }
     }
 
+    // A persistent store cannot serialize a function, so a stored descriptor
+    // can come back without `toolFilter`. Fall back to the filter of the same
+    // server in `clients`, or a widget could call a tool the model cannot see.
+    const toolFilter = descriptor.toolFilter ?? fromRegistry?.toolFilter
     const client = await createMCPClient({
       transport: descriptor.transport,
       prefix: descriptor.prefix,
       ...(descriptor.clientOptions
         ? { clientOptions: descriptor.clientOptions }
         : {}),
+      ...(toolFilter ? { toolFilter } : {}),
     })
 
     try {
