@@ -167,6 +167,38 @@ describe('ChatClient', () => {
       expect(client.getSnapshot()).toBe(snapshot)
     })
 
+    it('keeps the identity of unchanged messages across snapshots', async () => {
+      const client = new ChatClient({
+        connection: createMockConnectionAdapter({
+          chunks: createTextChunks('Hi there'),
+        }),
+        initialMessages: [
+          {
+            id: 'earlier-1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'Earlier' }],
+          },
+        ],
+      })
+      const first = client.getSnapshot().messages[0]
+      const seen: Array<unknown> = []
+      const stop = client.subscribeSnapshot(() => {
+        seen.push(client.getSnapshot().messages[0])
+      })
+
+      await client.sendMessage('Hello')
+      stop()
+
+      const messages = client.getSnapshot().messages
+      expect(messages.length).toBeGreaterThan(2)
+      expect(seen.length).toBeGreaterThan(1)
+      for (const message of seen) {
+        expect(message).toBe(first)
+      }
+      expect(messages[0]).toBe(first)
+      expect(Object.isFrozen(first)).toBe(true)
+    })
+
     it('should initialize with provided messages', () => {
       const adapter = createMockConnectionAdapter()
       const initialMessages: Array<UIMessage> = [

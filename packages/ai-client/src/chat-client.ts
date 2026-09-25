@@ -1743,19 +1743,31 @@ export class ChatClient<
     }) as TPart
   }
 
+  // The processor replaces a message object when it changes, so an unchanged
+  // message reuses its frozen copy. UI memo keys on message identity.
+  private readonly frozenMessages = new WeakMap<
+    UIMessage<TTools>,
+    UIMessage<TTools>
+  >()
+
   private freezeSnapshotMessages(
     messages: Array<UIMessage<TTools>>,
   ): ReadonlyArray<UIMessage<TTools>> {
     return Object.freeze(
-      messages.map((message) =>
-        Object.freeze({
-          ...message,
-          parts: Object.freeze(
-            message.parts.map((part) => this.freezeSnapshotPart(part)),
-          ),
-        }),
-      ),
-    ) as ReadonlyArray<UIMessage<TTools>>
+      messages.map((message) => {
+        let frozen = this.frozenMessages.get(message)
+        if (!frozen) {
+          frozen = Object.freeze({
+            ...message,
+            parts: Object.freeze(
+              message.parts.map((part) => this.freezeSnapshotPart(part)),
+            ),
+          }) as UIMessage<TTools>
+          this.frozenMessages.set(message, frozen)
+        }
+        return frozen
+      }),
+    )
   }
 
   private freezeSnapshotQueue(

@@ -50,6 +50,11 @@ export class RealtimeClient {
   private readonly stateChangeCallbacks: Set<RealtimeStateChangeCallback> =
     new Set()
   private unsubscribers: Array<() => void> = []
+  // Declared before `snapshotAtom`, whose initializer reads it.
+  private readonly frozenMessages = new WeakMap<
+    RealtimeMessage,
+    RealtimeMessage
+  >()
 
   private state: RealtimeClientState = {
     status: 'idle',
@@ -272,7 +277,7 @@ export class RealtimeClient {
   }
 
   /** Get conversation messages */
-  get messages(): Array<RealtimeMessage> {
+  get messages(): ReadonlyArray<RealtimeMessage> {
     return this.state.messages
   }
 
@@ -398,24 +403,31 @@ export class RealtimeClient {
     return {
       ...this.state,
       messages: Object.freeze(
-        this.state.messages.map((message) =>
-          Object.freeze({
-            ...message,
-            parts: Object.freeze(
-              message.parts.map((part) =>
-                Object.freeze({
-                  ...part,
-                  ...('source' in part &&
-                  typeof part.source === 'object' &&
-                  part.source !== null
-                    ? { source: Object.freeze({ ...part.source }) }
-                    : {}),
-                }),
+        this.state.messages.map((message) => {
+          // Messages are replaced, never mutated, so an unchanged message
+          // reuses its frozen copy and keeps its identity for UI memo.
+          let frozen = this.frozenMessages.get(message)
+          if (!frozen) {
+            frozen = Object.freeze({
+              ...message,
+              parts: Object.freeze(
+                message.parts.map((part) =>
+                  Object.freeze({
+                    ...part,
+                    ...('source' in part &&
+                    typeof part.source === 'object' &&
+                    part.source !== null
+                      ? { source: Object.freeze({ ...part.source }) }
+                      : {}),
+                  }),
+                ),
               ),
-            ),
-          }),
-        ),
-      ) as Array<RealtimeMessage>,
+            }) as RealtimeMessage
+            this.frozenMessages.set(message, frozen)
+          }
+          return frozen
+        }),
+      ),
     }
   }
 

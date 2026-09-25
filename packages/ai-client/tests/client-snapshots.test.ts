@@ -5,7 +5,7 @@ import {
   RealtimeClient,
   VideoGenerationClient,
 } from '../src'
-import type { RealtimeAdapter } from '../src'
+import type { RealtimeAdapter, RealtimeConnection } from '../src'
 
 describe('client UI snapshots', () => {
   it('publishes and clears the active generation run id', async () => {
@@ -157,5 +157,50 @@ describe('client UI snapshots', () => {
 
     expect(getToken).toHaveBeenCalledTimes(2)
     expect(connect).toHaveBeenCalledTimes(2)
+  })
+
+  it('RealtimeClient keeps the identity of unchanged messages across snapshots', async () => {
+    const connection: RealtimeConnection = {
+      disconnect: async () => {},
+      startAudioCapture: async () => {},
+      stopAudioCapture: () => {},
+      sendText: () => {},
+      sendImage: () => {},
+      sendToolResult: () => {},
+      updateSession: () => {},
+      interrupt: () => {},
+      on: () => () => {},
+      getAudioVisualization: () => ({
+        inputLevel: 0,
+        outputLevel: 0,
+        getInputFrequencyData: () => new Uint8Array(),
+        getOutputFrequencyData: () => new Uint8Array(),
+        getInputTimeDomainData: () => new Uint8Array(),
+        getOutputTimeDomainData: () => new Uint8Array(),
+        inputSampleRate: 0,
+        outputSampleRate: 0,
+      }),
+    }
+    const client = new RealtimeClient({
+      getToken: async () => ({
+        provider: 'test',
+        token: 'token',
+        expiresAt: Date.now() + 120_000,
+        config: {},
+      }),
+      adapter: { provider: 'test', connect: async () => connection },
+      autoCapture: false,
+    })
+    await client.connect()
+
+    client.sendText('first')
+    const first = client.getSnapshot().messages[0]
+    client.sendText('second')
+
+    const messages = client.getSnapshot().messages
+    expect(messages).toHaveLength(2)
+    expect(messages[0]).toBe(first)
+    expect(Object.isFrozen(first)).toBe(true)
+    client.destroy()
   })
 })
