@@ -1,8 +1,9 @@
-import { modelMessagesToUIMessages } from '@tanstack/ai'
+import { isTerminalRunStatus, modelMessagesToUIMessages } from '@tanstack/ai'
 import type {
   ModelMessage,
   RunRecord,
   SubagentPart,
+  TerminalRunStatus,
   UIMessage,
 } from '@tanstack/ai'
 import { storedSubagentInfo } from './subagent-runs'
@@ -41,11 +42,29 @@ export interface ReconstructedChat {
     pending: Array<Record<string, unknown>>
   } | null
   page?: { truncated: false } | { truncated: true; cursor: string }
+  /**
+   * The thread's finished runs, ascending by `startedAt`. Set only when
+   * {@link ReconstructChatOptions.includeRuns} is `true` and the `runs` store
+   * implements `listByThread`. Match a run to its messages through
+   * `message.metadata.tanstack.runId`.
+   */
+  runs?: Array<{
+    runId: string
+    status: TerminalRunStatus
+    startedAt: number
+    finishedAt?: number
+  }>
 }
 
 export interface ReconstructChatOptions {
   /** Query parameter carrying the thread id. Defaults to `threadId`. */
   param?: string
+  /**
+   * Add the thread's finished runs, with `startedAt` and `finishedAt`, to the
+   * response as `runs`. Needs a `runs` store that implements `listByThread`.
+   * Default: `false`.
+   */
+  includeRuns?: boolean
   /**
    * Authorize access to the requested thread before loading history.
    *
@@ -185,6 +204,24 @@ export async function reconstructChat(
     threadId,
     pending,
   )
+  const runStore = persistence.stores.runs
+  const runs =
+    options?.includeRuns && threadId && runStore?.listByThread
+      ? (await runStore.listByThread(threadId)).flatMap((run) =>
+          isTerminalRunStatus(run.status)
+            ? [
+                {
+                  runId: run.runId,
+                  status: run.status,
+                  startedAt: run.startedAt,
+                  ...(run.finishedAt !== undefined && {
+                    finishedAt: run.finishedAt,
+                  }),
+                },
+              ]
+            : [],
+        )
+      : undefined
   const body: ReconstructedChat = {
     messages,
     activeRun: active ? { runId: active.runId } : null,
@@ -195,6 +232,7 @@ export async function reconstructChat(
         }
       : null,
     ...('page' in transcript ? { page: transcript.page } : {}),
+    ...(runs ? { runs } : {}),
   }
   return new Response(JSON.stringify(body), {
     headers: {
