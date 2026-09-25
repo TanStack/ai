@@ -45,8 +45,8 @@ export interface ReconstructedChat {
   /**
    * The thread's finished runs, ascending by `startedAt`. Set only when
    * {@link ReconstructChatOptions.includeRuns} is `true` and the `runs` store
-   * implements `listByThread`. Match a run to its messages through
-   * `message.metadata.tanstack.runId`.
+   * implements `listByThread`. Each assistant message of a listed run also
+   * gets the timings on `message.metadata.tanstack.run`.
    */
   runs?: Array<{
     runId: string
@@ -223,7 +223,7 @@ export async function reconstructChat(
         )
       : undefined
   const body: ReconstructedChat = {
-    messages,
+    messages: runs ? stampRunTimings(messages, runs) : messages,
     activeRun: active ? { runId: active.runId } : null,
     interrupts: firstPending
       ? {
@@ -249,6 +249,40 @@ function messageRunId(message: UIMessage) {
   if (!tanstack || typeof tanstack !== 'object') return
   const runId = (tanstack as { runId?: unknown }).runId
   return typeof runId === 'string' && runId !== '' ? runId : undefined
+}
+
+/**
+ * Write each finished run's timings to `metadata.tanstack.run` on the
+ * assistant messages of that run, so a client reads them from the message.
+ */
+function stampRunTimings(
+  messages: Array<UIMessage>,
+  runs: NonNullable<ReconstructedChat['runs']>,
+): Array<UIMessage> {
+  const byId = new Map(runs.map((run) => [run.runId, run]))
+  return messages.map((message) => {
+    const tanstack = message.metadata?.tanstack
+    const runId: unknown = tanstack?.run?.id
+    const run =
+      message.role === 'assistant' && typeof runId === 'string'
+        ? byId.get(runId)
+        : undefined
+    if (!run) return message
+    return {
+      ...message,
+      metadata: {
+        ...message.metadata,
+        tanstack: {
+          ...tanstack,
+          run: {
+            id: run.runId,
+            startedAt: run.startedAt,
+            ...(run.finishedAt !== undefined && { finishedAt: run.finishedAt }),
+          },
+        },
+      },
+    }
+  })
 }
 
 type Runs = NonNullable<ChatTranscriptStores['runs']>
