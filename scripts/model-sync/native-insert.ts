@@ -16,7 +16,12 @@ export function insertConstants(
   if (exportIndex === -1) {
     return content + block
   }
-  return content.slice(0, exportIndex) + block + content.slice(exportIndex)
+  // Insert above the export's JSDoc, so the comment stays on its export.
+  const doc = /\n\/\*\*(?:(?!\*\/)[\s\S])*\*\/\s*$/.exec(
+    content.slice(0, exportIndex),
+  )
+  const at = doc ? doc.index : exportIndex
+  return content.slice(0, at) + block + content.slice(at)
 }
 
 /**

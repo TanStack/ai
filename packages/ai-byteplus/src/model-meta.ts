@@ -22,12 +22,6 @@
 import type { DurationOptions } from '@tanstack/ai/adapters'
 import type { BytePlusTextProviderOptions } from './text/text-provider-options'
 
-/**
- * BytePlus exposes no server-side provider tools (no hosted web search, code
- * interpreter, …) on the international Ark endpoint, so every chat model
- * advertises an empty tool set. Typing it as `never` makes passing another
- * provider's `ProviderTool` to a BytePlus adapter a compile-time error.
- */
 const DEEPSEEK_V4_FLASH_GA_260731 = {
   name: 'deepseek-v4-flash-ga-260731',
   context_window: 1_048_576,
@@ -76,6 +70,12 @@ const GLM_5_3_FLASH_260828 = {
   },
 } as const satisfies ModelMeta
 
+/**
+ * BytePlus exposes no server-side provider tools (no hosted web search, code
+ * interpreter, …) on the international Ark endpoint, so every chat model
+ * advertises an empty tool set. Typing it as `never` makes passing another
+ * provider's `ProviderTool` to a BytePlus adapter a compile-time error.
+ */
 export type BytePlusProviderToolKind = never
 
 /**
