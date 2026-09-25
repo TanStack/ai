@@ -8,7 +8,7 @@
   import ThinkingPart from './ThinkingPart.svelte'
 
   interface Props {
-    messages: Array<UIMessage>
+    messages: ReadonlyArray<UIMessage>
     addToolApprovalResponse: (response: {
       id: string
       approved: boolean

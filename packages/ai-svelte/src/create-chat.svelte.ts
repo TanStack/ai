@@ -73,7 +73,9 @@ export function createChat<
   options: CreateChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): CreateChatReturn<TTools, TSchema, TContext, TInterrupts> {
   // Create reactive state using Svelte 5 runes
-  let messages = $state<Array<UIMessage<TTools>>>(options.initialMessages || [])
+  let messages = $state<ReadonlyArray<UIMessage<TTools>>>(
+    options.initialMessages || [],
+  )
   let isLoading = $state(false)
   let hasOlderMessages = $state(false)
   let error = $state<Error | undefined>(undefined)
@@ -81,7 +83,7 @@ export function createChat<
   let isSubscribed = $state(false)
   let connectionStatus = $state<ConnectionStatus>('disconnected')
   let sessionGenerating = $state(false)
-  let queue = $state<Array<QueuedMessage>>([])
+  let queue = $state<ReadonlyArray<QueuedMessage>>([])
   let runId = $state<string | null>(null)
   let interruptState = $state.raw<ChatInterruptState<TTools, TInterrupts>>({
     interrupts: EMPTY_INTERRUPTS,
@@ -182,7 +184,7 @@ export function createChat<
 
   function applySnapshot() {
     const next = client.getSnapshot()
-    messages = next.messages as Array<UIMessage<TTools>>
+    messages = next.messages
     isLoading = next.isLoading
     hasOlderMessages = next.hasOlderMessages
     error = next.error
@@ -190,7 +192,7 @@ export function createChat<
     isSubscribed = next.isSubscribed
     connectionStatus = next.connectionStatus
     sessionGenerating = next.sessionGenerating
-    queue = next.queue as Array<QueuedMessage>
+    queue = next.queue
     runId = next.runId
     interruptState = next.interruptState
   }

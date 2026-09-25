@@ -110,7 +110,7 @@ export interface RealtimeClientOptions {
 export interface RealtimeClientState {
   readonly status: RealtimeStatus
   readonly mode: RealtimeMode
-  readonly messages: Array<RealtimeMessage>
+  readonly messages: ReadonlyArray<RealtimeMessage>
   readonly pendingUserTranscript: string | null
   readonly pendingAssistantTranscript: string | null
   readonly error: Error | null

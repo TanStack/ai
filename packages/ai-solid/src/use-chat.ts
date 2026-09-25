@@ -62,9 +62,9 @@ export function useChat<
   const hookId = createUniqueId()
   const clientId = options.threadId ?? hookId
 
-  const [messages, setMessages] = createSignal<Array<UIMessage<TTools>>>(
-    options.initialMessages || [],
-  )
+  const [messages, setMessages] = createSignal<
+    ReadonlyArray<UIMessage<TTools>>
+  >(options.initialMessages || [])
   const [isLoading, setIsLoading] = createSignal(false)
   const [hasOlderMessages, setHasOlderMessages] = createSignal(false)
   const [error, setError] = createSignal<Error | undefined>(undefined)
@@ -73,7 +73,7 @@ export function useChat<
   const [connectionStatus, setConnectionStatus] =
     createSignal<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = createSignal(false)
-  const [queue, setQueue] = createSignal<Array<QueuedMessage>>([])
+  const [queue, setQueue] = createSignal<ReadonlyArray<QueuedMessage>>([])
   const [runId, setRunId] = createSignal<string | null>(null)
   const [interruptState, setInterruptState] = createSignal<
     ChatInterruptState<TTools, TInterrupts>
@@ -178,7 +178,7 @@ export function useChat<
 
   const applySnapshot = (target: ChatClient<TTools, TContext, TInterrupts>) => {
     const next = target.getSnapshot()
-    setMessages(next.messages as Array<UIMessage<TTools>>)
+    setMessages(next.messages)
     setIsLoading(next.isLoading)
     setHasOlderMessages(next.hasOlderMessages)
     setError(next.error)
@@ -186,7 +186,7 @@ export function useChat<
     setIsSubscribed(next.isSubscribed)
     setConnectionStatus(next.connectionStatus)
     setSessionGenerating(next.sessionGenerating)
-    setQueue(next.queue as Array<QueuedMessage>)
+    setQueue(next.queue)
     setRunId(next.runId)
     setInterruptState(next.interruptState)
   }

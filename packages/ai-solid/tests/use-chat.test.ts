@@ -153,7 +153,7 @@ describe('useChat', () => {
         removeItem: vi.fn(),
       }
 
-      let firstMessages: Array<UIMessage> | undefined
+      let firstMessages: ReadonlyArray<UIMessage> | undefined
       const rendered = renderHook(() => {
         const chat = useChat({
           connection: adapter,

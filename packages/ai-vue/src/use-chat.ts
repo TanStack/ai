@@ -55,7 +55,7 @@ export function useChat<
     TInterrupts
   > = {} as UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TSchema, TInterrupts> {
-  const messages = shallowRef<Array<UIMessage<TTools>>>(
+  const messages = shallowRef<ReadonlyArray<UIMessage<TTools>>>(
     options.initialMessages || [],
   )
   const isLoading = shallowRef(false)
@@ -65,7 +65,7 @@ export function useChat<
   const isSubscribed = shallowRef(false)
   const connectionStatus = shallowRef<ConnectionStatus>('disconnected')
   const sessionGenerating = shallowRef(false)
-  const queue = shallowRef<Array<QueuedMessage>>([])
+  const queue = shallowRef<ReadonlyArray<QueuedMessage>>([])
   const runId = shallowRef<string | null>(null)
   const interruptState = shallowRef<ChatInterruptState<TTools, TInterrupts>>({
     interrupts: EMPTY_INTERRUPTS,
@@ -169,7 +169,7 @@ export function useChat<
 
   function applySnapshot() {
     const next = client.getSnapshot()
-    messages.value = next.messages as Array<UIMessage<TTools>>
+    messages.value = next.messages
     isLoading.value = next.isLoading
     hasOlderMessages.value = next.hasOlderMessages
     error.value = next.error
@@ -177,7 +177,7 @@ export function useChat<
     isSubscribed.value = next.isSubscribed
     connectionStatus.value = next.connectionStatus
     sessionGenerating.value = next.sessionGenerating
-    queue.value = next.queue as Array<QueuedMessage>
+    queue.value = next.queue
     runId.value = next.runId
     interruptState.value = next.interruptState
   }

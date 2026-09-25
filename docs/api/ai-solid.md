@@ -172,7 +172,7 @@ import type {
 } from "@tanstack/ai-client";
 
 interface UseChatReturn {
-  messages: Accessor<UIMessage[]>;
+  messages: Accessor<ReadonlyArray<UIMessage>>;
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,

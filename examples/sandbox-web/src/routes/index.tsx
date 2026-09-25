@@ -160,7 +160,7 @@ function SandboxWaiting({ kind }: { kind: SandboxWaitKind }) {
 /** First message in a thread vs follow-up while waiting for the first chunk. */
 function sandboxWaitKind(
   isLoading: boolean,
-  messages: Array<UIMessage>,
+  messages: ReadonlyArray<UIMessage>,
 ): SandboxWaitKind | false {
   if (
     !isLoading ||
@@ -176,7 +176,7 @@ function Messages({
   messages,
   waiting,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   waiting: SandboxWaitKind | false
 }) {
   const containerRef = useRef<HTMLDivElement>(null)

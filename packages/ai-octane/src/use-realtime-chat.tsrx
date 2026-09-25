@@ -61,7 +61,7 @@ export function useRealtimeChat(
   // State
   const [status, setStatus] = useState<RealtimeStatus>('idle')
   const [mode, setMode] = useState<RealtimeMode>('idle')
-  const [messages, setMessages] = useState<Array<RealtimeMessage>>([])
+  const [messages, setMessages] = useState<ReadonlyArray<RealtimeMessage>>([])
   const [pendingUserTranscript, setPendingUserTranscript] = useState<
     string | null
   >(null)

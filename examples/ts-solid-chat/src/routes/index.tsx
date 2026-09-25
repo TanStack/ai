@@ -30,7 +30,7 @@ function ChatInputArea(props: { children: JSXElement }) {
 }
 
 function Messages(props: {
-  messages: ChatMessages
+  messages: Readonly<ChatMessages>
   addToolApprovalResponse: (response: {
     id: string
     approved: boolean
@@ -169,7 +169,7 @@ function Messages(props: {
 }
 
 function DebugPanel(props: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   chunks: Array<any>
   onClearChunks: () => void
 }) {

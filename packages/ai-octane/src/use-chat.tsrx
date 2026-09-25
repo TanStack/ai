@@ -188,8 +188,8 @@ export function useChat<
   // Constructor hydration (sync store / resume snapshot) must be on the first
   // paint. `useEffect` runs after paint, so seed from the snapshot here.
   const firstPaint = client.getSnapshot()
-  const [messages, setMessages] = useState<Array<UIMessage<TTools>>>(
-    firstPaint.messages as Array<UIMessage<TTools>>,
+  const [messages, setMessages] = useState<ReadonlyArray<UIMessage<TTools>>>(
+    firstPaint.messages,
   )
   const [isLoading, setIsLoading] = useState(firstPaint.isLoading)
   const [hasOlderMessages, setHasOlderMessages] = useState(
@@ -204,8 +204,8 @@ export function useChat<
   const [sessionGenerating, setSessionGenerating] = useState(
     firstPaint.sessionGenerating,
   )
-  const [queue, setQueue] = useState<Array<QueuedMessage>>(
-    firstPaint.queue as Array<QueuedMessage>,
+  const [queue, setQueue] = useState<ReadonlyArray<QueuedMessage>>(
+    firstPaint.queue,
   )
   const [runId, setRunId] = useState(firstPaint.runId)
   const [interruptState, setInterruptState] = useState(
@@ -233,7 +233,7 @@ export function useChat<
   useEffect(() => {
     const applySnapshot = () => {
       const next = client.getSnapshot()
-      setMessages(next.messages as Array<UIMessage<TTools>>)
+      setMessages(next.messages)
       setIsLoading(next.isLoading)
       setHasOlderMessages(next.hasOlderMessages)
       setError(next.error)
@@ -241,7 +241,7 @@ export function useChat<
       setIsSubscribed(next.isSubscribed)
       setConnectionStatus(next.connectionStatus)
       setSessionGenerating(next.sessionGenerating)
-      setQueue(next.queue as Array<QueuedMessage>)
+      setQueue(next.queue)
       setRunId(next.runId)
       setInterruptState(next.interruptState)
     }

@@ -170,7 +170,7 @@ import type {
 import type { ModelMessage } from "@tanstack/ai";
 
 interface CreateChatReturn<TContext = unknown> {
-  readonly messages: UIMessage[];
+  readonly messages: ReadonlyArray<UIMessage>;
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,

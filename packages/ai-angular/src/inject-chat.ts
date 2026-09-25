@@ -65,7 +65,7 @@ export function injectChat<
   const destroyRef = inject(DestroyRef)
   const injector = inject(Injector)
 
-  const messages = signal<Array<UIMessage<TTools>>>(
+  const messages = signal<ReadonlyArray<UIMessage<TTools>>>(
     options.initialMessages || [],
   )
   const isLoading = signal(false)
@@ -163,7 +163,7 @@ export function injectChat<
 
   const applySnapshot = () => {
     const next = client.getSnapshot()
-    messages.set(next.messages as Array<UIMessage<TTools>>)
+    messages.set(next.messages)
     isLoading.set(next.isLoading)
     hasOlderMessages.set(next.hasOlderMessages)
     error.set(next.error)

@@ -380,7 +380,7 @@ function SandboxWaiting({ kind }: { kind: SandboxWaitKind }) {
 export function sandboxWaitKind(
   isLoading: boolean,
   hasActiveRun: boolean,
-  messages: Array<UIMessage>,
+  messages: ReadonlyArray<UIMessage>,
 ): SandboxWaitKind | false {
   // "Nothing has come back for the current turn yet." An EMPTY transcript counts,
   // and that is the case this used to get wrong: chat persistence saves the pending
@@ -408,7 +408,7 @@ function Messages({
   messages,
   waiting,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   waiting: SandboxWaitKind | false
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
