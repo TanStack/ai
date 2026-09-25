@@ -347,6 +347,39 @@ describe('OpenAIBaseResponsesTextAdapter.structuredOutputStream', () => {
     })
   })
 
+  it('reports EOF without response.completed after valid JSON', async () => {
+    setupStreamingMock([
+      eventCreated(),
+      eventOutputTextDelta('{"name":"John","age":30}'),
+    ])
+
+    const chunks = await collect(
+      new TestAdapter().structuredOutputStream!({
+        chatOptions: {
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'extract' }],
+          logger: testLogger,
+        },
+        outputSchema: personSchema,
+      }),
+    )
+
+    expect(chunks.some((chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT')).toBe(
+      true,
+    )
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      code: 'incomplete-stream',
+    })
+    expect(
+      chunks.some(
+        (chunk) =>
+          chunk.type === 'CUSTOM' &&
+          chunk.name === 'structured-output.complete',
+      ),
+    ).toBe(false)
+  })
+
   describe('error paths', () => {
     it('emits RUN_ERROR { code: "empty-response" } when no output_text.delta was received', async () => {
       setupStreamingMock([eventCreated(), eventCompleted()])

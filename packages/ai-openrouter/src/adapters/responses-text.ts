@@ -349,6 +349,7 @@ export class OpenRouterResponsesTextAdapter<
           totalTokens?: number
         }
       | undefined
+    let responseCompleted = false
 
     const closeReasoning = function* (this: {
       name: string
@@ -539,6 +540,7 @@ export class OpenRouterResponsesTextAdapter<
         }
 
         if (chunk.type === 'response.completed') {
+          responseCompleted = true
           if (chunk.response?.model) model = chunk.response.model
           if (chunk.response?.usage) usage = chunk.response.usage
           // Terminal event: do not wait for the HTTP body to close (#1445).
@@ -605,6 +607,20 @@ export class OpenRouterResponsesTextAdapter<
           model,
           timestamp: Date.now(),
         }
+      }
+
+      if (!responseCompleted) {
+        const message = 'Response stream ended before response.completed'
+        yield {
+          type: EventType.RUN_ERROR,
+          runId: aguiState.runId,
+          model,
+          timestamp: Date.now(),
+          message,
+          code: 'incomplete-stream',
+          error: { message, code: 'incomplete-stream' },
+        }
+        return
       }
 
       if (accumulatedContent.length === 0) {

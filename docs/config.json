@@ -137,7 +137,7 @@
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Connection Adapters",
@@ -577,7 +577,7 @@
           "label": "Client Persistence",
           "to": "persistence/client-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-24"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Generation Persistence",
@@ -594,7 +594,7 @@
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Migrations",
@@ -1154,7 +1154,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Perplexity Search",
@@ -1320,7 +1320,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "@tanstack/ai-client",

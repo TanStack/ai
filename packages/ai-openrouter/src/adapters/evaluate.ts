@@ -73,6 +73,8 @@ function isDecisionsResponse(value: unknown): value is {
   model?: string
   answers: Record<string, WireAnswer>
   usage?: unknown
+  id?: unknown
+  provider?: unknown
 } {
   if (!isRecord(value)) return false
   if (!isAnswers(value.answers)) return false
@@ -165,6 +167,8 @@ export class OpenRouterEvaluateAdapter<
         model: json.model ?? model,
         answers: json.answers,
         usage: mapUsage(json.usage),
+        ...(typeof json.id === 'string' && { id: json.id }),
+        ...(typeof json.provider === 'string' && { provider: json.provider }),
       }
     } catch (error) {
       logger.errors(`${this.name}.evaluate fatal`, {

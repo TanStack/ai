@@ -750,6 +750,49 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     expect(state.returned).toBe(true)
   })
 
+  it('reports structuredOutputStream EOF without response.completed after valid JSON', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.output_text.delta',
+        sequenceNumber: 1,
+        itemId: 'msg_1',
+        outputIndex: 0,
+        contentIndex: 0,
+        delta: '{"name":"Alice"}',
+      },
+    ])
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const c of createAdapter().structuredOutputStream({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini' as any,
+        messages: [{ role: 'user', content: 'profile?' }],
+        logger: testLogger,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { name: { type: 'string' } },
+        required: ['name'],
+      },
+    })) {
+      chunks.push(c)
+    }
+
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      code: 'incomplete-stream',
+    })
+    expect(
+      chunks.some(
+        (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+      ),
+    ).toBe(false)
+  })
+
   it('routes text deltas through TEXT_MESSAGE_* lifecycle', async () => {
     setupMockSdkClient([
       {

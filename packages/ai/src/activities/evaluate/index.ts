@@ -100,6 +100,10 @@ export interface EvaluateResultMeta {
   /** Resolved model id from the provider. */
   model: string
   usage: TokenUsage
+  /** Provider response id, when the adapter returns one. */
+  id?: string
+  /** Upstream provider that served the request, when the adapter returns one. */
+  provider?: string
 }
 
 /**
@@ -576,6 +580,8 @@ export async function decide<
     return withMeta(answers, {
       model: result.model,
       usage: result.usage,
+      ...(result.id !== undefined && { id: result.id }),
+      ...(result.provider !== undefined && { provider: result.provider }),
     })
   } catch (error) {
     const duration = Date.now() - startTime
