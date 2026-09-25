@@ -17,9 +17,10 @@ type AIAdapter =
   | AnyRerankAdapter
   | AnyEvaluateAdapter
   | AnyWorldAdapter
-  | AnyLiveVideoAdapter;
+  | AnyLiveVideoAdapter
+  | AnyFilesAdapter;
 ```
 
-Defined in: [packages/ai/src/activities/index.ts:323](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/index.ts#L323)
+Defined in: [packages/ai/src/activities/index.ts:360](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/index.ts#L360)
 
-Union of all adapter types that can be passed to chat()
+Union of all adapter types across every activity kind

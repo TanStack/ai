@@ -345,6 +345,12 @@ export function useChat<
   ])
 
   useEffect(() => {
+    if (options.tools !== undefined) {
+      client.updateOptions({ tools: options.tools })
+    }
+  }, [client, options.tools])
+
+  useEffect(() => {
     if (options.live) {
       client.subscribe()
     } else {

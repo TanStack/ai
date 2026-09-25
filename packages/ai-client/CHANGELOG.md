@@ -1,5 +1,42 @@
 # @tanstack/ai-client
 
+## 0.35.1
+
+### Patch Changes
+
+- [#1357](https://github.com/TanStack/ai/pull/1357) [`e4827e2`](https://github.com/TanStack/ai/commit/e4827e223a84dcfaeead4ff0575a74ba0ba1a60b) - Keep reasoning and tool activity when resuming a run whose first content is reasoning or a reasoning signature. Drop the hydrated partial before replay creates a new assistant message, so a follow-up retains the completed activity.
+
+- [#1354](https://github.com/TanStack/ai/pull/1354) [`a620c90`](https://github.com/TanStack/ai/commit/a620c90dcfab7de11da930926f57c5148e8da127) - Surface mount-hydration failures with `persistence: true`. When the server-driven
+  thread load (`connection.hydrate`) threw — a 500, a dropped connection, an
+  authorize-gate rejection — `ChatClient` swallowed it in a bare `catch { return }`:
+  `onError` never fired, `error` stayed `undefined`, and `status` stayed `ready`
+  with zero messages, indistinguishable from a genuinely empty thread. It now runs
+  a `failHydration` path mirroring `GenerationClient`: `status: 'error'`, `error`
+  set, and `onError` called, so an app can tell "failed to load" from "no messages"
+  and offer a retry. A `ByokMissingError` / locked `ByokBlockedError` raised during
+  hydrate also triggers the key-request flow, matching the send path. A genuine
+  miss (server has no record for a fresh thread) stays silent, and a failure that
+  lands after the view detached or a send took over is ignored.
+- Updated dependencies [[`54d39d3`](https://github.com/TanStack/ai/commit/54d39d30704bbdbdccea756af31530cc6713fc2e), [`2d047c5`](https://github.com/TanStack/ai/commit/2d047c5cf5f25c244c05f0cb0e816b9634616fbb), [`74b5823`](https://github.com/TanStack/ai/commit/74b582305471eaf37a3b68595e60ed1a6f42d914), [`abb0169`](https://github.com/TanStack/ai/commit/abb0169bf96c38f59791450ce060d089a7fcd26e), [`ed87986`](https://github.com/TanStack/ai/commit/ed87986069bcfe42a51cedf1365cc10662b0e088), [`a0f7c14`](https://github.com/TanStack/ai/commit/a0f7c14a9d9a4b2e72e87b976f46d193deb5921b)]:
+  - @tanstack/ai@0.61.0
+
+## 0.35.0
+
+### Minor Changes
+
+- [#1466](https://github.com/TanStack/ai/pull/1466) [`012fb0a`](https://github.com/TanStack/ai/commit/012fb0af0d9a3f4bf7e450882c41f0394571248d) - Give the WebMCP tools on a page to your chat as client tools.
+  - `getWebMCPTools()` and `subscribeWebMCPTools()` in `@tanstack/ai-client` read `document.modelContext` and return client tools. Each tool runs through WebMCP `executeTool()`. A `filter` option skips tools. Every framework package re-exports both functions.
+  - Reject duplicate page tool names after filtering so tools from different frames cannot silently replace each other in chat.
+  - New framework APIs return a reactive list: `usePageWebMCPTools` (React, Preact, Octane, Vue, Solid), `createPageWebMCPTools` (Svelte, Remix), and `injectPageWebMCPTools` (Angular).
+  - The chat APIs in Preact, Vue, Solid, Svelte, Remix, and Angular now pick up `tools` that change after the chat is created. Vue accepts a ref or getter. Angular accepts a `Signal` or getter. Solid, Svelte, and Remix read a `get tools()` getter.
+  - `useWebMCPTools`, `createWebMCPTools`, and `injectWebMCPTools` are now `useRegisterWebMCPTools`, `createRegisterWebMCPTools`, and `injectRegisterWebMCPTools`. The old names and their options types still work, but they are deprecated. They will be removed in 1.0.0.
+
+### Patch Changes
+
+- Updated dependencies [[`ef0a00f`](https://github.com/TanStack/ai/commit/ef0a00f09059abfd9e96eb1367e8ff0280458abd)]:
+  - @tanstack/ai@0.60.0
+  - @tanstack/ai-event-client@0.13.0
+
 ## 0.34.0
 
 ### Minor Changes

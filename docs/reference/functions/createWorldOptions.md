@@ -7,7 +7,7 @@ title: createWorldOptions
 function createWorldOptions<TAdapter, TStream>(options): WorldActivityOptions<TAdapter, TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateWorld/index.ts:324](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/index.ts#L324)
+Defined in: [packages/ai/src/activities/generateWorld/index.ts:325](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/index.ts#L325)
 
 Create typed options for the generateWorld() function without executing.
 

@@ -3,7 +3,7 @@ id: IterationInfo
 title: IterationInfo
 ---
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:439](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L439)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:446](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L446)
 
 Information passed to onIteration at the start of each agent loop iteration.
 
@@ -15,7 +15,7 @@ Information passed to onIteration at the start of each agent loop iteration.
 iteration: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:441](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L441)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:448](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L448)
 
 0-based iteration index
 
@@ -27,6 +27,6 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:441](https://gi
 messageId: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:443](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L443)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:450](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L450)
 
 The assistant message ID created for this iteration

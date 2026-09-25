@@ -1,5 +1,6 @@
 import { normalizeToolResult } from '../../../utilities/tool-result'
 import { tanstackMetadata } from '../../../utilities/merge-metadata'
+import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
 import type { ToolApprovalResolution } from '../../../interrupts'
@@ -854,6 +855,11 @@ export async function* executeToolCalls<TContext = unknown>(
   })
 
   for (const toolCall of toolCalls) {
+    // Provider-executed tools (Anthropic web_search / web_fetch) already ran
+    // inside the provider response and carry their result on the call's
+    // metadata. They have no execute() and must not become client requests.
+    if (isProviderExecutedToolCall(toolCall)) continue
+
     const tool = toolMap.get(toolCall.function.name)
     const toolName = toolCall.function.name
 

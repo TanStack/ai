@@ -93,7 +93,7 @@ streaming is handled for you. All three are written out in
 | Live generation | `generateLiveVideo()` | - | [Live Generation](./live-generation) |
 | World generation | `generateWorld()` | - | [World Generation](./world-generation) |
 
-> **Note:** Video adapters use a jobs/polling architecture. The `useGenerateVideo` hook additionally exposes `jobId`, `videoStatus`, `onJobCreated`, and `onStatusUpdate` for tracking the polling lifecycle. Live and world sessions mint a token. There is no download URL.
+> **Note:** Video adapters use a jobs/polling architecture. The `useGenerateVideo` hook additionally exposes `jobId`, `videoStatus`, `onJobCreated`, and `onStatusUpdate` for tracking the polling lifecycle. Live adapters mint a session token. World Labs world jobs return a viewer URL and asset links.
 
 ## Advanced
 

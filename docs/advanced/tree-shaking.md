@@ -275,7 +275,7 @@ Each adapter type implements a specific interface:
 - `TranscriptionAdapter` - Provides `generateTranscription()` method for audio transcription
 - `VideoAdapter` - Provides `generateVideo()` method for video generation
 - `LiveVideoAdapter` - Provides `createLiveVideo()` method for live video sessions
-- `WorldAdapter` - Provides `createWorld()` method for live world sessions
+- `WorldAdapter` - Provides `createWorld()` method for live world sessions and world jobs
 
 All adapters have a `kind` property that indicates their type:
 

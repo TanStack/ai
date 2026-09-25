@@ -1965,6 +1965,58 @@
     }
   },
   {
+    "id": "alibaba/qwen3.8-max-prime",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790121600,
+    "owned_by": "alibaba",
+    "name": "Qwen 3.8 Max Prime",
+    "description": "Qwen 3.8 Max Prime is the high-speed edition of Qwen 3.8 Max, retaining its 2.4-trillion-parameter MoE architecture and full capabilities while delivering 1.5–2× higher output throughput. Built for coding, office automation, and long-running agent workflows, it supports autonomous multi-day development, professional knowledge work, and visual understanding with a 1M-token context window.",
+    "context_window": 1000000,
+    "max_tokens": 131072,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000004",
+      "output": "0.000012",
+      "input_cache_read": "0.0000005"
+    }
+  },
+  {
     "id": "alibaba/qwen3.8-omni-flash",
     "object": "model",
     "created": 1755815280,
@@ -3146,7 +3198,7 @@
     "name": "Claude Opus 4",
     "description": "Claude Opus 4 is Anthropic's most powerful model yet and the state-of-the-art coding model. It delivers sustained performance on long-running tasks that require focused effort and thousands of steps, significantly expanding what AI agents can solve. Claude Opus 4 is ideal for powering frontier agent products and features.",
     "context_window": 200000,
-    "max_tokens": 8192,
+    "max_tokens": 32000,
     "type": "language",
     "zdr": "all",
     "no_training": "all",
@@ -3744,6 +3796,144 @@
     }
   },
   {
+    "id": "anthropic/claude-opus-5.5",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790035200,
+    "owned_by": "anthropic",
+    "name": "Claude Opus 5.5",
+    "description": "Claude Opus 5.5 is a step-change improvement over Opus 5 for agentic coding, long-running agentic tasks, knowledge work, communication, and vision. It is more token-efficient per completed task and reports progress, findings, and next steps in clear language.",
+    "context_window": 1000000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "explicit-caching",
+      "fast",
+      "file-input",
+      "reasoning",
+      "tool-use",
+      "vision",
+      "web-search"
+    ],
+    "regions": ["eu", "us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": false,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "knowledge": "2026-06",
+    "pricing": {
+      "input": "0.000004",
+      "output": "0.00002",
+      "input_cache_read": "0.0000002",
+      "input_cache_write": "0.000005",
+      "web_search": "10",
+      "fast": {
+        "input": "0.000008",
+        "output": "0.00004",
+        "input_cache_read": "0.0000004",
+        "input_cache_write": "0.00001"
+      },
+      "regional": {
+        "eu": {
+          "input": "0.0000044",
+          "output": "0.000022",
+          "input_cache_read": "0.00000022",
+          "input_cache_write": "0.0000055"
+        },
+        "us": {
+          "input": "0.0000044",
+          "output": "0.000022",
+          "input_cache_read": "0.00000022",
+          "input_cache_write": "0.0000055",
+          "fast": {
+            "input": "0.0000088",
+            "output": "0.000044",
+            "input_cache_read": "0.00000044",
+            "input_cache_write": "0.000011"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "anthropic/claude-opus-5.5-fast",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790035200,
+    "owned_by": "anthropic",
+    "name": "Claude Opus 5.5 (Fast)",
+    "description": "Claude Opus 5.5 is a step-change improvement over Opus 5 for agentic coding, long-running agentic tasks, knowledge work, communication, and vision. It is more token-efficient per completed task and reports progress, findings, and next steps in clear language.",
+    "context_window": 1000000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "explicit-caching",
+      "fast",
+      "file-input",
+      "reasoning",
+      "tool-use",
+      "vision",
+      "web-search"
+    ],
+    "regions": ["eu", "us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": false,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "knowledge": "2026-06",
+    "pricing": {
+      "input": "0.000008",
+      "output": "0.00004",
+      "input_cache_read": "0.0000004",
+      "input_cache_write": "0.00001",
+      "web_search": "10",
+      "regional": {
+        "us": {
+          "input": "0.0000088",
+          "output": "0.000044",
+          "input_cache_read": "0.00000044",
+          "input_cache_write": "0.000011"
+        }
+      }
+    }
+  },
+  {
     "id": "anthropic/claude-sonnet-4",
     "object": "model",
     "created": 1755815280,
@@ -3752,7 +3942,7 @@
     "name": "Claude Sonnet 4",
     "description": "Claude Sonnet 4 balances impressive performance for coding with the right speed and cost for high-volume use cases: Coding: Handle everyday development tasks with enhanced performance-power code reviews, bug fixes, API integrations, and feature development with immediate feedback loops.",
     "context_window": 1000000,
-    "max_tokens": 8192,
+    "max_tokens": 64000,
     "type": "language",
     "zdr": "all",
     "no_training": "all",
@@ -6192,7 +6382,7 @@
     "name": "Gemini 2.5 Flash",
     "description": "Gemini 2.5 Flash is a thinking model that offers great, well-rounded capabilities. It is designed to offer a balance between price and performance with multimodal support and a 1M token context window.",
     "context_window": 1000000,
-    "max_tokens": 65536,
+    "max_tokens": 65535,
     "type": "language",
     "zdr": "some",
     "no_training": "all",
@@ -6276,7 +6466,7 @@
     "name": "Nano Banana (Gemini 2.5 Flash Image)",
     "description": "Nano Banana (Gemini 2.5 Flash Image) is Google's first fully hybrid reasoning model, letting developers turn thinking on or off and set thinking budgets to balance quality, cost, and latency. Upgraded for rapid creative workflows, it can generate interleaved text and images and supports conversational, multi‑turn image editing in natural language. It’s also locale‑aware, enabling culturally and linguistically appropriate image generation for audiences worldwide.",
     "context_window": 32768,
-    "max_tokens": 65536,
+    "max_tokens": 65535,
     "type": "language",
     "zdr": "some",
     "no_training": "all",
@@ -6348,7 +6538,7 @@
     "name": "Gemini 2.5 Flash Lite",
     "description": "Gemini 2.5 Flash-Lite is a balanced, low-latency model with configurable thinking budgets and tool connectivity (e.g., Google Search grounding and code execution). It supports multimodal input and offers a 1M-token context window.",
     "context_window": 1048576,
-    "max_tokens": 65536,
+    "max_tokens": 65535,
     "type": "language",
     "zdr": "some",
     "no_training": "all",
@@ -6432,7 +6622,7 @@
     "name": "Gemini 2.5 Pro",
     "description": "Gemini 2.5 Pro is our most advanced reasoning Gemini model, capable of solving complex problems. Gemini 2.5 Pro can comprehend vast datasets and challenging problems from different information sources, including text, audio, images, video, and even entire code repositories.",
     "context_window": 1048576,
-    "max_tokens": 65536,
+    "max_tokens": 65535,
     "type": "language",
     "zdr": "some",
     "no_training": "all",
@@ -7491,7 +7681,7 @@
     "name": "Gemini 3.7 Flash",
     "description": "Gemini 3.7 Flash is the high-efficiency, cost-effective powerhouse of the Gemini 3 family. It delivers Pro-level agentic capabilities, major leaps in code generation and terminal execution. 3.7 Flash serves as the primary agentic workhorse in the Gemini 3 family, bridging the gap between deep-reasoning Pro models and high-throughput Flash-Lite models while delivering high token efficiency and multi-step multimodal processing.",
     "context_window": 1000000,
-    "max_tokens": 65536,
+    "max_tokens": 65535,
     "type": "language",
     "zdr": "some",
     "no_training": "all",
@@ -7571,7 +7761,7 @@
     "name": "Gemini 3.8 Flash",
     "description": "Gemini 3.8 Flash is the high-efficiency, cost-effective powerhouse of the Gemini 3 family. It delivers Pro-level agentic capabilities, major leaps in code generation and terminal execution. 3.8 Flash serves as the primary agentic workhorse in the Gemini 3 family, bridging the gap between deep-reasoning Pro models and high-throughput Flash-Lite models while delivering high token efficiency and multi-step multimodal processing.",
     "context_window": 1000000,
-    "max_tokens": 65536,
+    "max_tokens": 65535,
     "type": "language",
     "zdr": "some",
     "no_training": "all",
@@ -7639,6 +7829,64 @@
           "input_cache_read": "0.0000000825"
         }
       }
+    }
+  },
+  {
+    "id": "google/gemini-3.8-flash-lite-tts",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790121600,
+    "owned_by": "google",
+    "name": "Gemini 3.8 Flash-Lite TTS",
+    "description": "Gemini 3.8 Flash-Lite TTS is Google’s text-to-speech model optimized for high-volume, cost-efficient audio generation across more than 100 languages. It combines expressive speech with fine-grained control over tone, pacing, and line-by-line delivery, supporting long-form narration and native two-speaker conversations. Built for scale, it helps developers and creators power multilingual dubbing, audio content production, and expressive voice agents.",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.0000005",
+      "output": "0.000006",
+      "input_cache_read": "0.000000125",
+      "audio_output_token_cost": "0.000006"
+    }
+  },
+  {
+    "id": "google/gemini-3.8-flash-tts",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790121600,
+    "owned_by": "google",
+    "name": "Gemini 3.8 Flash TTS",
+    "description": "Gemini 3.8 Flash TTS is Google’s text-to-speech model for expressive voice generation and custom character design across more than 100 languages. It creates original voices from natural language prompts and offers granular control over acting cues, pacing, accents, and conversational reactions. Long-form audio and native two-speaker dialogue make it well suited to immersive audiobooks, games, podcasts, and interactive media",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.0000005",
+      "output": "0.000009",
+      "input_cache_read": "0.000000125",
+      "audio_output_token_cost": "0.000009"
     }
   },
   {
@@ -8648,7 +8896,7 @@
     "type": "language",
     "zdr": "none",
     "no_training": "none",
-    "tags": ["free", "reasoning", "tool-use", "video-input", "vision"],
+    "tags": ["reasoning", "tool-use", "video-input", "vision"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "video"],
@@ -8670,47 +8918,9 @@
       }
     ],
     "pricing": {
-      "input": "0",
-      "output": "0"
-    }
-  },
-  {
-    "id": "inclusionai/ling-3.0-flash-vl-free",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1788825600,
-    "owned_by": "inclusionai",
-    "name": "Ling 3.0 Flash VL (Free)",
-    "description": "Ling 3.0 Flash VL builds on Ling 3.0 Flash with stronger language capabilities, native visual perception, and visual agent capabilities. It supports text, image, and video inputs with text output, reasoning, and function calling.",
-    "context_window": 256000,
-    "max_tokens": 32000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["free", "reasoning", "tool-use", "video-input", "vision"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "video"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      }
-    ],
-    "pricing": {
-      "input": "0",
-      "output": "0"
+      "input": "0.000000075",
+      "output": "0.00000022",
+      "input_cache_read": "0.000000015"
     }
   },
   {
@@ -9616,8 +9826,8 @@
     "context_window": 0,
     "max_tokens": 0,
     "type": "image",
-    "zdr": "none",
-    "no_training": "none",
+    "zdr": "all",
+    "no_training": "all",
     "tags": ["image-generation", "vision"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -9645,8 +9855,8 @@
     "context_window": 1048576,
     "max_tokens": 1048576,
     "type": "language",
-    "zdr": "none",
-    "no_training": "none",
+    "zdr": "all",
+    "no_training": "all",
     "tags": [
       "reasoning",
       "tool-use",
@@ -9695,8 +9905,8 @@
     "context_window": 1048576,
     "max_tokens": 1048576,
     "type": "language",
-    "zdr": "none",
-    "no_training": "none",
+    "zdr": "all",
+    "no_training": "all",
     "tags": [
       "reasoning",
       "tool-use",
@@ -9794,8 +10004,8 @@
     "context_window": 1048576,
     "max_tokens": 1048576,
     "type": "language",
-    "zdr": "none",
-    "no_training": "none",
+    "zdr": "all",
+    "no_training": "all",
     "tags": [
       "reasoning",
       "tool-use",
@@ -15900,6 +16110,878 @@
     }
   },
   {
+    "id": "openai/gpt-6-luna",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790035200,
+    "owned_by": "openai",
+    "name": "GPT-6 Luna",
+    "description": "GPT-6 Luna is OpenAI's efficient reasoning model for focused, high-volume tasks. It accepts text and images, generates text, and supports a 1,050,000-token context window with up to 128,000 output tokens. Configurable reasoning effort, structured outputs, prompt caching, and Responses API tools support cost-sensitive applications, coding tasks, and automated workflows.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "all",
+    "tags": [
+      "explicit-caching",
+      "file-input",
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "web-search",
+      "fast"
+    ],
+    "regions": ["us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "knowledge": "2026-05-18",
+    "pricing": {
+      "input": "0.0000001",
+      "input_tiers": [
+        {
+          "cost": "0.0000001",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.0000002",
+          "min": 272001
+        }
+      ],
+      "output": "0.0000005",
+      "output_tiers": [
+        {
+          "cost": "0.0000005",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.00000075",
+          "min": 272001
+        }
+      ],
+      "input_cache_read": "0.00000001",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.00000001",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.00000002",
+          "min": 272001
+        }
+      ],
+      "input_cache_write": "0.000000125",
+      "input_cache_write_tiers": [
+        {
+          "cost": "0.000000125",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.00000025",
+          "min": 272001
+        }
+      ],
+      "web_search": "10",
+      "service_tiers": {
+        "flex": {
+          "input": "0.00000005",
+          "output": "0.00000025",
+          "input_cache_read": "0.000000005",
+          "long_context": {
+            "threshold": 272001,
+            "input": "0.0000001",
+            "output": "0.000000375",
+            "input_cache_read": "0.00000001"
+          }
+        },
+        "priority": {
+          "input": "0.0000002",
+          "output": "0.000001",
+          "input_cache_read": "0.00000002",
+          "long_context": {
+            "threshold": 272001,
+            "input": "0.0000004",
+            "output": "0.0000015",
+            "input_cache_read": "0.00000004"
+          }
+        }
+      },
+      "fast": {
+        "input": "0.0000002",
+        "input_tiers": [
+          {
+            "cost": "0.0000002",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.0000004",
+            "min": 272001
+          }
+        ],
+        "output": "0.000001",
+        "output_tiers": [
+          {
+            "cost": "0.000001",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.0000015",
+            "min": 272001
+          }
+        ],
+        "input_cache_read": "0.00000002",
+        "input_cache_read_tiers": [
+          {
+            "cost": "0.00000002",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.00000004",
+            "min": 272001
+          }
+        ],
+        "input_cache_write": "0.00000025",
+        "input_cache_write_tiers": [
+          {
+            "cost": "0.00000025",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.0000005",
+            "min": 272001
+          }
+        ]
+      },
+      "regional": {
+        "us": {
+          "input": "0.00000011",
+          "input_tiers": [
+            {
+              "cost": "0.00000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000022",
+              "min": 272001
+            }
+          ],
+          "output": "0.00000055",
+          "output_tiers": [
+            {
+              "cost": "0.00000055",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000000825",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.000000011",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.000000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000000022",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.0000001375",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.0000001375",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000000275",
+              "min": 272001
+            }
+          ],
+          "fast": {
+            "input": "0.00000022",
+            "input_tiers": [
+              {
+                "cost": "0.00000022",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.00000044",
+                "min": 272001
+              }
+            ],
+            "output": "0.0000011",
+            "output_tiers": [
+              {
+                "cost": "0.0000011",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.00000165",
+                "min": 272001
+              }
+            ],
+            "input_cache_read": "0.000000022",
+            "input_cache_read_tiers": [
+              {
+                "cost": "0.000000022",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.000000044",
+                "min": 272001
+              }
+            ],
+            "input_cache_write": "0.000000275",
+            "input_cache_write_tiers": [
+              {
+                "cost": "0.000000275",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.00000055",
+                "min": 272001
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-6-luna-fast",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790035200,
+    "owned_by": "openai",
+    "name": "GPT-6 Luna (Fast)",
+    "description": "GPT-6 Luna is OpenAI's efficient reasoning model for focused, high-volume tasks. It accepts text and images, generates text, and supports a 1,050,000-token context window with up to 128,000 output tokens. Configurable reasoning effort, structured outputs, prompt caching, and Responses API tools support cost-sensitive applications, coding tasks, and automated workflows.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "all",
+    "tags": [
+      "explicit-caching",
+      "file-input",
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "web-search",
+      "fast"
+    ],
+    "regions": ["us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "knowledge": "2026-05-18",
+    "pricing": {
+      "input": "0.0000002",
+      "input_tiers": [
+        {
+          "cost": "0.0000002",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.0000004",
+          "min": 272001
+        }
+      ],
+      "output": "0.000001",
+      "output_tiers": [
+        {
+          "cost": "0.000001",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.0000015",
+          "min": 272001
+        }
+      ],
+      "input_cache_read": "0.00000002",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.00000002",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.00000004",
+          "min": 272001
+        }
+      ],
+      "input_cache_write": "0.00000025",
+      "input_cache_write_tiers": [
+        {
+          "cost": "0.00000025",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.0000005",
+          "min": 272001
+        }
+      ],
+      "web_search": "10",
+      "regional": {
+        "us": {
+          "input": "0.00000022",
+          "input_tiers": [
+            {
+              "cost": "0.00000022",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000044",
+              "min": 272001
+            }
+          ],
+          "output": "0.0000011",
+          "output_tiers": [
+            {
+              "cost": "0.0000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000165",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.000000022",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.000000022",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000000044",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.000000275",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.000000275",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000055",
+              "min": 272001
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-6-sol",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790035200,
+    "owned_by": "openai",
+    "name": "GPT-6 Sol",
+    "description": "GPT-6 Sol is OpenAI's reasoning model for complex coding and agentic workflows. It accepts text and images, generates text, and supports a 1,050,000-token context window with up to 128,000 output tokens. Configurable reasoning effort, structured outputs, prompt caching, and Responses API tools make it suited to software development and multi-step automation.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "all",
+    "tags": [
+      "explicit-caching",
+      "file-input",
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "web-search",
+      "fast"
+    ],
+    "regions": ["us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "knowledge": "2026-04-20",
+    "pricing": {
+      "input": "0.000002",
+      "input_tiers": [
+        {
+          "cost": "0.000002",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.000004",
+          "min": 272001
+        }
+      ],
+      "output": "0.00001",
+      "output_tiers": [
+        {
+          "cost": "0.00001",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.000015",
+          "min": 272001
+        }
+      ],
+      "input_cache_read": "0.0000002",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000002",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.0000004",
+          "min": 272001
+        }
+      ],
+      "input_cache_write": "0.0000025",
+      "input_cache_write_tiers": [
+        {
+          "cost": "0.0000025",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.000005",
+          "min": 272001
+        }
+      ],
+      "web_search": "10",
+      "service_tiers": {
+        "flex": {
+          "input": "0.000001",
+          "output": "0.000005",
+          "input_cache_read": "0.0000001",
+          "long_context": {
+            "threshold": 272001,
+            "input": "0.000002",
+            "output": "0.0000075",
+            "input_cache_read": "0.0000002"
+          }
+        },
+        "priority": {
+          "input": "0.000004",
+          "output": "0.00002",
+          "input_cache_read": "0.0000004",
+          "long_context": {
+            "threshold": 272001,
+            "input": "0.000008",
+            "output": "0.00003",
+            "input_cache_read": "0.0000008"
+          }
+        }
+      },
+      "fast": {
+        "input": "0.000004",
+        "input_tiers": [
+          {
+            "cost": "0.000004",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.000008",
+            "min": 272001
+          }
+        ],
+        "output": "0.00002",
+        "output_tiers": [
+          {
+            "cost": "0.00002",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.00003",
+            "min": 272001
+          }
+        ],
+        "input_cache_read": "0.0000004",
+        "input_cache_read_tiers": [
+          {
+            "cost": "0.0000004",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.0000008",
+            "min": 272001
+          }
+        ],
+        "input_cache_write": "0.000005",
+        "input_cache_write_tiers": [
+          {
+            "cost": "0.000005",
+            "min": 0,
+            "max": 272001
+          },
+          {
+            "cost": "0.00001",
+            "min": 272001
+          }
+        ]
+      },
+      "regional": {
+        "us": {
+          "input": "0.0000022",
+          "input_tiers": [
+            {
+              "cost": "0.0000022",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000044",
+              "min": 272001
+            }
+          ],
+          "output": "0.000011",
+          "output_tiers": [
+            {
+              "cost": "0.000011",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000165",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.00000022",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.00000022",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000044",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.00000275",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.00000275",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000055",
+              "min": 272001
+            }
+          ],
+          "fast": {
+            "input": "0.0000044",
+            "input_tiers": [
+              {
+                "cost": "0.0000044",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.0000088",
+                "min": 272001
+              }
+            ],
+            "output": "0.000022",
+            "output_tiers": [
+              {
+                "cost": "0.000022",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.000033",
+                "min": 272001
+              }
+            ],
+            "input_cache_read": "0.00000044",
+            "input_cache_read_tiers": [
+              {
+                "cost": "0.00000044",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.00000088",
+                "min": 272001
+              }
+            ],
+            "input_cache_write": "0.0000055",
+            "input_cache_write_tiers": [
+              {
+                "cost": "0.0000055",
+                "min": 0,
+                "max": 272001
+              },
+              {
+                "cost": "0.000011",
+                "min": 272001
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "openai/gpt-6-sol-fast",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790035200,
+    "owned_by": "openai",
+    "name": "GPT-6 Sol (Fast)",
+    "description": "GPT-6 Sol is OpenAI's reasoning model for complex coding and agentic workflows. It accepts text and images, generates text, and supports a 1,050,000-token context window with up to 128,000 output tokens. Configurable reasoning effort, structured outputs, prompt caching, and Responses API tools make it suited to software development and multi-step automation.",
+    "context_window": 1050000,
+    "max_tokens": 128000,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "all",
+    "tags": [
+      "explicit-caching",
+      "file-input",
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision",
+      "web-search",
+      "fast"
+    ],
+    "regions": ["us"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
+      }
+    ],
+    "knowledge": "2026-04-20",
+    "pricing": {
+      "input": "0.000004",
+      "input_tiers": [
+        {
+          "cost": "0.000004",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.000008",
+          "min": 272001
+        }
+      ],
+      "output": "0.00002",
+      "output_tiers": [
+        {
+          "cost": "0.00002",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.00003",
+          "min": 272001
+        }
+      ],
+      "input_cache_read": "0.0000004",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000004",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.0000008",
+          "min": 272001
+        }
+      ],
+      "input_cache_write": "0.000005",
+      "input_cache_write_tiers": [
+        {
+          "cost": "0.000005",
+          "min": 0,
+          "max": 272001
+        },
+        {
+          "cost": "0.00001",
+          "min": 272001
+        }
+      ],
+      "web_search": "10",
+      "regional": {
+        "us": {
+          "input": "0.0000044",
+          "input_tiers": [
+            {
+              "cost": "0.0000044",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.0000088",
+              "min": 272001
+            }
+          ],
+          "output": "0.000022",
+          "output_tiers": [
+            {
+              "cost": "0.000022",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000033",
+              "min": 272001
+            }
+          ],
+          "input_cache_read": "0.00000044",
+          "input_cache_read_tiers": [
+            {
+              "cost": "0.00000044",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.00000088",
+              "min": 272001
+            }
+          ],
+          "input_cache_write": "0.0000055",
+          "input_cache_write_tiers": [
+            {
+              "cost": "0.0000055",
+              "min": 0,
+              "max": 272001
+            },
+            {
+              "cost": "0.000011",
+              "min": 272001
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
     "id": "openai/gpt-image-1",
     "object": "model",
     "created": 1755815280,
@@ -16118,11 +17200,13 @@
     "pricing": {
       "input": "0.0000001",
       "output": "0.0000005",
+      "input_cache_read": "0.0000001",
       "varies_by_provider": true,
       "regional": {
         "us": {
           "input": "0.0000001",
-          "output": "0.0000005"
+          "output": "0.0000005",
+          "input_cache_read": "0.0000001"
         }
       }
     }
@@ -17458,6 +18542,29 @@
           "cost": "0.08"
         }
       ]
+    }
+  },
+  {
+    "id": "recraft/recraft-v4.1-flash",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790121600,
+    "owned_by": "recraft",
+    "name": "Recraft V4.1 Flash",
+    "description": "Recraft V4.1 Flash is a fast, low-cost model with quality close to Recraft V4.1, built for high-volume generation and rapid iteration. Strong use cases include photography, portraits, atmosphere, complex scenes, mixed media, and logo concepts.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "image",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["image-generation"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["image"]
+    },
+    "pricing": {
+      "image": "0.007"
     }
   },
   {
@@ -19662,7 +20769,8 @@
       "tool-use",
       "vision",
       "file-input",
-      "structured-output"
+      "structured-output",
+      "implicit-caching"
     ],
     "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -20155,16 +21263,16 @@
     "context_window": 1048576,
     "max_tokens": 131072,
     "type": "language",
-    "zdr": "none",
-    "no_training": "none",
+    "zdr": "some",
+    "no_training": "some",
     "tags": [
-      "audio-input",
       "implicit-caching",
       "reasoning",
       "structured-output",
       "tool-use",
-      "video-input",
-      "vision"
+      "vision",
+      "audio-input",
+      "video-input"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -20209,16 +21317,16 @@
     "context_window": 1048576,
     "max_tokens": 131072,
     "type": "language",
-    "zdr": "none",
-    "no_training": "none",
+    "zdr": "some",
+    "no_training": "some",
     "tags": [
-      "audio-input",
       "implicit-caching",
       "reasoning",
       "structured-output",
       "tool-use",
-      "video-input",
-      "vision"
+      "vision",
+      "audio-input",
+      "video-input"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {

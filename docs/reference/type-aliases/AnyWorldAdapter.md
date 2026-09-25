@@ -7,7 +7,7 @@ title: AnyWorldAdapter
 type AnyWorldAdapter = WorldAdapter<any, any>;
 ```
 
-Defined in: [packages/ai/src/activities/generateWorld/adapter.ts:61](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/adapter.ts#L61)
+Defined in: [packages/ai/src/activities/generateWorld/adapter.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/adapter.ts#L63)
 
 A WorldAdapter with any/unknown type parameters.
 Useful as a constraint in generic functions and interfaces.

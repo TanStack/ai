@@ -18,6 +18,10 @@ export {
   embed,
   generateWorld,
   generateLiveVideo,
+  uploadFile,
+  getFile,
+  deleteFile,
+  fileSourceFromHandle,
 } from './activities/index'
 
 // Create options functions - for pre-defining typed configurations
@@ -70,6 +74,10 @@ export type {
   WorldAdapter,
   AnyLiveVideoAdapter,
   LiveVideoAdapter,
+  FilesAdapter,
+  AnyFilesAdapter,
+  FileHandle,
+  FileUploadInput,
 } from './activities/index'
 
 // Rerank adapter base + types
@@ -530,6 +538,14 @@ export {
   isContentPartArray,
   normalizeToolResult,
 } from './utilities/tool-result'
+export {
+  assertMessagesFileSourceSupport,
+  assertPromptFileSourceSupport,
+  fileReferenceFor,
+  isFileSource,
+  unsupportedFileSourceError,
+  type FileSourceCapable,
+} from './utilities/content-source'
 
 export {
   getProviderExecutedMetadata,
