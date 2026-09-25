@@ -324,14 +324,7 @@ const QWEN_QWEN3_8_27B = {
   name: 'qwen/qwen3.8-27b',
   context_window: 131_042,
   max_completion_tokens: 16_384,
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0,
-    },
-  },
+  pricing: {},
   supports: {
     input: ['text', 'image'],
     output: ['text'],

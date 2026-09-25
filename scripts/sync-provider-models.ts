@@ -33,8 +33,10 @@ import {
   alreadySynced,
   elevenLabsIdArray,
   findOpenRouterEnrichment,
+  hasFullPricing,
   hasImageOutput,
   outputsText,
+  pricingLines,
   skipNativeModelReason,
   toSyncModel,
 } from './model-sync/catalog'
@@ -105,8 +107,9 @@ interface ProviderConfig {
   acceptedActivities: Array<string | null>
   /**
    * When true, skip a native id until the modelschemas OpenRouter catalog
-   * has a matching row so the insert has prices. Native catalogs still
-   * leave pricing empty. Groq/Mistral insert without a price. BytePlus
+   * has a matching row and both prices are known. Native catalogs still
+   * leave pricing empty. Groq/Mistral insert without a price (the unknown
+   * side is left out of `pricing`, never written as 0). BytePlus
    * and ElevenLabs do not write pricing.
    */
   requireOpenRouterEnrich: boolean
@@ -339,11 +342,6 @@ function mapInputModalities(modalities: Array<string>): Array<InputModality> {
   return mapped
 }
 
-/** Strips float noise: 0.09999999999999999 → 0.1. */
-function roundPrice(price: number | undefined): number {
-  return Math.round((price ?? 0) * 1e10) / 1e10
-}
-
 function anthropicOptionsType(model: SyncModel): string {
   return buildAnthropicProviderOptionsType({
     supportedParameters: model.supportedParameters,
@@ -411,10 +409,6 @@ function generateModelConstant(
 ): string {
   const constName = toModelConstName(model.nativeId)
 
-  // ponytail: modelschemas has no cached-input price, so `cached` is never written.
-  const inputNormal = roundPrice(model.pricing.inputPerMillion)
-  const outputNormal = roundPrice(model.pricing.outputPerMillion)
-
   const inputModalities = mapInputModalities(model.inputModalities).filter(
     (m) => config.validInputModalities.includes(m),
   )
@@ -446,14 +440,7 @@ function generateModelConstant(
   )
   lines.push(`  },`)
   if (config.includePricing) {
-    lines.push(`  pricing: {`)
-    lines.push(`    input: {`)
-    lines.push(`      normal: ${inputNormal},`)
-    lines.push(`    },`)
-    lines.push(`    output: {`)
-    lines.push(`      normal: ${outputNormal},`)
-    lines.push(`    },`)
-    lines.push(`  },`)
+    lines.push(...pricingLines(model.pricing))
   }
   lines.push(`} as const satisfies ${satisfiesClause(model, config)}`)
   return lines.join('\n')
@@ -618,8 +605,13 @@ async function main() {
         config.kind,
         catalogs.openrouter,
       )
-      if (config.requireOpenRouterEnrich && !enrich) continue
       const model = toSyncModel(row, enrich, config.kind)
+      if (
+        config.requireOpenRouterEnrich &&
+        !(enrich && hasFullPricing(model.pricing))
+      ) {
+        continue
+      }
       if (
         config.acceptedActivities.includes('chat') &&
         !config.acceptedActivities.includes('image') &&

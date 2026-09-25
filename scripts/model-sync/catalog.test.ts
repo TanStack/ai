@@ -3,10 +3,12 @@ import {
   alreadySynced,
   elevenLabsIdArray,
   findOpenRouterEnrichment,
+  hasFullPricing,
   hasImageOutput,
   openRouterRawIdCandidates,
   outputsText,
   parseCatalogModels,
+  pricingLines,
   skipNativeModelReason,
   toSyncModel,
 } from './catalog'
@@ -254,6 +256,35 @@ describe('elevenLabsIdArray', () => {
     expect(elevenLabsIdArray('eleven_multilingual_sts_v2')).toBeNull()
     expect(elevenLabsIdArray('scribe_v2')).toBe('transcription')
     expect(elevenLabsIdArray('music_v1')).toBe('audio')
+  })
+})
+
+describe('pricingLines / hasFullPricing', () => {
+  it('leaves an unknown price out instead of writing 0', () => {
+    const lines = pricingLines({
+      inputPerMillion: undefined,
+      outputPerMillion: undefined,
+    })
+    expect(lines).toEqual(['  pricing: {', '  },'])
+    expect(lines.join('\n')).not.toContain('normal: 0')
+  })
+
+  it('writes only the known side, rounded', () => {
+    const block = pricingLines({
+      inputPerMillion: 0.09999999999999999,
+      outputPerMillion: undefined,
+    }).join('\n')
+    expect(block).toContain('normal: 0.1,')
+    expect(block).not.toContain('output')
+  })
+
+  it('needs both prices for providers whose ModelMeta requires them', () => {
+    expect(
+      hasFullPricing({ inputPerMillion: 1, outputPerMillion: undefined }),
+    ).toBe(false)
+    expect(hasFullPricing({ inputPerMillion: 0, outputPerMillion: 0 })).toBe(
+      true,
+    )
   })
 })
 

@@ -186,6 +186,41 @@ function hasPricing(pricing: CatalogPricing): boolean {
   return pricing.inputPerMillion != null || pricing.outputPerMillion != null
 }
 
+/** Both prices known. OpenAI/Anthropic/Gemini/Grok ModelMeta require both. */
+export function hasFullPricing(pricing: CatalogPricing): boolean {
+  return pricing.inputPerMillion != null && pricing.outputPerMillion != null
+}
+
+/** Strips float noise: 0.09999999999999999 → 0.1. */
+function roundPrice(price: number): number {
+  return Math.round(price * 1e10) / 1e10
+}
+
+/**
+ * The `pricing` block of a generated model constant. A price the catalog
+ * does not have is left out, not written as `0` (which reads as "free").
+ */
+// ponytail: modelschemas has no cached-input price, so `cached` is never written.
+export function pricingLines(pricing: CatalogPricing): Array<string> {
+  const lines = [`  pricing: {`]
+  if (pricing.inputPerMillion != null) {
+    lines.push(
+      `    input: {`,
+      `      normal: ${roundPrice(pricing.inputPerMillion)},`,
+      `    },`,
+    )
+  }
+  if (pricing.outputPerMillion != null) {
+    lines.push(
+      `    output: {`,
+      `      normal: ${roundPrice(pricing.outputPerMillion)},`,
+      `    },`,
+    )
+  }
+  lines.push(`  },`)
+  return lines
+}
+
 export function toSyncModel(
   native: CatalogModel,
   enrich: CatalogModel | undefined,
