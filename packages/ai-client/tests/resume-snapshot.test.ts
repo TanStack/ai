@@ -516,6 +516,58 @@ describe('ChatClient auto-rejoin after reload', () => {
     expect(joinRun).not.toHaveBeenCalled()
   })
 
+  it('rejoins an active continuation run instead of restoring its parent interrupt', async () => {
+    // Run A paused on an interrupt. The resume started run B. The store commits
+    // A's interrupt only when B finishes, so while B streams, hydrate reports
+    // both B as active and A's interrupt as pending. The ids differ, so this is
+    // not the "same run just paused" race above: the client must join B.
+    const joinRun = vi.fn(async function* (runId: string) {
+      for (const chunk of runChunks(runId, 't1')) yield chunk
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+      hydrate: () =>
+        Promise.resolve({
+          messages: [createUIMessage('u1', 'send an email', 'user')],
+          activeRun: { runId: 'run-B' },
+          interrupts: {
+            runId: 'run-A',
+            pending: [
+              {
+                id: 'int-1',
+                reason: 'confirmation',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: INTERRUPT_BINDING_VERSION,
+                    kind: 'generic',
+                    interruptId: 'int-1',
+                    interruptedRunId: 'run-A',
+                    generation: 1,
+                    responseSchemaHash: 'none',
+                  },
+                },
+              },
+            ],
+          },
+        }),
+    }
+    let latest: Array<UIMessage> = []
+    const client = mountedChatClient({
+      threadId: 't1',
+      connection,
+      persistence: true,
+      onMessagesChange: (messages) => {
+        latest = messages
+      },
+    })
+    await vi.waitFor(() => {
+      expect(latest.some((m) => m.id === 'assistant-1')).toBe(true)
+    })
+    expect(joinRun).toHaveBeenCalledWith('run-B', expect.anything())
+    expect(client.getInterrupts()).toHaveLength(0)
+  })
+
   it('rebuilds a hydrated in-flight partial in place (no duplicate) when tailing on mount', async () => {
     // The hydrated transcript includes a PARTIAL assistant reply (a streaming
     // snapshot) carrying the same messageId the live run uses. Tailing it on
