@@ -1,6 +1,7 @@
 import { GenerationClient } from '@tanstack/ai-client'
 import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import {
+  batch,
   createEffect,
   createSignal,
   onCleanup,
@@ -267,11 +268,14 @@ export function useGeneration<
 
   const applySnapshot = () => {
     const next = client.getSnapshot()
-    setResult(() => next.result)
-    setIsLoading(next.isLoading)
-    setError(next.error)
-    setStatus(next.status)
-    setRunId(next.runId)
+    // One batch, so effects never see half of a snapshot.
+    batch(() => {
+      setResult(() => next.result)
+      setIsLoading(next.isLoading)
+      setError(next.error)
+      setStatus(next.status)
+      setRunId(next.runId)
+    })
   }
   applySnapshot()
   onCleanup(client.subscribe(applySnapshot))

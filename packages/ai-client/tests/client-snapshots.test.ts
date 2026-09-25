@@ -201,6 +201,11 @@ describe('client UI snapshots', () => {
     expect(messages).toHaveLength(2)
     expect(messages[0]).toBe(first)
     expect(Object.isFrozen(first)).toBe(true)
+
+    // A state change that is not a message change keeps the same array.
+    client.stopListening()
+    expect(client.getSnapshot().mode).toBe('idle')
+    expect(client.getSnapshot().messages).toBe(messages)
     client.destroy()
   })
 })

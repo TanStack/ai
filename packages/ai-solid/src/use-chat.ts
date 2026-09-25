@@ -1,4 +1,5 @@
 import {
+  batch,
   createEffect,
   createMemo,
   createSignal,
@@ -178,17 +179,20 @@ export function useChat<
 
   const applySnapshot = (target: ChatClient<TTools, TContext, TInterrupts>) => {
     const next = target.getSnapshot()
-    setMessages(next.messages)
-    setIsLoading(next.isLoading)
-    setHasOlderMessages(next.hasOlderMessages)
-    setError(next.error)
-    setStatus(next.status)
-    setIsSubscribed(next.isSubscribed)
-    setConnectionStatus(next.connectionStatus)
-    setSessionGenerating(next.sessionGenerating)
-    setQueue(next.queue)
-    setRunId(next.runId)
-    setInterruptState(next.interruptState)
+    // One batch, so effects never see half of a snapshot.
+    batch(() => {
+      setMessages(next.messages)
+      setIsLoading(next.isLoading)
+      setHasOlderMessages(next.hasOlderMessages)
+      setError(next.error)
+      setStatus(next.status)
+      setIsSubscribed(next.isSubscribed)
+      setConnectionStatus(next.connectionStatus)
+      setSessionGenerating(next.sessionGenerating)
+      setQueue(next.queue)
+      setRunId(next.runId)
+      setInterruptState(next.interruptState)
+    })
   }
 
   createEffect(() => {

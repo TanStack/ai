@@ -270,6 +270,43 @@ describe('ChatClient subagent handles for restored messages', () => {
     expect(client.getSubagents()).toEqual([])
   })
 
+  it('accepts frozen snapshot messages back without throwing', () => {
+    const client = new ChatClient({
+      connection: createMockConnectionAdapter({ chunks: [] }),
+      initialMessages: [
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'subagent',
+              subagent: {
+                id: 'sub-restored',
+                name: 'researcher',
+                status: 'finished',
+                messages: [],
+              },
+            },
+          ],
+        },
+      ],
+    })
+    const saved = client.getSnapshot().messages
+    expect(Object.isFrozen(saved[0]?.parts[0])).toBe(true)
+
+    client.clear()
+    expect(() => client.setMessagesManually([...saved])).not.toThrow()
+    expect(typeof client.getSubagents()[0]?.stop).toBe('function')
+
+    const fork = new ChatClient({
+      connection: createMockConnectionAdapter({ chunks: [] }),
+      initialMessages: [...saved],
+    })
+    expect(typeof fork.getSubagents()[0]?.stop).toBe('function')
+    // Each client owns its handle, so `stop()` reaches the right client.
+    expect(fork.getSubagents()[0]).not.toBe(client.getSubagents()[0])
+  })
+
   it('gives a nested card a handle with stop', () => {
     const client = new ChatClient({
       connection: createMockConnectionAdapter({ chunks: [] }),

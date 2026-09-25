@@ -1,6 +1,7 @@
 import { VideoGenerationClient } from '@tanstack/ai-client'
 import { createVideoDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import {
+  batch,
   createEffect,
   createSignal,
   onCleanup,
@@ -267,13 +268,16 @@ export function useGenerateVideo<TTransformed = void>(
 
   const applySnapshot = () => {
     const next = client.getSnapshot()
-    setResult(() => next.result)
-    setIsLoading(next.isLoading)
-    setError(next.error)
-    setStatus(next.status)
-    setRunId(next.runId)
-    setJobId(next.jobId)
-    setVideoStatus(next.videoStatus)
+    // One batch, so effects never see half of a snapshot.
+    batch(() => {
+      setResult(() => next.result)
+      setIsLoading(next.isLoading)
+      setError(next.error)
+      setStatus(next.status)
+      setRunId(next.runId)
+      setJobId(next.jobId)
+      setVideoStatus(next.videoStatus)
+    })
   }
   applySnapshot()
   onCleanup(client.subscribe(applySnapshot))

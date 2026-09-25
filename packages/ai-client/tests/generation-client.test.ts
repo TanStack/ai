@@ -508,6 +508,38 @@ describe('GenerationClient', () => {
       await Promise.all([firstGenerate, secondGenerate])
     })
 
+    it('should not overwrite a run started by the stopped status callback', async () => {
+      let releaseFirst!: (value: { id: string }) => void
+      let releaseSecond!: (value: { id: string }) => void
+      const firstResult = new Promise<{ id: string }>((resolve) => {
+        releaseFirst = resolve
+      })
+      const secondResult = new Promise<{ id: string }>((resolve) => {
+        releaseSecond = resolve
+      })
+      let secondGenerate: Promise<void> | undefined
+      let client!: GenerationClient<{ prompt: string }, { id: string }>
+      client = new GenerationClient({
+        fetcher: async (input) =>
+          input.prompt === 'first' ? firstResult : secondResult,
+        onStatusChange: (status) => {
+          if (status !== 'idle' || secondGenerate) return
+          secondGenerate = client.generate({ prompt: 'second' })
+        },
+      })
+
+      const firstGenerate = client.generate({ prompt: 'first' })
+      client.stop()
+
+      expect(secondGenerate).toBeDefined()
+      expect(client.getIsLoading()).toBe(true)
+      expect(client.getSnapshot().isLoading).toBe(true)
+      expect(client.getStatus()).toBe('generating')
+      releaseFirst({ id: 'first' })
+      releaseSecond({ id: 'second' })
+      await Promise.all([firstGenerate, secondGenerate])
+    })
+
     it('should stop before transport work when loading callback stops', async () => {
       const fetcher = vi.fn(async () => ({ id: 'unexpected' }))
       let client!: GenerationClient<{ prompt: string }, { id: string }>
@@ -2058,6 +2090,7 @@ describe('GenerationClient', () => {
       })
       expect(joinRun).toHaveBeenCalledWith(runId, expect.anything())
       expect(client.getIsLoading()).toBe(false)
+      expect(client.getSnapshot().runId).toBeNull()
     })
 
     it('surfaces an error (never stays stuck generating) when the rejoin throws', async () => {

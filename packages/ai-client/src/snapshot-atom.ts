@@ -9,10 +9,80 @@ function freezeSnapshot<T>(value: T): T {
     : value
 }
 
-/** Shallow copy, then freeze. Use for published snapshot fields that must not alias client internals. */
+/**
+ * Shallow copy, then freeze. Use for published snapshot fields that must not
+ * alias client internals. Only plain objects and arrays are copied. Any other
+ * object (Blob, Map, Date, class instance) is returned as it is, because a
+ * spread copy loses its prototype.
+ */
 export function cloneSnapshotValue<T>(value: T): T {
   if (value === null || typeof value !== 'object') return value
-  return Object.freeze(Array.isArray(value) ? [...value] : { ...value }) as T
+  if (Array.isArray(value)) return Object.freeze([...value]) as T
+  const proto: unknown = Object.getPrototypeOf(value)
+  if (proto !== Object.prototype && proto !== null) return value
+  return Object.freeze({ ...value })
+}
+
+/**
+ * Freeze a copy of one message part, plus its `source`, its tool-call
+ * `approval`, and its tool-result `content` parts.
+ */
+export function freezeSnapshotPart<TPart extends object>(part: TPart): TPart {
+  return Object.freeze({
+    ...part,
+    ...('source' in part &&
+    typeof part.source === 'object' &&
+    part.source !== null
+      ? { source: Object.freeze({ ...part.source }) }
+      : {}),
+    ...('type' in part &&
+    part.type === 'tool-call' &&
+    'approval' in part &&
+    typeof part.approval === 'object' &&
+    part.approval !== null
+      ? { approval: Object.freeze({ ...part.approval }) }
+      : {}),
+    ...('type' in part &&
+    part.type === 'tool-result' &&
+    'content' in part &&
+    Array.isArray(part.content)
+      ? {
+          content: Object.freeze(
+            part.content.map((contentPart: unknown) =>
+              typeof contentPart === 'object' && contentPart !== null
+                ? freezeSnapshotPart(contentPart)
+                : contentPart,
+            ),
+          ),
+        }
+      : {}),
+  })
+}
+
+/**
+ * Freeze a copy of each message and its parts. The client replaces a message
+ * object when it changes, so `cache` gives an unchanged message the same
+ * frozen copy. UI memo keys on message identity.
+ */
+export function freezeSnapshotMessages<
+  TMessage extends { parts: ReadonlyArray<object> },
+>(
+  cache: WeakMap<TMessage, TMessage>,
+  messages: ReadonlyArray<TMessage>,
+): ReadonlyArray<TMessage> {
+  return Object.freeze(
+    messages.map((message) => {
+      let frozen = cache.get(message)
+      if (!frozen) {
+        frozen = Object.freeze({
+          ...message,
+          parts: Object.freeze(message.parts.map(freezeSnapshotPart)),
+        })
+        cache.set(message, frozen)
+      }
+      return frozen
+    }),
+  )
 }
 
 export function createAtom<T>(initialValue: T): Atom<T> {
@@ -54,13 +124,18 @@ export function patchAtom<T extends object>(
  * `() => void` unsubscribe that `useSyncExternalStore` expects.
  */
 export function subscribeAtom<T>(
-  atom: {
-    subscribe: (listener: (value: T) => void) => { unsubscribe: () => void }
-  },
+  atom: Pick<Atom<T>, 'get' | 'subscribe'>,
   listener: () => void,
 ): () => void {
   const { unsubscribe } = atom.subscribe(() => {
-    listener()
+    // Store calls this inside an effect. A change made while `listener`
+    // runs (a Solid effect or Vue watcher that calls `stop()`) does not
+    // notify this subscriber again, so call it again until the value stays.
+    let seen: T
+    do {
+      seen = atom.get()
+      listener()
+    } while (atom.get() !== seen)
   })
   return unsubscribe
 }

@@ -1,5 +1,9 @@
 import { convertSchemaToJsonSchema } from '@tanstack/ai/client'
-import { createAtom, subscribeAtom } from './snapshot-atom'
+import {
+  createAtom,
+  freezeSnapshotMessages,
+  subscribeAtom,
+} from './snapshot-atom'
 import type { Atom } from './snapshot-atom'
 import type {
   AnyClientTool,
@@ -381,8 +385,18 @@ export class RealtimeClient {
       return !Object.is(this.state[stateKey], updates[stateKey])
     })
     if (!changed) return
+    const messagesChanged = !Object.is(
+      this.state.messages,
+      updates.messages ?? this.state.messages,
+    )
     this.state = { ...this.state, ...updates }
-    this.snapshotAtom.set(this.buildSnapshot())
+    // A transcript or mode update keeps the same `messages` array, so UI
+    // memo keyed on it does not run again for every transcript token.
+    this.snapshotAtom.set(
+      messagesChanged
+        ? this.buildSnapshot()
+        : { ...this.state, messages: this.snapshotAtom.get().messages },
+    )
     const snapshot = this.snapshotAtom.get()
 
     // Notify callbacks
@@ -402,31 +416,9 @@ export class RealtimeClient {
   private buildSnapshot(): RealtimeClientState {
     return {
       ...this.state,
-      messages: Object.freeze(
-        this.state.messages.map((message) => {
-          // Messages are replaced, never mutated, so an unchanged message
-          // reuses its frozen copy and keeps its identity for UI memo.
-          let frozen = this.frozenMessages.get(message)
-          if (!frozen) {
-            frozen = Object.freeze({
-              ...message,
-              parts: Object.freeze(
-                message.parts.map((part) =>
-                  Object.freeze({
-                    ...part,
-                    ...('source' in part &&
-                    typeof part.source === 'object' &&
-                    part.source !== null
-                      ? { source: Object.freeze({ ...part.source }) }
-                      : {}),
-                  }),
-                ),
-              ),
-            }) as RealtimeMessage
-            this.frozenMessages.set(message, frozen)
-          }
-          return frozen
-        }),
+      messages: freezeSnapshotMessages(
+        this.frozenMessages,
+        this.state.messages,
       ),
     }
   }

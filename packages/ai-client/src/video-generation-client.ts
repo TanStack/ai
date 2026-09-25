@@ -280,18 +280,15 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     const { signal } = abortController
     const runId = this.devtoolsBridge.beginRun(input)
     patchAtom(this.snapshotAtom, { runId })
-    if (!this.ownsRun(abortController)) return
-
-    this.setIsLoading(true, abortController)
-    if (!this.ownsRun(abortController)) return
-    this.setStatus('generating', abortController)
-    if (!this.ownsRun(abortController)) return
-    this.setError(undefined, abortController)
-    if (!this.ownsRun(abortController)) return
-    this.setJobId(null, abortController)
-    if (!this.ownsRun(abortController)) return
-    this.setVideoStatus(null, abortController)
-    if (!this.ownsRun(abortController)) return
+    if (
+      !this.ownsRun(abortController) ||
+      !this.setIsLoading(true, abortController) ||
+      !this.setStatus('generating', abortController) ||
+      !this.setError(undefined, abortController) ||
+      !this.setJobId(null, abortController) ||
+      !this.setVideoStatus(null, abortController)
+    )
+      return
 
     try {
       let headers: Record<string, string> | undefined
@@ -333,18 +330,17 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       const error = err instanceof Error ? err : new Error(String(err))
       if (error instanceof ByokMissingError) {
         this.byok?.request(error.provider, 'missing')
-        if (!this.ownsRun(abortController)) return
       }
       if (error instanceof ByokBlockedError && error.reason === 'locked') {
         this.byok?.request(error.provider, 'locked')
-        if (!this.ownsRun(abortController)) return
       }
-      this.setError(error, abortController)
-      if (!this.ownsRun(abortController)) return
-      this.setStatus('error', abortController)
-      if (!this.ownsRun(abortController)) return
-      this.recordResumeSnapshotError(error, abortController)
-      if (!this.ownsRun(abortController)) return
+      if (
+        !this.ownsRun(abortController) ||
+        !this.setError(error, abortController) ||
+        !this.setStatus('error', abortController) ||
+        !this.recordResumeSnapshotError(error, abortController)
+      )
+        return
       this.devtoolsBridge.finishRun(
         this.devtoolsBridge.getActiveRunId() ?? runId,
         'run:errored',
@@ -355,9 +351,11 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     } finally {
       if (this.abortController === abortController) {
         patchAtom(this.snapshotAtom, { runId: null })
-        if (this.ownsRun(abortController)) {
+        if (
+          this.ownsRun(abortController) &&
           this.setIsLoading(false, abortController)
-          if (this.ownsRun(abortController)) this.abortController = null
+        ) {
+          this.abortController = null
         }
       }
     }
@@ -391,10 +389,11 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       )
     } else {
       this.devtoolsBridge.ensureRunStarted(runId)
-      this.setResult(result, abortController)
-      if (!this.ownsRun(abortController)) return
-      this.setStatus('success', abortController)
-      if (!this.ownsRun(abortController)) return
+      if (
+        !this.setResult(result, abortController) ||
+        !this.setStatus('success', abortController)
+      )
+        return
       this.completePlainFetcherResumeSnapshot(result, abortController)
     }
   }
@@ -422,9 +421,11 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
 
       const chunk = restoreInboundChunk(raw)
       this.callbacksRef.onChunk?.(chunk)
-      if (!this.ownsRun(abortController)) return
-      this.observeResumeSnapshot(chunk, abortController)
-      if (!this.ownsRun(abortController)) return
+      if (
+        !this.ownsRun(abortController) ||
+        !this.observeResumeSnapshot(chunk, abortController)
+      )
+        return
       const chunkRunId =
         'runId' in chunk && typeof chunk.runId === 'string'
           ? chunk.runId
@@ -443,30 +444,41 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
           this.devtoolsBridge.ensureRunStarted(streamRunId ?? fallbackRunId)
           if (chunk.name === GENERATION_EVENTS.VIDEO_JOB_CREATED) {
             const { jobId } = chunk.value as { jobId: string }
-            this.setJobId(jobId, abortController)
-            if (!this.ownsRun(abortController)) return
-            this.callbacksRef.onJobCreated?.(jobId)
-            if (!this.ownsRun(abortController)) return
+            if (
+              !this.setJobId(jobId, abortController) ||
+              !this.whileOwned(abortController, () =>
+                this.callbacksRef.onJobCreated?.(jobId),
+              )
+            )
+              return
           } else if (chunk.name === GENERATION_EVENTS.VIDEO_STATUS) {
             const statusInfo = chunk.value as VideoStatusInfo
-            this.setVideoStatus(statusInfo, abortController)
-            if (!this.ownsRun(abortController)) return
-            this.callbacksRef.onStatusUpdate?.(statusInfo)
-            if (!this.ownsRun(abortController)) return
-            if (statusInfo.progress !== undefined) {
-              this.setProgress(statusInfo.progress, undefined, abortController)
-              if (!this.ownsRun(abortController)) return
-            }
+            if (
+              !this.setVideoStatus(statusInfo, abortController) ||
+              !this.whileOwned(abortController, () =>
+                this.callbacksRef.onStatusUpdate?.(statusInfo),
+              )
+            )
+              return
+            if (
+              statusInfo.progress !== undefined &&
+              !this.setProgress(statusInfo.progress, undefined, abortController)
+            )
+              return
           } else if (chunk.name === GENERATION_EVENTS.RESULT) {
-            this.setResult(chunk.value as VideoGenerateResult, abortController)
-            if (!this.ownsRun(abortController)) return
+            if (
+              !this.setResult(
+                chunk.value as VideoGenerateResult,
+                abortController,
+              )
+            )
+              return
           } else if (chunk.name === GENERATION_EVENTS.PROGRESS) {
             const { progress, message } = chunk.value as {
               progress: number
               message?: string
             }
-            this.setProgress(progress, message, abortController)
-            if (!this.ownsRun(abortController)) return
+            if (!this.setProgress(progress, message, abortController)) return
           }
           break
         }
@@ -474,8 +486,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
           streamRunId = chunk.runId
           sawTerminalChunk = true
           this.devtoolsBridge.ensureRunStarted(chunk.runId)
-          this.setStatus('success', abortController)
-          if (!this.ownsRun(abortController)) return
+          if (!this.setStatus('success', abortController)) return
           break
         }
         case 'RUN_ERROR': {
@@ -522,20 +533,30 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
         this.devtoolsBridge.finishRun(runId, 'run:cancelled', 'cancelled')
       }
     }
-    patchAtom(this.snapshotAtom, { runId: null })
-    if (stoppedStatus === 'generating') {
-      this.setStatus('idle')
-    }
     // A stopped run is no longer resumable. Without this the in-memory
     // snapshot stays `running`, and a remount's `maybeResumeInFlight` would
     // rejoin a run the user just cancelled.
-    if (this.resumeSnapshot && this.resumeSnapshot.status === 'running') {
+    const resumeStopped = this.resumeSnapshot?.status === 'running'
+    if (this.resumeSnapshot && resumeStopped) {
       this.resumeSnapshot = {
         ...this.resumeSnapshot,
         resumeState: null,
         status: 'idle',
       }
+    }
+    // Each step below can run user code. That code can start a new run, so
+    // clear the flag `generate()` checks now and publish it last. If a new
+    // run starts, it owns the client, so stop here and keep its state.
+    this.isLoading = false
+    patchAtom(this.snapshotAtom, { runId: null })
+    if (this.abortController) return
+    if (stoppedStatus === 'generating') {
+      this.setStatus('idle')
+      if (this.abortController) return
+    }
+    if (resumeStopped) {
       this.notifyResumeSnapshotChanged()
+      if (this.abortController) return
     }
     this.setIsLoading(false)
   }
@@ -638,7 +659,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   subscribe = (listener: () => void): (() => void) =>
     subscribeAtom(this.snapshotAtom, listener)
 
-  /** Current UI snapshot. Frozen envelope. `result` is a shallow copy. */
+  /**
+   * Current UI snapshot. Frozen envelope. A plain-object or array `result` is
+   * a shallow copy. Any other `result` object is the value itself.
+   */
   getSnapshot = (): VideoGenerationClientSnapshot<TOutput> =>
     this.snapshotAtom.get()
 
@@ -697,49 +721,43 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   // Private state setters
   // ===========================
 
+  // Each setter returns false once `controller` no longer owns the client.
+
   private setResult(
     rawResult: VideoGenerateResult | null,
     controller?: AbortController,
-  ): void {
+  ): boolean {
     if (rawResult === null) {
       this.result = null
-      patchAtom(this.snapshotAtom, { result: null })
-      if (controller && !this.ownsRun(controller)) return
-      this.callbacksRef.onResultChange?.(null)
-      if (controller && !this.ownsRun(controller)) return
-      this.devtoolsBridge.recordResultChange()
-      return
+      return this.publishResult(controller)
     }
 
     const completedStatus = this.createCompletedVideoStatus(rawResult)
-    if (this.progress?.value !== 100) {
-      this.setProgress(100, this.progress?.message, controller)
-      if (controller && !this.ownsRun(controller)) return
+    if (
+      this.progress?.value !== 100 &&
+      !this.setProgress(100, this.progress?.message, controller)
+    ) {
+      return false
     }
-    this.setJobId(rawResult.jobId, controller)
-    if (controller && !this.ownsRun(controller)) return
-    this.setVideoStatus(completedStatus, controller)
-    if (controller && !this.ownsRun(controller)) return
+    if (
+      !this.setJobId(rawResult.jobId, controller) ||
+      !this.setVideoStatus(completedStatus, controller)
+    ) {
+      return false
+    }
 
     if (this.callbacksRef.onResult) {
       const transformed = this.callbacksRef.onResult(rawResult)
-      if (controller && !this.ownsRun(controller)) return
+      if (!this.owns(controller)) return false
       if (transformed === null) {
         // null return → keep previous result unchanged, just re-emit
         this.devtoolsBridge.emitState()
-        return
+        return true
       }
       if (transformed !== undefined) {
         // Non-null, non-undefined → use transformed value
         this.result = transformed
-        patchAtom(this.snapshotAtom, {
-          result: cloneSnapshotValue(this.result),
-        })
-        if (controller && !this.ownsRun(controller)) return
-        this.callbacksRef.onResultChange?.(this.result)
-        if (controller && !this.ownsRun(controller)) return
-        this.devtoolsBridge.recordResultChange()
-        return
+        return this.publishResult(controller)
       }
     }
 
@@ -749,76 +767,92 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     // sound.
     // oxlint-disable-next-line eslint-js/no-restricted-syntax -- TOutput defaults to VideoGenerateResult when no onResult transform is supplied
     this.result = rawResult as unknown as TOutput
-    patchAtom(this.snapshotAtom, { result: cloneSnapshotValue(this.result) })
-    if (controller && !this.ownsRun(controller)) return
-    this.callbacksRef.onResultChange?.(this.result)
-    if (controller && !this.ownsRun(controller)) return
-    this.devtoolsBridge.recordResultChange()
+    return this.publishResult(controller)
   }
 
-  private setJobId(jobId: string | null, controller?: AbortController): void {
+  private publishResult(controller?: AbortController): boolean {
+    const result = this.result
+    patchAtom(this.snapshotAtom, { result: cloneSnapshotValue(result) })
+    return this.whileOwned(
+      controller,
+      () => this.callbacksRef.onResultChange?.(result),
+      () => this.devtoolsBridge.recordResultChange(),
+    )
+  }
+
+  private setJobId(
+    jobId: string | null,
+    controller?: AbortController,
+  ): boolean {
     this.jobId = jobId
     patchAtom(this.snapshotAtom, { jobId })
-    if (controller && !this.ownsRun(controller)) return
-    this.callbacksRef.onJobIdChange?.(jobId)
-    if (controller && !this.ownsRun(controller)) return
-    this.devtoolsBridge.recordJobIdChange()
+    return this.whileOwned(
+      controller,
+      () => this.callbacksRef.onJobIdChange?.(jobId),
+      () => this.devtoolsBridge.recordJobIdChange(),
+    )
   }
 
   private setVideoStatus(
     status: VideoStatusInfo | null,
     controller?: AbortController,
-  ): void {
-    this.videoStatus = status ? { ...status } : null
+  ): boolean {
+    const videoStatus = status ? { ...status } : null
+    this.videoStatus = videoStatus
     patchAtom(this.snapshotAtom, {
-      videoStatus: this.videoStatus
-        ? Object.freeze({ ...this.videoStatus })
-        : null,
+      videoStatus: videoStatus ? Object.freeze({ ...videoStatus }) : null,
     })
-    if (controller && !this.ownsRun(controller)) return
-    this.callbacksRef.onVideoStatusChange?.(this.videoStatus)
-    if (controller && !this.ownsRun(controller)) return
-    this.devtoolsBridge.recordVideoStatusChange()
+    return this.whileOwned(
+      controller,
+      () => this.callbacksRef.onVideoStatusChange?.(videoStatus),
+      () => this.devtoolsBridge.recordVideoStatusChange(),
+    )
   }
 
-  private setIsLoading(isLoading: boolean, controller?: AbortController): void {
+  private setIsLoading(
+    isLoading: boolean,
+    controller?: AbortController,
+  ): boolean {
     this.isLoading = isLoading
     patchAtom(this.snapshotAtom, { isLoading })
-    if (controller && !this.ownsRun(controller)) return
-    this.callbacksRef.onLoadingChange?.(isLoading)
-    if (controller && !this.ownsRun(controller)) return
-    this.devtoolsBridge.recordLoadingChange()
+    return this.whileOwned(
+      controller,
+      () => this.callbacksRef.onLoadingChange?.(isLoading),
+      () => this.devtoolsBridge.recordLoadingChange(),
+    )
   }
 
   private setError(
     error: Error | undefined,
     controller?: AbortController,
-  ): void {
+  ): boolean {
     this.error = error
     patchAtom(this.snapshotAtom, { error })
-    if (controller && !this.ownsRun(controller)) return
-    this.callbacksRef.onErrorChange?.(error)
-    if (controller && !this.ownsRun(controller)) return
-    this.devtoolsBridge.recordErrorChange(error)
+    return this.whileOwned(
+      controller,
+      () => this.callbacksRef.onErrorChange?.(error),
+      () => this.devtoolsBridge.recordErrorChange(error),
+    )
   }
 
   private setStatus(
     status: GenerationClientState,
     controller?: AbortController,
-  ): void {
+  ): boolean {
     this.status = status
     patchAtom(this.snapshotAtom, { status })
-    if (controller && !this.ownsRun(controller)) return
-    this.callbacksRef.onStatusChange?.(status)
-    if (controller && !this.ownsRun(controller)) return
-    this.devtoolsBridge.recordStatusChange(status)
+    return this.whileOwned(
+      controller,
+      () => this.callbacksRef.onStatusChange?.(status),
+      () => this.devtoolsBridge.recordStatusChange(status),
+    )
   }
 
   private setProgress(
     value: number,
     message?: string,
     controller?: AbortController,
-  ): void {
+  ): boolean {
     this.progress = {
       value,
       ...(message ? { message } : {}),
@@ -828,8 +862,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     } else {
       this.callbacksRef.onProgress?.(value, message)
     }
-    if (controller && !this.ownsRun(controller)) return
-    this.devtoolsBridge.recordProgressChange()
+    return this.whileOwned(controller, () =>
+      this.devtoolsBridge.recordProgressChange(),
+    )
   }
 
   private createCompletedVideoStatus(
@@ -870,6 +905,27 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     return !controller.signal.aborted && this.abortController === controller
   }
 
+  /** True without a controller: that caller does not own a run. */
+  private owns(controller: AbortController | undefined): boolean {
+    return !controller || this.ownsRun(controller)
+  }
+
+  /**
+   * Run `steps` in order while `controller` owns the client. A step can run
+   * user code, and that code can call `stop()` or start a new run. Returns
+   * whether `controller` still owns the client.
+   */
+  private whileOwned(
+    controller: AbortController | undefined,
+    ...steps: Array<() => unknown>
+  ): boolean {
+    for (const step of steps) {
+      if (!this.owns(controller)) return false
+      step()
+    }
+    return this.owns(controller)
+  }
+
   private createRunContext(
     runId: string,
     headers?: Record<string, string>,
@@ -884,19 +940,21 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private observeResumeSnapshot(
     chunk: StreamChunk,
     controller: AbortController,
-  ): void {
+  ): boolean {
     this.resumeSnapshot = updateGenerationResumeSnapshot(
       this.resumeSnapshot,
       chunk,
     )
-    this.notifyResumeSnapshotChanged(controller)
+    return this.notifyResumeSnapshotChanged(controller)
   }
 
   /** Notify the internal snapshot listener AND emit the public resume state. */
-  private notifyResumeSnapshotChanged(controller?: AbortController): void {
-    this.callbacksRef.onResumeSnapshotChange?.(this.resumeSnapshot)
-    if (controller && !this.ownsRun(controller)) return
-    this.emitResumeState(controller)
+  private notifyResumeSnapshotChanged(controller?: AbortController): boolean {
+    return this.whileOwned(
+      controller,
+      () => this.callbacksRef.onResumeSnapshotChange?.(this.resumeSnapshot),
+      () => this.emitResumeState(controller),
+    )
   }
 
   /** Derive the public `resumeState` from the internal snapshot. */
@@ -916,7 +974,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     } else if (!this.isLoading) {
       patchAtom(this.snapshotAtom, { runId: null })
     }
-    if (controller && !this.ownsRun(controller)) return
+    if (!this.owns(controller)) return
     this.callbacksRef.onResumeStateChange?.(resumeState)
   }
 
@@ -1062,18 +1120,18 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private recordResumeSnapshotError(
     error: Error,
     controller?: AbortController,
-  ): void {
+  ): boolean {
     // Surface the failure on the observable fields FIRST, unconditionally (see
     // the note in GenerationClient.recordResumeSnapshotError): a RUN_ERROR
     // already flipped the snapshot to `error`, so the early-return would else
     // skip this and leave `status` stuck on `generating`. The guard avoids a
     // duplicate `error` emission on the live `generate()` path.
-    if (this.status !== 'error') this.setStatus('error', controller)
-    if (controller && !this.ownsRun(controller)) return
-    this.setError(error, controller)
-    if (controller && !this.ownsRun(controller)) return
-    if (this.resumeSnapshot?.status === 'error') return
-    if (!this.resumeSnapshot && !this.serverDriven) return
+    if (this.status !== 'error' && !this.setStatus('error', controller)) {
+      return false
+    }
+    if (!this.setError(error, controller)) return false
+    if (this.resumeSnapshot?.status === 'error') return true
+    if (!this.resumeSnapshot && !this.serverDriven) return true
     const previous = this.resumeSnapshot
     this.resumeSnapshot = {
       schemaVersion: 1,
@@ -1086,7 +1144,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       ...(previous?.result ? { result: { ...previous.result } } : {}),
       error: { message: error.message },
     }
-    this.notifyResumeSnapshotChanged(controller)
+    return this.notifyResumeSnapshotChanged(controller)
   }
 
   /**
@@ -1203,10 +1261,11 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     this.rejoinedRunId = runId
     const controller = new AbortController()
     this.abortController = controller
-    this.setIsLoading(true, controller)
-    if (!this.ownsRun(controller)) return
-    this.setStatus('generating', controller)
-    if (!this.ownsRun(controller)) return
+    if (
+      !this.setIsLoading(true, controller) ||
+      !this.setStatus('generating', controller)
+    )
+      return
     void (async () => {
       try {
         await this.processStream(
@@ -1221,8 +1280,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
           // Settles `status`/`error` AND rewrites the snapshot to a terminal
           // `error` with a null `resumeState`, so the next mount does not
           // rejoin this run again.
-          this.recordResumeSnapshotError(failure, controller)
-          if (!this.ownsRun(controller)) return
+          if (!this.recordResumeSnapshotError(failure, controller)) return
           this.callbacksRef.onError?.(failure)
         }
       } finally {
@@ -1230,8 +1288,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
         // fresh `generate()` may have replaced the controller while the tail
         // was settling, and that live run owns `isLoading` now.
         if (this.abortController === controller) {
-          this.setIsLoading(false, controller)
-          if (this.ownsRun(controller)) this.abortController = null
+          // `emitResumeState` skips this while `isLoading` is still true.
+          patchAtom(this.snapshotAtom, { runId: null })
+          if (this.setIsLoading(false, controller)) this.abortController = null
         }
       }
     })()

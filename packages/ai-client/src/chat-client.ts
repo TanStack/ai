@@ -55,7 +55,13 @@ import type {
   ChatDevtoolsBridge,
   ChatDevtoolsBridgeOptions,
 } from './devtools'
-import { createAtom, patchAtom, subscribeAtom } from './snapshot-atom'
+import {
+  createAtom,
+  freezeSnapshotMessages,
+  freezeSnapshotPart,
+  patchAtom,
+  subscribeAtom,
+} from './snapshot-atom'
 import type { Atom } from './snapshot-atom'
 import type {
   BoundInterrupts,
@@ -358,6 +364,21 @@ function rebuildsAssistantMessage(chunk: StreamChunk): boolean {
 type SubagentCard = Extract<UIMessage['parts'][number], { type: 'subagent' }>
 
 /** Every subagent card in the messages, nested cards included. */
+/**
+ * Snapshot messages are frozen, and a host can pass them back in
+ * (`setMessagesManually(snapshot.messages)`, `initialMessages`). The client
+ * writes subagent handles into message parts, so copy each frozen message.
+ */
+function thawMessages<TMessage extends UIMessage>(
+  messages: Array<TMessage>,
+): Array<TMessage> {
+  return messages.map((message) =>
+    Object.isFrozen(message) || Object.isFrozen(message.parts)
+      ? { ...message, parts: message.parts.map((part) => ({ ...part })) }
+      : message,
+  )
+}
+
 function collectSubagentParts(
   messages: ReadonlyArray<UIMessage>,
 ): Array<SubagentCard> {
@@ -714,7 +735,7 @@ export class ChatClient<
     // hydrates from the server on mount, keyed by threadId.)
     const initialMessages = syncPersistedState
       ? syncPersistedState.messages
-      : options.initialMessages
+      : options.initialMessages && thawMessages(options.initialMessages)
     // A durable snapshot read synchronously from storage wins over the
     // in-memory `initialResumeSnapshot` fallback applied above. A snapshot with
     // pending interrupts rehydrates the interrupt UI; a bare in-flight run is
@@ -1718,33 +1739,6 @@ export class ChatClient<
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
 
-  private freezeSnapshotPart<TPart extends ContentPart | MessagePart<TTools>>(
-    part: TPart,
-  ): TPart {
-    return Object.freeze({
-      ...part,
-      ...('source' in part &&
-      typeof part.source === 'object' &&
-      part.source !== null
-        ? { source: Object.freeze({ ...part.source }) }
-        : {}),
-      ...(part.type === 'tool-call' && 'approval' in part && part.approval
-        ? { approval: Object.freeze({ ...part.approval }) }
-        : {}),
-      ...(part.type === 'tool-result' && Array.isArray(part.content)
-        ? {
-            content: Object.freeze(
-              part.content.map((contentPart) =>
-                this.freezeSnapshotPart(contentPart),
-              ),
-            ),
-          }
-        : {}),
-    }) as TPart
-  }
-
-  // The processor replaces a message object when it changes, so an unchanged
-  // message reuses its frozen copy. UI memo keys on message identity.
   private readonly frozenMessages = new WeakMap<
     UIMessage<TTools>,
     UIMessage<TTools>
@@ -1753,21 +1747,7 @@ export class ChatClient<
   private freezeSnapshotMessages(
     messages: Array<UIMessage<TTools>>,
   ): ReadonlyArray<UIMessage<TTools>> {
-    return Object.freeze(
-      messages.map((message) => {
-        let frozen = this.frozenMessages.get(message)
-        if (!frozen) {
-          frozen = Object.freeze({
-            ...message,
-            parts: Object.freeze(
-              message.parts.map((part) => this.freezeSnapshotPart(part)),
-            ),
-          }) as UIMessage<TTools>
-          this.frozenMessages.set(message, frozen)
-        }
-        return frozen
-      }),
-    )
+    return freezeSnapshotMessages(this.frozenMessages, messages)
   }
 
   private freezeSnapshotQueue(
@@ -1784,9 +1764,7 @@ export class ChatClient<
                   ...(Array.isArray(item.content.content)
                     ? {
                         content: Object.freeze(
-                          item.content.content.map((part) =>
-                            this.freezeSnapshotPart(part),
-                          ),
+                          item.content.content.map(freezeSnapshotPart),
                         ),
                       }
                     : {}),
@@ -3602,7 +3580,7 @@ export class ChatClient<
    * Manually set messages
    */
   setMessagesManually(messages: Array<UIMessage<TTools>>): void {
-    this.processor.setMessages(messages)
+    this.processor.setMessages(thawMessages(messages))
     this.devtoolsBridge.emitSnapshot()
   }
 
