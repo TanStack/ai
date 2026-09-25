@@ -1062,6 +1062,107 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       })
     })
 
+    it('gives each web search only its own citations and its real output index', async () => {
+      const search = (id: string, url: string) => ({
+        type: 'web_search_call',
+        id,
+        status: 'completed',
+        action: { type: 'search', query: id, sources: [{ type: 'url', url }] },
+      })
+      const cite = (url: string) => ({
+        type: 'url_citation',
+        url,
+        title: `Title ${url}`,
+        start_index: 0,
+        end_index: 1,
+      })
+      const ws1 = search('ws_1', 'https://a.example/')
+      // ws_2 does not stream. It is only in response.completed, at index 1.
+      const ws2 = search('ws_2', 'https://b.example/')
+
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-2ws',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        { type: 'response.output_item.done', output_index: 0, item: ws1 },
+        {
+          type: 'response.output_text.annotation.added',
+          item_id: 'msg_1',
+          output_index: 2,
+          content_index: 0,
+          annotation_index: 0,
+          annotation: cite('https://a.example/'),
+        },
+        {
+          type: 'response.output_text.annotation.added',
+          item_id: 'msg_1',
+          output_index: 2,
+          content_index: 0,
+          annotation_index: 1,
+          annotation: cite('https://b.example/'),
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-2ws',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              ws1,
+              ws2,
+              {
+                id: 'msg_1',
+                type: 'message',
+                role: 'assistant',
+                status: 'completed',
+                content: [
+                  { type: 'output_text', text: 'Two', annotations: [] },
+                ],
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const chunk of new TestResponsesAdapter(
+        testConfig,
+        'test-model',
+      ).chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Search twice.' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const starts = chunks.filter((chunk) => chunk.type === 'TOOL_CALL_START')
+      expect(starts).toMatchObject([
+        {
+          toolCallId: 'ws_1',
+          index: 0,
+          metadata: {
+            sources: [{ url: 'https://a.example/' }],
+            openai: { urlCitations: [cite('https://a.example/')] },
+          },
+        },
+        {
+          toolCallId: 'ws_2',
+          index: 1,
+          metadata: {
+            sources: [{ url: 'https://b.example/' }],
+            openai: { urlCitations: [cite('https://b.example/')] },
+          },
+        },
+      ])
+    })
+
     it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
       // Tool call arrives before any text. parentMessageId must bind the tool
       // call to the same assistant message id the eventual TEXT_MESSAGE_START
@@ -2832,6 +2933,77 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
           .filter((item) => item.type === 'function_call_output')
           .map((item) => item.call_id),
       ).toEqual(['call_A', 'call_B'])
+    })
+
+    it('skips the raw web search items when a turn carries two reasoning items', async () => {
+      const input = await inputForMessages([
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: 'Grounded',
+          thinking: [
+            { content: '', signature: reasoningSignature('rs_A') },
+            { content: '', signature: reasoningSignature('rs_B') },
+          ],
+          toolCalls: [
+            {
+              id: 'ws_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{}' },
+              metadata: {
+                itemId: 'ws_1',
+                providerExecuted: true,
+                openai: {
+                  webSearchCall: {
+                    type: 'web_search_call',
+                    id: 'ws_1',
+                    status: 'completed',
+                    action: { type: 'search', query: 'latest release' },
+                  },
+                  urlCitations: [],
+                  assistantMessage: {
+                    id: 'msg_1',
+                    type: 'message',
+                    role: 'assistant',
+                    status: 'completed',
+                    content: [
+                      {
+                        type: 'output_text',
+                        text: 'Grounded',
+                        annotations: [],
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            {
+              id: 'call_A',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{}' },
+              metadata: { itemId: 'fc_A' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call_A', content: '{}' },
+      ] as Array<ModelMessage>)
+
+      // The ws_/msg_ ids cannot sit next to their reasoning item, so the raw
+      // items are skipped and the text goes out as a plain message with no id.
+      expect(input.map((item) => item.type)).toEqual([
+        'message',
+        'reasoning',
+        'reasoning',
+        'function_call',
+        'message',
+        'function_call_output',
+      ])
+      expect(input[3]).not.toHaveProperty('id')
+      expect(input[4]).toEqual({
+        type: 'message',
+        role: 'assistant',
+        content: 'Grounded',
+      })
     })
 
     it('replays a reasoning id only once and unpairs the calls that lost it', async () => {

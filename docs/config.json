@@ -1083,7 +1083,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-16"
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "Google Vertex AI",

@@ -1034,13 +1034,24 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           continue
         }
 
+        // Citations belong to the whole response. Give a call only the
+        // citations whose URL is in its own action.sources.
+        // ponytail: exact URL match; normalize URLs if the two ever differ.
+        const callUrls = new Set(
+          entry.item.action.type === 'search'
+            ? (entry.item.action.sources ?? []).map((source) => source.url)
+            : [],
+        )
+        const citations = webSearchCitations.filter((citation) =>
+          callUrls.has(citation.url),
+        )
         const metadata: OpenAIResponsesToolCallMetadata = {
           itemId: entry.item.id,
           providerExecuted: true,
-          sources: collectWebSearchSources(entry.item, webSearchCitations),
+          sources: collectWebSearchSources(entry.item, citations),
           openai: {
             webSearchCall: entry.item,
-            urlCitations: [...webSearchCitations],
+            urlCitations: citations,
             ...(assistantMessage ? { assistantMessage } : {}),
           },
         }
@@ -1794,12 +1805,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           const assistantMessage = responseOutput.find(
             (item): item is ResponseOutputMessage => item.type === 'message',
           )
-          for (const item of responseOutput) {
+          for (const [index, item] of responseOutput.entries()) {
             if (item.type === 'web_search_call') {
-              recordProviderWebSearchCall(
-                item,
-                providerWebSearchCalls.get(item.id)?.index ?? 0,
-              )
+              recordProviderWebSearchCall(item, index)
             }
           }
 
@@ -2302,7 +2310,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               | undefined
             if (metadata?.providerExecuted) {
               const webSearchCall = metadata.openai?.webSearchCall
-              if (webSearchCall) {
+              // The raw ws_/msg_ items carry ids that must pair with their
+              // reasoning item, the same as function calls above. When they
+              // cannot pair, skip them and send the plain message with no id.
+              if (webSearchCall && canPairReasoning) {
                 result.push(webSearchCall)
                 rawAssistantMessage ??= metadata.openai?.assistantMessage
               }
