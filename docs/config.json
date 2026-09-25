@@ -191,7 +191,7 @@
           "label": "One-Shot Extraction",
           "to": "structured-outputs/one-shot",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Streaming UIs",
