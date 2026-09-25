@@ -56,14 +56,16 @@ providerOptions: TProviderOptions;
 createWorld: (options) => Promise<WorldGenerationResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateWorld/adapter.ts:52](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/adapter.ts#L52)
+Defined in: [packages/ai/src/activities/generateWorld/adapter.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateWorld/adapter.ts#L54)
 
 **`Experimental`**
 
-Open a world session from a prompt.
+Create a world from a prompt.
 
-Server adapters typically mint a short-lived token and return it with the
+Live session adapters mint a short-lived token and return it with the
 prompt so a browser can connect, set the prompt, and start streaming.
+Job adapters start generation and return a world URL (or an operation
+id while the job is still running).
 
 #### Parameters
 

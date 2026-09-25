@@ -25,14 +25,20 @@ import {
   uiMessageToModelMessages,
 } from '../messages.js'
 import { runErrorEventToError } from '../../../utilities/errors'
-import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
+import {
+  isAssistantSegmentOf,
+  isProviderExecutedToolCall,
+} from '../../../utilities/provider-executed'
 import {
   mergeMetadata,
   tanstackMetadata,
 } from '../../../utilities/merge-metadata'
 import { getChunkRunId } from '../../../utilities/chunk-ids'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
-import { normalizeToolResult } from '../../../utilities/tool-result'
+import {
+  normalizeToolResult,
+  toolResultErrorText,
+} from '../../../utilities/tool-result'
 import { defaultJSONParser } from './json-parser'
 import {
   appendStructuredOutputDelta,
@@ -1518,20 +1524,30 @@ export class StreamProcessor {
         pending.push(msg)
         continue
       }
+      let next = msg
       if (
         msg.role === 'assistant' &&
         pending.length > 0 &&
         !isToolResultOnly(msg)
       ) {
-        out.push({
+        next = {
           ...msg,
           parts: [...pending.flatMap(thinkingParts), ...msg.parts],
-        })
+        }
         pending = []
+      } else {
+        flushPending()
+      }
+      const prev = out.at(-1)
+      if (
+        prev?.role === 'assistant' &&
+        next.role === 'assistant' &&
+        isAssistantSegmentOf(next.id, prev.id)
+      ) {
+        out[out.length - 1] = { ...prev, parts: [...prev.parts, ...next.parts] }
         continue
       }
-      flushPending()
-      out.push(msg)
+      out.push(next)
     }
     flushPending()
     return out
@@ -1705,9 +1721,7 @@ export class StreamProcessor {
             }
           }
           const errorText =
-            result.state === 'error'
-              ? this.extractToolResultError(output)
-              : undefined
+            result.state === 'error' ? toolResultErrorText(output) : undefined
           next = {
             ...next,
             output: errorText ? { error: errorText } : output,
@@ -2001,18 +2015,6 @@ export class StreamProcessor {
     }
   }
 
-  private extractToolResultError(output: unknown): string {
-    if (
-      output &&
-      typeof output === 'object' &&
-      'error' in output &&
-      typeof output.error === 'string'
-    ) {
-      return output.error
-    }
-    return typeof output === 'string' ? output : 'Tool execution failed'
-  }
-
   /**
    * Handle TOOL_CALL_RESULT event (AG-UI spec).
    *
@@ -2069,7 +2071,7 @@ export class StreamProcessor {
       chunk.toolCallId,
       aguiContentToContentParts(chunk.content),
       resultState,
-      resultState === 'error' ? this.extractToolResultError(output) : undefined,
+      resultState === 'error' ? toolResultErrorText(output) : undefined,
     )
     this.emitMessagesChange()
   }

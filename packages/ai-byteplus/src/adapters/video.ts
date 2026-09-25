@@ -1,4 +1,8 @@
-import { resolveMediaPrompt } from '@tanstack/ai'
+import {
+  isFileSource,
+  resolveMediaPrompt,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import {
@@ -77,13 +81,8 @@ function mediaPartToUrl(
     | AudioPart<MediaInputMetadata>,
 ): string {
   const { source } = part
+  if (isFileSource(source)) throw unsupportedFileSourceError('byteplus')
   if (source.type === 'url') return source.value
-  if (source.type === 'file') {
-    // ponytail: fail closed until the Files API work maps provider handles.
-    throw new Error(
-      "BytePlus does not support provider file-handle sources ({ type: 'file' }). Pass a data or url source.",
-    )
-  }
   if (source.value.startsWith('data:')) return source.value
   return `data:${source.mimeType.toLowerCase()};base64,${source.value}`
 }

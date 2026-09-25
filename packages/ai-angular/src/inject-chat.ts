@@ -95,6 +95,8 @@ export function injectChat<
     options.context !== undefined ? toReactive(options.context) : undefined
   const liveSource =
     options.live !== undefined ? toReactive(options.live) : undefined
+  const toolsSource =
+    options.tools !== undefined ? toReactive(options.tools) : undefined
 
   const transport = options.connection
     ? { connection: options.connection }
@@ -153,7 +155,7 @@ export function injectChat<
       interruptState.set(nextInterruptState)
       options.onInterruptStateChange?.(nextInterruptState, context)
     },
-    tools: options.tools,
+    tools: toolsSource?.(),
     ...(options.interrupts !== undefined && {
       interrupts: options.interrupts,
     }),
@@ -205,6 +207,11 @@ export function injectChat<
       },
       { injector },
     )
+  }
+
+  // Sync reactive tools to the client.
+  if (toolsSource) {
+    effect(() => client.updateOptions({ tools: toolsSource() }), { injector })
   }
 
   // Subscribe / unsubscribe based on reactive `live`.

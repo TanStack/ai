@@ -43,8 +43,13 @@ import { withDurabilityBatchHint } from '../../utilities/durability-batch'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
 import { restorePublicUsage } from '../../utilities/restore-inbound-chunk'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
-import { normalizeToolResult } from '../../utilities/tool-result'
+import {
+  normalizeToolResult,
+  parseToolOutput,
+  toolResultErrorText,
+} from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
+import { assertMessagesFileSourceSupport } from '../../utilities/content-source'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
 import type { DefinedAgent } from './agents/define-agent'
@@ -170,6 +175,12 @@ import type {
 } from './runtime-context-types'
 import type { ChatMCPOptions } from './mcp/types'
 
+/** One entry of the per-iteration arrival order (see `turnParts`). */
+type TurnPart =
+  | { type: 'thinking'; index: number }
+  | { type: 'text'; content: string }
+  | { type: 'call'; id: string; providerExecuted: boolean }
+
 // ===========================
 // Activity Kind
 // ===========================
@@ -185,25 +196,6 @@ const interruptBindingMetadataKey = INTERRUPT_BINDING_METADATA_KEY
 
 /** Resume entries a subagent tool call owns. The parent run skips them. */
 const CHILD_RESUME_IDS = Symbol('tanstack.ai.childResumeIds')
-
-// ponytail: no adapter maps `{ type: 'file' }` yet, so every one fails closed
-// instead of reading the handle as a URL or base64. The Files API work
-// replaces this with a per-adapter capability check.
-function assertNoFileSources(
-  adapterName: string,
-  messages: ReadonlyArray<ModelMessage>,
-): void {
-  for (const message of messages) {
-    if (!Array.isArray(message.content)) continue
-    for (const part of message.content) {
-      if ('source' in part && part.source.type === 'file') {
-        throw new Error(
-          `${adapterName} does not support provider file-handle sources ({ type: 'file' }). Pass a data or url source.`,
-        )
-      }
-    }
-  }
-}
 
 interface StructuralInterruptFailure {
   error: Error
@@ -861,6 +853,15 @@ class TextEngine<
   private accumulatedContent = ''
   private accumulatedThinking: Array<{ content: string; signature?: string }> =
     []
+  /**
+   * Arrival order of this iteration's thinking steps, text and tool calls.
+   * A ModelMessage keeps `thinking` apart from `content`/`toolCalls`, so a
+   * provider turn that thinks between provider-executed tools would otherwise
+   * be recorded as "all thinking, then text, then tools" and the provider
+   * rejects the replay (signed thinking must keep its position). `null` once
+   * the order could no longer be tracked (callers fall back to one message).
+   */
+  private turnParts: Array<TurnPart> | null = []
   private currentThinkingContent = ''
   private currentThinkingSignature = ''
   private eventOptions?: Record<string, unknown> | undefined
@@ -1504,6 +1505,7 @@ class TextEngine<
     this.streamIdentityCaptured = false
     this.accumulatedContent = ''
     this.accumulatedThinking = []
+    this.turnParts = []
     this.currentThinkingContent = ''
     this.currentThinkingSignature = ''
 
@@ -1571,7 +1573,12 @@ class TextEngine<
       )
     }
 
-    assertNoFileSources(this.adapter.name, this.messages)
+    // Fail closed on `{ type: 'file' }` sources for adapters that haven't
+    // declared support — an adapter written before the file arm existed would
+    // otherwise fall through to its URL/data branch and silently mis-map the
+    // reference. Checked per model call so tool results added mid-loop are
+    // covered too.
+    assertMessagesFileSourceSupport(this.adapter, this.messages)
 
     for await (const raw of this.adapter.chatStream({
       model: this.params.model,
@@ -1805,12 +1812,27 @@ class TextEngine<
     // Adapters still emit leftover cumulative `content` on RAW yields.
     // Alignment suppresses already-delivered deltas, so this snapshot is
     // what a takeover saves as the full assistant text.
+    const before = this.accumulatedContent
     if (typeof extra.content === 'string' && extra.content !== '') {
       this.accumulatedContent = extra.content
     } else {
       this.accumulatedContent += chunk.delta
     }
     this.middlewareCtx.accumulatedContent = this.accumulatedContent
+    if (!this.turnParts) return
+    if (!this.accumulatedContent.startsWith(before)) {
+      // A cumulative `content` snapshot rewrote earlier text; order unknown.
+      this.turnParts = null
+      return
+    }
+    const delta = this.accumulatedContent.slice(before.length)
+    if (delta === '') return
+    const last = this.turnParts[this.turnParts.length - 1]
+    if (last && last.type === 'text') {
+      last.content += delta
+    } else {
+      this.turnParts.push({ type: 'text', content: delta })
+    }
   }
 
   private captureStreamMessageIdentity(messageId: string): void {
@@ -1835,6 +1857,20 @@ class TextEngine<
       this.captureStreamMessageIdentity(chunk.parentMessageId)
     }
     this.toolCallManager.addToolCallStartEvent(chunk)
+    if (
+      this.turnParts &&
+      !this.turnParts.some(
+        (part) => part.type === 'call' && part.id === chunk.toolCallId,
+      )
+    ) {
+      this.turnParts.push({
+        type: 'call',
+        id: chunk.toolCallId,
+        providerExecuted: isProviderExecutedToolCall({
+          metadata: chunk.metadata,
+        }),
+      })
+    }
     const metadata = chunk.metadata
     const thoughtSignature =
       metadata != null &&
@@ -1941,8 +1977,38 @@ class TextEngine<
           signature: this.currentThinkingSignature,
         }),
       })
+      if (this.turnParts) {
+        const placeholder = [...this.turnParts]
+          .reverse()
+          .find(
+            (part): part is Extract<TurnPart, { type: 'thinking' }> =>
+              part.type === 'thinking' && part.index === -1,
+          )
+        const index = this.accumulatedThinking.length - 1
+        if (placeholder) {
+          placeholder.index = index
+        } else {
+          this.turnParts.push({ type: 'thinking', index })
+        }
+      }
       this.currentThinkingContent = ''
       this.currentThinkingSignature = ''
+    }
+  }
+
+  /**
+   * Record where the current thinking step sits among this turn's parts. A
+   * step is finalized only when the next step starts (or the turn ends), by
+   * which time later tool calls have already arrived, so the position has to
+   * be noted when the step's first content or signature shows up.
+   */
+  private noteThinkingStepPosition(): void {
+    if (
+      this.turnParts &&
+      this.currentThinkingContent === '' &&
+      this.currentThinkingSignature === ''
+    ) {
+      this.turnParts.push({ type: 'thinking', index: -1 })
     }
   }
 
@@ -1952,6 +2018,7 @@ class TextEngine<
 
   private handleStepFinishedEvent(chunk: AdapterYieldChunk): void {
     if (typeof chunk.signature === 'string' && chunk.signature !== '') {
+      this.noteThinkingStepPosition()
       this.currentThinkingSignature = chunk.signature
     }
   }
@@ -1959,6 +2026,7 @@ class TextEngine<
   private handleReasoningMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
   ): void {
+    this.noteThinkingStepPosition()
     this.currentThinkingContent += chunk.delta
   }
 
@@ -1979,6 +2047,7 @@ class TextEngine<
       }
       return
     }
+    this.noteThinkingStepPosition()
     this.currentThinkingSignature = chunk.encryptedValue
   }
 
@@ -2464,21 +2533,110 @@ class TextEngine<
     )
   }
 
+  /**
+   * Split this iteration into assistant ModelMessages that keep the provider's
+   * block order: a new segment starts at every thinking step that follows a
+   * provider-executed tool call (the rule buildAssistantMessages applies to
+   * UIMessages). Segments after the first get `${id}-segment-${n}` ids.
+   * Returns null when no split is needed or the order could not be tracked,
+   * so callers fall back to the single-message shape.
+   */
+  private buildOrderedAssistantSegments(
+    toolCalls: ReadonlyArray<ToolCall>,
+    id: string | undefined,
+    createdAt: Date | undefined,
+  ): Array<ModelMessage> | null {
+    const parts = this.turnParts
+    if (!parts) return null
+    const providerCallIds = new Set(
+      parts.flatMap((part) =>
+        part.type === 'call' && part.providerExecuted ? [part.id] : [],
+      ),
+    )
+    type Segment = {
+      thinking: Array<{ content: string; signature?: string }>
+      text: string
+      callIds: Array<string>
+    }
+    let current: Segment = { thinking: [], text: '', callIds: [] }
+    const segments: Array<Segment> = [current]
+    let split = false
+    for (const part of parts) {
+      if (part.type === 'thinking') {
+        const thinking = this.accumulatedThinking[part.index]
+        if (!thinking) return null
+        if (current.callIds.some((callId) => providerCallIds.has(callId))) {
+          current = { thinking: [thinking], text: '', callIds: [] }
+          segments.push(current)
+          split = true
+        } else {
+          current.thinking.push(thinking)
+        }
+      } else if (part.type === 'text') {
+        current.text += part.content
+      } else {
+        current.callIds.push(part.id)
+      }
+    }
+    if (!split) return null
+    if (
+      segments.map((segment) => segment.text).join('') !==
+      this.accumulatedContent
+    ) {
+      return null
+    }
+    if (
+      segments.reduce((n, segment) => n + segment.thinking.length, 0) !==
+      this.accumulatedThinking.length
+    ) {
+      return null
+    }
+    const placed = new Set(segments.flatMap((segment) => segment.callIds))
+    for (const toolCall of toolCalls) {
+      if (!placed.has(toolCall.id)) current.callIds.push(toolCall.id)
+    }
+    return segments.map((segment, index) => {
+      const segmentCalls = toolCalls.filter((toolCall) =>
+        segment.callIds.includes(toolCall.id),
+      )
+      return {
+        role: 'assistant',
+        content: segment.text || null,
+        ...(segmentCalls.length > 0 && { toolCalls: segmentCalls }),
+        id:
+          id === undefined
+            ? undefined
+            : index === 0
+              ? id
+              : `${id}-segment-${index}`,
+        createdAt,
+        ...(segment.thinking.length > 0 && { thinking: segment.thinking }),
+      }
+    })
+  }
+
   private addAssistantToolCallMessage(toolCalls: Array<ToolCall>): void {
     this.finalizeCurrentThinkingStep()
 
+    const segments = this.buildOrderedAssistantSegments(
+      toolCalls,
+      this.currentMessageId ?? undefined,
+      this.currentMessageCreatedAt ?? undefined,
+    )
     this.messages = [
       ...this.messages,
-      {
-        role: 'assistant',
-        content: this.accumulatedContent || null,
-        toolCalls,
-        id: this.currentMessageId ?? undefined,
-        createdAt: this.currentMessageCreatedAt ?? undefined,
-        ...(this.accumulatedThinking.length > 0 && {
-          thinking: this.accumulatedThinking,
-        }),
-      },
+      ...(segments ?? [
+        {
+          role: 'assistant' as const,
+          content: this.accumulatedContent || null,
+          toolCalls,
+          id: this.currentMessageId ?? undefined,
+          createdAt: this.currentMessageCreatedAt ?? undefined,
+          ...(this.accumulatedThinking.length > 0 && {
+            thinking: this.accumulatedThinking,
+          }),
+        },
+      ]),
     ]
     this.middlewareCtx.messages = this.messages
   }
@@ -2557,13 +2715,23 @@ class TextEngine<
         !currentTurnAlreadyRecorded &&
         (this.accumulatedContent !== '' || thinking)
       ) {
-        messages.push({
-          role: 'assistant',
-          content: this.accumulatedContent || null,
-          id: this.currentMessageId ?? this.createId('msg'),
-          createdAt: this.currentMessageCreatedAt ?? new Date(),
-          ...(thinking ? { thinking } : {}),
-        })
+        const id = this.currentMessageId ?? this.createId('msg')
+        const createdAt = this.currentMessageCreatedAt ?? new Date()
+        messages.push(
+          ...(this.buildOrderedAssistantSegments(
+            this.toolCallManager.getToolCalls(),
+            id,
+            createdAt,
+          ) ?? [
+            {
+              role: 'assistant',
+              content: this.accumulatedContent || null,
+              id,
+              createdAt,
+              ...(thinking ? { thinking } : {}),
+            },
+          ]),
+        )
       }
       if (structuredOutput) {
         messages.push({
@@ -3097,6 +3265,8 @@ class TextEngine<
     const approvalRequests: Array<ApprovalRequest> = []
     const clientRequests: Array<ClientToolRequest> = []
     for (const toolCall of toolCalls) {
+      // Provider-executed calls are complete; never surface them as client work.
+      if (isProviderExecutedToolCall(toolCall)) continue
       const tool = this.resolveExecutableTools([toolCall]).find(
         (candidate) => candidate.name === toolCall.function.name,
       ) as RuntimeToolWithApproval | undefined
@@ -3254,6 +3424,9 @@ class TextEngine<
         role: 'tool',
         content,
         toolCallId: result.toolCallId,
+        ...(result.state === 'output-error' && {
+          error: toolResultErrorText(parseToolOutput(wireContent)),
+        }),
       }
 
       if (placeholderIdx >= 0) {
@@ -3589,7 +3762,11 @@ class TextEngine<
     // Apply merged config back to engine state
     this.applyMiddlewareConfig(postOnConfig)
 
-    assertNoFileSources(this.adapter.name, this.messages)
+    // Schema-only structured output with no tools skips the agent loop, so
+    // `streamModelResponse` never runs this check. Middleware can also
+    // replace `this.messages` above. Fail closed here before the
+    // structured-output adapter call.
+    assertMessagesFileSourceSupport(this.adapter, this.messages)
 
     // Build the StructuredOutputOptions the adapter expects.
     // `this.adapter` is already `TAdapter extends AnyTextAdapter` per the
@@ -3932,7 +4109,16 @@ class TextEngine<
     const yieldChunks = this.finalStructuredOutput.yieldChunks
     const source = this.finalStructuredOutput.source ?? 'text'
 
-    if (source === 'event') {
+    // A final turn cut off at the output cap holds truncated JSON, or none
+    // for a reasoning model that spent the budget. Report the token limit
+    // instead of a parse or missing-result error (#1426).
+    if (this.lastFinishReason === 'length') {
+      this.finalizationError = {
+        message:
+          'The response was cut off because the maximum token limit was reached (finish_reason=length); raise the output token limit.',
+        code: 'max_tokens',
+      }
+    } else if (source === 'event') {
       if (!this.structuredOutputResult) {
         this.finalizationError = {
           message: 'missing structured result',

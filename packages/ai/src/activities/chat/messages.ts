@@ -1,4 +1,7 @@
-import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
+import {
+  isAssistantSegmentOf,
+  isProviderExecutedToolCall,
+} from '../../utilities/provider-executed'
 import {
   isContentPartArray,
   normalizeToolResult,
@@ -1259,6 +1262,14 @@ export function modelMessagesToUIMessages(
       // Regular message. Preserve a persisted stable id so a hydrated message
       // keeps the same identity as its live stream (enables in-place resume).
       const uiMessage = modelMessageToUIMessage(msg, msg.id)
+      if (
+        msg.role === 'assistant' &&
+        currentAssistantMessage &&
+        isAssistantSegmentOf(msg.id, currentAssistantMessage.id)
+      ) {
+        currentAssistantMessage.parts.push(...uiMessage.parts)
+        continue
+      }
       uiMessages.push(uiMessage)
 
       // Track assistant messages for potential tool result merging

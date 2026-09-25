@@ -239,8 +239,24 @@ export interface ContentPartUrlSource extends AGUIUrlSource {}
 /**
  * A provider-issued file handle (Files API). AG-UI `FileSource`: the handle
  * is opaque, do not fetch or parse it.
+ *
+ * The media is uploaded once via a `files` adapter (`openaiFiles()`,
+ * `anthropicFiles()`, `geminiFiles()`, `grokFiles()`, `falFiles()`) and
+ * referenced here by the returned handle instead of re-sending base64 or a
+ * public URL on each request. Only the provider that minted a handle can
+ * resolve it. Adapters that cannot consume file handles at all are rejected
+ * by the activity-layer preflight before mapping starts.
  */
-export interface ContentPartFileSource extends AGUIFileSource {}
+export interface ContentPartFileSource<
+  TProvider extends string = string,
+> extends AGUIFileSource {
+  /**
+   * The adapter name of the provider that issued the handle (`'openai'`,
+   * `'gemini'`, ...), the same id TanStack reports as the usage provider.
+   * When present, an adapter rejects a handle another provider issued.
+   */
+  provider?: TProvider
+}
 
 /**
  * Where a media part's bytes come from: inline data, a URL, or a provider
@@ -2305,7 +2321,7 @@ export interface VideoUrlResult {
 // ============================================================================
 
 /**
- * Options for world generation (live, prompt-steerable sessions).
+ * Options for world generation (live session or finished job).
  *
  * @experimental World generation is an experimental feature and may change.
  */
@@ -2317,8 +2333,10 @@ export interface WorldGenerationOptions<
   /** Natural-language description of the world or scene */
   prompt: string
   /**
-   * Provider mint options. Reactor resolution/seed/audio are browser
-   * `sendCommand` fields, not token-mint fields.
+   * Provider-specific options. Live adapters (Reactor) use mint fields here.
+   * Job adapters (World Labs) use image/video inputs, `wait`, and poll.
+   * Reactor resolution/seed/audio are browser `sendCommand` fields, not
+   * token-mint fields.
    */
   modelOptions?: TProviderOptions
   /**
@@ -2336,27 +2354,72 @@ export interface WorldGenerationOptions<
 }
 
 /**
+ * Assets from a finished world job. Live session adapters omit this.
+ * URLs are often signed CDN links. They can expire and may need a proxy
+ * to fetch from a browser.
+ *
+ * @experimental World generation is an experimental feature and may change.
+ */
+export interface WorldGenerationAssets {
+  /** Auto-generated scene description */
+  caption?: string
+  /** Preview image URL */
+  thumbnailUrl?: string
+  splats?: {
+    /** Quality-key map of splat URLs (`100k`, `500k`, `full_res`, …) */
+    spzUrls?: Record<string, string>
+    metricScaleFactor?: number
+    groundPlaneOffset?: number
+  }
+  mesh?: {
+    colliderMeshUrl?: string
+    hqMeshUrl?: string
+    fullResMeshUrl?: string
+  }
+  imagery?: {
+    panoUrl?: string
+  }
+}
+
+/**
  * Result of world generation. JSON-serializable so a server route can return
- * it to a browser. The browser uses `token` + `model` to open the live
- * session (set the prompt, start streaming, steer mid-run).
+ * it to a browser.
+ *
+ * Live adapters (Reactor): `status: 'ready'` with `token` and token
+ * `expiresAt`. The browser uses `token` + `model` to open the session.
+ *
+ * Job adapters (World Labs): `status: 'ready'` with viewer `url` and
+ * `worldId`, or `status: 'waiting'` with `operationId` and no `url`.
+ * `expiresAt` on a job is operation expiry, not a session token.
  *
  * @experimental World generation is an experimental feature and may change.
  */
 export interface WorldGenerationResult {
   /** Unique identifier for this generation */
   id: string
-  /** Model used for generation (provider connect slug) */
+  /** Model used for generation (provider connect slug or model id) */
   model: string
-  /** Short-lived session token for the client connection */
-  token: string
-  /** Token expiry as milliseconds since epoch */
-  expiresAt: number
-  /** Prompt the client should send when it starts the session */
+  /** Short-lived session token for a live client connection */
+  token?: string
+  /**
+   * Expiry as milliseconds since epoch. Live adapters: session token.
+   * Job adapters: operation expiry when the provider sends it.
+   */
+  expiresAt?: number
+  /** Prompt used to generate the world, or the prompt the client should send */
   prompt: string
-  /** Session status after the server half finishes */
+  /** Status after the server half finishes */
   status: 'ready' | 'waiting'
   /** Provider session id, when the adapter created one */
   sessionId?: string
+  /** Viewer URL for a finished world job (not an asset download URL) */
+  url?: string
+  /** Provider world id for a finished or in-progress job */
+  worldId?: string
+  /** Provider operation id for a long-running world job */
+  operationId?: string
+  /** Assets when a world job has finished and the provider returned them */
+  assets?: WorldGenerationAssets
   /** Token usage / billing, when the adapter can report it */
   usage?: TokenUsage
 }

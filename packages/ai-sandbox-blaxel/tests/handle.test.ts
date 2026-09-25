@@ -2,7 +2,13 @@
 import { SandboxInstance } from '@blaxel/core'
 import { UnsupportedCapabilityError, toLines } from '@tanstack/ai-sandbox'
 import { spawn as spawnChild, spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, rmSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { BLAXEL_CAPS, BlaxelHandle, previewName } from '../src/handle'
 import type {
@@ -32,6 +38,7 @@ interface FakeOptions {
   streamLines?: Array<{ stream: 'stdout' | 'stderr'; line: string }>
   onRm?: (path: string, recursive?: boolean) => Promise<unknown>
   onReap?: () => Promise<unknown>
+  reapWait?: () => Promise<BlaxelProcessLike>
 }
 
 function fakeSandbox(options: FakeOptions = {}): {
@@ -56,13 +63,17 @@ function fakeSandbox(options: FakeOptions = {}): {
     return {}
   })
   const kill = vi.fn(async () => options.onKill?.() ?? {})
-  const wait = vi.fn(async () => options.waitResult ?? { exitCode: 7 })
+  const wait = vi.fn(async (name: string) => {
+    if (name.startsWith('tanstack-ai-reap-')) {
+      return options.reapWait?.() ?? { exitCode: 0, status: 'completed' }
+    }
+    return options.waitResult ?? { exitCode: 7 }
+  })
   const streamLogs = vi.fn(
     (
       identifier: string,
       streamOptions?: {
-        onStdout?: (chunk: string) => void
-        onStderr?: (chunk: string) => void
+        onLog?: (chunk: string) => void
         onError?: (error: Error) => void
       },
     ) => ({
@@ -75,18 +86,31 @@ function fakeSandbox(options: FakeOptions = {}): {
         const command = execCalls.find(
           (request) => request.name === identifier,
         )?.command
+        // Mirror the supervisor's wire format: a ready marker to open the
+        // gate, then labeled records for both streams on stdout.
         const recordPrefix = command?.match(
           /__TANSTACK_AI_OUTPUT_CHUNK_[0-9a-f-]+__:/,
         )?.[0]
-        if ((options.streamLines?.length ?? 0) > 0 && !recordPrefix) {
-          throw new Error('test fake could not find the output record prefix')
+        const recordSuffix = command?.match(
+          /__TANSTACK_AI_EOL_[0-9a-f]+__/,
+        )?.[0]
+        const readyMarker = command?.match(
+          /__TANSTACK_AI_READY_[0-9a-f-]+__/,
+        )?.[0]
+        if (!recordPrefix || !recordSuffix || !readyMarker) {
+          throw new Error('test fake could not find the output framing markers')
         }
+        streamOptions?.onLog?.(readyMarker + recordSuffix)
         for (const entry of options.streamLines ?? []) {
           const bytes = Buffer.from(entry.line)
+          const label = entry.stream === 'stdout' ? '1:' : '2:'
           for (let offset = 0; offset < bytes.length; offset += 65_536) {
-            const record = `${recordPrefix}${bytes.subarray(offset, offset + 65_536).toString('base64')}`
-            if (entry.stream === 'stdout') streamOptions?.onStdout?.(record)
-            else streamOptions?.onStderr?.(record)
+            const encoded = bytes
+              .subarray(offset, offset + 65_536)
+              .toString('base64')
+            streamOptions?.onLog?.(
+              `${recordPrefix}${label}${encoded}${recordSuffix}`,
+            )
           }
         }
         if (options.waitGate) {
@@ -231,12 +255,12 @@ function makeHandle(
 }
 
 describe('BlaxelHandle capabilities', () => {
-  it('keeps unproven and unsupported capabilities disabled', () => {
+  it('advertises killable processes and durable fs; snapshots, fork, and stdin stay off', () => {
     expect(BLAXEL_CAPS.snapshots).toBe(false)
     expect(BLAXEL_CAPS.fork).toBe(false)
     expect(BLAXEL_CAPS.durableFilesystem).toBe(true)
     expect(BLAXEL_CAPS.writableStdin).toBe(false)
-    expect(BLAXEL_CAPS.killableProcesses).toBe(false)
+    expect(BLAXEL_CAPS.killableProcesses).toBe(true)
   })
 
   it('exposes the sandbox name as the reconnectable id', () => {
@@ -318,6 +342,92 @@ describe('BlaxelHandle filesystem', () => {
 
     const absent = makeHandle({ onExec: () => ({ exitCode: 1 }) })
     expect(await absent.handle.fs.exists('/workspace/a')).toBe(false)
+  })
+
+  it('answers lstat from one direct stat call without following symlinks', async () => {
+    const file = makeHandle({
+      onExec: () => ({ exitCode: 0, stdout: '81a4:42\n' }),
+    })
+    expect(await file.handle.fs.lstat!('/workspace/a.txt')).toEqual({
+      type: 'file',
+      mode: 0o100644,
+      size: 42,
+    })
+    expect(file.fake.execCalls[0]?.command).toBe(
+      "LC_ALL=C stat -c '%f:%s' -- '/workspace/a.txt'",
+    )
+    expect(file.fake.execCalls[0]?.name).toMatch(/^tanstack-ai-lstat-/)
+    expect(file.fake.rm).not.toHaveBeenCalled()
+
+    const dir = makeHandle({
+      onExec: () => ({ exitCode: 0, stdout: '41ed:4096' }),
+    })
+    expect(await dir.handle.fs.lstat!('/workspace')).toEqual({
+      type: 'dir',
+      mode: 0o040755,
+    })
+
+    const link = makeHandle({
+      onExec: () => ({ exitCode: 0, stdout: 'a1ff:7' }),
+    })
+    expect(await link.handle.fs.lstat!('/workspace/link')).toEqual({
+      type: 'symlink',
+      mode: 0o120777,
+    })
+  })
+
+  it('resolves lstat to undefined only for a confirmed missing path', async () => {
+    const missing = makeHandle({
+      onExec: () => ({
+        exitCode: 1,
+        stderr:
+          "stat: cannot statx '/workspace/nope': No such file or directory\n",
+      }),
+    })
+    expect(await missing.handle.fs.lstat!('/workspace/nope')).toBeUndefined()
+
+    const denied = makeHandle({
+      onExec: () => ({
+        exitCode: 1,
+        stderr: "stat: cannot statx '/root/x': Permission denied\n",
+      }),
+    })
+    await expect(denied.handle.fs.lstat!('/root/x')).rejects.toThrow(
+      /Permission denied/,
+    )
+
+    const garbage = makeHandle({
+      onExec: () => ({ exitCode: 0, stdout: 'ok' }),
+    })
+    await expect(garbage.handle.fs.lstat!('/workspace/a')).rejects.toThrow(
+      /invalid lstat output/,
+    )
+
+    const notADirectory = makeHandle({
+      onExec: () => ({
+        exitCode: 1,
+        stderr:
+          "stat: cannot statx '/workspace/a.txt/nested': Not a directory\n",
+      }),
+    })
+    await expect(
+      notADirectory.handle.fs.lstat!('/workspace/a.txt/nested'),
+    ).rejects.toThrow(/Not a directory/)
+  })
+
+  it('maps lstat onto a custom workdir', async () => {
+    const { handle, fake } = makeHandle(
+      { onExec: () => ({ exitCode: 0, stdout: '81a4:42\n' }) },
+      { workdir: '/home/agent' },
+    )
+    expect(await handle.fs.lstat!('/workspace/a.txt')).toEqual({
+      type: 'file',
+      mode: 0o100644,
+      size: 42,
+    })
+    expect(fake.execCalls[0]?.command).toBe(
+      "LC_ALL=C stat -c '%f:%s' -- '/home/agent/a.txt'",
+    )
   })
 
   it('rejects exists when the probe reports no exit code', async () => {
@@ -662,10 +772,71 @@ describe('BlaxelHandle process', () => {
     )
     expect(reaper?.command).toContain('kill -TERM -- "-$__tanstack_pid"')
     expect(reaper?.command).toContain('kill -KILL -- "-$__tanstack_pid"')
+    expect(reaper?.waitForCompletion).toBe(false)
+    expect(fake.wait).toHaveBeenCalledWith(reaper?.name, {
+      maxWait: 30_000,
+      interval: 250,
+    })
     expect(fake.kill).toHaveBeenCalledWith(started.name)
     expect(fake.rm).toHaveBeenCalledWith(
       expect.stringMatching(/^\/tmp\/tanstack-ai-output-/),
       true,
+    )
+  })
+
+  it.each([
+    {
+      name: 'still running',
+      reapWait: async () => ({ status: 'running', exitCode: 0 }),
+      pattern: /status=running/,
+    },
+    {
+      name: 'completed without an exit code',
+      reapWait: async () => ({ status: 'completed' }),
+      pattern: /without a status/,
+    },
+    {
+      name: 'failed with a non-zero exit',
+      reapWait: async () => ({ status: 'failed', exitCode: 1 }),
+      pattern: /exited 1/,
+    },
+  ] as const)(
+    'rejects kill when reaper wait is $name',
+    async ({ reapWait, pattern }) => {
+      const { handle } = makeHandle({
+        onExec: () => ({ pid: '1' }),
+        reapWait,
+      })
+      const spawned = await handle.process.spawn('sleep 30')
+      const error = await spawned.kill().then(
+        () => undefined,
+        (caught: unknown) => caught,
+      )
+      expect(error).toBeInstanceOf(AggregateError)
+      expect((error as AggregateError).message).toMatch(
+        /failed to fully terminate/,
+      )
+      expect((error as AggregateError).errors.map(String).join('\n')).toMatch(
+        pattern,
+      )
+    },
+  )
+
+  it('rejects kill when reaper wait times out', async () => {
+    const { handle } = makeHandle({
+      onExec: () => ({ pid: '1' }),
+      reapWait: async () => {
+        throw new Error('Process did not finish in time')
+      },
+    })
+    const spawned = await handle.process.spawn('sleep 30')
+    const error = await spawned.kill().then(
+      () => undefined,
+      (caught: unknown) => caught,
+    )
+    expect(error).toBeInstanceOf(AggregateError)
+    expect((error as AggregateError).errors.map(String).join('\n')).toMatch(
+      /did not finish in time/,
     )
   })
 
@@ -811,6 +982,9 @@ describe('BlaxelHandle process', () => {
         /mkdir -p -- '(\/tmp\/tanstack-ai-output-[^']+)'/,
       )?.[1]
       expect(outputDir).toBeDefined()
+      // Open the gate up front; this test exercises the reaper, not the host.
+      mkdirSync(outputDir!, { recursive: true })
+      writeFileSync(`${outputDir!}/go`, '')
       const child = spawnChild('/bin/sh', ['-c', script], {
         stdio: 'ignore',
       })
@@ -1001,6 +1175,79 @@ describe('BlaxelHandle process', () => {
     resolveWait({ exitCode: 0, stdout: 'different', stderr: '' })
     await expect(spawned.wait()).rejects.toThrow(/diverged/)
     await expect(iterator.next()).rejects.toThrow(/diverged/)
+  })
+
+  it('reassembles labeled records from one wire stream', async () => {
+    // Blaxel's log stream: a cut fragment before attach, `[keepalive]` inside
+    // a line (which ends it early; the rest arrives untagged, so only via
+    // onLog), both process streams on stdout.
+    const sandbox = new SandboxInstance({
+      metadata: { name: 'assembler' },
+    } as ConstructorParameters<typeof SandboxInstance>[0])
+    let command = ''
+    vi.spyOn(sandbox.process, 'exec').mockImplementation(async (request) => {
+      command = (request as { command: string }).command
+      return { pid: '17' } as never
+    })
+    const gate = vi.spyOn(sandbox.fs, 'write').mockResolvedValue({} as never)
+    vi.spyOn(sandbox.process, 'streamLogs').mockImplementation(
+      (_identifier, options) => ({
+        close: vi.fn(),
+        wait: async () => {
+          const prefix = command.match(
+            /__TANSTACK_AI_OUTPUT_CHUNK_[0-9a-f-]+__:/,
+          )![0]
+          const suffix = command.match(/__TANSTACK_AI_EOL_[0-9a-f]+__/)![0]
+          const ready = command.match(/__TANSTACK_AI_READY_[0-9a-f-]+__/)![0]
+          const record = (label: string, text: string): string =>
+            `${prefix}${label}${Buffer.from(text).toString('base64')}${suffix}`
+          const out = record('1:', 'out-1')
+          const lines = [
+            ready.slice(20) + suffix, // attach landed mid-marker
+            ready + suffix,
+            out.slice(0, 30) + '[keepalive]',
+            out.slice(30),
+            record('2:', 'err-1'),
+            ready + suffix, // one trailing marker after the gate opened
+            record('1:', 'out-2'),
+          ]
+          for (const line of lines) options?.onLog?.(line)
+        },
+      }),
+    )
+    vi.spyOn(sandbox.fs, 'read').mockImplementation(async (path) => {
+      if (path.endsWith('/status')) return '0'
+      if (path.endsWith('/stdout')) return 'out-1out-2'
+      if (path.endsWith('/stderr')) return 'err-1'
+      return ''
+    })
+    vi.spyOn(sandbox.fs, 'rm').mockResolvedValue({} as never)
+    const handle = new BlaxelHandle({
+      sandbox: sandbox as unknown as BlaxelSandboxLike,
+      name: 'assembler',
+      workdir: '/workspace',
+      publicPreviews: false,
+      previewTtl: '1h',
+    })
+
+    const spawned = await handle.process.spawn('noisy')
+    const collect = async (stream: AsyncIterable<string>): Promise<string> => {
+      let text = ''
+      for await (const chunk of stream) text += chunk
+      return text
+    }
+    const [out, err, exit] = await Promise.all([
+      collect(spawned.stdout),
+      collect(spawned.stderr),
+      spawned.wait(),
+    ])
+    expect(exit).toBe(0)
+    expect(out).toBe('out-1out-2')
+    expect(err).toBe('err-1')
+    expect(gate).toHaveBeenCalledOnce()
+    expect(gate.mock.calls[0]?.[0]).toMatch(
+      /\/tmp\/tanstack-ai-output-[^/]+\/go$/,
+    )
   })
 
   it('hard-bounds unread live output for a stalled consumer', async () => {

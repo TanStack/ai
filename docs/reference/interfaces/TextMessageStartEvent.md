@@ -3,7 +3,7 @@ id: TextMessageStartEvent
 title: TextMessageStartEvent
 ---
 
-Defined in: [packages/ai/src/types.ts:1269](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1269)
+Defined in: [packages/ai/src/types.ts:1309](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1309)
 
 Emitted when a text message starts.
 
@@ -12,9 +12,3 @@ Emitted when a text message starts.
 ## Extends
 
 - `TextMessageStartEvent`
-
-## Indexable
-
-```ts
-[k: string]: unknown
-```

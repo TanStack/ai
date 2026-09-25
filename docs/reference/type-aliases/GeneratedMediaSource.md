@@ -15,7 +15,7 @@ type GeneratedMediaSource =
 };
 ```
 
-Defined in: [packages/ai/src/types.ts:1999](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1999)
+Defined in: [packages/ai/src/types.ts:2075](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2075)
 
 Source of a generated media asset. Exactly one of `url` or `b64Json` is
 present; the other is absent. Modeled as a mutually-exclusive union so the
