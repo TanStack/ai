@@ -14,6 +14,8 @@ export type {
   PluginDefinition,
   PluginLifetime,
   PluginPrompt,
+  AgentGroup,
+  PluginAgentActions,
   PluginSetupContext,
   PluginState,
 } from './plugins'
@@ -110,3 +112,6 @@ export type { OAuthConfig } from './oauth'
 
 export { oauthConnector } from './connectors'
 export type { OAuthConnectorOptions } from './connectors'
+
+export { harnessAgent } from './harness-agent'
+export { DEFAULT_SUBAGENT_LIMITS } from './session'

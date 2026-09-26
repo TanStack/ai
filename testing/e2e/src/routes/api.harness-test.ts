@@ -48,6 +48,30 @@ export const Route = createFileRoute('/api/harness-test')({
         const host = createHarnessHost({ persistence })
         try {
           const session = await host.open(harness, { threadId: 'e2e-thread' })
+          if (body.scenario === 'limits') {
+            // The main model calls `worker` twice. The limit allows one.
+            let workerRuns = 0
+            const worker = defineAgent({
+              name: 'worker',
+              description: 'Does one unit of work',
+              run: async () => {
+                workerRuns += 1
+                return 'worked'
+              },
+            })
+            const limited = defineHarness({
+              name: 'e2e/harness-limits',
+              adapter: openai(),
+              subagents: { agents: [worker], limits: { maxCalls: 1 } },
+            })
+            const limitedSession = await host.open(limited, {
+              threadId: 'e2e-limits',
+            })
+            const turn = await limitedSession.prompt(
+              '[harness-limits] work twice',
+            )
+            return Response.json({ workerRuns, text: turn.text })
+          }
           if (body.scenario === 'agent') {
             const result = await session.agents.pricer.run({
               task: '[harness-agent] price vendor a',

@@ -26,7 +26,9 @@ import type {
   UIMessage,
 } from '../../../types'
 import { createBoundActivities } from './bound'
+import { SubagentBudget } from './limits'
 import type { SubagentBinding } from './bound'
+import type { SubagentLimits } from './limits'
 import type {
   DefinedAgent,
   SubagentRunContext,
@@ -81,6 +83,12 @@ export interface SubagentsBag<
    */
   order?: 'parallel' | 'sequence'
   sandbox?: 'own' | 'inherit'
+  /**
+   * Limits for the whole tree of children the model starts through tools:
+   * depth, total calls, children at once, and time per child. A refused
+   * start returns to the model as a tool error.
+   */
+  limits?: SubagentLimits
   /**
    * What a host adds to every activity call a child makes through `ctx`
    * (`ctx.chat`, `ctx.generateImage`, and the rest). A harness session sets
@@ -240,6 +248,7 @@ function openAgentStream(
   ctx: SpawnContext,
   sink?: SubagentSink,
   parentToolCallId?: string,
+  binding: SubagentBinding | undefined = bag.binding,
 ) {
   const agent = agentByName(bag.agents, entry.name)
   const resume = entry.resume
@@ -273,7 +282,7 @@ function openAgentStream(
     },
     sink,
     parentToolCallId,
-    bag.binding,
+    binding,
   )
 }
 
@@ -818,6 +827,9 @@ export function createSyntheticSubagentTools(
     sink: SubagentSink
   },
 ): Array<Tool> {
+  // One budget per root run. A child run inherits its parent's budget.
+  const budget = bag.binding?.budget ?? SubagentBudget.root(bag.limits)
+  let active = 0
   return bag.agents.map((agent) => ({
     name: agent.name,
     description: agent.description,
@@ -852,8 +864,35 @@ export function createSyntheticSubagentTools(
           },
         }),
       }
+      // A resumed child already counted when it first started.
+      const refusal = suspended ? undefined : budget.reserve(active)
+      if (refusal !== undefined) {
+        return {
+          subagentRunId: '',
+          text: '',
+          error: refusal,
+        } satisfies SubagentToolOutcome
+      }
+      active += 1
       const sink = createSubagentSink()
       const link = linkAbort(parent.abortSignal)
+      const timeout = budget.childTimeout()
+      const timer =
+        timeout === undefined
+          ? undefined
+          : setTimeout(
+              () =>
+                link.controller.abort(
+                  new Error(`subagent timed out after ${timeout} ms`),
+                ),
+              timeout,
+            )
+      const childBinding: SubagentBinding = {
+        ...bag.binding,
+        budget: budget.child(
+          timeout === undefined ? undefined : Date.now() + timeout,
+        ),
+      }
       let subagentRunId = suspended?.subagentRunId ?? ''
       let text = suspended?.text ?? ''
       let error: string | undefined
@@ -873,6 +912,7 @@ export function createSyntheticSubagentTools(
           },
           sink,
           toolCallId,
+          childBinding,
         )) {
           if (chunk.type === SUBAGENT_STARTED && subagentRunId === '') {
             subagentRunId = chunk.subagentRunId
@@ -900,6 +940,8 @@ export function createSyntheticSubagentTools(
           toolContext?.[EMIT_STREAM_CHUNK]?.(chunk)
         }
       } finally {
+        active -= 1
+        if (timer !== undefined) clearTimeout(timer)
         link.dispose()
       }
       parent.sink.usage.push(...sink.usage)

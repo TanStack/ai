@@ -257,6 +257,28 @@ const researcher = defineAgent({
 })
 ```
 
+## Limit the tree
+
+A child can have children of its own, and a model can call a child many times. Set `limits` so one request cannot start an unbounded tree:
+
+```ts group=subagent-values
+const limited = chat({
+  adapter: openaiText('gpt-5.6'),
+  messages: [{ role: 'user', content: 'Research squids in depth' }],
+  subagents: {
+    agents: [researcher],
+    limits: { maxDepth: 2, maxConcurrent: 3, maxCalls: 12, timeoutMs: 120_000 },
+  },
+})
+```
+
+- `maxDepth`: how deep the tree may grow. The first chat is depth 0.
+- `maxCalls`: how many children the whole tree may start.
+- `maxConcurrent`: how many children one run may have running at once.
+- `timeoutMs`: how long one child may run. A child never gets more time than its parent has left.
+
+The whole tree shares one budget. A child that calls `ctx.chat({ subagents })` passes it on, so a child cannot reset it. A refused start reaches the model as a tool error, for example `subagent limit reached (maxCalls 12)`.
+
 ## Strategy
 
 - `exclusive` (default): the chosen child owns the turn. Main does not answer after it.

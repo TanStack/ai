@@ -15,6 +15,20 @@ test.describe('harness session', () => {
     expect(body.roles).toEqual(['user', 'assistant', 'user', 'assistant'])
   })
 
+  test('subagent limits refuse the second child start', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'limits', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    const body = await response.json()
+    expect(body.workerRuns).toBe(1)
+    expect(body.text).toBe('The second call hit the limit.')
+  })
+
   test('a typed agent runs from code and the next turn sees its result', async ({
     request,
     testId,
