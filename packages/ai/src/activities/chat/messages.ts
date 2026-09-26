@@ -4,9 +4,13 @@ import {
 } from '../../utilities/provider-executed'
 import {
   isContentPartArray,
+  isToolResultOutcome,
   normalizeToolResult,
 } from '../../utilities/tool-result'
-import { tanstackMetadata } from '../../utilities/merge-metadata'
+import {
+  tanstackMetadata,
+  withTanstackMetadata,
+} from '../../utilities/merge-metadata'
 import {
   splitSubagentWire,
   subagentWireText,
@@ -29,6 +33,7 @@ import type {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
+
 // ===========================
 // Message Converters
 // ===========================
@@ -730,6 +735,11 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
           (part.state === 'complete' || part.state === 'error') &&
           !emittedToolResultIds.has(part.toolCallId)
         ) {
+          const metadata =
+            part.outcome === undefined
+              ? part.metadata
+              : withTanstackMetadata(part, { toolResultOutcome: part.outcome })
+                  .metadata
           messageList.push({
             ...(part.id !== undefined && { id: part.id }),
             ...optionalCreatedAt(part),
@@ -737,7 +747,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
             content: part.content,
             toolCallId: part.toolCallId,
             ...(part.name !== undefined && { name: part.name }),
-            ...(part.metadata !== undefined && { metadata: part.metadata }),
+            ...(metadata !== undefined && { metadata }),
             ...(part.error !== undefined && { error: part.error }),
           })
           emittedToolResultIds.add(part.toolCallId)
@@ -842,6 +852,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
             : 'User denied this action',
         }),
         toolCallId: part.id,
+        ...(approved === false && {
+          metadata: { tanstack: { toolResultOutcome: 'denied' } },
+        }),
       })
       emittedToolResultIds.add(part.id)
     }
@@ -909,11 +922,21 @@ export function modelMessageToUIMessage(
     }
     parts.push(structuredOutput)
   } else if (modelMessage.role === 'tool' && modelMessage.toolCallId) {
+    const rawToolResultOutcome =
+      tanstackMetadata(modelMessage)?.toolResultOutcome
+    const toolResultOutcome = isToolResultOutcome(rawToolResultOutcome)
+      ? rawToolResultOutcome
+      : undefined
+    const resultState =
+      modelMessage.error === undefined && toolResultOutcome === undefined
+        ? 'complete'
+        : 'error'
     parts.push({
       type: 'tool-result',
       toolCallId: modelMessage.toolCallId,
       content: toolResultContent(modelMessage.content),
-      state: modelMessage.error === undefined ? 'complete' : 'error',
+      state: resultState,
+      ...(toolResultOutcome !== undefined && { outcome: toolResultOutcome }),
       ...(modelMessage.id !== undefined && { id: modelMessage.id }),
       ...(modelMessage.name !== undefined && { name: modelMessage.name }),
       ...(modelMessage.metadata !== undefined && {
@@ -1229,6 +1252,14 @@ export function modelMessagesToUIMessages(
         currentAssistantMessage.role === 'assistant'
       ) {
         const content = toolResultContent(msg.content)
+        const rawToolResultOutcome = tanstackMetadata(msg)?.toolResultOutcome
+        const toolResultOutcome = isToolResultOutcome(rawToolResultOutcome)
+          ? rawToolResultOutcome
+          : undefined
+        const resultState =
+          msg.error === undefined && toolResultOutcome === undefined
+            ? 'complete'
+            : 'error'
         const toolCallPart = currentAssistantMessage.parts.find(
           (part): part is ToolCallPart =>
             part.type === 'tool-call' && part.id === msg.toolCallId,
@@ -1239,14 +1270,17 @@ export function modelMessagesToUIMessages(
             typeof content === 'string'
               ? parseToolResultContent(content)
               : content
-          toolCallPart.state = msg.error === undefined ? 'complete' : 'error'
+          toolCallPart.state = resultState
         }
 
         currentAssistantMessage.parts.push({
           type: 'tool-result',
           toolCallId: msg.toolCallId,
           content,
-          state: msg.error === undefined ? 'complete' : 'error',
+          state: resultState,
+          ...(toolResultOutcome !== undefined && {
+            outcome: toolResultOutcome,
+          }),
           ...(msg.id !== undefined &&
             msg.id !== currentAssistantMessage.id && { id: msg.id }),
           ...(msg.name !== undefined && { name: msg.name }),

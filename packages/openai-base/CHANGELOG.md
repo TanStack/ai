@@ -1,5 +1,24 @@
 # @tanstack/openai-base
 
+## 0.12.0
+
+### Minor Changes
+
+- [#1376](https://github.com/TanStack/ai/pull/1376) [`740ae66`](https://github.com/TanStack/ai/commit/740ae6664d358f00deddf72319ef947fe3bb0935) - Preserve source links for hosted web search calls. OpenAI Responses `web_search_call` items and Gemini Google Search grounding now surface as provider-executed tool calls with a normalized `metadata.sources` array (new `ProviderExecutedToolSource` type) and the raw provider data under `metadata.openai` / `metadata.gemini`. The OpenAI adapter requests `web_search_call.action.sources` when a branded web search tool is used, and both adapters replay the raw items on the next turn instead of treating them as function calls.
+
+- [#1499](https://github.com/TanStack/ai/pull/1499) [`f822940`](https://github.com/TanStack/ai/commit/f822940c9c029f46540349e64bceefff00286d6f) - Warn in development when a tool is sent with `strict: false` because its schema cannot be strict. The warning names the tool and the reason, for example `tool "lookup_user" sent with strict: false: schema uses $ref, which strict mode does not support`. It runs once per tool, never when `NODE_ENV` is `production`, and you can turn it off with `strictFallbackWarning: false` in the adapter config.
+
+### Patch Changes
+
+- [#1494](https://github.com/TanStack/ai/pull/1494) [`a308fe9`](https://github.com/TanStack/ai/commit/a308fe95b126368c913a1aff3245d749a09d4312) - Report `RUN_ERROR` (code `incomplete-stream`) when an OpenAI or OpenRouter Responses stream ends before `response.completed`. Before, the adapter sent a made-up `RUN_FINISHED` with `finishReason: 'stop'`, so a cut-off answer looked like a successful run and middleware `onFinish` ran. The partial text is still streamed to the caller.
+
+- [#1489](https://github.com/TanStack/ai/pull/1489) [`489d610`](https://github.com/TanStack/ai/commit/489d610bb78f92f5df989b18acc71fe18cdfd3f9) - Stop reading an OpenAI Responses stream after `response.completed`. Before, `chat()` and `structuredOutputStream` waited for the HTTP body to close, so a body that stayed open delayed `RUN_FINISHED`. The adapter now finishes on the terminal event and releases the upstream reader.
+
+- [#1497](https://github.com/TanStack/ai/pull/1497) [`7e21823`](https://github.com/TanStack/ai/commit/7e21823421cbe962c3b577b80e1de1f59bd350f5) - Report OpenAI Responses structured output streams that end without `response.completed` as `RUN_ERROR` instead of success. Preserve text already streamed to callers.
+
+- Updated dependencies [[`a450d00`](https://github.com/TanStack/ai/commit/a450d007a039610994342dd9c3387f880a4eb992), [`c54e20c`](https://github.com/TanStack/ai/commit/c54e20cf5be8e1f73e0be661e242391fa0e4633e), [`a56192e`](https://github.com/TanStack/ai/commit/a56192eafa0da2ccca2d576dc4371b196355c605), [`740ae66`](https://github.com/TanStack/ai/commit/740ae6664d358f00deddf72319ef947fe3bb0935), [`5099a32`](https://github.com/TanStack/ai/commit/5099a32cbfb6c77e335769793415fe7e90bb17d8), [`820429f`](https://github.com/TanStack/ai/commit/820429fa9bea8ba220cf073406760475ac07b112), [`0abae97`](https://github.com/TanStack/ai/commit/0abae97f94fe4d37523f8a6427972ae7fe3b7fde), [`8c68c2d`](https://github.com/TanStack/ai/commit/8c68c2d9750bcc818201089bbbb7d90aa26d99a1)]:
+  - @tanstack/ai@0.62.0
+
 ## 0.11.1
 
 ### Patch Changes
