@@ -216,12 +216,20 @@ export function mcpConnector(options: McpConnectorOptions) {
         discoverTools: async () => {
           if (!connected) return []
           if (!tools) {
+            // The SDK only refreshes tokens for a client with a redirect URL.
+            // Without one it treats the client as machine-to-machine. A new
+            // browser sign-in still happens only through /connect.
+            const saved = await ctx.credentials.get(id)
+            const redirectUri =
+              (saved?.type === 'oauth'
+                ? saved.client?.redirectUri
+                : undefined) ?? 'http://127.0.0.1/callback'
             client = await createMCPClient({
               transport: {
                 type: 'http',
                 url,
                 authProvider: credentialProvider(id, ctx.credentials, {
-                  redirectUri: undefined,
+                  redirectUri,
                   clientName,
                   scopes: options.scopes,
                 }),
