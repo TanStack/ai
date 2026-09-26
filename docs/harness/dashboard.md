@@ -1,7 +1,7 @@
 ---
 title: Self-host the dashboard
 id: harness-dashboard
-order: 10
+order: 11
 description: "Watch and steer your harness sessions from a browser or a phone. Agents dial out to your dashboard server, so they need no open port."
 keywords:
   - tanstack ai

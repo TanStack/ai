@@ -1,6 +1,6 @@
 # Harness CLI example
 
-A small coding agent in your terminal, built with `@tanstack/ai-harness`. It reads and edits files in `./playground`, asks before it writes a file or runs a command, keeps a todo list, and can switch models.
+A small coding agent in your terminal, built with `@tanstack/ai-harness`. It reads and edits files in `./playground`, asks before it writes a file or runs a command, keeps a todo list, and can switch models. It can also read Notion and Linear, and make images and videos.
 
 ## Run it
 
@@ -8,7 +8,7 @@ From the repo root:
 
 1. `pnpm install`
 2. `pnpm build:all` (the example uses the local packages)
-3. Set a key: `OPENAI_API_KEY=...` or `ANTHROPIC_API_KEY=...`. Without one, a demo model answers.
+3. Copy `.env.example` to `.env` and set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. Without a key, a demo model answers.
 4. `pnpm --filter harness-cli-example start`
 
 Try these:
@@ -18,6 +18,15 @@ Try these:
 - `/todos`, `/usage`, `/model fast`, `/agents`
 - `/agent haiku {"topic":"rain"}`: runs a typed agent in the background.
 - Press Esc to stop a long answer. Type while it works to steer it.
+
+## Use Notion, Linear, images, and video
+
+1. Run `/connect notion`. Approve the consent page that opens in the browser. Do the same with `/connect linear`.
+2. Ask: `find my latest Linear issue, look for a related Notion page, then make an image and a short video about it`.
+3. The files land in `playground/media`.
+
+- Sign-ins are kept in `~/.tanstack-harness-example/credentials.json`, so you sign in once. `/disconnect notion` deletes one.
+- Images use `OPENAI_API_KEY`. Videos use Grok Imagine when `XAI_API_KEY` is set, and OpenAI Sora when it is not.
 
 ## Other modes
 

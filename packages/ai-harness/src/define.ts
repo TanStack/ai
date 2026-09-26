@@ -35,6 +35,7 @@ export interface HarnessConfig<
   systemPrompts?: Array<SystemPrompt>
   tools?: ReadonlyArray<AnyTool>
   middleware?: ReadonlyArray<AnyChatMiddleware>
+  /** When a turn stops calling the model. Defaults to `maxIterations(50)`. */
   agentLoopStrategy?: AgentLoopStrategy
   modelOptions?: TAdapter['~types']['providerOptions']
   interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>

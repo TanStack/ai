@@ -188,12 +188,18 @@ importers:
       '@tanstack/ai-dashboard':
         specifier: workspace:*
         version: link:../../packages/ai-dashboard
+      '@tanstack/ai-grok':
+        specifier: workspace:*
+        version: link:../../packages/ai-grok
       '@tanstack/ai-harness':
         specifier: workspace:*
         version: link:../../packages/ai-harness
       '@tanstack/ai-harness-cli':
         specifier: workspace:*
         version: link:../../packages/ai-harness-cli
+      '@tanstack/ai-mcp':
+        specifier: workspace:*
+        version: link:../../packages/ai-mcp
       '@tanstack/ai-openai':
         specifier: workspace:*
         version: link:../../packages/ai-openai
@@ -2756,6 +2762,12 @@ importers:
         specifier: workspace:^
         version: link:../ai
     devDependencies:
+      '@tanstack/ai-harness':
+        specifier: workspace:*
+        version: link:../ai-harness
+      '@tanstack/ai-persistence':
+        specifier: workspace:*
+        version: link:../ai-persistence
       '@vitest/coverage-v8':
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.11)

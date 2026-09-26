@@ -44,6 +44,10 @@
     "./apps": {
       "types": "./dist/esm/apps/index.d.ts",
       "import": "./dist/esm/apps/index.js"
+    },
+    "./connector": {
+      "types": "./dist/esm/connector.d.ts",
+      "import": "./dist/esm/connector.js"
     }
   },
   "files": [
@@ -66,7 +70,17 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tanstack/ai": "workspace:^"
   },
+  "peerDependencies": {
+    "@tanstack/ai-harness": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/ai-harness": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@tanstack/ai-harness": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
     "jiti": "^2.4.2",
     "json-schema-to-typescript": "^15.0.4",
