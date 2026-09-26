@@ -174,6 +174,43 @@ importers:
         specifier: ^8.2.1
         version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
 
+  examples/harness-cli:
+    dependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@tanstack/ai-acp':
+        specifier: workspace:*
+        version: link:../../packages/ai-acp
+      '@tanstack/ai-anthropic':
+        specifier: workspace:*
+        version: link:../../packages/ai-anthropic
+      '@tanstack/ai-dashboard':
+        specifier: workspace:*
+        version: link:../../packages/ai-dashboard
+      '@tanstack/ai-harness':
+        specifier: workspace:*
+        version: link:../../packages/ai-harness
+      '@tanstack/ai-harness-cli':
+        specifier: workspace:*
+        version: link:../../packages/ai-harness-cli
+      '@tanstack/ai-openai':
+        specifier: workspace:*
+        version: link:../../packages/ai-openai
+      '@tanstack/ai-persistence':
+        specifier: workspace:*
+        version: link:../../packages/ai-persistence
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.13.6
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.12
+
   examples/react/basic-chat:
     dependencies:
       '@tailwindcss/vite':
@@ -2335,6 +2372,21 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.11)
 
+  packages/ai-dashboard:
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@tanstack/ai-harness':
+        specifier: workspace:*
+        version: link:../ai-harness
+      '@tanstack/ai-persistence':
+        specifier: workspace:*
+        version: link:../ai-persistence
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.11)
+
   packages/ai-devtools:
     dependencies:
       '@tanstack/ai':
@@ -2556,6 +2608,9 @@ importers:
       '@tanstack/ai-acp':
         specifier: workspace:*
         version: link:../ai-acp
+      '@tanstack/ai-dashboard':
+        specifier: workspace:*
+        version: link:../ai-dashboard
       '@tanstack/ai-harness':
         specifier: workspace:*
         version: link:../ai-harness
@@ -3611,6 +3666,9 @@ importers:
       '@tanstack/ai-compaction':
         specifier: workspace:*
         version: link:../../packages/ai-compaction
+      '@tanstack/ai-dashboard':
+        specifier: workspace:*
+        version: link:../../packages/ai-dashboard
       '@tanstack/ai-elevenlabs':
         specifier: workspace:*
         version: link:../../packages/ai-elevenlabs

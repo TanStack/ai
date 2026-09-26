@@ -1,0 +1,26 @@
+{
+  "name": "harness-cli-example",
+  "private": true,
+  "type": "module",
+  "description": "A small coding agent in the terminal, built with @tanstack/ai-harness",
+  "scripts": {
+    "start": "tsx src/cli.ts",
+    "dashboard": "tanstack-ai-dashboard",
+    "test:types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-acp": "workspace:*",
+    "@tanstack/ai-anthropic": "workspace:*",
+    "@tanstack/ai-dashboard": "workspace:*",
+    "@tanstack/ai-harness": "workspace:*",
+    "@tanstack/ai-harness-cli": "workspace:*",
+    "@tanstack/ai-openai": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "tsx": "^4.23.12"
+  }
+}

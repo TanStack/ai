@@ -11,6 +11,7 @@ Choose an example based on your use case:
 - **Want a table that fills as JSON streams?** → [Streaming Structured Table](#streaming-structured-table)
 - **Want typed ticket routing?** → [Evaluate](#evaluate)
 - **Want a blog desk with three agents?** → [Subagents](#subagents)
+- **Want your own coding agent in the terminal?** → [Harness CLI](#harness-cli)
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
@@ -18,6 +19,22 @@ Choose an example based on your use case:
 - **Polyglot AG-UI backends (Go/Rust/PHP/Zig/Bash/Python)?** → [AG-UI Polyglot Echo (ag-ui)](#ag-ui-polyglot-echo-ag-ui)
 
 ## TypeScript Examples
+
+### Harness CLI
+
+A small coding agent in the terminal, built with `@tanstack/ai-harness`. It edits files in `./playground`, asks before writes and commands, keeps a todo list, switches models, and connects to the self-hosted dashboard. Without an API key, a demo model answers.
+
+**Path:** `examples/harness-cli`
+
+**Getting Started:**
+
+```bash
+OPENAI_API_KEY=... pnpm --filter harness-cli-example start
+```
+
+📖 [Full Documentation](harness-cli/README.md)
+
+---
 
 ### Basic Chat
 

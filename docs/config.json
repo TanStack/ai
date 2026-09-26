@@ -848,6 +848,11 @@
           "label": "Deploy a harness",
           "to": "harness/deploy",
           "addedAt": "2026-09-26"
+        },
+        {
+          "label": "Self-host the dashboard",
+          "to": "harness/dashboard",
+          "addedAt": "2026-09-26"
         }
       ]
     },

@@ -25,7 +25,13 @@ export async function runLines(
 ): Promise<void> {
   const reader = new AbortController()
   let entries: Array<ViewEntry> = []
-  let printed = 0
+  // True while streamed text has no line break at its end yet.
+  let midLine = false
+  const line = (text: string) => {
+    if (midLine) stdout.write('\n')
+    midLine = false
+    stdout.write(`${text}\n`)
+  }
   const printing = (async () => {
     for await (const entry of session.events({
       from: session.snapshot().cursor,
@@ -42,40 +48,40 @@ export async function runLines(
         previous.operationId === last.operationId
       ) {
         stdout.write(last.text.slice(previous.text.length))
+        midLine = true
+      } else if (last.kind === 'assistant') {
+        if (midLine) stdout.write('\n')
+        stdout.write(last.text)
+        midLine = true
       } else {
-        if (printed > 0) stdout.write('\n')
-        stdout.write(last.kind === 'assistant' ? last.text : `[${last.text}]`)
+        line(`[${last.text}]`)
       }
-      printed += 1
       entries = next
     }
   })()
 
   const lines = createInterface({ input, crlfDelay: Infinity })
   const pendingLater: Array<Promise<void>> = []
-  for await (const line of lines) {
+  for await (const typed of lines) {
     const snapshot = session.snapshot()
     if (snapshot.status === 'requires_action') {
       await resolveAll(
         session,
         snapshot.pendingInterrupts,
-        /^y(es)?$/i.test(line.trim()),
+        /^y(es)?$/i.test(typed.trim()),
       )
     } else {
-      const result = await handleLine(session, line)
+      const result = await handleLine(session, typed)
       if (result.type === 'exit') break
-      if (result.type === 'notice' && result.text)
-        stdout.write(`${result.text}\n`)
+      if (result.type === 'notice' && result.text) line(result.text)
       if (result.type === 'notice' && result.later) {
-        pendingLater.push(
-          result.later.then((text) => void stdout.write(`\n${text}\n`)),
-        )
+        pendingLater.push(result.later.then((text) => line(text)))
       }
     }
     await waitIdle(session)
     const after = session.snapshot()
     if (after.status === 'requires_action') {
-      stdout.write(`\n${approvalQuestion(after.pendingInterrupts)}\n`)
+      line(approvalQuestion(after.pendingInterrupts))
     }
   }
   lines.close()
@@ -83,5 +89,5 @@ export async function runLines(
   await waitIdle(session)
   reader.abort()
   await printing
-  if (printed > 0) stdout.write('\n')
+  if (midLine) stdout.write('\n')
 }
