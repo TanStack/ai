@@ -38,6 +38,7 @@ export type {
   AgentHandles,
   AgentRunOptions,
   AgentStartOptions,
+  DynamicAgentHandle,
   SessionSnapshot,
 } from './session'
 
@@ -55,3 +56,22 @@ export type {
   SessionEvent,
   UserInput,
 } from './types'
+
+export {
+  HARNESS_PROTOCOL_VERSION,
+  applyInput,
+  capabilitiesOf,
+  parseControlFrame,
+  parseHarnessInput,
+} from './protocol'
+export type { ControlFrame, HostFrame } from './protocol'
+
+export { createHarnessHandler, handleHarnessSocket } from './http'
+export type {
+  Authorize,
+  HarnessHandlerOptions,
+  HarnessSocketOptions,
+} from './http'
+
+export { harnessText } from './harness-text'
+export type { HarnessTextOptions } from './harness-text'

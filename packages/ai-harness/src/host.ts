@@ -69,6 +69,7 @@ export function createHarnessHost(
   // to keep accepted inputs across restarts.
   const inbox = persistence.stores.inbox ?? memoryPersistence().stores.inbox
   const sessions = new Map<string, Promise<HarnessSession>>()
+  const hostId = `host-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 
   return {
     open(harness, { threadId, principal }) {
@@ -80,6 +81,7 @@ export function createHarnessHost(
           threadId,
           persistence,
           inbox,
+          hostId,
           ...(principal ? { principal } : {}),
           onClose: () => sessions.delete(key),
         })

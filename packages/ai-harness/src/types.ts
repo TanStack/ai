@@ -93,6 +93,7 @@ export interface Operation<TResult> extends PromiseLike<TResult> {
 export const HARNESS_EVENTS = {
   operationStarted: 'harness.operation.started',
   operationFinished: 'harness.operation.finished',
+  operationResumed: 'harness.operation.resumed',
   inputAccepted: 'harness.input.accepted',
   inputApplied: 'harness.input.applied',
   inputRejected: 'harness.input.rejected',

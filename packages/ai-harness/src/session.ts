@@ -12,6 +12,11 @@ import { AgentRegistry } from './agents'
 import { SessionFeed } from './feed'
 import { OperationImpl } from './operation'
 import { mountPlugins } from './plugins'
+import {
+  checkpointMiddleware,
+  findCrashedRuns,
+  repairTranscript,
+} from './resume'
 import { HARNESS_EVENTS } from './types'
 import type {
   AnyChatMiddleware,
@@ -74,6 +79,12 @@ export interface AgentHandle<TAgent> {
   ) => Operation<AgentResultOf<TAgent>>
 }
 
+/** A handle for an agent picked by name at runtime. */
+export interface DynamicAgentHandle {
+  run: (input?: unknown, options?: AgentRunOptions) => Operation<unknown>
+  start: (input?: unknown, options?: AgentStartOptions) => Operation<unknown>
+}
+
 /** `session.agents`: one typed handle per registered agent name. */
 export type AgentHandles<THarness> = {
   [TAgent in HarnessAgentsOf<THarness> as TAgent['name']]: AgentHandle<TAgent>
@@ -101,6 +112,8 @@ export interface SessionDependencies {
   persistence: HarnessPersistence
   inbox: InboxStore
   principal?: Principal
+  /** Identifies this host on run leases. */
+  hostId: string
   onClose: () => void
 }
 
@@ -173,6 +186,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private sessionPlugins: MountedPlugins | undefined
   private closing: Promise<void> | undefined
   private readonly onClose: () => void
+  private readonly checkpoint: AnyChatMiddleware
 
   constructor(deps: SessionDependencies) {
     this.harness = deps.harness as THarness
@@ -181,6 +195,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     this.inbox = deps.inbox
     this.principal = deps.principal
     this.onClose = deps.onClose
+    this.checkpoint = checkpointMiddleware(deps.persistence, deps.hostId)
     this.registry = this.agentRegistry
     for (const agent of this.harness.agents ?? []) {
       this.agentRegistry.add(agent, 'the harness')
@@ -201,6 +216,24 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     })
   }
 
+  /**
+   * The agent named `name`, for names known only at runtime (a slash
+   * command, a protocol input). `undefined` when no such agent exists.
+   */
+  agent(name: string): DynamicAgentHandle | undefined {
+    if (!this.agentRegistry.get(name)) return undefined
+    return {
+      run: (input, options) =>
+        this.runAgent(name, input, { ...options, wake: false }),
+      start: (input, options) => this.runAgent(name, input, options ?? {}),
+    }
+  }
+
+  /** An operation of this session by id, running or settled. */
+  operation(id: string): Operation<unknown> | undefined {
+    return this.operations.get(id)
+  }
+
   /** @internal Mount session plugins and replay inputs left in the inbox. */
   async open(): Promise<void> {
     this.plugins = this.harness.plugins?.() ?? []
@@ -217,6 +250,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         ),
       },
     )
+    await this.recoverCrashedTurn()
     await this.recoverInbox()
   }
 
@@ -513,6 +547,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         middleware: [
           ...bridges,
           withPersistence(this.persistence),
+          this.checkpoint,
           ...(this.harness.middleware ?? []),
           ...(session?.middleware ?? []),
           ...(runPlugins?.middleware ?? []),
@@ -842,6 +877,38 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         status: operation.status(),
       }),
     )
+  }
+
+  /**
+   * Continue the newest chat turn that a crashed host left running. Older
+   * crashed turns are marked failed.
+   */
+  private async recoverCrashedTurn(): Promise<void> {
+    const crashed = await findCrashedRuns(this.persistence, this.threadId)
+    const newest = crashed.sort((a, b) => b.startedAt - a.startedAt)[0]
+    for (const record of crashed) {
+      await this.persistence.stores.runs?.update(record.runId, {
+        status: 'failed',
+        finishedAt: Date.now(),
+        error: {
+          message:
+            record === newest
+              ? 'The host stopped. The session continued this turn in a new run.'
+              : 'The host stopped during this turn.',
+        },
+      })
+    }
+    if (!newest) return
+    await repairTranscript(this.persistence, newest)
+    const operation = this.createTurnOperation()
+    this.feed.publish(
+      operation.id,
+      customEvent(HARNESS_EVENTS.operationResumed, {
+        operationId: operation.id,
+        resumedFrom: newest.runId,
+      }),
+    )
+    this.enqueueTurn({ operation })
   }
 
   /** Re-run turns that were accepted but never applied before a restart. */
