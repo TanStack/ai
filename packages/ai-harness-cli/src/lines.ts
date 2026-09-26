@@ -52,6 +52,7 @@ export async function runLines(
   })()
 
   const lines = createInterface({ input, crlfDelay: Infinity })
+  const pendingLater: Array<Promise<void>> = []
   for await (const line of lines) {
     const snapshot = session.snapshot()
     if (snapshot.status === 'requires_action') {
@@ -65,6 +66,11 @@ export async function runLines(
       if (result.type === 'exit') break
       if (result.type === 'notice' && result.text)
         stdout.write(`${result.text}\n`)
+      if (result.type === 'notice' && result.later) {
+        pendingLater.push(
+          result.later.then((text) => void stdout.write(`\n${text}\n`)),
+        )
+      }
     }
     await waitIdle(session)
     const after = session.snapshot()
@@ -73,6 +79,7 @@ export async function runLines(
     }
   }
   lines.close()
+  await Promise.allSettled(pendingLater)
   await waitIdle(session)
   reader.abort()
   await printing

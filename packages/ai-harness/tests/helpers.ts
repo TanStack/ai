@@ -39,8 +39,12 @@ export function mockAdapter(replies: Array<Reply> | Reply) {
 
 const now = () => Date.now()
 
-/** One model call that answers with `content`. */
+let messageCount = 0
+
+/** One model call that answers with `content`. Each call gets a new message id. */
 export function text(content: string): Array<StreamChunk> {
+  messageCount += 1
+  const m = `m-${messageCount}`
   return [
     {
       type: EventType.RUN_STARTED,
@@ -50,17 +54,17 @@ export function text(content: string): Array<StreamChunk> {
     },
     {
       type: EventType.TEXT_MESSAGE_START,
-      messageId: 'm',
+      messageId: m,
       role: 'assistant',
       timestamp: now(),
     },
     {
       type: EventType.TEXT_MESSAGE_CONTENT,
-      messageId: 'm',
+      messageId: m,
       delta: content,
       timestamp: now(),
     },
-    { type: EventType.TEXT_MESSAGE_END, messageId: 'm', timestamp: now() },
+    { type: EventType.TEXT_MESSAGE_END, messageId: m, timestamp: now() },
     {
       type: EventType.RUN_FINISHED,
       runId: 'r',

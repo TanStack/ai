@@ -1,7 +1,13 @@
 import { Readable } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
-import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import {
+  configOption,
+  createHarnessHost,
+  defineCommand,
+  defineHarness,
+  definePlugin,
+} from '@tanstack/ai-harness'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { EXIT, parseCliArgs, runCli } from '../src'
 import { serve } from '../src/serve'
@@ -219,6 +225,72 @@ describe('line mode', () => {
     expect(stdout.text).toContain('[y/n]')
     expect(stdout.text).toContain('Done removing.')
     expect(stdout.text).toContain('pricer: Prices a vendor')
+  })
+})
+
+describe('plugin commands in line mode', () => {
+  it('runs plugin commands, answers questions, and changes settings', async () => {
+    const tools = definePlugin({
+      name: 'test/tools',
+      setup: (ctx) => ({
+        config: {
+          tone: configOption.select({
+            options: ['plain', 'warm'],
+            default: 'plain',
+          }),
+        },
+        commands: {
+          greet: defineCommand({
+            description: 'Greet someone',
+            run: (input: unknown) =>
+              `Hello, ${typeof input === 'object' && input !== null && 'name' in input ? String(input.name) : 'you'}!`,
+          }),
+          confirm: defineCommand({
+            description: 'Ask first',
+            run: async () => {
+              const sure = await ctx.session.ask({
+                message: 'Really?',
+                schema: { type: 'boolean' },
+              })
+              return sure === true ? 'Confirmed.' : 'Stopped.'
+            },
+          }),
+        },
+      }),
+    })
+    const { adapter } = scripted([])
+    const stdout = capture()
+    const input = Readable.from([
+      '/greet {"name":"Ada"}\n',
+      '/confirm\n',
+      'yes\n',
+      '/config tone warm\n',
+      '/config\n',
+      '/help\n',
+      '/exit\n',
+    ])
+    await runCli(
+      defineHarness({
+        name: 'test/plugin-lines',
+        adapter,
+        plugins: () => [tools],
+      }),
+      {
+        argv: [],
+        stdin: Object.assign(input, {
+          isTTY: false,
+        }) as unknown as NodeJS.ReadStream,
+        stdout,
+        stderr: capture(),
+        persistence: memoryPersistence(),
+      },
+    )
+    expect(stdout.text).toContain('Hello, Ada!')
+    expect(stdout.text).toContain('? Really?')
+    expect(stdout.text).toContain('Confirmed.')
+    expect(stdout.text).toContain('tone changed.')
+    expect(stdout.text).toContain('tone = "warm"')
+    expect(stdout.text).toContain('/greet  Greet someone')
   })
 })
 

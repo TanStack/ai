@@ -15,7 +15,27 @@ export type {
   PluginLifetime,
   PluginPrompt,
   PluginSetupContext,
+  PluginState,
 } from './plugins'
+
+export { createExtensionPoint, createPluginEvent } from './extensions'
+export type { ExtensionItem, ExtensionPoint, PluginEvent } from './extensions'
+
+export { checkConfigValue, configOption } from './config'
+export type { ConfigOption } from './config'
+
+export { defineCommand } from './commands'
+export type {
+  AnswerOf,
+  AnyCommand,
+  CommandContext,
+  CommandDefinition,
+  PluginSessionApi,
+  Question,
+} from './commands'
+
+export { AuthRequiredError, scrubSecrets } from './auth'
+export type { CredentialsAccess } from './auth'
 
 export type {
   AgentInputOf,
@@ -39,6 +59,7 @@ export type {
   AgentRunOptions,
   AgentStartOptions,
   DynamicAgentHandle,
+  SessionInspection,
   SessionSnapshot,
 } from './session'
 
@@ -75,3 +96,17 @@ export type {
 
 export { harnessText } from './harness-text'
 export type { HarnessTextOptions } from './harness-text'
+
+export {
+  buildAuthorizationUrl,
+  createPkce,
+  deviceLogin,
+  exchangeCode,
+  isExpired,
+  loopbackLogin,
+  refreshCredential,
+} from './oauth'
+export type { OAuthConfig } from './oauth'
+
+export { oauthConnector } from './connectors'
+export type { OAuthConnectorOptions } from './connectors'

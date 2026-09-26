@@ -14,8 +14,11 @@ import type {
   BlobStore,
   GenerationRunRecord,
   GenerationRunStore,
+  Credential,
+  CredentialStore,
   InboxEntry,
   InboxStore,
+  Scope,
   InterruptCommitEntry,
   InterruptRecord,
   InterruptStore,
@@ -300,6 +303,47 @@ class MemoryMetadataStore implements MetadataStore {
   // (This parameter is an app-defined metadata namespace string — not the
   // shared `Scope` identity type from `@tanstack/ai`.)
   private readonly values = new Map<string, Map<string, unknown>>()
+  private readonly revisions = new Map<string, Map<string, number>>()
+  private revisionOf(namespace: string, key: string): number | undefined {
+    return this.revisions.get(namespace)?.get(key)
+  }
+  private bump(namespace: string, key: string): string {
+    let bucket = this.revisions.get(namespace)
+    if (!bucket) {
+      bucket = new Map()
+      this.revisions.set(namespace, bucket)
+    }
+    const next = (bucket.get(key) ?? 0) + 1
+    bucket.set(key, next)
+    return String(next)
+  }
+  getVersioned(
+    namespace: string,
+    key: string,
+  ): Promise<{ value: unknown; revision: string } | null> {
+    const bucket = this.values.get(namespace)
+    if (!bucket || !bucket.has(key)) return Promise.resolve(null)
+    return Promise.resolve({
+      value: bucket.get(key),
+      revision: String(this.revisionOf(namespace, key) ?? 0),
+    })
+  }
+  async setIf(
+    namespace: string,
+    key: string,
+    value: unknown,
+    expectedRevision: string | null,
+  ): Promise<
+    { ok: true; revision: string } | { ok: false; reason: 'conflict' }
+  > {
+    const present = this.values.get(namespace)?.has(key) ?? false
+    const current = present
+      ? String(this.revisionOf(namespace, key) ?? 0)
+      : null
+    if (current !== expectedRevision) return { ok: false, reason: 'conflict' }
+    await this.set(namespace, key, value)
+    return { ok: true, revision: String(this.revisionOf(namespace, key)) }
+  }
   get(namespace: string, key: string): Promise<unknown | null> {
     const bucket = this.values.get(namespace)
     if (!bucket || !bucket.has(key)) return Promise.resolve(null)
@@ -312,11 +356,13 @@ class MemoryMetadataStore implements MetadataStore {
       this.values.set(namespace, bucket)
     }
     bucket.set(key, value)
+    this.bump(namespace, key)
     return Promise.resolve()
   }
   delete(namespace: string, key: string): Promise<void> {
     const bucket = this.values.get(namespace)
     if (!bucket) return Promise.resolve()
+    this.revisions.get(namespace)?.delete(key)
     bucket.delete(key)
     if (bucket.size === 0) this.values.delete(namespace)
     return Promise.resolve()
@@ -583,6 +629,48 @@ class MemoryInboxStore implements InboxStore {
   }
 }
 
+class MemoryCredentialStore implements CredentialStore {
+  private readonly values = new Map<string, Map<string, Credential>>()
+  // A credential without a userId belongs to the tenant.
+  private owner(scope: Scope): string {
+    return JSON.stringify([scope.tenantId ?? null, scope.userId ?? null])
+  }
+  get(scope: Scope, id: string): Promise<Credential | null> {
+    const stored = this.values.get(this.owner(scope))?.get(id)
+    return Promise.resolve(stored ? { ...stored } : null)
+  }
+  set(scope: Scope, id: string, credential: Credential): Promise<void> {
+    const key = this.owner(scope)
+    let bucket = this.values.get(key)
+    if (!bucket) {
+      bucket = new Map()
+      this.values.set(key, bucket)
+    }
+    bucket.set(id, { ...credential })
+    return Promise.resolve()
+  }
+  delete(scope: Scope, id: string): Promise<void> {
+    this.values.get(this.owner(scope))?.delete(id)
+    return Promise.resolve()
+  }
+  list(
+    scope: Scope,
+  ): Promise<
+    Array<{ id: string; type: Credential['type']; expiresAt?: number }>
+  > {
+    const bucket = this.values.get(this.owner(scope))
+    return Promise.resolve(
+      [...(bucket?.entries() ?? [])].map(([id, credential]) => ({
+        id,
+        type: credential.type,
+        ...(credential.type === 'oauth' && credential.expiresAt !== undefined
+          ? { expiresAt: credential.expiresAt }
+          : {}),
+      })),
+    )
+  }
+}
+
 interface MemoryPersistenceStores {
   messages: MessageStore
   runs: RunStore
@@ -592,13 +680,14 @@ interface MemoryPersistenceStores {
   artifacts: ArtifactStore
   blobs: BlobStore
   inbox: InboxStore
+  credentials: CredentialStore
 }
 
 /**
  * In-process reference backend for the full state + generation store set.
  *
  * Returns messages + runs + generationRuns + interrupts + metadata + artifacts
- * + blobs + inbox. Locks are not included — use `InMemoryLockStore` +
+ * + blobs + inbox + credentials. Locks are not included — use `InMemoryLockStore` +
  * `withLocks` from `@tanstack/ai` when a test or single-process app needs
  * coordination.
  */
@@ -610,6 +699,7 @@ export function memoryPersistence() {
     interrupts: new MemoryInterruptStore(),
     metadata: new MemoryMetadataStore(),
     inbox: new MemoryInboxStore(),
+    credentials: new MemoryCredentialStore(),
     artifacts: new MemoryArtifactStore(),
     blobs: new MemoryBlobStore(),
   }

@@ -1528,6 +1528,72 @@ export function runPersistenceConformance(
       })
     })
 
+    // Credentials are opt-in: only harness hosts read them.
+    describe('credentials', () => {
+      it('keys by user and tenant, lists without values, and deletes', async (ctx) => {
+        const store = persistence.stores.credentials
+        if (!store) return ctx.skip('credentials store not provided')
+
+        const user = { threadId: 't', userId: 'u1', tenantId: 'org' }
+        const tenant = { threadId: 't', tenantId: 'org' }
+        await store.set(user, 'github', {
+          type: 'oauth',
+          accessToken: 'secret-access',
+          refreshToken: 'secret-refresh',
+          expiresAt: 100,
+        })
+        await store.set(tenant, 'notion', {
+          type: 'api_key',
+          value: 'secret-key',
+        })
+
+        expect(await store.get(user, 'github')).toMatchObject({
+          accessToken: 'secret-access',
+        })
+        // A user credential is not visible at tenant scope, and the other way around.
+        expect(await store.get(tenant, 'github')).toBeNull()
+        expect(await store.get(user, 'notion')).toBeNull()
+
+        const listed = await store.list(user)
+        expect(listed).toEqual([
+          { id: 'github', type: 'oauth', expiresAt: 100 },
+        ])
+        // `list` never returns secret values.
+        expect(JSON.stringify(listed)).not.toContain('secret')
+
+        await store.delete(user, 'github')
+        expect(await store.get(user, 'github')).toBeNull()
+        expect(await store.list(user)).toEqual([])
+      })
+    })
+
+    // Compare-and-set on metadata is opt-in.
+    describe('metadata setIf', () => {
+      it('writes only when the revision matches', async (ctx) => {
+        const store = persistence.stores.metadata
+        if (!store?.setIf || !store.getVersioned) {
+          return ctx.skip('metadata setIf not provided')
+        }
+        const created = await store.setIf('cas', 'k', { n: 1 }, null)
+        expect(created.ok).toBe(true)
+        expect(await store.setIf('cas', 'k', { n: 9 }, null)).toEqual({
+          ok: false,
+          reason: 'conflict',
+        })
+        const current = await store.getVersioned('cas', 'k')
+        expect(current?.value).toEqual({ n: 1 })
+        const revision = current?.revision ?? null
+        const updated = await store.setIf('cas', 'k', { n: 2 }, revision)
+        expect(updated.ok).toBe(true)
+        expect(await store.setIf('cas', 'k', { n: 3 }, revision)).toMatchObject(
+          {
+            ok: false,
+          },
+        )
+        expect(await store.get('cas', 'k')).toEqual({ n: 2 })
+      })
+    })
+
     // The inbox is opt-in: only harness hosts read it. A backend without it
     // skips these cases and needs no `skip` entry.
     describe('inbox', () => {

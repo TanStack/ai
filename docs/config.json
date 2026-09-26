@@ -823,6 +823,21 @@
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
           "addedAt": "2026-09-26"
+        },
+        {
+          "label": "Write a plugin",
+          "to": "harness/plugins",
+          "addedAt": "2026-09-26"
+        },
+        {
+          "label": "Build a coding agent",
+          "to": "harness/coding-agent",
+          "addedAt": "2026-09-26"
+        },
+        {
+          "label": "Auth and connectors",
+          "to": "harness/auth",
+          "addedAt": "2026-09-26"
         }
       ]
     },

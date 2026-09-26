@@ -3,7 +3,12 @@ import { Box, Text, render, useApp, useInput } from 'ink'
 import { HARNESS_EVENTS } from '@tanstack/ai-harness'
 import { EventType } from '@tanstack/ai'
 import { handleLine } from './commands'
-import { applyEvent, approvalQuestion, resolveAll } from './session-view'
+import {
+  applyEvent,
+  approvalQuestion,
+  openUrl,
+  resolveAll,
+} from './session-view'
 import type {
   AnyHarness,
   HarnessSession,
@@ -51,11 +56,11 @@ function App({
       })) {
         setEntries((current) => applyEvent(current, entry).slice(-MAX_ENTRIES))
         const event = entry.event
-        if (
-          event.type === EventType.CUSTOM &&
-          (event.name === HARNESS_EVENTS.operationStarted ||
-            event.name === HARNESS_EVENTS.operationFinished)
-        ) {
+        if (event.type === EventType.CUSTOM) {
+          if (event.name === HARNESS_EVENTS.authRequired) {
+            const url = (event.value as { url?: unknown }).url
+            if (typeof url === 'string') openUrl(url)
+          }
           // Let the operation settle before reading the status.
           setTimeout(() => setSnapshot(session.snapshot()), 0)
         }
@@ -119,8 +124,10 @@ function App({
     })()
   })
 
-  const status =
-    snapshot.status === 'running'
+  const question = snapshot.pendingQuestions[0]
+  const status = question
+    ? `${question.message} (type your answer)`
+    : snapshot.status === 'running'
       ? 'working (Esc to cancel, Enter steers)'
       : snapshot.status === 'requires_action'
         ? approvalQuestion(snapshot.pendingInterrupts)
