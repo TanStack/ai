@@ -9,8 +9,14 @@
  * satisfies the `MCPToolSource` shape `chat({ mcp })` consumes.
  */
 import { describe, expect, it, vi } from 'vitest'
-import { chat } from '@tanstack/ai'
-import type { AnyTextAdapter } from '@tanstack/ai'
+import {
+  InMemoryTransport,
+  SUPPORTED_PROTOCOL_VERSIONS,
+} from '@modelcontextprotocol/client'
+import { Server } from '@modelcontextprotocol/server'
+import { EventType, chat } from '@tanstack/ai'
+import type { AdapterYieldChunk, AnyTextAdapter } from '@tanstack/ai'
+import type { Transport } from '@modelcontextprotocol/client'
 import { createMCPClients } from '../src/pool'
 import { makeServerWithWeatherTool } from './helpers/in-memory-server'
 
@@ -22,6 +28,11 @@ import { makeServerWithWeatherTool } from './helpers/in-memory-server'
 function makeMockAdapter(
   onTools: (names: Array<string>) => void,
 ): AnyTextAdapter {
+  const chatStream: AnyTextAdapter['chatStream'] = (options) => {
+    const tools = options.tools ?? []
+    onTools(tools.map((tool) => tool.name))
+    return textEvents()
+  }
   return {
     kind: 'text',
     name: 'mock',
@@ -40,67 +51,76 @@ function makeMockAdapter(
       toolCallMetadata: undefined,
       systemPromptMetadata: undefined,
     },
-    chatStream: (opts: { tools?: Array<{ name: string }> }) => {
-      onTools((opts.tools ?? []).map((t) => t.name))
-      return (async function* () {
-        const ts = Date.now()
-        yield {
-          type: 'RUN_STARTED',
-          runId: 'r1',
-          threadId: 't1',
-          timestamp: ts,
-        }
-        yield {
-          type: 'TEXT_MESSAGE_START',
-          messageId: 'm1',
-          role: 'assistant',
-          timestamp: ts,
-        }
-        yield {
-          type: 'TEXT_MESSAGE_CONTENT',
-          messageId: 'm1',
-          delta: 'ok',
-          timestamp: ts,
-        }
-        yield { type: 'TEXT_MESSAGE_END', messageId: 'm1', timestamp: ts }
-        yield {
-          type: 'RUN_FINISHED',
-          runId: 'r1',
-          threadId: 't1',
-          finishReason: 'stop',
-          timestamp: ts,
-        }
-      })()
-    },
+    chatStream,
     structuredOutput: async () => ({ data: {}, rawText: '{}' }),
-  } as unknown as AnyTextAdapter
+  }
 }
 
-async function drain(stream: unknown): Promise<void> {
-  for await (const _chunk of stream as AsyncIterable<unknown>) {
+async function* textEvents(): AsyncGenerator<AdapterYieldChunk> {
+  const timestamp = Date.now()
+  yield {
+    type: EventType.RUN_STARTED,
+    runId: 'r1',
+    threadId: 't1',
+    timestamp,
+  }
+  yield {
+    type: EventType.TEXT_MESSAGE_START,
+    messageId: 'm1',
+    role: 'assistant',
+    timestamp,
+  }
+  yield {
+    type: EventType.TEXT_MESSAGE_CONTENT,
+    messageId: 'm1',
+    delta: 'ok',
+    timestamp,
+  }
+  yield {
+    type: EventType.TEXT_MESSAGE_END,
+    messageId: 'm1',
+    timestamp,
+  }
+  yield {
+    type: EventType.RUN_FINISHED,
+    runId: 'r1',
+    threadId: 't1',
+    finishReason: 'stop',
+    timestamp,
+  }
+}
+
+async function drain(stream: AsyncIterable<unknown>): Promise<void> {
+  for await (const _chunk of stream) {
     // discard
   }
+}
+
+async function runPoolChat(transport: Transport, connection?: 'keep-alive') {
+  const pool = await createMCPClients({
+    weather: { transport },
+  })
+  const closeSpy = vi.spyOn(pool, 'close')
+  let seenTools: Array<string> = []
+  const adapter = makeMockAdapter((names) => {
+    seenTools = names
+  })
+  const stream = chat({
+    adapter,
+    messages: [{ role: 'user', content: 'hi' }],
+    mcp: {
+      clients: [pool],
+      ...(connection === undefined ? {} : { connection }),
+    },
+  })
+  await drain(stream)
+  return { pool, closeSpy, seenTools }
 }
 
 describe('createMCPClients pool → chat({ mcp })', () => {
   it("discovers the pool's prefixed tools and closes the pool after the run", async () => {
     const { clientTransport } = await makeServerWithWeatherTool()
-    const pool = await createMCPClients({
-      weather: { transport: clientTransport },
-    })
-    const closeSpy = vi.spyOn(pool, 'close')
-
-    let seenTools: Array<string> = []
-    const adapter = makeMockAdapter((names) => {
-      seenTools = names
-    })
-
-    const stream = chat({
-      adapter,
-      messages: [{ role: 'user', content: 'hi' }],
-      mcp: { clients: [pool] },
-    })
-    await drain(stream)
+    const { seenTools, closeSpy } = await runPoolChat(clientTransport)
 
     // Pool tool was discovered + merged into the run (auto-prefixed by config key).
     expect(seenTools).toContain('weather_get_weather')
@@ -110,20 +130,48 @@ describe('createMCPClients pool → chat({ mcp })', () => {
 
   it("keep-alive: the pool is NOT closed when connection is 'keep-alive'", async () => {
     const { clientTransport } = await makeServerWithWeatherTool()
-    const pool = await createMCPClients({
-      weather: { transport: clientTransport },
-    })
-    const closeSpy = vi.spyOn(pool, 'close')
-    const adapter = makeMockAdapter(() => {})
-
-    const stream = chat({
-      adapter,
-      messages: [{ role: 'user', content: 'hi' }],
-      mcp: { clients: [pool], connection: 'keep-alive' },
-    })
-    await drain(stream)
+    const { closeSpy, pool } = await runPoolChat(clientTransport, 'keep-alive')
 
     expect(closeSpy).not.toHaveBeenCalled()
     await pool.close() // clean up the kept-alive connection
   })
+
+  it('discovers tools from a spec 2026 server', async () => {
+    const clientTransport = await makeModernWeatherTransport()
+    const { seenTools, closeSpy } = await runPoolChat(clientTransport)
+
+    expect(seenTools).toEqual(['weather_get_weather'])
+    expect(closeSpy).toHaveBeenCalledTimes(1)
+  })
 })
+
+// The server has no public setter for the negotiated era, so the test sets it.
+async function makeModernWeatherTransport() {
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  const server = new Server(
+    { name: 'modern-weather', version: '1.0.0' },
+    {
+      capabilities: { tools: {} },
+      supportedProtocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS, '2026-07-28'],
+    },
+  )
+  Object.assign(server, { _negotiatedProtocolVersion: '2026-07-28' })
+  server.setRequestHandler('tools/list', () => ({
+    tools: [
+      {
+        name: 'get_weather',
+        description: 'Get weather for a city',
+        inputSchema: {
+          type: 'object',
+          properties: { city: { type: 'string' } },
+        },
+      },
+    ],
+  }))
+  server.setRequestHandler('tools/call', () => ({
+    content: [{ type: 'text' as const, text: 'Sunny' }],
+  }))
+  await server.connect(serverTransport)
+  return clientTransport
+}

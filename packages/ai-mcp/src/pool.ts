@@ -7,9 +7,11 @@ import type {
   ServerDescriptor,
   ToolsOptions,
 } from './types'
-import type { ClientOptions } from '@modelcontextprotocol/sdk/client/index.js'
+import type {
+  ClientOptions,
+  ReadResourceResult,
+} from '@modelcontextprotocol/client'
 import type { TransportConfig } from './transport'
-import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js'
 
 export type MCPClientsConfig = Record<string, MCPClientOptions>
 

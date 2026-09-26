@@ -99,6 +99,7 @@ export interface ServerTool<
   outputSchema?: TOutput
   needsApproval?: TNeedsApproval
   approvalSchema?: TApprovalSchema
+  execution?: 'task'
 }
 
 /**
@@ -127,6 +128,7 @@ export interface ClientTool<
   outputSchema?: TOutput
   needsApproval?: TNeedsApproval
   approvalSchema?: TApprovalSchema
+  execution?: 'task'
   lazy?: boolean
   metadata?: Record<string, unknown>
   execute?: ToolExecuteFunction<TInput, TOutput, TContext>
@@ -158,6 +160,7 @@ export interface ToolDefinitionInstance<
   outputSchema: TOutput
   needsApproval?: TNeedsApproval
   approvalSchema: TApprovalSchema
+  execution?: 'task'
   readonly [toolApprovalCapability]?: {
     needsApproval: TNeedsApproval
     approvalSchema: TApprovalSchema
@@ -221,6 +224,7 @@ export type ToolDefinitionConfig<
   outputSchema?: TOutput
   lazy?: boolean
   metadata?: Record<string, unknown>
+  execution?: 'task'
 } & ApprovalConfig<TNeedsApproval, TApprovalSchema>
 
 /**
@@ -353,6 +357,7 @@ export function toolDefinition<
   const outputSchema = config.outputSchema as TOutput
   const approvalSchema = config.approvalSchema as TApprovalSchema
   const needsApproval = config.needsApproval as TNeedsApproval | undefined
+  const execution = config.execution
 
   const definition: ToolDefinition<
     TInput,
@@ -367,6 +372,7 @@ export function toolDefinition<
     outputSchema,
     approvalSchema,
     needsApproval,
+    execution,
     server<TContext = unknown>(
       execute: ToolExecuteFunction<TInput, TOutput, TContext>,
     ): ServerTool<
@@ -385,6 +391,7 @@ export function toolDefinition<
         outputSchema,
         approvalSchema,
         needsApproval,
+        execution,
         execute,
       }
     },
@@ -407,6 +414,7 @@ export function toolDefinition<
         outputSchema,
         approvalSchema,
         needsApproval,
+        execution,
         ...(execute !== undefined && { execute }),
       }
     },

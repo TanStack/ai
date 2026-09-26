@@ -1,0 +1,23 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[mcp-input] what is the forecast",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Let me ask for the city.",
+        "toolCalls": [{ "name": "ask_city", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[mcp-input] what is the forecast",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The forecast is sunny."
+      }
+    }
+  ]
+}

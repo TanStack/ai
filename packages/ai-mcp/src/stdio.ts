@@ -1,11 +1,13 @@
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import type { StdioTransportConfig } from './transport'
 
-/** Build a stdio transport instance to pass as `createMCPClient({ transport })`. Node-only. */
-export function stdioTransport(
-  config: Omit<StdioTransportConfig, 'type'>,
-): Transport {
+/**
+ * Build a stdio Transport to pass as `createMCPClient({ transport })`.
+ *
+ * Node only. This does not start the process.
+ * `config.command` is the program. `config.args`, `config.env`, and `config.cwd` go to that program.
+ */
+export function stdioTransport(config: Omit<StdioTransportConfig, 'type'>) {
   return new StdioClientTransport({
     command: config.command,
     args: config.args,

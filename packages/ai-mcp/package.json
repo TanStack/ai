@@ -44,6 +44,14 @@
     "./apps": {
       "types": "./dist/esm/apps/index.d.ts",
       "import": "./dist/esm/apps/index.js"
+    },
+    "./server": {
+      "types": "./dist/esm/server/index.d.ts",
+      "import": "./dist/esm/server/index.js"
+    },
+    "./server/stdio": {
+      "types": "./dist/esm/server/stdio.d.ts",
+      "import": "./dist/esm/server/stdio.js"
     }
   },
   "files": [
@@ -63,8 +71,10 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "@tanstack/ai": "workspace:^"
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@tanstack/ai": "workspace:^",
+    "jose": "^6.2.12"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.1.10",

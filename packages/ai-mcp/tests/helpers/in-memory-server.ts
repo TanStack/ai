@@ -1,35 +1,185 @@
-// packages/ai-mcp/tests/helpers/in-memory-server.ts
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import {
-  InMemoryTaskMessageQueue,
-  InMemoryTaskStore,
-} from '@modelcontextprotocol/sdk/experimental/tasks'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import {
-  CallToolRequestSchema,
-  CallToolResultSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js'
+import { randomUUID } from 'node:crypto'
+import { InMemoryTransport } from '@modelcontextprotocol/client'
+import { McpServer, Server } from '@modelcontextprotocol/server'
 import { z } from 'zod'
-import type { Tool as McpToolDef } from '@modelcontextprotocol/sdk/types.js'
+import type { Tool } from '@modelcontextprotocol/server'
 
-/** Build a connected (server, clientTransport) pair over in-memory transports. */
-export async function makeServerWithWeatherTool() {
-  const server = new McpServer({ name: 'weather', version: '1.0.0' })
+type TaskStatus =
+  | 'working'
+  | 'input_required'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+type TaskRecord = {
+  taskId: string
+  status: TaskStatus
+  ttl: number | null
+  createdAt: string
+  lastUpdatedAt: string
+  pollInterval: number
+  statusMessage?: string
+}
+
+type TextToolResult = {
+  content: Array<{ type: 'text'; text: string }>
+}
+
+const taskIdParams = z.looseObject({ taskId: z.string() })
+const listTasksParams = z.looseObject({ cursor: z.string().optional() })
+
+function textResult(text: string): TextToolResult {
+  return {
+    content: [{ type: 'text', text }],
+  }
+}
+
+function stringArg(args: Record<string, unknown> | undefined, key: string) {
+  const value = args?.[key]
+  return typeof value === 'string' ? value : ''
+}
+
+function requestedTaskTtl(task: { ttl?: number } | undefined) {
+  return task?.ttl
+}
+
+/** In-memory task list the pending-task fixture exposes to tests. */
+function createTaskStore() {
+  const tasks = new Map<string, { task: TaskRecord; result?: TextToolResult }>()
+
+  return {
+    async createTask(ttl: number | undefined) {
+      const now = new Date().toISOString()
+      const task: TaskRecord = {
+        taskId: randomUUID(),
+        status: 'working',
+        ttl: ttl ?? null,
+        createdAt: now,
+        lastUpdatedAt: now,
+        pollInterval: 1,
+      }
+      tasks.set(task.taskId, { task })
+      return task
+    },
+    async getTask(taskId: string) {
+      const stored = tasks.get(taskId)
+      if (stored === undefined) throw new Error(`Task ${taskId} not found`)
+      return { ...stored.task }
+    },
+    async storeTaskResult(
+      taskId: string,
+      status: 'completed' | 'failed',
+      result: TextToolResult,
+    ) {
+      const stored = tasks.get(taskId)
+      if (stored === undefined) throw new Error(`Task ${taskId} not found`)
+      stored.result = result
+      stored.task = {
+        ...stored.task,
+        status,
+        lastUpdatedAt: new Date().toISOString(),
+      }
+    },
+    async getTaskResult(taskId: string) {
+      const stored = tasks.get(taskId)
+      if (stored?.result === undefined) {
+        throw new Error(`Task ${taskId} has no result`)
+      }
+      return stored.result
+    },
+    async cancel(taskId: string) {
+      const stored = tasks.get(taskId)
+      if (stored === undefined) throw new Error(`Task ${taskId} not found`)
+      stored.task = {
+        ...stored.task,
+        status: 'cancelled',
+        statusMessage: 'Client cancelled task execution.',
+        lastUpdatedAt: new Date().toISOString(),
+      }
+      return { ...stored.task }
+    },
+    async listTasks(cursor?: string) {
+      const all = [...tasks.values()].map((stored) => ({ ...stored.task }))
+      if (cursor === undefined) return { tasks: all }
+      const start = all.findIndex((task) => task.taskId === cursor)
+      if (start < 0) throw new Error(`Invalid cursor: ${cursor}`)
+      return { tasks: all.slice(start + 1) }
+    },
+  }
+}
+
+function registerTaskMethods(
+  server: Server,
+  taskStore: ReturnType<typeof createTaskStore>,
+) {
+  server.setRequestHandler(
+    'tasks/get',
+    { params: taskIdParams },
+    async (params) => taskStore.getTask(params.taskId),
+  )
+  server.setRequestHandler(
+    'tasks/result',
+    { params: taskIdParams },
+    async (params) => taskStore.getTaskResult(params.taskId),
+  )
+  server.setRequestHandler(
+    'tasks/list',
+    { params: listTasksParams },
+    async (params) => taskStore.listTasks(params.cursor),
+  )
+  server.setRequestHandler(
+    'tasks/cancel',
+    { params: taskIdParams },
+    async (params) => taskStore.cancel(params.taskId),
+  )
+}
+
+const taskCapabilities = {
+  tools: {},
+  tasks: { requests: { tools: { call: {} } } },
+}
+
+async function openInMemory(server: Server | McpServer) {
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return clientTransport
+}
+
+function registerWeatherTool(server: McpServer) {
   server.registerTool(
     'get_weather',
     {
       description: 'Get weather for a city',
-      inputSchema: { city: z.string() },
+      inputSchema: z.object({ city: z.string() }),
     },
-    async ({ city }) => ({
-      content: [{ type: 'text' as const, text: `Sunny in ${city}` }],
+    async ({ city }) => textResult(`Sunny in ${city}`),
+  )
+}
+
+function registerReviewPrompt(server: McpServer) {
+  server.registerPrompt(
+    'review-code',
+    {
+      description: 'Review a code snippet',
+      argsSchema: z.object({ code: z.string() }),
+    },
+    ({ code }) => ({
+      messages: [
+        {
+          role: 'user' as const,
+          content: { type: 'text' as const, text: `Please review: ${code}` },
+        },
+      ],
     }),
   )
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+}
+
+/** Build a connected (server, clientTransport) pair over in-memory transports. */
+export async function makeServerWithWeatherTool() {
+  const server = new McpServer({ name: 'weather', version: '1.0.0' })
+  registerWeatherTool(server)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport }
 }
 
@@ -45,7 +195,7 @@ export async function makeServerWithAnnotatedTool() {
     {
       title: 'Weather Lookup',
       description: 'Get weather for a city',
-      inputSchema: { city: z.string() },
+      inputSchema: z.object({ city: z.string() }),
       annotations: {
         title: 'Legacy Weather Title',
         readOnlyHint: true,
@@ -54,13 +204,9 @@ export async function makeServerWithAnnotatedTool() {
         openWorldHint: true,
       },
     },
-    async ({ city }) => ({
-      content: [{ type: 'text' as const, text: `Sunny in ${city}` }],
-    }),
+    async ({ city }) => textResult(`Sunny in ${city}`),
   )
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport }
 }
 
@@ -101,124 +247,117 @@ export async function makeServerWithFailingTool() {
     'always_fails',
     {
       description: 'A tool that always returns an error result',
-      inputSchema: {},
     },
     async () => ({
       isError: true,
       content: [{ type: 'text' as const, text: 'boom' }],
     }),
   )
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport }
 }
 
 /** Build a connected pair with one normal tool and one real task-required tool. */
 export async function makeServerWithTaskRequiredTool() {
-  const taskStore = new InMemoryTaskStore()
-  const server = new McpServer(
+  const taskStore = createTaskStore()
+  const server = new Server(
     { name: 'tasky', version: '1.0.0' },
-    {
-      capabilities: { tasks: { requests: { tools: { call: {} } } } },
-      taskStore,
-      taskMessageQueue: new InMemoryTaskMessageQueue(),
-      defaultTaskPollInterval: 1,
-    },
+    { capabilities: taskCapabilities },
   )
-  server.registerTool(
-    'get_weather',
+  const tools: Array<Tool> = [
     {
+      name: 'get_weather',
       description: 'Get weather for a city',
-      inputSchema: { city: z.string() },
+      inputSchema: {
+        type: 'object',
+        properties: { city: { type: 'string' } },
+        required: ['city'],
+      },
     },
-    async ({ city }) => ({
-      content: [{ type: 'text' as const, text: `Sunny in ${city}` }],
-    }),
-  )
-  server.experimental.tasks.registerToolTask(
-    'research_task',
     {
+      name: 'research_task',
       description: 'A long-running tool that requires task-based execution',
-      inputSchema: { query: z.string() },
+      inputSchema: {
+        type: 'object',
+        properties: { query: { type: 'string' } },
+        required: ['query'],
+      },
       execution: { taskSupport: 'required' },
     },
-    {
-      async createTask({ query }, { taskStore: store, taskRequestedTtl }) {
-        const task = await store.createTask({
-          ttl: taskRequestedTtl,
-          pollInterval: 1,
-        })
-        await store.storeTaskResult(task.taskId, 'completed', {
-          content: [
-            { type: 'text' as const, text: `Research complete: ${query}` },
-          ],
-        })
-        return { task }
-      },
-      async getTask(_args, { taskId, taskStore: store }) {
-        return store.getTask(taskId)
-      },
-      async getTaskResult(_args, { taskId, taskStore: store }) {
-        return CallToolResultSchema.parse(await store.getTaskResult(taskId))
-      },
-    },
-  )
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+  ]
+  server.setRequestHandler('tools/list', () => ({ tools }))
+  server.setRequestHandler('tools/call', async (request) => {
+    const name = request.params.name
+    const args = request.params.arguments
+    if (name === 'get_weather') {
+      return textResult(`Sunny in ${stringArg(args, 'city')}`)
+    }
+    if (name !== 'research_task') throw new Error(`Tool ${name} not found`)
+    const answer = `Research complete: ${stringArg(args, 'query')}`
+    const body = textResult(answer)
+    if (request.params.task === undefined) return body
+    const created = await taskStore.createTask(
+      requestedTaskTtl(request.params.task),
+    )
+    await taskStore.storeTaskResult(
+      created.taskId,
+      'completed',
+      textResult(answer),
+    )
+    const task = await taskStore.getTask(created.taskId)
+    return Object.assign(body, { task })
+  })
+  registerTaskMethods(server, taskStore)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport }
 }
 
 /**
  * Like {@link makeServerWithTaskRequiredTool}, but the created task never
- * reaches a terminal state — the client polls until aborted. Exposes the
+ * reaches a terminal state. The client polls until aborted. Exposes the
  * taskStore so tests can observe the task server-side.
  */
 export async function makeServerWithPendingTaskTool() {
-  const taskStore = new InMemoryTaskStore()
-  const server = new McpServer(
+  const taskStore = createTaskStore()
+  const server = new Server(
     { name: 'pending-tasky', version: '1.0.0' },
-    {
-      capabilities: { tasks: { requests: { tools: { call: {} } } } },
-      taskStore,
-      taskMessageQueue: new InMemoryTaskMessageQueue(),
-      defaultTaskPollInterval: 1,
-    },
+    { capabilities: taskCapabilities },
   )
-  server.experimental.tasks.registerToolTask(
-    'slow_task',
-    {
-      description: 'A task that never completes on its own',
-      inputSchema: { query: z.string() },
-      execution: { taskSupport: 'required' },
-    },
-    {
-      async createTask(_args, { taskStore: store, taskRequestedTtl }) {
-        const task = await store.createTask({
-          ttl: taskRequestedTtl,
-          pollInterval: 1,
-        })
-        return { task }
+  server.setRequestHandler('tools/list', () => ({
+    tools: [
+      {
+        name: 'slow_task',
+        description: 'A task that never completes on its own',
+        inputSchema: {
+          type: 'object',
+          properties: { query: { type: 'string' } },
+          required: ['query'],
+        },
+        execution: { taskSupport: 'required' },
       },
-      async getTask(_args, { taskId, taskStore: store }) {
-        return store.getTask(taskId)
-      },
-      async getTaskResult(_args, { taskId, taskStore: store }) {
-        return CallToolResultSchema.parse(await store.getTaskResult(taskId))
-      },
-    },
-  )
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+    ],
+  }))
+  server.setRequestHandler('tools/call', async (request) => {
+    if (request.params.name !== 'slow_task') {
+      throw new Error(`Tool ${request.params.name} not found`)
+    }
+    const task = await taskStore.createTask(
+      requestedTaskTtl(request.params.task),
+    )
+    return Object.assign(
+      textResult(`pending ${stringArg(request.params.arguments, 'query')}`),
+      { task },
+    )
+  })
+  registerTaskMethods(server, taskStore)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport, taskStore }
 }
 
 /** Low-level server exposing `tools` across handlers, with a tools/list request counter. */
 function makeLowLevelToolServer(options: {
   name: string
-  pages: Array<Array<McpToolDef>>
+  pages: Array<Array<Tool>>
   listChanged?: boolean
   listError?: string
 }) {
@@ -231,27 +370,26 @@ function makeLowLevelToolServer(options: {
     },
   )
   let listRequests = 0
-  server.setRequestHandler(ListToolsRequestSchema, (req) => {
-    listRequests++
-    if (options.listError) throw new Error(options.listError)
-    const cursor = req.params?.cursor
+  server.setRequestHandler('tools/list', (request) => {
+    listRequests += 1
+    if (options.listError !== undefined) throw new Error(options.listError)
+    const cursor = request.params?.cursor
     const index = cursor ? Number(cursor) : 0
     const nextCursor =
       index + 1 < options.pages.length ? String(index + 1) : undefined
-    return {
-      tools: options.pages[index] ?? [],
-      ...(nextCursor ? { nextCursor } : {}),
-    }
+    const tools = options.pages[index] ?? []
+    if (nextCursor === undefined) return { tools }
+    return { tools, nextCursor }
   })
-  server.setRequestHandler(CallToolRequestSchema, (req) => ({
-    content: [{ type: 'text' as const, text: `called ${req.params.name}` }],
-  }))
+  server.setRequestHandler('tools/call', (request) =>
+    textResult(`called ${request.params.name}`),
+  )
   return { server, getListRequests: () => listRequests }
 }
 
 /**
  * Build a connected pair whose tools/list is split across two pages, with a
- * request counter. Every tools/call answers `called <name>` — including names
+ * request counter. Every tools/call answers `called <name>`, including names
  * absent from the list.
  */
 export async function makeServerWithPaginatedTools() {
@@ -274,16 +412,14 @@ export async function makeServerWithPaginatedTools() {
       ],
     ],
   })
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport, getListRequests }
 }
 
 /**
- * Two-page tools/list whose first-page tool declares an outputSchema but
- * answers with text-only content. After a full paginated `tools()`, SDK
- * structured-content validation must still apply to the first-page tool.
+ * Two-page tools/list. Both tools declare an outputSchema and answer with
+ * text-only content. After tools(), structured output validation applies to
+ * both pages.
  */
 export async function makeServerWithPaginatedLaxSchemaTool() {
   const { server, getListRequests } = makeLowLevelToolServer({
@@ -303,15 +439,17 @@ export async function makeServerWithPaginatedLaxSchemaTool() {
       [
         {
           name: 'second_page_tool',
-          description: 'On page two',
+          description: 'On page two, declares an output schema it never honors',
           inputSchema: { type: 'object' },
+          outputSchema: {
+            type: 'object',
+            properties: { value: { type: 'string' } },
+          },
         },
       ],
     ],
   })
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport, getListRequests }
 }
 
@@ -321,7 +459,7 @@ export async function makeServerWithLoopingCursor() {
     { name: 'looping-list', version: '1.0.0' },
     { capabilities: { tools: {} } },
   )
-  server.setRequestHandler(ListToolsRequestSchema, () => ({
+  server.setRequestHandler('tools/list', () => ({
     tools: [
       {
         name: 'loop_tool',
@@ -331,12 +469,10 @@ export async function makeServerWithLoopingCursor() {
     ],
     nextCursor: 'same',
   }))
-  server.setRequestHandler(CallToolRequestSchema, (req) => ({
-    content: [{ type: 'text' as const, text: `called ${req.params.name}` }],
-  }))
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+  server.setRequestHandler('tools/call', (request) =>
+    textResult(`called ${request.params.name}`),
+  )
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport }
 }
 
@@ -347,15 +483,13 @@ export async function makeServerWithBrokenToolList() {
     pages: [[]],
     listError: 'tools/list unavailable',
   })
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport }
 }
 
 /**
  * Build a connected pair with one tool that declares an outputSchema but
- * answers with text-only content (no structuredContent) — a lax server.
+ * answers with text-only content (no structuredContent). A lax server.
  */
 export async function makeServerWithLaxOutputSchemaTool() {
   const { server } = makeLowLevelToolServer({
@@ -374,15 +508,13 @@ export async function makeServerWithLaxOutputSchemaTool() {
       ],
     ],
   })
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport }
 }
 
 /**
- * Build a connected pair that LISTS a task-required tool but does NOT declare
- * the tasks capability for tools/call (e.g. a proxy stripping capabilities).
+ * Build a connected pair that lists a task-required tool but does not declare
+ * the tasks capability for tools/call (for example a proxy stripping capabilities).
  */
 export async function makeServerWithUnsupportedTaskTool() {
   const { server } = makeLowLevelToolServer({
@@ -403,9 +535,7 @@ export async function makeServerWithUnsupportedTaskTool() {
       ],
     ],
   })
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport }
 }
 
@@ -418,9 +548,7 @@ export async function makeServerWithChangingTools() {
     ],
     listChanged: true,
   })
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport, getListRequests }
 }
 
@@ -431,20 +559,18 @@ export async function makeServerWithResource() {
     'hello',
     'file:///hello.txt',
     { description: 'A simple text resource', mimeType: 'text/plain' },
-    async (_uri) => ({
+    async () => ({
       contents: [{ uri: 'file:///hello.txt', text: 'hello from resource' }],
     }),
   )
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport }
 }
 
 /**
  * Build a connected (server, clientTransport) pair that resolves the
- * `file:///hello.txt` read WITHOUT error but returns contents stamped with a
- * DIFFERENT uri. Used to prove the pool skips a server that resolves but does
+ * `file:///hello.txt` read without error but returns contents stamped with a
+ * different uri. Used to prove the pool skips a server that resolves but does
  * not actually own the requested uri.
  */
 export async function makeServerWithMismatchedResource() {
@@ -453,92 +579,45 @@ export async function makeServerWithMismatchedResource() {
     'hello',
     'file:///hello.txt',
     { description: 'Resolves the read but returns a different uri' },
-    async (_uri) => ({
+    async () => ({
       contents: [{ uri: 'file:///other.txt', text: 'not what you asked for' }],
     }),
   )
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport }
 }
 
 /** Build a connected (server, clientTransport) pair that exposes a prompt accepting a `code` argument. */
 export async function makeServerWithPrompt() {
   const server = new McpServer({ name: 'prompt-server', version: '1.0.0' })
-  server.registerPrompt(
-    'review-code',
-    {
-      description: 'Review a code snippet',
-      argsSchema: { code: z.string() },
-    },
-    ({ code }) => ({
-      messages: [
-        {
-          role: 'user' as const,
-          content: { type: 'text' as const, text: `Please review: ${code}` },
-        },
-      ],
-    }),
-  )
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+  registerReviewPrompt(server)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport }
 }
 
 /** Build a connected (server, clientTransport) pair that exposes one tool, one resource, and one prompt. */
 export async function makeFullServer() {
   const server = new McpServer({ name: 'full-server', version: '1.0.0' })
-
-  server.registerTool(
-    'get_weather',
-    {
-      description: 'Get weather for a city',
-      inputSchema: { city: z.string() },
-    },
-    async ({ city }) => ({
-      content: [{ type: 'text' as const, text: `Sunny in ${city}` }],
-    }),
-  )
-
+  registerWeatherTool(server)
   server.registerResource(
     'hello',
     'file:///hello.txt',
     { description: 'A simple text resource', mimeType: 'text/plain' },
-    async (_uri) => ({
+    async () => ({
       contents: [{ uri: 'file:///hello.txt', text: 'hello from resource' }],
     }),
   )
-
-  server.registerPrompt(
-    'review-code',
-    {
-      description: 'Review a code snippet',
-      argsSchema: { code: z.string() },
-    },
-    ({ code }) => ({
-      messages: [
-        {
-          role: 'user' as const,
-          content: { type: 'text' as const, text: `Please review: ${code}` },
-        },
-      ],
-    }),
-  )
-
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+  registerReviewPrompt(server)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport }
 }
 
 /**
- * A tool that declares an `outputSchema` and returns `structuredContent`.
+ * A tool that declares an outputSchema and returns structuredContent.
  *
- * The SDK validates that payload against the schema on every call, which is the
- * only path that reaches `ClientOptions.jsonSchemaValidator` — a tool without an
- * output schema never builds a validator at all.
+ * The server checks that payload against the schema on every call. That is the
+ * path that reaches a custom JSON Schema validator. A tool without an output
+ * schema never builds a validator at all.
  */
 export async function makeServerWithStructuredTool() {
   const server = new McpServer({ name: 'structured', version: '1.0.0' })
@@ -546,16 +625,14 @@ export async function makeServerWithStructuredTool() {
     'lookup_user',
     {
       description: 'Look a user up by id',
-      inputSchema: { id: z.string() },
-      outputSchema: { id: z.string(), name: z.string() },
+      inputSchema: z.object({ id: z.string() }),
+      outputSchema: z.object({ id: z.string(), name: z.string() }),
     },
     async ({ id }) => ({
       content: [{ type: 'text' as const, text: `user ${id}` }],
       structuredContent: { id, name: 'Ada' },
     }),
   )
-  const [clientTransport, serverTransport] =
-    InMemoryTransport.createLinkedPair()
-  await server.connect(serverTransport)
+  const clientTransport = await openInMemory(server)
   return { server, clientTransport }
 }

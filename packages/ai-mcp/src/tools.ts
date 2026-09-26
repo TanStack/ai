@@ -1,10 +1,29 @@
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
-import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import {
+  DEFAULT_REQUEST_TIMEOUT_MSEC,
+  ProtocolError,
+  ProtocolErrorCode,
+  SdkError,
+  SdkErrorCode,
+  isCallToolResult,
+  isInputRequiredResult,
+} from '@modelcontextprotocol/client'
 import type {
+  Client,
+  Request,
+  TaskStatus,
   Tool as McpToolDef,
   ToolAnnotations,
-} from '@modelcontextprotocol/sdk/types.js'
-import type { AnyServerTool, ContentPart } from '@tanstack/ai'
+  Transport,
+} from '@modelcontextprotocol/client'
+import type {
+  AnyServerTool,
+  ContentPart,
+  ToolInputResponse,
+} from '@tanstack/ai'
+import {
+  isMCPInputRequiredError,
+  MCPInputRequiredError,
+} from './input-required'
 import type { McpServerTool, McpToolMetadata } from './types'
 
 interface ConvertOptions {
@@ -15,9 +34,11 @@ interface ConvertOptions {
 
 /** Reads the MCP Apps `_meta.ui.resourceUri` link from a tool def, if present. */
 export function extractUiResourceUri(def: McpToolDef): string | undefined {
-  const meta = (def as { _meta?: { ui?: { resourceUri?: unknown } } })._meta
-  const uri = meta?.ui?.resourceUri
-  return typeof uri === 'string' ? uri : undefined
+  const meta = def._meta
+  if (!isRecord(meta)) return undefined
+  const ui = meta.ui
+  if (!isRecord(ui)) return undefined
+  return typeof ui.resourceUri === 'string' ? ui.resourceUri : undefined
 }
 
 /**
@@ -58,7 +79,7 @@ export function toolMcpMetadata(
 }
 
 export function mcpContentToTanstack(
-  content: Array<any>,
+  content: unknown,
 ): string | Array<ContentPart> {
   // A valid MCP result may carry only structuredContent (no content[]) → guard
   // against undefined/non-array before reading length/map.
@@ -93,10 +114,32 @@ export function mcpContentToTanstack(
 }
 
 /**
- * Call an MCP tool through the execution mode declared by its definition.
- * Task-required tools use the SDK's experimental stream and are drained to the
- * terminal result. Aborting stops this client from waiting and best-effort
- * cancels (`tasks/cancel`) a remote task the server has already created.
+ * Calls one MCP tool and returns the tool result.
+ *
+ * A spec 2025 task waits on `tasks/get`, then reads `tasks/result`.
+ * Spec 2026-07-28 has no tasks, so a 2026 call returns the tool result.
+ * `chat()` receives the tool result after the task ends.
+ *
+ * `signal` stops the wait. This function then sends `tasks/cancel`.
+ * It does not wait for that cancel request.
+ *
+ * If the tool result asks for input, this function throws
+ * {@link MCPInputRequiredError}.
+ * `kind` is `form` for user input, or `sampling` for a model request.
+ * `request` is the input request body.
+ * This function does not catch that error.
+ *
+ * On spec 2026, pass `inputResponse` to answer an input request.
+ * The call gets the request again, then sends the answer at once
+ * with `inputResponses` and the server's `requestState`.
+ * If the server asks for input again after that answer, this throws an Error.
+ *
+ * @param client - Connected MCP client
+ * @param mcpName - Server tool name
+ * @param args - Tool arguments
+ * @param taskRequired - True when the tool requires a spec 2025 task
+ * @param signal - Stops the wait when the caller aborts
+ * @param inputResponse - The user's answer from an `mcp_input` interrupt
  */
 export async function callMcpTool(
   client: Client,
@@ -104,47 +147,468 @@ export async function callMcpTool(
   args: Record<string, unknown>,
   taskRequired: boolean,
   signal?: AbortSignal,
-): Promise<Awaited<ReturnType<Client['callTool']>>> {
+  inputResponse?: ToolInputResponse,
+) {
   signal?.throwIfAborted()
-  if (!taskRequired) {
-    return client.callTool(
+  const isModern = client.getProtocolEra() === 'modern'
+  if (!taskRequired && !isModern) {
+    const result = await client.callTool(
       { name: mcpName, arguments: args },
-      CallToolResultSchema,
-      { signal },
+      { signal, allowInputRequired: true },
     )
+    throwIfInputRequired(result)
+    return result
   }
 
-  // `task` is passed explicitly: the SDK's auto-configuration only engages
-  // when its own metadata cache saw this tool in a prior listTools() on this
-  // Client instance, which callers of this function cannot rely on.
-  const stream = client.experimental.tasks.callToolStream(
-    { name: mcpName, arguments: args },
-    CallToolResultSchema,
-    { signal, task: {} },
-  )
-  const iterator = stream[Symbol.asyncIterator]()
-  let taskId: string | undefined
+  const params = { name: mcpName, arguments: args }
+  let raw = isModern
+    ? await rawRequest(client, 'tools/call', params, signal)
+    : await sdkRequest(
+        client,
+        'tools/call',
+        { name: mcpName, arguments: args, task: {} },
+        signal,
+      )
+  // ponytail: the answer is sent on the second call, so the server state never
+  // travels through the browser. The cost is one extra tools/call.
+  if (isModern && inputResponse !== undefined && isInputRequiredResult(raw)) {
+    raw = await rawRequest(
+      client,
+      'tools/call',
+      { ...params, ...retryParams(raw, inputResponse) },
+      signal,
+    )
+    // ponytail: one input round per call. The next resume starts with no
+    // requestState, so a second pause would ask round 1 again forever.
+    // Carry requestState through the interrupt if servers need more rounds.
+    if (isInputRequiredResult(raw)) {
+      throw new Error(
+        `The MCP tool "${mcpName}" asked for input a second time. ` +
+          'This client answers one input request per tool call.',
+      )
+    }
+  }
+  return finishToolCall(client, mcpName, raw, signal)
+}
+
+// Answers only the first input request. That is the one the interrupt shows.
+function retryParams(
+  result: { inputRequests?: unknown; requestState?: string },
+  response: ToolInputResponse,
+) {
+  const requests = isRecord(result.inputRequests) ? result.inputRequests : {}
+  const key = Object.keys(requests)[0]
+  const entry = key === undefined ? undefined : requests[key]
+  const method = isRecord(entry) ? entry.method : undefined
+  const requestState =
+    result.requestState === undefined
+      ? {}
+      : { requestState: result.requestState }
+  if (key === undefined) return requestState
+  return {
+    inputResponses: { [key]: inputAnswer(method, response) },
+    ...requestState,
+  }
+}
+
+function inputAnswer(method: unknown, response: ToolInputResponse) {
+  if (method === 'sampling/createMessage') {
+    if (response.status === 'cancelled') {
+      throw new Error('The user cancelled the MCP sampling request.')
+    }
+    const payload = response.payload
+    if (typeof payload !== 'string') return payload
+    return {
+      role: 'assistant',
+      content: { type: 'text', text: payload },
+      model: 'user',
+    }
+  }
+  if (response.status === 'cancelled') return { action: 'cancel' }
+  const payload = response.payload
+  // An ElicitResult passes as is. Any other value is the accepted content.
+  if (isRecord(payload) && typeof payload.action === 'string') return payload
+  return { action: 'accept', content: payload }
+}
+
+const schemaSlot: unknown = undefined
+
+const passThroughResult = {
+  '~standard': {
+    version: 1 as const,
+    vendor: 'tanstack-ai-mcp',
+    types: {
+      input: schemaSlot,
+      output: schemaSlot,
+    },
+    validate(value: unknown) {
+      return { value }
+    },
+  },
+}
+
+/** The spec 2025-11-25 task fields this client reads. */
+type TaskState = {
+  taskId: string
+  status: TaskStatus
+  pollInterval: number | undefined
+  statusMessage: string | undefined
+}
+
+const defaultPollMs = 1000
+
+let rawRequestId = 0
+
+const transportTaps = new WeakMap<
+  Transport,
+  Set<(message: unknown) => boolean>
+>()
+
+async function finishToolCall(
+  client: Client,
+  mcpName: string,
+  raw: unknown,
+  signal?: AbortSignal,
+) {
+  throwIfInputRequired(raw)
+  // A spec 2025 task body also carries `content`. Read the task first.
+  const task = readNestedTask(raw)
+  if (task !== undefined) {
+    return pollTask(client, mcpName, task, signal)
+  }
+  if (isCallToolResult(raw)) return raw
+  throw missingTaskResult(mcpName)
+}
+
+async function pollTask(
+  client: Client,
+  mcpName: string,
+  task: TaskState,
+  signal?: AbortSignal,
+) {
+  let current = task
   try {
-    while (true) {
-      const step = await nextWithAbort(iterator, signal)
-      if (step.done) break
-      const message = step.value
-      if (message.type === 'taskCreated') taskId = message.task.taskId
-      if (message.type === 'result') return message.result
-      if (message.type === 'error') throw message.error
+    while (
+      current.status === 'working' ||
+      current.status === 'input_required'
+    ) {
+      if (current.status === 'input_required') {
+        // A spec 2025 task sends its input request on tasks/result, as a
+        // request to the client. This client does not answer those requests,
+        // so stop here. Polling again would never end.
+        void cancelTask(client, current.taskId)
+        throw new Error(
+          `MCP task "${current.taskId}" needs input. This client cannot answer a spec 2025 task input request.`,
+        )
+      }
+      const delay = current.pollInterval ?? defaultPollMs
+      await waitForPoll(delay, signal)
+      current = await readPolledTask(client, current.taskId, mcpName, signal)
     }
   } catch (error) {
-    // Abort stops this client from waiting. Cancel the remote task in the
-    // background so a slow `tasks/cancel` cannot stall the abort path.
-    // Cancel failures must not mask the original abort error.
-    if (signal?.aborted && taskId !== undefined) {
-      void client.experimental.tasks.cancelTask(taskId).catch(() => {})
+    if (isMCPInputRequiredError(error)) throw error
+    if (signal?.aborted) {
+      void cancelTask(client, task.taskId)
+      throw abortReason(signal)
     }
     throw error
   }
-  throw new Error(
+
+  switch (current.status) {
+    case 'completed':
+      return taskResult(client, mcpName, current.taskId, signal)
+    case 'failed':
+    case 'cancelled':
+      throw terminalTaskError(current)
+    default: {
+      const unexpected: never = current.status
+      throw new Error(`Unknown MCP task status: ${String(unexpected)}`)
+    }
+  }
+}
+
+async function taskResult(
+  client: Client,
+  mcpName: string,
+  taskId: string,
+  signal?: AbortSignal,
+) {
+  const result = await taskRequest(client, 'tasks/result', { taskId }, signal)
+  throwIfInputRequired(result)
+  if (!isCallToolResult(result)) throw missingTaskResult(mcpName)
+  return result
+}
+
+async function readPolledTask(
+  client: Client,
+  taskId: string,
+  mcpName: string,
+  signal?: AbortSignal,
+) {
+  const body = await taskRequest(client, 'tasks/get', { taskId }, signal)
+  throwIfInputRequired(body)
+  const task = readTaskState(body)
+  if (task === undefined) throw missingTaskResult(mcpName)
+  return task
+}
+
+function taskRequest(
+  client: Client,
+  method: string,
+  params: Record<string, unknown>,
+  signal?: AbortSignal,
+) {
+  return sdkRequest(client, method, params, signal)
+}
+
+async function sdkRequest(
+  client: Client,
+  method: string,
+  params: Record<string, unknown>,
+  signal?: AbortSignal,
+) {
+  signal?.throwIfAborted()
+  const rpc: Request = { method, params }
+  try {
+    return await client.request(
+      rpc,
+      passThroughResult,
+      signal === undefined ? undefined : { signal },
+    )
+  } catch (error) {
+    if (signal?.aborted) throw abortReason(signal)
+    throw error
+  }
+}
+
+function rawRequest(
+  client: Client,
+  method: string,
+  params: Record<string, unknown>,
+  signal?: AbortSignal,
+) {
+  signal?.throwIfAborted()
+  const transport = client.transport
+  if (transport === undefined) {
+    throw new Error('The MCP client is not connected.')
+  }
+  rawRequestId += 1
+  const id = `tanstack-ai-mcp:${rawRequestId}`
+  const listeners = tapTransport(transport)
+  const body = withEnvelope(params, readEnvelope(client))
+  return new Promise<unknown>((resolve, reject) => {
+    let settled = false
+    // Same limit as an SDK request, so a lost response cannot hang the call.
+    const timer = setTimeout(() => {
+      finish(
+        new SdkError(
+          SdkErrorCode.RequestTimeout,
+          `The MCP request ${method} timed out after ${DEFAULT_REQUEST_TIMEOUT_MSEC} ms.`,
+        ),
+      )
+    }, DEFAULT_REQUEST_TIMEOUT_MSEC)
+    const finish = (error: unknown, result?: unknown) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      listeners.delete(accept)
+      if (signal !== undefined) {
+        signal.removeEventListener('abort', onAbort)
+      }
+      if (error !== undefined) {
+        reject(error)
+        return
+      }
+      resolve(result)
+    }
+    const accept = (message: unknown) => {
+      if (!isRecord(message) || message.id !== id) return false
+      if (isRecord(message.error)) {
+        const { code, message: text, data } = message.error
+        finish(
+          new ProtocolError(
+            typeof code === 'number' ? code : ProtocolErrorCode.InternalError,
+            typeof text === 'string' ? text : 'The MCP request failed.',
+            data,
+          ),
+        )
+        return true
+      }
+      finish(undefined, message.result)
+      return true
+    }
+    const activeSignal = signal
+    const onAbort = () => {
+      if (activeSignal === undefined) return
+      finish(abortReason(activeSignal))
+    }
+    listeners.add(accept)
+    if (activeSignal !== undefined) {
+      activeSignal.addEventListener('abort', onAbort, { once: true })
+    }
+    void transport
+      .send({
+        jsonrpc: '2.0',
+        id,
+        method,
+        params: body,
+      })
+      .catch((error: unknown) => {
+        finish(error)
+      })
+  })
+}
+
+function tapTransport(transport: Transport) {
+  const existing = transportTaps.get(transport)
+  if (existing !== undefined) return existing
+  const listeners = new Set<(message: unknown) => boolean>()
+  transportTaps.set(transport, listeners)
+  const previous = transport.onmessage
+  transport.onmessage = (message, extra) => {
+    const pending = [...listeners]
+    for (const listener of pending) {
+      if (listener(message)) return
+    }
+    previous?.(message, extra)
+  }
+  return listeners
+}
+
+function readEnvelope(client: Client) {
+  const value: unknown = client
+  if (!isRecord(value)) return undefined
+  const method = value._outboundMetaEnvelope
+  if (typeof method !== 'function') return undefined
+  const called: unknown = method.call(value)
+  if (!isRecord(called)) return undefined
+  return called
+}
+
+function withEnvelope(
+  params: Record<string, unknown>,
+  envelope: Record<string, unknown> | undefined,
+) {
+  if (envelope === undefined) return params
+  const meta = isRecord(params._meta) ? params._meta : {}
+  return {
+    ...params,
+    _meta: { ...envelope, ...meta },
+  }
+}
+
+function cancelTask(client: Client, taskId: string) {
+  return taskRequest(client, 'tasks/cancel', { taskId }).catch(() => undefined)
+}
+
+function throwIfInputRequired(value: unknown) {
+  if (!isRecord(value)) return
+  if (isInputRequiredResult(value)) {
+    throwInputRequired(value.inputRequests, value)
+  }
+  if (value.status !== 'input_required') return
+  if (!hasRequests(value.inputRequests)) return
+  throwInputRequired(value.inputRequests, value)
+}
+
+function throwInputRequired(requests: unknown, fallback: unknown) {
+  const entry = firstInputRequest(requests)
+  if (entry === undefined) {
+    throw new MCPInputRequiredError('form', fallback)
+  }
+  const body = isRecord(entry.params) ? entry.params : entry
+  if (entry.method === 'sampling/createMessage') {
+    throw new MCPInputRequiredError('sampling', body)
+  }
+  if (entry.method === 'elicitation/create') {
+    throw new MCPInputRequiredError('form', body)
+  }
+  throw new Error(`The MCP server asked for unsupported input: ${entry.method}`)
+}
+
+function firstInputRequest(requests: unknown) {
+  if (!isRecord(requests)) return undefined
+  const entries = Object.values(requests)
+  for (const entry of entries) {
+    if (!isRecord(entry) || typeof entry.method !== 'string') continue
+    return entry
+  }
+  return undefined
+}
+
+function hasRequests(requests: unknown) {
+  return isRecord(requests) && Object.keys(requests).length > 0
+}
+
+function readNestedTask(value: unknown) {
+  if (!isRecord(value)) return undefined
+  return readTaskState(value.task)
+}
+
+function readTaskState(value: unknown) {
+  if (!isRecord(value)) return undefined
+  if (typeof value.taskId !== 'string' || value.taskId.length === 0) {
+    return undefined
+  }
+  if (!isTaskStatus(value.status)) return undefined
+  const task: TaskState = {
+    taskId: value.taskId,
+    status: value.status,
+    pollInterval:
+      typeof value.pollInterval === 'number' ? value.pollInterval : undefined,
+    statusMessage:
+      typeof value.statusMessage === 'string' ? value.statusMessage : undefined,
+  }
+  return task
+}
+
+function isTaskStatus(value: unknown): value is TaskStatus {
+  switch (value) {
+    case 'working':
+    case 'input_required':
+    case 'completed':
+    case 'failed':
+    case 'cancelled':
+      return true
+    default:
+      return false
+  }
+}
+
+function terminalTaskError(task: TaskState) {
+  const detail = task.statusMessage
+  if (detail !== undefined && detail.length > 0) {
+    return new Error(`MCP task "${task.taskId}" ${task.status}: ${detail}`)
+  }
+  return new Error(`MCP task "${task.taskId}" ${task.status}.`)
+}
+
+function missingTaskResult(mcpName: string) {
+  return new Error(
     `MCP task-required tool "${mcpName}" ended without a result or error`,
   )
+}
+
+function waitForPoll(milliseconds: number, signal?: AbortSignal) {
+  signal?.throwIfAborted()
+  if (milliseconds <= 0) return Promise.resolve()
+  if (signal === undefined) {
+    return new Promise<void>((resolve) => {
+      setTimeout(resolve, milliseconds)
+    })
+  }
+  const active = signal
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      active.removeEventListener('abort', onAbort)
+      resolve()
+    }, milliseconds)
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(abortReason(active))
+    }
+    active.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 function abortReason(signal: AbortSignal) {
@@ -153,23 +617,8 @@ function abortReason(signal: AbortSignal) {
     : new DOMException('Aborted', 'AbortError')
 }
 
-function nextWithAbort<T>(iterator: AsyncIterator<T>, signal?: AbortSignal) {
-  if (!signal) return iterator.next()
-  signal.throwIfAborted()
-  return new Promise<IteratorResult<T>>((resolve, reject) => {
-    const onAbort = () => reject(abortReason(signal))
-    signal.addEventListener('abort', onAbort, { once: true })
-    iterator.next().then(
-      (result) => {
-        signal.removeEventListener('abort', onAbort)
-        resolve(result)
-      },
-      (error: unknown) => {
-        signal.removeEventListener('abort', onAbort)
-        reject(error)
-      },
-    )
-  })
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**
@@ -187,13 +636,17 @@ export function makeMcpExecute(
   preferStructured: boolean,
   taskRequired = false,
 ) {
-  return async (args: unknown, ctx?: { abortSignal?: AbortSignal }) => {
+  return async (
+    args: unknown,
+    ctx?: { abortSignal?: AbortSignal; inputResponse?: ToolInputResponse },
+  ) => {
     const result = await callMcpTool(
       client,
       mcpName,
-      (args ?? {}) as Record<string, unknown>,
+      isRecord(args) ? args : {},
       taskRequired,
       ctx?.abortSignal,
+      ctx?.inputResponse,
     )
     if (result.isError) {
       const text = Array.isArray(result.content)
@@ -216,11 +669,11 @@ export function makeMcpExecute(
     if (preferStructured && result.structuredContent !== undefined) {
       return result.structuredContent
     }
-    return mcpContentToTanstack(result.content as Array<any>)
+    return mcpContentToTanstack(result.content)
   }
 }
 
-/** A tool that must use the SDK's experimental task-based execution. */
+/** A tool that must run as a task. */
 export function requiresTaskExecution(def: McpToolDef): boolean {
   return def.execution?.taskSupport === 'required'
 }

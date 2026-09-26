@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest'
+import {
+  InMemoryTransport,
+  SUPPORTED_PROTOCOL_VERSIONS,
+} from '@modelcontextprotocol/client'
+import { Server } from '@modelcontextprotocol/server'
 import { createMCPClients } from '../src/pool'
 import {
   makeServerWithMismatchedResource,
   makeServerWithResource,
   makeServerWithWeatherTool,
 } from './helpers/in-memory-server'
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import type { Transport } from '@modelcontextprotocol/client'
 
 describe('createMCPClients', () => {
   it('connects to many servers and flattens auto-prefixed tools', async () => {
@@ -169,4 +174,46 @@ describe('createMCPClients', () => {
     ).rejects.toThrow(/beta/)
     expect(alphaClosed).toBe(true)
   })
+
+  it('lists tools from a spec 2026 server and a spec 2025 server', async () => {
+    const modern = await makeModernWeatherTransport()
+    const legacy = await makeServerWithWeatherTool()
+    await using pool = await createMCPClients({
+      modern: { transport: modern },
+      legacy: { transport: legacy.clientTransport },
+    })
+    const names = (await pool.tools()).map((tool) => tool.name).sort()
+    expect(names).toEqual(['legacy_get_weather', 'modern_get_weather'])
+  })
 })
+
+// The server has no public setter for the negotiated era, so the test sets it.
+async function makeModernWeatherTransport() {
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  const server = new Server(
+    { name: 'modern-weather', version: '1.0.0' },
+    {
+      capabilities: { tools: {} },
+      supportedProtocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS, '2026-07-28'],
+    },
+  )
+  Object.assign(server, { _negotiatedProtocolVersion: '2026-07-28' })
+  server.setRequestHandler('tools/list', () => ({
+    tools: [
+      {
+        name: 'get_weather',
+        description: 'Get weather for a city',
+        inputSchema: {
+          type: 'object',
+          properties: { city: { type: 'string' } },
+        },
+      },
+    ],
+  }))
+  server.setRequestHandler('tools/call', () => ({
+    content: [{ type: 'text' as const, text: 'Sunny' }],
+  }))
+  await server.connect(serverTransport)
+  return clientTransport
+}

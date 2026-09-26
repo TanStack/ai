@@ -1,5 +1,7 @@
 export { createMCPClient, createMCPClientFromTransport } from './client'
-export type { MCPClient } from './client'
+export type { MCPServer } from './server/create-server'
+export type { MCPClient, TypedCallToolResult } from './client'
+export type { DescriptorFromServer } from './direct-client'
 export type {
   AnyToolDefinition,
   MappedServerTools,
@@ -12,7 +14,7 @@ export type {
 export type {
   Tool as McpTool,
   ToolAnnotations,
-} from '@modelcontextprotocol/sdk/types.js'
+} from '@modelcontextprotocol/client'
 export type {
   TransportConfig,
   TransportInput,
@@ -20,14 +22,18 @@ export type {
   SseTransportConfig,
   StdioTransportConfig,
 } from './transport'
-export type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-export { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+export type { Transport } from '@modelcontextprotocol/client'
+export { InMemoryTransport } from '@modelcontextprotocol/client'
 export {
   MCPConnectionError,
   DuplicateToolNameError,
   MCPTaskRequiredToolError,
   MCPToolNotFoundError,
 } from './errors'
+export {
+  MCPInputRequiredError,
+  isMCPInputRequiredError,
+} from './input-required'
 // Converters added in Phase 4:
 export { mcpResourceToContentPart } from './resources'
 export { mcpPromptToMessages } from './prompts'

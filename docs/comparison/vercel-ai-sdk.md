@@ -251,6 +251,13 @@ const stream = chat({
 })
 ```
 
+`createMCPClient` tries protocol `2026-07-28` first. If the server does not support that protocol, the client uses the 2025 initialize handshake.
+
+- A client app imports `@modelcontextprotocol/client`.
+- A server app imports `@modelcontextprotocol/server`.
+
+Package names for an `@modelcontextprotocol/sdk` import are in [MCP SDK packages](../migration/mcp-sdk).
+
 Vercel AI SDK's `@ai-sdk/mcp` (`createMCPClient`) is a stable host-side client with HTTP/SSE transports, OAuth, resource reading, and prompt templates. TanStack AI's `@tanstack/ai-mcp` matches that surface and adds generated end-to-end types, multi-server pools, lazy discovery, a managed `chat()` lifecycle, and the provider-routed `mcpTool()` alternative.
 
 ### MCP Apps (Interactive Widgets)

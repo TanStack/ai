@@ -79,6 +79,11 @@
           "label": "Persisted subagents",
           "to": "tutorials/subagents-persisted",
           "addedAt": "2026-09-22"
+        },
+        {
+          "label": "Build an MCP Server",
+          "to": "tutorials/mcp-server",
+          "addedAt": "2026-09-22"
         }
       ]
     },
@@ -114,6 +119,11 @@
         {
           "label": "Persisted subagents",
           "to": "framework/react/examples/subagents-persisted",
+          "addedAt": "2026-09-22"
+        },
+        {
+          "label": "MCP Server",
+          "to": "framework/react/examples/mcp-server",
           "addedAt": "2026-09-22"
         }
       ]
@@ -500,10 +510,62 @@
           "addedAt": "2026-06-05"
         },
         {
+          "label": "MCP Client Input",
+          "to": "tools/mcp-input",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-09-25"
+        },
+        {
           "label": "MCP Apps",
           "to": "mcp/apps",
           "addedAt": "2026-06-24",
           "updatedAt": "2026-09-25"
+        },
+        {
+          "label": "Serve Tools over HTTP",
+          "to": "mcp/server",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-09-25"
+        },
+        {
+          "label": "Serve Resources and Prompts",
+          "to": "mcp/server-content",
+          "addedAt": "2026-09-22"
+        },
+        {
+          "label": "Ask for Input",
+          "to": "mcp/server-input",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-09-25"
+        },
+        {
+          "label": "Draft Text from a Tool",
+          "to": "mcp/server-sample",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-09-25"
+        },
+        {
+          "label": "MCP Server Tasks",
+          "to": "mcp/server-tasks",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-09-25"
+        },
+        {
+          "label": "MCP Server Auth",
+          "to": "mcp/server-auth",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-09-25"
+        },
+        {
+          "label": "MCP Server Sessions",
+          "to": "mcp/server-sessions",
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-09-25"
+        },
+        {
+          "label": "MCP Server on stdio",
+          "to": "mcp/server-stdio",
+          "addedAt": "2026-09-22"
         }
       ],
       "tab": "guides"
@@ -1310,6 +1372,11 @@
           "label": "TextPart markdown",
           "to": "migration/text-part-markdown",
           "addedAt": "2026-09-15"
+        },
+        {
+          "label": "MCP SDK packages",
+          "to": "migration/mcp-sdk",
+          "addedAt": "2026-09-22"
         }
       ],
       "tab": "guides"

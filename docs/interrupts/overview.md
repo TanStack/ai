@@ -64,6 +64,8 @@ Two kinds of interrupt show up in the `interrupts` array for you to resolve:
 | `tool-approval` | A tool is marked `needsApproval` and the model calls it | [Tool Approval](./tool-approval) |
 | `generic` | Middleware requests typed client data at a lifecycle boundary | [Generic Interrupts](./generic) |
 
+An MCP server can also ask for input during a tool call. The run ends with an interrupt. The page is [MCP client input](../tools/mcp-input).
+
 ## First-party generic interrupts
 
 For a generic interrupt that TanStack AI owns, define it once with
@@ -242,6 +244,7 @@ the same `tool-approval` interrupt.
 | Approve or reject a single tool call | [Tool Approval](./tool-approval) |
 | Resolve several pending decisions at once | [Multiple Interrupts](./multiple) |
 | Ask the user something that isn't a tool | [Generic Interrupts](./generic) |
+| Read an MCP input request | [MCP client input](../tools/mcp-input) |
 | Pick `beforeModel`, `afterModel`, `beforeTools`, or `afterTools` | [Lifecycle Boundaries](./boundaries) |
 | Apply a generic answer to prompts or stop the run | [Apply Answers](./apply-answers) |
 | Run a tool in the browser | [Client Tools](../tools/client-tools) |
