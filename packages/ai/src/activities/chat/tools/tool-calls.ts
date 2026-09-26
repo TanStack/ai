@@ -57,6 +57,12 @@ export const EMIT_STREAM_CHUNK = Symbol.for('tanstack.ai.emitStreamChunk')
 export interface SubagentToolOutcome {
   subagentRunId: string
   text: string
+  /**
+   * The child's typed result: the value a promise `run` resolved to, or the
+   * `RUN_FINISHED.result` of a child stream. When set, the parent model gets
+   * this instead of the child's text.
+   */
+  result?: unknown
   error?: string
   /** Set when the child stopped for outside input. The tool call stays open. */
   interrupts?: Array<Interrupt>
@@ -64,6 +70,33 @@ export interface SubagentToolOutcome {
 
 function isSubagentTool(tool: AnyTool): boolean {
   return (tool as { [SUBAGENT_TOOL]?: true })[SUBAGENT_TOOL] === true
+}
+
+/** Longest string a subagent result sends to the parent model unchanged. */
+const MODEL_RESULT_MAX_STRING = 2048
+
+/**
+ * A copy of a subagent result that is safe to send to the parent model.
+ * A string longer than {@link MODEL_RESULT_MAX_STRING} (for example a base64
+ * image) becomes a short note, so one image result cannot fill the context.
+ * The full result still travels on `SUBAGENT_FINISHED` for the UI.
+ */
+export function compactForModel(value: unknown, depth = 0): unknown {
+  if (typeof value === 'string') {
+    return value.length > MODEL_RESULT_MAX_STRING
+      ? `[omitted ${value.length} characters]`
+      : value
+  }
+  if (depth > 20 || typeof value !== 'object' || value === null) return value
+  if (Array.isArray(value)) {
+    return value.map((item) => compactForModel(item, depth + 1))
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      compactForModel(item, depth + 1),
+    ]),
+  )
 }
 
 /**
@@ -675,7 +708,13 @@ export async function* executeServerTool<TContext = unknown>(
       }
       const modelResult = outcome.error
         ? { subagentRunId: outcome.subagentRunId, error: outcome.error }
-        : { subagentRunId: outcome.subagentRunId, result: outcome.text }
+        : {
+            subagentRunId: outcome.subagentRunId,
+            result:
+              outcome.result !== undefined
+                ? compactForModel(outcome.result)
+                : outcome.text,
+          }
       results.push({
         toolCallId: toolCall.id,
         toolName,

@@ -206,6 +206,57 @@ const stream = chat({
 
 To show the brief in the UI, see [Show the brief on a card](#show-the-brief-on-a-card).
 
+## Return a value, or call any activity
+
+A child does not have to be a chat. It can make an image, or return a plain value that the parent model reads as the tool result. Call the activity on `ctx` and return what it gives you:
+
+```ts group=subagent-values
+import { chat, defineAgent } from '@tanstack/ai'
+import { openaiImage, openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const heroImage = defineAgent({
+  name: 'heroImage',
+  description: 'Makes a hero image for a post',
+  produces: 'image',
+  inputSchema: z.object({ prompt: z.string() }),
+  run: (ctx) =>
+    ctx.generateImage({
+      adapter: openaiImage('gpt-image-2'),
+      prompt: `${ctx.input.prompt}. Brand colors: blue and white.`,
+      size: '1536x1024',
+    }),
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-5.6'),
+  messages: [{ role: 'user', content: 'Make a hero image about squids' }],
+  subagents: { agents: [heroImage] },
+})
+```
+
+- `ctx.chat`, `ctx.generateImage`, `ctx.generateVideo`, `ctx.generateSpeech`, and the other activities on `ctx` take the same options as the plain functions. They fill in the thread id, a run id, and the abort signal.
+- `ctx.chat` also uses the parent conversation (`ctx.messages`) when you do not pass `messages`.
+- `run` can return a promise of any value. The value arrives on `SUBAGENT_FINISHED.result`, and the parent model gets it as the tool result.
+- A string result also streams as the child's text, so the card shows it.
+- A very long string in the result (for example a base64 image) reaches the parent model as a short note, `[omitted 5000 characters]`. The full value stays on `SUBAGENT_FINISHED.result`.
+- `produces` says what the agent makes (`'image'`, `'text'`, and so on). It does not change how the agent runs.
+
+When you call the plain `chat()` instead, spread `ctx.forward` to pass the child's ids and abort controller in one line:
+
+```ts group=subagent-values
+const researcher = defineAgent({
+  name: 'researcher',
+  description: 'Looks up facts',
+  run: (ctx) =>
+    chat({
+      adapter: openaiText('gpt-5.6'),
+      messages: ctx.messages,
+      ...ctx.forward,
+    }),
+})
+```
+
 ## Strategy
 
 - `exclusive` (default): the chosen child owns the turn. Main does not answer after it.

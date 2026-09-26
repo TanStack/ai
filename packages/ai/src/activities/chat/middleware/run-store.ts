@@ -176,6 +176,54 @@ export interface RunRecord {
    * loser nothing to read. Absent on a run that was never claimed.
    */
   driverEpoch?: number
+  /**
+   * What kind of work this run is, when a harness session recorded it:
+   * a chat turn, an agent run, one activity call inside an agent, a user
+   * command, or a compaction. Absent on runs recorded by plain `chat()`.
+   */
+  kind?: RunKind
+  /** The activity of a `kind: 'activity'` run (`'image'`, `'chat'`, ...). */
+  activity?: string
+  /** The agent name of a `kind: 'agent'` run. */
+  agent?: string
+  /** Terminal result metadata (ids, urls, text). Never media bytes. */
+  result?: unknown
+  /** Durable artifact references produced by this run. */
+  artifacts?: Array<RunArtifactRef>
+  /** Who started this run, from the host's `authorize`. */
+  principal?: { id: string }
+  /**
+   * The host that currently drives this run, and when its claim expires. The
+   * driver renews `leaseExpiresAt`. Another host may resume the run after it
+   * passes. Pairs with `driverEpoch` for fencing.
+   */
+  leaseOwner?: string
+  leaseExpiresAt?: number
+  /** Crash-resume data saved at the last model or tool boundary. */
+  checkpoint?: RunCheckpoint
+}
+
+/** Kinds of work a harness session records. */
+export type RunKind = 'chat' | 'agent' | 'activity' | 'command' | 'compact'
+
+/** A durable artifact a run produced. */
+export interface RunArtifactRef {
+  artifactId: string
+  name?: string
+  mimeType?: string
+  url?: string
+}
+
+/** What a run saved at its last model or tool boundary. */
+export interface RunCheckpoint {
+  /** Epoch ms of the checkpoint. */
+  at: number
+  /** Tools that started but had no result yet at the checkpoint. */
+  pendingTools?: Array<{
+    toolCallId: string
+    name: string
+    replay: 'safe' | 'never'
+  }>
 }
 
 /**
@@ -211,7 +259,7 @@ export interface RunStore {
       parentRunId?: string
       subagentRunId?: string
       name?: string
-    },
+    } & Partial<Pick<RunRecord, 'kind' | 'activity' | 'agent' | 'principal'>>,
   ) => Promise<RunRecord>
   /**
    * Patch a record's mutable fields.
@@ -232,6 +280,11 @@ export interface RunStore {
         | 'detachedSince'
         | 'cancelRequested'
         | 'driverEpoch'
+        | 'result'
+        | 'artifacts'
+        | 'leaseOwner'
+        | 'leaseExpiresAt'
+        | 'checkpoint'
       >
     >,
   ) => Promise<void>
@@ -371,12 +424,7 @@ export class InMemoryRunStore implements RunStore {
   private readonly runs = new Map<string, RunRecord>()
 
   createOrResume(
-    input: Pick<RunRecord, 'runId' | 'threadId' | 'startedAt'> & {
-      status?: RunStatus
-      parentRunId?: string
-      subagentRunId?: string
-      name?: string
-    },
+    input: Parameters<RunStore['createOrResume']>[0],
   ): Promise<RunRecord> {
     const existing = this.runs.get(input.runId)
     if (existing) return Promise.resolve(existing)
@@ -392,6 +440,10 @@ export class InMemoryRunStore implements RunStore {
         ? { subagentRunId: input.subagentRunId }
         : {}),
       ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.kind !== undefined ? { kind: input.kind } : {}),
+      ...(input.activity !== undefined ? { activity: input.activity } : {}),
+      ...(input.agent !== undefined ? { agent: input.agent } : {}),
+      ...(input.principal !== undefined ? { principal: input.principal } : {}),
     }
     this.runs.set(record.runId, record)
     return Promise.resolve(record)
@@ -399,19 +451,7 @@ export class InMemoryRunStore implements RunStore {
 
   update(
     runId: string,
-    patch: Partial<
-      Pick<
-        RunRecord,
-        | 'status'
-        | 'finishedAt'
-        | 'error'
-        | 'usage'
-        | 'sandboxKey'
-        | 'detachedSince'
-        | 'cancelRequested'
-        | 'driverEpoch'
-      >
-    >,
+    patch: Parameters<RunStore['update']>[1],
   ): Promise<void> {
     const existing = this.runs.get(runId)
     if (existing) this.runs.set(runId, { ...existing, ...patch })

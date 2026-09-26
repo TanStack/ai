@@ -55,15 +55,9 @@ class MemoryMessageStore implements MessageStore {
 
 class MemoryRunStore implements RunStore {
   private readonly runs = new Map<string, RunRecord>()
-  createOrResume(input: {
-    runId: string
-    threadId: string
-    status?: RunRecord['status']
-    startedAt: number
-    parentRunId?: string
-    subagentRunId?: string
-    name?: string
-  }): Promise<RunRecord> {
+  createOrResume(
+    input: Parameters<RunStore['createOrResume']>[0],
+  ): Promise<RunRecord> {
     const existing = this.runs.get(input.runId)
     if (existing) return Promise.resolve(existing)
     const record: RunRecord = {
@@ -78,25 +72,17 @@ class MemoryRunStore implements RunStore {
         ? { subagentRunId: input.subagentRunId }
         : {}),
       ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.kind !== undefined ? { kind: input.kind } : {}),
+      ...(input.activity !== undefined ? { activity: input.activity } : {}),
+      ...(input.agent !== undefined ? { agent: input.agent } : {}),
+      ...(input.principal !== undefined ? { principal: input.principal } : {}),
     }
     this.runs.set(record.runId, record)
     return Promise.resolve(record)
   }
   update(
     runId: string,
-    patch: Partial<
-      Pick<
-        RunRecord,
-        | 'status'
-        | 'finishedAt'
-        | 'error'
-        | 'usage'
-        | 'sandboxKey'
-        | 'detachedSince'
-        | 'cancelRequested'
-        | 'driverEpoch'
-      >
-    >,
+    patch: Parameters<RunStore['update']>[1],
   ): Promise<void> {
     const existing = this.runs.get(runId)
     if (existing) this.runs.set(runId, { ...existing, ...patch })
