@@ -28,7 +28,7 @@ import type {
   UIUpdate,
 } from '@/lib/reports/types'
 
-export const Route = createFileRoute('/_banking-demo/banking-demo' as any)({
+export const Route = createFileRoute('/_banking-demo/banking-demo')({
   component: BankingDemoPage,
 })
 
@@ -136,7 +136,7 @@ function ToolCallDisplay({
 }
 
 // Messages component for chat transcript
-function Messages({ messages }: { messages: Array<UIMessage> }) {
+function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

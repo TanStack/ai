@@ -1,6 +1,13 @@
 import { GenerationClient } from '@tanstack/ai-client'
 import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from 'react'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsClientMetadata,
@@ -203,12 +210,6 @@ export function useGenerationWithDevtoolsIdentity<
   // The hook identity is `threadId`. `hookId` is only a React recreation key.
   const clientIdentity = options.threadId ?? hookId
 
-  const [result, setResult] = useState<TOutput | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<Error | undefined>(undefined)
-  const [status, setStatus] = useState<GenerationClientState>('idle')
-  const [runId, setRunId] = useState<string | null>(null)
-
   const optionsRef = useRef(options)
   optionsRef.current = options
   const disposedRef = useRef(false)
@@ -258,21 +259,6 @@ export function useGenerationWithDevtoolsIdentity<
       onChunk: (c: StreamChunk) => {
         if (!disposedRef.current) optionsRef.current.onChunk?.(c)
       },
-      onResultChange: (r) => {
-        if (!disposedRef.current) setResult(r)
-      },
-      onLoadingChange: (l) => {
-        if (!disposedRef.current) setIsLoading(l)
-      },
-      onErrorChange: (e) => {
-        if (!disposedRef.current) setError(e)
-      },
-      onStatusChange: (s) => {
-        if (!disposedRef.current) setStatus(s)
-      },
-      onResumeStateChange: (rs) => {
-        if (!disposedRef.current) setRunId(rs?.runId ?? null)
-      },
     }
 
     const persistenceProps =
@@ -305,6 +291,12 @@ export function useGenerationWithDevtoolsIdentity<
       'useGeneration requires either a connection or fetcher option',
     )
   }, [clientIdentity, hookId])
+
+  const snapshot = useSyncExternalStore(
+    client.subscribe,
+    client.getSnapshot,
+    client.getSnapshot,
+  )
 
   // Sync body changes without recreating client
   useEffect(() => {
@@ -344,12 +336,12 @@ export function useGenerationWithDevtoolsIdentity<
 
   return {
     generate,
-    result,
-    isLoading,
-    error,
-    status,
+    result: snapshot.result,
+    isLoading: snapshot.isLoading,
+    error: snapshot.error,
+    status: snapshot.status,
     stop,
     reset,
-    runId,
+    runId: snapshot.runId,
   }
 }

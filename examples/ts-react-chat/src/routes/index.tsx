@@ -108,7 +108,7 @@ function Messages({
   messages,
   interrupts,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   interrupts: BoundInterrupts<ChatTools>
 }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)

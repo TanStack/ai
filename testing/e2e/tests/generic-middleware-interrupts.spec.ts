@@ -307,6 +307,23 @@ test('restores a pending generic interrupt after reload and resumes it', async (
   aimockPort,
 }) => {
   await startScenario(page, testId, aimockPort, 'generic-before-model')
+  const hydrationErrors: Array<string> = []
+  page.on('pageerror', (error) => {
+    if (
+      /hydration failed|hydrated but|server rendered html/i.test(error.message)
+    ) {
+      hydrationErrors.push(error.message)
+    }
+  })
+  page.on('console', (message) => {
+    const text = message.text()
+    if (
+      message.type() === 'error' &&
+      /hydration failed|hydrated but|server rendered html/i.test(text)
+    ) {
+      hydrationErrors.push(text)
+    }
+  })
   await page.reload()
   await expect(page.getByTestId('generic-review-plan')).toBeVisible()
   await resolveReview(page)
@@ -318,4 +335,5 @@ test('restores a pending generic interrupt after reload and resumes it', async (
   expect(capture.resolutions).toEqual([
     expect.objectContaining({ status: 'resolved' }),
   ])
+  expect(hydrationErrors).toEqual([])
 })

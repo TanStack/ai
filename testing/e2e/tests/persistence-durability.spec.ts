@@ -59,6 +59,26 @@ test.describe('persistence durability (browser refresh)', () => {
     expect(Array.isArray(record.messages)).toBe(true)
     expect(record.messages.length).toBeGreaterThanOrEqual(2)
 
+    const hydrationErrors: Array<string> = []
+    page.on('pageerror', (error) => {
+      if (
+        /hydration failed|hydrated but|server rendered html/i.test(
+          error.message,
+        )
+      ) {
+        hydrationErrors.push(error.message)
+      }
+    })
+    page.on('console', (message) => {
+      const text = message.text()
+      if (
+        message.type() === 'error' &&
+        /hydration failed|hydrated but|server rendered html/i.test(text)
+      ) {
+        hydrationErrors.push(text)
+      }
+    })
+
     // Full reload: the conversation must come back from localStorage alone.
     await page.reload()
 
@@ -71,6 +91,7 @@ test.describe('persistence durability (browser refresh)', () => {
     )
     // No in-flight run to rejoin after a clean finish — the page settles idle.
     await expect(page.getByTestId('loading-indicator')).toHaveCount(0)
+    expect(hydrationErrors).toEqual([])
   })
 
   test('a pending interrupt survives a reload (rehydrated from the resume snapshot)', async ({
@@ -98,6 +119,26 @@ test.describe('persistence durability (browser refresh)', () => {
     const record = JSON.parse(stored!) as { resume?: unknown }
     expect(record.resume).toBeTruthy()
 
+    const hydrationErrors: Array<string> = []
+    page.on('pageerror', (error) => {
+      if (
+        /hydration failed|hydrated but|server rendered html/i.test(
+          error.message,
+        )
+      ) {
+        hydrationErrors.push(error.message)
+      }
+    })
+    page.on('console', (message) => {
+      const text = message.text()
+      if (
+        message.type() === 'error' &&
+        /hydration failed|hydrated but|server rendered html/i.test(text)
+      ) {
+        hydrationErrors.push(text)
+      }
+    })
+
     // Full reload: the interrupt must rehydrate from localStorage, not a refetch.
     await page.reload()
 
@@ -108,6 +149,7 @@ test.describe('persistence durability (browser refresh)', () => {
     await expect(page.getByTestId('interrupt-confirm-shipment')).toBeVisible()
     await expect(page.getByTestId('interrupt-kind')).toHaveText('generic')
     await expect(page.getByTestId('interrupt-source')).toHaveText('hydrate')
+    expect(hydrationErrors).toEqual([])
   })
 
   test('restores a pending interrupt from the SERVER on a fresh load (persistence: true)', async ({

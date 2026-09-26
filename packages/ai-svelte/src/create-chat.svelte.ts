@@ -73,7 +73,9 @@ export function createChat<
   options: CreateChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): CreateChatReturn<TTools, TSchema, TContext, TInterrupts> {
   // Create reactive state using Svelte 5 runes
-  let messages = $state<Array<UIMessage<TTools>>>(options.initialMessages || [])
+  let messages = $state<ReadonlyArray<UIMessage<TTools>>>(
+    options.initialMessages || [],
+  )
   let isLoading = $state(false)
   let hasOlderMessages = $state(false)
   let error = $state<Error | undefined>(undefined)
@@ -81,7 +83,7 @@ export function createChat<
   let isSubscribed = $state(false)
   let connectionStatus = $state<ConnectionStatus>('disconnected')
   let sessionGenerating = $state(false)
-  let queue = $state<Array<QueuedMessage>>([])
+  let queue = $state<ReadonlyArray<QueuedMessage>>([])
   let runId = $state<string | null>(null)
   let interruptState = $state.raw<ChatInterruptState<TTools, TInterrupts>>({
     interrupts: EMPTY_INTERRUPTS,
@@ -174,49 +176,29 @@ export function createChat<
     ...(options.streamProcessor !== undefined && {
       streamProcessor: options.streamProcessor,
     }),
-    onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
-      messages = newMessages
-      hasOlderMessages = client.getHasOlderMessages()
-    },
-    onLoadingChange: (newIsLoading: boolean) => {
-      isLoading = newIsLoading
-      syncResumeState()
-    },
-    onStatusChange: (newStatus: ChatClientState) => {
-      status = newStatus
-    },
-    onErrorChange: (newError: Error | undefined) => {
-      error = newError
-    },
-    onSubscriptionChange: (nextIsSubscribed: boolean) => {
-      isSubscribed = nextIsSubscribed
-    },
-    onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
-      connectionStatus = nextStatus
-    },
-    onSessionGeneratingChange: (isGenerating: boolean) => {
-      sessionGenerating = isGenerating
-    },
     ...(options.queue !== undefined && { queue: options.queue }),
-    onQueueChange: (nextQueue: Array<QueuedMessage>) => {
-      queue = nextQueue
-    },
-    onRunIdChange: (nextRunId) => {
-      runId = nextRunId
-    },
     onInterruptStateChange: (nextInterruptState, context) => {
-      interruptState = nextInterruptState
       options.onInterruptStateChange?.(nextInterruptState, context)
     },
   })
 
-  function syncResumeState() {
-    runId = client.getCurrentRunId()
-    interruptState = client.getInterruptState()
+  function applySnapshot() {
+    const next = client.getSnapshot()
+    messages = next.messages
+    isLoading = next.isLoading
+    hasOlderMessages = next.hasOlderMessages
+    error = next.error
+    status = next.status
+    isSubscribed = next.isSubscribed
+    connectionStatus = next.connectionStatus
+    sessionGenerating = next.sessionGenerating
+    queue = next.queue
+    runId = next.runId
+    interruptState = next.interruptState
   }
 
-  messages = client.getMessages()
-  interruptState = client.getInterruptState()
+  applySnapshot()
+  const unsubscribeSnapshot = client.subscribeSnapshot(applySnapshot)
 
   if (options.live) {
     client.subscribe()
@@ -240,7 +222,6 @@ export function createChat<
         // Delivery-durability resume is transparent: the resumable SSE
         // connection adapter reattaches via the browser's native
         // Last-Event-ID on reconnect. We only seed interrupt (state) resume.
-        syncResumeState()
         client.attach()
         // ONLY THE VIEW ON SCREEN HOLDS A STREAM. `onMount`'s returned function
         // runs when the component is destroyed, which is the one automatic
@@ -252,6 +233,7 @@ export function createChat<
         // `detach` keeps the transcript and the resume pointer, so re-entering
         // the view picks the run back up from the durable log.
         return () => {
+          unsubscribeSnapshot()
           client.detach()
         }
       })
@@ -269,34 +251,21 @@ export function createChat<
     content: string | MultimodalContent,
     sendOptions?: SendMessageOptions,
   ) => {
-    try {
-      await client.sendMessage(content, undefined, sendOptions)
-    } finally {
-      syncResumeState()
-    }
+    await client.sendMessage(content, undefined, sendOptions)
   }
 
   const cancelQueued = (id: string) => client.cancelQueued(id)
 
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
-    try {
-      await client.append(message)
-    } finally {
-      syncResumeState()
-    }
+    await client.append(message)
   }
 
   const reload = async () => {
-    try {
-      await client.reload()
-    } finally {
-      syncResumeState()
-    }
+    await client.reload()
   }
 
   const loadOlderMessages = async () => {
     await client.loadOlderMessages()
-    hasOlderMessages = client.getHasOlderMessages()
   }
 
   const stop = () => {
@@ -304,12 +273,12 @@ export function createChat<
   }
 
   const dispose = () => {
+    unsubscribeSnapshot()
     client.dispose()
   }
 
   const clear = () => {
     client.clear()
-    syncResumeState()
   }
 
   const setMessages = (newMessages: Array<UIMessage<TTools>>) => {
@@ -331,16 +300,13 @@ export function createChat<
     approved: boolean
   }) => {
     await client.addToolApprovalResponse(response)
-    syncResumeState()
   }
 
   const resumeInterrupts = async (
     resumeItems: Array<RunAgentResumeItem>,
     state?: ChatResumeState,
   ) => {
-    const result = await client.resumeInterrupts(resumeItems, state)
-    syncResumeState()
-    return result
+    return await client.resumeInterrupts(resumeItems, state)
   }
 
   const resolveInterrupts = (

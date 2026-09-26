@@ -11,7 +11,7 @@ interface SessionConfig {
   seq: number
 }
 
-function Messages({ messages }: { messages: Array<UIMessage> }) {
+function Messages({ messages }: { messages: ReadonlyArray<UIMessage> }) {
   const visible = messages.filter((m) =>
     m.parts.some((p) => p.type === 'text' && p.content.trim()),
   )

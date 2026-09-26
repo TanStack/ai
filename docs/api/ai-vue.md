@@ -168,7 +168,7 @@ import type {
 } from "@tanstack/ai-client";
 
 interface UseChatReturn {
-  messages: DeepReadonly<ShallowRef<UIMessage[]>>;
+  messages: Readonly<ShallowRef<ReadonlyArray<UIMessage>>>;
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,

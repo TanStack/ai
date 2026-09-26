@@ -289,6 +289,184 @@ describe('generation client devtools bridge', () => {
     client.dispose()
   })
 
+  it('finishes a generation devtools run when a runId subscriber stops it', async () => {
+    const fetcher = vi.fn(async () => ({ text: 'done' }))
+    const client = new GenerationClient({
+      threadId: 'generation-run-id-stop',
+      fetcher,
+      devtools: { hookName: 'useGenerationRunIdStop' },
+    })
+    const unsubscribe = client.subscribe(() => {
+      if (client.getSnapshot().runId) client.stop()
+    })
+
+    await client.generate({ prompt: 'stop early' })
+
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(latestSnapshotState().activeRunId).toBeNull()
+    unsubscribe()
+    client.dispose()
+  })
+
+  it('finishes a generation devtools run when loading callback stops it', async () => {
+    const fetcher = vi.fn(async () => ({ text: 'done' }))
+    let client: GenerationClient<{ prompt: string }, { text: string }>
+    client = new GenerationClient({
+      threadId: 'generation-loading-stop',
+      fetcher,
+      devtools: { hookName: 'useGenerationLoadingStop' },
+      onLoadingChange: (isLoading) => {
+        if (isLoading) client.stop()
+      },
+    })
+
+    await client.generate({ prompt: 'stop while loading' })
+
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(latestSnapshotState().activeRunId).toBeNull()
+    client.dispose()
+  })
+
+  it('finishes a completed generation devtools run when success callback stops it', async () => {
+    let client: GenerationClient<{ prompt: string }, { text: string }>
+    client = new GenerationClient({
+      threadId: 'generation-success-stop',
+      fetcher: async () => ({ text: 'done' }),
+      devtools: { hookName: 'useGenerationSuccessStop' },
+      onStatusChange: (status) => {
+        if (status === 'success') client.stop()
+      },
+    })
+
+    await client.generate({ prompt: 'finish then stop' })
+
+    expect(latestSnapshotState().activeRunId).toBeNull()
+    expect(latestGenerationRuns().at(-1)).toEqual(
+      expect.objectContaining({ status: 'success', result: { text: 'done' } }),
+    )
+    client.dispose()
+  })
+
+  it('finishes an errored generation devtools run when error callback stops it', async () => {
+    let client: GenerationClient<{ prompt: string }, { text: string }>
+    client = new GenerationClient<{ prompt: string }, { text: string }>({
+      threadId: 'generation-error-stop',
+      devtools: { hookName: 'useGenerationErrorStop' },
+      fetcher: async (): Promise<{ text: string }> => {
+        throw new Error('generation failed')
+      },
+      onStatusChange: (status) => {
+        if (status === 'error') client.stop()
+      },
+    })
+
+    await client.generate({ prompt: 'fail then stop' })
+
+    expect(latestSnapshotState().activeRunId).toBeNull()
+    expect(latestGenerationRuns().at(-1)).toEqual(
+      expect.objectContaining({
+        status: 'error',
+        error: 'generation failed',
+      }),
+    )
+    client.dispose()
+  })
+
+  it('finishes a video devtools run when a runId subscriber stops it', async () => {
+    const fetcher = vi.fn(async () => ({
+      jobId: 'video-1',
+      status: 'completed' as const,
+      url: 'https://example.com/video-1.mp4',
+    }))
+    const client = new VideoGenerationClient({
+      threadId: 'video-run-id-stop',
+      fetcher,
+      devtools: { hookName: 'useVideoRunIdStop' },
+    })
+    const unsubscribe = client.subscribe(() => {
+      if (client.getSnapshot().runId) client.stop()
+    })
+
+    await client.generate({ prompt: 'stop early' })
+
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(latestSnapshotState().activeRunId).toBeNull()
+    unsubscribe()
+    client.dispose()
+  })
+
+  it('finishes a video devtools run when loading callback stops it', async () => {
+    const fetcher = vi.fn(async () => ({
+      jobId: 'video-1',
+      status: 'completed' as const,
+      url: 'https://example.com/video-1.mp4',
+    }))
+    let client: VideoGenerationClient
+    client = new VideoGenerationClient({
+      threadId: 'video-loading-stop',
+      fetcher,
+      devtools: { hookName: 'useVideoLoadingStop' },
+      onLoadingChange: (isLoading) => {
+        if (isLoading) client.stop()
+      },
+    })
+
+    await client.generate({ prompt: 'stop while loading' })
+
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(latestSnapshotState().activeRunId).toBeNull()
+    client.dispose()
+  })
+
+  it('finishes a completed video devtools run when success callback stops it', async () => {
+    let client: VideoGenerationClient
+    client = new VideoGenerationClient({
+      threadId: 'video-success-stop',
+      fetcher: async () => ({
+        jobId: 'video-1',
+        status: 'completed' as const,
+        url: 'https://example.com/video-1.mp4',
+      }),
+      devtools: { hookName: 'useVideoSuccessStop' },
+      onStatusChange: (status) => {
+        if (status === 'success') client.stop()
+      },
+    })
+
+    await client.generate({ prompt: 'finish then stop' })
+
+    expect(latestSnapshotState().activeRunId).toBeNull()
+    expect(latestGenerationRuns().at(-1)).toEqual(
+      expect.objectContaining({
+        status: 'success',
+        result: expect.objectContaining({ jobId: 'video-1' }),
+      }),
+    )
+    client.dispose()
+  })
+
+  it('finishes an errored video devtools run when error callback stops it', async () => {
+    let client: VideoGenerationClient
+    client = new VideoGenerationClient({
+      threadId: 'video-error-stop',
+      devtools: { hookName: 'useVideoErrorStop' },
+      fetcher: async () => {
+        throw new Error('video failed')
+      },
+      onStatusChange: (status) => {
+        if (status === 'error') client.stop()
+      },
+    })
+
+    await client.generate({ prompt: 'fail then stop' })
+
+    expect(latestSnapshotState().activeRunId).toBeNull()
+    expect(latestGenerationRuns().at(-1)).toEqual(
+      expect.objectContaining({ status: 'error', error: 'video failed' }),
+    )
+    client.dispose()
+  })
+
   it('includes input, progress, and renderable previews in generation snapshots', async () => {
     const client = new GenerationClient({
       threadId: 'image-hook',

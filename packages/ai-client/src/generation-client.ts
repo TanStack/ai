@@ -30,8 +30,16 @@ import type {
   GenerationDevtoolsBridge,
   GenerationDevtoolsBridgeOptions,
 } from './devtools'
+import {
+  cloneSnapshotValue,
+  createAtom,
+  patchAtom,
+  subscribeAtom,
+} from './snapshot-atom'
+import type { Atom } from './snapshot-atom'
 import type {
   GenerationClientOptions,
+  GenerationClientSnapshot,
   GenerationClientState,
   GenerationFetcher,
   GenerationPersistenceOptions,
@@ -135,6 +143,14 @@ export class GenerationClient<
   private isLoading = false
   private error: Error | undefined = undefined
   private status: GenerationClientState = 'idle'
+  private readonly snapshotAtom: Atom<GenerationClientSnapshot<TOutput>> =
+    createAtom<GenerationClientSnapshot<TOutput>>({
+      result: null,
+      isLoading: false,
+      error: undefined,
+      status: 'idle',
+      runId: null,
+    })
   private resumeSnapshot: GenerationResumeSnapshot | undefined
   private lastEmittedResumeState: string | undefined
   private abortController: AbortController | null = null
@@ -266,14 +282,18 @@ export class GenerationClient<
 
     this.input = input
     this.progress = null
-    const runId = this.devtoolsBridge.beginRun(input)
-    this.setIsLoading(true)
-    this.setStatus('generating')
-    this.setError(undefined)
-
     const abortController = new AbortController()
     this.abortController = abortController
     const { signal } = abortController
+    const runId = this.devtoolsBridge.beginRun(input)
+    patchAtom(this.snapshotAtom, { runId })
+    if (
+      !this.ownsRun(abortController) ||
+      !this.setIsLoading(true, abortController) ||
+      !this.setStatus('generating', abortController) ||
+      !this.setError(undefined, abortController)
+    )
+      return
 
     try {
       let headers: Record<string, string> | undefined
@@ -284,6 +304,7 @@ export class GenerationClient<
           byokFallbackProviderId(this.byok),
         )
         headers = await prepareResolvedByokHeaders(this.byok, provider)
+        if (!this.ownsRun(abortController)) return
       }
 
       if (this.fetcher) {
@@ -292,19 +313,22 @@ export class GenerationClient<
           input,
           headers === undefined ? { signal } : { signal, headers },
         )
-        if (signal.aborted) return
+        if (!this.ownsRun(abortController)) return
         if (result instanceof Response) {
           // Server function returned SSE Response — parse stream
           await this.processStream(
             parseSSEResponse(result, signal),
             runId,
-            signal,
+            abortController,
           )
         } else {
           this.devtoolsBridge.ensureRunStarted(runId)
-          this.setResult(result)
-          this.setStatus('success')
-          this.completePlainFetcherResumeSnapshot(result)
+          if (
+            !this.setResult(result, abortController) ||
+            !this.setStatus('success', abortController)
+          )
+            return
+          this.completePlainFetcherResumeSnapshot(result, abortController)
         }
       } else if (this.connection) {
         // Streaming adapter path
@@ -315,13 +339,13 @@ export class GenerationClient<
           signal,
           this.createRunContext(runId, headers),
         )
-        await this.processStream(stream, runId, signal)
+        await this.processStream(stream, runId, abortController)
       } else {
         throw new Error(
           'GenerationClient requires either a connection or fetcher option',
         )
       }
-      if (!signal.aborted && this.status === 'success') {
+      if (this.ownsRun(abortController) && this.status === 'success') {
         // Bump progress to 100 on successful completion so devtools
         // snapshots reflect the final state. The bridge mirrors this in
         // the run's recorded progress, but the snapshot reads `progress`
@@ -334,7 +358,7 @@ export class GenerationClient<
         )
       }
     } catch (err: unknown) {
-      if (signal.aborted) return
+      if (!this.ownsRun(abortController)) return
       const error = err instanceof Error ? err : new Error(String(err))
       if (error instanceof ByokMissingError) {
         this.byok?.request(error.provider, 'missing')
@@ -342,9 +366,13 @@ export class GenerationClient<
       if (error instanceof ByokBlockedError && error.reason === 'locked') {
         this.byok?.request(error.provider, 'locked')
       }
-      this.setError(error)
-      this.setStatus('error')
-      this.recordResumeSnapshotError(error)
+      if (
+        !this.ownsRun(abortController) ||
+        !this.setError(error, abortController) ||
+        !this.setStatus('error', abortController) ||
+        !this.recordResumeSnapshotError(error, abortController)
+      )
+        return
       this.devtoolsBridge.finishRun(
         this.devtoolsBridge.getActiveRunId() ?? runId,
         'run:errored',
@@ -354,8 +382,13 @@ export class GenerationClient<
       this.callbacksRef.onError?.(error)
     } finally {
       if (this.abortController === abortController) {
-        this.abortController = null
-        this.setIsLoading(false)
+        patchAtom(this.snapshotAtom, { runId: null })
+        if (
+          this.ownsRun(abortController) &&
+          this.setIsLoading(false, abortController)
+        ) {
+          this.abortController = null
+        }
       }
     }
   }
@@ -375,8 +408,9 @@ export class GenerationClient<
   private async processStream(
     source: AsyncIterable<StreamChunk>,
     fallbackRunId: string,
-    signal: AbortSignal,
+    abortController: AbortController,
   ): Promise<void> {
+    const { signal } = abortController
     let streamRunId: string | undefined
     let sawTerminalChunk = false
 
@@ -385,7 +419,11 @@ export class GenerationClient<
 
       const chunk = restoreInboundChunk(raw)
       this.callbacksRef.onChunk?.(chunk)
-      this.observeResumeSnapshot(chunk)
+      if (
+        !this.ownsRun(abortController) ||
+        !this.observeResumeSnapshot(chunk, abortController)
+      )
+        return
       const chunkRunId =
         'runId' in chunk && typeof chunk.runId === 'string'
           ? chunk.runId
@@ -395,19 +433,21 @@ export class GenerationClient<
       switch (chunk.type) {
         case 'RUN_STARTED': {
           streamRunId = chunk.runId
+          patchAtom(this.snapshotAtom, { runId: chunk.runId })
+          if (!this.ownsRun(abortController)) return
           this.devtoolsBridge.ensureRunStarted(chunk.runId)
           break
         }
         case 'CUSTOM': {
           this.devtoolsBridge.ensureRunStarted(streamRunId ?? fallbackRunId)
           if (chunk.name === GENERATION_EVENTS.RESULT) {
-            this.setResult(chunk.value as TResult)
+            if (!this.setResult(chunk.value as TResult, abortController)) return
           } else if (chunk.name === GENERATION_EVENTS.PROGRESS) {
             const { progress, message } = chunk.value as {
               progress: number
               message?: string
             }
-            this.setProgress(progress, message)
+            if (!this.setProgress(progress, message, abortController)) return
           }
           break
         }
@@ -415,7 +455,7 @@ export class GenerationClient<
           streamRunId = chunk.runId
           sawTerminalChunk = true
           this.devtoolsBridge.ensureRunStarted(chunk.runId)
-          this.setStatus('success')
+          if (!this.setStatus('success', abortController)) return
           break
         }
         case 'RUN_ERROR': {
@@ -443,28 +483,51 @@ export class GenerationClient<
    */
   stop(): void {
     const runId = this.devtoolsBridge.getActiveRunId()
+    const stoppedStatus = this.status
     if (this.abortController) {
       this.abortController.abort()
       this.abortController = null
     }
-    this.setIsLoading(false)
-    if (this.status === 'generating') {
-      this.setStatus('idle')
-      if (runId) {
+    if (runId) {
+      if (stoppedStatus === 'success') {
+        this.devtoolsBridge.finishRun(runId, 'run:completed', 'completed')
+      } else if (stoppedStatus === 'error') {
+        this.devtoolsBridge.finishRun(
+          runId,
+          'run:errored',
+          'errored',
+          this.error?.message,
+        )
+      } else {
         this.devtoolsBridge.finishRun(runId, 'run:cancelled', 'cancelled')
       }
     }
     // A stopped run is no longer resumable. Without this the in-memory
     // snapshot stays `running`, and a remount's `maybeResumeInFlight` would
     // rejoin a run the user just cancelled.
-    if (this.resumeSnapshot && this.resumeSnapshot.status === 'running') {
+    const resumeStopped = this.resumeSnapshot?.status === 'running'
+    if (this.resumeSnapshot && resumeStopped) {
       this.resumeSnapshot = {
         ...this.resumeSnapshot,
         resumeState: null,
         status: 'idle',
       }
-      this.notifyResumeSnapshotChanged()
     }
+    // Each step below can run user code. That code can start a new run, so
+    // clear the flag `generate()` checks now and publish it last. If a new
+    // run starts, it owns the client, so stop here and keep its state.
+    this.isLoading = false
+    patchAtom(this.snapshotAtom, { runId: null })
+    if (this.abortController) return
+    if (stoppedStatus === 'generating') {
+      this.setStatus('idle')
+      if (this.abortController) return
+    }
+    if (resumeStopped) {
+      this.notifyResumeSnapshotChanged()
+      if (this.abortController) return
+    }
+    this.setIsLoading(false)
   }
 
   /**
@@ -475,6 +538,7 @@ export class GenerationClient<
    */
   reset(): void {
     this.stop()
+    if (this.abortController || this.isLoading) return
     this.setResult(null)
     this.input = null
     this.progress = null
@@ -539,7 +603,9 @@ export class GenerationClient<
       this.abortController.abort()
       this.abortController = null
     }
-    this.setIsLoading(false)
+    if (this.resumeSnapshot?.status !== 'running') {
+      patchAtom(this.snapshotAtom, { runId: null })
+    }
     this.devtoolsBridge.dispose()
     this.devtoolsMounted = false
     // Re-arm mount hydration + rejoin so a remount resumes from the (preserved)
@@ -547,11 +613,25 @@ export class GenerationClient<
     // `maybeResumeInFlight`, both individually guarded.
     this.serverHydrationStarted = false
     this.rejoinedRunId = undefined
+    this.setIsLoading(false)
   }
 
   // ===========================
   // Getters
   // ===========================
+
+  /**
+   * Subscribe to UI snapshot changes. Does not fire with the current value;
+   * read {@link getSnapshot} first.
+   */
+  subscribe = (listener: () => void): (() => void) =>
+    subscribeAtom(this.snapshotAtom, listener)
+
+  /**
+   * Current UI snapshot. Frozen envelope. A plain-object or array `result` is
+   * a shallow copy. Any other `result` object is the value itself.
+   */
+  getSnapshot = (): GenerationClientSnapshot<TOutput> => this.snapshotAtom.get()
 
   getResult(): TOutput | null {
     return this.result
@@ -600,27 +680,29 @@ export class GenerationClient<
   // Private state setters
   // ===========================
 
-  private setResult(rawResult: TResult | null): void {
+  // Each setter returns false once `controller` no longer owns the client.
+
+  private setResult(
+    rawResult: TResult | null,
+    controller?: AbortController,
+  ): boolean {
     if (rawResult === null) {
       this.result = null
-      this.callbacksRef.onResultChange?.(null)
-      this.devtoolsBridge.recordResultChange()
-      return
+      return this.publishResult(controller)
     }
 
     if (this.callbacksRef.onResult) {
       const transformed = this.callbacksRef.onResult(rawResult)
+      if (!this.owns(controller)) return false
       if (transformed === null) {
         // null return → keep previous result unchanged, just re-emit
         this.devtoolsBridge.emitState()
-        return
+        return true
       }
       if (transformed !== undefined) {
         // Non-null, non-undefined → use transformed value
         this.result = transformed
-        this.callbacksRef.onResultChange?.(this.result)
-        this.devtoolsBridge.recordResultChange()
-        return
+        return this.publishResult(controller)
       }
     }
 
@@ -629,29 +711,63 @@ export class GenerationClient<
     // `TOutput` defaults to `TResult`, so the runtime cast is sound.
     // oxlint-disable-next-line eslint-js/no-restricted-syntax -- TOutput defaults to TResult when no onResult transform is supplied
     this.result = rawResult as unknown as TOutput
-    this.callbacksRef.onResultChange?.(this.result)
-    this.devtoolsBridge.recordResultChange()
+    return this.publishResult(controller)
   }
 
-  private setIsLoading(isLoading: boolean): void {
+  private publishResult(controller?: AbortController): boolean {
+    const result = this.result
+    patchAtom(this.snapshotAtom, { result: cloneSnapshotValue(result) })
+    return this.whileOwned(
+      controller,
+      () => this.callbacksRef.onResultChange?.(result),
+      () => this.devtoolsBridge.recordResultChange(),
+    )
+  }
+
+  private setIsLoading(
+    isLoading: boolean,
+    controller?: AbortController,
+  ): boolean {
     this.isLoading = isLoading
-    this.callbacksRef.onLoadingChange?.(isLoading)
-    this.devtoolsBridge.recordLoadingChange()
+    patchAtom(this.snapshotAtom, { isLoading })
+    return this.whileOwned(
+      controller,
+      () => this.callbacksRef.onLoadingChange?.(isLoading),
+      () => this.devtoolsBridge.recordLoadingChange(),
+    )
   }
 
-  private setError(error: Error | undefined): void {
+  private setError(
+    error: Error | undefined,
+    controller?: AbortController,
+  ): boolean {
     this.error = error
-    this.callbacksRef.onErrorChange?.(error)
-    this.devtoolsBridge.recordErrorChange(error)
+    patchAtom(this.snapshotAtom, { error })
+    return this.whileOwned(
+      controller,
+      () => this.callbacksRef.onErrorChange?.(error),
+      () => this.devtoolsBridge.recordErrorChange(error),
+    )
   }
 
-  private setStatus(status: GenerationClientState): void {
+  private setStatus(
+    status: GenerationClientState,
+    controller?: AbortController,
+  ): boolean {
     this.status = status
-    this.callbacksRef.onStatusChange?.(status)
-    this.devtoolsBridge.recordStatusChange(status)
+    patchAtom(this.snapshotAtom, { status })
+    return this.whileOwned(
+      controller,
+      () => this.callbacksRef.onStatusChange?.(status),
+      () => this.devtoolsBridge.recordStatusChange(status),
+    )
   }
 
-  private setProgress(value: number, message?: string): void {
+  private setProgress(
+    value: number,
+    message?: string,
+    controller?: AbortController,
+  ): boolean {
     this.progress = {
       value,
       ...(message ? { message } : {}),
@@ -661,7 +777,9 @@ export class GenerationClient<
     } else {
       this.callbacksRef.onProgress?.(value, message)
     }
-    this.devtoolsBridge.recordProgressChange()
+    return this.whileOwned(controller, () =>
+      this.devtoolsBridge.recordProgressChange(),
+    )
   }
 
   private createDevtoolsMetadata(
@@ -687,6 +805,31 @@ export class GenerationClient<
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
 
+  private ownsRun(controller: AbortController): boolean {
+    return !controller.signal.aborted && this.abortController === controller
+  }
+
+  /** True without a controller: that caller does not own a run. */
+  private owns(controller: AbortController | undefined): boolean {
+    return !controller || this.ownsRun(controller)
+  }
+
+  /**
+   * Run `steps` in order while `controller` owns the client. A step can run
+   * user code, and that code can call `stop()` or start a new run. Returns
+   * whether `controller` still owns the client.
+   */
+  private whileOwned(
+    controller: AbortController | undefined,
+    ...steps: Array<() => unknown>
+  ): boolean {
+    for (const step of steps) {
+      if (!this.owns(controller)) return false
+      step()
+    }
+    return this.owns(controller)
+  }
+
   private createRunContext(
     runId: string,
     headers?: Record<string, string>,
@@ -698,12 +841,15 @@ export class GenerationClient<
     }
   }
 
-  private observeResumeSnapshot(chunk: StreamChunk): void {
+  private observeResumeSnapshot(
+    chunk: StreamChunk,
+    controller: AbortController,
+  ): boolean {
     this.resumeSnapshot = updateGenerationResumeSnapshot(
       this.resumeSnapshot,
       chunk,
     )
-    this.notifyResumeSnapshotChanged()
+    return this.notifyResumeSnapshotChanged(controller)
   }
 
   /**
@@ -711,9 +857,12 @@ export class GenerationClient<
    * The snapshot stays internal (persistence + devtools); the hook consumes
    * `resumeState`, mirroring the chat client.
    */
-  private notifyResumeSnapshotChanged(): void {
-    this.callbacksRef.onResumeSnapshotChange?.(this.resumeSnapshot)
-    this.emitResumeState()
+  private notifyResumeSnapshotChanged(controller?: AbortController): boolean {
+    return this.whileOwned(
+      controller,
+      () => this.callbacksRef.onResumeSnapshotChange?.(this.resumeSnapshot),
+      () => this.emitResumeState(controller),
+    )
   }
 
   /**
@@ -727,7 +876,7 @@ export class GenerationClient<
    * boundaries and when artifacts land, so skip the notification unless it
    * materially changed — same gate the persistence writes use.
    */
-  private emitResumeState(): void {
+  private emitResumeState(controller?: AbortController): void {
     const snapshot = this.resumeSnapshot
     const state = snapshot?.resumeState
     const resumeState: GenerationResumeState | null = state
@@ -743,6 +892,12 @@ export class GenerationClient<
       return
     }
     this.lastEmittedResumeState = signature
+    if (resumeState?.runId) {
+      patchAtom(this.snapshotAtom, { runId: resumeState.runId })
+    } else if (!this.isLoading) {
+      patchAtom(this.snapshotAtom, { runId: null })
+    }
+    if (!this.owns(controller)) return
     this.callbacksRef.onResumeStateChange?.(resumeState)
   }
 
@@ -871,7 +1026,10 @@ export class GenerationClient<
    * stale `error` from a previous run is intentionally dropped — this run
    * succeeded.
    */
-  private completePlainFetcherResumeSnapshot(rawResult: unknown): void {
+  private completePlainFetcherResumeSnapshot(
+    rawResult: unknown,
+    controller: AbortController,
+  ): void {
     const previous = this.resumeSnapshot
     const result = createGenerationResultSnapshot(rawResult)
     this.resumeSnapshot = {
@@ -888,7 +1046,7 @@ export class GenerationClient<
           ? { result: { ...previous.result } }
           : {}),
     }
-    this.notifyResumeSnapshotChanged()
+    this.notifyResumeSnapshotChanged(controller)
   }
 
   /**
@@ -897,17 +1055,22 @@ export class GenerationClient<
    * mark the snapshot `error`, leaving a persisted record that claims the
    * run is still in flight.
    */
-  private recordResumeSnapshotError(error: Error): void {
+  private recordResumeSnapshotError(
+    error: Error,
+    controller?: AbortController,
+  ): boolean {
     // Surface the failure on the OBSERVABLE fields FIRST: a rejoin (or live
     // stream) that emits RUN_ERROR has already flipped the snapshot to `error`
     // via `observeResumeSnapshot`, so the early-return below would otherwise
     // skip this and leave `status` stuck on `generating` — the run would look
     // like it is still going forever. The guard avoids a duplicate `error`
     // emission on the live `generate()` path, which sets the status itself.
-    if (this.status !== 'error') this.setStatus('error')
-    this.setError(error)
-    if (this.resumeSnapshot?.status === 'error') return
-    if (!this.resumeSnapshot && !this.serverDriven) return
+    if (this.status !== 'error' && !this.setStatus('error', controller)) {
+      return false
+    }
+    if (!this.setError(error, controller)) return false
+    if (this.resumeSnapshot?.status === 'error') return true
+    if (!this.resumeSnapshot && !this.serverDriven) return true
     const previous = this.resumeSnapshot
     this.resumeSnapshot = {
       schemaVersion: 1,
@@ -920,7 +1083,7 @@ export class GenerationClient<
       ...(previous?.result ? { result: { ...previous.result } } : {}),
       error: { message: error.message },
     }
-    this.notifyResumeSnapshotChanged()
+    return this.notifyResumeSnapshotChanged(controller)
   }
 
   /**
@@ -1044,23 +1207,26 @@ export class GenerationClient<
     this.rejoinedRunId = runId
     const controller = new AbortController()
     this.abortController = controller
-    this.setIsLoading(true)
-    this.setStatus('generating')
+    if (
+      !this.setIsLoading(true, controller) ||
+      !this.setStatus('generating', controller)
+    )
+      return
     void (async () => {
       try {
         await this.processStream(
           joinRun(runId, controller.signal),
           runId,
-          controller.signal,
+          controller,
         )
       } catch (error) {
-        if (!controller.signal.aborted) {
+        if (this.ownsRun(controller)) {
           const failure =
             error instanceof Error ? error : new Error(String(error))
           // Settles `status`/`error` AND rewrites the snapshot to a terminal
           // `error` with a null `resumeState`, so the next mount does not
           // rejoin this run again.
-          this.recordResumeSnapshotError(failure)
+          if (!this.recordResumeSnapshotError(failure, controller)) return
           this.callbacksRef.onError?.(failure)
         }
       } finally {
@@ -1068,8 +1234,9 @@ export class GenerationClient<
         // fresh `generate()` may have replaced the controller while the tail
         // was settling, and that live run owns `isLoading` now.
         if (this.abortController === controller) {
-          this.abortController = null
-          this.setIsLoading(false)
+          // `emitResumeState` skips this while `isLoading` is still true.
+          patchAtom(this.snapshotAtom, { runId: null })
+          if (this.setIsLoading(false, controller)) this.abortController = null
         }
       }
     })()

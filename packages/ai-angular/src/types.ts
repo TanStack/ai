@@ -135,7 +135,7 @@ interface BaseInjectChatResult<
     readonly [],
 > {
   /** Current messages in the conversation. */
-  messages: Signal<Array<UIMessage<TTools, TData>>>
+  messages: Signal<ReadonlyArray<UIMessage<TTools, TData>>>
   /**
    * Send a message (string or multimodal content).
    * Pass `{ whenBusy }` to override the queue policy for a single send, or

@@ -1,6 +1,7 @@
 import { GenerationClient } from '@tanstack/ai-client'
 import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import {
+  batch,
   createEffect,
   createSignal,
   onCleanup,
@@ -230,21 +231,6 @@ export function useGeneration<
       onChunk: (c: StreamChunk) => {
         if (!disposed) options.onChunk?.(c)
       },
-      onResultChange: (r) => {
-        if (!disposed) setResult(() => r)
-      },
-      onLoadingChange: (l) => {
-        if (!disposed) setIsLoading(l)
-      },
-      onErrorChange: (e) => {
-        if (!disposed) setError(e)
-      },
-      onStatusChange: (s) => {
-        if (!disposed) setStatus(s)
-      },
-      onResumeStateChange: (rs) => {
-        if (!disposed) setRunId(rs?.runId ?? null)
-      },
     }
 
     const persistenceProps =
@@ -279,6 +265,20 @@ export function useGeneration<
       'useGeneration requires either a connection or fetcher option',
     )
   })
+
+  const applySnapshot = () => {
+    const next = client.getSnapshot()
+    // One batch, so effects never see half of a snapshot.
+    batch(() => {
+      setResult(() => next.result)
+      setIsLoading(next.isLoading)
+      setError(next.error)
+      setStatus(next.status)
+      setRunId(next.runId)
+    })
+  }
+  applySnapshot()
+  onCleanup(client.subscribe(applySnapshot))
 
   // Sync body changes without recreating client
   createEffect(() => {

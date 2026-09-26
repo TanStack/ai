@@ -8,6 +8,34 @@ describe('defineByok memory', () => {
     vi.unstubAllGlobals()
   })
 
+  it('isolates and freezes nested snapshot state', async () => {
+    const byok = defineByok()
+    await byok.update('openai', 'sk-abcdefghij')
+    const snapshot = byok.getSnapshot()
+
+    expect(Object.isFrozen(snapshot)).toBe(true)
+    expect(Object.isFrozen(snapshot.status)).toBe(true)
+    expect(Object.isFrozen(snapshot.status.openai)).toBe(true)
+    Reflect.set(snapshot.status.openai!, 'masked', 'leak')
+    expect(byok.getSnapshot().status.openai).toEqual({
+      state: 'set',
+      masked: 'ghij',
+    })
+  })
+
+  it('uses Set subscription behavior', () => {
+    const byok = defineByok()
+    const listener = vi.fn()
+    const first = byok.subscribe(listener)
+    byok.subscribe(listener)
+
+    byok.request('openai', 'missing')
+    expect(listener).toHaveBeenCalledTimes(1)
+    first()
+    byok.request('openai', 'missing')
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
   it('updates and snapshots without exposing the raw key', async () => {
     const byok = defineByok({ storage: memoryStorage() })
     await byok.update('openai', 'sk-abcdefghij')

@@ -29,7 +29,7 @@ Rate the candidate on two dimensions, each on a scale from 1 to 10 (10 = best):
 
 Provide a two sentence summary of your evaluation.`
 
-export const Route = createFileRoute('/_database-demo/api/judge' as any)({
+export const Route = createFileRoute('/_database-demo/api/judge')({
   server: {
     handlers: {
       POST: async ({ request }) => {

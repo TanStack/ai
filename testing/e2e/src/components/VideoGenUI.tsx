@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   useGenerateVideo,
   fetchServerSentEvents,
@@ -70,8 +70,12 @@ export function VideoGenUI({
     }
   }
 
-  const { generate, result, videoStatus, isLoading, error, status } =
+  const { generate, result, videoStatus, isLoading, error, status, runId } =
     useGenerateVideo(connectionOptions())
+  const activeTuple = useRef({ runId: '', status: 'idle', isLoading: false })
+  if (runId && status === 'generating' && isLoading) {
+    activeTuple.current = { runId, status, isLoading }
+  }
 
   const handleGenerate = async () => {
     if (!imageFile) {
@@ -92,6 +96,12 @@ export function VideoGenUI({
 
   return (
     <div className="p-4 space-y-4">
+      <output data-testid="active-run-id">{activeTuple.current.runId}</output>
+      <output data-testid="active-status">{activeTuple.current.status}</output>
+      <output data-testid="active-loading">
+        {String(activeTuple.current.isLoading)}
+      </output>
+      <output data-testid="final-run-id">{runId ?? ''}</output>
       <div className="flex gap-2">
         <input
           data-testid="prompt-input"

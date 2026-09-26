@@ -176,7 +176,7 @@ interface BaseUseChatReturn<
    * When `subagents` is supplied, a `type: 'subagent'` part narrows on
    * `subagent.name`, and that child's `messages` use the agent's tools.
    */
-  messages: Array<UIMessage<TTools, TData, TSubagents>>
+  messages: ReadonlyArray<UIMessage<TTools, TData, TSubagents>>
 
   /**
    * Live child-agent invocations, nested cards included. Each entry is the
@@ -202,7 +202,7 @@ interface BaseUseChatReturn<
    * Pending messages queued while the client is busy (streaming, claiming a
    * send, or draining). Separate from `messages` until they drain.
    */
-  queue: Array<QueuedMessage>
+  queue: ReadonlyArray<QueuedMessage>
 
   /**
    * Cancel a queued message before it drains. No-op if already sent.
