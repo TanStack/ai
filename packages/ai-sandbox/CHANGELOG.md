@@ -1,5 +1,14 @@
 # @tanstack/ai-sandbox
 
+## 0.5.17
+
+### Patch Changes
+
+- Updated dependencies [[`8e8ee26`](https://github.com/TanStack/ai/commit/8e8ee26959a471bb6fac180ded3a9a048ae93609), [`c5c1996`](https://github.com/TanStack/ai/commit/c5c19961b8c98497fd88ae93c5d6330d7b2ecb6a), [`3e30cde`](https://github.com/TanStack/ai/commit/3e30cde8ae7f5be7be3bc9c4f30c842159fc7edf)]:
+  - @tanstack/ai@0.63.0
+  - @tanstack/ai-persistence@0.7.1
+  - @tanstack/ai-skills@0.1.13
+
 ## 0.5.16
 
 ### Patch Changes
