@@ -24,6 +24,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./harness": {
+      "types": "./dist/esm/harness.d.ts",
+      "import": "./dist/esm/harness.js"
     }
   },
   "sideEffects": false,
@@ -65,10 +69,18 @@
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-harness": "workspace:^",
     "zod": "^3.0.0 || ^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/ai-harness": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-harness": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
     "zod": "^4.2.0"
   }

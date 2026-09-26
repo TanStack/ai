@@ -11,8 +11,10 @@ import {
   workspaceTools,
 } from '@tanstack/ai-harness/plugins'
 import { anthropicText } from '@tanstack/ai-anthropic'
+import { codeMode } from '@tanstack/ai-code-mode/harness'
 import { mcpConnector } from '@tanstack/ai-mcp/connector'
 import { grokVideo } from '@tanstack/ai-grok'
+import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
 import { openaiText, openaiVideo } from '@tanstack/ai-openai'
 import { z } from 'zod'
 import { imageAgent, videoAgent } from './media'
@@ -167,5 +169,10 @@ export const assistant = defineHarness({
     projectInstructions({ root }),
     compact({ adapter: main }),
     usage(),
+    // Read-only tools (file reads, read-only Notion and Linear tools) move
+    // behind execute_typescript, so the model can call several in one program.
+    // The program runs in a QuickJS isolate. Any @tanstack/ai-isolate-* driver
+    // works here.
+    codeMode({ driver: createQuickJSIsolateDriver() }),
   ],
 })

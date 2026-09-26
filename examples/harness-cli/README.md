@@ -27,6 +27,7 @@ Try these:
 
 - Sign-ins are kept in `~/.tanstack-harness-example/credentials.json`, so you sign in once. `/disconnect notion` deletes one.
 - Images use `OPENAI_API_KEY`. Videos use Grok Imagine when `XAI_API_KEY` is set, and OpenAI Sora when it is not.
+- Code mode is on: read-only tools (file reads, read-only Notion and Linear tools) are `external_*` functions in one `execute_typescript` program, which runs in a QuickJS isolate. Ask: `in one program, list my Linear issues and search Notion for them`.
 
 ## Other modes
 

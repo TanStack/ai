@@ -927,15 +927,43 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           found.push(tool)
         }
       } catch (error) {
-        operation.publish(
-          customEvent('harness.plugin.warning', {
-            plugin: owner,
-            message: error instanceof Error ? error.message : String(error),
-          }),
-        )
+        this.warn(operation, owner, error)
       }
     }
     return found
+  }
+
+  /**
+   * Let each plugin change the tool list of this turn, in plugin order. A
+   * plugin that fails leaves the list as it was, with a warning event.
+   */
+  private async prepareTools(
+    preparers: MountedPlugins['preparers'],
+    tools: Array<AnyTool>,
+    operation: OperationImpl<ChatTurnResult>,
+  ): Promise<Array<AnyTool>> {
+    let prepared = tools
+    for (const { prepare, owner } of preparers) {
+      try {
+        prepared = [...(await prepare(prepared))]
+      } catch (error) {
+        this.warn(operation, owner, error)
+      }
+    }
+    return prepared
+  }
+
+  private warn(
+    operation: OperationImpl<ChatTurnResult>,
+    plugin: string,
+    error: unknown,
+  ) {
+    operation.publish(
+      customEvent('harness.plugin.warning', {
+        plugin,
+        message: error instanceof Error ? error.message : String(error),
+      }),
+    )
   }
 
   /** Middleware that adds queued steer messages before each model call. */
@@ -1059,6 +1087,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         new Set(staticTools.map((tool) => tool.name)),
         operation,
       )
+      // Before the chat() options below: prompts may describe these tools.
+      const tools = await this.prepareTools(
+        [...(session?.preparers ?? []), ...(runPlugins?.preparers ?? [])],
+        [...staticTools, ...discovered],
+        operation,
+      )
       const stream = chat({
         adapter: picked ?? this.harness.adapter,
         messages:
@@ -1071,7 +1105,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             .map(resolvePrompt)
             .filter((prompt) => prompt !== ''),
         ],
-        tools: [...staticTools, ...discovered],
+        tools,
         middleware: [
           ...bridges,
           withPersistence(this.persistence),
