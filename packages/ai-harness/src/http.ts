@@ -54,11 +54,12 @@ function lastUserText(messages: ReadonlyArray<unknown>): string | undefined {
   )
   if (!isRecord(message)) return undefined
   if (typeof message.content === 'string') return message.content
-  const parts = Array.isArray(message.parts) ? message.parts : []
+  // AG-UI content parts: `{ type: 'text', text }` and binary parts.
+  const parts = Array.isArray(message.content) ? message.content : []
   return parts
     .map((part: unknown) =>
-      isRecord(part) && part.type === 'text' && typeof part.content === 'string'
-        ? part.content
+      isRecord(part) && part.type === 'text' && typeof part.text === 'string'
+        ? part.text
         : '',
     )
     .join('')
