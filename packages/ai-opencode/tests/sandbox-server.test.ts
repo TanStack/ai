@@ -9,9 +9,13 @@ async function* chunks(values: Array<string>): AsyncIterable<string> {
   }
 }
 
-async function* failing(message: string): AsyncIterable<string> {
-  await Promise.resolve()
-  throw new Error(message)
+/** An iterable whose first read fails. */
+function failing(message: string): AsyncIterable<string> {
+  return {
+    [Symbol.asyncIterator]: () => ({
+      next: () => Promise.reject(new Error(message)),
+    }),
+  }
 }
 
 /** An iterable that never yields, like a server that prints nothing. */
