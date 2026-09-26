@@ -2007,7 +2007,12 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["low", "medium", "xhigh"]
+      },
+      {
+        "type": "budget_tokens",
+        "min": 0,
+        "max": 262144
       }
     ],
     "pricing": {
@@ -3026,7 +3031,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
@@ -3094,7 +3099,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
@@ -3447,7 +3452,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
@@ -3529,7 +3534,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
@@ -3617,7 +3622,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
@@ -3686,7 +3691,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
@@ -3773,7 +3778,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
@@ -4358,7 +4363,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high", "xhigh"]
+        "values": ["none", "low", "medium", "high", "xhigh", "max"]
       },
       {
         "type": "budget_tokens"
@@ -6324,7 +6329,11 @@
       },
       {
         "type": "effort",
-        "values": ["none", "low", "medium", "high"]
+        "values": ["low", "medium", "high"]
+      },
+      {
+        "type": "budget_tokens",
+        "min": 1024
       }
     ],
     "pricing": {
@@ -8767,13 +8776,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": [
-      "implicit-caching",
-      "reasoning",
-      "tool-use",
-      "structured-output",
-      "free"
-    ],
+    "tags": ["implicit-caching", "reasoning", "tool-use", "structured-output"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -8797,48 +8800,9 @@
       }
     ],
     "pricing": {
-      "input": "0",
-      "output": "0",
-      "varies_by_provider": true
-    }
-  },
-  {
-    "id": "inclusionai/ling-3.0-flash-fin-free",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1787788800,
-    "owned_by": "inclusionai",
-    "name": "Ling 3.0 Flash Fin (Free)",
-    "description": "Ling 3.0 Flash Fin is InclusionAI’s finance-enhanced MoE language model, combining 124 billion total parameters with approximately 5.1 billion active parameters for efficient financial reasoning. Its 256K context window, function calling, and support for complex, multi-step investment workflows make it ideal for financial research, analysis, long-horizon planning, and execution, while retaining strong capabilities in coding and mathematics.",
-    "context_window": 256000,
-    "max_tokens": 32000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["free", "reasoning", "tool-use"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      }
-    ],
-    "pricing": {
-      "input": "0",
-      "output": "0"
+      "input": "0.00000006",
+      "output": "0.00000018",
+      "input_cache_read": "0.000000012"
     }
   },
   {
@@ -11207,10 +11171,9 @@
       "reasoning",
       "tool-use",
       "vision",
-      "structured-output",
-      "video-input"
+      "video-input",
+      "structured-output"
     ],
-    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "video"],
@@ -11238,14 +11201,7 @@
       "input": "0.00000095",
       "output": "0.000004",
       "input_cache_read": "0.00000016",
-      "varies_by_provider": true,
-      "regional": {
-        "us": {
-          "input": "0.00000095",
-          "output": "0.000004",
-          "input_cache_read": "0.00000016"
-        }
-      }
+      "varies_by_provider": true
     }
   },
   {
@@ -11267,10 +11223,9 @@
       "implicit-caching",
       "file-input",
       "vision",
-      "structured-output",
-      "video-input"
+      "video-input",
+      "structured-output"
     ],
-    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf", "video"],
@@ -11298,23 +11253,15 @@
       }
     ],
     "knowledge": "2025-01",
-    "deprecated_at": 1790380800000,
     "pricing": {
       "input": "0.00000095",
       "output": "0.000004",
-      "input_cache_read": "0.00000016",
+      "input_cache_read": "0.00000019",
       "varies_by_provider": true,
       "fast": {
         "input": "0.0000019",
         "output": "0.000008",
         "input_cache_read": "0.00000038"
-      },
-      "regional": {
-        "us": {
-          "input": "0.00000095",
-          "output": "0.000004",
-          "input_cache_read": "0.00000016"
-        }
       }
     }
   },
@@ -20488,6 +20435,44 @@
     }
   },
   {
+    "id": "stealth/pixel-canary",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790294400,
+    "owned_by": "stealth",
+    "name": "Pixel Canary",
+    "description": "Pixel Canary is an anonymous large model with strong coding capabilities and adjustable reasoning effort. It is well suited to web and mobile app development, helping developers build and refine applications across both platforms. Prompts and outputs may be retained for training by the provider.",
+    "context_window": 262144,
+    "max_tokens": 131072,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["reasoning", "implicit-caching", "vision"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "xhigh"]
+      }
+    ],
+    "pricing": {
+      "input": "0",
+      "output": "0"
+    }
+  },
+  {
     "id": "stepfun/step-3.5-flash",
     "object": "model",
     "created": 1755815280,
@@ -20808,14 +20793,13 @@
     "zdr": "some",
     "no_training": "some",
     "tags": [
+      "implicit-caching",
       "reasoning",
+      "structured-output",
       "tool-use",
       "vision",
-      "file-input",
-      "structured-output",
-      "implicit-caching"
+      "file-input"
     ],
-    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -20839,19 +20823,11 @@
         "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       }
     ],
-    "deprecated_at": 1790380800000,
     "pricing": {
       "input": "0.000001",
       "output": "0.00000405",
       "input_cache_read": "0.00000017",
-      "varies_by_provider": true,
-      "regional": {
-        "us": {
-          "input": "0.000001",
-          "output": "0.00000405",
-          "input_cache_read": "0.00000017"
-        }
-      }
+      "varies_by_provider": true
     }
   },
   {
@@ -20875,7 +20851,6 @@
       "implicit-caching",
       "structured-output"
     ],
-    "regions": ["us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -20899,19 +20874,11 @@
         "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
       }
     ],
-    "deprecated_at": 1790380800000,
     "pricing": {
-      "input": "0.0000005",
+      "input": "0.00000045",
       "output": "0.0000012",
       "input_cache_read": "0.0000001",
-      "varies_by_provider": true,
-      "regional": {
-        "us": {
-          "input": "0.0000005",
-          "output": "0.0000012",
-          "input_cache_read": "0.0000001"
-        }
-      }
+      "varies_by_provider": true
     }
   },
   {
@@ -21400,7 +21367,8 @@
     "pricing": {
       "input": "0.000000435",
       "output": "0.00000087",
-      "input_cache_read": "0.0000000036"
+      "input_cache_read": "0.0000000036",
+      "varies_by_provider": true
     }
   },
   {
@@ -21645,14 +21613,13 @@
     "released": 1766361600,
     "owned_by": "zai",
     "name": "GLM 4.7",
-    "description": "GLM-4.7 is Z.ai’s latest flagship model, with major upgrades focused on two key areas: stronger coding capabilities and more stable multi-step reasoning and execution.",
+    "description": "GLM-4.7 is a powerful next-generation coding model that delivers major gains in multilingual agentic coding, terminal-based workflows, and tool use, with strong improvements across benchmarks like SWE-bench, Terminal Bench, and τ²-Bench. It also features enhanced reasoning and math performance, plus significantly upgraded UI generation—producing cleaner, more modern web pages and better-designed slides.",
     "context_window": 200000,
     "max_tokens": 120000,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "structured-output"],
-    "regions": ["us"],
+    "tags": ["reasoning", "tool-use", "structured-output", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -21677,19 +21644,10 @@
     ],
     "knowledge": "2025-04",
     "interleaved": true,
-    "deprecated_at": 1790380800000,
     "pricing": {
       "input": "0.0000006",
       "output": "0.0000022",
-      "input_cache_read": "0.00000012",
-      "varies_by_provider": true,
-      "regional": {
-        "us": {
-          "input": "0.0000006",
-          "output": "0.0000022",
-          "input_cache_read": "0.00000012"
-        }
-      }
+      "varies_by_provider": true
     }
   },
   {

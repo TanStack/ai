@@ -119,7 +119,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'inception/mercury-coder-small',
   'inclusionai/ling-3.0-flash',
   'inclusionai/ling-3.0-flash-fin',
-  'inclusionai/ling-3.0-flash-fin-free',
   'inclusionai/ling-3.0-flash-sante',
   'inclusionai/ling-3.0-flash-sante-free',
   'inclusionai/ling-3.0-flash-vl',
@@ -271,6 +270,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'spacexai/grok-tts',
   'spacexai/grok-voice-think-fast-1.0',
   'spacexai/grok-voice-think-fast-2.0',
+  'stealth/pixel-canary',
   'stepfun/step-3.5-flash',
   'stepfun/step-3.7-flash',
   'stepfun/step-5-preview',
@@ -340,6 +340,7 @@ export const VERCEL_GATEWAY_PROVIDERS = [
   'recraft',
   'sakana',
   'spacexai',
+  'stealth',
   'stepfun',
   'tencent',
   'thinkingmachines',
@@ -1528,16 +1529,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
-    >
-  'inclusionai/ling-3.0-flash-fin-free': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
     >
   'inclusionai/ling-3.0-flash-sante': VercelGatewayCommonOptions &
     Pick<
@@ -3116,6 +3107,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'stealth/pixel-canary': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
   'stepfun/step-3.5-flash': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -3600,7 +3601,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'inception/mercury-coder-small': readonly ['text']
   'inclusionai/ling-3.0-flash': readonly ['text']
   'inclusionai/ling-3.0-flash-fin': readonly ['text']
-  'inclusionai/ling-3.0-flash-fin-free': readonly ['text']
   'inclusionai/ling-3.0-flash-sante': readonly ['text']
   'inclusionai/ling-3.0-flash-sante-free': readonly ['text']
   'inclusionai/ling-3.0-flash-vl': readonly ['text', 'image', 'video']
@@ -3761,6 +3761,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'spacexai/grok-tts': readonly ['text']
   'spacexai/grok-voice-think-fast-1.0': readonly ['text', 'audio']
   'spacexai/grok-voice-think-fast-2.0': readonly ['text', 'audio']
+  'stealth/pixel-canary': readonly ['text', 'image']
   'stepfun/step-3.5-flash': readonly ['text', 'image']
   'stepfun/step-3.7-flash': readonly ['text', 'image']
   'stepfun/step-5-preview': readonly ['text', 'image']
