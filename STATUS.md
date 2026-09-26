@@ -1,7 +1,11 @@
 # Agent Dashboard — build status
 
-Spec: `~/Downloads/agent-dashboard-spec.md`. This branch implements all four
-phases. Everything below is committed and verified; nothing is pushed.
+Spec: `~/Downloads/agent-dashboard-spec.md` (original four phases), then the
+**teams reframe** (`~/Downloads/pods-design-doc.md` + `pods-implementation-plan.md`).
+Everything below is committed and verified; nothing is pushed.
+
+> **Latest work: the teams reframe (Phase 1).** See the "Teams reframe" section
+> below. The original four-phase build still stands underneath it.
 
 ## Where this lives
 
@@ -22,6 +26,8 @@ phases. Everything below is committed and verified; nothing is pushed.
 | `78a5ba8` | `feat(examples/agent-dashboard)`: live session view + approval queue (Phase 2) |
 | `d28d9de` | `feat(examples/agent-dashboard)`: control plane — history, spend, config (Phase 3) |
 | `0940975` | `feat(examples/agent-dashboard)`: meta-chat over live agent state (Phase 4) |
+| `063245e` | `docs`: add STATUS.md summarizing the agent-dashboard build |
+| `9ec1ece` | `feat(examples/agent-dashboard)`: teams reframe (Phase 1) + Alem protocol proposal |
 
 ## Phase status
 
@@ -51,6 +57,47 @@ phases. Everything below is committed and verified; nothing is pushed.
   - Runs on the same host (harness registry); its tool calls are visible inline
     and its runs appear in History like any other agent.
 
+## Teams reframe (Phase 1) ✅ `9ec1ece`
+
+A product-model reframe on top of the four-phase build: `hosts → sessions`
+becomes **teams → channels**. A team is a group of agents sharing a chat, a tool
+registry, and a permission boundary (the design doc calls it a "pod"; the UI noun
+is **"team"**). One agent looks like a plain chat; a **second member reveals the
+team** — roster appears, per-agent attribution shows up, and both agents' AG-UI
+streams merge into one channel. **Dashboard-local only — zero harness/relay
+changes.**
+
+- **Key trick:** each member owns its own thread, so `agentId == threadId`.
+  Namespacing every projected row id by `agentId` is therefore per-thread, which
+  lets the old threadId-keyed `/sessions/$threadId` and `/chat` routes keep
+  working **unchanged** while the new `/teams/$teamId` route queries by
+  `channelId` and gets the multiplex.
+- `src/db/collections.ts` — `teams`/`channels`/`memberships` localOnly
+  collections; `channelId`/`agentId` (+ raw `interruptId`) on the existing rows.
+- `src/lib/session-controller.ts` — `project(ctx)` namespaces ids
+  (`${agentId}:${raw}`) so N members share one channel with no collisions;
+  `joinChannel`/`subscribeMember`, `createTeam`/`addAgentToChannel`,
+  `hydrateMember`; back-compat thread-keyed wrappers; interrupt ids de-namespaced
+  for resume/control.
+- `src/components/channel-view.tsx` + `member-list.tsx`; route
+  `src/routes/teams.$teamId.tsx`. Team chrome renders only at ≥2 members.
+- `index.tsx` Teams section + "New team"; `__root.tsx` nav Hosts→Teams. Meta is a
+  **cross-team operator** — renders inside a channel, keeps its global tools.
+- **Part B — `PODS-PROTOCOL-PROPOSAL.md`** (worktree root, for @AlemTuzlak): the
+  net-new harness surface Phases 2+ need — out-of-band tool op, injection vs the
+  relay's private offline queue (`server.ts:160`, a real conflict flagged), and
+  per-event causal metadata. Proposal only; no harness code changed.
+- **Verified:** `tsc` + `oxlint` clean; **6 Playwright e2e pass** (the 5 existing,
+  unchanged, + new `e2e/team.spec.ts`: second agent reveals the team, both share
+  one channel).
+- **Known cosmetic:** `/` now runs a live query, so SSR falls back to client
+  rendering (`useLiveQuery` has no `getServerSnapshot`) — same class as the other
+  live-query routes; page works, tests green.
+- **Deferred (behind the Alem review, D2):** injection/timers/webhooks (Phase 2),
+  system tools + channels + memory (Phase 3), bounce protection (Phase 4),
+  polyglot tool face (Phase 5), bridging (Phase 6), install model (Phase 7),
+  hibernation/policy/pricing/versioning (Phase 8).
+
 ## Run it
 
 ```bash
@@ -62,8 +109,10 @@ pnpm --filter agent-dashboard dev            # http://localhost:3002 (no API key
 pnpm --filter agent-dashboard test:e2e       # Playwright
 ```
 
-Demo: Hosts → **New triage session** → **Start triage demo** → approve the
-drafted reply mid-run. Then try **Meta-chat**, **History**, **Spend**, **Config**.
+Demo: **New team** → **Start triage demo** → approve the drafted reply mid-run →
+**+ Add agent** to reveal the team roster, then **▶ run** the second member and
+watch both streams share one channel. Then try **Meta-chat**, **History**,
+**Spend**, **Config**.
 
 ## Verification
 
