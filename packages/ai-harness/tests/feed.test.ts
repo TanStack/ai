@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { SessionFeed } from '../src/feed'
+import type { StreamChunk } from '@tanstack/ai'
 
-const custom = (name: string) => ({
+const custom = (name: string): StreamChunk => ({
   type: EventType.CUSTOM,
   name,
   value: {},
