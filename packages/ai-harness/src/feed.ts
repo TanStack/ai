@@ -72,6 +72,9 @@ export class SessionFeed {
         for (const entry of rest) yield entry
         return
       }
+      // Events published while the reader handled `next` woke nobody, so
+      // scan again before waiting. An empty scan moves `after` to the head.
+      if (next.length > 0) continue
       await this.waitForNext(options.signal)
     }
   }
