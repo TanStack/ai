@@ -275,3 +275,96 @@ describe('mcpConnector options', () => {
     expect(model.calls[0].tools[0].needsApproval).toBe(true)
   })
 })
+
+describe('mcpConnector stored credential shapes', () => {
+  function connectorHarness(url: string, model: ReturnType<typeof recorder>) {
+    return defineHarness({
+      name: 'test/shapes',
+      adapter: model.adapter,
+      plugins: () => [mcpConnector({ id: 'demo', label: 'Demo', url })],
+    })
+  }
+
+  it('works with a bare token, reuses the tools, and signs out before any tool call', async () => {
+    const { server, persistence, host } = await setup({
+      type: 'oauth',
+      accessToken: 'access-1',
+    })
+    const model = recorder()
+    const session = await host.open(connectorHarness(server.url, model), {
+      threadId: 't',
+      principal: { id: 'user-1' },
+    })
+    await session.prompt('one')
+    await session.prompt('two')
+    expect(model.toolNames(0)).toEqual(['demo_echo'])
+    expect(model.toolNames(1)).toEqual(['demo_echo'])
+
+    const fresh = await host.open(connectorHarness(server.url, recorder()), {
+      threadId: 't2',
+      principal: { id: 'user-1' },
+    })
+    expect(await fresh.command('disconnect:demo')).toBe(
+      'Disconnected from Demo.',
+    )
+    expect(await persistence.stores.credentials.get(scope, 'demo')).toBeNull()
+  })
+
+  it('refreshes a token saved without a client, and keeps a client secret', async () => {
+    const bare = await setup({
+      type: 'oauth',
+      accessToken: 'stale',
+      refreshToken: 'refresh-1',
+    })
+    const model = recorder()
+    const session = await bare.host.open(
+      connectorHarness(bare.server.url, model),
+      {
+        threadId: 't',
+        principal: { id: 'user-1' },
+      },
+    )
+    await session.prompt('hi')
+    expect(model.toolNames(0)).toEqual(['demo_echo'])
+    const saved = await bare.persistence.stores.credentials.get(scope, 'demo')
+    expect(saved).toMatchObject({
+      accessToken: 'access-2',
+      refreshToken: 'refresh-1',
+    })
+    // No saved client: the SDK registered one before it refreshed.
+    expect(bare.server.seen.registrations).toHaveLength(1)
+    expect(saved).toMatchObject({ client: { clientId: 'client-1' } })
+
+    const withSecret = await setup({
+      type: 'oauth',
+      accessToken: 'stale',
+      refreshToken: 'refresh-1',
+      client: { clientId: 'client-1', clientSecret: 'secret-1' },
+    })
+    const other = await withSecret.host.open(
+      connectorHarness(withSecret.server.url, recorder()),
+      { threadId: 't', principal: { id: 'user-1' } },
+    )
+    await other.prompt('hi')
+    expect(
+      await withSecret.persistence.stores.credentials.get(scope, 'demo'),
+    ).toMatchObject({
+      accessToken: 'access-2',
+      client: { clientId: 'client-1', clientSecret: 'secret-1' },
+    })
+  })
+
+  it('treats a saved API key as no sign-in for the MCP server', async () => {
+    const { server, host } = await setup({
+      type: 'api_key',
+      value: 'not-oauth',
+    })
+    const model = recorder()
+    const session = await host.open(connectorHarness(server.url, model), {
+      threadId: 't',
+      principal: { id: 'user-1' },
+    })
+    await session.prompt('hi')
+    expect(model.toolNames(0)).toEqual([])
+  })
+})
