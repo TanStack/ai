@@ -83,9 +83,9 @@ export interface TextAdapter<
   /**
    * Capabilities this adapter requires at runtime. `chat()` validates that the
    * configured middleware provides each one. Model adapters omit this; harness
-   * adapters (e.g. a future `claudeCode()`) declare e.g. `[sandboxCapability]`.
-   * Runtime access to capabilities from inside the adapter is not yet wired —
-   * this is the declaration/validation surface only.
+   * adapters (for example `claudeCode()`) declare `[sandboxCapability]`.
+   * At runtime the engine passes the provided capabilities to `chatStream` as
+   * `options.capabilities`.
    */
   readonly requires?: ReadonlyArray<CapabilityHandle>
 

@@ -109,6 +109,37 @@
       "response": {
         "content": "The comparison is ready."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-result] price vendor a",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "pricer",
+            "arguments": "{\"task\":\"[subagent-result-task] Price Vendor A.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-result-task] Price Vendor A."
+      },
+      "response": {
+        "content": "Vendor A costs 42 EUR."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[subagent-result] price vendor a",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Pricing is ready."
+      }
     }
   ]
 }

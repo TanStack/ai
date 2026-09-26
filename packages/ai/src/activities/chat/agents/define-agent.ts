@@ -10,12 +10,13 @@ import type {
   UIMessage,
 } from '../../../types'
 import type { AnyClientTool } from '../tools/tool-definition'
+import type { BoundActivities, SubagentForward } from './bound'
 
 /**
- * Context the library passes into {@link defineAgent} `run`.
+ * What the library knows about a child run before `run` starts.
  * `TInput` is the agent's `inputSchema`.
  */
-export interface SubagentRunContext<
+export interface SubagentRunInput<
   TInput extends SchemaInput | undefined = any,
 > {
   /**
@@ -46,15 +47,45 @@ export interface SubagentRunContext<
 }
 
 /**
+ * Context the library passes into {@link defineAgent} `run`.
+ *
+ * - `forward` holds the fields a child `chat()` needs, in one spread:
+ *   `chat({ adapter, messages, ...ctx.forward })`.
+ * - The activity functions (`ctx.chat`, `ctx.generateImage`, and the rest)
+ *   take the same options as the plain functions and fill in the thread id,
+ *   a run id, the abort signal, and any middleware a host adds.
+ */
+export type SubagentRunContext<TInput extends SchemaInput | undefined = any> =
+  SubagentRunInput<TInput> & BoundActivities & { forward: SubagentForward }
+
+/**
+ * What an agent makes. Informative: plugins use it to find an agent by the
+ * kind of output it produces.
+ */
+export type AgentProduces =
+  | 'text'
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'speech'
+  | 'voice'
+  | 'transcription'
+  | 'embedding'
+  | 'world'
+  | 'liveVideo'
+  | (string & {})
+
+/**
  * A tool a child agent can carry into client part types.
  * Server tools and client tools both qualify.
  */
 export type SubagentTool = AnyTool | AnyClientTool
 
 /**
- * A named child agent. `run` is a `chat()` call (or any stream of AG-UI chunks).
+ * A named child agent. `run` is a `chat()` call (or any stream of AG-UI
+ * chunks), or a promise of a plain value such as an image result.
  * `TTools` and `TSchema` stay on the object so `useChat({ subagents })` can
- * type that child's parts.
+ * type that child's parts. `TResult` is the value a promise `run` resolves to.
  */
 export interface DefinedAgent<
   TName extends string = string,
@@ -63,13 +94,20 @@ export interface DefinedAgent<
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
     ReadonlyArray<InterruptDefinition<any, any, any, any>>,
   TInput extends SchemaInput | undefined = any,
+  TResult = unknown,
+  TProduces extends AgentProduces | undefined = AgentProduces | undefined,
 > extends AGUISubagentInfo {
   name: TName
   /** Required here: the router and the synthetic tool both read it. */
   description: string
   run: (
     ctx: SubagentRunContext<TInput>,
-  ) => AsyncIterable<StreamChunk> | Promise<AsyncIterable<StreamChunk>>
+  ) =>
+    | AsyncIterable<StreamChunk>
+    | Promise<AsyncIterable<StreamChunk>>
+    | Promise<TResult>
+  /** What this agent makes. See {@link AgentProduces}. */
+  produces?: TProduces
   /**
    * The input the parent model writes when it calls this agent's tool, such
    * as a short brief. `run` reads it as `ctx.input`. Tool mode only: a
@@ -121,7 +159,19 @@ export function defineAgent<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
   TInput extends SchemaInput | undefined = undefined,
->(agent: DefinedAgent<TName, TTools, TSchema, TInterrupts, TInput>) {
+  TResult = unknown,
+  const TProduces extends AgentProduces | undefined = undefined,
+>(
+  agent: DefinedAgent<
+    TName,
+    TTools,
+    TSchema,
+    TInterrupts,
+    TInput,
+    TResult,
+    TProduces
+  >,
+) {
   if (agent.name.trim() === '') {
     throw new Error('defineAgent requires a non-empty name')
   }

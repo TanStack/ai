@@ -30,6 +30,9 @@ import type { SubagentScenario } from '@/lib/subagents-test'
  *   child answers, and the parent reads its result.
  * - `brief`: no router. The parent model writes a `task` for `researcher`,
  *   and the child's only message is that task.
+ * - `result`: no router. `pricer` calls the bound `ctx.chat` with
+ *   `stream: false`, so its `run` resolves to a string. The string streams as
+ *   the child's text and goes back to the parent model as the result.
  */
 function subagentsFor(
   scenario: SubagentScenario,
@@ -93,6 +96,21 @@ function subagentsFor(
     })
     // Each branch returns its own bag, so give them one agent type.
     const agents: Array<DefinedAgent> = [researcher]
+    return { agents }
+  }
+  if (scenario === 'result') {
+    const pricer = defineAgent({
+      name: 'pricer',
+      description: 'Prices one vendor',
+      inputSchema: z.object({ task: z.string() }),
+      run: (ctx) =>
+        ctx.chat({
+          ...createTextAdapter('openai', undefined, aimockPort, testId),
+          messages: [{ role: 'user', content: ctx.input.task }],
+          stream: false,
+        }),
+    })
+    const agents: Array<DefinedAgent> = [pricer]
     return { agents }
   }
   return { agents: [child('researcher', [])] }
