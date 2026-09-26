@@ -116,8 +116,14 @@ function usageOf(event: StreamChunk): NormalizedUsage | undefined {
   return ns ? normalizeUsage(ns.usage) : undefined
 }
 
-/** Non-destructively set `metadata.tanstack.usage` on a RUN_FINISHED event. */
-function withUsageMetadata(
+const addUsage = (a: NormalizedUsage, b: NormalizedUsage): NormalizedUsage => ({
+  inputTokens: a.inputTokens + b.inputTokens,
+  outputTokens: a.outputTokens + b.outputTokens,
+  totalTokens: a.totalTokens + b.totalTokens,
+})
+
+/** Set (overwriting) `metadata.tanstack.usage`, preserving other metadata. */
+function setUsageMetadata(
   event: StreamChunk,
   usage: NormalizedUsage,
 ): StreamChunk {
@@ -126,17 +132,60 @@ function withUsageMetadata(
   const ns = isRecord(metadata[TANSTACK_METADATA_NAMESPACE])
     ? { ...(metadata[TANSTACK_METADATA_NAMESPACE] as object) }
     : {}
-  if ((ns as Record<string, unknown>).usage !== undefined) return event
   ;(ns as Record<string, unknown>).usage = usage
   metadata[TANSTACK_METADATA_NAMESPACE] = ns
   return { ...(event as object), metadata } as StreamChunk
 }
 
-const addUsage = (a: NormalizedUsage, b: NormalizedUsage): NormalizedUsage => ({
-  inputTokens: a.inputTokens + b.inputTokens,
-  outputTokens: a.outputTokens + b.outputTokens,
-  totalTokens: a.totalTokens + b.totalTokens,
-})
+/**
+ * Make a `RUN_FINISHED` event's top-level `usage` conform to AG-UI. The harness
+ * emits `usage` as a TanStack `TokenUsage` object, but the AG-UI spec (and a
+ * strict `@ag-ui/client`) require `SpecTokenUsage[]`. Set the spec array from
+ * the normalized total and record the rollup under `metadata.tanstack.usage`;
+ * when there is no usage, drop a non-array `usage` so it can't fail validation.
+ */
+function conformRunFinishedUsage(
+  event: StreamChunk,
+  usage: NormalizedUsage | undefined,
+): StreamChunk {
+  if (usage) {
+    const withMeta = setUsageMetadata(event, usage) as Record<string, unknown>
+    withMeta.usage = [
+      { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens },
+    ]
+    return withMeta as StreamChunk
+  }
+  const record = event as Record<string, unknown>
+  if (record.usage !== undefined && !Array.isArray(record.usage)) {
+    const clone = { ...record }
+    delete clone.usage
+    return clone as StreamChunk
+  }
+  return event
+}
+
+const spendEvent = (
+  from: StreamChunk,
+  usage: NormalizedUsage,
+  cumulative: NormalizedUsage,
+): StreamChunk => {
+  const value: SpendSnapshot = {
+    ...(typeof (from as { runId?: unknown }).runId === 'string'
+      ? { runId: (from as { runId: string }).runId }
+      : {}),
+    ...(typeof (from as { threadId?: unknown }).threadId === 'string'
+      ? { threadId: (from as { threadId: string }).threadId }
+      : {}),
+    usage,
+    cumulative,
+  }
+  return {
+    type: EventType.CUSTOM,
+    name: TANSTACK_SPEND_EVENT,
+    value,
+    timestamp: (from as { timestamp?: number }).timestamp ?? Date.now(),
+  } as StreamChunk
+}
 
 /** Options for {@link sessionEventsToAgUi}. */
 export interface SessionEventsToAgUiOptions {
@@ -186,29 +235,111 @@ export async function* sessionEventsToAgUi(
       // RUN_STARTED..RUN_FINISHED window a strict AG-UI consumer expects.
       if (usage && emitSpendEvents) {
         cumulative = addUsage(cumulative, usage)
-        const value: SpendSnapshot = {
-          ...(typeof (event as { runId?: unknown }).runId === 'string'
-            ? { runId: (event as { runId: string }).runId }
-            : {}),
-          ...(typeof (event as { threadId?: unknown }).threadId === 'string'
-            ? { threadId: (event as { threadId: string }).threadId }
-            : {}),
-          usage,
-          cumulative,
-        }
-        yield {
-          type: EventType.CUSTOM,
-          name: TANSTACK_SPEND_EVENT,
-          value,
-          timestamp: (event as { timestamp?: number }).timestamp ?? Date.now(),
-        } as StreamChunk
+        yield spendEvent(event, usage, cumulative)
       }
-      yield usage ? withUsageMetadata(event, usage) : event
+      yield conformRunFinishedUsage(event, usage)
       continue
     }
 
     yield event
   }
+}
+
+/** Options for {@link operationToAgUiRun}. */
+export interface OperationToAgUiRunOptions {
+  /** Keep the harness-native `CUSTOM` control events. Default: `false`. */
+  includeHarnessEvents?: boolean
+  /** Emit interim {@link TANSTACK_SPEND_EVENT} ticks per model turn. Default: `false`. */
+  emitSpendEvents?: boolean
+  /**
+   * `runId`/`threadId` for a synthesized `RUN_STARTED`. A resumed operation
+   * emits the resolved tool's `TOOL_CALL_RESULT` before any `RUN_STARTED`, so
+   * the coalescer synthesizes the run start; pass these so it is well-formed.
+   */
+  runId?: string
+  threadId?: string
+}
+
+/**
+ * Coalesce ONE harness operation's `SessionEvent` stream into a single, valid
+ * AG-UI run.
+ *
+ * A harness operation can span several model turns (a tool runs, the model is
+ * called again), and the harness emits a `RUN_STARTED`/`RUN_FINISHED` pair per
+ * turn. A strict AG-UI client treats each pair as a separate run and rejects
+ * the `TOOL_CALL_RESULT` that arrives between turns ("the run has already
+ * finished"). So this emits exactly one `RUN_STARTED` (the first) and one
+ * `RUN_FINISHED` (carrying the operation's terminal outcome — e.g. an
+ * interrupt — and the usage summed across every turn), with all content in
+ * between. Feed it the events of a single operation (see the handler, which
+ * scopes to one operation per request).
+ */
+export async function* operationToAgUiRun(
+  entries: AsyncIterable<SessionEvent>,
+  options: OperationToAgUiRunOptions = {},
+): AsyncGenerator<StreamChunk> {
+  const includeHarnessEvents = options.includeHarnessEvents ?? false
+  const emitSpendEvents = options.emitSpendEvents ?? false
+  let started = false
+  let terminal: StreamChunk | undefined
+  let cumulative = zeroUsage()
+
+  const runStart = (seed?: StreamChunk): StreamChunk => {
+    const s = seed as Record<string, unknown> | undefined
+    return {
+      type: EventType.RUN_STARTED,
+      runId: options.runId ?? (s?.runId as string) ?? 'run',
+      threadId: options.threadId ?? (s?.threadId as string) ?? 'thread',
+      timestamp: (s?.timestamp as number) ?? Date.now(),
+    } as StreamChunk
+  }
+
+  for await (const entry of entries) {
+    const event = entry.event
+    if (event.type === EventType.RUN_STARTED) {
+      if (!started) {
+        started = true
+        yield event
+      }
+      continue
+    }
+    if (event.type === EventType.RUN_FINISHED) {
+      const usage = usageOf(event)
+      if (usage) {
+        cumulative = addUsage(cumulative, usage)
+        if (emitSpendEvents) yield spendEvent(event, usage, cumulative)
+      }
+      // Hold it; the last one becomes the single terminal RUN_FINISHED.
+      terminal = event
+      continue
+    }
+    if (isHarnessCustom(event)) {
+      if ((event as { name?: string }).name === HARNESS_EVENTS.operationFinished) {
+        break
+      }
+      if (!includeHarnessEvents) continue
+    }
+    // A resumed run streams the resolved tool's result before any RUN_STARTED;
+    // synthesize one so the AG-UI run always begins with RUN_STARTED.
+    if (!started) {
+      started = true
+      yield runStart(event)
+    }
+    yield event
+  }
+
+  if (!started && !terminal) return
+  if (!started) {
+    started = true
+    yield runStart(terminal)
+  }
+  const base =
+    terminal ??
+    ({ type: EventType.RUN_FINISHED, timestamp: Date.now() } as StreamChunk)
+  yield conformRunFinishedUsage(
+    base,
+    cumulative.totalTokens > 0 ? cumulative : undefined,
+  )
 }
 
 /** Session events for one operation, up to and including its terminal event. */
@@ -308,9 +439,11 @@ export function createAgUiHandler(
     if (!principal) return json({ error: 'unauthorized' }, 401)
 
     let operationId: string
+    let threadId: string
     let session: HarnessSession
     try {
       const params = await chatParamsFromRequestBody(await request.json())
+      threadId = params.threadId
       const opened = await openFor(principal, params.threadId)
       if (!opened) return json({ error: 'forbidden' }, 403)
       session = opened
@@ -351,9 +484,11 @@ export function createAgUiHandler(
             session.events({ signal: reader.signal }),
             operationId,
           )
-          for await (const event of sessionEventsToAgUi(entries, {
+          for await (const event of operationToAgUiRun(entries, {
             includeHarnessEvents: false,
             ...options.stream,
+            runId: operationId,
+            threadId,
           })) {
             controller.enqueue(encoder.encodeBinary(event as BaseEvent))
           }

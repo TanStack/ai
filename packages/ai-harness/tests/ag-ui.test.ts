@@ -3,11 +3,12 @@ import { z } from 'zod'
 import { HttpAgent } from '@ag-ui/client'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { HARNESS_EVENTS, createHarnessHost, defineHarness } from '../src'
 import {
   TANSTACK_SPEND_EVENT,
   createAgUiHandler,
   normalizeUsage,
+  operationToAgUiRun,
   sessionEventsToAgUi,
 } from '../src/ag-ui'
 import { mockAdapter, text, toolCall } from './helpers'
@@ -93,19 +94,28 @@ describe('sessionEventsToAgUi mapper', () => {
     })
   })
 
-  it('does not overwrite an existing metadata.tanstack.usage', async () => {
-    const preset = { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+  it('conforms a TokenUsage object to a spec usage array', async () => {
+    // The harness emits usage as a TanStack TokenUsage object; a strict AG-UI
+    // client requires SpecTokenUsage[].
     const [event] = await collect(
       sessionEventsToAgUi(
         feed([
           runFinished({
-            usage: [{ inputTokens: 99, outputTokens: 99 }],
-            metadata: { tanstack: { usage: preset } },
+            usage: { promptTokens: 8, completionTokens: 2, totalTokens: 10 },
           }),
         ]),
       ),
     )
-    expect((event as any).metadata.tanstack.usage).toEqual(preset)
+    expect(Array.isArray((event as any).usage)).toBe(true)
+    expect((event as any).usage).toEqual([{ inputTokens: 8, outputTokens: 2 }])
+    expect((event as any).metadata.tanstack.usage.totalTokens).toBe(10)
+  })
+
+  it('drops a non-array usage when there is nothing to report', async () => {
+    const [event] = await collect(
+      sessionEventsToAgUi(feed([runFinished({ usage: 'n/a' })])),
+    )
+    expect((event as any).usage).toBeUndefined()
   })
 
   it('keeps interrupt outcomes intact for the AG-UI resume flow', async () => {
@@ -187,6 +197,87 @@ describe('sessionEventsToAgUi mapper', () => {
     expect(
       out.some((e) => (e as any).name === TANSTACK_SPEND_EVENT),
     ).toBe(false)
+  })
+})
+
+describe('operationToAgUiRun coalescer', () => {
+  it('collapses a multi-turn operation into one RUN_STARTED/RUN_FINISHED', async () => {
+    // Two model turns (tool then final), as the harness emits per turn, plus
+    // the harness operation.finished terminator.
+    const stream: Array<StreamChunk> = [
+      { type: EventType.RUN_STARTED, runId: 'r1', threadId: 't', timestamp: 0 } as StreamChunk,
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'c1',
+        toolCallName: 'lookup',
+        timestamp: 0,
+      } as StreamChunk,
+      { type: EventType.TOOL_CALL_END, toolCallId: 'c1', timestamp: 0 } as StreamChunk,
+      runFinished({ runId: 'r1', usage: [{ inputTokens: 10, outputTokens: 5 }] }),
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: 'c1',
+        messageId: 'm1',
+        content: '{"ok":true}',
+        timestamp: 0,
+      } as StreamChunk,
+      { type: EventType.RUN_STARTED, runId: 'r2', threadId: 't', timestamp: 0 } as StreamChunk,
+      runFinished({ runId: 'r2', usage: [{ inputTokens: 2, outputTokens: 3 }] }),
+      custom(HARNESS_EVENTS.operationFinished, { operationId: 'op-1', status: 'completed' }),
+    ]
+    const out = await collect(operationToAgUiRun(feed(stream)))
+    expect(typesOf(out).filter((t) => t === EventType.RUN_STARTED)).toHaveLength(1)
+    expect(typesOf(out).filter((t) => t === EventType.RUN_FINISHED)).toHaveLength(1)
+    // The tool result survives inside the single run.
+    expect(out.some((e) => e.type === EventType.TOOL_CALL_RESULT)).toBe(true)
+    // First is RUN_STARTED, last is RUN_FINISHED (a valid AG-UI run).
+    expect(out[0]!.type).toBe(EventType.RUN_STARTED)
+    expect(out.at(-1)!.type).toBe(EventType.RUN_FINISHED)
+    // Usage is summed across both turns.
+    expect((out.at(-1) as any).metadata.tanstack.usage.totalTokens).toBe(20)
+  })
+
+  it('synthesizes a leading RUN_STARTED when a resumed run leads with a tool result', async () => {
+    // A resumed operation streams the resolved tool's result before RUN_STARTED.
+    const stream: Array<StreamChunk> = [
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: 'c1',
+        messageId: 'm1',
+        content: '{"sent":true}',
+        timestamp: 0,
+      } as StreamChunk,
+      { type: EventType.RUN_STARTED, runId: 'r2', threadId: 't', timestamp: 0 } as StreamChunk,
+      runFinished({}),
+      custom(HARNESS_EVENTS.operationFinished, { operationId: 'op-2', status: 'completed' }),
+    ]
+    const out = await collect(
+      operationToAgUiRun(feed(stream), { runId: 'op-2', threadId: 't' }),
+    )
+    expect(out[0]!.type).toBe(EventType.RUN_STARTED)
+    expect((out[0] as any).runId).toBe('op-2')
+    expect(out[1]!.type).toBe(EventType.TOOL_CALL_RESULT)
+    expect(typesOf(out).filter((t) => t === EventType.RUN_STARTED)).toHaveLength(1)
+    expect(out.at(-1)!.type).toBe(EventType.RUN_FINISHED)
+  })
+
+  it('carries the terminal interrupt outcome onto the single RUN_FINISHED', async () => {
+    const stream: Array<StreamChunk> = [
+      { type: EventType.RUN_STARTED, runId: 'r1', threadId: 't', timestamp: 0 } as StreamChunk,
+      runFinished({}),
+      { type: EventType.RUN_STARTED, runId: 'r2', threadId: 't', timestamp: 0 } as StreamChunk,
+      runFinished({
+        outcome: {
+          type: 'interrupt',
+          interrupts: [{ id: 'i1', reason: 'tool_call', toolCallId: 'c1' }],
+        },
+      }),
+      custom(HARNESS_EVENTS.operationFinished, { operationId: 'op-1', status: 'interrupted' }),
+    ]
+    const out = await collect(operationToAgUiRun(feed(stream)))
+    const finished = out.filter((e) => e.type === EventType.RUN_FINISHED)
+    expect(finished).toHaveLength(1)
+    expect((finished[0] as any).outcome.type).toBe('interrupt')
   })
 })
 
@@ -402,6 +493,59 @@ describe('consumed by a bare @ag-ui/client HttpAgent', () => {
 
     expect(agent.pendingInterrupts).toHaveLength(1)
     expect(agent.pendingInterrupts[0]?.toolCallId).toBe('call_1')
+    await host.close()
+  })
+
+  it('handles a multi-turn operation (auto tool then approval) in one run', async () => {
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up a ticket',
+      inputSchema: z.object({ id: z.string() }),
+    }).server(async () => ({ ok: true }))
+    const send = toolDefinition({
+      name: 'send',
+      description: 'Send a reply',
+      needsApproval: true,
+      inputSchema: z.object({ to: z.string() }),
+    }).server(async () => ({ sent: true }))
+    const { adapter } = mockAdapter([
+      () => toolCall('lookup', { id: 'T-1' }, 'c1'),
+      () => toolCall('send', { to: 'a@b.c' }, 'c2'),
+      () => text('done'),
+    ])
+    const harness = defineHarness({
+      name: 'test/client-multi',
+      adapter,
+      tools: [lookup, send],
+    })
+    const handler = createAgUiHandler({
+      host,
+      harness,
+      authorize: () => ({ id: 'u' }),
+    })
+
+    const agent = new HttpAgent({
+      url: 'http://localhost/agent',
+      threadId: 't1',
+      fetch: (url: string, init: RequestInit) =>
+        handler(new Request(url, init)),
+    })
+    agent.addMessage({ id: 'u1', role: 'user', content: 'handle it' })
+    // Would throw "run has already finished" without single-run coalescing.
+    await agent.runAgent()
+
+    expect(agent.pendingInterrupts).toHaveLength(1)
+    expect(agent.pendingInterrupts[0]?.toolCallId).toBe('c2')
+
+    // Resume over AG-UI: the continuation leads with the tool result, so the
+    // coalescer must synthesize a leading RUN_STARTED or the client rejects it.
+    const interruptId = agent.pendingInterrupts[0]!.id
+    await agent.runAgent({
+      resume: [{ interruptId, status: 'resolved', payload: true }],
+    })
+    expect(agent.pendingInterrupts).toHaveLength(0)
+    expect(JSON.stringify(agent.messages)).toContain('done')
     await host.close()
   })
 })
