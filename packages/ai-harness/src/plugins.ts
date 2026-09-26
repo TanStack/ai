@@ -4,12 +4,16 @@ import type {
   AgentProduces,
   AnyChatMiddleware,
   AnyGenerationMiddleware,
+  AnyTextAdapter,
   AnyTool,
   Capability,
   CapabilityHandle,
-  SystemPrompt,
 } from '@tanstack/ai'
 import type { AgentRegistry, AgentRegistryView, AnyAgent } from './agents'
+import type { CredentialsAccess } from './auth'
+import type { AnyCommand, PluginSessionApi } from './commands'
+import type { ConfigOption } from './config'
+import type { ExtensionItem, ExtensionPoint, PluginEvent } from './extensions'
 
 /**
  * How long a plugin's `setup` result and resources live:
@@ -19,24 +23,55 @@ import type { AgentRegistry, AgentRegistryView, AnyAgent } from './agents'
  */
 export type PluginLifetime = 'session' | 'run'
 
-/** A prompt a plugin contributes. `id` must be unique in the session. */
+/**
+ * A prompt a plugin contributes. `id` must be unique in the session. A
+ * function `text` is called for each turn, so it can show current state.
+ */
 export interface PluginPrompt {
   id: string
-  text: string
+  text: string | (() => string)
 }
 
 /** What a plugin's `setup` returns. Every field is optional. */
 export interface PluginContributions {
   /** Tools for the main model. */
   tools?: ReadonlyArray<AnyTool>
-  /** System prompt text for every chat turn. */
-  prompts?: ReadonlyArray<string | PluginPrompt>
+  /** System prompt text for every chat turn. A function runs for each turn. */
+  prompts?: ReadonlyArray<string | (() => string) | PluginPrompt>
   /** Chat middleware, the same type as `chat({ middleware })`. */
   middleware?: ReadonlyArray<AnyChatMiddleware>
   /** Middleware for the activities agents call (`ctx.generateImage`, ...). */
   generationMiddleware?: ReadonlyArray<AnyGenerationMiddleware>
   /** Agents added to `session.agents`. */
   agents?: ReadonlyArray<AnyAgent>
+  /** User actions, keyed by name. Run with `session.command(name, input)`. */
+  commands?: Record<string, AnyCommand>
+  /** Session settings, keyed by name. Read with `ctx.config.get(name)`. */
+  config?: Record<string, ConfigOption>
+  /** Items for extension points that other plugins read. */
+  contribute?: ReadonlyArray<ExtensionItem>
+  /**
+   * Pick the main-loop adapter for the next turn, or return `undefined` to
+   * keep the harness adapter. The last plugin that returns one wins.
+   */
+  adapter?: () => AnyTextAdapter | undefined
+}
+
+/** Plugin state that survives restarts, stored in the metadata store. */
+export interface PluginState<T> {
+  get: () => Promise<T>
+  /** Change the state. On a write conflict, `change` runs again with fresh state. */
+  update: (change: (current: T) => T) => Promise<T>
+}
+
+/** What the session gives plugins. */
+export interface PluginServices {
+  emit: (plugin: string, name: string, value: unknown) => void
+  on: (name: string, handler: (value: unknown) => void) => () => void
+  config: { get: (key: string) => unknown }
+  state: <T>(plugin: string, initial: T) => PluginState<T>
+  credentials: CredentialsAccess
+  session: PluginSessionApi
 }
 
 /** What a plugin's `setup` receives. */
@@ -57,7 +92,23 @@ export interface PluginSetupContext {
   provide: <T>(capability: Capability<T>, value: T) => void
   /** The agents of this session (harness agents plus earlier plugins' agents). */
   agents: AgentRegistryView
-  session: { threadId: string }
+  /**
+   * The items other plugins contributed to `point`. The list fills while
+   * plugins set up, so read it at run time (in a tool, a command, or a
+   * middleware hook), not during `setup`.
+   */
+  collect: <T>(point: ExtensionPoint<T>) => ReadonlyArray<T>
+  /** Send a typed event to every plugin that listens, and to clients. */
+  emit: <T>(event: PluginEvent<T>, value: T) => void
+  /** Listen for a typed event. Returns a function that stops listening. */
+  on: <T>(event: PluginEvent<T>, handler: (value: T) => void) => () => void
+  /** This plugin's state, created with `initial` the first time. */
+  state: <T>(initial: T) => PluginState<T>
+  /** Session settings. A change applies at the next turn. */
+  config: { get: (key: string) => unknown }
+  /** Credentials of the session's principal. */
+  credentials: CredentialsAccess
+  session: PluginSessionApi
 }
 
 export interface PluginDefinition {
@@ -114,7 +165,24 @@ interface Owned<T> {
 /** Everything a set of mounted plugins contributes, plus its cleanup. */
 export interface MountedPlugins {
   tools: Array<AnyTool>
-  prompts: Array<SystemPrompt>
+  /** Strings, or functions to call for each turn. */
+  prompts: Array<string | (() => string)>
+  commands: Map<string, { command: AnyCommand; owner: string }>
+  config: Map<string, { option: ConfigOption; owner: string }>
+  /** Contributions to extension points, by point name. */
+  extensions: Map<string, Array<{ value: unknown; owner: string }>>
+  adapters: Array<() => AnyTextAdapter | undefined>
+  /** Who contributed what, for `session.inspect()`. */
+  owners: {
+    plugins: Array<{
+      name: string
+      lifetime: PluginLifetime
+      requires: Array<string>
+      provides: Array<string>
+    }>
+    tools: Array<{ name: string; owner: string }>
+    prompts: Array<{ id: string; owner: string }>
+  }
   middleware: Array<AnyChatMiddleware>
   generationMiddleware: Array<AnyGenerationMiddleware>
   /**
@@ -137,6 +205,45 @@ export interface MountEnvironment {
   harnessProvides: ReadonlyArray<CapabilityHandle>
   /** Capability values from an outer mount (session plugins, for a run mount). */
   inherited?: CapabilityValues
+  /** Names taken by an outer mount (session plugins, for a run mount). */
+  takenCommands?: ReadonlyMap<string, { owner: string }>
+  takenConfig?: ReadonlyMap<string, { owner: string }>
+  /** Extension items from an outer mount, visible to `collect`. */
+  inheritedExtensions?: ReadonlyMap<
+    string,
+    ReadonlyArray<{ value: unknown; owner: string }>
+  >
+  /** Session services. Tests of the mount alone can leave them out. */
+  services?: PluginServices
+}
+
+const unavailable = (what: string) => () => {
+  throw new Error(`${what} is only available inside a harness session.`)
+}
+
+const NO_SERVICES: PluginServices = {
+  emit: () => {},
+  on: () => () => {},
+  config: { get: () => undefined },
+  state: unavailable('ctx.state'),
+  credentials: {
+    get: unavailable('ctx.credentials'),
+    require: unavailable('ctx.credentials'),
+    set: unavailable('ctx.credentials'),
+    delete: unavailable('ctx.credentials'),
+    list: unavailable('ctx.credentials'),
+  },
+  session: {
+    threadId: '',
+    principal: undefined,
+    snapshot: unavailable('ctx.session'),
+    prompt: unavailable('ctx.session'),
+    transcript: unavailable('ctx.session'),
+    replaceTranscript: unavailable('ctx.session'),
+    ask: unavailable('ctx.session'),
+    authRequired: unavailable('ctx.session'),
+    setConfig: unavailable('ctx.session'),
+  },
 }
 
 /** Capability values provided by plugins, keyed by handle. */
@@ -198,8 +305,12 @@ function checkCapabilityOrder(
   }
 }
 
-function promptOf(prompt: string | PluginPrompt, owner: string, index: number) {
-  return typeof prompt === 'string'
+function promptOf(
+  prompt: string | (() => string) | PluginPrompt,
+  owner: string,
+  index: number,
+): PluginPrompt {
+  return typeof prompt === 'string' || typeof prompt === 'function'
     ? { id: `${owner}#${index}`, text: prompt }
     : prompt
 }
@@ -231,6 +342,14 @@ export async function mountPlugins(
   const prompts: Array<Owned<PluginPrompt>> = []
   const middleware: Array<AnyChatMiddleware> = []
   const generationMiddleware: Array<AnyGenerationMiddleware> = []
+  const commands = new Map<string, { command: AnyCommand; owner: string }>()
+  const config = new Map<string, { option: ConfigOption; owner: string }>()
+  const extensions = new Map<string, Array<{ value: unknown; owner: string }>>()
+  for (const [point, items] of env.inheritedExtensions ?? []) {
+    extensions.set(point, [...items])
+  }
+  const adapters: Array<() => AnyTextAdapter | undefined> = []
+  const services = env.services ?? NO_SERVICES
 
   try {
     for (const plugin of plugins) {
@@ -271,7 +390,29 @@ export async function mountPlugins(
           provided.add(handle)
         },
         agents: env.registry,
-        session: { threadId: env.threadId },
+        collect: <T>(point: ExtensionPoint<T>): ReadonlyArray<T> => {
+          let items = extensions.get(point.name)
+          if (!items) {
+            items = []
+            extensions.set(point.name, items)
+          }
+          const source = items
+          // A live view: items contributed after this call appear too.
+          return new Proxy<Array<T>>([], {
+            get: (_target, key) =>
+              Reflect.get(
+                source.map((item) => item.value as T),
+                key,
+              ),
+          })
+        },
+        emit: (event, value) => services.emit(plugin.name, event.name, value),
+        on: (event, handler) =>
+          services.on(event.name, (value) => handler(value as never)),
+        state: (initial) => services.state(plugin.name, initial),
+        config: services.config,
+        credentials: services.credentials,
+        session: services.session,
       })
       for (const handle of plugin.provides ?? []) {
         if (!provided.has(handle)) {
@@ -302,6 +443,35 @@ export async function mountPlugins(
       })
       middleware.push(...(contributions.middleware ?? []))
       generationMiddleware.push(...(contributions.generationMiddleware ?? []))
+      for (const [name, command] of Object.entries(
+        contributions.commands ?? {},
+      )) {
+        const clash = commands.get(name) ?? env.takenCommands?.get(name)
+        if (clash) {
+          throw new Error(
+            `Duplicate command "${name}": first owner ${clash.owner}, second owner ${plugin.name}.`,
+          )
+        }
+        commands.set(name, { command, owner: plugin.name })
+      }
+      for (const [key, option] of Object.entries(contributions.config ?? {})) {
+        const clash = config.get(key) ?? env.takenConfig?.get(key)
+        if (clash) {
+          throw new Error(
+            `Duplicate config key "${key}": first owner ${clash.owner}, second owner ${plugin.name}.`,
+          )
+        }
+        config.set(key, { option, owner: plugin.name })
+      }
+      for (const item of contributions.contribute ?? []) {
+        let items = extensions.get(item.point)
+        if (!items) {
+          items = []
+          extensions.set(item.point, items)
+        }
+        items.push({ value: item.value, owner: plugin.name })
+      }
+      if (contributions.adapter) adapters.push(contributions.adapter)
       for (const agent of contributions.agents ?? []) {
         env.registry.add(agent, plugin.name)
       }
@@ -350,6 +520,30 @@ export async function mountPlugins(
     prompts: prompts.map((entry) => entry.value.text),
     middleware,
     generationMiddleware,
+    commands,
+    config,
+    extensions,
+    adapters,
+    owners: {
+      plugins: plugins.map((plugin) => ({
+        name: plugin.name,
+        lifetime: plugin.lifetime ?? 'session',
+        requires: (plugin.requires ?? []).map(
+          (handle) => handle.capabilityName,
+        ),
+        provides: (plugin.provides ?? []).map(
+          (handle) => handle.capabilityName,
+        ),
+      })),
+      tools: tools.map((entry) => ({
+        name: entry.value.name,
+        owner: entry.owner,
+      })),
+      prompts: prompts.map((entry) => ({
+        id: entry.value.id,
+        owner: entry.owner,
+      })),
+    },
     capabilityBridge,
     values,
     dispose: () => (disposed ??= disposeAll(scopes)),

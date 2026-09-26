@@ -3,6 +3,7 @@ import { HarnessSession } from './session'
 import type {
   AIPersistence,
   ChatTranscriptStores,
+  CredentialStore,
   InboxStore,
 } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
@@ -14,7 +15,7 @@ import type { Principal } from './types'
  * restart loses the ones not yet applied.
  */
 export type HarnessPersistence = AIPersistence<
-  ChatTranscriptStores & { inbox?: InboxStore }
+  ChatTranscriptStores & { inbox?: InboxStore; credentials?: CredentialStore }
 >
 
 export interface HarnessHostOptions {
@@ -68,6 +69,10 @@ export function createHarnessHost(
   // ponytail: a memory inbox when the stores have none. Pass `stores.inbox`
   // to keep accepted inputs across restarts.
   const inbox = persistence.stores.inbox ?? memoryPersistence().stores.inbox
+  // ponytail: memory credentials when the stores have none. Pass
+  // `stores.credentials` to keep sign-ins across restarts.
+  const credentials =
+    persistence.stores.credentials ?? memoryPersistence().stores.credentials
   const sessions = new Map<string, Promise<HarnessSession>>()
   const hostId = `host-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 
@@ -81,6 +86,7 @@ export function createHarnessHost(
           threadId,
           persistence,
           inbox,
+          credentials,
           hostId,
           ...(principal ? { principal } : {}),
           onClose: () => sessions.delete(key),

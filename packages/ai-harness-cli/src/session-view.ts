@@ -53,6 +53,41 @@ export function applyEvent(
       { kind: 'notice', text: 'Resumed a turn that a crash stopped.' },
     ]
   }
+  if (
+    event.type === EventType.CUSTOM &&
+    event.name === HARNESS_EVENTS.question
+  ) {
+    const value = event.value as { message?: unknown }
+    return [
+      ...entries,
+      { kind: 'notice', text: `? ${String(value.message ?? '')}` },
+    ]
+  }
+  if (
+    event.type === EventType.CUSTOM &&
+    event.name === HARNESS_EVENTS.authRequired
+  ) {
+    const value = event.value as {
+      connector?: unknown
+      url?: unknown
+      userCode?: unknown
+    }
+    const code =
+      typeof value.userCode === 'string'
+        ? ` and enter the code ${value.userCode}`
+        : ''
+    const where =
+      typeof value.url === 'string'
+        ? ` Open ${value.url}${code}.`
+        : ` Run /connect ${String(value.connector)}.`
+    return [
+      ...entries,
+      {
+        kind: 'notice',
+        text: `Sign in to ${String(value.connector)}.${where}`,
+      },
+    ]
+  }
   return entries
 }
 
@@ -70,6 +105,25 @@ export function resolveAll(
   return session.resolve(resume)
 }
 
+/** Open an http(s) URL in the default browser. No shell is involved. */
+export function openUrl(url: string): void {
+  if (!/^https?:\/\//.test(url)) return
+  void import('node:child_process').then(({ spawn }) => {
+    const [command, args] =
+      process.platform === 'win32'
+        ? // Not `cmd /c start`: cmd would read `&` in the URL as a command separator.
+          ['rundll32', ['url.dll,FileProtocolHandler', url]]
+        : process.platform === 'darwin'
+          ? ['open', [url]]
+          : ['xdg-open', [url]]
+    try {
+      spawn(command, args, { stdio: 'ignore', detached: true }).unref()
+    } catch {
+      // The notice still shows the URL.
+    }
+  })
+}
+
 /** A short question for the open interrupts. */
 export function approvalQuestion(interrupts: ReadonlyArray<Interrupt>): string {
   const names = interrupts.map(
@@ -78,10 +132,14 @@ export function approvalQuestion(interrupts: ReadonlyArray<Interrupt>): string {
   return `Approve ${names.join(', ')}? [y/n]`
 }
 
-/** Resolves when no chat turn runs or waits in the queue. */
+/**
+ * Resolves when no chat turn runs or waits in the queue, or when the
+ * session waits for an answer to a question.
+ */
 export async function waitIdle(session: HarnessSession): Promise<void> {
   while (true) {
     const snapshot = session.snapshot()
+    if (snapshot.pendingQuestions.length > 0) return
     const chatActive = snapshot.activeOperations.some(
       (operation) => operation.kind === 'chat',
     )

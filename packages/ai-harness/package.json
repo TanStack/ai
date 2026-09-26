@@ -33,6 +33,10 @@
     "./client": {
       "types": "./dist/esm/client.d.ts",
       "import": "./dist/esm/client.js"
+    },
+    "./plugins": {
+      "types": "./dist/esm/first-party/index.d.ts",
+      "import": "./dist/esm/first-party/index.js"
     }
   },
   "scripts": {

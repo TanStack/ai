@@ -54,6 +54,9 @@ export type HarnessInput =
   | { op: 'resolve'; resume: Array<RunAgentResumeItem> }
   | { op: 'agent'; agent: string; input?: unknown; detached?: boolean }
   | { op: 'cancel'; operationId?: string }
+  | { op: 'command'; name: string; input?: unknown }
+  | { op: 'answer'; questionId: string; value: unknown }
+  | { op: 'config'; key: string; value: unknown }
 
 /** Who sent an input, from the host's `authorize`. */
 export interface Principal {
@@ -94,6 +97,11 @@ export const HARNESS_EVENTS = {
   operationStarted: 'harness.operation.started',
   operationFinished: 'harness.operation.finished',
   operationResumed: 'harness.operation.resumed',
+  configChanged: 'harness.config.changed',
+  question: 'harness.question',
+  questionAnswered: 'harness.question.answered',
+  pluginEvent: 'harness.plugin.event',
+  authRequired: 'harness.auth_required',
   inputAccepted: 'harness.input.accepted',
   inputApplied: 'harness.input.applied',
   inputRejected: 'harness.input.rejected',

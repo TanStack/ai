@@ -61,6 +61,35 @@ test.describe('harness protocol', () => {
     expect(events.at(-1).name).toBe('harness.operation.finished')
   })
 
+  test('changes a plugin setting and runs a plugin command', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const control = async (input: unknown) =>
+      (
+        await request.post('/api/harness-protocol/control', {
+          headers: {
+            ...headers(testId, aimockPort),
+            'content-type': 'application/json',
+          },
+          data: { threadId: `plugins-${testId}`, input },
+        })
+      ).json()
+
+    expect(
+      await control({ op: 'config', key: 'tone', value: 'warm' }),
+    ).toMatchObject({
+      status: 'accepted',
+    })
+    const rejected = await control({ op: 'config', key: 'tone', value: 'loud' })
+    expect(rejected.status).toBe('rejected')
+    expect(rejected.reason).toContain('plain, warm')
+    const command = await control({ op: 'command', name: 'greet' })
+    expect(command.status).toBe('accepted')
+    expect(command.operationId).toMatch(/^op-command-/)
+  })
+
   test('takes a control input and returns a receipt', async ({
     request,
     testId,

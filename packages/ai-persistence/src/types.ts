@@ -415,6 +415,39 @@ export interface InboxStore {
 export function defineInboxStore(store: InboxStore): InboxStore {
   return store
 }
+
+/** A secret a user or an organization saved: an API key or OAuth tokens. */
+export type Credential =
+  | { type: 'api_key'; value: string }
+  | {
+      type: 'oauth'
+      accessToken: string
+      refreshToken?: string
+      expiresAt?: number
+      scopes?: Array<string>
+    }
+
+/**
+ * Durable store for credentials, keyed by scope and credential id (for
+ * example `'github'`). A credential saved without `scope.userId` belongs to
+ * the tenant. Encrypt at rest in your implementation.
+ */
+export interface CredentialStore {
+  get: (scope: Scope, id: string) => Promise<Credential | null>
+  set: (scope: Scope, id: string, credential: Credential) => Promise<void>
+  delete: (scope: Scope, id: string) => Promise<void>
+  /** Ids and types only. `list` never returns secret values. */
+  list: (
+    scope: Scope,
+  ) => Promise<
+    Array<{ id: string; type: Credential['type']; expiresAt?: number }>
+  >
+}
+
+/** Type a {@link CredentialStore} implementation inline. */
+export function defineCredentialStore(store: CredentialStore): CredentialStore {
+  return store
+}
 /** Type a {@link GenerationRunStore} implementation inline. */
 export function defineGenerationRunStore(
   store: GenerationRunStore,
@@ -669,6 +702,8 @@ export interface AIPersistenceStores {
   blobs?: BlobStore
   /** Harness session inputs. Optional: only harness hosts read it. */
   inbox?: InboxStore
+  /** User and tenant credentials. Optional: only harness hosts read it. */
+  credentials?: CredentialStore
 }
 
 /**
@@ -845,6 +880,7 @@ const storeKeys = [
   'artifacts',
   'blobs',
   'inbox',
+  'credentials',
 ] satisfies Array<StoreKey>
 
 const storeKeySet = new Set<string>(storeKeys)

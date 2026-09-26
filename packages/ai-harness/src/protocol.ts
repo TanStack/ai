@@ -41,6 +41,9 @@ const INPUT_OPS = new Set([
   'resolve',
   'agent',
   'cancel',
+  'command',
+  'answer',
+  'config',
 ])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -70,6 +73,15 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   }
   if (value.op === 'agent' && typeof value.agent !== 'string') {
     throw new Error('Invalid input: agent needs an agent name.')
+  }
+  if (value.op === 'command' && typeof value.name !== 'string') {
+    throw new Error('Invalid input: command needs a name.')
+  }
+  if (value.op === 'answer' && typeof value.questionId !== 'string') {
+    throw new Error('Invalid input: answer needs a questionId.')
+  }
+  if (value.op === 'config' && typeof value.key !== 'string') {
+    throw new Error('Invalid input: config needs a key.')
   }
   // The checks above cover every field the session reads.
   return value as HarnessInput
@@ -134,6 +146,22 @@ export async function applyInput(
       return session.resolve(input.resume)
     case 'cancel':
       return session.cancel(input.operationId)
+    case 'command': {
+      const operation = session.command(input.name, input.input)
+      operation.then(
+        () => {},
+        () => {},
+      )
+      return {
+        inputId: operation.id,
+        status: 'accepted',
+        operationId: operation.id,
+      }
+    }
+    case 'answer':
+      return session.answer(input.questionId, input.value)
+    case 'config':
+      return session.setConfig(input.key, input.value)
     case 'agent': {
       const exposed = (harness.expose?.agents ?? []).includes(input.agent)
       if (!exposed) {

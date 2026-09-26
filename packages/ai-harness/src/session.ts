@@ -3,10 +3,13 @@ import {
   RUN_CANCEL_REASON,
   chat,
   compactForModel,
+  convertSchemaToJsonSchema,
   createSubagentId,
   runAgentStream,
   validateWithStandardSchema,
 } from '@tanstack/ai'
+import { credentialsFor } from './auth'
+import { checkConfigValue } from './config'
 import { withPersistence } from '@tanstack/ai-persistence'
 import { AgentRegistry } from './agents'
 import { SessionFeed } from './feed'
@@ -23,10 +26,18 @@ import type {
   Interrupt,
   ModelMessage,
   RunAgentResumeItem,
+  SchemaInput,
   StreamChunk,
   SubagentBinding,
 } from '@tanstack/ai'
-import type { InboxEntry, InboxStore } from '@tanstack/ai-persistence'
+import type {
+  CredentialStore,
+  InboxEntry,
+  InboxStore,
+} from '@tanstack/ai-persistence'
+import type { CredentialsAccess } from './auth'
+import type { PluginSessionApi, Question } from './commands'
+import type { ConfigOption } from './config'
 import type {
   AgentInputOf,
   AgentRegistryView,
@@ -35,7 +46,12 @@ import type {
 } from './agents'
 import type { AnyHarness, HarnessAgentsOf } from './define'
 import type { HarnessPersistence } from './host'
-import type { HarnessPlugin, MountedPlugins } from './plugins'
+import type {
+  HarnessPlugin,
+  MountedPlugins,
+  PluginServices,
+  PluginState,
+} from './plugins'
 import type {
   BusyPolicy,
   ChatTurnResult,
@@ -101,8 +117,25 @@ export interface SessionSnapshot {
   activeOperations: Array<{ id: string; kind: string; agent?: string }>
   queuedTurns: number
   pendingInterrupts: Array<Interrupt>
+  /** Questions a command or a plugin asked, waiting for `session.answer`. */
+  pendingQuestions: Array<{
+    questionId: string
+    message: string
+    schema?: unknown
+  }>
   /** The cursor of the newest event. */
   cursor: Cursor
+}
+
+/** The resolved plugin plan of a session, for debugging and tooling. */
+export interface SessionInspection {
+  plugins: MountedPlugins['owners']['plugins']
+  tools: MountedPlugins['owners']['tools']
+  prompts: MountedPlugins['owners']['prompts']
+  commands: Array<{ name: string; owner: string }>
+  config: Array<{ key: string; owner: string }>
+  extensionPoints: Record<string, Array<string>>
+  agents: Array<string>
 }
 
 /** What the host hands a new session. */
@@ -111,6 +144,7 @@ export interface SessionDependencies {
   threadId: string
   persistence: HarnessPersistence
   inbox: InboxStore
+  credentials: CredentialStore
   principal?: Principal
   /** Identifies this host on run leases. */
   hostId: string
@@ -187,6 +221,21 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private closing: Promise<void> | undefined
   private readonly onClose: () => void
   private readonly checkpoint: AnyChatMiddleware
+  private readonly listeners = new Map<string, Set<(value: unknown) => void>>()
+  private readonly configValues = new Map<string, unknown>()
+  private readonly questions = new Map<
+    string,
+    {
+      message: string
+      schema: SchemaInput | undefined
+      resolve: (value: unknown) => void
+      reject: (error: unknown) => void
+    }
+  >()
+  private readonly stateDoc: Record<string, unknown> = {}
+  private readonly localState = new Map<string, unknown>()
+  private readonly credentialAccess: CredentialsAccess
+  private readonly services: PluginServices
 
   constructor(deps: SessionDependencies) {
     this.harness = deps.harness as THarness
@@ -196,6 +245,37 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     this.principal = deps.principal
     this.onClose = deps.onClose
     this.checkpoint = checkpointMiddleware(deps.persistence, deps.hostId)
+    this.credentialAccess = credentialsFor(
+      deps.credentials,
+      {
+        threadId: deps.threadId,
+        ...(deps.principal ? { userId: deps.principal.id } : {}),
+      },
+      (error) =>
+        this.feed.publish(
+          'session',
+          customEvent(HARNESS_EVENTS.authRequired, {
+            connector: error.connector,
+            ...(error.url ? { url: error.url } : {}),
+          }),
+        ),
+    )
+    this.services = {
+      emit: (plugin, name, value) => this.emitPluginEvent(plugin, name, value),
+      on: (name, handler) => {
+        let set = this.listeners.get(name)
+        if (!set) {
+          set = new Set()
+          this.listeners.set(name, set)
+        }
+        set.add(handler)
+        return () => set.delete(handler)
+      },
+      config: { get: (key) => this.configValue(key) },
+      state: (plugin, initial) => this.pluginState(plugin, initial),
+      credentials: this.credentialAccess,
+      session: this.pluginApi(),
+    }
     this.registry = this.agentRegistry
     for (const agent of this.harness.agents ?? []) {
       this.agentRegistry.add(agent, 'the harness')
@@ -248,8 +328,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         harnessProvides: (this.harness.middleware ?? []).flatMap(
           (middleware) => middleware.provides ?? [],
         ),
+        services: this.services,
       },
     )
+    await this.loadConfig()
     await this.recoverCrashedTurn()
     await this.recoverInbox()
   }
@@ -380,8 +462,359 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       })),
       queuedTurns: this.queue.length,
       pendingInterrupts: this.interrupted?.interrupts ?? [],
+      pendingQuestions: [...this.questions.entries()].map(
+        ([questionId, question]) => ({
+          questionId,
+          message: question.message,
+          ...(question.schema
+            ? { schema: convertSchemaToJsonSchema(question.schema) }
+            : {}),
+        }),
+      ),
       cursor: this.feed.head(),
     }
+  }
+
+  // ===========================
+  // Config, commands, questions
+  // ===========================
+
+  /** Every session setting, with its option and current value. */
+  config(): Record<
+    string,
+    { option: ConfigOption; value: unknown; owner: string }
+  > {
+    const result: Record<
+      string,
+      { option: ConfigOption; value: unknown; owner: string }
+    > = {}
+    for (const [key, entry] of this.sessionPlugins?.config ?? []) {
+      result[key] = {
+        option: entry.option,
+        owner: entry.owner,
+        value: this.configValue(key),
+      }
+    }
+    return result
+  }
+
+  /** Change a session setting. It applies at the next turn. */
+  async setConfig(key: string, value: unknown): Promise<Receipt> {
+    const inputId = createInputId()
+    await this.accept(inputId, { op: 'config', key, value })
+    const entry = this.sessionPlugins?.config.get(key)
+    if (!entry) {
+      this.reject(inputId, 'unknown_config')
+      return { inputId, status: 'rejected', reason: 'unknown_config' }
+    }
+    let checked: unknown
+    try {
+      checked = checkConfigValue(key, entry.option, value)
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      this.reject(inputId, reason)
+      return { inputId, status: 'rejected', reason }
+    }
+    this.configValues.set(key, checked)
+    await this.persistence.stores.metadata?.set(
+      'harness:config',
+      this.threadId,
+      Object.fromEntries(this.configValues),
+    )
+    await this.applied(inputId, 'session')
+    this.feed.publish(
+      'session',
+      customEvent(HARNESS_EVENTS.configChanged, { key, value: checked }),
+    )
+    return { inputId, status: 'accepted' }
+  }
+
+  /** The commands of this session, for hosts to list. */
+  commands(): Array<{
+    name: string
+    description: string
+    owner: string
+    input?: unknown
+  }> {
+    return [...(this.sessionPlugins?.commands ?? [])].map(([name, entry]) => ({
+      name,
+      description: entry.command.description,
+      owner: entry.owner,
+      ...(entry.command.input
+        ? { input: convertSchemaToJsonSchema(entry.command.input) }
+        : {}),
+    }))
+  }
+
+  /** Run a plugin command. Its input is checked against the command's schema. */
+  command(name: string, input?: unknown): Operation<unknown> {
+    const operation = new OperationImpl<unknown>(
+      'command',
+      this.feed,
+      (target) => this.cancel(target.id),
+    )
+    this.operations.set(operation.id, operation)
+    void this.executeCommand(operation, name, input)
+    return operation
+  }
+
+  /** Answer a question from `ctx.session.ask`. */
+  async answer(questionId: string, value: unknown): Promise<Receipt> {
+    const inputId = createInputId()
+    await this.accept(inputId, { op: 'answer', questionId, value })
+    const question = this.questions.get(questionId)
+    if (!question) {
+      this.reject(inputId, 'unknown_question')
+      return { inputId, status: 'rejected', reason: 'unknown_question' }
+    }
+    let checked: unknown = value
+    if (question.schema !== undefined) {
+      const result = await validateWithStandardSchema(question.schema, value)
+      if (!result.success) {
+        const reason = `Invalid answer: ${result.issues.map((issue) => issue.message).join(', ')}`
+        this.reject(inputId, reason)
+        return { inputId, status: 'rejected', reason }
+      }
+      checked = result.data
+    }
+    this.questions.delete(questionId)
+    await this.applied(inputId, 'session')
+    this.feed.publish(
+      'session',
+      customEvent(HARNESS_EVENTS.questionAnswered, { questionId }),
+    )
+    question.resolve(checked)
+    return { inputId, status: 'accepted' }
+  }
+
+  /** The resolved plugin plan: order, owners, and extension contributors. */
+  inspect(): SessionInspection {
+    const mounted = this.sessionPlugins
+    const extensionPoints: Record<string, Array<string>> = {}
+    for (const [point, items] of mounted?.extensions ?? []) {
+      extensionPoints[point] = [...new Set(items.map((item) => item.owner))]
+    }
+    return {
+      plugins: mounted?.owners.plugins ?? [],
+      tools: mounted?.owners.tools ?? [],
+      prompts: mounted?.owners.prompts ?? [],
+      commands: [...(mounted?.commands ?? [])].map(([name, entry]) => ({
+        name,
+        owner: entry.owner,
+      })),
+      config: [...(mounted?.config ?? [])].map(([key, entry]) => ({
+        key,
+        owner: entry.owner,
+      })),
+      extensionPoints,
+      agents: this.agentRegistry.list().map((agent) => agent.name),
+    }
+  }
+
+  private configValue(key: string): unknown {
+    if (this.configValues.has(key)) return this.configValues.get(key)
+    return this.sessionPlugins?.config.get(key)?.option.default
+  }
+
+  private async loadConfig(): Promise<void> {
+    const stored = await this.persistence.stores.metadata?.get(
+      'harness:config',
+      this.threadId,
+    )
+    if (typeof stored !== 'object' || stored === null) return
+    for (const [key, value] of Object.entries(stored)) {
+      const entry = this.sessionPlugins?.config.get(key)
+      if (!entry) continue
+      try {
+        this.configValues.set(key, checkConfigValue(key, entry.option, value))
+      } catch {
+        // A stored value an option no longer accepts falls back to the default.
+      }
+    }
+  }
+
+  private ask(question: Question<SchemaInput | undefined>): Promise<unknown> {
+    if (this.closing) return Promise.reject(new Error('Session closed.'))
+    const questionId = `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
+    return new Promise((resolve, reject) => {
+      this.questions.set(questionId, {
+        message: question.message,
+        schema: question.schema,
+        resolve,
+        reject,
+      })
+      this.feed.publish(
+        'session',
+        customEvent(HARNESS_EVENTS.question, {
+          questionId,
+          message: question.message,
+          ...(question.schema
+            ? { schema: convertSchemaToJsonSchema(question.schema) }
+            : {}),
+        }),
+      )
+    })
+  }
+
+  private pluginApi(): PluginSessionApi {
+    return {
+      threadId: this.threadId,
+      principal: this.principal,
+      snapshot: () => this.snapshot(),
+      prompt: (text) => {
+        this.prompt(text).then(
+          () => {},
+          () => {},
+        )
+      },
+      transcript: async () => [
+        ...(await this.persistence.stores.messages.loadThread(this.threadId)),
+      ],
+      replaceTranscript: (messages) =>
+        this.persistence.stores.messages.saveThread(this.threadId, messages),
+      // The public type narrows the answer from the schema.
+      ask: ((question: Question<SchemaInput | undefined>) =>
+        this.ask(question)) as PluginSessionApi['ask'],
+      authRequired: (info) =>
+        this.feed.publish(
+          'session',
+          customEvent(HARNESS_EVENTS.authRequired, { ...info }),
+        ),
+      setConfig: (key, value) => this.setConfig(key, value),
+    }
+  }
+
+  private emitPluginEvent(plugin: string, name: string, value: unknown): void {
+    this.feed.publish(
+      'session',
+      customEvent(HARNESS_EVENTS.pluginEvent, { plugin, name, value }),
+    )
+    for (const handler of this.listeners.get(name) ?? []) {
+      try {
+        handler(value)
+      } catch {
+        // One broken listener must not stop the others.
+      }
+    }
+  }
+
+  private pluginState<T>(plugin: string, initial: T): PluginState<T> {
+    const metadata = this.persistence.stores.metadata
+    const namespace = `plugin:${plugin}`
+    const key = this.threadId
+    const read = async (): Promise<{ value: T; revision: string | null }> => {
+      if (metadata?.getVersioned) {
+        const stored = await metadata.getVersioned(namespace, key)
+        // The store holds what this plugin wrote.
+        return stored
+          ? { value: stored.value as T, revision: stored.revision }
+          : { value: initial, revision: null }
+      }
+      if (metadata) {
+        const stored = await metadata.get(namespace, key)
+        return {
+          value: stored === null ? initial : (stored as T),
+          revision: null,
+        }
+      }
+      return {
+        value: this.localState.has(namespace)
+          ? (this.localState.get(namespace) as T)
+          : initial,
+        revision: null,
+      }
+    }
+    const publish = (value: T) => {
+      this.stateDoc[plugin] = value
+      this.feed.publish('session', {
+        type: EventType.STATE_SNAPSHOT,
+        snapshot: { plugins: { ...this.stateDoc } },
+        timestamp: Date.now(),
+      })
+    }
+    return {
+      get: async () => (await read()).value,
+      update: async (change) => {
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          const current = await read()
+          const next = change(structuredClone(current.value))
+          if (metadata?.setIf) {
+            const written = await metadata.setIf(
+              namespace,
+              key,
+              next,
+              current.revision,
+            )
+            if (!written.ok) continue
+          } else if (metadata) {
+            await metadata.set(namespace, key, next)
+          } else {
+            this.localState.set(namespace, next)
+          }
+          publish(next)
+          return next
+        }
+        throw new Error(`Plugin ${plugin}: state update conflicted 5 times.`)
+      },
+    }
+  }
+
+  private async executeCommand(
+    operation: OperationImpl<unknown>,
+    name: string,
+    input: unknown,
+  ): Promise<void> {
+    const inputId = createInputId()
+    await this.accept(inputId, { op: 'command', name, input })
+    const entry = this.sessionPlugins?.commands.get(name)
+    if (!entry) {
+      this.reject(inputId, 'unknown_command')
+      operation.fail('failed', new Error(`Unknown command: ${name}`))
+      return
+    }
+    let checked: unknown = input
+    if (entry.command.input !== undefined) {
+      const result = await validateWithStandardSchema(
+        entry.command.input,
+        input ?? {},
+      )
+      if (!result.success) {
+        const reason = `Input validation failed for command ${name}: ${result.issues
+          .map((issue) => issue.message)
+          .join(', ')}`
+        this.reject(inputId, 'invalid_input')
+        operation.fail('failed', new Error(reason))
+        return
+      }
+      checked = result.data
+    }
+    operation.setStatus('running')
+    await this.applied(inputId, operation.id)
+    this.publishStarted(operation)
+    try {
+      const result: unknown = await entry.command.run(checked, {
+        signal: operation.abortController.signal,
+        session: this.services.session,
+      })
+      operation.publish(
+        customEvent('harness.command.result', {
+          name,
+          result: compactForModel(result),
+        }),
+      )
+      operation.finish('completed', result)
+    } catch (error) {
+      operation.publish({
+        type: EventType.RUN_ERROR,
+        message: error instanceof Error ? error.message : String(error),
+        timestamp: Date.now(),
+      })
+      operation.fail(
+        operation.abortController.signal.aborted ? 'cancelled' : 'failed',
+        error,
+      )
+    }
+    this.publishFinished(operation)
   }
 
   /**
@@ -399,6 +832,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       for (const operation of running) {
         operation.abortController.abort(RUN_CANCEL_REASON)
       }
+      for (const question of this.questions.values()) {
+        question.reject(new Error('Session closed.'))
+      }
+      this.questions.clear()
       await Promise.allSettled(
         running.map((operation) => Promise.resolve(operation)),
       )
@@ -518,8 +955,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             (middleware) => middleware.provides ?? [],
           ),
           ...(this.sessionPlugins
-            ? { inherited: this.sessionPlugins.values }
+            ? {
+                inherited: this.sessionPlugins.values,
+                takenCommands: this.sessionPlugins.commands,
+                takenConfig: this.sessionPlugins.config,
+                inheritedExtensions: this.sessionPlugins.extensions,
+              }
             : {}),
+          services: this.services,
         })
       }
       const session = this.sessionPlugins
@@ -528,16 +971,26 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         runPlugins?.capabilityBridge,
       ].filter((bridge): bridge is AnyChatMiddleware => bridge !== undefined)
       const subagents = this.harness.subagents
+      const picked = [
+        ...(session?.adapters ?? []),
+        ...(runPlugins?.adapters ?? []),
+      ]
+        .map((pick) => pick())
+        .filter((adapter) => adapter !== undefined)
+        .at(-1)
+      const resolvePrompt = (prompt: string | (() => string)) =>
+        typeof prompt === 'function' ? prompt() : prompt
       const stream = chat({
-        adapter: this.harness.adapter,
+        adapter: picked ?? this.harness.adapter,
         messages:
           turn.message !== undefined
             ? [{ id: createMessageId(), role: 'user', content: turn.message }]
             : [],
         systemPrompts: [
           ...(this.harness.systemPrompts ?? []),
-          ...(session?.prompts ?? []),
-          ...(runPlugins?.prompts ?? []),
+          ...[...(session?.prompts ?? []), ...(runPlugins?.prompts ?? [])]
+            .map(resolvePrompt)
+            .filter((prompt) => prompt !== ''),
         ],
         tools: [
           ...(this.harness.tools ?? []),

@@ -1,10 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { defineAgent } from '@tanstack/ai'
 import {
+  configOption,
   createHarnessHandler,
   createHarnessHost,
+  defineCommand,
   defineHarness,
+  definePlugin,
 } from '@tanstack/ai-harness'
+import { todos } from '@tanstack/ai-harness/plugins'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import { createTextAdapter } from '@/lib/providers'
@@ -36,6 +40,26 @@ function handlerFor(request: Request) {
       }),
     ],
     expose: { agents: ['echo'] },
+    plugins: () => [
+      todos(),
+      definePlugin({
+        name: 'e2e/settings',
+        setup: () => ({
+          config: {
+            tone: configOption.select({
+              options: ['plain', 'warm'],
+              default: 'plain',
+            }),
+          },
+          commands: {
+            greet: defineCommand({
+              description: 'Say hello',
+              run: () => 'hello',
+            }),
+          },
+        }),
+      }),
+    ],
   })
   return createHarnessHandler({
     host,

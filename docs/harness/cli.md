@@ -68,13 +68,20 @@ When stdin is a pipe, the CLI reads one message or command per line and waits fo
 
 ## Commands in the interactive UI
 
+For the session:
+
 - `/agents`: list the agents.
 - `/agent <name> {"json":"input"}`: run an agent in the background. When it is done, a new turn starts with its result.
+- `/config`: show the settings. `/config <key> <value>` changes one.
+- `/connect <id>` and `/disconnect <id>`: sign in to a connector, or out.
+
+For the running work:
+
 - `/cancel`: cancel the running turn.
 - `/status`: show what runs and what waits.
 - `/exit`: quit.
 
-When a turn stops for an approval, type `y` to approve or `n` to reject.
+Plugin commands (for example `/model` or `/todos`) show up in `/help`. When a turn stops for an approval or a plugin asks a question, type your answer. For yes-or-no questions, `y` approves and `n` refuses.
 
 ## What you have now
 

@@ -10,6 +10,7 @@ export {
   defineArtifactStore,
   defineBlobStore,
   defineInboxStore,
+  defineCredentialStore,
   // Run lifecycle helpers owned by @tanstack/ai, transiting through ./types so
   // this package's public surface stays a single import for backend authors.
   isTerminalRunStatus,
@@ -30,6 +31,9 @@ export type {
   InboxEntry,
   InboxStatus,
   InboxStore,
+  // Harness credentials
+  Credential,
+  CredentialStore,
   // Named product shapes (prefer these over a sparse bag)
   ChatTranscriptStores,
   ChatPersistenceStores,
