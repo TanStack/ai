@@ -1583,18 +1583,13 @@ export function runPersistenceConformance(
         const current = await store.getVersioned('cas', 'k')
         expect(current?.value).toEqual({ n: 1 })
         const revision = current?.revision ?? null
-        const updated = await store.setIf(
-          'cas',
-          'k',
-          { n: 2 },
-          revision,
-        )
+        const updated = await store.setIf('cas', 'k', { n: 2 }, revision)
         expect(updated.ok).toBe(true)
-        expect(
-          await store.setIf('cas', 'k', { n: 3 }, revision),
-        ).toMatchObject({
-          ok: false,
-        })
+        expect(await store.setIf('cas', 'k', { n: 3 }, revision)).toMatchObject(
+          {
+            ok: false,
+          },
+        )
         expect(await store.get('cas', 'k')).toEqual({ n: 2 })
       })
     })
