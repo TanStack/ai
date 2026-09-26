@@ -265,7 +265,7 @@ describe('ChatClient runtime context', () => {
     expect(outputs).toEqual(['snapshot-user'])
     expect(findToolCallPart(client, 'tc-tool-snapshot')).toMatchObject({
       output: { initial: 'from-original-tool' },
-      state: 'input-complete',
+      state: 'complete',
     })
     expect(findToolResultPart(client, 'tc-tool-snapshot')).toMatchObject({
       content: JSON.stringify({ initial: 'from-original-tool' }),
@@ -359,7 +359,7 @@ describe('ChatClient runtime context', () => {
     expect(
       findToolCallPart(client, 'tc-async-executable-output'),
     ).toMatchObject({
-      state: 'input-complete',
+      state: 'complete',
       output: { count: 1 },
     })
     expect(
@@ -404,7 +404,7 @@ describe('ChatClient runtime context', () => {
 
     for (const toolCallId of ['tc-legacy-plain', 'tc-legacy-schema']) {
       expect(findToolCallPart(client, toolCallId)).toMatchObject({
-        state: 'input-complete',
+        state: 'complete',
         output: { ok: true },
       })
       expect(findToolResultPart(client, toolCallId)).toMatchObject({
