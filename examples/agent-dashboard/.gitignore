@@ -1,0 +1,14 @@
+node_modules
+.DS_Store
+dist
+dist-ssr
+*.local
+.env
+.env.local
+.nitro
+.tanstack
+.output
+.vinxi
+test-results
+playwright-report
+*.log

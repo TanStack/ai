@@ -1,0 +1,44 @@
+{
+  "name": "agent-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3002",
+    "build": "vite build",
+    "serve": "vite preview",
+    "start": "node .output/server/index.mjs",
+    "test": "exit 0",
+    "test:e2e": "playwright test",
+    "test:types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ag-ui/client": "1.0.0",
+    "@tailwindcss/vite": "^4.1.18",
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-anthropic": "workspace:*",
+    "@tanstack/ai-harness": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@tanstack/react-db": "^0.1.55",
+    "@tanstack/react-devtools": "^0.9.10",
+    "@tanstack/react-query": "^5.90.12",
+    "@tanstack/react-router": "^1.158.4",
+    "@tanstack/react-router-devtools": "^1.158.4",
+    "@tanstack/react-start": "^1.159.0",
+    "@tanstack/router-plugin": "^1.158.4",
+    "nitro": "3.0.260610-beta",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "tailwindcss": "^4.1.18",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@tanstack/devtools-vite": "^0.5.3",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "typescript": "5.9.3",
+    "vite": "^8.2.1"
+  }
+}
