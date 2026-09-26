@@ -9,7 +9,7 @@ const config = defineConfig({
     watch: false,
     globals: true,
     environment: 'node',
-    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
@@ -20,7 +20,7 @@ const config = defineConfig({
         '**/*.test.ts',
         '**/*.config.ts',
       ],
-      include: ['src/**/*.ts'],
+      include: ['src/**/*.{ts,tsx}'],
     },
   },
 })
@@ -28,7 +28,7 @@ const config = defineConfig({
 export default mergeConfig(
   config,
   tanstackViteConfig({
-    entry: ['./src/index.ts', './src/client.ts'],
+    entry: ['./src/index.ts'],
     srcDir: './src',
     cjs: false,
   }),

@@ -808,6 +808,21 @@
           "label": "Build your first harness",
           "to": "harness/overview",
           "addedAt": "2026-09-26"
+        },
+        {
+          "label": "Connect clients",
+          "to": "harness/connect",
+          "addedAt": "2026-09-26"
+        },
+        {
+          "label": "Run in the terminal",
+          "to": "harness/cli",
+          "addedAt": "2026-09-26"
+        },
+        {
+          "label": "Durable sessions",
+          "to": "harness/durable-sessions",
+          "addedAt": "2026-09-26"
         }
       ]
     },

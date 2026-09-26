@@ -128,6 +128,7 @@ export interface ClientTool<
   needsApproval?: TNeedsApproval
   approvalSchema?: TApprovalSchema
   lazy?: boolean
+  replay?: 'safe' | 'never'
   metadata?: Record<string, unknown>
   execute?: ToolExecuteFunction<TInput, TOutput, TContext>
 }
@@ -220,6 +221,12 @@ export type ToolDefinitionConfig<
   inputSchema?: TInput
   outputSchema?: TOutput
   lazy?: boolean
+  /**
+   * Whether a harness may run this tool again after a crash cut the run
+   * between the call and its result. `'safe'` runs it again. `'never'`
+   * (default) gives the model a note that the tool may or may not have run.
+   */
+  replay?: 'safe' | 'never'
   metadata?: Record<string, unknown>
 } & ApprovalConfig<TNeedsApproval, TApprovalSchema>
 

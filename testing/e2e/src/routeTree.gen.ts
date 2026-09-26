@@ -126,6 +126,7 @@ import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
 import { Route as ApiTtsStreamRouteImport } from './routes/api.tts.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
+import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 
 const WebsocketAdapterRoute = WebsocketAdapterRouteImport.update({
@@ -739,6 +740,11 @@ const ApiImageStreamRoute = ApiImageStreamRouteImport.update({
   path: '/stream',
   getParentRoute: () => ApiImageRoute,
 } as any)
+const ApiHarnessProtocolSplatRoute = ApiHarnessProtocolSplatRouteImport.update({
+  id: '/api/harness-protocol/$',
+  path: '/api/harness-protocol/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
   id: '/stream',
   path: '/stream',
@@ -860,6 +866,7 @@ export interface FileRoutesByFullPath {
   '/api/world': typeof ApiWorldRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
+  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -980,6 +987,7 @@ export interface FileRoutesByTo {
   '/api/world': typeof ApiWorldRoute
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
+  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -1101,6 +1109,7 @@ export interface FileRoutesById {
   '/api/world': typeof ApiWorldRoute
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
+  '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -1223,6 +1232,7 @@ export interface FileRouteTypes {
     | '/api/world'
     | '/$provider/'
     | '/api/audio/stream'
+    | '/api/harness-protocol/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -1343,6 +1353,7 @@ export interface FileRouteTypes {
     | '/api/world'
     | '/$provider'
     | '/api/audio/stream'
+    | '/api/harness-protocol/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -1463,6 +1474,7 @@ export interface FileRouteTypes {
     | '/api/world'
     | '/$provider/'
     | '/api/audio/stream'
+    | '/api/harness-protocol/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -1583,6 +1595,7 @@ export interface RootRouteChildren {
   ApiWebMcpPageToolsRoute: typeof ApiWebMcpPageToolsRoute
   ApiWorldRoute: typeof ApiWorldRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
+  ApiHarnessProtocolSplatRoute: typeof ApiHarnessProtocolSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -2406,6 +2419,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImageStreamRouteImport
       parentRoute: typeof ApiImageRoute
     }
+    '/api/harness-protocol/$': {
+      id: '/api/harness-protocol/$'
+      path: '/api/harness-protocol/$'
+      fullPath: '/api/harness-protocol/$'
+      preLoaderRoute: typeof ApiHarnessProtocolSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/audio/stream': {
       id: '/api/audio/stream'
       path: '/stream'
@@ -2589,6 +2609,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWebMcpPageToolsRoute: ApiWebMcpPageToolsRoute,
   ApiWorldRoute: ApiWorldRoute,
   ProviderIndexRoute: ProviderIndexRoute,
+  ApiHarnessProtocolSplatRoute: ApiHarnessProtocolSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

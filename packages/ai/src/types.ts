@@ -874,6 +874,13 @@ export interface Tool<
   /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools). */
   lazy?: boolean
 
+  /**
+   * Whether a harness may run this tool again after a crash cut the run
+   * between the call and its result. `'safe'` runs it again. `'never'`
+   * (default) gives the model a note that the tool may or may not have run.
+   */
+  replay?: 'safe' | 'never'
+
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any> | undefined
 }

@@ -1,40 +1,28 @@
 {
-  "name": "@tanstack/ai-harness",
+  "name": "@tanstack/ai-harness-cli",
   "version": "0.0.0",
-  "description": "Build agent harnesses on TanStack AI: long-lived sessions, typed agents, and plugins",
-  "keywords": [
-    "agent",
-    "ai",
-    "harness",
-    "plugins",
-    "session",
-    "tanstack"
-  ],
-  "license": "MIT",
+  "description": "Run a TanStack AI harness from the terminal: interactive UI, print mode, NDJSON, ACP, and an HTTP server",
   "author": "",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TanStack/ai.git",
-    "directory": "packages/ai-harness"
+    "directory": "packages/ai-harness-cli"
   },
-  "files": [
-    "dist",
-    "src"
-  ],
   "type": "module",
-  "sideEffects": false,
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
-    },
-    "./client": {
-      "types": "./dist/esm/client.d.ts",
-      "import": "./dist/esm/client.js"
     }
   },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
@@ -45,16 +33,6 @@
     "test:lib": "vitest --passWithNoTests",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
-  },
-  "devDependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-persistence": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
-    "zod": "^4.2.0"
-  },
-  "peerDependencies": {
-    "@tanstack/ai": "workspace:^",
-    "@tanstack/ai-persistence": "workspace:^"
   },
   "nx": {
     "targets": {
@@ -77,5 +55,38 @@
         ]
       }
     }
+  },
+  "keywords": [
+    "ai",
+    "tanstack",
+    "harness",
+    "agent",
+    "cli",
+    "terminal",
+    "acp"
+  ],
+  "dependencies": {
+    "ink": "^7.1.1",
+    "react": "^19.2.3"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-acp": "workspace:^",
+    "@tanstack/ai-harness": "workspace:^",
+    "@tanstack/ai-persistence": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/ai-acp": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-acp": "workspace:*",
+    "@tanstack/ai-harness": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
+    "@tanstack/ai-sandbox": "workspace:*",
+    "@types/react": "^19.2.7",
+    "@vitest/coverage-v8": "4.1.10"
   }
 }
