@@ -838,6 +838,11 @@
           "label": "Auth and connectors",
           "to": "harness/auth",
           "addedAt": "2026-09-26"
+        },
+        {
+          "label": "Run agents from a harness",
+          "to": "harness/subagents",
+          "addedAt": "2026-09-26"
         }
       ]
     },

@@ -28,6 +28,8 @@ export interface HarnessConfig<
 > {
   /** A stable name, for example `'acme/studio'`. */
   name: string
+  /** What the harness does. Shown when another agent can call it. */
+  description?: string
   /** The main agent-loop model, the same as `chat({ adapter })`. */
   adapter: TAdapter
   systemPrompts?: Array<SystemPrompt>

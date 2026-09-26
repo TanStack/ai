@@ -9,7 +9,14 @@ import type {
   Capability,
   CapabilityHandle,
 } from '@tanstack/ai'
-import type { AgentRegistry, AgentRegistryView, AnyAgent } from './agents'
+import type {
+  AgentInputOf,
+  AgentRegistry,
+  AgentRegistryView,
+  AgentResultOf,
+  AnyAgent,
+} from './agents'
+import type { Operation } from './types'
 import type { CredentialsAccess } from './auth'
 import type { AnyCommand, PluginSessionApi } from './commands'
 import type { ConfigOption } from './config'
@@ -64,6 +71,61 @@ export interface PluginState<T> {
   update: (change: (current: T) => T) => Promise<T>
 }
 
+/** Run agents from a plugin: in the foreground, in the background, or as a group. */
+export interface PluginAgentActions {
+  run: {
+    <TAgent extends AnyAgent>(
+      agent: TAgent,
+      input?: AgentInputOf<TAgent>,
+    ): Operation<AgentResultOf<TAgent>>
+    (name: string, input?: unknown): Operation<unknown>
+  }
+  start: {
+    <TAgent extends AnyAgent>(
+      agent: TAgent,
+      input?: AgentInputOf<TAgent>,
+      options?: { wake?: boolean },
+    ): Operation<AgentResultOf<TAgent>>
+    (
+      name: string,
+      input?: unknown,
+      options?: { wake?: boolean },
+    ): Operation<unknown>
+  }
+  /**
+   * Run children together. With `onFailure: 'cancel-siblings'` (default), one
+   * failure cancels the others. Every child settles before `group` returns.
+   */
+  group: <T>(
+    options: { onFailure?: 'cancel-siblings' | 'collect' },
+    body: (group: AgentGroup) => Promise<T>,
+  ) => Promise<T>
+}
+
+/** The children of one `ctx.agents.group` call. */
+export interface AgentGroup {
+  run: {
+    <TAgent extends AnyAgent>(
+      agent: TAgent,
+      input?: AgentInputOf<TAgent>,
+    ): Promise<AgentResultOf<TAgent>>
+    (name: string, input?: unknown): Promise<unknown>
+  }
+  /** Like `run`, but never rejects: resolves with the result or the error. */
+  runSettled: {
+    <TAgent extends AnyAgent>(
+      agent: TAgent,
+      input?: AgentInputOf<TAgent>,
+    ): Promise<
+      { ok: true; value: AgentResultOf<TAgent> } | { ok: false; error: unknown }
+    >
+    (
+      name: string,
+      input?: unknown,
+    ): Promise<{ ok: true; value: unknown } | { ok: false; error: unknown }>
+  }
+}
+
 /** What the session gives plugins. */
 export interface PluginServices {
   emit: (plugin: string, name: string, value: unknown) => void
@@ -72,6 +134,7 @@ export interface PluginServices {
   state: <T>(plugin: string, initial: T) => PluginState<T>
   credentials: CredentialsAccess
   session: PluginSessionApi
+  agents: PluginAgentActions
 }
 
 /** What a plugin's `setup` receives. */
@@ -90,8 +153,11 @@ export interface PluginSetupContext {
   getOptional: <T>(capability: Capability<T>) => T | undefined
   /** Provide a capability this plugin declared in `provides`. */
   provide: <T>(capability: Capability<T>, value: T) => void
-  /** The agents of this session (harness agents plus earlier plugins' agents). */
-  agents: AgentRegistryView
+  /**
+   * The agents of this session (harness agents plus earlier plugins'
+   * agents): find them, and run them from commands, tools, and hooks.
+   */
+  agents: AgentRegistryView & PluginAgentActions
   /**
    * The items other plugins contributed to `point`. The list fills while
    * plugins set up, so read it at run time (in a tool, a command, or a
@@ -244,6 +310,11 @@ const NO_SERVICES: PluginServices = {
     authRequired: unavailable('ctx.session'),
     setConfig: unavailable('ctx.session'),
   },
+  agents: {
+    run: unavailable('ctx.agents.run') as PluginAgentActions['run'],
+    start: unavailable('ctx.agents.start') as PluginAgentActions['start'],
+    group: unavailable('ctx.agents.group'),
+  },
 }
 
 /** Capability values provided by plugins, keyed by handle. */
@@ -389,7 +460,14 @@ export async function mountPlugins(
           values.provide(handle, value)
           provided.add(handle)
         },
-        agents: env.registry,
+        agents: {
+          list: () => env.registry.list(),
+          get: (name) => env.registry.get(name),
+          find: (query) => env.registry.find(query),
+          run: services.agents.run,
+          start: services.agents.start,
+          group: services.agents.group,
+        },
         collect: <T>(point: ExtensionPoint<T>): ReadonlyArray<T> => {
           let items = extensions.get(point.name)
           if (!items) {

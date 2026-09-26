@@ -1,6 +1,7 @@
 import {
   EventType,
   RUN_CANCEL_REASON,
+  SubagentBudget,
   chat,
   compactForModel,
   convertSchemaToJsonSchema,
@@ -47,8 +48,10 @@ import type {
 import type { AnyHarness, HarnessAgentsOf } from './define'
 import type { HarnessPersistence } from './host'
 import type {
+  AgentGroup,
   HarnessPlugin,
   MountedPlugins,
+  PluginAgentActions,
   PluginServices,
   PluginState,
 } from './plugins'
@@ -157,6 +160,13 @@ interface QueuedTurn {
   resume?: Array<RunAgentResumeItem>
   parentRunId?: string
   inputId?: string
+}
+
+/** Limits for a harness's children when `subagents.limits` is not set. */
+export const DEFAULT_SUBAGENT_LIMITS = {
+  maxDepth: 2,
+  maxConcurrent: 3,
+  maxCalls: 12,
 }
 
 function createInputId(): string {
@@ -275,6 +285,23 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       state: (plugin, initial) => this.pluginState(plugin, initial),
       credentials: this.credentialAccess,
       session: this.pluginApi(),
+      agents: {
+        run: ((target: string | AnyAgent, input?: unknown) =>
+          this.runAgent(target, input, {
+            wake: false,
+          })) as PluginAgentActions['run'],
+        start: ((
+          target: string | AnyAgent,
+          input?: unknown,
+          options?: AgentStartOptions,
+        ) =>
+          this.runAgent(
+            target,
+            input,
+            options ?? {},
+          )) as PluginAgentActions['start'],
+        group: (options, body) => this.agentGroup(options, body),
+      },
     }
     this.registry = this.agentRegistry
     for (const agent of this.harness.agents ?? []) {
@@ -924,6 +951,16 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }
   }
 
+  /**
+   * A tree budget for a child started from code. The child counts as the
+   * first call, and its own children count against the same limits.
+   */
+  private codeBudget(): SubagentBudget {
+    const root = SubagentBudget.root(this.limits())
+    root.reserve(0)
+    return root.child()
+  }
+
   private binding(): SubagentBinding {
     return {
       generationMiddleware: this.sessionPlugins?.generationMiddleware ?? [],
@@ -1007,7 +1044,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           this.steering(),
         ],
         ...(subagents
-          ? { subagents: { ...subagents, binding: this.binding() } }
+          ? {
+              subagents: {
+                ...subagents,
+                limits: this.limits(),
+                binding: this.binding(),
+              },
+            }
           : {}),
         ...(this.harness.agentLoopStrategy
           ? { agentLoopStrategy: this.harness.agentLoopStrategy }
@@ -1083,28 +1126,75 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   // Agents
   // ===========================
 
+  /** The limits for children of this session, with the harness defaults. */
+  private limits() {
+    return this.harness.subagents?.limits ?? DEFAULT_SUBAGENT_LIMITS
+  }
+
   private runAgent(
-    name: string,
+    target: string | AnyAgent,
     input: unknown,
     options: AgentStartOptions,
   ): OperationImpl<unknown> {
+    const name = typeof target === 'string' ? target : target.name
     const operation = new OperationImpl<unknown>(
       'agent',
       this.feed,
-      (target) => this.cancel(target.id),
+      (running) => this.cancel(running.id),
       name,
     )
     this.operations.set(operation.id, operation)
-    void this.executeAgent(operation, name, input, options)
+    void this.executeAgent(operation, target, input, options)
     return operation
+  }
+
+  /** Run a group of agents. Every child settles before the group returns. */
+  private async agentGroup<T>(
+    options: { onFailure?: 'cancel-siblings' | 'collect' },
+    body: (group: AgentGroup) => Promise<T>,
+  ): Promise<T> {
+    const started: Array<OperationImpl<unknown>> = []
+    const cancelOthers = (failed: OperationImpl<unknown>) => {
+      if (options.onFailure === 'collect') return
+      for (const operation of started) {
+        if (operation !== failed && !operation.isSettled())
+          void operation.cancel()
+      }
+    }
+    const group: AgentGroup = {
+      run: (target: string | AnyAgent, input?: unknown) => {
+        const operation = this.runAgent(target, input, { wake: false })
+        started.push(operation)
+        return Promise.resolve(operation).catch((error: unknown) => {
+          cancelOthers(operation)
+          throw error
+        })
+      },
+      runSettled: (target: string | AnyAgent, input?: unknown) => {
+        const operation = this.runAgent(target, input, { wake: false })
+        started.push(operation)
+        return Promise.resolve(operation).then(
+          (value) => ({ ok: true as const, value }),
+          (error: unknown) => ({ ok: false as const, error }),
+        )
+      },
+    } as AgentGroup
+    try {
+      return await body(group)
+    } finally {
+      await Promise.allSettled(
+        started.map((operation) => Promise.resolve(operation)),
+      )
+    }
   }
 
   private async executeAgent(
     operation: OperationImpl<unknown>,
-    name: string,
+    target: string | AnyAgent,
     input: unknown,
     options: AgentStartOptions,
   ): Promise<void> {
+    const name = typeof target === 'string' ? target : target.name
     const inputId = createInputId()
     await this.accept(inputId, {
       op: 'agent',
@@ -1112,7 +1202,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       input,
       ...(options.wake ? { detached: true } : {}),
     })
-    const agent: AnyAgent | undefined = this.agentRegistry.get(name)
+    const agent: AnyAgent | undefined =
+      typeof target === 'string' ? this.agentRegistry.get(target) : target
     if (!agent) {
       this.reject(inputId, 'unknown_agent')
       operation.fail('failed', new Error(`Unknown agent: ${name}`))
@@ -1176,7 +1267,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         },
         undefined,
         undefined,
-        this.binding(),
+        { ...this.binding(), budget: this.codeBudget() },
       )
       for await (const chunk of stream) {
         operation.publish(chunk)

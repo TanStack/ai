@@ -15,6 +15,7 @@ import type { GenerationMiddleware } from '../../middleware/types'
 import type { AnyChatMiddleware } from '../middleware/types'
 import type { RunAgentResumeItem } from '../../../types'
 import type { SubagentRunInput } from './define-agent'
+import type { SubagentBudget } from './limits'
 
 /**
  * The fields a child `chat()` needs, in one spread:
@@ -40,6 +41,11 @@ export interface SubagentBinding {
   chatMiddleware?: ReadonlyArray<AnyChatMiddleware>
   /** Added before the call's own middleware on every generation call. */
   generationMiddleware?: ReadonlyArray<GenerationMiddleware>
+  /**
+   * The subagent tree budget. A child's `ctx.chat({ subagents })` passes it
+   * down, so limits hold across the whole tree.
+   */
+  budget?: SubagentBudget
 }
 
 /**
@@ -109,6 +115,18 @@ export function createBoundActivities(
         ...(input.resume ? { resume: input.resume } : {}),
         abortController,
         ...options,
+        // Nested children share the tree budget.
+        ...(options.subagents && binding?.budget
+          ? {
+              subagents: {
+                ...options.subagents,
+                binding: {
+                  ...options.subagents.binding,
+                  budget: binding.budget,
+                },
+              },
+            }
+          : {}),
         middleware: [...chatMiddleware, ...(options.middleware ?? [])],
       } as never)) as typeof chat,
     summarize: ((options: LooseOptions) =>

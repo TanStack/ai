@@ -39,6 +39,43 @@
       "response": {
         "content": "Hello over the harness protocol."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-limits] work twice",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "worker",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-limits] work twice",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "worker",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-limits] work twice",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "The second call hit the limit."
+      }
     }
   ]
 }

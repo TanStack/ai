@@ -100,6 +100,10 @@ export type {
   SubagentForward,
 } from './activities/chat/agents/bound'
 export {
+  SubagentBudget,
+  type SubagentLimits,
+} from './activities/chat/agents/limits'
+export {
   subagentRoute,
   type SubagentRouteOptions,
 } from './activities/chat/agents/route'
