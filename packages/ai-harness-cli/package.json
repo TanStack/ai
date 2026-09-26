@@ -87,6 +87,7 @@
     "@tanstack/ai-persistence": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
     "@types/react": "^19.2.7",
-    "@vitest/coverage-v8": "4.1.10"
+    "@vitest/coverage-v8": "4.1.10",
+    "zod": "^4.2.0"
   }
 }
