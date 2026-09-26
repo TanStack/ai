@@ -142,7 +142,14 @@ If `redact` throws, the middleware writes the literal sentinel `"[redaction_fail
 
 Accumulated assistant text (the `gen_ai.choice` event) is capped at `maxContentLength` characters (default `100 000`); longer completions are truncated with a trailing `"…"` marker.
 
-Multimodal content (images, audio, video, documents) is represented as placeholder strings (`[image]`, `[audio]`, ...) to preserve message order without dumping binary data onto spans. Use `onSpanEnd` if you need richer multimodal capture.
+Multimodal messages (images, audio, video, documents) keep their parts in `gen_ai.input.messages`, in the OTel GenAI part shapes:
+
+- Text: `{ "type": "text", "content": "..." }`. `redact` runs on it.
+- URL source: `{ "type": "uri", "modality": "image", "uri": "https://...", "mime_type": "image/png" }`.
+- Provider file handle: `{ "type": "file", "modality": "image", "file_id": "..." }`.
+- Inline base64 data or a `data:` URL: a `[image]` text placeholder, so the bytes do not go onto the span.
+
+Span events stay flat strings, with the same placeholders for every media part (`look at this [image]`).
 
 Prompt/system/user message events fire from `onConfig` at the start of every iteration, which means the full conversation history (as the adapter will re-send it) is re-emitted on each iteration span. This mirrors what the provider actually sees on the wire.
 

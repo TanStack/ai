@@ -413,6 +413,38 @@ test.describe('Middleware Lifecycle', () => {
     })
   })
 
+  test('otel middleware keeps image parts structured in gen_ai.input.messages', async ({
+    request,
+  }) => {
+    // #1525: captureContent used to flatten image parts to "[image]". The
+    // URL reference must survive as an OTel semconv `uri` part.
+    const res = await request.post('/api/otel-usage', {
+      data: { provider: 'multimodal' },
+    })
+    expect(res.ok()).toBe(true)
+    const { ok, error, spans } = await res.json()
+    expect(error ?? null).toBeNull()
+    expect(ok).toBe(true)
+
+    const iterationSpan = spans.find((s: any) => s.kind === SpanKind.CLIENT)
+    expect(
+      JSON.parse(iterationSpan.attributes['gen_ai.input.messages']),
+    ).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', content: 'describe this' },
+          {
+            type: 'uri',
+            modality: 'image',
+            uri: 'https://example.com/cat.png',
+            mime_type: 'image/png',
+          },
+        ],
+      },
+    ])
+  })
+
   test('otel middleware emits provider-reported cost on spans', async ({
     request,
   }) => {
