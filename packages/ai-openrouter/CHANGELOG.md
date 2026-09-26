@@ -1,5 +1,28 @@
 # @tanstack/ai-openrouter
 
+## 0.20.0
+
+### Minor Changes
+
+- [#1503](https://github.com/TanStack/ai/pull/1503) [`a450d00`](https://github.com/TanStack/ai/commit/a450d007a039610994342dd9c3387f880a4eb992) - Add optional `id` and `provider` to `decide()` results (`result.meta.id`, `result.meta.provider`). Evaluate adapters return them on `EvaluateAdapterResult`. `openRouterDecider` fills them from the Decisions API response, so you can look a request up later with `GET /api/v1/generation?id=`.
+
+### Patch Changes
+
+- [#1490](https://github.com/TanStack/ai/pull/1490) [`5226f8e`](https://github.com/TanStack/ai/commit/5226f8edbf842955cd9510efd850ca910f159bd3) - Keep `usage.cost` (and `costDetails`) from the OpenRouter Decisions API in `decide()` results. `result.meta.usage.cost` is now set, the same as with the OpenRouter text and image adapters.
+
+- [#1492](https://github.com/TanStack/ai/pull/1492) [`af743bf`](https://github.com/TanStack/ai/commit/af743bf9ff7b338e0a0ec6b56a27a54b5fab7aac) - Stop reading an OpenRouter Responses stream after `response.completed`. Before, `chat()` and `structuredOutputStream` waited for the HTTP body to close, so a body that stayed open delayed `RUN_FINISHED`. The adapter now finishes on the terminal event and releases the upstream reader.
+
+- [#1039](https://github.com/TanStack/ai/pull/1039) [`cb6b3c2`](https://github.com/TanStack/ai/commit/cb6b3c2e876791d274d309bdc083b547030ae332) - Respect `modelOptions.streamOptions: { includeUsage: false }`. The adapter no longer sends `stream_options` in that case, for chat streams and structured output streams. This lets you stream with OpenRouter `provider.requireParameters: true`.
+
+- [#1494](https://github.com/TanStack/ai/pull/1494) [`a308fe9`](https://github.com/TanStack/ai/commit/a308fe95b126368c913a1aff3245d749a09d4312) - Report `RUN_ERROR` (code `incomplete-stream`) when an OpenAI or OpenRouter Responses stream ends before `response.completed`. Before, the adapter sent a made-up `RUN_FINISHED` with `finishReason: 'stop'`, so a cut-off answer looked like a successful run and middleware `onFinish` ran. The partial text is still streamed to the caller.
+
+- [#1497](https://github.com/TanStack/ai/pull/1497) [`7e21823`](https://github.com/TanStack/ai/commit/7e21823421cbe962c3b577b80e1de1f59bd350f5) - Report OpenAI Responses structured output streams that end without `response.completed` as `RUN_ERROR` instead of success. Preserve text already streamed to callers.
+
+- [#1507](https://github.com/TanStack/ai/pull/1507) [`1acae20`](https://github.com/TanStack/ai/commit/1acae20d775703bab7808ea1d2792627f18a3f75) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`a450d00`](https://github.com/TanStack/ai/commit/a450d007a039610994342dd9c3387f880a4eb992), [`c54e20c`](https://github.com/TanStack/ai/commit/c54e20cf5be8e1f73e0be661e242391fa0e4633e), [`a56192e`](https://github.com/TanStack/ai/commit/a56192eafa0da2ccca2d576dc4371b196355c605), [`740ae66`](https://github.com/TanStack/ai/commit/740ae6664d358f00deddf72319ef947fe3bb0935), [`5099a32`](https://github.com/TanStack/ai/commit/5099a32cbfb6c77e335769793415fe7e90bb17d8), [`820429f`](https://github.com/TanStack/ai/commit/820429fa9bea8ba220cf073406760475ac07b112), [`0abae97`](https://github.com/TanStack/ai/commit/0abae97f94fe4d37523f8a6427972ae7fe3b7fde), [`8c68c2d`](https://github.com/TanStack/ai/commit/8c68c2d9750bcc818201089bbbb7d90aa26d99a1)]:
+  - @tanstack/ai@0.62.0
+
 ## 0.19.20
 
 ### Patch Changes
