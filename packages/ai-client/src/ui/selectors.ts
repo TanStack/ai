@@ -21,6 +21,7 @@ const PART_KEY_BY_TYPE: Record<string, ChatUIPartKey> = {
   video: 'video',
   document: 'document',
   thinking: 'thinking',
+  activity: 'activity',
   'tool-call': 'toolCall',
   'tool-result': 'toolResult',
   'structured-output': 'structuredOutput',

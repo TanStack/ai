@@ -2024,6 +2024,20 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
     // validateChatPersistenceStores already throws; this narrows for TypeScript.
     throw new Error('Chat persistence requires stores.messages.')
   }
+  const activityStore = persistence.stores.activities
+
+  // Best-effort: the activity store is an optional sidecar, so a failed save
+  // must never fail the run or block the message, run, and interrupt writes.
+  async function persistActivities(ctx: ChatMiddlewareContext): Promise<void> {
+    if (!activityStore) return
+    try {
+      await activityStore.saveActivities(ctx.threadId, [
+        ...(ctx.activities ?? []),
+      ])
+    } catch {
+      // ponytail: dropped silently, add a logger hook if users need to see it.
+    }
+  }
 
   const provides = [
     PersistenceCapability,
@@ -2096,6 +2110,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           // incoming list must not drop stored extras.
           const list = mergeStoredMessages(stored, ctx.messages)
           await messageStore.saveThread(ctx.threadId, list)
+          await persistActivities(ctx)
         },
       })
     },
@@ -2163,6 +2178,14 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           await messageStore.loadThread(ctx.threadId),
         )
         patch.messages = mergeStoredMessages(stored, config.messages)
+        if (activityStore) {
+          const storedActivities = await activityStore.loadActivities(
+            ctx.threadId,
+          )
+          patch.activities = ctx.activities?.length
+            ? [...ctx.activities]
+            : storedActivities
+        }
       }
 
       return Object.keys(patch).length > 0 ? patch : undefined
@@ -2177,6 +2200,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       if (state) state.firstRunMessage = ctx.messages.length
       try {
         await messageStore.saveThread(ctx.threadId, [...ctx.messages])
+        await persistActivities(ctx)
       } catch {
         // Eager pre-save is best-effort; the run continues and onFinish saves.
       }
@@ -2246,6 +2270,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
                     : {}),
                 },
               ])
+              await persistActivities(ctx)
             } catch {
               // Streaming snapshots are best-effort; onFinish persists final.
             }
@@ -2290,6 +2315,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       await interruptRun(runs, ctx.runId, usage)
       await messageStore.saveThread(ctx.threadId, runMessages(ctx, state))
       state.interrupted = true
+      await persistActivities(ctx)
     },
 
     onUsage(ctx: ChatMiddlewareContext, usage: TokenUsage) {
@@ -2309,6 +2335,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         await messageStore.saveThread(ctx.threadId, runMessages(ctx, state))
         await commitPendingResumes(state, persistence.stores.interrupts)
         await completeRun(runs, ctx.runId, state?.usage ?? info.usage)
+        await persistActivities(ctx)
         state?.completion?.resolve()
       } catch (error) {
         // Core has already selected its terminal hook. Persist the failed run

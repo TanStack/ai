@@ -478,6 +478,7 @@ export {
   modelMessagesToUIMessages,
   normalizeToUIMessage,
 } from './activities/chat/messages'
+export { interleaveActivityRecords } from './activities/chat/activity-records'
 
 // Stream processing (unified for server and client)
 export {

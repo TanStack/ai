@@ -16,17 +16,20 @@ import {
 } from '@tanstack/ai-sandbox/testkit'
 import { sqlitePersistence, sqliteSandboxSnapshots } from './sqlite-persistence'
 
-// All seven stores are provided, the four chat state stores plus
-// `generationRuns` + `artifacts` + `blobs`, so no STORE is skipped. Every
-// `runs` method is implemented too, including the optional `listByThread`,
+// Seven of eight stores are provided (chat state plus `generationRuns` +
+// `artifacts` + `blobs`). `activities` is optional AG-UI sidecar storage and
+// this example does not implement it, so it is declared in `skip`. Every
+// `runs` method is implemented, including the optional `listByThread`,
 // `listByParentRun`, and `listReclaimable`, so nothing is declared in
-// `skipMethods` and every case stays under test. (`reconstructChat` needs
-// `listByThread` to put back the cards of children that a tool call started.)
+// `skipMethods`. (`reconstructChat` needs `listByThread` to put back the
+// cards of children that a tool call started.)
 //
 // (Locks are not a store and the suite does not cover them: this backend has no
 // distributed lock primitive, which is a separate `withLocks` concern.)
-runPersistenceConformance('ts-react-chat example (node:sqlite)', () =>
-  sqlitePersistence({ url: ':memory:', migrate: true }),
+runPersistenceConformance(
+  'ts-react-chat example (node:sqlite)',
+  () => sqlitePersistence({ url: ':memory:', migrate: true }),
+  { skip: ['activities'] },
 )
 
 runSandboxCheckpointStoreConformance(

@@ -276,6 +276,7 @@ export function makeCtx(
     currentMessageId: null,
     accumulatedContent: '',
     messages: [],
+    activities: [],
     createId: (prefix: string) => `${prefix}-1`,
     capabilities: new CapabilityRegistry(),
     get: (capability) => capability[0](ctx),

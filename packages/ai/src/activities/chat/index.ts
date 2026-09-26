@@ -89,6 +89,12 @@ import {
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { isCancelRequestedReason } from './cancel'
 import {
+  applyActivityDeltaToRecords,
+  applyActivitySnapshotToRecords,
+  interleaveActivityRecords,
+  peelInboundActivities,
+} from './activity-records'
+import {
   appendUiResourceToModelMessages,
   convertMessagesToModelMessages,
   generateMessageId,
@@ -122,6 +128,7 @@ import type {
   StructuredOutputResult,
 } from './adapter'
 import type {
+  ActivityRecord,
   AgentLoopStrategy,
   AnyTool,
   ChatStream,
@@ -836,6 +843,7 @@ class TextEngine<
   private readonly effectiveSignal?: AbortSignal
 
   private messages: Array<ModelMessage>
+  private activities: Array<ActivityRecord> = []
   private providerMessages: Array<ModelMessage>
   private iterationCount = 0
   /** Cumulative tool calls counted in this run (emitted + pending resume). */
@@ -999,6 +1007,7 @@ class TextEngine<
 
     // Convert messages to ModelMessage format (handles both UIMessage and ModelMessage input)
     // This ensures consistent internal format regardless of what the client sends
+    this.activities = peelInboundActivities(config.params.messages ?? [])
     this.messages = convertMessagesToModelMessages(config.params.messages)
     this.providerMessages = this.messages
 
@@ -1092,6 +1101,7 @@ class TextEngine<
       accumulatedContent: '',
       // References
       messages: this.messages,
+      activities: this.activities,
       createId: (prefix: string) => this.createId(prefix),
       // Capability bookkeeping for this request (populated by middleware setup)
       capabilities: new CapabilityRegistry(),
@@ -1809,11 +1819,38 @@ class TextEngine<
         // No special handling needed
         break
 
+      case 'ACTIVITY_SNAPSHOT':
+        this.setActivities(
+          applyActivitySnapshotToRecords(
+            this.activities,
+            chunk as Extract<StreamChunk, { type: 'ACTIVITY_SNAPSHOT' }>,
+            interleaveActivityRecords(
+              modelMessagesToUIMessages(this.messages),
+              this.activities,
+            ).length,
+          ),
+        )
+        break
+
+      case 'ACTIVITY_DELTA':
+        this.setActivities(
+          applyActivityDeltaToRecords(
+            this.activities,
+            chunk as Extract<StreamChunk, { type: 'ACTIVITY_DELTA' }>,
+          ),
+        )
+        break
+
       default:
         // RUN_STARTED, TEXT_MESSAGE_END, STATE_SNAPSHOT, STATE_DELTA, CUSTOM
         // - no special handling needed in chat activity
         break
     }
+  }
+
+  private setActivities(activities: Array<ActivityRecord>): void {
+    this.activities = activities
+    this.middlewareCtx.activities = this.activities
   }
 
   // ===========================
@@ -3054,9 +3091,16 @@ class TextEngine<
     return {
       type: EventType.MESSAGES_SNAPSHOT,
       timestamp: Date.now(),
-      messages: uiMessagesToWire(modelMessagesToUIMessages(withIds), {
-        includeSnapshotStructuredOutput: true,
-      }),
+      messages: uiMessagesToWire(
+        interleaveActivityRecords(
+          modelMessagesToUIMessages(withIds),
+          this.activities,
+        ),
+        {
+          includeSnapshotStructuredOutput: true,
+          includeActivity: true,
+        },
+      ),
     }
   }
 
@@ -4334,6 +4378,7 @@ class TextEngine<
   private buildMiddlewareConfig(): ChatMiddlewareConfig {
     return {
       messages: this.messages,
+      activities: this.activities,
       providerMessages: this.messages,
       systemPrompts: [...this.systemPrompts],
       tools: [...this.tools],
@@ -4777,6 +4822,9 @@ class TextEngine<
   private applyMiddlewareConfig(config: ChatMiddlewareConfig): void {
     this.applyResumeToolState(config.resumeToolState)
     this.messages = config.messages
+    if (config.activities !== undefined) {
+      this.setActivities(config.activities)
+    }
     this.providerMessages = config.providerMessages ?? config.messages
     this.systemPrompts = config.systemPrompts
     assertUniqueToolNames(config.tools)

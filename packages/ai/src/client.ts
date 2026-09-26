@@ -368,6 +368,7 @@ export type {
   TextPart,
   TanStackMessageMetadata,
   TanStackRunMetadata,
+  ActivityPart,
   ThinkingPart,
   ToolCall,
   ToolCallPart,

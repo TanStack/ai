@@ -39,6 +39,7 @@ export type {
   ToolCallPart,
   ToolResultPart,
   ThinkingPart,
+  ActivityPart,
   StructuredOutputPart,
   SubagentPart,
   SubagentPartOf,

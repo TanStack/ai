@@ -70,6 +70,10 @@ import type {
   ToolCallState,
   ToolResultState,
 } from './types'
+import {
+  applyActivityDeltaToUIMessages,
+  applyActivitySnapshotToUIMessages,
+} from '../activity-records'
 import type {
   ContentPart,
   Interrupt,
@@ -625,7 +629,7 @@ export class StreamProcessor {
    *
    * Central dispatch for all AG-UI events. Each event type maps to a specific
    * handler. Events not listed in the switch are intentionally ignored
-   * (STEP_STARTED, STATE_SNAPSHOT, STATE_DELTA).
+   * (STATE_SNAPSHOT, STATE_DELTA).
    *
    * @see docs/chat-architecture.md#adapter-contract — Expected event types and ordering
    */
@@ -760,6 +764,18 @@ export class StreamProcessor {
         )
         break
 
+      case 'ACTIVITY_SNAPSHOT':
+        this.handleActivitySnapshotEvent(
+          chunk as Extract<StreamChunk, { type: 'ACTIVITY_SNAPSHOT' }>,
+        )
+        break
+
+      case 'ACTIVITY_DELTA':
+        this.handleActivityDeltaEvent(
+          chunk as Extract<StreamChunk, { type: 'ACTIVITY_DELTA' }>,
+        )
+        break
+
       default:
         // STATE_SNAPSHOT, STATE_DELTA - no special handling needed
         break
@@ -888,9 +904,12 @@ export class StreamProcessor {
 
     // Check if a message with preferredId already exists (reconnect/resume case).
     // Hydrate transient state from the existing message instead of duplicating it.
+    // Activity messages occupy the same id space as text; do not steal their id.
     if (preferredId) {
       const existingMsg = this.messages.find((m) => m.id === preferredId)
-      if (existingMsg) {
+      if (existingMsg?.role === 'activity') {
+        preferredId = undefined
+      } else if (existingMsg) {
         const state = this.createMessageState(preferredId, existingMsg.role)
         this.activeMessageIds.add(preferredId)
 
@@ -1222,6 +1241,11 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_START' }>,
   ): void {
     const { messageId, role } = chunk
+    if (
+      this.messages.some((m) => m.id === messageId && m.role === 'activity')
+    ) {
+      return
+    }
 
     // Map 'tool' and 'developer' roles to 'assistant' for both UIMessage and MessageStreamState
     // (UIMessage doesn't support 'tool'/'developer' role, and lookups like
@@ -1382,13 +1406,40 @@ export class StreamProcessor {
       if (prev?.metadata == null) return msg
       return { ...msg, metadata: prev.metadata }
     })
-    this.messages = this.attachSnapshotSubagents(
-      reconciled,
-      top,
-      groups,
+    this.messages = this.mergeOmittedActivity(
       prevMessages,
+      this.attachSnapshotSubagents(reconciled, top, groups, prevMessages),
     )
     this.emitMessagesChange()
+  }
+
+  /**
+   * Snapshot is authoritative for user/assistant/system. Activity omitted
+   * from the snapshot (TanStack chat() still builds snapshots from
+   * ModelMessage[]) stays in the transcript so persist/reconnect cannot
+   * wipe it. Snapshot activity rows win when the id is present.
+   *
+   * Keep every snapshot row, including two assistants that share an id
+   * (agent-loop retry reuses `currentMessageId`). A Map keyed by id would
+   * drop the earlier error tool-call (#1192).
+   */
+  private mergeOmittedActivity(
+    prevMessages: Array<UIMessage>,
+    snapshot: Array<UIMessage>,
+  ): Array<UIMessage> {
+    const snapshotIds = new Set(snapshot.map((msg) => msg.id))
+    const omitted = prevMessages.filter(
+      (msg) => msg.role === 'activity' && !snapshotIds.has(msg.id),
+    )
+    if (omitted.length === 0) {
+      return snapshot
+    }
+    const out = [...snapshot]
+    for (const activity of omitted) {
+      const prevIndex = prevMessages.findIndex((msg) => msg.id === activity.id)
+      out.splice(Math.min(Math.max(prevIndex, 0), out.length), 0, activity)
+    }
+    return out
   }
 
   /**
@@ -1619,11 +1670,10 @@ export class StreamProcessor {
       }
 
       // Prefer the message that actually contains the matching tool-call
-      // part. AG-UI `reasoning`/`activity` messages also normalize to
-      // `role: 'assistant'`, so anchoring into the nearest assistant alone
-      // could separate a result from its call (and a later
-      // `addToolResult(toolCallId)` would then append a duplicate result
-      // next to the call).
+      // part. AG-UI `reasoning` messages normalize to `role: 'assistant'`,
+      // so anchoring into the nearest assistant alone could separate a
+      // result from its call (and a later `addToolResult(toolCallId)`
+      // would then append a duplicate result next to the call).
       const target =
         reconciled.findLast((m) =>
           m.parts.some(
@@ -1772,6 +1822,13 @@ export class StreamProcessor {
   private handleTextMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
   ): void {
+    if (
+      this.messages.some(
+        (m) => m.id === chunk.messageId && m.role === 'activity',
+      )
+    ) {
+      return
+    }
     const { messageId, state } = this.ensureAssistantMessage(chunk.messageId)
     this.mergeMessageMetadata(messageId, chunk.metadata)
 
@@ -2330,6 +2387,30 @@ export class StreamProcessor {
     // No active message yet — defer until ensureAssistantMessage in
     // REASONING_MESSAGE_CONTENT
     this.pendingThinkingStepId = stepId
+  }
+
+  /**
+   * Handle ACTIVITY_SNAPSHOT. Creates or replaces a frontend-only activity
+   * message. Does not create MessageStreamState (that path feeds
+   * ProcessorResult.content).
+   */
+  private handleActivitySnapshotEvent(
+    chunk: Extract<StreamChunk, { type: 'ACTIVITY_SNAPSHOT' }>,
+  ): void {
+    this.messages = applyActivitySnapshotToUIMessages(this.messages, chunk)
+    this.emitMessagesChange()
+  }
+
+  /**
+   * Handle ACTIVITY_DELTA. Applies RFC 6902 patches to an existing activity
+   * `content`. Missing or non-activity ids are no-ops. Patch failure leaves
+   * the previous content in place.
+   */
+  private handleActivityDeltaEvent(
+    chunk: Extract<StreamChunk, { type: 'ACTIVITY_DELTA' }>,
+  ): void {
+    this.messages = applyActivityDeltaToUIMessages(this.messages, chunk)
+    this.emitMessagesChange()
   }
 
   /**
