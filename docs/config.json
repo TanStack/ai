@@ -801,6 +801,18 @@
       "tab": "guides"
     },
     {
+      "label": "CLI",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "ts-ai CLI",
+          "to": "cli/overview",
+          "addedAt": "2026-06-07",
+          "updatedAt": "2026-09-25"
+        }
+      ]
+    },
+    {
       "label": "Sandboxes",
       "tab": "guides",
       "children": [
