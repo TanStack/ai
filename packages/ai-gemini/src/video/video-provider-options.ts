@@ -195,7 +195,6 @@ export type GeminiVideoModelDurationByName = {
   'veo-3.1-fast-generate-preview': 4 | 6 | 8
   'veo-3.1-lite-generate-preview': 4 | 6 | 8
   'gemini-omni-1.1-flash': number
-  'gemini-omni-flash-preview': number
 }
 
 /**
@@ -222,12 +221,6 @@ export const GEMINI_VIDEO_DURATIONS: {
   'veo-3.1-fast-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
   'veo-3.1-lite-generate-preview': { kind: 'discrete', values: [4, 6, 8] },
   'gemini-omni-1.1-flash': {
-    kind: 'range',
-    min: 3,
-    max: 10,
-    unit: 'seconds',
-  },
-  'gemini-omni-flash-preview': {
     kind: 'range',
     min: 3,
     max: 10,

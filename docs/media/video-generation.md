@@ -652,9 +652,6 @@ const status = await getVideoJobStatus({ adapter, jobId });
 // status.url → 'data:video/mp4;base64,…' once completed
 ```
 
-`gemini-omni-flash-preview` still type-checks as a deprecated alias until
-it shuts down on 2026-09-30. Use `gemini-omni-1.1-flash` in new code.
-
 Image and video prompt parts are sent to the interaction as content blocks,
 grouped as images, then videos, then the text prompt (Omni doesn't use Veo's
 `metadata.role` routing), so you can condition the generation on stills or short
