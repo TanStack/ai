@@ -1,6 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { defineAgent } from '@tanstack/ai'
-import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { chat, defineAgent } from '@tanstack/ai'
+import {
+  createHarnessHost,
+  defineHarness,
+  harnessText,
+} from '@tanstack/ai-harness'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import { createTextAdapter } from '@/lib/providers'
@@ -48,6 +52,23 @@ export const Route = createFileRoute('/api/harness-test')({
         const host = createHarnessHost({ persistence })
         try {
           const session = await host.open(harness, { threadId: 'e2e-thread' })
+          if (body.scenario === 'remote') {
+            // A harness on "another machine": the protocol route of this app,
+            // called over HTTP.
+            const remote = harnessText({
+              url: new URL('/api/harness-protocol', request.url).href,
+              token: 'e2e-token',
+            })
+            let answer = ''
+            for await (const chunk of chat({
+              adapter: remote,
+              messages: [{ role: 'user', content: '[harness-protocol] hello' }],
+              threadId: `remote-${testId ?? 'default'}`,
+            })) {
+              if (chunk.type === 'TEXT_MESSAGE_CONTENT') answer += chunk.delta
+            }
+            return Response.json({ answer })
+          }
           if (body.scenario === 'limits') {
             // The main model calls `worker` twice. The limit allows one.
             let workerRuns = 0

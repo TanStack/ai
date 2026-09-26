@@ -97,7 +97,7 @@ export type {
 } from './http'
 
 export { harnessText } from './harness-text'
-export type { HarnessTextOptions } from './harness-text'
+export type { HarnessTextOptions, RemoteHarness } from './harness-text'
 
 export {
   buildAuthorizationUrl,

@@ -37,6 +37,14 @@
     "./plugins": {
       "types": "./dist/esm/first-party/index.d.ts",
       "import": "./dist/esm/first-party/index.js"
+    },
+    "./build": {
+      "types": "./dist/esm/build.d.ts",
+      "import": "./dist/esm/build.js"
+    },
+    "./worker": {
+      "types": "./dist/esm/worker.d.ts",
+      "import": "./dist/esm/worker.js"
     }
   },
   "scripts": {

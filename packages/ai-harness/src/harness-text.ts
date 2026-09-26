@@ -1,6 +1,7 @@
 import { EventType } from '@tanstack/ai'
 import { createHarnessHost } from './host'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import { isHarnessDefinition } from './define'
 import type { AnyHarness } from './define'
 import type { HarnessHost } from './host'
 
@@ -54,10 +55,145 @@ const FORWARDED = new Set<string>([
  * const stream = chat({ adapter: harnessText(studio), messages, threadId })
  * ```
  */
+/** A harness served by `createHarnessHandler` (or `runCli --serve`) on another machine. */
+export interface RemoteHarness {
+  /** The handler base URL, for example `http://127.0.0.1:8787`. */
+  url: string
+  /** The bearer token. */
+  token?: string
+  fetch?: typeof fetch
+}
+
+const TYPES = {
+  providerOptions: {} as Record<string, unknown>,
+  inputModalities: ['text'] as readonly ['text'],
+  messageMetadataByModality: {
+    text: undefined as unknown,
+    image: undefined as unknown,
+    audio: undefined as unknown,
+    video: undefined as unknown,
+    document: undefined as unknown,
+  },
+  toolCapabilities: [] as ReadonlyArray<string>,
+  toolCallMetadata: undefined as unknown,
+  systemPromptMetadata: undefined as never,
+}
+
+/** Stream the SSE `data:` payloads of a response. */
+async function* sseData(response: Response): AsyncGenerator<unknown> {
+  if (!response.body) return
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const blocks = buffer.split('\n\n')
+    buffer = blocks.pop() ?? ''
+    for (const block of blocks) {
+      const data = block
+        .split('\n')
+        .find((line) => line.startsWith('data: '))
+        ?.slice(6)
+      if (data) yield JSON.parse(data)
+    }
+  }
+}
+
+function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
+  const base = remote.url.replace(/\/$/, '')
+  const doFetch = remote.fetch ?? fetch
+  return {
+    kind: 'text',
+    name: 'harness-remote',
+    model: base,
+    '~types': TYPES,
+    structuredOutput: () =>
+      Promise.reject(
+        new Error('harnessText does not support structured output.'),
+      ),
+    chatStream: (chatOptions) =>
+      (async function* (): AsyncGenerator<StreamChunk> {
+        const threadId = chatOptions.threadId ?? 'default'
+        const runId = chatOptions.runId ?? `harness-${Date.now().toString(36)}`
+        const response = await doFetch(`${base}/run`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(remote.token
+              ? { Authorization: `Bearer ${remote.token}` }
+              : {}),
+          },
+          body: JSON.stringify({
+            threadId,
+            runId,
+            // The remote session keeps its own history, so send the new message only.
+            messages: [
+              {
+                id: `${runId}-user`,
+                role: 'user',
+                content: lastUserText(chatOptions.messages),
+              },
+            ],
+            tools: [],
+            context: [],
+            state: {},
+            forwardedProps: {},
+          }),
+        })
+        if (!response.ok) {
+          throw new Error(
+            `Remote harness failed (${response.status}): ${await response.text()}`,
+          )
+        }
+        yield {
+          type: EventType.RUN_STARTED,
+          runId,
+          threadId,
+          timestamp: Date.now(),
+        }
+        for await (const data of sseData(response)) {
+          if (!isRecord(data) || typeof data.type !== 'string') continue
+          // The handler sends AG-UI chunks over SSE.
+          const chunk = data as StreamChunk
+          if (
+            FORWARDED.has(chunk.type) &&
+            !('subagentRunId' in chunk && chunk.subagentRunId)
+          ) {
+            yield chunk
+          }
+          if (chunk.type === EventType.RUN_ERROR) {
+            yield {
+              type: EventType.RUN_ERROR,
+              message: chunk.message,
+              timestamp: Date.now(),
+            }
+            return
+          }
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          timestamp: Date.now(),
+          metadata: { tanstack: { finishReason: 'stop' } },
+        }
+      })(),
+  }
+}
+
 export function harnessText(
   harness: AnyHarness,
+  options?: HarnessTextOptions,
+): AnyTextAdapter
+export function harnessText(remote: RemoteHarness): AnyTextAdapter
+export function harnessText(
+  target: AnyHarness | RemoteHarness,
   options: HarnessTextOptions = {},
 ): AnyTextAdapter {
+  if (!isHarnessDefinition(target)) return remoteHarnessText(target)
+  const harness = target
   let host = options.host
   return {
     kind: 'text',
