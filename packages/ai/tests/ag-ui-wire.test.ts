@@ -332,7 +332,9 @@ describe('uiMessagesToWire', () => {
         approved: false,
         message: 'User denied this action',
       }),
-      metadata: { tanstack: { toolResult: {} } },
+      metadata: {
+        tanstack: { toolResultOutcome: 'denied', toolResult: {} },
+      },
     })
   })
 
