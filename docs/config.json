@@ -801,6 +801,17 @@
       "tab": "guides"
     },
     {
+      "label": "Harness",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Build your first harness",
+          "to": "harness/overview",
+          "addedAt": "2026-09-26"
+        }
+      ]
+    },
+    {
       "label": "Sandboxes",
       "tab": "guides",
       "children": [

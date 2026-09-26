@@ -1528,6 +1528,69 @@ export function runPersistenceConformance(
       })
     })
 
+    // The inbox is opt-in: only harness hosts read it. A backend without it
+    // skips these cases and needs no `skip` entry.
+    describe('inbox', () => {
+      it('appends idempotently, lists pending oldest first, and settles entries', async (ctx) => {
+        const store = persistence.stores.inbox
+        if (!store) return ctx.skip('inbox store not provided')
+
+        const first = await store.append({
+          inputId: 'in-1',
+          threadId: 'inbox-thread',
+          input: { op: 'prompt', message: 'hi' },
+          createdAt: 1,
+        })
+        expect(first.status).toBe('pending')
+        // Same id again: the stored entry wins, the new payload is ignored.
+        const again = await store.append({
+          inputId: 'in-1',
+          threadId: 'inbox-thread',
+          input: { op: 'prompt', message: 'changed' },
+          createdAt: 5,
+        })
+        expect(again.input).toEqual({ op: 'prompt', message: 'hi' })
+
+        await store.append({
+          inputId: 'in-2',
+          threadId: 'inbox-thread',
+          principal: { id: 'user-1' },
+          input: { op: 'steer', message: 'shorter' },
+          createdAt: 2,
+        })
+        await store.append({
+          inputId: 'in-other',
+          threadId: 'other-thread',
+          input: { op: 'prompt', message: 'x' },
+          createdAt: 0,
+        })
+
+        expect(
+          (await store.listPending('inbox-thread')).map(
+            (entry) => entry.inputId,
+          ),
+        ).toEqual(['in-1', 'in-2'])
+
+        await store.markApplied('in-1', 'op-1')
+        await store.markRejected('in-2', 'busy')
+        expect(await store.listPending('inbox-thread')).toEqual([])
+        expect(await store.get('in-1')).toMatchObject({
+          status: 'applied',
+          operationId: 'op-1',
+        })
+        expect(await store.get('in-2')).toMatchObject({
+          status: 'rejected',
+          reason: 'busy',
+          principal: { id: 'user-1' },
+        })
+
+        // Unknown ids are no-ops.
+        await store.markApplied('missing', 'op-x')
+        await store.markRejected('missing', 'nope')
+        expect(await store.get('missing')).toBeNull()
+      })
+    })
+
     describe('metadata', () => {
       it('sets, gets, namespaces, and deletes without composite-key collisions', async (ctx) => {
         const store = resolveStore('metadata')

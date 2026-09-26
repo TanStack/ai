@@ -1,0 +1,80 @@
+import { createFileRoute } from '@tanstack/react-router'
+import { defineAgent } from '@tanstack/ai'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+import { z } from 'zod'
+import { createTextAdapter } from '@/lib/providers'
+
+/**
+ * Harness session. The main model and the agent are real OpenAI adapters
+ * against aimock.
+ *
+ * - `turns`: two prompts sent back to back. The second waits for the first,
+ *   then runs with the first turn in its history.
+ * - `agent`: `pricer` runs from code with typed input. Its result goes into
+ *   the transcript, then a prompt runs.
+ */
+export const Route = createFileRoute('/api/harness-test')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body = (await request.json()) as {
+          scenario?: string
+          testId?: string
+          aimockPort?: number
+        }
+        const testId = body.testId
+        const aimockPort = body.aimockPort
+        const openai = () =>
+          createTextAdapter('openai', undefined, aimockPort, testId).adapter
+
+        const pricer = defineAgent({
+          name: 'pricer',
+          description: 'Prices one vendor',
+          inputSchema: z.object({ task: z.string() }),
+          run: (ctx) =>
+            ctx.chat({
+              adapter: openai(),
+              messages: [{ role: 'user', content: ctx.input.task }],
+              stream: false,
+            }),
+        })
+        const harness = defineHarness({
+          name: 'e2e/harness',
+          adapter: openai(),
+          agents: [pricer],
+        })
+        const persistence = memoryPersistence()
+        const host = createHarnessHost({ persistence })
+        try {
+          const session = await host.open(harness, { threadId: 'e2e-thread' })
+          if (body.scenario === 'agent') {
+            const result = await session.agents.pricer.run({
+              task: '[harness-agent] price vendor a',
+            })
+            const turn = await session.prompt(
+              '[harness-agent] what did it cost?',
+            )
+            return Response.json({ result, text: turn.text })
+          }
+          const first = session.prompt('[harness-turns] first')
+          const second = session.prompt('[harness-turns] second')
+          const texts = [(await first).text, (await second).text]
+          const saved =
+            await persistence.stores.messages.loadThread('e2e-thread')
+          return Response.json({
+            texts,
+            roles: saved.map((message) => message.role),
+          })
+        } catch (error) {
+          return Response.json(
+            { error: error instanceof Error ? error.message : String(error) },
+            { status: 500 },
+          )
+        } finally {
+          await host.close()
+        }
+      },
+    },
+  },
+})

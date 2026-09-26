@@ -9,6 +9,7 @@ export {
   defineGenerationRunStore,
   defineArtifactStore,
   defineBlobStore,
+  defineInboxStore,
   // Run lifecycle helpers owned by @tanstack/ai, transiting through ./types so
   // this package's public surface stays a single import for backend authors.
   isTerminalRunStatus,
@@ -25,6 +26,10 @@ export type {
   InterruptStatus,
   InterruptStore,
   MetadataStore,
+  // Harness session inbox
+  InboxEntry,
+  InboxStatus,
+  InboxStore,
   // Named product shapes (prefer these over a sparse bag)
   ChatTranscriptStores,
   ChatPersistenceStores,

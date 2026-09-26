@@ -97,6 +97,7 @@ import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wi
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
+import { Route as ApiHarnessTestRouteImport } from './routes/api.harness-test'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
 import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
 import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
@@ -585,6 +586,11 @@ const ApiImageRoute = ApiImageRouteImport.update({
   path: '/api/image',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHarnessTestRoute = ApiHarnessTestRouteImport.update({
+  id: '/api/harness-test',
+  path: '/api/harness-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGenerationPersistenceServerRoute =
   ApiGenerationPersistenceServerRouteImport.update({
     id: '/api/generation-persistence-server',
@@ -795,6 +801,7 @@ export interface FileRoutesByFullPath {
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
+  '/api/harness-test': typeof ApiHarnessTestRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -914,6 +921,7 @@ export interface FileRoutesByTo {
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
+  '/api/harness-test': typeof ApiHarnessTestRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1034,6 +1042,7 @@ export interface FileRoutesById {
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
+  '/api/harness-test': typeof ApiHarnessTestRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1155,6 +1164,7 @@ export interface FileRouteTypes {
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
+    | '/api/harness-test'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -1274,6 +1284,7 @@ export interface FileRouteTypes {
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
+    | '/api/harness-test'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -1393,6 +1404,7 @@ export interface FileRouteTypes {
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
+    | '/api/harness-test'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -1513,6 +1525,7 @@ export interface RootRouteChildren {
   ApiGeminiNativeImageWireRoute: typeof ApiGeminiNativeImageWireRoute
   ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
+  ApiHarnessTestRoute: typeof ApiHarnessTestRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
@@ -2190,6 +2203,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/harness-test': {
+      id: '/api/harness-test'
+      path: '/api/harness-test'
+      fullPath: '/api/harness-test'
+      preLoaderRoute: typeof ApiHarnessTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/generation-persistence-server': {
       id: '/api/generation-persistence-server'
       path: '/api/generation-persistence-server'
@@ -2511,6 +2531,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGeminiNativeImageWireRoute: ApiGeminiNativeImageWireRoute,
   ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
+  ApiHarnessTestRoute: ApiHarnessTestRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
