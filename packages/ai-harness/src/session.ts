@@ -6,6 +6,7 @@ import {
   compactForModel,
   convertSchemaToJsonSchema,
   createSubagentId,
+  maxIterations,
   runAgentStream,
   validateWithStandardSchema,
 } from '@tanstack/ai'
@@ -24,6 +25,7 @@ import {
 import { HARNESS_EVENTS } from './types'
 import type {
   AnyChatMiddleware,
+  AnyTool,
   Interrupt,
   ModelMessage,
   RunAgentResumeItem,
@@ -906,6 +908,36 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     })
   }
 
+  /**
+   * Ask each plugin for the tools it found since the last turn. A plugin
+   * that fails (for example an MCP server that is down) is skipped, and
+   * clients get a `harness.plugin.warning` event.
+   */
+  private async discoverTools(
+    discoverers: MountedPlugins['discoverers'],
+    taken: Set<string>,
+    operation: OperationImpl<ChatTurnResult>,
+  ): Promise<Array<AnyTool>> {
+    const found: Array<AnyTool> = []
+    for (const { discover, owner } of discoverers) {
+      try {
+        for (const tool of await discover()) {
+          if (taken.has(tool.name)) continue
+          taken.add(tool.name)
+          found.push(tool)
+        }
+      } catch (error) {
+        operation.publish(
+          customEvent('harness.plugin.warning', {
+            plugin: owner,
+            message: error instanceof Error ? error.message : String(error),
+          }),
+        )
+      }
+    }
+    return found
+  }
+
   /** Middleware that adds queued steer messages before each model call. */
   private steering(): AnyChatMiddleware {
     return {
@@ -1017,6 +1049,16 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         .at(-1)
       const resolvePrompt = (prompt: string | (() => string)) =>
         typeof prompt === 'function' ? prompt() : prompt
+      const staticTools = [
+        ...(this.harness.tools ?? []),
+        ...(session?.tools ?? []),
+        ...(runPlugins?.tools ?? []),
+      ]
+      const discovered = await this.discoverTools(
+        [...(session?.discoverers ?? []), ...(runPlugins?.discoverers ?? [])],
+        new Set(staticTools.map((tool) => tool.name)),
+        operation,
+      )
       const stream = chat({
         adapter: picked ?? this.harness.adapter,
         messages:
@@ -1029,11 +1071,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             .map(resolvePrompt)
             .filter((prompt) => prompt !== ''),
         ],
-        tools: [
-          ...(this.harness.tools ?? []),
-          ...(session?.tools ?? []),
-          ...(runPlugins?.tools ?? []),
-        ],
+        tools: [...staticTools, ...discovered],
         middleware: [
           ...bridges,
           withPersistence(this.persistence),
@@ -1052,9 +1090,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
               },
             }
           : {}),
-        ...(this.harness.agentLoopStrategy
-          ? { agentLoopStrategy: this.harness.agentLoopStrategy }
-          : {}),
+        // chat() stops after 5 model calls by default. An agent that reads,
+        // searches, and calls tools needs more before it can answer.
+        agentLoopStrategy: this.harness.agentLoopStrategy ?? maxIterations(50),
         ...(this.harness.modelOptions !== undefined
           ? { modelOptions: this.harness.modelOptions }
           : {}),

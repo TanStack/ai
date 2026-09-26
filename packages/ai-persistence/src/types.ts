@@ -425,6 +425,11 @@ export type Credential =
       refreshToken?: string
       expiresAt?: number
       scopes?: Array<string>
+      /**
+       * The OAuth client these tokens belong to (for example one made by
+       * dynamic client registration). A refresh needs it.
+       */
+      client?: { clientId: string; clientSecret?: string; redirectUri?: string }
     }
 
 /**

@@ -840,6 +840,11 @@
           "addedAt": "2026-09-26"
         },
         {
+          "label": "Use MCP servers",
+          "to": "harness/mcp",
+          "addedAt": "2026-09-26"
+        },
+        {
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-09-26"

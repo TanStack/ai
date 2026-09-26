@@ -11,12 +11,16 @@ import {
   workspaceTools,
 } from '@tanstack/ai-harness/plugins'
 import { anthropicText } from '@tanstack/ai-anthropic'
-import { openaiText } from '@tanstack/ai-openai'
+import { mcpConnector } from '@tanstack/ai-mcp/connector'
+import { grokVideo } from '@tanstack/ai-grok'
+import { openaiText, openaiVideo } from '@tanstack/ai-openai'
 import { z } from 'zod'
+import { imageAgent, videoAgent } from './media'
 import type { AnyTextAdapter } from '@tanstack/ai'
 
 // The agent works in ./playground, so it cannot touch the rest of your disk.
 const root = fileURLToPath(new URL('../playground', import.meta.url))
+const mediaDir = fileURLToPath(new URL('../playground/media', import.meta.url))
 
 /** Without an API key, a stand-in model that explains how to add one. */
 function demoModel(): AnyTextAdapter {
@@ -116,15 +120,46 @@ const haiku = defineAgent({
     }),
 })
 
+// The model calls the media agents as tools. Images use OpenAI. Videos use
+// Grok Imagine when XAI_API_KEY is set, else OpenAI Sora.
+const media = process.env.OPENAI_API_KEY
+  ? [
+      imageAgent(mediaDir),
+      videoAgent(
+        mediaDir,
+        process.env.XAI_API_KEY
+          ? grokVideo('grok-imagine-video')
+          : openaiVideo('sora-2'),
+      ),
+    ]
+  : []
+
+// Notion and Linear through their MCP servers. `/connect notion` signs in
+// through the browser. No app setup or API key is needed.
+const notion = mcpConnector({
+  id: 'notion',
+  label: 'Notion',
+  url: 'https://mcp.notion.com/mcp',
+})
+const linear = mcpConnector({
+  id: 'linear',
+  label: 'Linear',
+  url: 'https://mcp.linear.app/mcp',
+})
+
 export const assistant = defineHarness({
   name: 'example/coder',
   description: 'A small coding agent that works in ./playground',
   adapter: main,
   systemPrompts: [
     'You are a careful coding agent. Read files before you edit them. Keep answers short.',
+    'You can read Notion and Linear when they are connected, and make images and videos with the image and video tools. Media files are saved under ./playground/media.',
   ],
   agents: [haiku],
+  subagents: { agents: media },
   plugins: () => [
+    notion,
+    linear,
     permissions(),
     workspaceTools({ root }),
     todos(),

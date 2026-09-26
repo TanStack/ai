@@ -159,6 +159,68 @@ const DONE_PAGE =
   '<!doctype html><title>Signed in</title><p>You are signed in. You can close this tab.</p>'
 
 /**
+ * A one-time receiver for an OAuth redirect on `127.0.0.1` (RFC 8252). Use it
+ * when another library runs the OAuth flow and you only need the code back:
+ * register `redirectUri`, send the user to the authorization URL, then await
+ * `waitForCode(state)`. It answers one callback, then stops listening.
+ */
+export async function startLoopbackReceiver(
+  options: { timeoutMs?: number } = {},
+): Promise<{
+  redirectUri: string
+  waitForCode: (state: string) => Promise<string>
+  close: () => void
+}> {
+  const { createServer } = await import('node:http')
+  const server = createServer()
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+  const address = server.address()
+  const port = typeof address === 'object' && address ? address.port : 0
+  const redirectUri = `http://127.0.0.1:${port}/callback`
+  const close = () => {
+    server.closeAllConnections()
+    server.close()
+  }
+  return {
+    redirectUri,
+    close,
+    waitForCode: (state) =>
+      new Promise<string>((resolve, reject) => {
+        const timer = setTimeout(
+          () => {
+            close()
+            reject(new Error('Sign-in timed out.'))
+          },
+          options.timeoutMs ?? 10 * 60_000,
+        )
+        server.on('request', (req, res) => {
+          const url = new URL(req.url ?? '/', redirectUri)
+          if (url.pathname !== '/callback') {
+            res.writeHead(404).end()
+            return
+          }
+          clearTimeout(timer)
+          res.writeHead(200, { 'Content-Type': 'text/html' }).end(DONE_PAGE)
+          close()
+          const code = url.searchParams.get('code')
+          if (url.searchParams.get('state') !== state) {
+            reject(new Error('Sign-in failed: the state does not match.'))
+          } else if (!code) {
+            reject(
+              new Error(
+                `Sign-in failed: ${url.searchParams.get('error') ?? 'no code'}`,
+              ),
+            )
+          } else resolve(code)
+        })
+      }),
+  }
+}
+
+/**
  * Sign in through the browser with a loopback redirect (RFC 8252 + PKCE).
  * Listens on `127.0.0.1` on a random port, for one callback only. Calls
  * `onUrl` with the URL to open. Resolves with the tokens.

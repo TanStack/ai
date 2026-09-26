@@ -107,6 +107,7 @@ export {
   isExpired,
   loopbackLogin,
   refreshCredential,
+  startLoopbackReceiver,
 } from './oauth'
 export type { OAuthConfig } from './oauth'
 
