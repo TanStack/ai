@@ -241,7 +241,7 @@ The PR template lists the steps. The `Test plan` section is required — describ
 
 ### Automated Grok review
 
-A Grok agent comments on open, non-draft PRs. The first lines of that comment say it is automated. It is not a maintainer review.
+A Grok agent reviews non-draft PRs into `main` automatically when they open or sync. The first lines of the bot's comment say it is automated. It is not a maintainer review.
 
 The bot sets exactly one of these labels:
 
@@ -251,7 +251,9 @@ The bot sets exactly one of these labels:
 
 The bot never GitHub-approves and never merges. The `ready-to-merge` label still means a human approval plus green CI.
 
-If the bot pushes, it only commits bugs and suggestions the review listed. Maintainers start a new run with a `/ai-review` comment, or from Actions (`workflow_dispatch`).
+If the bot pushes, it only commits bugs and suggestions the review listed. Roster maintainers can request one run by writing `/ai-review`. Anyone with write access can use Actions (`workflow_dispatch`) on `main`. For a first-time fork contributor, GitHub holds the automatic run. A maintainer writes `/ai-review`, and the bot approves the waiting checks after a clean scan.
+
+The bot checks the PR before Grok starts. It blocks sensitive automation, agent instructions, symlinks, binary files, new executable files, new dependencies, lockfile changes, and incomplete patches. A blocked PR gets a bot comment with the reasons and no verdict label. Grok runs in a disposable Docker container without the bot's GitHub token. The host validates Grok's patch before it applies or pushes any edit.
 
 ## Adding a new provider adapter
 

@@ -40,9 +40,9 @@ importers:
       '@tanstack/ai-sandbox':
         specifier: workspace:*
         version: link:packages/ai-sandbox
-      '@tanstack/ai-sandbox-local-process':
+      '@tanstack/ai-sandbox-docker':
         specifier: workspace:*
-        version: link:packages/ai-sandbox-local-process
+        version: link:packages/ai-sandbox-docker
       '@tanstack/typedoc-config':
         specifier: 0.3.4
         version: 0.3.4

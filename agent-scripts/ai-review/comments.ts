@@ -68,6 +68,25 @@ export function buildReviewComment(input: {
   ].join('\n')
 }
 
+/** Comment for a PR the host check blocked. It carries no verdict and no label. */
+export function buildBlockedComment(input: {
+  headSha: string
+  reasons: Array<string>
+}) {
+  return [
+    'This comment is automated by a Grok agent. It is not a maintainer review.',
+    '',
+    '**Verdict:** none. The security check blocked this review.',
+    `**Head SHA:** ${input.headSha}`,
+    '',
+    '**Security**',
+    ...input.reasons.map((reason) => `- ${reason}`),
+    '',
+    'A maintainer must review this pull request by hand.',
+    COMMENT_MARKER,
+  ].join('\n')
+}
+
 export async function upsertReviewComment(
   client: GitHubClient,
   repo: string,
@@ -76,7 +95,8 @@ export async function upsertReviewComment(
   machineUserLogin: string,
 ) {
   const listPath = `/repos/${repo}/issues/${issueNumber}/comments`
-  const list = await client.rest('GET', listPath)
+  // ponytail: first 100 comments only. Paginate if a PR ever passes that.
+  const list = await client.rest('GET', `${listPath}?per_page=100`)
   if (!Array.isArray(list)) {
     throw new Error(`GitHub GET ${listPath} did not return an array`)
   }

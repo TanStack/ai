@@ -11,7 +11,7 @@ export const SECURE_LABEL = {
 } as const
 
 function errorMentionsStatus(error: unknown, status: string) {
-  return error instanceof Error && error.message.includes(status)
+  return error instanceof Error && error.message.includes(`HTTP ${status}:`)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1,5 +1,6 @@
 /**
- * Load pull request metadata and changed files from GitHub REST.
+ * Load and validate pull request metadata from GitHub REST. Changed files
+ * come from the Git snapshot in `git.ts`.
  */
 
 import type { GitHubClient } from '../../scripts/maintainer/github.ts'
@@ -34,7 +35,9 @@ function parseLabelNames(labels: unknown, path: string) {
 
 function parseHead(head: unknown, path: string) {
   if (!isRecord(head)) fail(path, 'is missing head')
-  if (typeof head.sha !== 'string') fail(path, 'is missing head.sha')
+  if (typeof head.sha !== 'string' || !/^[0-9a-f]{40}$/i.test(head.sha)) {
+    fail(path, 'is missing a valid head.sha')
+  }
   if (typeof head.ref !== 'string') fail(path, 'is missing head.ref')
   if (!isRecord(head.repo)) fail(path, 'is missing head.repo')
   if (typeof head.repo.full_name !== 'string') {
@@ -45,6 +48,17 @@ function parseHead(head: unknown, path: string) {
     ref: head.ref,
     repo: head.repo.full_name,
   }
+}
+
+function parseBase(base: unknown, path: string) {
+  if (!isRecord(base)) fail(path, 'is missing base')
+  if (typeof base.sha !== 'string' || !/^[0-9a-f]{40}$/i.test(base.sha)) {
+    fail(path, 'is missing a valid base.sha')
+  }
+  if (typeof base.ref !== 'string') fail(path, 'is missing base.ref')
+  if (!isRecord(base.repo) || typeof base.repo.full_name !== 'string')
+    fail(path, 'is missing base.repo.full_name')
+  return { sha: base.sha, ref: base.ref, repo: base.repo.full_name }
 }
 
 function parsePull(raw: unknown, path: string) {
@@ -60,6 +74,7 @@ function parsePull(raw: unknown, path: string) {
     fail(path, 'is missing maintainer_can_modify')
   }
   const head = parseHead(raw.head, path)
+  const base = parseBase(raw.base, path)
   return {
     number: raw.number,
     title: raw.title,
@@ -67,6 +82,10 @@ function parsePull(raw: unknown, path: string) {
     htmlUrl: raw.html_url,
     isDraft: raw.draft,
     authorLogin: parseAuthorLogin(raw.user, path),
+    baseSha: base.sha,
+    baseRef: base.ref,
+    baseRepo: base.repo,
+    state: raw.state,
     headSha: head.sha,
     headRef: head.ref,
     headRepo: head.repo,
@@ -75,75 +94,7 @@ function parsePull(raw: unknown, path: string) {
   }
 }
 
-function parseFiles(raw: unknown, path: string) {
-  if (!Array.isArray(raw)) fail(path, 'did not return an array')
-  const files = []
-  for (const item of raw) {
-    if (!isRecord(item) || typeof item.filename !== 'string') {
-      fail(path, 'has a file without filename')
-    }
-    const patch = typeof item.patch === 'string' ? item.patch : null
-    files.push({ path: item.filename, patch })
-  }
-  return files
-}
-
-/**
- * List changed files for a pull request.
- *
- * `patch` is null when GitHub omits it (binary or too large).
- *
- * @param client GitHub REST client
- * @param repo owner/name, for example `TanStack/ai`
- * @param number pull request number
- */
-export async function fetchPullRequestFiles(
-  client: GitHubClient,
-  repo: string,
-  number: number,
-) {
-  const perPage = 100
-  const all = []
-  let page = 1
-  while (true) {
-    const path = `/repos/${repo}/pulls/${number}/files?per_page=${perPage}&page=${page}`
-    const batch = parseFiles(await client.rest('GET', path), path)
-    all.push(...batch)
-    if (batch.length < perPage) break
-    page += 1
-  }
-  return all
-}
-
-/**
- * Unified-ish diff from each file's `patch` field.
- *
- * @param client GitHub REST client
- * @param repo owner/name, for example `TanStack/ai`
- * @param number pull request number
- */
-export async function fetchPullRequestDiff(
-  client: GitHubClient,
-  repo: string,
-  number: number,
-) {
-  // ponytail: GitHubClient always Accepts JSON, so the diff is files[].patch joined
-  const files = await fetchPullRequestFiles(client, repo, number)
-  const parts = []
-  for (const file of files) {
-    if (file.patch === null) continue
-    parts.push(`--- a/${file.path}\n${file.patch}`)
-  }
-  return parts.join('\n')
-}
-
-/**
- * Load pull request metadata and changed files.
- *
- * @param client GitHub REST client
- * @param repo owner/name, for example `TanStack/ai`
- * @param number pull request number
- */
+/** Load pull metadata. Changed files come only from the fixed Git snapshot. */
 export async function fetchPullRequest(
   client: GitHubClient,
   repo: string,
@@ -151,6 +102,5 @@ export async function fetchPullRequest(
 ) {
   const path = `/repos/${repo}/pulls/${number}`
   const pull = parsePull(await client.rest('GET', path), path)
-  const files = await fetchPullRequestFiles(client, repo, number)
-  return { ...pull, files }
+  return pull
 }
