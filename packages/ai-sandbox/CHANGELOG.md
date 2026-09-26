@@ -1,5 +1,18 @@
 # @tanstack/ai-sandbox
 
+## 0.5.16
+
+### Patch Changes
+
+- [#1498](https://github.com/TanStack/ai/pull/1498) [`f8dbede`](https://github.com/TanStack/ai/commit/f8dbede7f85e6dd44e3d68e514f550c661feb28d) - Keep the sandbox when a run pauses at an interrupt, a client-tool wait, or an approval wait. `withSandbox` no longer takes the `after-run` snapshot or runs `destroyOnComplete` at the pause. It does these when the run completes.
+
+- [#1491](https://github.com/TanStack/ai/pull/1491) [`cd5aaaf`](https://github.com/TanStack/ai/commit/cd5aaaf91db56bc823ff99cf75c538f7e0a13c3f) - Leave the Git source token out of the workspace hash. A new token for `gitSource({ auth: { token } })` (for example, an hourly GitHub App token) no longer changes the sandbox key, so `reuse: 'thread'` finds the same sandbox again. The URL, ref, depth, and username still change the key.
+
+- Updated dependencies [[`a450d00`](https://github.com/TanStack/ai/commit/a450d007a039610994342dd9c3387f880a4eb992), [`c54e20c`](https://github.com/TanStack/ai/commit/c54e20cf5be8e1f73e0be661e242391fa0e4633e), [`a56192e`](https://github.com/TanStack/ai/commit/a56192eafa0da2ccca2d576dc4371b196355c605), [`740ae66`](https://github.com/TanStack/ai/commit/740ae6664d358f00deddf72319ef947fe3bb0935), [`5099a32`](https://github.com/TanStack/ai/commit/5099a32cbfb6c77e335769793415fe7e90bb17d8), [`820429f`](https://github.com/TanStack/ai/commit/820429fa9bea8ba220cf073406760475ac07b112), [`0abae97`](https://github.com/TanStack/ai/commit/0abae97f94fe4d37523f8a6427972ae7fe3b7fde), [`8c68c2d`](https://github.com/TanStack/ai/commit/8c68c2d9750bcc818201089bbbb7d90aa26d99a1)]:
+  - @tanstack/ai@0.62.0
+  - @tanstack/ai-persistence@0.7.0
+  - @tanstack/ai-skills@0.1.12
+
 ## 0.5.15
 
 ### Patch Changes
