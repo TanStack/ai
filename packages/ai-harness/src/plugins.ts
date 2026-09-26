@@ -68,6 +68,15 @@ export interface PluginContributions {
    * name that another tool already uses is skipped.
    */
   discoverTools?: () => ReadonlyArray<AnyTool> | Promise<ReadonlyArray<AnyTool>>
+  /**
+   * Change the tool list of a turn: every tool the model gets, after
+   * `discoverTools`. Return the new list. Runs before prompts resolve, so a
+   * prompt `text()` can describe the tools this returned. Code mode uses it to
+   * move tools behind `execute_typescript`.
+   */
+  prepareTools?: (
+    tools: ReadonlyArray<AnyTool>,
+  ) => ReadonlyArray<AnyTool> | Promise<ReadonlyArray<AnyTool>>
 }
 
 /** Plugin state that survives restarts, stored in the metadata store. */
@@ -246,6 +255,10 @@ export interface MountedPlugins {
   adapters: Array<() => AnyTextAdapter | undefined>
   discoverers: Array<{
     discover: () => ReadonlyArray<AnyTool> | Promise<ReadonlyArray<AnyTool>>
+    owner: string
+  }>
+  preparers: Array<{
+    prepare: NonNullable<PluginContributions['prepareTools']>
     owner: string
   }>
   /** Who contributed what, for `session.inspect()`. */
@@ -431,6 +444,7 @@ export async function mountPlugins(
   }
   const adapters: Array<() => AnyTextAdapter | undefined> = []
   const discoverers: MountedPlugins['discoverers'] = []
+  const preparers: MountedPlugins['preparers'] = []
   const services = env.services ?? NO_SERVICES
 
   try {
@@ -567,6 +581,12 @@ export async function mountPlugins(
           owner: plugin.name,
         })
       }
+      if (contributions.prepareTools) {
+        preparers.push({
+          prepare: contributions.prepareTools,
+          owner: plugin.name,
+        })
+      }
       for (const agent of contributions.agents ?? []) {
         env.registry.add(agent, plugin.name)
       }
@@ -620,6 +640,7 @@ export async function mountPlugins(
     extensions,
     adapters,
     discoverers,
+    preparers,
     owners: {
       plugins: plugins.map((plugin) => ({
         name: plugin.name,

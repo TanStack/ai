@@ -845,6 +845,11 @@
           "addedAt": "2026-09-26"
         },
         {
+          "label": "Code mode in a harness",
+          "to": "harness/code-mode",
+          "addedAt": "2026-09-26"
+        },
+        {
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-09-26"

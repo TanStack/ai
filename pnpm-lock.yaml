@@ -185,6 +185,9 @@ importers:
       '@tanstack/ai-anthropic':
         specifier: workspace:*
         version: link:../../packages/ai-anthropic
+      '@tanstack/ai-code-mode':
+        specifier: workspace:*
+        version: link:../../packages/ai-code-mode
       '@tanstack/ai-dashboard':
         specifier: workspace:*
         version: link:../../packages/ai-dashboard
@@ -197,6 +200,9 @@ importers:
       '@tanstack/ai-harness-cli':
         specifier: workspace:*
         version: link:../../packages/ai-harness-cli
+      '@tanstack/ai-isolate-quickjs':
+        specifier: workspace:*
+        version: link:../../packages/ai-isolate-quickjs
       '@tanstack/ai-mcp':
         specifier: workspace:*
         version: link:../../packages/ai-mcp
@@ -2254,6 +2260,12 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/ai-harness':
+        specifier: workspace:*
+        version: link:../ai-harness
+      '@tanstack/ai-persistence':
+        specifier: workspace:*
+        version: link:../ai-persistence
       '@vitest/coverage-v8':
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.11)

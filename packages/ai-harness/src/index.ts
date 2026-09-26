@@ -21,6 +21,14 @@ export type {
 } from './plugins'
 
 export { createExtensionPoint, createPluginEvent } from './extensions'
+// Portable (no Node imports), so edge-safe plugins such as code mode can read
+// the permission rules without the Node-only `./plugins` entry.
+export { PermissionRules, decidePermission } from './first-party/permissions'
+export type {
+  PermissionDecision,
+  PermissionMode,
+  PermissionRule,
+} from './first-party/permissions'
 export type { ExtensionItem, ExtensionPoint, PluginEvent } from './extensions'
 
 export { checkConfigValue, configOption } from './config'
