@@ -951,6 +951,11 @@
           "label": "Self-host the dashboard",
           "to": "harness/dashboard",
           "addedAt": "2026-09-26"
+        },
+        {
+          "label": "Stream a harness over AG-UI",
+          "to": "harness/ag-ui",
+          "addedAt": "2026-09-26"
         }
       ]
     },
