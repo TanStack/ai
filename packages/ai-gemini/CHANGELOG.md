@@ -1,5 +1,16 @@
 # @tanstack/ai-gemini
 
+## 0.34.0
+
+### Minor Changes
+
+- [#1376](https://github.com/TanStack/ai/pull/1376) [`740ae66`](https://github.com/TanStack/ai/commit/740ae6664d358f00deddf72319ef947fe3bb0935) - Preserve source links for hosted web search calls. OpenAI Responses `web_search_call` items and Gemini Google Search grounding now surface as provider-executed tool calls with a normalized `metadata.sources` array (new `ProviderExecutedToolSource` type) and the raw provider data under `metadata.openai` / `metadata.gemini`. The OpenAI adapter requests `web_search_call.action.sources` when a branded web search tool is used, and both adapters replay the raw items on the next turn instead of treating them as function calls.
+
+### Patch Changes
+
+- Updated dependencies [[`a450d00`](https://github.com/TanStack/ai/commit/a450d007a039610994342dd9c3387f880a4eb992), [`c54e20c`](https://github.com/TanStack/ai/commit/c54e20cf5be8e1f73e0be661e242391fa0e4633e), [`a56192e`](https://github.com/TanStack/ai/commit/a56192eafa0da2ccca2d576dc4371b196355c605), [`740ae66`](https://github.com/TanStack/ai/commit/740ae6664d358f00deddf72319ef947fe3bb0935), [`5099a32`](https://github.com/TanStack/ai/commit/5099a32cbfb6c77e335769793415fe7e90bb17d8), [`820429f`](https://github.com/TanStack/ai/commit/820429fa9bea8ba220cf073406760475ac07b112), [`0abae97`](https://github.com/TanStack/ai/commit/0abae97f94fe4d37523f8a6427972ae7fe3b7fde), [`8c68c2d`](https://github.com/TanStack/ai/commit/8c68c2d9750bcc818201089bbbb7d90aa26d99a1)]:
+  - @tanstack/ai@0.62.0
+
 ## 0.33.1
 
 ### Patch Changes
