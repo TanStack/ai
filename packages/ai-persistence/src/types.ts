@@ -368,6 +368,53 @@ export function defineInterruptStore(store: InterruptStore): InterruptStore {
 export function defineMetadataStore(store: MetadataStore): MetadataStore {
   return store
 }
+
+/** Lifecycle of one inbox entry. */
+export type InboxStatus = 'pending' | 'applied' | 'rejected' | 'expired'
+
+/**
+ * One input a client sent to a harness session (a prompt, a steer message, a
+ * follow-up, an interrupt answer, an agent run, a command). Written before the
+ * session answers with a receipt, so an accepted input survives a crash.
+ */
+export interface InboxEntry {
+  /** Idempotency key. A second append with the same id is a no-op. */
+  inputId: string
+  threadId: string
+  /** Who sent it, from the host's `authorize`. */
+  principal?: { id: string }
+  /** The input itself. Storage holds it as-is. The harness validates it. */
+  input: unknown
+  status: InboxStatus
+  createdAt: number
+  expiresAt?: number
+  /** The operation that applied the input. */
+  operationId?: string
+  /** Why the input was rejected. */
+  reason?: string
+}
+
+/** Durable store for harness session inputs. */
+export interface InboxStore {
+  /**
+   * Store a new entry as `'pending'`, or return the existing entry unchanged
+   * when `inputId` is already present.
+   */
+  append: (entry: Omit<InboxEntry, 'status'>) => Promise<InboxEntry>
+  /** Pending entries of a thread, oldest first. */
+  listPending: (threadId: string) => Promise<Array<InboxEntry>>
+  /** Mark an entry applied by `operationId`. A no-op for an unknown id. */
+  markApplied: (inputId: string, operationId: string) => Promise<void>
+  /** Mark an entry rejected with `reason`. A no-op for an unknown id. */
+  markRejected: (inputId: string, reason: string) => Promise<void>
+  /** The entry for `inputId`, or `null`. */
+  get: (inputId: string) => Promise<InboxEntry | null>
+}
+
+/** Type an {@link InboxStore} implementation inline. */
+export function defineInboxStore(store: InboxStore): InboxStore {
+  return store
+}
 /** Type a {@link GenerationRunStore} implementation inline. */
 export function defineGenerationRunStore(
   store: GenerationRunStore,
@@ -620,6 +667,8 @@ export interface AIPersistenceStores {
   generationRuns?: GenerationRunStore
   artifacts?: ArtifactStore
   blobs?: BlobStore
+  /** Harness session inputs. Optional: only harness hosts read it. */
+  inbox?: InboxStore
 }
 
 /**
@@ -795,6 +844,7 @@ const storeKeys = [
   'metadata',
   'artifacts',
   'blobs',
+  'inbox',
 ] satisfies Array<StoreKey>
 
 const storeKeySet = new Set<string>(storeKeys)

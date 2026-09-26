@@ -1,0 +1,20 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[harness-turns] first" },
+      "response": { "content": "First answer." }
+    },
+    {
+      "match": { "userMessage": "[harness-turns] second" },
+      "response": { "content": "Second answer." }
+    },
+    {
+      "match": { "userMessage": "[harness-agent] price vendor a" },
+      "response": { "content": "Vendor A costs 12 dollars." }
+    },
+    {
+      "match": { "userMessage": "[harness-agent] what did it cost?" },
+      "response": { "content": "It cost 12 dollars." }
+    }
+  ]
+}

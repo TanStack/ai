@@ -14,6 +14,8 @@ import type {
   BlobStore,
   GenerationRunRecord,
   GenerationRunStore,
+  InboxEntry,
+  InboxStore,
   InterruptCommitEntry,
   InterruptRecord,
   InterruptStore,
@@ -542,6 +544,45 @@ class MemoryBlobStore implements BlobStore {
   }
 }
 
+class MemoryInboxStore implements InboxStore {
+  private readonly entries = new Map<string, InboxEntry>()
+  append(entry: Omit<InboxEntry, 'status'>): Promise<InboxEntry> {
+    const existing = this.entries.get(entry.inputId)
+    if (existing) return Promise.resolve({ ...existing })
+    const stored: InboxEntry = { ...entry, status: 'pending' }
+    this.entries.set(entry.inputId, stored)
+    return Promise.resolve({ ...stored })
+  }
+  listPending(threadId: string): Promise<Array<InboxEntry>> {
+    // Map iteration keeps insertion order; sort by time in case clocks tie.
+    const pending = [...this.entries.values()]
+      .filter(
+        (entry) => entry.threadId === threadId && entry.status === 'pending',
+      )
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((entry) => ({ ...entry }))
+    return Promise.resolve(pending)
+  }
+  markApplied(inputId: string, operationId: string): Promise<void> {
+    const existing = this.entries.get(inputId)
+    if (existing) {
+      this.entries.set(inputId, { ...existing, status: 'applied', operationId })
+    }
+    return Promise.resolve()
+  }
+  markRejected(inputId: string, reason: string): Promise<void> {
+    const existing = this.entries.get(inputId)
+    if (existing) {
+      this.entries.set(inputId, { ...existing, status: 'rejected', reason })
+    }
+    return Promise.resolve()
+  }
+  get(inputId: string): Promise<InboxEntry | null> {
+    const existing = this.entries.get(inputId)
+    return Promise.resolve(existing ? { ...existing } : null)
+  }
+}
+
 interface MemoryPersistenceStores {
   messages: MessageStore
   runs: RunStore
@@ -550,14 +591,16 @@ interface MemoryPersistenceStores {
   metadata: MetadataStore
   artifacts: ArtifactStore
   blobs: BlobStore
+  inbox: InboxStore
 }
 
 /**
  * In-process reference backend for the full state + generation store set.
  *
  * Returns messages + runs + generationRuns + interrupts + metadata + artifacts
- * + blobs. Locks are not included — use `InMemoryLockStore` + `withLocks` from
- * `@tanstack/ai` when a test or single-process app needs coordination.
+ * + blobs + inbox. Locks are not included — use `InMemoryLockStore` +
+ * `withLocks` from `@tanstack/ai` when a test or single-process app needs
+ * coordination.
  */
 export function memoryPersistence() {
   const stores: MemoryPersistenceStores = {
@@ -566,6 +609,7 @@ export function memoryPersistence() {
     generationRuns: new MemoryGenerationRunStore(),
     interrupts: new MemoryInterruptStore(),
     metadata: new MemoryMetadataStore(),
+    inbox: new MemoryInboxStore(),
     artifacts: new MemoryArtifactStore(),
     blobs: new MemoryBlobStore(),
   }

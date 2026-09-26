@@ -109,7 +109,14 @@ export type {
   SubagentRouterPlan,
   SubagentStep,
   SubagentStepsPlan,
+  SubagentsBag,
 } from './activities/chat/agents/spawn'
+// For hosts (a harness session) that run an agent outside a parent chat turn.
+export {
+  spawnAgentStream as runAgentStream,
+  createSubagentId,
+} from './activities/chat/agents/spawn'
+export { compactForModel } from './activities/chat/tools/tool-calls'
 
 // Tool definition
 export {
@@ -343,6 +350,7 @@ export type {
 // Capability primitives + middleware builder
 export {
   createCapability,
+  CapabilityRegistry,
   defineChatMiddleware,
   createChatMiddleware,
   MetadataCapability,
