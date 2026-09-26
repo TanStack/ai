@@ -15,6 +15,20 @@ test.describe('harness session', () => {
     expect(body.roles).toEqual(['user', 'assistant', 'user', 'assistant'])
   })
 
+  test('a remote harness answers as the model of a chat call', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'remote', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    expect((await response.json()).answer).toBe(
+      'Hello over the harness protocol.',
+    )
+  })
+
   test('subagent limits refuse the second child start', async ({
     request,
     testId,

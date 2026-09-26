@@ -843,6 +843,11 @@
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-09-26"
+        },
+        {
+          "label": "Deploy a harness",
+          "to": "harness/deploy",
+          "addedAt": "2026-09-26"
         }
       ]
     },
