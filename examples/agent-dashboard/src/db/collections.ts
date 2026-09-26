@@ -8,6 +8,10 @@ import { createCollection, localOnlyCollectionOptions } from '@tanstack/react-db
 export interface MessageRow {
   id: string
   threadId: string
+  /** The channel this row belongs to (a channel unions N member threads). */
+  channelId?: string
+  /** Which member produced this row (equals the member's threadId today). */
+  agentId?: string
   role: 'user' | 'assistant'
   text: string
   /** Set for text produced by a subagent, for attribution. */
@@ -18,6 +22,8 @@ export interface MessageRow {
 export interface ToolCallRow {
   id: string
   threadId: string
+  channelId?: string
+  agentId?: string
   name: string
   args: string
   result?: string
@@ -29,6 +35,10 @@ export interface ToolCallRow {
 export interface ApprovalRow {
   id: string
   threadId: string
+  channelId?: string
+  agentId?: string
+  /** The raw interrupt id (un-namespaced), for the resume/control call. */
+  interruptId?: string
   toolCallId?: string
   reason: string
   message: string
@@ -40,6 +50,8 @@ export interface ApprovalRow {
 export interface SpendRow {
   id: string
   threadId: string
+  channelId?: string
+  agentId?: string
   inputTokens: number
   outputTokens: number
   totalTokens: number
@@ -48,6 +60,8 @@ export interface SpendRow {
 export interface SessionRow {
   id: string
   threadId: string
+  channelId?: string
+  agentId?: string
   status: 'idle' | 'running' | 'requires_action'
   createdAt: number
 }
@@ -56,6 +70,42 @@ export interface BudgetRow {
   id: string
   threadId: string
   maxTokens: number
+}
+
+/**
+ * A team is the durable unit: a group of agents sharing a chat, a tool registry,
+ * and a permission boundary. (The design doc calls this a "pod".) The word
+ * "team" only surfaces in the UI once a second member joins.
+ */
+export interface TeamRow {
+  id: string
+  name: string
+  createdAt: number
+}
+
+/** A named stream within a team. Phase 1: one `main` channel per team. */
+export interface ChannelRow {
+  id: string
+  teamId: string
+  name: string
+  kind: 'main'
+  createdAt: number
+}
+
+/**
+ * The join between an agent and a channel. It owns the member's `threadId`, which
+ * is how N members each keep their own server-side AG-UI thread while sharing one
+ * channel view (no harness change required).
+ */
+export interface MembershipRow {
+  id: string
+  channelId: string
+  agentId: string
+  threadId: string
+  harness: string
+  role: 'agent' | 'operator'
+  displayName: string
+  joinedAt: number
 }
 
 export const messages = createCollection(
@@ -75,6 +125,15 @@ export const sessions = createCollection(
 )
 export const budgets = createCollection(
   localOnlyCollectionOptions({ getKey: (row: BudgetRow) => row.id }),
+)
+export const teams = createCollection(
+  localOnlyCollectionOptions({ getKey: (row: TeamRow) => row.id }),
+)
+export const channels = createCollection(
+  localOnlyCollectionOptions({ getKey: (row: ChannelRow) => row.id }),
+)
+export const memberships = createCollection(
+  localOnlyCollectionOptions({ getKey: (row: MembershipRow) => row.id }),
 )
 
 /** Default per-session token budget, for the spend alerts. */

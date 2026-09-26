@@ -14,6 +14,7 @@ import { Route as HistoryRouteImport } from './routes/history'
 import { Route as ConfigRouteImport } from './routes/config'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TeamsTeamIdRouteImport } from './routes/teams.$teamId'
 import { Route as SessionsThreadIdRouteImport } from './routes/sessions.$threadId'
 import { Route as ApiSessionsRouteImport } from './routes/api.sessions'
 import { Route as ApiRunsRouteImport } from './routes/api.runs'
@@ -47,6 +48,11 @@ const ChatRoute = ChatRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeamsTeamIdRoute = TeamsTeamIdRouteImport.update({
+  id: '/teams/$teamId',
+  path: '/teams/$teamId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SessionsThreadIdRoute = SessionsThreadIdRouteImport.update({
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/api/runs': typeof ApiRunsRoute
   '/api/sessions': typeof ApiSessionsRoute
   '/sessions/$threadId': typeof SessionsThreadIdRoute
+  '/teams/$teamId': typeof TeamsTeamIdRoute
   '/api/harness/$': typeof ApiHarnessSplatRoute
 }
 export interface FileRoutesByTo {
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/api/runs': typeof ApiRunsRoute
   '/api/sessions': typeof ApiSessionsRoute
   '/sessions/$threadId': typeof SessionsThreadIdRoute
+  '/teams/$teamId': typeof TeamsTeamIdRoute
   '/api/harness/$': typeof ApiHarnessSplatRoute
 }
 export interface FileRoutesById {
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/api/runs': typeof ApiRunsRoute
   '/api/sessions': typeof ApiSessionsRoute
   '/sessions/$threadId': typeof SessionsThreadIdRoute
+  '/teams/$teamId': typeof TeamsTeamIdRoute
   '/api/harness/$': typeof ApiHarnessSplatRoute
 }
 export interface FileRouteTypes {
@@ -160,6 +169,7 @@ export interface FileRouteTypes {
     | '/api/runs'
     | '/api/sessions'
     | '/sessions/$threadId'
+    | '/teams/$teamId'
     | '/api/harness/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/api/runs'
     | '/api/sessions'
     | '/sessions/$threadId'
+    | '/teams/$teamId'
     | '/api/harness/$'
   id:
     | '__root__'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/api/runs'
     | '/api/sessions'
     | '/sessions/$threadId'
+    | '/teams/$teamId'
     | '/api/harness/$'
   fileRoutesById: FileRoutesById
 }
@@ -209,6 +221,7 @@ export interface RootRouteChildren {
   ApiRunsRoute: typeof ApiRunsRoute
   ApiSessionsRoute: typeof ApiSessionsRoute
   SessionsThreadIdRoute: typeof SessionsThreadIdRoute
+  TeamsTeamIdRoute: typeof TeamsTeamIdRoute
   ApiHarnessSplatRoute: typeof ApiHarnessSplatRoute
 }
 
@@ -247,6 +260,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/teams/$teamId': {
+      id: '/teams/$teamId'
+      path: '/teams/$teamId'
+      fullPath: '/teams/$teamId'
+      preLoaderRoute: typeof TeamsTeamIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sessions/$threadId': {
@@ -329,6 +349,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRunsRoute: ApiRunsRoute,
   ApiSessionsRoute: ApiSessionsRoute,
   SessionsThreadIdRoute: SessionsThreadIdRoute,
+  TeamsTeamIdRoute: TeamsTeamIdRoute,
   ApiHarnessSplatRoute: ApiHarnessSplatRoute,
 }
 export const routeTree = rootRouteImport

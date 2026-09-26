@@ -1,0 +1,392 @@
+/**
+ * The shared channel view. It unions every member thread of a channel into one
+ * timeline (a live query over the collections keyed by `channelId`). With one
+ * member it looks exactly like a single-agent chat; when a second member joins,
+ * team chrome (the member list, per-agent attribution) appears — the "second
+ * agent reveals the team" moment.
+ */
+import { eq, useLiveQuery } from '@tanstack/react-db'
+import { useEffect, useState } from 'react'
+import {
+  approvals,
+  memberships,
+  messages,
+  sessions,
+  spend,
+  toolCalls,
+} from '@/db/collections'
+import {
+  addAgentToChannel,
+  endpointFor,
+  hydrateMember,
+  resolveApproval,
+  sendPrompt,
+} from '@/lib/session-controller'
+import { MemberList } from '@/components/member-list'
+import type {
+  ApprovalRow,
+  MembershipRow,
+  MessageRow,
+  SessionRow,
+  ToolCallRow,
+} from '@/db/collections'
+
+export function ChannelView({ channelId }: { channelId: string }) {
+  const [input, setInput] = useState('')
+
+  const { data: members = [] } = useLiveQuery(
+    (q) =>
+      q.from({ m: memberships }).where(({ m }) => eq(m.channelId, channelId)),
+    [channelId],
+  )
+  const memberRows = members as Array<MembershipRow>
+
+  // Join each member (subscribe + replay) when the roster changes.
+  const memberKey = memberRows.map((m) => m.id).join(',')
+  useEffect(() => {
+    for (const m of memberRows) {
+      void hydrateMember({
+        channelId: m.channelId,
+        agentId: m.agentId,
+        threadId: m.threadId,
+        harness: m.harness,
+        role: m.role,
+        displayName: m.displayName,
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memberKey])
+
+  const { data: msgs = [] } = useLiveQuery(
+    (q) => q.from({ m: messages }).where(({ m }) => eq(m.channelId, channelId)),
+    [channelId],
+  )
+  const { data: tools = [] } = useLiveQuery(
+    (q) => q.from({ t: toolCalls }).where(({ t }) => eq(t.channelId, channelId)),
+    [channelId],
+  )
+  const { data: apprs = [] } = useLiveQuery(
+    (q) => q.from({ a: approvals }).where(({ a }) => eq(a.channelId, channelId)),
+    [channelId],
+  )
+  const { data: spendRows = [] } = useLiveQuery(
+    (q) => q.from({ s: spend }).where(({ s }) => eq(s.channelId, channelId)),
+    [channelId],
+  )
+  const { data: sess = [] } = useLiveQuery(
+    (q) => q.from({ s: sessions }).where(({ s }) => eq(s.channelId, channelId)),
+    [channelId],
+  )
+
+  const isTeam = memberRows.length > 1
+  const nameByAgent = new Map(memberRows.map((m) => [m.agentId, m.displayName]))
+  const statusByThread: Record<string, SessionRow['status']> = {}
+  for (const s of sess as Array<SessionRow>) statusByThread[s.threadId] = s.status
+
+  const sessionRows = sess as Array<SessionRow>
+  const status = sessionRows.some((s) => s.status === 'requires_action')
+    ? 'requires_action'
+    : sessionRows.some((s) => s.status === 'running')
+      ? 'running'
+      : 'idle'
+  const tokens = (spendRows as Array<{ totalTokens: number }>).reduce(
+    (sum, s) => sum + (s.totalTokens ?? 0),
+    0,
+  )
+  const pending = (apprs as Array<ApprovalRow>).filter(
+    (a) => a.status === 'pending',
+  )
+
+  const timeline = [
+    ...(msgs as Array<MessageRow>).map((m) => ({
+      kind: 'message' as const,
+      at: m.createdAt,
+      m,
+    })),
+    ...(tools as Array<ToolCallRow>).map((t) => ({
+      kind: 'tool' as const,
+      at: t.createdAt,
+      t,
+    })),
+  ].sort((a, b) => a.at - b.at)
+
+  // Human input targets the primary agent member (broadcast is a later phase).
+  const primary =
+    memberRows.find((m) => m.role === 'agent') ?? memberRows[0] ?? undefined
+  const canSend = Boolean(primary)
+
+  const send = async (text: string) => {
+    const t = text.trim()
+    if (!t || !primary) return
+    setInput('')
+    await sendPrompt(primary.threadId, t, endpointFor(primary.harness), channelId)
+  }
+
+  const runMember = (member: MembershipRow) =>
+    sendPrompt(
+      member.threadId,
+      'Please handle ticket T-1042 for Ada.',
+      endpointFor(member.harness),
+      channelId,
+    )
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <a href="/" className="text-xs text-white/40 hover:text-white/70">
+          ← teams
+        </a>
+        <h1 className="font-mono text-sm">{isTeam ? 'main' : primary?.displayName ?? channelId}</h1>
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs ${
+            status === 'running'
+              ? 'bg-sky-500/20 text-sky-300'
+              : status === 'requires_action'
+                ? 'bg-amber-500/20 text-amber-300'
+                : 'bg-white/10 text-white/60'
+          }`}
+        >
+          {status.replace('_', ' ')}
+        </span>
+        <span className="ml-auto text-xs text-white/40">
+          {tokens.toLocaleString()} tokens
+        </span>
+      </div>
+
+      {pending.map((approval) => (
+        <ApprovalCard
+          key={approval.id}
+          approval={approval}
+          tool={(tools as Array<ToolCallRow>).find(
+            (t) => t.id === approval.toolCallId,
+          )}
+        />
+      ))}
+
+      <div className="flex gap-4">
+        {isTeam && (
+          <MemberList
+            members={memberRows}
+            statusByThread={statusByThread}
+            onRun={runMember}
+          />
+        )}
+        <div className="flex-1 space-y-3 rounded-lg border border-white/10 bg-white/[0.02] p-4">
+          {timeline.length === 0 && (
+            <p className="text-sm text-white/40">
+              No activity yet. Send a prompt or start the triage demo below.
+            </p>
+          )}
+          {timeline.map((entry) =>
+            entry.kind === 'message' ? (
+              <MessageBubble
+                key={entry.m.id}
+                message={entry.m}
+                author={
+                  entry.m.agentId ? nameByAgent.get(entry.m.agentId) : undefined
+                }
+                showAuthor={isTeam}
+              />
+            ) : (
+              <ToolCard
+                key={entry.t.id}
+                tool={entry.t}
+                author={
+                  entry.t.agentId ? nameByAgent.get(entry.t.agentId) : undefined
+                }
+                showAuthor={isTeam}
+              />
+            ),
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          disabled={!canSend}
+          onClick={() => send('Please handle ticket T-1042 for Ada.')}
+          className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05] disabled:opacity-40"
+        >
+          ▶ Start triage demo
+        </button>
+        <button
+          onClick={() => addAgentToChannel(channelId, 'support/triage')}
+          className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05]"
+        >
+          + Add agent
+        </button>
+        <button
+          onClick={() => addAgentToChannel(channelId, 'dashboard/meta', 'operator')}
+          className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05]"
+        >
+          + Add operator
+        </button>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && send(input)}
+          placeholder="Send a message…"
+          className="min-w-40 flex-1 rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-white/30"
+        />
+        <button
+          onClick={() => send(input)}
+          className="rounded-md bg-emerald-500/90 px-4 py-2 text-sm font-medium text-black hover:bg-emerald-400"
+        >
+          Send
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function AuthorTag({ author }: { author?: string }) {
+  if (!author) return null
+  return (
+    <span className="mr-1 rounded bg-white/10 px-1 text-[10px] text-white/60">
+      {author}
+    </span>
+  )
+}
+
+function MessageBubble({
+  message,
+  author,
+  showAuthor,
+}: {
+  message: MessageRow
+  author?: string
+  showAuthor: boolean
+}) {
+  const isUser = message.role === 'user'
+  return (
+    <div className={isUser ? 'text-right' : ''}>
+      <div
+        className={`inline-block max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+          isUser ? 'bg-emerald-500/15 text-emerald-100' : 'bg-white/[0.06]'
+        }`}
+      >
+        {showAuthor && !isUser && <AuthorTag author={author} />}
+        {message.subagentRunId && (
+          <span className="mr-1 rounded bg-fuchsia-500/20 px-1 text-[10px] text-fuchsia-300">
+            subagent
+          </span>
+        )}
+        {message.text || <span className="text-white/30">…</span>}
+      </div>
+    </div>
+  )
+}
+
+function ToolCard({
+  tool,
+  author,
+  showAuthor,
+}: {
+  tool: ToolCallRow
+  author?: string
+  showAuthor: boolean
+}) {
+  return (
+    <div className="rounded-md border border-white/10 bg-black/20 p-2 font-mono text-xs">
+      <div className="flex items-center gap-2">
+        {showAuthor && <AuthorTag author={author} />}
+        <span className="text-sky-300">⚙ {tool.name}</span>
+        <span
+          className={`ml-auto rounded px-1.5 text-[10px] ${
+            tool.status === 'done'
+              ? 'bg-emerald-500/20 text-emerald-300'
+              : 'bg-white/10 text-white/50'
+          }`}
+        >
+          {tool.status}
+        </span>
+      </div>
+      {tool.args && <div className="mt-1 text-white/50">{tool.args}</div>}
+      {tool.result && (
+        <div className="mt-1 text-emerald-200/70">→ {tool.result}</div>
+      )}
+    </div>
+  )
+}
+
+function ApprovalCard({
+  approval,
+  tool,
+}: {
+  approval: ApprovalRow
+  tool?: ToolCallRow
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(tool?.args ?? '{}')
+  const [busy, setBusy] = useState(false)
+
+  const act = async (decision: 'approve' | 'deny', edited?: boolean) => {
+    setBusy(true)
+    let editedArgs: Record<string, unknown> | undefined
+    if (edited) {
+      try {
+        editedArgs = JSON.parse(draft)
+      } catch {
+        setBusy(false)
+        return
+      }
+    }
+    await resolveApproval(approval.threadId, approval.id, decision, editedArgs)
+    setBusy(false)
+  }
+
+  return (
+    <div className="rounded-lg border border-amber-500/40 bg-amber-500/[0.06] p-4">
+      <div className="flex items-center gap-2">
+        <span className="text-lg">🔔</span>
+        <span className="font-medium text-amber-200">Approval required</span>
+        {tool && (
+          <span className="ml-auto font-mono text-xs text-amber-200/70">
+            {tool.name}
+          </span>
+        )}
+      </div>
+      <p className="mt-1 text-sm text-amber-100/80">{approval.message}</p>
+      {editing ? (
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={5}
+          className="mt-2 w-full rounded-md border border-white/15 bg-black/30 p-2 font-mono text-xs outline-none"
+        />
+      ) : (
+        tool?.args && (
+          <pre className="mt-2 overflow-x-auto rounded-md bg-black/30 p-2 font-mono text-xs text-white/60">
+            {tool.args}
+          </pre>
+        )
+      )}
+      <div className="mt-3 flex gap-2">
+        <button
+          disabled={busy}
+          onClick={() => act('approve', editing)}
+          className="rounded-md bg-emerald-500/90 px-3 py-1.5 text-sm font-medium text-black hover:bg-emerald-400 disabled:opacity-50"
+        >
+          {editing ? 'Approve edited' : 'Approve'}
+        </button>
+        <button
+          disabled={busy}
+          onClick={() => act('deny')}
+          className="rounded-md bg-rose-500/80 px-3 py-1.5 text-sm font-medium text-black hover:bg-rose-400 disabled:opacity-50"
+        >
+          Deny
+        </button>
+        <button
+          disabled={busy}
+          onClick={() => setEditing((v) => !v)}
+          className="rounded-md border border-white/15 px-3 py-1.5 text-sm text-white/70 hover:bg-white/[0.05]"
+        >
+          {editing ? 'Cancel edit' : 'Edit'}
+        </button>
+        <span className="ml-auto self-center text-[10px] text-white/30">
+          approve → AG-UI resume · deny → harness protocol
+        </span>
+      </div>
+    </div>
+  )
+}

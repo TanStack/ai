@@ -37,7 +37,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             </Link>
             <nav className="flex gap-3 text-xs text-white/50">
               <Link to="/" className="hover:text-white [&.active]:text-white">
-                Hosts
+                Teams
               </Link>
               <Link to="/chat" className="hover:text-white [&.active]:text-white">
                 Meta-chat
