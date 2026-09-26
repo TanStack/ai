@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { PassThrough } from 'node:stream'
 import { fileURLToPath } from 'node:url'
@@ -94,8 +95,12 @@ describe('harnessText({ url })', () => {
 })
 
 const tmp = fileURLToPath(new URL('./.tmp-build/', import.meta.url))
+// A real build needs Bun. build-stub.test.ts covers the rest without it.
+const hasBun =
+  spawnSync('bun', ['--version'], { shell: process.platform === 'win32' })
+    .status === 0
 
-describe('buildHarness and artifactText', () => {
+describe.skipIf(!hasBun)('buildHarness and artifactText', () => {
   afterAll(async () => {
     await rm(tmp, { recursive: true, force: true })
   })
