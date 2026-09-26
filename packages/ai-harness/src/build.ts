@@ -95,9 +95,7 @@ function run(
  * The build imports `entry` in a child process to read the harness name,
  * agents, and plugin names. Importing a module runs its code.
  */
-export async function buildHarness(
-  options: BuildHarnessOptions,
-): Promise<{
+export async function buildHarness(options: BuildHarnessOptions): Promise<{
   manifest: HarnessManifestV1
   bundle: string
   executable?: string

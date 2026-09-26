@@ -37,7 +37,7 @@ When a tool requires approval, the typical flow is:
 1. Model calls the tool
 2. Tool execution is paused
 3. User is prompted to approve or deny
-4. Tool executes (if approved) or is cancelled (if denied)
+4. Tool executes (if approved) or produces a denied/cancelled result
 5. Conversation continues with the result
 
 ## Resolve an approval interrupt
@@ -293,8 +293,34 @@ The user will see an approval prompt showing the item, quantity, and price befor
 - **Use approval for sensitive operations** - Sending emails, making payments, deleting data
 - **Show clear information** - Display what the tool will do before approval
 - **Provide context** - Show tool arguments in a readable format
-- **Handle denial gracefully** - Don't break the conversation if a tool is denied
+- **Handle denial gracefully** - Check `part.outcome` when a tool is denied.
 - **Timeout handling** - Consider timeouts for approval requests
+
+## Tool Result Outcomes
+
+Cancelled and denied tool results keep the existing `state: 'error'` and wire
+`output-error` behavior for compatibility, but `ToolResultPart.outcome` is set
+to `'cancelled'` or `'denied'`. Ordinary tool execution failures do not set an
+`outcome`. The outcome can be produced by the user decision or by middleware
+policy.
+
+When a result is persisted as a `ModelMessage`, the outcome is stored in
+`metadata.tanstack.toolResultOutcome` and restored to the UI part. Consumers
+should use this structured value instead of matching the fixed error text:
+
+```tsx ignore
+const denied = message.parts.some(
+  (part) => part.type === 'tool-result' && part.outcome === 'denied',
+)
+```
+
+The `@tanstack/ai-client` package exposes the same value on the
+`tool-result` part. Use `part.outcome` to distinguish a denial or cancellation
+from an ordinary tool execution failure.
+
+The structured outcome is emitted by both the AG-UI interrupt resume path and
+the deprecated `addToolApprovalResponse` path. Both paths keep the existing
+error content.
 
 ## Next Steps
 
