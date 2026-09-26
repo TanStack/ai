@@ -5371,6 +5371,16 @@ async function* runRoutedSubagents(
     yield* runChatEngine(options, engineRef)
     return
   }
+  // ponytail: a router cannot write input yet. Add it to the router pick if
+  // someone needs it.
+  const withInput = bag.agents.find(
+    (agent: DefinedAgent) => agent.inputSchema !== undefined,
+  )
+  if (withInput) {
+    throw new Error(
+      `Subagent "${withInput.name}" has an inputSchema. inputSchema needs tool mode: remove subagents.router so the model writes the input.`,
+    )
+  }
   const threadId = options.threadId ?? `thread-${Date.now()}`
   const runId = options.runId ?? `run-${Date.now()}`
   const messages = options.messages ?? []

@@ -156,6 +156,56 @@ const stream = chat({
 
 **Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card. The child's events stream while the tool runs, and the child's text becomes the tool result. The child reads the conversation as it is at that tool call.
 
+## Let the model write the brief
+
+In a long thread, the child gets the full conversation at the tool call, with every earlier tool result. Each parallel child gets its own copy. The child must also find its task in that conversation.
+
+Add `inputSchema` to the agent. The main model then writes the child's input when it calls the tool. `run` reads that input as `ctx.input`:
+
+```ts
+import { chat, defineAgent } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const messages = [
+  { role: 'user' as const, content: 'Compare pricing for the vendors we picked' },
+]
+
+const researcher = defineAgent({
+  name: 'researcher',
+  description: 'Researches one focused question and returns sourced findings',
+  inputSchema: z.object({
+    task: z
+      .string()
+      .describe('What to find and what to return. The researcher sees only this text.'),
+  }),
+  run: (ctx) =>
+    chat({
+      adapter: openaiText('gpt-5.6'),
+      messages: [{ role: 'user', content: ctx.input.task }],
+      threadId: ctx.threadId,
+      runId: ctx.runId,
+      parentRunId: ctx.parentRunId,
+      subagentRunId: ctx.subagentRunId,
+      resume: ctx.resume,
+    }),
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-5.6'),
+  messages,
+  subagents: { agents: [researcher] },
+})
+```
+
+- `ctx.input` has the type of the schema. Here it is `{ task: string }`.
+- If the input does not match the schema, the model gets a tool error and can call the tool again. The child does not start.
+- `ctx.messages` still holds the parent conversation. Add parts of it when the child needs more context.
+- A resumed child gets the same `ctx.input` as the first run.
+- `inputSchema` needs tool mode. If `subagents.router` is set and an agent has `inputSchema`, `chat()` throws.
+
+To show the brief in the UI, see [Show the brief on a card](#show-the-brief-on-a-card).
+
 ## Strategy
 
 - `exclusive` (default): the chosen child owns the turn. Main does not answer after it.
@@ -496,6 +546,41 @@ export function ChatScreen() {
 `part.subagent` is the same object as `useChat().subagents[i]` for that id. `stop()` on either one aborts the current parent run.
 
 When `run` imports server code, do not import the agent into the browser. Declare the agent once in a shared file, with its `name`, `description`, and tool definitions from `toolDefinition`. The server passes `defineAgent({ ...researcher, run })` to `chat()`. The client passes the declaration.
+
+### Show the brief on a card
+
+When an agent has `inputSchema`, the brief is the input of the tool call that started the child. That `tool-call` part is on the same assistant message as the card. `part.subagent.parentToolCallId` is its id:
+
+```tsx
+import type { UIMessage } from '@tanstack/ai-react'
+
+function briefOf(message: UIMessage, toolCallId: string) {
+  for (const part of message.parts) {
+    if (part.type !== 'tool-call' || part.id !== toolCallId) continue
+    const input = part.input
+    if (
+      typeof input === 'object' &&
+      input !== null &&
+      'task' in input &&
+      typeof input.task === 'string'
+    ) {
+      return input.task
+    }
+  }
+  return undefined
+}
+
+function Briefs({ message }: { message: UIMessage }) {
+  return message.parts.map((part) => {
+    if (part.type !== 'subagent') return null
+    const toolCallId = part.subagent.parentToolCallId
+    if (toolCallId === undefined) return null
+    return <p key={part.subagent.id}>{briefOf(message, toolCallId)}</p>
+  })
+}
+```
+
+A child that a router started has no `parentToolCallId`, so it has no brief.
 
 ### Style one child's parts
 
