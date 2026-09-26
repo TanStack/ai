@@ -63,6 +63,38 @@ export async function runCli(
       return EXIT.ok
     }
 
+    if (args.dashboard) {
+      const { connectDashboard } =
+        await import('@tanstack/ai-dashboard/connect').catch(() => {
+          throw new Error(
+            '--dashboard needs @tanstack/ai-dashboard. Install it next to @tanstack/ai-harness-cli.',
+          )
+        })
+      const savedToken = env.HARNESS_DASHBOARD_TOKEN
+      const connection = await connectDashboard({
+        host,
+        harness,
+        url: args.dashboard,
+        threads: [args.thread],
+        ...(savedToken ? { token: savedToken } : {}),
+        onPairingCode: (code) =>
+          stderr.write(
+            `Pair this host in the dashboard with the code ${code}. Waiting for approval...\n`,
+          ),
+        onToken: (token) =>
+          stderr.write(
+            `Paired. Set HARNESS_DASHBOARD_TOKEN=${token} to skip pairing next time.\n`,
+          ),
+      })
+      stderr.write(`Connected to ${args.dashboard}. Press Ctrl+C to stop.\n`)
+      await new Promise<void>((resolve) => {
+        process.once('SIGINT', resolve)
+        process.once('SIGTERM', resolve)
+      })
+      connection.close()
+      return EXIT.ok
+    }
+
     if (args.serve) {
       const token = args.token ?? env.HARNESS_TOKEN ?? createToken()
       const server = await serve({

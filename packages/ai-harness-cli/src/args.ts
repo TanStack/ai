@@ -10,6 +10,7 @@ export interface CliArgs {
   hostname: string
   token?: string
   thread: string
+  dashboard?: string
 }
 
 export const USAGE = `Usage: <your-cli> [options]
@@ -25,6 +26,7 @@ Options:
       --host <name>      Host name for --serve (default 127.0.0.1)
       --token <token>    Bearer token for --serve (default: HARNESS_TOKEN, or a new random token)
       --thread <id>      Conversation id (default: main)
+      --dashboard <url>  Connect to a dashboard (pairs on first use; set HARNESS_DASHBOARD_TOKEN to skip)
   -h, --help             Show this help
 
 Exit codes for --print: 0 done, 1 failed, 2 waiting for approval, 130 cancelled.`
@@ -43,6 +45,7 @@ export function parseCliArgs(argv: ReadonlyArray<string>): CliArgs {
       host: { type: 'string' },
       token: { type: 'string' },
       thread: { type: 'string' },
+      dashboard: { type: 'string' },
     },
     strict: true,
   })
@@ -64,5 +67,6 @@ export function parseCliArgs(argv: ReadonlyArray<string>): CliArgs {
     hostname: values.host ?? '127.0.0.1',
     ...(values.token !== undefined ? { token: values.token } : {}),
     thread: values.thread ?? 'main',
+    ...(values.dashboard !== undefined ? { dashboard: values.dashboard } : {}),
   }
 }
