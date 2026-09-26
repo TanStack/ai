@@ -9,7 +9,7 @@ import {
   toolCalls,
 } from '@/db/collections'
 import {
-  ensureSession,
+  hydrateSession,
   resolveApproval,
   sendPrompt,
 } from '@/lib/session-controller'
@@ -24,7 +24,7 @@ function SessionDetail() {
   const [input, setInput] = useState('')
 
   useEffect(() => {
-    ensureSession(threadId)
+    void hydrateSession(threadId)
   }, [threadId])
 
   const { data: msgs = [] } = useLiveQuery(

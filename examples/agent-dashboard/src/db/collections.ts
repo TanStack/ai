@@ -52,6 +52,12 @@ export interface SessionRow {
   createdAt: number
 }
 
+export interface BudgetRow {
+  id: string
+  threadId: string
+  maxTokens: number
+}
+
 export const messages = createCollection(
   localOnlyCollectionOptions({ getKey: (row: MessageRow) => row.id }),
 )
@@ -67,6 +73,12 @@ export const spend = createCollection(
 export const sessions = createCollection(
   localOnlyCollectionOptions({ getKey: (row: SessionRow) => row.id }),
 )
+export const budgets = createCollection(
+  localOnlyCollectionOptions({ getKey: (row: BudgetRow) => row.id }),
+)
+
+/** Default per-session token budget, for the spend alerts. */
+export const DEFAULT_BUDGET = 2000
 
 /**
  * Insert if absent, else apply the updater. localOnly writes are synchronous.

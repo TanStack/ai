@@ -31,13 +31,33 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body>
         <QueryClientProvider client={getQueryClient()}>
         <div className="min-h-screen">
-          <header className="border-b border-white/10 px-6 py-3">
+          <header className="flex items-center gap-4 border-b border-white/10 px-6 py-3">
             <Link to="/" className="text-sm font-semibold tracking-tight">
               🛰️ Agent Dashboard
             </Link>
-            <span className="ml-3 text-xs text-white/40">
-              mission control for TanStack AI agents
-            </span>
+            <nav className="flex gap-3 text-xs text-white/50">
+              <Link to="/" className="hover:text-white [&.active]:text-white">
+                Hosts
+              </Link>
+              <Link
+                to="/history"
+                className="hover:text-white [&.active]:text-white"
+              >
+                History
+              </Link>
+              <Link
+                to="/spend"
+                className="hover:text-white [&.active]:text-white"
+              >
+                Spend
+              </Link>
+              <Link
+                to="/config"
+                className="hover:text-white [&.active]:text-white"
+              >
+                Config
+              </Link>
+            </nav>
           </header>
           <main className="mx-auto max-w-5xl px-6 py-6">{children}</main>
         </div>

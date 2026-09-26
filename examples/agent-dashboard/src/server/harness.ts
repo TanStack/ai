@@ -8,8 +8,10 @@
  */
 import { EventType, toolDefinition } from '@tanstack/ai'
 import {
+  configOption,
   createHarnessHost,
   defineHarness,
+  definePlugin,
 } from '@tanstack/ai-harness'
 import { permissions, usage } from '@tanstack/ai-harness/plugins'
 import { memoryPersistence } from '@tanstack/ai-persistence'
@@ -158,6 +160,37 @@ const sendReply = toolDefinition({
   }),
 }).server(async ({ to }) => ({ sent: true, to, at: new Date().toISOString() }))
 
+/**
+ * Typed config for the triage agent. The dashboard renders these `ConfigOption`
+ * schemas as a form and writes changes back through the harness protocol.
+ */
+const triageSettings = definePlugin({
+  name: 'support/triage-settings',
+  setup: () => ({
+    config: {
+      tone: configOption.select({
+        options: ['friendly', 'formal', 'concise'],
+        default: 'friendly',
+        description: 'The voice used when drafting replies',
+      }),
+      signature: configOption.text({
+        default: 'The Support Team',
+        description: 'Signature appended to replies',
+      }),
+      max_drafts: configOption.number({
+        default: 3,
+        min: 1,
+        max: 10,
+        description: 'How many drafts to keep before compacting',
+      }),
+      auto_send_low_risk: configOption.boolean({
+        default: false,
+        description: 'Skip approval for low-risk replies (demo only)',
+      }),
+    },
+  }),
+})
+
 export const triage = defineHarness({
   name: 'support/triage',
   description: 'A support triage agent that drafts replies for human approval',
@@ -165,13 +198,19 @@ export const triage = defineHarness({
   systemPrompts: [
     'You are a support triage agent. Look up the ticket, then draft a reply for a human to approve before sending.',
   ],
-  plugins: () => [permissions(), usage()],
+  plugins: () => [permissions(), usage(), triageSettings],
   tools: [lookupTicket, sendReply],
 })
 
+let persistence: ReturnType<typeof memoryPersistence> | undefined
+export function getPersistence() {
+  persistence ??= memoryPersistence()
+  return persistence
+}
+
 let host: ReturnType<typeof createHarnessHost> | undefined
 export function getHost() {
-  host ??= createHarnessHost({ persistence: memoryPersistence() })
+  host ??= createHarnessHost({ persistence: getPersistence() })
   return host
 }
 

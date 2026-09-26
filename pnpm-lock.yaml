@@ -13725,14 +13725,6 @@ packages:
     resolution: {integrity: sha512-Ap6G0WQwcU/LHsvLwON1fAQX9Zp0A2Y6Y/cJBl9r/JbW90Zyg4/zbG6zzKa2OTALELarYHmKu0GhpM5EO+7T0g==}
     engines: {node: '>=0.10'}
 
-  esrap@2.3.5:
-    resolution: {integrity: sha512-KciPkeZZX8srrh6xELzLR2cBaWOzgBQ4CwggO6Dh/KMlrfOcIcfyXCVy/Vvc3/OlS5gvFOd5tcxUYuaGM8o45A==}
-    peerDependencies:
-      '@typescript-eslint/types': ^8.2.0
-    peerDependenciesMeta:
-      '@typescript-eslint/types':
-        optional: true
-
   esrap@2.3.7:
     resolution: {integrity: sha512-n2nf7fZR3c9yXf0BPEuHuXqT+KW0SJVj4cN5FMEkpCZ3scLjOQWpiccyCxVzCC2q1wubTghuEGzngJY/7Ah0Ow==}
     peerDependencies:
@@ -19309,9 +19301,6 @@ packages:
 
   zeptomatch@2.1.0:
     resolution: {integrity: sha512-KiGErG2J0G82LSpniV0CtIzjlJ10E04j02VOudJsPyPwNZgGnRKQy7I1R7GMyg/QswnE4l7ohSGrQbQbjXPPDA==}
-
-  zimmerframe@1.1.4:
-    resolution: {integrity: sha512-B58NGBEoc8Y9MWWCQGl/gq9xBCe4IiKM0a2x7GZdQKOW5Exr8S1W24J6OgM1njK8xCRGvAJIL/MxXHf6SkmQKQ==}
 
   zimmerframe@1.1.5:
     resolution: {integrity: sha512-msJxIvYDYcoNL+PJsu+7qmpDWsYmAxTY+2TNYXXF0hzBzBk0BMecOqDOG/EckUoKCuKwObfbugIl8QpqHDXeFA==}
@@ -28929,17 +28918,17 @@ snapshots:
 
   '@tsrx/core@0.1.60(@typescript-eslint/types@8.59.4)':
     dependencies:
-      '@jridgewell/sourcemap-codec': 1.5.5
+      '@jridgewell/sourcemap-codec': 1.6.0
       '@noble/hashes': 2.3.0
       '@sveltejs/acorn-typescript': 1.0.13(acorn@8.18.0)
       '@tsrx/runtime': 0.1.1
       '@types/estree': 1.0.9
       '@types/estree-jsx': 1.0.5
       acorn: 8.18.0
-      esrap: 2.3.5(@typescript-eslint/types@8.59.4)
+      esrap: 2.3.7(@typescript-eslint/types@8.59.4)
       is-reference: 3.0.3
       magic-string: 0.30.21
-      zimmerframe: 1.1.4
+      zimmerframe: 1.1.5
     transitivePeerDependencies:
       - '@typescript-eslint/types'
 
@@ -31856,12 +31845,6 @@ snapshots:
   esquery@1.7.0:
     dependencies:
       estraverse: 5.3.0
-
-  esrap@2.3.5(@typescript-eslint/types@8.59.4):
-    dependencies:
-      '@jridgewell/sourcemap-codec': 1.5.5
-    optionalDependencies:
-      '@typescript-eslint/types': 8.59.4
 
   esrap@2.3.7(@typescript-eslint/types@8.59.4):
     dependencies:
@@ -35317,8 +35300,8 @@ snapshots:
     dependencies:
       '@tsrx/core': 0.1.60(@typescript-eslint/types@8.59.4)
       '@types/react': 19.3.0
-      devalue: 5.9.0
-      esrap: 2.3.5(@typescript-eslint/types@8.59.4)
+      devalue: 5.9.4
+      esrap: 2.3.7(@typescript-eslint/types@8.59.4)
     optionalDependencies:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
@@ -39479,8 +39462,6 @@ snapshots:
       grammex: 3.1.13
       graphmatch: 1.1.1
     optional: true
-
-  zimmerframe@1.1.4: {}
 
   zimmerframe@1.1.5: {}
 

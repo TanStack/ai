@@ -9,13 +9,34 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SpendRouteImport } from './routes/spend'
+import { Route as HistoryRouteImport } from './routes/history'
+import { Route as ConfigRouteImport } from './routes/config'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionsThreadIdRouteImport } from './routes/sessions.$threadId'
 import { Route as ApiSessionsRouteImport } from './routes/api.sessions'
+import { Route as ApiRunsRouteImport } from './routes/api.runs'
+import { Route as ApiReplayRouteImport } from './routes/api.replay'
 import { Route as ApiHostsRouteImport } from './routes/api.hosts'
+import { Route as ApiConfigRouteImport } from './routes/api.config'
 import { Route as ApiAgentRouteImport } from './routes/api.agent'
 import { Route as ApiHarnessSplatRouteImport } from './routes/api.harness.$'
 
+const SpendRoute = SpendRouteImport.update({
+  id: '/spend',
+  path: '/spend',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HistoryRoute = HistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfigRoute = ConfigRouteImport.update({
+  id: '/config',
+  path: '/config',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -31,9 +52,24 @@ const ApiSessionsRoute = ApiSessionsRouteImport.update({
   path: '/api/sessions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRunsRoute = ApiRunsRouteImport.update({
+  id: '/api/runs',
+  path: '/api/runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReplayRoute = ApiReplayRouteImport.update({
+  id: '/api/replay',
+  path: '/api/replay',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHostsRoute = ApiHostsRouteImport.update({
   id: '/api/hosts',
   path: '/api/hosts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConfigRoute = ApiConfigRouteImport.update({
+  id: '/api/config',
+  path: '/api/config',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAgentRoute = ApiAgentRouteImport.update({
@@ -49,16 +85,28 @@ const ApiHarnessSplatRoute = ApiHarnessSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/config': typeof ConfigRoute
+  '/history': typeof HistoryRoute
+  '/spend': typeof SpendRoute
   '/api/agent': typeof ApiAgentRoute
+  '/api/config': typeof ApiConfigRoute
   '/api/hosts': typeof ApiHostsRoute
+  '/api/replay': typeof ApiReplayRoute
+  '/api/runs': typeof ApiRunsRoute
   '/api/sessions': typeof ApiSessionsRoute
   '/sessions/$threadId': typeof SessionsThreadIdRoute
   '/api/harness/$': typeof ApiHarnessSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/config': typeof ConfigRoute
+  '/history': typeof HistoryRoute
+  '/spend': typeof SpendRoute
   '/api/agent': typeof ApiAgentRoute
+  '/api/config': typeof ApiConfigRoute
   '/api/hosts': typeof ApiHostsRoute
+  '/api/replay': typeof ApiReplayRoute
+  '/api/runs': typeof ApiRunsRoute
   '/api/sessions': typeof ApiSessionsRoute
   '/sessions/$threadId': typeof SessionsThreadIdRoute
   '/api/harness/$': typeof ApiHarnessSplatRoute
@@ -66,8 +114,14 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/config': typeof ConfigRoute
+  '/history': typeof HistoryRoute
+  '/spend': typeof SpendRoute
   '/api/agent': typeof ApiAgentRoute
+  '/api/config': typeof ApiConfigRoute
   '/api/hosts': typeof ApiHostsRoute
+  '/api/replay': typeof ApiReplayRoute
+  '/api/runs': typeof ApiRunsRoute
   '/api/sessions': typeof ApiSessionsRoute
   '/sessions/$threadId': typeof SessionsThreadIdRoute
   '/api/harness/$': typeof ApiHarnessSplatRoute
@@ -76,24 +130,42 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/config'
+    | '/history'
+    | '/spend'
     | '/api/agent'
+    | '/api/config'
     | '/api/hosts'
+    | '/api/replay'
+    | '/api/runs'
     | '/api/sessions'
     | '/sessions/$threadId'
     | '/api/harness/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/config'
+    | '/history'
+    | '/spend'
     | '/api/agent'
+    | '/api/config'
     | '/api/hosts'
+    | '/api/replay'
+    | '/api/runs'
     | '/api/sessions'
     | '/sessions/$threadId'
     | '/api/harness/$'
   id:
     | '__root__'
     | '/'
+    | '/config'
+    | '/history'
+    | '/spend'
     | '/api/agent'
+    | '/api/config'
     | '/api/hosts'
+    | '/api/replay'
+    | '/api/runs'
     | '/api/sessions'
     | '/sessions/$threadId'
     | '/api/harness/$'
@@ -101,8 +173,14 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ConfigRoute: typeof ConfigRoute
+  HistoryRoute: typeof HistoryRoute
+  SpendRoute: typeof SpendRoute
   ApiAgentRoute: typeof ApiAgentRoute
+  ApiConfigRoute: typeof ApiConfigRoute
   ApiHostsRoute: typeof ApiHostsRoute
+  ApiReplayRoute: typeof ApiReplayRoute
+  ApiRunsRoute: typeof ApiRunsRoute
   ApiSessionsRoute: typeof ApiSessionsRoute
   SessionsThreadIdRoute: typeof SessionsThreadIdRoute
   ApiHarnessSplatRoute: typeof ApiHarnessSplatRoute
@@ -110,6 +188,27 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/spend': {
+      id: '/spend'
+      path: '/spend'
+      fullPath: '/spend'
+      preLoaderRoute: typeof SpendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/history': {
+      id: '/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof HistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/config': {
+      id: '/config'
+      path: '/config'
+      fullPath: '/config'
+      preLoaderRoute: typeof ConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -131,11 +230,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSessionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/runs': {
+      id: '/api/runs'
+      path: '/api/runs'
+      fullPath: '/api/runs'
+      preLoaderRoute: typeof ApiRunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/replay': {
+      id: '/api/replay'
+      path: '/api/replay'
+      fullPath: '/api/replay'
+      preLoaderRoute: typeof ApiReplayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/hosts': {
       id: '/api/hosts'
       path: '/api/hosts'
       fullPath: '/api/hosts'
       preLoaderRoute: typeof ApiHostsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/config': {
+      id: '/api/config'
+      path: '/api/config'
+      fullPath: '/api/config'
+      preLoaderRoute: typeof ApiConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/agent': {
@@ -157,8 +277,14 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ConfigRoute: ConfigRoute,
+  HistoryRoute: HistoryRoute,
+  SpendRoute: SpendRoute,
   ApiAgentRoute: ApiAgentRoute,
+  ApiConfigRoute: ApiConfigRoute,
   ApiHostsRoute: ApiHostsRoute,
+  ApiReplayRoute: ApiReplayRoute,
+  ApiRunsRoute: ApiRunsRoute,
   ApiSessionsRoute: ApiSessionsRoute,
   SessionsThreadIdRoute: SessionsThreadIdRoute,
   ApiHarnessSplatRoute: ApiHarnessSplatRoute,
