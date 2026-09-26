@@ -10,9 +10,7 @@ function textOf(message: ModelMessage): string {
   if (typeof message.content === 'string') return message.content
   if (Array.isArray(message.content)) {
     return message.content
-      .map((part) =>
-        'text' in part && typeof part.text === 'string' ? part.text : '',
-      )
+      .map((part) => (part.type === 'text' ? part.content : ''))
       .join('')
   }
   return ''
