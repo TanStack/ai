@@ -1,11 +1,13 @@
 import {
   interleaveActivityRecords,
+  isTerminalRunStatus,
   modelMessagesToUIMessages,
 } from '@tanstack/ai'
 import type {
   ModelMessage,
   RunRecord,
   SubagentPart,
+  TerminalRunStatus,
   UIMessage,
 } from '@tanstack/ai'
 import { storedSubagentInfo } from './subagent-runs'
@@ -44,11 +46,29 @@ export interface ReconstructedChat {
     pending: Array<Record<string, unknown>>
   } | null
   page?: { truncated: false } | { truncated: true; cursor: string }
+  /**
+   * The thread's finished runs, ascending by `startedAt`. Set only when
+   * {@link ReconstructChatOptions.includeRuns} is `true` and the `runs` store
+   * implements `listByThread`. Each assistant message of a listed run also
+   * gets the timings on `message.metadata.tanstack.run`.
+   */
+  runs?: Array<{
+    runId: string
+    status: TerminalRunStatus
+    startedAt: number
+    finishedAt?: number
+  }>
 }
 
 export interface ReconstructChatOptions {
   /** Query parameter carrying the thread id. Defaults to `threadId`. */
   param?: string
+  /**
+   * Add the thread's finished runs, with `startedAt` and `finishedAt`, to the
+   * response as `runs`. Needs a `runs` store that implements `listByThread`.
+   * Default: `false`.
+   */
+  includeRuns?: boolean
   /**
    * Authorize access to the requested thread before loading history.
    *
@@ -202,8 +222,26 @@ export async function reconstructChat(
     threadId,
     pending,
   )
+  const runStore = persistence.stores.runs
+  const runs =
+    options?.includeRuns && threadId && runStore?.listByThread
+      ? (await runStore.listByThread(threadId)).flatMap((run) =>
+          isTerminalRunStatus(run.status)
+            ? [
+                {
+                  runId: run.runId,
+                  status: run.status,
+                  startedAt: run.startedAt,
+                  ...(run.finishedAt !== undefined && {
+                    finishedAt: run.finishedAt,
+                  }),
+                },
+              ]
+            : [],
+        )
+      : undefined
   const body: ReconstructedChat = {
-    messages,
+    messages: runs ? stampRunTimings(messages, runs) : messages,
     activeRun: active ? { runId: active.runId } : null,
     interrupts: firstPending
       ? {
@@ -212,6 +250,7 @@ export async function reconstructChat(
         }
       : null,
     ...('page' in transcript ? { page: transcript.page } : {}),
+    ...(runs ? { runs } : {}),
   }
   return new Response(JSON.stringify(body), {
     headers: {
@@ -228,6 +267,40 @@ function messageRunId(message: UIMessage) {
   if (!tanstack || typeof tanstack !== 'object') return
   const runId = (tanstack as { runId?: unknown }).runId
   return typeof runId === 'string' && runId !== '' ? runId : undefined
+}
+
+/**
+ * Write each finished run's timings to `metadata.tanstack.run` on the
+ * assistant messages of that run, so a client reads them from the message.
+ */
+function stampRunTimings(
+  messages: Array<UIMessage>,
+  runs: NonNullable<ReconstructedChat['runs']>,
+): Array<UIMessage> {
+  const byId = new Map(runs.map((run) => [run.runId, run]))
+  return messages.map((message) => {
+    const tanstack = message.metadata?.tanstack
+    const runId: unknown = tanstack?.run?.id
+    const run =
+      message.role === 'assistant' && typeof runId === 'string'
+        ? byId.get(runId)
+        : undefined
+    if (!run) return message
+    return {
+      ...message,
+      metadata: {
+        ...message.metadata,
+        tanstack: {
+          ...tanstack,
+          run: {
+            id: run.runId,
+            startedAt: run.startedAt,
+            ...(run.finishedAt !== undefined && { finishedAt: run.finishedAt }),
+          },
+        },
+      },
+    }
+  })
 }
 
 type Runs = NonNullable<ChatTranscriptStores['runs']>

@@ -84,6 +84,24 @@ export const serverTools = {
     })
   }),
 
+  get_screenshot: toolDefinition({
+    name: 'get_screenshot',
+    description: 'Get a screenshot of the layout',
+    inputSchema: z.object({}),
+  }).server(async () => [
+    { type: 'text' as const, content: 'Layout screenshot' },
+    {
+      type: 'image' as const,
+      source: {
+        type: 'data' as const,
+        // 1x1 transparent PNG
+        value:
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/1eYAAAAAElFTkSuQmCC',
+        mimeType: 'image/png',
+      },
+    },
+  ]),
+
   delete_file: toolDefinition({
     name: 'delete_file',
     description: 'Delete a file (requires approval)',
@@ -131,6 +149,13 @@ export const clientToolDefinitions = {
       type: z.enum(['bar', 'line', 'pie']),
       data: z.array(z.number()),
     }),
+  }).client(),
+
+  fail_client_tool: toolDefinition({
+    name: 'fail_client_tool',
+    description: 'Fail while executing in the client',
+    inputSchema: z.object({}),
+    outputSchema: z.object({ completed: z.boolean() }),
   }).client(),
 }
 
@@ -205,6 +230,11 @@ export const SCENARIO_LIST = [
     label: 'Server \u2192 Client Sequence',
     category: 'basic',
   },
+  {
+    id: 'multimodal-server-tool',
+    label: 'Multimodal Server Tool Result (Regression #1283)',
+    category: 'basic',
+  },
   { id: 'parallel-tools', label: 'Parallel Tools', category: 'basic' },
   {
     id: 'lazy-tool-discovery',
@@ -231,6 +261,11 @@ export const SCENARIO_LIST = [
   {
     id: 'tool-error',
     label: 'Tool Throws Error',
+    category: 'basic',
+  },
+  {
+    id: 'client-tool-error',
+    label: 'Client Tool Throws Error',
     category: 'basic',
   },
   {
@@ -300,6 +335,11 @@ export const SCENARIO_LIST = [
     label: 'Text Interleaved in Tool Args (Regression #1017)',
     category: 'race',
   },
+  {
+    id: 'canonical-tool-input',
+    label: 'TOOL_CALL_END Input Replaces Streamed Args',
+    category: 'race',
+  },
 ]
 
 /**
@@ -320,6 +360,9 @@ export function getToolsForScenario(scenario: string) {
     case 'invalid-client-tool-retry':
       return [clientToolDefinitions.show_notification]
 
+    case 'client-tool-error':
+      return [clientToolDefinitions.fail_client_tool]
+
     case 'server-context':
       return [serverTools.read_server_context]
 
@@ -334,6 +377,9 @@ export function getToolsForScenario(scenario: string) {
 
     case 'sequence-server-client':
       return [serverTools.fetch_data, clientToolDefinitions.display_chart]
+
+    case 'multimodal-server-tool':
+      return [serverTools.get_screenshot]
 
     case 'parallel-tools':
       return [serverTools.get_weather, serverTools.get_time]
@@ -390,6 +436,7 @@ export function getToolsForScenario(scenario: string) {
 
     case 'malformed-tool-arguments':
     case 'provider-rejected-tool-call':
+    case 'canonical-tool-input':
       return [serverTools.check_status]
 
     default:

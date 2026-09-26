@@ -1,0 +1,10 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[stream-options-wire] usage check" },
+      "response": {
+        "content": "Usage checked."
+      }
+    }
+  ]
+}

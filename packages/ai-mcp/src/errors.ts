@@ -38,7 +38,8 @@ export class MCPToolNotFoundError extends Error {
   constructor(public readonly toolName: string) {
     super(
       `toolDefinition name "${toolName}" was passed to mcp.tools([...]) but the MCP ` +
-        `server exposes no tool with that name. Check the name or run mcp.tools() to list.`,
+        `server exposes no tool with that name, or the client's \`toolFilter\` hides it. ` +
+        `Check the name or run mcp.tools() to list.`,
     )
     this.name = 'MCPToolNotFoundError'
   }

@@ -100,6 +100,9 @@ export type ToolResultState =
   | 'complete' // Result is complete
   | 'error' // Error occurred
 
+/** Why a tool result ended without executing successfully. */
+export type ToolResultOutcome = 'cancelled' | 'denied'
+
 export type ToolOutputState = 'output-available' | 'output-error'
 
 /**
@@ -196,6 +199,13 @@ export interface ToolCall<TMetadata = unknown> extends Omit<
   metadata?: TMetadata
 }
 
+/** One source link from a provider-executed web search. */
+export interface ProviderExecutedToolSource {
+  url: string
+  title?: string
+  pageAge?: string
+}
+
 /**
  * Convention for tool-call `metadata` that marks a call as **provider-executed**
  * — run by the provider's own infrastructure (e.g. Anthropic `web_search` /
@@ -209,10 +219,12 @@ export interface ToolCall<TMetadata = unknown> extends Omit<
  *
  * Provider-specific payloads live under a namespaced key (e.g. `anthropic`),
  * keeping this convention opaque to the framework core. The index signature
- * preserves those per-adapter fields.
+ * preserves those per-adapter fields. `sources` is the normalized list of
+ * links a web search used, shared across providers.
  */
 export interface ProviderExecutedToolMetadata {
   providerExecuted?: boolean
+  sources?: Array<ProviderExecutedToolSource>
   [key: string]: unknown
 }
 
@@ -442,6 +454,8 @@ export interface ToolResultPart {
   toolCallId: string
   content: string | Array<ContentPart>
   state: ToolResultState
+  /** Set when the user or middleware cancelled or denied the tool call; state remains `error`. */
+  outcome?: ToolResultOutcome
   error?: string // Error message if state is "error"
   metadata?: Record<string, unknown>
   createdAt?: Date
@@ -585,6 +599,12 @@ export interface TanStackMessageMetadata {
   model?: string
   /** Parent chat run that produced this assistant message. */
   runId?: string
+  /**
+   * The chat run that produced this assistant message. `withPersistence` sets
+   * `id`. `reconstructChat` with `includeRuns: true` adds the finished run's
+   * timings, in epoch ms.
+   */
+  run?: { id: string; startedAt?: number; finishedAt?: number }
   /** Card data on a child wire message. See `uiMessagesToWire`. */
   subagent?: SubagentWireInfo
   /** Thinking signature for a `role: 'reasoning'` fan-out message. */
@@ -596,6 +616,8 @@ export interface TanStackMessageMetadata {
     createdAt?: string
     content?: Array<ContentPart>
   }
+  /** Outcome of a cancelled or denied tool result; when present, the UI state is `error`. */
+  toolResultOutcome?: ToolResultOutcome
   structuredOutput?: {
     status?: 'streaming' | 'complete' | 'error'
     partial?: unknown

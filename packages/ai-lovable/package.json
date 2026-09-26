@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-lovable",
-  "version": "0.2.12",
+  "version": "0.3.0",
   "description": "Lovable AI Gateway adapter for TanStack AI chat, embeddings, image, video, speech, and transcription.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -40,6 +40,7 @@
     "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
     "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
     "test:lib": "vitest run",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"

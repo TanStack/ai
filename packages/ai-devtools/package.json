@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-devtools-core",
-  "version": "0.5.20",
+  "version": "0.5.21",
   "description": "Core TanStack AI Devtools plugin for inspecting chat messages, tool calls, streams, and errors.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -73,6 +73,7 @@
     "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
     "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --passWithNoTests --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
     "test:lib": "vitest --passWithNoTests",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"

@@ -19,6 +19,10 @@ import type {
   ToolResultContentBlock,
 } from '@aws-sdk/client-bedrock-runtime'
 import type { DocumentType } from '@smithy/types'
+import type {
+  BedrockSystemPromptMetadata,
+  BedrockTextMetadata,
+} from '../message-types'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -182,6 +186,10 @@ function messageToBlocks(
     for (const part of msg.content) {
       const docIndex = isDocumentPart(part) ? ++docCounter.value : 0
       blocks.push(contentPartToBlock(part, docIndex))
+      if (isTextPart(part)) {
+        const { cachePoint } = (part.metadata ?? {}) as BedrockTextMetadata
+        if (cachePoint) blocks.push({ cachePoint })
+      }
     }
   }
   // null → no text blocks
@@ -231,7 +239,8 @@ function messageToBlocks(
 /**
  * Convert TanStack AI messages + system prompts into the Converse API format.
  *
- * - System prompts are lifted into `SystemContentBlock[]`.
+ * - System prompts are lifted into `SystemContentBlock[]`; a prompt whose
+ *   `metadata.cachePoint` is set is followed by a `cachePoint` block.
  * - `tool` role messages are remapped to `user` role `toolResult` blocks.
  * - Consecutive messages with the same Converse role are merged (Converse
  *   requires strict user/assistant alternation).
@@ -241,9 +250,13 @@ export function toConverseMessages(
   systemPrompts?: Array<SystemPrompt>,
 ): { system: Array<SystemContentBlock>; messages: Array<Message> } {
   // Build system blocks (uses normalizeSystemPrompts for runtime validation)
-  const system: Array<SystemContentBlock> = normalizeSystemPrompts(
-    systemPrompts,
-  ).map((p) => ({ text: p.content }))
+  const system: Array<SystemContentBlock> =
+    normalizeSystemPrompts<BedrockSystemPromptMetadata>(systemPrompts).flatMap(
+      (p) =>
+        p.metadata?.cachePoint
+          ? [{ text: p.content }, { cachePoint: p.metadata.cachePoint }]
+          : [{ text: p.content }],
+    )
 
   // Convert each ModelMessage to a Converse Message, merging same-role pairs
   const converseMessages: Array<Message> = []

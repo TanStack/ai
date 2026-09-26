@@ -143,14 +143,20 @@ export async function* translateSdkStream(
   let partialIsStructuredOutput = false
   /** Anthropic message ids whose text/thinking already streamed via partials. */
   const streamedMessageIds = new Set<string>()
+  /** Tool-call ids already streamed via partials, so the complete message dedupes them. */
+  const streamedToolCallIds = new Set<string>()
 
   // Partial-stream state
   let partialMessageId: string | null = null
-  let partialBlockType: string | null = null
+  const partialBlockTypes = new Map<number, string>()
   let partialTextMessageId: string | null = null
   let partialTextContent = ''
   let partialTextStarted = false
   let partialReasoningId: string | null = null
+  const partialToolCalls = new Map<
+    number,
+    { id: string; name: string; args: string }
+  >()
 
   function* startRun(): Generator<AdapterYieldChunk> {
     if (runStarted) return
@@ -209,6 +215,41 @@ export async function* translateSdkStream(
       }
     }
     partialReasoningId = null
+  }
+
+  function* closePartialToolUse(
+    index: number,
+    interrupted = false,
+  ): Generator<AdapterYieldChunk> {
+    const toolCall = partialToolCalls.get(index)
+    if (toolCall) {
+      let input: unknown = {}
+      try {
+        const parsed = toolCall.args ? JSON.parse(toolCall.args) : {}
+        input = parsed && typeof parsed === 'object' ? parsed : {}
+      } catch (error) {
+        if (!interrupted) throw error
+      }
+      partialToolCalls.delete(index)
+      yield {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: toolCall.id,
+        toolCallName: toolCall.name,
+        toolName: toolCall.name,
+        model,
+        timestamp: now(),
+        input,
+      }
+      unresolvedToolCalls.add(toolCall.id)
+    }
+  }
+
+  function* closePartialToolUses(
+    interrupted = false,
+  ): Generator<AdapterYieldChunk> {
+    for (const index of [...partialToolCalls.keys()]) {
+      yield* closePartialToolUse(index, interrupted)
+    }
   }
 
   function* emitStructuredOutput(
@@ -349,9 +390,10 @@ export async function* translateSdkStream(
           timestamp: now(),
         }
       } else if (block.type === 'tool_use') {
-        yield* emitToolUse(
-          block as { id: string; name: string; input: unknown },
-        )
+        const toolBlock = block as { id: string; name: string; input: unknown }
+        // Skip the tool call if the partial stream already emitted it.
+        if (streamedToolCallIds.has(toolBlock.id)) continue
+        yield* emitToolUse(toolBlock)
       }
     }
   }
@@ -388,6 +430,7 @@ export async function* translateSdkStream(
   ): Generator<AdapterYieldChunk> {
     yield* closePartialText()
     yield* closePartialReasoning()
+    yield* closePartialToolUses()
     yield* synthesizeUnresolvedResults()
 
     const usage = buildUsage(message.usage, message.total_cost_usd)
@@ -458,22 +501,22 @@ export async function* translateSdkStream(
       partialMessageId = event.message.id ?? genId()
       streamedMessageIds.add(partialMessageId)
     } else if (event.type === 'content_block_start') {
-      partialBlockType = event.content_block.type
-      const startedBlock = event.content_block
+      const block = event.content_block
+      const partialBlockType = block.type
+      partialBlockTypes.set(event.index, partialBlockType)
       partialIsStructuredOutput =
         ctx.expectStructuredOutput === true &&
-        startedBlock.type === 'tool_use' &&
-        'name' in startedBlock &&
-        startedBlock.name === SYNTHETIC_STRUCTURED_OUTPUT_TOOL
+        block.type === 'tool_use' &&
+        block.name === SYNTHETIC_STRUCTURED_OUTPUT_TOOL
       if (partialIsStructuredOutput) {
         partialStructuredJson = ''
-        if ('id' in startedBlock && typeof startedBlock.id === 'string') {
-          syntheticOutputToolIds.add(startedBlock.id)
+        if (typeof block.id === 'string') {
+          syntheticOutputToolIds.add(block.id)
         }
-        if ('input' in startedBlock) {
+        if ('input' in block) {
           capturedStructuredOutput = rememberStructuredOutput(
             capturedStructuredOutput,
-            startedBlock.input,
+            block.input,
           )
         }
       }
@@ -504,6 +547,26 @@ export async function* translateSdkStream(
           role: 'reasoning' as const,
           model,
           timestamp: now(),
+        }
+      } else if (
+        partialBlockType === 'tool_use' &&
+        !partialIsStructuredOutput &&
+        typeof block.id === 'string' &&
+        typeof block.name === 'string'
+      ) {
+        const name = stripMcpPrefix(block.name)
+        partialToolCalls.set(event.index, { id: block.id, name, args: '' })
+        streamedToolCallIds.add(block.id)
+        yield {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: block.id,
+          toolCallName: name,
+          toolName: name,
+          model,
+          timestamp: now(),
+          ...(partialMessageId !== null && {
+            parentMessageId: partialMessageId,
+          }),
         }
       }
     } else if (event.type === 'content_block_delta') {
@@ -541,8 +604,25 @@ export async function* translateSdkStream(
           model,
           timestamp: now(),
         }
+      } else if (
+        event.delta.type === 'input_json_delta' &&
+        typeof event.delta.partial_json === 'string'
+      ) {
+        const toolCall = partialToolCalls.get(event.index)
+        if (toolCall) {
+          toolCall.args += event.delta.partial_json
+          yield {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: toolCall.id,
+            model,
+            timestamp: now(),
+            delta: event.delta.partial_json,
+          }
+        }
       }
     } else if (event.type === 'content_block_stop') {
+      const partialBlockType = partialBlockTypes.get(event.index)
+      partialBlockTypes.delete(event.index)
       if (partialIsStructuredOutput && partialStructuredJson !== '') {
         try {
           capturedStructuredOutput = rememberStructuredOutput(
@@ -557,8 +637,9 @@ export async function* translateSdkStream(
         yield* closePartialText()
       } else if (partialBlockType === 'thinking') {
         yield* closePartialReasoning()
+      } else if (partialBlockType === 'tool_use') {
+        yield* closePartialToolUse(event.index)
       }
-      partialBlockType = null
       partialIsStructuredOutput = false
       partialStructuredJson = ''
     }
@@ -605,10 +686,11 @@ export async function* translateSdkStream(
       // harness-internal and intentionally ignored.
     }
   } catch (error) {
-    // The run is dying (abort or SDK failure). Pair any started tool calls
-    // with a synthetic result first so the next request's pending-tool-call
-    // scan doesn't try to execute them, then let the adapter surface the
-    // error as RUN_ERROR.
+    // The run is dying (abort or SDK failure). Close any half-streamed tool
+    // calls, then pair every started tool call with a synthetic result so the
+    // next request's pending-tool-call scan doesn't try to execute them. Then
+    // let the adapter surface the error as RUN_ERROR.
+    yield* closePartialToolUses(true)
     yield* synthesizeUnresolvedResults()
     throw error
   }

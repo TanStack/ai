@@ -92,6 +92,32 @@ assistant message; the agent loop never tries to run it client-side.
 
 OpenAI `applyPatchTool`, `localShellTool`, and `shellTool({ environment: { type: "local" } })` are different. The model returns the call, and your app runs it. See [OpenAI adapter](../adapters/openai.md#applypatchtool).
 
+### Read web search sources
+
+OpenAI and Gemini web search calls expose a common `metadata.sources` array on
+the assistant tool-call part. Each source has a `url` and can also include a
+`title` or `pageAge`. Use this list to render source links in your UI. The
+provider still owns search execution, so do not execute the tool call in your
+application.
+
+```typescript
+import { getProviderExecutedMetadata } from '@tanstack/ai'
+import type { UIMessage } from '@tanstack/ai'
+
+function logSources(message: UIMessage) {
+  for (const part of message.parts) {
+    if (part.type !== 'tool-call') continue
+    const sources = getProviderExecutedMetadata(part)?.sources ?? []
+    for (const source of sources) {
+      console.log(source.title ?? source.url, source.url)
+    }
+  }
+}
+```
+
+The raw provider response stays available for provider-specific handling under
+`metadata.openai` or `metadata.gemini`.
+
 ## Type-level guard
 
 Every provider-specific tool factory (e.g. `webSearchTool`, `computerUseTool`)

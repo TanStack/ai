@@ -294,6 +294,11 @@ interface RunStateEntry {
    */
   streamingMessageId?: string
   streamingMessageCreatedAt?: Date
+  /**
+   * Length of `ctx.messages` when this run started. Messages from this index
+   * on are the ones this run added, so they get its run id on save (#1061).
+   */
+  firstRunMessage?: number
   completion?: {
     promise: Promise<void>
     resolve: () => void
@@ -302,6 +307,50 @@ interface RunStateEntry {
 }
 
 const runState = new WeakMap<object, RunStateEntry>()
+/** `metadata.tanstack.run.id` of a stored message, when set. */
+function runTagOf(message: ModelMessage): string | undefined {
+  const tanstack: unknown = message.metadata?.tanstack
+  if (typeof tanstack !== 'object' || tanstack === null) return
+  const run: unknown = (tanstack as { run?: unknown }).run
+  if (typeof run !== 'object' || run === null) return
+  const id: unknown = (run as { id?: unknown }).id
+  return typeof id === 'string' && id !== '' ? id : undefined
+}
+
+function withRunTag(message: ModelMessage, runId: string): ModelMessage {
+  const metadata = message.metadata ?? {}
+  const tanstack: unknown = metadata.tanstack
+  return {
+    ...message,
+    metadata: {
+      ...metadata,
+      tanstack: {
+        ...(typeof tanstack === 'object' && tanstack !== null ? tanstack : {}),
+        run: { id: runId },
+      },
+    },
+  }
+}
+
+/**
+ * The thread to save, with this run's id on the assistant messages it added
+ * (`metadata.tanstack.run.id`). `reconstructChat` uses it to match each
+ * message to its run. Messages from earlier runs are left as they are.
+ */
+function runMessages(
+  ctx: ChatMiddlewareContext,
+  state: RunStateEntry | undefined,
+): Array<ModelMessage> {
+  const from = state?.firstRunMessage
+  if (from === undefined) return [...ctx.messages]
+  return ctx.messages.map((message, index) =>
+    index >= from &&
+    message.role === 'assistant' &&
+    runTagOf(message) === undefined
+      ? withRunTag(message, ctx.runId)
+      : message,
+  )
+}
 
 const validResumeStatuses = new Set(['resolved', 'cancelled'])
 
@@ -333,6 +382,7 @@ function mergeResumeToolState(
       left.clientToolResults,
       right.clientToolResults,
     ),
+    clientToolErrors: mergeMaps(left.clientToolErrors, right.clientToolErrors),
     genericInterrupts: mergeMaps(
       left.genericInterrupts,
       right.genericInterrupts,
@@ -856,6 +906,7 @@ function resumeToolStateFromPending(
   for (const interrupt of pending) {
     const entry = resumeByInterruptId.get(interrupt.interruptId)
     if (!entry) continue
+    if (hasReservedInterruptBinding(interrupt.payload)) continue
 
     const kind = interruptKind(interrupt)
     const reason = stringField(interrupt.payload, 'reason')
@@ -2145,6 +2196,8 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // prior history) as soon as the run starts, so a reload mid-run rehydrates
       // it before the assistant reply exists. Best-effort: a failed eager
       // snapshot must not abort the run — the authoritative save is `onFinish`.
+      const state = runState.get(ctx)
+      if (state) state.firstRunMessage = ctx.messages.length
       try {
         await messageStore.saveThread(ctx.threadId, [...ctx.messages])
         await persistActivities(ctx)
@@ -2260,7 +2313,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           : (state.usage ?? chunkUsage)
       state.usage = usage
       await interruptRun(runs, ctx.runId, usage)
-      await messageStore.saveThread(ctx.threadId, [...ctx.messages])
+      await messageStore.saveThread(ctx.threadId, runMessages(ctx, state))
       state.interrupted = true
       await persistActivities(ctx)
     },
@@ -2279,7 +2332,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // or consuming approvals before the durable history lands leaves a
       // "finished" run whose transcript is missing the terminal turn.
       try {
-        await messageStore.saveThread(ctx.threadId, [...ctx.messages])
+        await messageStore.saveThread(ctx.threadId, runMessages(ctx, state))
         await commitPendingResumes(state, persistence.stores.interrupts)
         await completeRun(runs, ctx.runId, state?.usage ?? info.usage)
         await persistActivities(ctx)
@@ -2313,9 +2366,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // and durable (`RunRecord.cancelRequested`, the only channel that reaches
       // a run being driven elsewhere).
       // A run paused at an interrupt boundary is waiting for a HUMAN, not for
-      // this socket. `chat()` skips its terminal hook at an actionable-wait
-      // boundary, so its `finally` routes the disconnect here — and
-      // terminalizing then produced a record claiming the run finished while
+      // this socket. A disconnect can land after the interrupt boundary but
+      // before the invocation ends, and `chat()` then routes it here instead
+      // of to `onFinish` — and terminalizing then produced a record claiming the run finished while
       // the interrupt rows stayed `'pending'` and `validatePendingResumes`
       // still threw on the next request. An explicit cancel is different: the
       // user gave up on the approval, so the cancel band stays authoritative.

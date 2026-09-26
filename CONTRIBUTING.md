@@ -80,7 +80,7 @@ All commands are run from the repo root. Nx handles affected detection and cachi
 | Run unit tests (affected)     | `pnpm test:lib`     |
 | Watch unit tests              | `pnpm test:lib:dev` |
 | Type-check (affected)         | `pnpm test:types`   |
-| Lint (affected)               | `pnpm test:eslint`  |
+| Lint (affected)               | `pnpm test:oxlint`  |
 | Verify build artifacts        | `pnpm test:build`   |
 | Format the repo               | `pnpm format`       |
 | Build (affected)              | `pnpm build`        |
@@ -91,6 +91,51 @@ All commands are run from the repo root. Nx handles affected detection and cachi
 | E2E with Playwright UI        | `pnpm test:e2e:ui`  |
 
 Working on a single package? `cd packages/<pkg>` and use its scripts directly (`pnpm test:lib`, `pnpm test:types`, etc.).
+
+### Faster local runs
+
+Root `pnpm test`, `pnpm test:pr`, and `pnpm test:lib` set `VITEST_MAX_WORKERS=1`. Nx runs 4 tasks at a time (`nx.json` `parallel`). Together that stops each package from spawning one Vitest worker per CPU core while 15 packages already run in parallel.
+
+A single package still uses all cores:
+
+```bash
+cd packages/ai
+pnpm test:lib
+```
+
+Local `pnpm test:e2e` runs openai, anthropic, and gemini. If none of those providers support a feature, the feature still runs on the providers that do. An explicit `E2E_PROVIDERS` list runs only those providers. CI always runs the full matrix.
+
+```bash
+E2E_PROVIDERS=* pnpm test:e2e          # full matrix locally
+E2E_PROVIDERS=grok pnpm test:e2e       # one provider
+```
+
+Playwright does not retry or record video locally. CI retries twice and keeps the video of a failed test.
+
+## Coverage
+
+**Coverage runs in CI only. It is not part of `pnpm test`, `pnpm test:pr`, or any git hook, and you are not expected to run it locally.**
+
+The `Coverage` job on every PR measures each affected package that has a `test:coverage` target twice: once on your branch and once on its merge-base with `main`. A drop of more than 0.5 percentage points in any metric (statements, branches, functions, lines) fails the job. Packages your PR didn't affect, and packages without that target, are never measured.
+
+There is no baseline file to keep in sync, and nothing to update when a package is added or removed: both numbers come from the same job on the same runner. There are also no target percentages to hit — the gate only catches coverage getting _worse_ in what you touched, and never blocks a PR for being below some repo-wide bar.
+
+Read the numbers from the PR's Checks tab: open the `Coverage` job. When at least one package with `test:coverage` is affected, the job summary has a per-package table with deltas, pass or fail. It is not posted as a PR comment.
+
+Re-measuring the merge-base is usually close to free. On every push to `main`, a separate `Coverage` workflow runs `test:coverage` for every package with the same forwarded args as the PR job, and fills the Nx Cloud cache. `test:coverage` declares its `coverage/` directory as a task output, so the base-side run restores the cached summaries and does not run the tests again. If that workflow did not finish for the merge-base commit (for example, a newer push to `main` cancelled it), the base-side tests run again. Keep the `--` args in `coverage.yml` and `pr.yml` identical: Nx hashes them, so any difference causes a cache miss.
+
+### If the job says coverage dropped
+
+Add tests covering the code you changed. That's the whole remedy — there is no number to override. If you genuinely deleted well-tested code and the drop is expected, say so in the PR and a maintainer can merge past the failing check.
+
+Two known limitations:
+
+- Uncovered `.tsx` files can't be remapped by the coverage provider and are dropped from the report with a `Failed to parse ... Excluding it from coverage` warning. `.tsx` files that tests _do_ load are measured normally, so the UI packages read higher than their real coverage.
+- `ai-react-ui`, `ai-solid-ui`, `ai-vue-ui`, `preact-ai-devtools`, `react-ai-devtools`, `solid-ai-devtools`, and `svelte-ai-devtools` have no tests, so they have no `test:coverage` script. The collect step fails when a measured package reports 0 statements. Add the script back when the package gets tests.
+
+A **new package that defines `test:coverage`** shows as `new` and cannot fail the comparison. Packages without that script are not measured.
+
+If a package was measured on the base commit and has no summary on this PR, the job fails. A crashing `test:coverage` suite on either side also fails the job. It is not treated as `new`.
 
 ## Generate a React playground
 
@@ -128,7 +173,7 @@ Tests are included in typecheck. `vite.config.ts` / `vitest.config.ts` are not �
 
 - Place tests under `packages/<pkg>/tests/` with the suffix `.test.ts` (or `.test.tsx` for JSX).
 - Vitest's defaults discover anything matching `**/*.{test,spec}.?(c|m)[jt]s?(x)` — no per-package config is needed.
-- Tests are typechecked by `tsc` and linted by ESLint.
+- Tests are typechecked by `tsc` and linted by oxlint.
 
 ## Adding E2E test coverage (required)
 
@@ -188,9 +233,11 @@ The defensive `ignore` list in `.changeset/config.json` blocks accidental public
 
 1. Push your branch and open a PR against `main`.
 2. Fill the PR template. Tick **docs** and **changeset** honestly, or say why you skipped them.
-3. CI runs: `pnpm test:pr` (sherif workspace check, knip dead-code, docs link verification, ESLint, unit tests, typecheck, build artifacts, build) + the full E2E suite.
+3. CI runs: `pnpm test:pr` (sherif workspace check, knip dead-code, docs link verification, oxlint, unit tests, typecheck, build artifacts, build), the `Coverage` regression gate, and the full E2E suite.
 4. Address review comments.
 5. A maintainer merges. Releases are cut via Changesets. Your changeset entry lands in the next release.
+
+The PR template lists the steps. The `Test plan` section is required — describe how a reviewer can verify your change.
 
 ### Automated Grok review
 

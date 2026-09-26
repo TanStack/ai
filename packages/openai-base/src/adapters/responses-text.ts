@@ -12,9 +12,15 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
-import { makeStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
+import {
+  makeStructuredOutputCompatibleWithMap,
+  warnStrictFallback,
+} from '../utils/schema-converter'
 import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
-import type { StructuredOutputCompatibility } from '../utils/schema-converter'
+import type {
+  OpenAIBaseTextAdapterOptions,
+  StructuredOutputCompatibility,
+} from '../utils/schema-converter'
 import { buildResponsesUsage } from '../usage'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
 import {
@@ -33,8 +39,11 @@ import type {
   Response,
   ResponseCreateParams,
   ResponseFunctionCallOutputItem,
+  ResponseFunctionWebSearch,
   ResponseInput,
   ResponseInputContent,
+  ResponseOutputMessage,
+  ResponseOutputText,
   ResponseStreamEvent,
 } from 'openai/resources/responses/responses'
 import type {
@@ -43,6 +52,8 @@ import type {
   Modality,
   ModelMessage,
   AdapterYieldChunk,
+  ProviderExecutedToolMetadata,
+  ProviderExecutedToolSource,
   TextOptions,
 } from '@tanstack/ai'
 
@@ -52,6 +63,75 @@ const PDF_BASE64_MAGIC = 'JVBERi'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function readURLCitation(
+  value: unknown,
+): ResponseOutputText.URLCitation | undefined {
+  if (!isRecord(value) || value.type !== 'url_citation') return undefined
+  if (
+    typeof value.url !== 'string' ||
+    typeof value.title !== 'string' ||
+    typeof value.start_index !== 'number' ||
+    typeof value.end_index !== 'number'
+  ) {
+    return undefined
+  }
+  return {
+    type: 'url_citation',
+    url: value.url,
+    title: value.title,
+    start_index: value.start_index,
+    end_index: value.end_index,
+  }
+}
+
+function readWebSearchCall(
+  value: unknown,
+): ResponseFunctionWebSearch | undefined {
+  if (!isRecord(value) || value.type !== 'web_search_call') return undefined
+  if (
+    typeof value.id !== 'string' ||
+    typeof value.status !== 'string' ||
+    !isRecord(value.action) ||
+    typeof value.action.type !== 'string'
+  ) {
+    return undefined
+  }
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- the runtime guard above validates the stable fields while the SDK union preserves provider-specific action fields
+  return value as unknown as ResponseFunctionWebSearch
+}
+
+function collectWebSearchSources(
+  item: ResponseFunctionWebSearch,
+  citations: ReadonlyArray<ResponseOutputText.URLCitation>,
+): Array<ProviderExecutedToolSource> {
+  const sources = new Map<string, ProviderExecutedToolSource>()
+  const add = (url: unknown, title?: unknown) => {
+    if (typeof url !== 'string' || url.length === 0) return
+    const existing = sources.get(url)
+    if (existing) {
+      if (!existing.title && typeof title === 'string' && title.length > 0) {
+        existing.title = title
+      }
+      return
+    }
+    sources.set(url, {
+      url,
+      ...(typeof title === 'string' && title.length > 0 ? { title } : {}),
+    })
+  }
+
+  if (item.action.type === 'search') {
+    for (const source of item.action.sources ?? []) {
+      add(source.url)
+    }
+  }
+  for (const citation of citations) {
+    add(citation.url, citation.title)
+  }
+
+  return [...sources.values()]
 }
 
 function packResponsesReasoningSignature(
@@ -110,12 +190,17 @@ function readReasoningItem(
  * TanStack AI uses `call_id` as the canonical tool-call ID and carries the
  * item ID here so stateless follow-up requests can replay both values.
  */
-export interface OpenAIResponsesToolCallMetadata {
+export interface OpenAIResponsesToolCallMetadata extends ProviderExecutedToolMetadata {
   itemId?: string
   /** Set for shell, local_shell, and apply_patch calls the app must run. */
   openaiUserTool?: OpenAIUserToolName
   /** Shell `action.max_output_length`, echoed on `shell_call_output`. */
   maxOutputLength?: number | null
+  openai?: {
+    webSearchCall: ResponseFunctionWebSearch
+    urlCitations: Array<ResponseOutputText.URLCitation>
+    assistantMessage?: ResponseOutputMessage
+  }
 }
 
 interface StreamedFunctionCallMetadata {
@@ -162,10 +247,19 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   readonly name: string
   protected client: OpenAI
 
-  constructor(model: TModel, name: string, client: OpenAI) {
+  /** See {@link OpenAIBaseTextAdapterOptions.strictFallbackWarning}. */
+  protected readonly strictFallbackWarning: boolean
+
+  constructor(
+    model: TModel,
+    name: string,
+    client: OpenAI,
+    options: OpenAIBaseTextAdapterOptions = {},
+  ) {
     super({}, model)
     this.name = name
     this.client = client
+    this.strictFallbackWarning = options.strictFallbackWarning ?? true
   }
 
   async *chatStream(
@@ -404,6 +498,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let hasClosedReasoning = false
     let model: string = chatOptions.model
     let usage: OpenAI.Responses.Response['usage'] | undefined
+    let responseCompleted = false
 
     const closeReasoning = function* (this: {
       name: string
@@ -600,10 +695,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
 
         if (chunk.type === 'response.completed') {
+          responseCompleted = true
           const response = chunk.response
           if (response.usage) usage = response.usage
           if (response.model) model = response.model
-          continue
+          // Terminal event: do not wait for the HTTP body to close (#1445).
+          break
         }
 
         if (chunk.type === 'response.failed') {
@@ -639,6 +736,20 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           model,
           timestamp: Date.now(),
         }
+      }
+
+      if (!responseCompleted) {
+        const message = 'Response stream ended before response.completed'
+        yield {
+          type: EventType.RUN_ERROR,
+          runId: aguiState.runId,
+          model,
+          timestamp: Date.now(),
+          message,
+          code: 'incomplete-stream',
+          error: { message, code: 'incomplete-stream' },
+        }
+        return
       }
 
       if (accumulatedContent.length === 0) {
@@ -914,8 +1025,92 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     // cuts off without a response.completed event.
     let runFinishedEmitted = false
 
+    const providerWebSearchCalls = new Map<
+      string,
+      {
+        item: ResponseFunctionWebSearch
+        index: number
+        started: boolean
+      }
+    >()
+    const webSearchCitations: Array<ResponseOutputText.URLCitation> = []
+
     const adapterName = this.name
     const emitModel = () => model || options.model
+
+    const recordProviderWebSearchCall = (value: unknown, index: number) => {
+      const item = readWebSearchCall(value)
+      if (!item) return
+      const existing = providerWebSearchCalls.get(item.id)
+      if (existing) {
+        existing.item = item
+        existing.index = index
+      } else {
+        providerWebSearchCalls.set(item.id, {
+          item,
+          index,
+          started: false,
+        })
+      }
+    }
+
+    const emitProviderWebSearchCalls = function* (
+      assistantMessage?: ResponseOutputMessage,
+      completedOnly = false,
+    ): Generator<AdapterYieldChunk> {
+      for (const entry of providerWebSearchCalls.values()) {
+        if (
+          entry.started ||
+          (completedOnly && entry.item.status !== 'completed')
+        ) {
+          continue
+        }
+
+        // Citations belong to the whole response. Give a call only the
+        // citations whose URL is in its own action.sources.
+        // ponytail: exact URL match; normalize URLs if the two ever differ.
+        const callUrls = new Set(
+          entry.item.action.type === 'search'
+            ? (entry.item.action.sources ?? []).map((source) => source.url)
+            : [],
+        )
+        const citations = webSearchCitations.filter((citation) =>
+          callUrls.has(citation.url),
+        )
+        const metadata: OpenAIResponsesToolCallMetadata = {
+          itemId: entry.item.id,
+          providerExecuted: true,
+          sources: collectWebSearchSources(entry.item, citations),
+          openai: {
+            webSearchCall: entry.item,
+            urlCitations: citations,
+            ...(assistantMessage ? { assistantMessage } : {}),
+          },
+        }
+
+        entry.started = true
+        yield {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: entry.item.id,
+          toolCallName: 'web_search',
+          toolName: 'web_search',
+          parentMessageId: aguiState.messageId,
+          model: emitModel(),
+          timestamp: Date.now(),
+          index: entry.index,
+          metadata,
+        }
+        yield {
+          type: EventType.TOOL_CALL_END,
+          toolCallId: entry.item.id,
+          toolCallName: 'web_search',
+          toolName: 'web_search',
+          model: emitModel(),
+          timestamp: Date.now(),
+          input: entry.item.action,
+        }
+      }
+    }
 
     const openReasoning = function* (): Generator<AdapterYieldChunk> {
       if (reasoningMessageId) return
@@ -1151,6 +1346,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           chunk.type === 'response.failed' ||
           chunk.type === 'response.incomplete'
         ) {
+          if (chunk.type === 'response.incomplete') {
+            for (const [index, item] of (
+              chunk.response.output ?? []
+            ).entries()) {
+              recordProviderWebSearchCall(item, index)
+            }
+            yield* emitProviderWebSearchCalls(undefined, true)
+          }
           yield* closeReasoning()
           if (hasEmittedTextMessageStart) {
             yield {
@@ -1363,6 +1566,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // handle output_item.added to capture function call metadata (name)
         if (chunk.type === 'response.output_item.added') {
           const item = chunk.item
+          if (item.type === 'web_search_call') {
+            recordProviderWebSearchCall(item, chunk.output_index)
+          }
           if (item.type === 'reasoning') {
             captureReasoningItem(item)
             yield* openReasoning()
@@ -1532,6 +1738,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // whose START + END therefore never fired).
         if (chunk.type === 'response.output_item.done') {
           const item = chunk.item
+          if (item.type === 'web_search_call') {
+            recordProviderWebSearchCall(item, chunk.output_index)
+          }
           if (item.type === 'reasoning') {
             captureReasoningItem(item)
             yield* openReasoning()
@@ -1616,12 +1825,29 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           yield* userToolChunks(item, chunk.output_index, false)
         }
 
+        if (chunk.type === 'response.output_text.annotation.added') {
+          const citation = readURLCitation(chunk.annotation)
+          if (citation) webSearchCitations.push(citation)
+        }
+
         if (chunk.type === 'response.completed') {
+          const responseOutput = Array.isArray(chunk.response.output)
+            ? chunk.response.output
+            : []
+          const assistantMessage = responseOutput.find(
+            (item): item is ResponseOutputMessage => item.type === 'message',
+          )
+          for (const [index, item] of responseOutput.entries()) {
+            if (item.type === 'web_search_call') {
+              recordProviderWebSearchCall(item, index)
+            }
+          }
+
           // Some Responses API streams, notably reasoning-model responses,
           // can omit text deltas and carry the successful final text only in
           // response.completed.output. Recover that text so consumers never
           // observe an empty result for a successful response.
-          const completedText = chunk.response.output
+          const completedText = responseOutput
             .flatMap((item) => (item.type === 'message' ? item.content : []))
             .filter((part) => part.type === 'output_text')
             .map((part) => part.text)
@@ -1651,10 +1877,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             }
           }
 
-          if (Array.isArray(chunk.response.output)) {
-            for (const item of chunk.response.output) {
-              captureReasoningItem(item)
-            }
+          for (const item of responseOutput) {
+            captureReasoningItem(item)
           }
           // output_text already closed the streamed reasoning item. A second
           // openReasoning() would emit an empty thinking part. Attach the
@@ -1690,7 +1914,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // be silently dropped from the AG-UI stream while `hasFunctionCalls`
           // below still routes the run's finishReason to 'tool_calls' —
           // leaving consumers waiting for tool results they never saw start.
-          for (const [outputIndex, item] of chunk.response.output.entries()) {
+          for (const [outputIndex, item] of responseOutput.entries()) {
             if (item.type !== 'function_call' || !item.id) continue
             const metadata = toolCallMetadata.get(item.id) ?? {
               callId: item.call_id || item.id,
@@ -1766,8 +1990,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             }
           }
 
-          const shellOutputs = hostedShellCallIds(chunk.response.output)
-          for (const [outputIndex, item] of chunk.response.output.entries()) {
+          yield* emitProviderWebSearchCalls(assistantMessage)
+
+          const shellOutputs = hostedShellCallIds(responseOutput)
+          for (const [outputIndex, item] of responseOutput.entries()) {
             if (
               isRecord(item) &&
               item.type === 'shell_call' &&
@@ -1798,7 +2024,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // The Responses API's incomplete_details.reason ('max_output_tokens'
           // | 'content_filter') maps to the AG-UI finishReason vocabulary:
           // max_output_tokens → 'length', content_filter → 'content_filter'.
-          const hasFunctionCalls = chunk.response.output.some((item) => {
+          const hasFunctionCalls = responseOutput.some((item) => {
             if (!isRecord(item)) return false
             if (item.type === 'function_call') return true
             if (
@@ -1837,6 +2063,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             finishReason,
           }
           runFinishedEmitted = true
+          // Terminal event: do not wait for the HTTP body to close (#1445).
+          return
         }
 
         if (chunk.type === 'error') {
@@ -1865,11 +2093,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
 
-      // Synthetic terminal RUN_FINISHED if the stream ended without a
-      // response.completed event (e.g. truncated upstream connection). This
-      // mirrors the chat-completions adapter's behavior so consumers always
-      // see a terminal event for every started run.
+      // The stream ended without a terminal event (e.g. a truncated
+      // connection). Completion was never confirmed, so this is not a
+      // successful stop (#1447). The partial text was already emitted.
       if (!runFinishedEmitted && aguiState.hasEmittedRunStarted) {
+        yield* emitProviderWebSearchCalls(undefined, true)
         yield* closeReasoning()
         if (hasEmittedTextMessageStart) {
           yield {
@@ -1879,17 +2107,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             timestamp: Date.now(),
           }
         }
-        // Omit `usage` entirely (vs `usage: undefined`) — the synthetic
-        // RUN_FINISHED for truncated streams has no usage data, and AG-UI's
-        // `RunFinishedEvent.usage` is optional without `| undefined` under
-        // `exactOptionalPropertyTypes`.
+        const message = 'Response stream ended before response.completed'
         yield {
-          type: EventType.RUN_FINISHED,
-          runId: aguiState.runId,
-          threadId: aguiState.threadId,
+          type: EventType.RUN_ERROR,
           model: model || options.model,
           timestamp: Date.now(),
-          finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
+          message,
+          code: 'incomplete-stream',
+          error: { message, code: 'incomplete-stream' },
         }
       }
     } catch (error: unknown) {
@@ -1931,6 +2156,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   ): Omit<ResponseCreateParams, 'stream'> {
     const input = this.convertMessagesToInput(options.messages)
 
+    if (this.strictFallbackWarning) {
+      warnStrictFallback(options.tools, options.logger)
+    }
     const tools = options.tools
       ? convertToolsToResponsesFormat(
           options.tools,
@@ -2107,8 +2335,25 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
         // If the assistant message has tool calls, add them as FunctionToolCall objects
         // Responses API expects arguments as a string (JSON string)
+        let rawAssistantMessage: ResponseOutputMessage | undefined
         if (message.toolCalls && message.toolCalls.length > 0) {
           for (const toolCall of message.toolCalls) {
+            const metadata = toolCall.metadata as
+              | OpenAIResponsesToolCallMetadata
+              | undefined
+            if (metadata?.providerExecuted) {
+              const webSearchCall = metadata.openai?.webSearchCall
+              // The raw ws_/msg_ items carry ids that must pair with their
+              // reasoning item, the same as function calls above. When they
+              // cannot pair, skip them and send the plain message with no id.
+              if (webSearchCall && canPairReasoning) {
+                result.push(webSearchCall)
+                rawAssistantMessage ??= metadata.openai?.assistantMessage
+              }
+              continue
+            }
+
+            // Keep arguments as string for Responses API
             const argumentsString =
               typeof toolCall.function.arguments === 'string'
                 ? toolCall.function.arguments
@@ -2129,9 +2374,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               result.push(userItem)
               continue
             }
-            const itemId = (
-              toolCall.metadata as OpenAIResponsesToolCallMetadata | undefined
-            )?.itemId
+            const itemId = metadata?.itemId
 
             result.push({
               type: 'function_call',
@@ -2143,8 +2386,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           }
         }
 
-        // Add the assistant's text message if there is content
-        if (message.content) {
+        if (rawAssistantMessage) {
+          result.push(rawAssistantMessage)
+        } else if (message.content) {
+          // Add the assistant's text message if there is content
           const contentStr = this.extractTextContent(message.content)
           if (contentStr) {
             result.push({

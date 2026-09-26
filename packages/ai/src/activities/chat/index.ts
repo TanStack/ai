@@ -888,6 +888,7 @@ class TextEngine<
   private readonly initialClientToolResults: Map<string, any>
   private readonly resumeApprovals = new Map<string, ToolApprovalResolution>()
   private readonly resumeClientToolResults = new Map<string, any>()
+  private readonly resumeClientToolErrors = new Map<string, string>()
   private readonly resumeDeniedToolResults = new Map<string, unknown>()
   private readonly resumeCancelledToolCallIds = new Set<string>()
   private readonly resumeGenericInterrupts = new Map<
@@ -960,6 +961,8 @@ class TextEngine<
     message: string
     code?: string
     cause?: unknown
+    /** Full model text, when a structured-output parse failed (#1485). */
+    rawText?: string
   } | null = null
   private combinedCompleteEmitted = false
   private readonly finalStructuredOutput?: {
@@ -1199,8 +1202,52 @@ class TextEngine<
     message: string
     code?: string
     cause?: unknown
+    rawText?: string
   } | null {
     return this.finalizationError
+  }
+
+  private async runTerminalHook(): Promise<void> {
+    if (this.terminalHookCalled || this.isCancelled()) return
+
+    this.terminalHookCalled = true
+
+    if (this.finalizationError) {
+      const errForHook = new Error(
+        this.finalizationError.message,
+        this.finalizationError.cause !== undefined
+          ? { cause: this.finalizationError.cause }
+          : undefined,
+      )
+      if (this.finalizationError.code !== undefined) {
+        Object.defineProperty(errForHook, 'code', {
+          value: this.finalizationError.code,
+          enumerable: true,
+        })
+      }
+      if (this.finalizationError.rawText !== undefined) {
+        Object.defineProperty(errForHook, 'rawText', {
+          value: this.finalizationError.rawText,
+          enumerable: true,
+        })
+      }
+      await this.middlewareRunner.runOnError(this.middlewareCtx, {
+        error: errForHook,
+        duration: Date.now() - this.streamStartTime,
+      })
+      return
+    }
+
+    this.addTerminalAssistantMessages()
+    await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
+      finishReason: this.lastFinishReason,
+      duration: Date.now() - this.streamStartTime,
+      content: this.accumulatedContent,
+      usage: rebuildTokenUsage(
+        this.finishedEvent?.usage,
+        tanstackMetadata(this.finishedEvent ?? undefined)?.usage,
+      ),
+    })
   }
 
   async *run(): AsyncGenerator<StreamChunk> {
@@ -1248,7 +1295,8 @@ class TextEngine<
       }
 
       const pendingPhase = yield* this.checkForPendingToolCalls()
-      if (pendingPhase === 'wait') {
+      if (pendingPhase === 'stop' || pendingPhase === 'wait') {
+        await this.runTerminalHook()
         return
       }
 
@@ -1357,46 +1405,11 @@ class TextEngine<
         }
       }
 
-      // Call terminal hook (skip when waiting for client — stream is paused, not finished).
-      // Priority: finalizationError → onError; otherwise normal onFinish.
-      // Skip on cancellation — the finally block routes aborts to onAbort.
-      if (
-        !this.terminalHookCalled &&
-        this.toolPhase !== 'wait' &&
-        !this.isCancelled()
-      ) {
-        if (this.finalizationError) {
-          this.terminalHookCalled = true
-          const errForHook = new Error(
-            this.finalizationError.message,
-            this.finalizationError.cause !== undefined
-              ? { cause: this.finalizationError.cause }
-              : undefined,
-          )
-          if (this.finalizationError.code !== undefined) {
-            Object.defineProperty(errForHook, 'code', {
-              value: this.finalizationError.code,
-              enumerable: true,
-            })
-          }
-          await this.middlewareRunner.runOnError(this.middlewareCtx, {
-            error: errForHook,
-            duration: Date.now() - this.streamStartTime,
-          })
-        } else {
-          this.addTerminalAssistantMessages()
-          this.terminalHookCalled = true
-          await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
-            finishReason: this.lastFinishReason,
-            duration: Date.now() - this.streamStartTime,
-            content: this.accumulatedContent,
-            usage: rebuildTokenUsage(
-              this.finishedEvent?.usage,
-              tanstackMetadata(this.finishedEvent ?? undefined)?.usage,
-            ),
-          })
-        }
-      }
+      // A client-tool or approval wait ends this server-side chat invocation.
+      // Structured-output finalization stays paused until the caller submits
+      // the result in a new invocation, but middleware must still observe one
+      // terminal hook for the current invocation.
+      await this.runTerminalHook()
     } catch (error: unknown) {
       if (
         error instanceof Error &&
@@ -2218,6 +2231,7 @@ class TextEngine<
       this.middlewareCtx.context,
       this.toolAbortSignal,
       {
+        clientToolErrors: this.resumeClientToolErrors,
         deniedToolResults: this.resumeDeniedToolResults,
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
       },
@@ -2402,6 +2416,7 @@ class TextEngine<
       this.middlewareCtx.context,
       this.toolAbortSignal,
       {
+        clientToolErrors: this.resumeClientToolErrors,
         deniedToolResults: this.resumeDeniedToolResults,
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
       },
@@ -3333,6 +3348,7 @@ class TextEngine<
       } else if (
         !tool.execute &&
         !clientToolResults.has(toolCall.id) &&
+        !this.resumeClientToolErrors.has(toolCall.id) &&
         !this.resumeCancelledToolCallIds.has(toolCall.id)
       ) {
         clientRequests.push({
@@ -3440,9 +3456,15 @@ class TextEngine<
         content: wireContent,
         role: 'tool' as const,
       }
+      // An outcome always comes with output-error.
       chunks.push(
         (result.state === 'output-error'
-          ? withTanstackMetadata(resultChunk, { state: result.state })
+          ? withTanstackMetadata(resultChunk, {
+              state: result.state,
+              ...(result.outcome !== undefined && {
+                toolResultOutcome: result.outcome,
+              }),
+            })
           : resultChunk) as StreamChunk,
       )
 
@@ -3463,22 +3485,63 @@ class TextEngine<
           return false
         }
       })
+      const isDeniedResult = result.outcome === 'denied'
+      const existingToolResultIdx = isDeniedResult
+        ? this.messages.findIndex(
+            (message) =>
+              message.role === 'tool' &&
+              message.toolCallId === result.toolCallId,
+          )
+        : -1
+      const resultMessageIdx =
+        existingToolResultIdx >= 0 ? existingToolResultIdx : placeholderIdx
 
-      const newToolMessage: ModelMessage = {
-        role: 'tool',
-        content,
-        toolCallId: result.toolCallId,
-        ...(result.state === 'output-error' && {
-          error: toolResultErrorText(parseToolOutput(wireContent)),
-        }),
+      // Only a denied result keeps the old message's fields. A replaced
+      // pendingExecution placeholder must not leak into the real result.
+      const existingToolMessage =
+        existingToolResultIdx >= 0
+          ? this.messages[existingToolResultIdx]
+          : undefined
+      const errorField = result.state === 'output-error' && {
+        error: toolResultErrorText(parseToolOutput(wireContent)),
       }
+      const replacementMessage: ModelMessage =
+        existingToolMessage?.role === 'tool'
+          ? {
+              ...existingToolMessage,
+              content,
+              toolCallId: result.toolCallId,
+              ...errorField,
+            }
+          : {
+              role: 'tool',
+              content,
+              toolCallId: result.toolCallId,
+              ...errorField,
+            }
+      const newToolMessage: ModelMessage =
+        result.outcome !== undefined
+          ? withTanstackMetadata(replacementMessage, {
+              toolResultOutcome: result.outcome,
+            })
+          : replacementMessage
 
-      if (placeholderIdx >= 0) {
-        this.messages = [
-          ...this.messages.slice(0, placeholderIdx),
+      if (resultMessageIdx >= 0) {
+        const replacedMessages = [
+          ...this.messages.slice(0, resultMessageIdx),
           newToolMessage,
-          ...this.messages.slice(placeholderIdx + 1),
+          ...this.messages.slice(resultMessageIdx + 1),
         ]
+        this.messages = isDeniedResult
+          ? replacedMessages.filter(
+              (message, index) =>
+                index === resultMessageIdx ||
+                !(
+                  message.role === 'tool' &&
+                  message.toolCallId === result.toolCallId
+                ),
+            )
+          : replacedMessages
       } else {
         this.messages = [...this.messages, newToolMessage]
       }
@@ -3509,7 +3572,10 @@ class TextEngine<
         }
 
         // Only mark as complete if NOT pending execution
-        if (!hasPendingExecution) {
+        if (
+          !hasPendingExecution &&
+          !this.resumeDeniedToolResults.has(message.toolCallId)
+        ) {
           completedToolIds.add(message.toolCallId)
         }
       }
@@ -3897,6 +3963,9 @@ class TextEngine<
     // Track whether a RUN_ERROR has been yielded to streaming consumers so
     // we don't emit a duplicate synthetic one at the end.
     let runErrorYielded = false
+    // The full model text. Adapter errors carry only a 200-character preview,
+    // so a Promise caller could not recover the answer (#1485).
+    let rawText = ''
 
     // Pipe chunks through middleware; yield to consumer only when yieldChunks=true
     for await (const raw of providerStream) {
@@ -4008,14 +4077,20 @@ class TextEngine<
           await this.runOnUsageFromChunk(chunk)
         }
 
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+          rawText += chunk.delta
+        }
+
         if (chunk.type === EventType.RUN_ERROR) {
           // RunErrorEvent already exposes `message` and `code` after narrowing.
+          // A native stream has no adapter error to capture, but its RUN_ERROR
+          // can carry the provider's error body as `rawEvent` (#1005).
+          const cause = fallbackAdapterError ?? chunk.rawEvent
           this.finalizationError = {
             message: chunk.message,
             ...(chunk.code ? { code: chunk.code } : {}),
-            ...(fallbackAdapterError !== undefined
-              ? { cause: fallbackAdapterError }
-              : {}),
+            ...(cause !== undefined ? { cause } : {}),
+            ...(rawText ? { rawText } : {}),
           }
         }
 
@@ -4199,6 +4274,7 @@ class TextEngine<
             message: `Failed to parse structured output as JSON. Content: ${detail}`,
             code: 'structured-output-parse-failed',
             cause: err,
+            rawText,
           }
         }
       }
@@ -4310,6 +4386,7 @@ class TextEngine<
       resumeToolState: {
         approvals: this.resumeApprovals,
         clientToolResults: this.resumeClientToolResults,
+        clientToolErrors: this.resumeClientToolErrors,
         deniedToolResults: this.resumeDeniedToolResults,
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
       },
@@ -4530,6 +4607,7 @@ class TextEngine<
         this.earlyTermination = true
       } else if (policy.toolResume === 'cancel') {
         for (const request of pendingToolCalls) {
+          if (this.resumeDeniedToolResults.has(request.id)) continue
           this.resumeCancelledToolCallIds.add(request.id)
         }
       }
@@ -4671,6 +4749,11 @@ class TextEngine<
         this.resumeClientToolResults.set(toolCallId, result)
       }
     }
+    if (state?.clientToolErrors) {
+      for (const [toolCallId, errorText] of state.clientToolErrors) {
+        this.resumeClientToolErrors.set(toolCallId, errorText)
+      }
+    }
     if (state?.deniedToolResults) {
       for (const [toolCallId, result] of state.deniedToolResults) {
         this.resumeDeniedToolResults.set(toolCallId, result)
@@ -4730,6 +4813,7 @@ class TextEngine<
       this.earlyTermination = true
     } else if (policy.toolResume === 'cancel') {
       for (const toolCall of this.getPendingToolCallsFromMessages()) {
+        if (this.resumeDeniedToolResults.has(toolCall.id)) continue
         this.resumeCancelledToolCallIds.add(toolCall.id)
       }
     }
@@ -5787,6 +5871,12 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
     if (finalizationError.code !== undefined) {
       Object.defineProperty(err, 'code', {
         value: finalizationError.code,
+        enumerable: true,
+      })
+    }
+    if (finalizationError.rawText !== undefined) {
+      Object.defineProperty(err, 'rawText', {
+        value: finalizationError.rawText,
         enumerable: true,
       })
     }

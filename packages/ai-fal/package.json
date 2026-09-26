@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-fal",
-  "version": "0.15.1",
+  "version": "0.15.2",
   "description": "fal.ai adapter for TanStack AI image, video, live, audio, speech, and transcription generation.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -40,6 +40,7 @@
     "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
     "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
     "test:lib": "vitest run",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"

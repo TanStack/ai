@@ -536,6 +536,7 @@ export type { WireMessage } from './utilities/ag-ui-wire'
 export {
   isContentPart,
   isContentPartArray,
+  isToolResultOutcome,
   normalizeToolResult,
 } from './utilities/tool-result'
 export {

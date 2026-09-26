@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox",
-  "version": "0.5.15",
+  "version": "0.5.16",
   "description": "Provider-agnostic sandbox layer for TanStack AI — run harness adapters inside isolated sandboxes (defineSandbox, defineWorkspace, withSandbox) with a uniform SandboxHandle, workspace bootstrap, policy, and resumable lifecycle.",
   "author": "",
   "license": "MIT",
@@ -50,6 +50,7 @@
     "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
     "test:oxlint": "oxlint src --type-aware",
+    "test:coverage": "vitest run --coverage --coverage.include='src/**' --coverage.reporter=text-summary --coverage.reporter=json-summary",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -57,6 +58,12 @@
   "nx": {
     "targets": {
       "test:lib": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      },
+      "test:coverage": {
         "dependsOn": [
           "build",
           "^build"

@@ -2,6 +2,7 @@ import { buildBaseUsage } from '@tanstack/ai'
 import { BaseEvaluateAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { buildHeaders, getOpenRouterApiKeyFromEnv } from '../utils'
+import { extractUsageCost } from './cost'
 import type { EvaluateOptions, WireAnswer } from '@tanstack/ai/adapters'
 import type { OpenRouterClientConfig } from '../utils/client'
 import type {
@@ -72,6 +73,8 @@ function isDecisionsResponse(value: unknown): value is {
   model?: string
   answers: Record<string, WireAnswer>
   usage?: unknown
+  id?: unknown
+  provider?: unknown
 } {
   if (!isRecord(value)) return false
   if (!isAnswers(value.answers)) return false
@@ -100,11 +103,14 @@ function mapUsage(usage: unknown) {
     readNumber(usage, ['output_tokens', 'completion_tokens']) ?? 0
   const totalTokens =
     readNumber(usage, ['total_tokens']) ?? promptTokens + completionTokens
-  return buildBaseUsage({
-    promptTokens,
-    completionTokens,
-    totalTokens,
-  })
+  return {
+    ...buildBaseUsage({
+      promptTokens,
+      completionTokens,
+      totalTokens,
+    }),
+    ...extractUsageCost(usage),
+  }
 }
 
 /**
@@ -161,6 +167,8 @@ export class OpenRouterEvaluateAdapter<
         model: json.model ?? model,
         answers: json.answers,
         usage: mapUsage(json.usage),
+        ...(typeof json.id === 'string' && { id: json.id }),
+        ...(typeof json.provider === 'string' && { provider: json.provider }),
       }
     } catch (error) {
       logger.errors(`${this.name}.evaluate fatal`, {

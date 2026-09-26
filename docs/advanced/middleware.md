@@ -631,6 +631,8 @@ Exactly **one** terminal hook fires per `chat()` invocation. They are mutually e
 | `onAbort` | Run was aborted (via `ctx.abort()`, an external `AbortSignal`, or a `{ type: 'abort' }` decision from `onBeforeToolCall`) |
 | `onError` | An unhandled error occurred |
 
+`onFinish` also fires when the invocation pauses at a client-tool or approval wait. The run is not complete yet. To tell a pause from a completion, look in `onChunk` for a `RUN_FINISHED` chunk with `outcome.type === 'interrupt'`.
+
 > **Separate-finalization path:** Adapters without native-combined support make a separate structured-output provider call after the agent loop.
 >
 > - `onStructuredOutputConfig` fires before the separate provider call, and `ctx.phase` is `'structuredOutput'` for its chunks.

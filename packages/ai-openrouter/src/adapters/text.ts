@@ -177,10 +177,12 @@ export class OpenRouterTextAdapter<
           chatRequest: {
             ...chatRequest,
             stream: true,
-            streamOptions: {
-              ...(chatRequest.streamOptions ?? {}),
-              includeUsage: true,
-            },
+            // `includeUsage: false` drops `stream_options` from the wire body.
+            // OpenRouter `provider.requireParameters: true` needs this.
+            streamOptions:
+              chatRequest.streamOptions?.includeUsage === false
+                ? undefined
+                : { ...chatRequest.streamOptions, includeUsage: true },
           },
         },
         {
@@ -424,8 +426,10 @@ export class OpenRouterTextAdapter<
       // Strip streamOptions/tools/responseFormat from the base request before
       // adding the resolved structured-output format. Structured output
       // doesn't carry tools — keeping them can confuse strict-mode validation
-      // upstream. (`stream` is already absent — `mapOptionsToRequest` returns
-      // `Omit<ChatRequest, 'stream'>`; we set it explicitly below.)
+      // upstream. `streamOptions` is set again below (omitted when the caller
+      // sets `includeUsage: false`). (`stream` is already absent —
+      // `mapOptionsToRequest` returns `Omit<ChatRequest, 'stream'>`; we set it
+      // explicitly below.)
       const {
         streamOptions: _so,
         tools: _t,
@@ -447,7 +451,10 @@ export class OpenRouterTextAdapter<
           chatRequest: {
             ...cleanParams,
             stream: true,
-            streamOptions: { includeUsage: true },
+            streamOptions:
+              chatRequest.streamOptions?.includeUsage === false
+                ? undefined
+                : { includeUsage: true },
             responseFormat,
           },
         },

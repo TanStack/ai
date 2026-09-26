@@ -48,6 +48,7 @@ import type {
   BytePlusVideoMetadata,
 } from '../message-types'
 import type { BytePlusArkConfig } from '../utils/client'
+import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof BytePlusChatModelToolCapabilitiesByName
@@ -57,7 +58,8 @@ type ResolveToolCapabilities<TModel extends string> =
 /**
  * Configuration for the BytePlus text adapter.
  */
-export interface BytePlusTextConfig extends BytePlusArkConfig {}
+export interface BytePlusTextConfig
+  extends BytePlusArkConfig, OpenAIBaseTextAdapterOptions {}
 
 /**
  * Re-export of the public provider options type.
@@ -107,7 +109,12 @@ export class BytePlusTextAdapter<
   override readonly name = 'byteplus' as const
 
   constructor(config: BytePlusTextConfig, model: TModel) {
-    super(model, 'byteplus', new OpenAI(withBytePlusArkDefaults(config)))
+    super(
+      model,
+      'byteplus',
+      new OpenAI(withBytePlusArkDefaults(config)),
+      config,
+    )
   }
 
   /**
