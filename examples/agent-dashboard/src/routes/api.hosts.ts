@@ -1,8 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { listThreads, triage } from '@/server/harness'
+import { harnessRegistry, listThreads } from '@/server/harness'
+import '@/server/meta'
 
-// One embedded host for the demo. Shaped as a list so the UI can grow to the
-// relay's multi-host model later.
+// One embedded host running every registered agent. Shaped as a list so the UI
+// can grow to the relay's multi-host model later.
 export const Route = createFileRoute('/api/hosts')({
   server: {
     handlers: {
@@ -11,8 +12,10 @@ export const Route = createFileRoute('/api/hosts')({
           {
             id: 'local',
             name: 'Local host',
-            harness: triage.name,
-            description: triage.description ?? '',
+            agents: Object.values(harnessRegistry).map((h) => ({
+              name: h.name,
+              description: h.description ?? '',
+            })),
             sessions: listThreads().length,
           },
         ]),

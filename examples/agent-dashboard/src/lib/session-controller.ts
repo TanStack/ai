@@ -19,10 +19,10 @@ interface Entry {
 }
 const registry = new Map<string, Entry>()
 
-function agentUrl() {
-  const origin =
-    typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
-  return `${origin}/api/agent`
+function origin() {
+  return typeof window !== 'undefined'
+    ? window.location.origin
+    : 'http://localhost'
 }
 
 function setStatus(threadId: string, status: 'idle' | 'running' | 'requires_action') {
@@ -133,10 +133,10 @@ function project(threadId: string, event: any, replay = false) {
   }
 }
 
-function getEntry(threadId: string): Entry {
+function getEntry(threadId: string, endpoint = '/api/agent'): Entry {
   let entry = registry.get(threadId)
   if (!entry) {
-    const agent = new HttpAgent({ url: agentUrl(), threadId })
+    const agent = new HttpAgent({ url: `${origin()}${endpoint}`, threadId })
     entry = { agent, subscribed: false }
     registry.set(threadId, entry)
   }
@@ -152,8 +152,8 @@ function getEntry(threadId: string): Entry {
 }
 
 /** Create + subscribe the agent for a thread so its events start projecting. */
-export function ensureSession(threadId: string): void {
-  getEntry(threadId)
+export function ensureSession(threadId: string, endpoint = '/api/agent'): void {
+  getEntry(threadId, endpoint)
 }
 
 const hydrated = new Set<string>()
@@ -195,8 +195,12 @@ export async function hydrateSession(threadId: string): Promise<void> {
 }
 
 /** Send a user prompt and stream the reply into the collections. */
-export async function sendPrompt(threadId: string, text: string): Promise<void> {
-  const { agent } = getEntry(threadId)
+export async function sendPrompt(
+  threadId: string,
+  text: string,
+  endpoint = '/api/agent',
+): Promise<void> {
+  const { agent } = getEntry(threadId, endpoint)
   upsert(messages, {
     id: `user-${Date.now()}`,
     threadId,

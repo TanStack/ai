@@ -17,7 +17,7 @@ import { permissions, usage } from '@tanstack/ai-harness/plugins'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
-import type { Principal } from '@tanstack/ai-harness'
+import type { AnyHarness, Principal } from '@tanstack/ai-harness'
 
 let seq = 0
 const id = (prefix: string) => `${prefix}-${(seq += 1)}`
@@ -214,23 +214,45 @@ export function getHost() {
   return host
 }
 
+/** Every harness this host serves, by name — so routes can pick per thread. */
+export const harnessRegistry: Record<string, AnyHarness> = {
+  [triage.name]: triage as AnyHarness,
+}
+
+export function registerHarness(harness: AnyHarness): void {
+  harnessRegistry[harness.name] = harness
+}
+
 /** A live view of the threads the dashboard has touched, for the session list. */
 export interface ThreadInfo {
   id: string
+  harness: string
   createdAt: number
   lastActivity: number
 }
 const threads = new Map<string, ThreadInfo>()
 
-export function noteThread(threadId: string): void {
+export function noteThread(threadId: string, harness = triage.name): void {
   const now = Date.now()
   const existing = threads.get(threadId)
   if (existing) existing.lastActivity = now
-  else threads.set(threadId, { id: threadId, createdAt: now, lastActivity: now })
+  else
+    threads.set(threadId, {
+      id: threadId,
+      harness,
+      createdAt: now,
+      lastActivity: now,
+    })
 }
 
 export function listThreads(): Array<ThreadInfo> {
   return [...threads.values()].sort((a, b) => b.lastActivity - a.lastActivity)
+}
+
+/** The harness a thread runs on (default: triage). */
+export function getHarnessForThread(threadId: string) {
+  const name = threads.get(threadId)?.harness ?? triage.name
+  return harnessRegistry[name] ?? triage
 }
 
 /** Local single-user demo: every request is the same owner. */
@@ -241,3 +263,11 @@ export const canAccess = (_principal: Principal, threadId: string): boolean => {
   noteThread(threadId)
   return true
 }
+
+/** canAccess that records a thread under a specific harness (for meta-chat). */
+export const canAccessFor =
+  (harness: string) =>
+  (_principal: Principal, threadId: string): boolean => {
+    noteThread(threadId, harness)
+    return true
+  }

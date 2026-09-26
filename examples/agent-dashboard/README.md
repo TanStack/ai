@@ -46,6 +46,25 @@ interrupt through **both** paths the interrupt supports:
 - **Deny** → the harness-native control endpoint (`/api/harness/control`).
 - **Edit** → approve with edited tool arguments.
 
+## Meta-chat (the demo)
+
+`/chat` is the dashboard's **own** agent (`dashboard/meta`), a tool-using chat
+over live dashboard state. It runs on the same host as every other agent, so its
+runs and tool calls show up in History and the trace view — the dashboard
+dogfooding itself. Its tools: `list_agents`, `list_sessions`, `query_runs`,
+`get_agent_config`, `set_agent_config`, `summarize_session`.
+
+Demo script:
+
+1. Open `/chat`.
+2. Ask **"List the agents on this host"** — it calls `list_agents` (visible
+   inline) and answers "This host runs 2 agents: support/triage, dashboard/meta."
+3. Run a triage session (Hosts → New triage session → Start triage demo).
+4. Back in `/chat`, ask **"How many runs so far?"** and **"Summarize the latest
+   session"** — it queries live run history and the session snapshot.
+5. Open **History** — the meta-chat's own runs are listed alongside the agents',
+   and each replays.
+
 ## Server wiring
 
 - `POST /api/agent` — the AG-UI run stream (`createAgUiHandler`, spend ticks on).
@@ -54,6 +73,7 @@ interrupt through **both** paths the interrupt supports:
 - `GET /api/hosts`, `GET /api/sessions` — host and session lists.
 - `GET|POST /api/config` — read/write agent config (versioned).
 - `GET /api/runs` — run history; `GET /api/replay` — a session's stored events.
+- `POST /api/meta` — the meta-chat's AG-UI run stream.
 
 ## Test
 

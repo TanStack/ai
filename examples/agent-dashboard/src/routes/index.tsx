@@ -8,8 +8,7 @@ export const Route = createFileRoute('/')({
 interface Host {
   id: string
   name: string
-  harness: string
-  description: string
+  agents: Array<{ name: string; description: string }>
   sessions: number
 }
 
@@ -68,8 +67,18 @@ function Home() {
                   {host.sessions} session{host.sessions === 1 ? '' : 's'}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-white/50">{host.harness}</p>
-              <p className="mt-2 text-sm text-white/70">{host.description}</p>
+              <ul className="mt-2 space-y-1">
+                {host.agents.map((agent) => (
+                  <li key={agent.name} className="text-sm">
+                    <span className="font-mono text-xs text-sky-300">
+                      {agent.name}
+                    </span>
+                    <span className="ml-2 text-white/60">
+                      {agent.description}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           ))}
         </div>

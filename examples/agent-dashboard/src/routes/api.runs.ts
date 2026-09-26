@@ -1,6 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { HARNESS_PROTOCOL_VERSION } from '@tanstack/ai-harness'
-import { getHost, getPersistence, listThreads, triage } from '@/server/harness'
+import {
+  getHarnessForThread,
+  getHost,
+  getPersistence,
+  listThreads,
+} from '@/server/harness'
+import '@/server/meta'
 
 // Run history, backed by HarnessPersistence (runs.listByThread), across every
 // thread this host has touched. Newest first.
@@ -12,7 +18,9 @@ export const Route = createFileRoute('/api/runs')({
         // Ensure each thread's session is open so its runs are in persistence.
         const perThread = await Promise.all(
           listThreads().map(async (thread) => {
-            await host.open(triage, { threadId: thread.id })
+            await host.open(getHarnessForThread(thread.id), {
+              threadId: thread.id,
+            })
             const runs =
               (await getPersistence().stores.runs?.listByThread?.(
                 thread.id,

@@ -39,6 +39,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               <Link to="/" className="hover:text-white [&.active]:text-white">
                 Hosts
               </Link>
+              <Link to="/chat" className="hover:text-white [&.active]:text-white">
+                Meta-chat
+              </Link>
               <Link
                 to="/history"
                 className="hover:text-white [&.active]:text-white"

@@ -12,11 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SpendRouteImport } from './routes/spend'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as ConfigRouteImport } from './routes/config'
+import { Route as ChatRouteImport } from './routes/chat'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionsThreadIdRouteImport } from './routes/sessions.$threadId'
 import { Route as ApiSessionsRouteImport } from './routes/api.sessions'
 import { Route as ApiRunsRouteImport } from './routes/api.runs'
 import { Route as ApiReplayRouteImport } from './routes/api.replay'
+import { Route as ApiMetaRouteImport } from './routes/api.meta'
 import { Route as ApiHostsRouteImport } from './routes/api.hosts'
 import { Route as ApiConfigRouteImport } from './routes/api.config'
 import { Route as ApiAgentRouteImport } from './routes/api.agent'
@@ -35,6 +37,11 @@ const HistoryRoute = HistoryRouteImport.update({
 const ConfigRoute = ConfigRouteImport.update({
   id: '/config',
   path: '/config',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -62,6 +69,11 @@ const ApiReplayRoute = ApiReplayRouteImport.update({
   path: '/api/replay',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMetaRoute = ApiMetaRouteImport.update({
+  id: '/api/meta',
+  path: '/api/meta',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHostsRoute = ApiHostsRouteImport.update({
   id: '/api/hosts',
   path: '/api/hosts',
@@ -85,12 +97,14 @@ const ApiHarnessSplatRoute = ApiHarnessSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/chat': typeof ChatRoute
   '/config': typeof ConfigRoute
   '/history': typeof HistoryRoute
   '/spend': typeof SpendRoute
   '/api/agent': typeof ApiAgentRoute
   '/api/config': typeof ApiConfigRoute
   '/api/hosts': typeof ApiHostsRoute
+  '/api/meta': typeof ApiMetaRoute
   '/api/replay': typeof ApiReplayRoute
   '/api/runs': typeof ApiRunsRoute
   '/api/sessions': typeof ApiSessionsRoute
@@ -99,12 +113,14 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/chat': typeof ChatRoute
   '/config': typeof ConfigRoute
   '/history': typeof HistoryRoute
   '/spend': typeof SpendRoute
   '/api/agent': typeof ApiAgentRoute
   '/api/config': typeof ApiConfigRoute
   '/api/hosts': typeof ApiHostsRoute
+  '/api/meta': typeof ApiMetaRoute
   '/api/replay': typeof ApiReplayRoute
   '/api/runs': typeof ApiRunsRoute
   '/api/sessions': typeof ApiSessionsRoute
@@ -114,12 +130,14 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/chat': typeof ChatRoute
   '/config': typeof ConfigRoute
   '/history': typeof HistoryRoute
   '/spend': typeof SpendRoute
   '/api/agent': typeof ApiAgentRoute
   '/api/config': typeof ApiConfigRoute
   '/api/hosts': typeof ApiHostsRoute
+  '/api/meta': typeof ApiMetaRoute
   '/api/replay': typeof ApiReplayRoute
   '/api/runs': typeof ApiRunsRoute
   '/api/sessions': typeof ApiSessionsRoute
@@ -130,12 +148,14 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/chat'
     | '/config'
     | '/history'
     | '/spend'
     | '/api/agent'
     | '/api/config'
     | '/api/hosts'
+    | '/api/meta'
     | '/api/replay'
     | '/api/runs'
     | '/api/sessions'
@@ -144,12 +164,14 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/chat'
     | '/config'
     | '/history'
     | '/spend'
     | '/api/agent'
     | '/api/config'
     | '/api/hosts'
+    | '/api/meta'
     | '/api/replay'
     | '/api/runs'
     | '/api/sessions'
@@ -158,12 +180,14 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/chat'
     | '/config'
     | '/history'
     | '/spend'
     | '/api/agent'
     | '/api/config'
     | '/api/hosts'
+    | '/api/meta'
     | '/api/replay'
     | '/api/runs'
     | '/api/sessions'
@@ -173,12 +197,14 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ChatRoute: typeof ChatRoute
   ConfigRoute: typeof ConfigRoute
   HistoryRoute: typeof HistoryRoute
   SpendRoute: typeof SpendRoute
   ApiAgentRoute: typeof ApiAgentRoute
   ApiConfigRoute: typeof ApiConfigRoute
   ApiHostsRoute: typeof ApiHostsRoute
+  ApiMetaRoute: typeof ApiMetaRoute
   ApiReplayRoute: typeof ApiReplayRoute
   ApiRunsRoute: typeof ApiRunsRoute
   ApiSessionsRoute: typeof ApiSessionsRoute
@@ -207,6 +233,13 @@ declare module '@tanstack/react-router' {
       path: '/config'
       fullPath: '/config'
       preLoaderRoute: typeof ConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -244,6 +277,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiReplayRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/meta': {
+      id: '/api/meta'
+      path: '/api/meta'
+      fullPath: '/api/meta'
+      preLoaderRoute: typeof ApiMetaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/hosts': {
       id: '/api/hosts'
       path: '/api/hosts'
@@ -277,12 +317,14 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ChatRoute: ChatRoute,
   ConfigRoute: ConfigRoute,
   HistoryRoute: HistoryRoute,
   SpendRoute: SpendRoute,
   ApiAgentRoute: ApiAgentRoute,
   ApiConfigRoute: ApiConfigRoute,
   ApiHostsRoute: ApiHostsRoute,
+  ApiMetaRoute: ApiMetaRoute,
   ApiReplayRoute: ApiReplayRoute,
   ApiRunsRoute: ApiRunsRoute,
   ApiSessionsRoute: ApiSessionsRoute,
