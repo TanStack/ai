@@ -512,6 +512,21 @@ test.describe('Middleware Lifecycle', () => {
       'gen_ai.operation.name': 'image_generation',
       'gen_ai.request.model': 'gpt-image-1',
     })
+    // captureContent (#1526): the prompt lands as input. The mock returns a
+    // `data:` URL, so the output is a placeholder, never the bytes.
+    expect(
+      JSON.parse(mediaSpans[0].attributes['gen_ai.input.messages']),
+    ).toEqual([
+      {
+        role: 'user',
+        content: [{ type: 'text', content: 'a guitar in a music store' }],
+      },
+    ])
+    expect(
+      JSON.parse(mediaSpans[0].attributes['gen_ai.output.messages']),
+    ).toEqual([
+      { role: 'assistant', content: [{ type: 'text', content: '[image]' }] },
+    ])
   })
 
   test('otel middleware emits the self-describing billed quantity for a duration-billed activity', async ({
@@ -549,6 +564,26 @@ test.describe('Middleware Lifecycle', () => {
       // Deprecated bare count still emitted for backward compatibility.
       'tanstack.ai.usage.duration_seconds': 2.4,
     })
+    // captureContent (#1526): inline source audio is a placeholder; the
+    // transcript is the output.
+    expect(
+      JSON.parse(mediaSpans[0].attributes['gen_ai.input.messages']),
+    ).toEqual([
+      { role: 'user', content: [{ type: 'text', content: '[audio]' }] },
+    ])
+    expect(
+      JSON.parse(mediaSpans[0].attributes['gen_ai.output.messages']),
+    ).toEqual([
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            content: 'I would like to buy a Fender Stratocaster please',
+          },
+        ],
+      },
+    ])
   })
 
   test('no middleware passes content through unchanged', async ({

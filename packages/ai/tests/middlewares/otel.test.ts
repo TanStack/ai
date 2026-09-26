@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import { otelMiddleware } from '../../src/middlewares/otel'
 import { usageAttributes } from '../../src/middlewares/usage-attributes'
+import { applyGenerationResultTransforms } from '../../src/activities/middleware/run'
 import {
   createFakeTracer,
   createFakeMeter,
@@ -1620,6 +1621,154 @@ describe('otelMiddleware — media activities', () => {
     mw.onStart?.(makeGenCtx())
     expect(spans[0]!.name).toBe('custom:image')
     expect(spans[0]!.attributes['app.tenant']).toBe('acme')
+  })
+
+  it('captures no content by default', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeGenCtx({ artifactInputs: { prompt: 'a cat' } })
+
+    mw.onStart?.(ctx)
+    await applyGenerationResultTransforms(ctx, {
+      images: [{ url: 'https://cdn.example/out.png' }],
+    })
+
+    expect(ctx.resultTransforms).toHaveLength(0)
+    expect(spans[0]!.attributes['gen_ai.input.messages']).toBeUndefined()
+    expect(spans[0]!.attributes['gen_ai.output.messages']).toBeUndefined()
+  })
+
+  it('captures the prompt, input media and output URLs with captureContent', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      captureContent: true,
+      redact: (s) => s.replace('secret', '***'),
+    })
+    const ctx = makeGenCtx({
+      activity: 'video',
+      artifactInputs: {
+        prompt: [
+          { type: 'text', content: 'animate secret' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://cdn.example/start.png' },
+          },
+          {
+            type: 'image',
+            source: { type: 'data', value: 'AAAA', mimeType: 'image/png' },
+          },
+        ],
+      },
+    })
+
+    mw.onStart?.(ctx)
+    const result = { url: 'https://cdn.example/out.mp4' }
+    expect(await applyGenerationResultTransforms(ctx, result)).toBe(result)
+    mw.onFinish?.(ctx, { duration: 1 })
+
+    const span = spans[0]!
+    const input = JSON.parse(span.attributes['gen_ai.input.messages'] as string)
+    expect(input).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', content: 'animate ***' },
+          {
+            type: 'uri',
+            modality: 'image',
+            uri: 'https://cdn.example/start.png',
+          },
+          { type: 'text', content: '[image]' },
+        ],
+      },
+    ])
+    expect(span.attributes['langfuse.observation.input']).toBe(
+      span.attributes['gen_ai.input.messages'],
+    )
+    const output = JSON.parse(
+      span.attributes['gen_ai.output.messages'] as string,
+    )
+    expect(output).toEqual([
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'uri',
+            modality: 'video',
+            uri: 'https://cdn.example/out.mp4',
+          },
+        ],
+      },
+    ])
+    expect(span.attributes['langfuse.observation.output']).toBe(
+      span.attributes['gen_ai.output.messages'],
+    )
+  })
+
+  it('captures image outputs, keeping base64 as a placeholder', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer, captureContent: true })
+    const ctx = makeGenCtx({ artifactInputs: { prompt: 'a cat' } })
+
+    mw.onStart?.(ctx)
+    await applyGenerationResultTransforms(ctx, {
+      images: [{ url: 'https://cdn.example/a.png' }, { b64Json: 'AAAA' }],
+    })
+
+    expect(
+      JSON.parse(spans[0]!.attributes['gen_ai.output.messages'] as string),
+    ).toEqual([
+      {
+        role: 'assistant',
+        content: [
+          { type: 'uri', modality: 'image', uri: 'https://cdn.example/a.png' },
+          { type: 'text', content: '[image]' },
+        ],
+      },
+    ])
+  })
+
+  it('captures transcription source audio and transcript text, capped by maxContentLength', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      captureContent: true,
+      maxContentLength: 5,
+    })
+    const urlCtx = makeGenCtx({
+      activity: 'transcription',
+      artifactInputs: { audio: 'https://cdn.example/in.mp3' },
+    })
+    const blobCtx = makeGenCtx({
+      activity: 'transcription',
+      artifactInputs: { audio: new Blob(['x']) },
+    })
+
+    mw.onStart?.(urlCtx)
+    mw.onStart?.(blobCtx)
+    await applyGenerationResultTransforms(urlCtx, { text: 'hello world' })
+
+    expect(
+      JSON.parse(spans[0]!.attributes['gen_ai.input.messages'] as string),
+    ).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'uri', modality: 'audio', uri: 'https://cdn.example/in.mp3' },
+        ],
+      },
+    ])
+    expect(
+      JSON.parse(spans[1]!.attributes['gen_ai.input.messages'] as string),
+    ).toEqual([
+      { role: 'user', content: [{ type: 'text', content: '[audio]' }] },
+    ])
+    expect(
+      JSON.parse(spans[0]!.attributes['gen_ai.output.messages'] as string),
+    ).toEqual([
+      { role: 'assistant', content: [{ type: 'text', content: 'hello…' }] },
+    ])
   })
 
   it('keeps the span when a formatter throws', () => {
