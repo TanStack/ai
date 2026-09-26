@@ -702,8 +702,6 @@ as images, then videos, then text (no
 through as-is (never downloaded — use Gemini Files API URIs for remote
 media). For conversational editing, pass a prior generation's `jobId` as
 `modelOptions.previous_interaction_id` with a prompt describing the change.
-`gemini-omni-flash-preview` remains a deprecated alias until it shuts down
-on 2026-09-30.
 
 ```typescript
 import { generateVideo } from '@tanstack/ai'

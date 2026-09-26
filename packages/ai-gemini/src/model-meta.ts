@@ -841,36 +841,6 @@ const GEMINI_OMNI_1_1_FLASH = {
     GeminiCachedContentOptions
 >
 
-/**
- * @deprecated `gemini-omni-flash-preview` shuts down on 2026-09-30. Use the
- * GA id `gemini-omni-1.1-flash` instead. Kept in the model union so existing
- * code still compiles until shutdown.
- * @see https://ai.google.dev/gemini-api/docs/models/gemini-omni-flash
- * @experimental Omni video generation is an experimental feature and may change.
- */
-const GEMINI_OMNI_FLASH_PREVIEW = {
-  name: 'gemini-omni-flash-preview',
-  max_input_tokens: 1_048_576,
-  max_output_tokens: 1,
-  supports: {
-    input: ['text', 'image', 'video'],
-    output: ['video', 'audio'],
-  },
-  pricing: {
-    input: {
-      normal: 0,
-    },
-    output: {
-      normal: 0.1,
-    },
-  },
-} as const satisfies ModelMeta<
-  GeminiToolConfigOptions &
-    GeminiSafetyOptions &
-    GeminiCommonConfigOptions &
-    GeminiCachedContentOptions
->
-
 const GEMINI_3_8_FLASH = {
   name: 'gemini-3.8-flash',
   max_input_tokens: 1_048_576,
@@ -1226,19 +1196,15 @@ export const GEMINI_VIDEO_MODELS = [
   VEO_3_1_FAST_PREVIEW.name,
   VEO_3_1_LITE_PREVIEW.name,
   GEMINI_OMNI_1_1_FLASH.name,
-  // Deprecated alias — shuts down 2026-09-30.
-  GEMINI_OMNI_FLASH_PREVIEW.name,
 ] as const
 
 /**
  * Video models served by the Interactions API rather than Veo's
- * `:predictLongRunning` operations flow. GA id first; the trailing
- * `-preview` id is a shutdown alias kept so existing code compiles.
+ * `:predictLongRunning` operations flow.
  * @experimental Omni video generation is an experimental feature and may change.
  */
 export const GEMINI_INTERACTIONS_VIDEO_MODELS = [
   GEMINI_OMNI_1_1_FLASH.name,
-  GEMINI_OMNI_FLASH_PREVIEW.name,
 ] as const
 
 /**

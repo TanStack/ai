@@ -247,8 +247,7 @@ function interactionUsageToTokenUsage(
  * requires the API key (`x-goog-api-key` header or `?key=` query
  * parameter) to download.
  *
- * **Gemini Omni Flash** (`gemini-omni-1.1-flash`, plus the deprecated
- * `gemini-omni-flash-preview` alias) only serves the Interactions API:
+ * **Gemini Omni Flash** (`gemini-omni-1.1-flash`) only serves the Interactions API:
  * `createVideoJob` creates a background interaction with
  * `response_modalities: ['video']`, `getVideoStatus` polls it by id, and
  * `getVideoUrl` returns the inline base64 MP4 as a `data:` URL (or the
@@ -692,12 +691,6 @@ export class GeminiVideoAdapter<
   }
 }
 
-/** @deprecated Shuts down 2026-09-30. Use `gemini-omni-1.1-flash`. */
-export function createGeminiVideo(
-  model: 'gemini-omni-flash-preview',
-  apiKey: string,
-  config?: Omit<GeminiVideoConfig, 'apiKey'>,
-): GeminiVideoAdapter<'gemini-omni-flash-preview'>
 /**
  * Creates a Gemini video adapter with an explicit API key.
  * Type resolution happens here at the call site.
@@ -733,11 +726,6 @@ export function createGeminiVideo<TModel extends GeminiVideoModel>(
   return new GeminiVideoAdapter({ apiKey, ...config }, model)
 }
 
-/** @deprecated Shuts down 2026-09-30. Use `gemini-omni-1.1-flash`. */
-export function geminiVideo(
-  model: 'gemini-omni-flash-preview',
-  config?: Omit<GeminiVideoConfig, 'apiKey'>,
-): GeminiVideoAdapter<'gemini-omni-flash-preview'>
 /**
  * Creates a Gemini video adapter with automatic API key detection from environment variables.
  * Type resolution happens here at the call site.
