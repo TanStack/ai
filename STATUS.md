@@ -1,14 +1,16 @@
 # Agent Dashboard — build status
 
 Spec: `~/Downloads/agent-dashboard-spec.md` (original four phases), then the
-**teams reframe** (`~/Downloads/pods-design-doc.md` + `pods-implementation-plan.md`).
+**teams reframe** (`~/Downloads/pods-design-doc.md` + `pods-implementation-plan.md`),
+then the **Reddit pod** (`~/Downloads/teams-reddit-pod.md`).
 Everything below is committed and verified; nothing is pushed.
 
-> **Latest work: demo controls moved to a devtools panel** (`26734dc`) — the
-> demo-only scaffolding now lives in a custom "Demo Controls" TanStack DevTools
-> panel, cleanly separated from the product UX (and a state-management stress
-> test). See the "Demo controls" section below. Server-side persistence
-> (`66dd71b`) and everything under it still stand.
+> **Latest work: the Reddit pod — real service, real AI** (`3a30d2f`) — the
+> first pod wired to a real external service (`reddit.search_react_news` reads
+> Reddit's public RSS) and a real LLM (`sentiment/react` on Anthropic),
+> connected by a new `tool_result` subscription. See the "Reddit pod" section
+> below. The demo-controls devtools panel (`26734dc`) and everything under it
+> still stand.
 
 ## Where this lives
 
@@ -37,6 +39,7 @@ Everything below is committed and verified; nothing is pushed.
 | `4101e64` | `feat(examples/agent-dashboard)`: teams Phase 3 — system tools, channels, pod memory |
 | `66dd71b` | `feat(examples/agent-dashboard)`: persist agent + team state on the server |
 | `26734dc` | `feat(examples/agent-dashboard)`: move demo controls into a devtools panel |
+| `3a30d2f` | `feat(examples/agent-dashboard)`: Reddit pod — real service + real LLM |
 
 ## Phase status
 
@@ -240,6 +243,71 @@ product experience (timeline, roster, approval cards, message box).
 - **Verified:** `tsc` + `oxlint` + `build` clean; **14 Playwright e2e pass** (13
   prior + the toggling in `team`/`pr-watcher`).
 
+## Reddit pod — real service, real AI ✅ `3a30d2f`
+
+The design doc's Reddit pod (`~/Downloads/teams-reddit-pod.md`): the graduation
+from synthetic demo agents to **real external I/O + a real LLM**. Two new
+harnesses, one new subscription event, no new UI.
+
+- **`reddit/fetcher`** (procedural, no LLM) — carries one real tool,
+  `reddit.search_react_news` (`src/server/reddit.ts`), which reads Reddit's
+  public **RSS (Atom)** feed with a real `User-Agent` (see finding #3 for why
+  RSS, not `.json`). Read-only by construction; public, so it's a run-now /
+  schedule / webhook target. The Atom parser is pure and unit-tested against a
+  recorded fixture (`reddit.test.ts`, `reddit-fixture.ts`) — the example gains a
+  `test:lib` target (vitest) for it.
+- **`sentiment/react`** (real LLM) — `anthropicText('claude-haiku-4-5')`, gated
+  on `ANTHROPIC_API_KEY`. **Design decision (Jack): real LLM only** — no product
+  mock fallback. Without a key it posts a clear "set the key" message instead of
+  a digest; under `VITE_E2E` it uses a deterministic double so the e2e loop is
+  hermetic (no key, no network). This is the doc's "one documented manual step."
+- **New wiring — the `tool_result` subscription:** `Subscription` grows one
+  event, `{ event: 'tool_result', tool, action: 'trigger' }`. When the fetcher's
+  tool result lands, `dispatchToolResult` (session-controller) runs the
+  subscribed sentiment agent with the capped (≤10-item) batch as a prompt —
+  memory attached via `/api/run`, exactly like `channel_created` trigger. The
+  fetcher's result also resolves the tool registry by explicit `harness` param
+  (`/api/tools`) so run-now lists the right tool without a note-thread race.
+- **Loop:** timer → `injectToolCall` → result card → subscription →
+  `injectMessage` → LLM digest. Trigger path spends zero tokens.
+- **Bounce (doc §7):** chat messages don't match the `tool_result` subscription,
+  and replays don't re-dispatch (`dispatchedResult` guard) — so no cycle. Verify
+  by running several cycles.
+- **Demo entry point:** **+ React-news demo** button (`index.tsx`) →
+  `createReactNewsTeam`, mirroring **+ PR-watcher demo**.
+- **Verified:** unit **4/4** pass; `tsc` + `build` clean; `oxlint` clean on
+  changed files; **15 Playwright e2e pass** (14 prior + `react-news.spec.ts`;
+  `meta-chat` count bumped 4 → 6 agents). Only my files touched (`pnpm format`
+  reformats unrelated committed files, so it was reverted off them).
+
+### Live test findings (with a real `ANTHROPIC_API_KEY`)
+
+Ran it against Jack's key + live Reddit. Two findings, one blocking-for-live:
+
+1. **Real LLM digest works ✅.** `sentiment/react` on `claude-haiku-4-5`
+   produced a proper per-item sentiment table + digest (overall vibe, hottest
+   thread, surprising) and wrote **2 pod-memory entries** via the `remember`
+   tool — the memory loop, live.
+2. **Dotted `pod.*` tool names 400 on real providers 🐛 (fixed).** Anthropic
+   (and OpenAI) require tool names to match `^[a-zA-Z0-9_-]{1,128}$`; `pod.
+   memory_write` etc. 400 with `tools.0.custom.name: String should match…`.
+   The scripted mocks never validated names, so this only surfaced against a
+   real provider. **Fix:** `sentiment/react` carries a single provider-safe
+   `remember` tool (writes the same memory store) instead of `...podTools`; its
+   digest is plain text, so it needs no channel/message tools.
+   **Broader implication (follow-up):** any real-LLM agent carrying `pod.*`
+   tools hits this — sanitize tool names in the adapter's tool-converter, or
+   rename the `pod.*` tools to `pod_*`. Out of scope for this example.
+3. **Reddit `.json` is IP-blocked here → switched to RSS ✅.** From this
+   machine's egress (Tailscale `utun5`), `reddit.com/.../*.json` returns **403
+   for every User-Agent** (not the 429 the doc §3 anticipated) — an IP/datacenter
+   block, unfixable by UA changes. But the **Atom feed** (`/r/reactjs/new.rss`)
+   serves `200`, so the tool now reads RSS instead of JSON. Verified live from
+   this network: a real inject returned 5 current headlines with authors. RSS
+   carries title/link/author/timestamp/body — no score/comment counts, so those
+   are dropped from `RedditPost`. Reddit still rate-limits bursts (a rapid retry
+   `429`s); the 30-min schedule is well clear. E2E uses the recorded RSS fixture.
+
 ## Run it
 
 ```bash
@@ -265,13 +333,20 @@ the security agent joins and flags the PR; reply **"not a security problem — w
 intranet-only here"**, watch it write pod memory, then **Send PR webhook** again —
 the next PR is reviewed cleanly with the memory attached.
 
+For the Reddit pod: **+ React-news demo** → open the **Demo Controls** panel →
+**▶ run `reddit.search_react_news`** (or add a 30-min schedule). A real batch of
+React headlines lands as a result card, and `sentiment/react` posts a digest
+unprompted. Set `ANTHROPIC_API_KEY` before `dev` for a live digest (without it,
+the agent asks you to set the key).
+
 ## Verification
 
 - `@tanstack/ai-harness`: **184 unit tests pass**; `tsc` / `oxlint` /
   `publint --strict` clean.
-- `examples/agent-dashboard`: **14 Playwright e2e pass** (approval mid-run, config
+- `examples/agent-dashboard`: **15 Playwright e2e pass** (approval mid-run, config
   read/write, spend, history + replay, meta-chat, teams, injection ×4, the PR-watcher
-  loop, DM creation, memory panel, persistence reload); `tsc --noEmit` clean.
+  loop, DM creation, memory panel, persistence reload, the Reddit pod loop);
+  `tsc --noEmit` + `build` clean; parser **unit test** (vitest) pass.
 - Base verified before starting: `pnpm build:all` (73/73), example agent runs and
   emits AG-UI ndjson, `--serve` + relay boot.
 
