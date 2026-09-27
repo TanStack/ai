@@ -182,6 +182,8 @@ interface QueuedTurn {
   resume?: Array<RunAgentResumeItem>
   parentRunId?: string
   inputId?: string
+  /** Per-run system/developer messages prepended ahead of harness prompts. */
+  systemPreamble?: Array<string>
 }
 
 /** Limits for a harness's children when `subagents.limits` is not set. */
@@ -395,12 +397,18 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /** Start a chat turn, or queue it while one runs (see `busy`). */
   prompt(
     message: UserInput,
-    options?: { busy?: BusyPolicy },
+    options?: { busy?: BusyPolicy; systemPreamble?: Array<string> },
   ): Operation<ChatTurnResult> {
     const busy = options?.busy ?? this.harness.busy ?? 'queue'
+    const systemPreamble = options?.systemPreamble
     const inputId = createInputId()
     const operation = this.createTurnOperation()
-    void this.accept(inputId, { op: 'prompt', message, busy }).then(() => {
+    void this.accept(inputId, {
+      op: 'prompt',
+      message,
+      busy,
+      ...(systemPreamble ? { systemPreamble } : {}),
+    }).then(() => {
       if (this.activeTurn && busy === 'reject') {
         this.reject(inputId, 'busy')
         operation.fail('failed', new Error('A chat turn is already running.'))
@@ -410,7 +418,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         this.steerQueue.push({ inputId, message, operation })
         return
       }
-      this.enqueueTurn({ operation, message, inputId })
+      this.enqueueTurn({ operation, message, inputId, systemPreamble })
     })
     return operation
   }
@@ -1286,6 +1294,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             ? [{ id: createMessageId(), role: 'user', content: turn.message }]
             : [],
         systemPrompts: [
+          // Per-run preamble (e.g. pod memory) comes first, ahead of the
+          // harness's own system prompts.
+          ...(turn.systemPreamble ?? []),
           ...(this.harness.systemPrompts ?? []),
           ...[...(session?.prompts ?? []), ...(runPlugins?.prompts ?? [])]
             .map(resolvePrompt)
@@ -1320,9 +1331,17 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         ...(this.harness.interrupts
           ? { interrupts: this.harness.interrupts }
           : {}),
-        ...(this.harness.context !== undefined
-          ? { context: this.harness.context }
-          : {}),
+        // The tool execution context (`context` arg to a server tool) always
+        // carries the live thread/run ids, merged over the harness's static
+        // context, so in-band tools can resolve the calling thread/agent.
+        context: {
+          ...(typeof this.harness.context === 'object' &&
+          this.harness.context !== null
+            ? this.harness.context
+            : {}),
+          threadId: this.threadId,
+          runId: operation.id,
+        },
         threadId: this.threadId,
         runId: operation.id,
         ...(turn.parentRunId ? { parentRunId: turn.parentRunId } : {}),
@@ -1731,6 +1750,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           operation,
           message: input.message,
           inputId: entry.inputId,
+          ...(input.op === 'prompt' && input.systemPreamble
+            ? { systemPreamble: input.systemPreamble }
+            : {}),
         })
       } else {
         this.reject(entry.inputId, 'expired_on_restart')

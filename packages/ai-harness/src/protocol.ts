@@ -87,6 +87,14 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   if (value.op === 'tool' && typeof value.name !== 'string') {
     throw new Error('Invalid input: tool needs a name.')
   }
+  if (
+    value.op === 'prompt' &&
+    value.systemPreamble !== undefined &&
+    (!Array.isArray(value.systemPreamble) ||
+      value.systemPreamble.some((line) => typeof line !== 'string'))
+  ) {
+    throw new Error('Invalid input: systemPreamble must be an array of strings.')
+  }
   // The checks above cover every field the session reads.
   return value as HarnessInput
 }
@@ -127,10 +135,12 @@ export async function applyInput(
 ): Promise<Receipt> {
   switch (input.op) {
     case 'prompt': {
-      const operation = session.prompt(
-        input.message,
-        input.busy ? { busy: input.busy } : {},
-      )
+      const operation = session.prompt(input.message, {
+        ...(input.busy ? { busy: input.busy } : {}),
+        ...(input.systemPreamble
+          ? { systemPreamble: input.systemPreamble }
+          : {}),
+      })
       const queued = session
         .snapshot()
         .activeOperations.some(

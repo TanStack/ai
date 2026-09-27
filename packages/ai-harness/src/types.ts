@@ -48,7 +48,15 @@ export interface SessionEvent {
 
 /** An input a client sends to a session. Stored in the inbox. */
 export type HarnessInput =
-  | { op: 'prompt'; message: UserInput; busy?: BusyPolicy }
+  // `systemPreamble` prepends per-run system/developer messages (e.g. pod memory)
+  // ahead of the harness's own system prompts — additive; the agent author does
+  // nothing, the trigger attaches them.
+  | {
+      op: 'prompt'
+      message: UserInput
+      busy?: BusyPolicy
+      systemPreamble?: Array<string>
+    }
   | { op: 'steer'; message: UserInput }
   | { op: 'followUp'; message: UserInput }
   | { op: 'resolve'; resume: Array<RunAgentResumeItem> }
