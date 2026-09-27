@@ -10,6 +10,8 @@ test.describe.configure({ mode: 'serial' })
 
 async function newPrWatcherTeam(page: Page) {
   await page.goto('/')
+  // The seeded demos live in the Demo Controls devtools panel now.
+  await openDemo(page)
   await page.getByRole('button', { name: '+ PR-watcher demo' }).click()
   await expect(page).toHaveURL(/\/teams\//)
   await expect(page.getByText('Members · 2')).toBeVisible()

@@ -692,6 +692,32 @@ let seq = 0
 const rid = (p: string) =>
   `${p}-${Math.random().toString(36).slice(2, 8)}-${(seq += 1)}`
 
+/**
+ * What each agent reacts to by default — the agent "knows" its own triggers, so
+ * dropping it into any team wires the right subscription automatically (no demo
+ * seed required). `security/review` joins + reviews every new channel;
+ * `sentiment/react` reacts to a Reddit news batch landing. Editable per member
+ * via the roster's subscribe toggle.
+ */
+const DEFAULT_SUBSCRIPTIONS: Record<string, Array<Subscription>> = {
+  'security/review': [
+    { event: 'channel_created', action: 'join' },
+    { event: 'channel_created', action: 'trigger' },
+  ],
+  'sentiment/react': [
+    {
+      event: 'tool_result',
+      tool: 'reddit.search_react_news',
+      action: 'trigger',
+    },
+  ],
+}
+export function defaultSubscriptions(
+  harness: string,
+): Array<Subscription> | undefined {
+  return DEFAULT_SUBSCRIPTIONS[harness]
+}
+
 /** Add a member (a fresh thread) to an existing channel and start streaming it. */
 export function addAgentToChannel(
   channelId: string,
@@ -700,6 +726,9 @@ export function addAgentToChannel(
   displayName?: string,
   subscriptions?: Array<Subscription>,
 ): Member {
+  // Fall back to the harness's default subscriptions so a composed team behaves
+  // like the seeded demo. Pass `[]` explicitly to opt out.
+  const subs = subscriptions ?? defaultSubscriptions(harness)
   const existing = (memberships.toArray as Array<any>).filter(
     (m) => m.channelId === channelId && m.harness === harness,
   ).length
@@ -728,7 +757,7 @@ export function addAgentToChannel(
     harness,
     role,
     displayName: member.displayName,
-    ...(subscriptions ? { subscriptions } : {}),
+    ...(subs ? { subscriptions: subs } : {}),
     joinedAt: Date.now(),
   })
   subscribeMember(member)
@@ -757,34 +786,25 @@ export function createTeam(
 }
 
 /**
- * The PR-watcher demo team: a watcher agent + a security reviewer subscribed to
- * `channel_created` (join + trigger). Sending a PR webhook drives the whole
- * "the pod learns" loop.
+ * The PR-watcher demo team: a watcher agent + a security reviewer. The reviewer's
+ * `channel_created` (join + trigger) subscription is its harness default, so
+ * sending a PR webhook drives the whole "the pod learns" loop.
  */
 export function createPrWatcherTeam(): { teamId: string; channelId: string } {
   const { teamId, channelId } = createTeam('PR watcher', 'ops/pr-watcher')
-  addAgentToChannel(channelId, 'security/review', 'agent', 'security', [
-    { event: 'channel_created', action: 'join' },
-    { event: 'channel_created', action: 'trigger' },
-  ])
+  addAgentToChannel(channelId, 'security/review', 'agent', 'security')
   return { teamId, channelId }
 }
 
 /**
  * The Reddit pod demo team: a procedural `reddit/fetcher` + a real-LLM
- * `sentiment/react` subscribed to the fetcher's `reddit.search_react_news`
- * results (`tool_result` → trigger). Schedule or run-now the fetch and the
- * sentiment digest posts unprompted, driven purely by the subscription.
+ * `sentiment/react`. The sentiment agent's `tool_result` subscription is its
+ * harness default, so run-now (or a schedule) on the fetch posts a digest
+ * unprompted — the same as composing the team by hand.
  */
 export function createReactNewsTeam(): { teamId: string; channelId: string } {
   const { teamId, channelId } = createTeam('react-news', 'reddit/fetcher')
-  addAgentToChannel(channelId, 'sentiment/react', 'agent', 'sentiment', [
-    {
-      event: 'tool_result',
-      tool: 'reddit.search_react_news',
-      action: 'trigger',
-    },
-  ])
+  addAgentToChannel(channelId, 'sentiment/react', 'agent', 'sentiment')
   return { teamId, channelId }
 }
 

@@ -25,9 +25,15 @@ pnpm --filter agent-dashboard dev   # http://localhost:3002
   `localOnly` collections written from the stream and read with `useLiveQuery`
   (`src/db/collections.ts`). The UI is a projection of the stream, not a poller.
 - **TanStack Query** — server state: host/session/run lists and agent config.
-- **TanStack DevTools** — the demo-only controls (start the triage demo, add
-  members, automations, pod memory) live in a custom **Demo Controls** panel,
-  kept out of the product UI so it's clear what's scaffolding vs. the real
+- **Composing teams (product UI)** — the home page is an **agents table**; each
+  row's **Add to team** starts a new team with that agent or drops it into an
+  existing one. On a team, **＋ Add agent** adds any available agent, and each
+  roster agent has a **🔧 tools** button to run one of its public tools with
+  JSON parameters. Agents carry **default subscriptions** by harness (what they
+  react to), so a hand-composed team behaves like a seeded one.
+- **TanStack DevTools** — the demo-only scaffolding (the seeded-team launchers,
+  the triage demo, automations, pod memory) lives in a custom **Demo Controls**
+  panel, kept out of the product UI so it's clear what's scaffolding vs. the real
   experience. The panel renders from the devtools root (outside the route tree)
   and drives the app purely by reading the same live TanStack DB state the UI
   does — so it doubles as a state-management stress test.
@@ -39,13 +45,14 @@ service and a _real_ LLM — the graduation from the scripted demo agents:
 
 - **`reddit/fetcher`** — a procedural agent (no LLM) carrying one real tool,
   `reddit.search_react_news`, which reads Reddit's public **RSS (Atom)** feed
-  (read-only, no auth, no key). Run it from the Demo Controls panel, or put it
-  on a 30-min schedule.
-- **`sentiment/react`** — a **real LLM** agent (Anthropic). It's subscribed to
-  the fetcher's tool _result_
+  (read-only, no auth, no key). Run it from the roster's **🔧 tools** button, a
+  30-min schedule, or the Demo Controls panel.
+- **`sentiment/react`** — a **real LLM** agent (Anthropic). Its harness default
+  subscription is the fetcher's tool _result_
   (`{ event: 'tool_result', tool: 'reddit.search_react_news', action: 'trigger' }`),
-  so when a news batch lands it's triggered automatically — nobody runs it — and
-  posts a sentiment digest, persisting standout signals to pod memory.
+  so whether you spin up the seeded demo or compose the team by hand, a news
+  batch triggers it automatically — nobody runs it — and it posts a sentiment
+  digest, persisting standout signals to pod memory.
 
 The loop is **timer → tool result → subscription → LLM digest**. The trigger
 path spends zero tokens; the only cost is the digest itself. Chat messages don't
@@ -107,9 +114,9 @@ Demo script:
 
 1. Open `/chat`.
 2. Ask **"List the agents on this host"** — it calls `list_agents` (visible
-   inline) and answers "This host runs 2 agents: support/triage, dashboard/meta."
-3. Run a triage session (Hosts → New team → open the **Demo Controls**
-   devtools panel → Start triage demo).
+   inline) and answers with the agents registered on the host.
+3. Run a triage session (open the **Demo Controls** devtools panel → **+ New
+   team** → **Start triage demo**).
 4. Back in `/chat`, ask **"How many runs so far?"** and **"Summarize the latest
    session"** — it queries live run history and the session snapshot.
 5. Open **History** — the meta-chat's own runs are listed alongside the agents',

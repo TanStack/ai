@@ -10,6 +10,7 @@
  * the whole team roster either way.
  */
 import { eq, useLiveQuery } from '@tanstack/react-db'
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import {
   approvals,
@@ -25,8 +26,10 @@ import {
   upsert,
 } from '@/db/collections'
 import {
+  addAgentToChannel,
   channelSendPrompt,
   createDm,
+  defaultSubscriptions,
   openChannelMember,
   resolveApproval,
 } from '@/lib/session-controller'
@@ -202,8 +205,10 @@ export function ChannelView({
     await channelSendPrompt(primary, t, channelId)
   }
 
+  // A generic nudge to run a specific member. (The triage-specific demo prompt
+  // lives in the Demo Controls panel, not here — this must work for any agent.)
   const runMember = (member: MembershipRow) =>
-    channelSendPrompt(member, 'Please handle ticket T-1042 for Ada.', channelId)
+    channelSendPrompt(member, 'Please proceed.', channelId)
 
   const createDmWith = (member: MembershipRow) => {
     if (!primary || member.agentId === primary.agentId) return
@@ -222,17 +227,14 @@ export function ChannelView({
     )
   }
 
+  // Toggle a member's subscription on/off. "On" restores the harness's default
+  // triggers (what it reacts to) rather than a hardcoded channel_created one.
   const toggleSubscription = (member: MembershipRow) => {
-    const on = (member.subscriptions ?? []).some(
-      (s) => s.event === 'channel_created',
-    )
+    const on = (member.subscriptions ?? []).length > 0
     memberships.update(member.id, (draft) => {
       draft.subscriptions = on
         ? []
-        : [
-            { event: 'channel_created', action: 'join' },
-            { event: 'channel_created', action: 'trigger' },
-          ]
+        : (defaultSubscriptions(member.harness) ?? [])
     })
   }
 
@@ -271,6 +273,7 @@ export function ChannelView({
         <span className="ml-auto text-xs text-white/40">
           {tokens.toLocaleString()} tokens
         </span>
+        {isMain && <AddAgentControl channelId={channelId} />}
       </div>
 
       {pending.map((approval) => (
@@ -345,6 +348,46 @@ export function ChannelView({
           Send
         </button>
       </div>
+    </div>
+  )
+}
+
+/** Add any available agent to this team (product control, main channel only). */
+function AddAgentControl({ channelId }: { channelId: string }) {
+  const [open, setOpen] = useState(false)
+  const hosts = useQuery<
+    Array<{ agents: Array<{ name: string; description: string }> }>
+  >({
+    queryKey: ['hosts'],
+    queryFn: () => fetch('/api/hosts').then((r) => r.json()),
+  })
+  const agents = (hosts.data ?? []).flatMap((h) => h.agents)
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="rounded-md border border-white/15 px-2 py-0.5 text-xs text-white/70 hover:bg-white/[0.05]"
+      >
+        ＋ Add agent
+      </button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 max-h-64 w-72 space-y-0.5 overflow-auto rounded-md border border-white/15 bg-neutral-900 p-1 shadow-lg">
+          {agents.map((a) => (
+            <button
+              key={a.name}
+              onClick={() => {
+                addAgentToChannel(channelId, a.name)
+                setOpen(false)
+              }}
+              className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]"
+              title={a.description}
+            >
+              <span className="font-mono text-xs text-sky-300">{a.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

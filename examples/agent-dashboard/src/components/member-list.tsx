@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { RunToolDialog } from '@/components/run-tool-dialog'
+import { defaultSubscriptions } from '@/lib/session-controller'
 import type { MembershipRow, SessionRow } from '@/db/collections'
 
 const dot: Record<string, string> = {
@@ -7,7 +10,12 @@ const dot: Record<string, string> = {
 }
 
 function subscribed(member: MembershipRow): boolean {
-  return (member.subscriptions ?? []).some((s) => s.event === 'channel_created')
+  return (member.subscriptions ?? []).length > 0
+}
+
+/** Only agents that actually react to events (have default triggers) can subscribe. */
+function reactive(member: MembershipRow): boolean {
+  return Boolean(defaultSubscriptions(member.harness))
 }
 
 /** The team roster. Renders only when a channel has more than one member. */
@@ -24,6 +32,9 @@ export function MemberList({
   onCreateDm?: (member: MembershipRow) => void
   onToggleSubscription?: (member: MembershipRow) => void
 }) {
+  // The member whose run-tool dialog is open (product control, not the demo run-now).
+  const [toolMember, setToolMember] = useState<MembershipRow | undefined>()
+
   return (
     <aside className="w-56 shrink-0 space-y-2 rounded-lg border border-white/10 bg-white/[0.02] p-3">
       <h2 className="text-xs font-semibold uppercase tracking-wide text-white/40">
@@ -52,8 +63,15 @@ export function MemberList({
               )}
             </div>
             {m.role === 'agent' && (
-              <div className="flex items-center gap-1 pl-4">
-                {onToggleSubscription && (
+              <div className="flex flex-wrap items-center gap-1 pl-4">
+                <button
+                  onClick={() => setToolMember(m)}
+                  aria-label={`Run a tool on ${m.displayName}`}
+                  className="rounded border border-white/15 px-1.5 text-[10px] text-white/50 hover:bg-white/[0.06]"
+                >
+                  🔧 tools
+                </button>
+                {onToggleSubscription && reactive(m) && (
                   <button
                     onClick={() => onToggleSubscription(m)}
                     aria-label={`Toggle subscription for ${m.displayName}`}
@@ -80,6 +98,13 @@ export function MemberList({
           </li>
         ))}
       </ul>
+
+      {toolMember && (
+        <RunToolDialog
+          member={toolMember}
+          onClose={() => setToolMember(undefined)}
+        />
+      )}
     </aside>
   )
 }

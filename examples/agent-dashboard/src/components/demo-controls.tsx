@@ -10,13 +10,19 @@
  * source of truth, two independent readers.
  */
 import { eq, useLiveQuery } from '@tanstack/react-db'
+import { useNavigate } from '@tanstack/react-router'
 import {
   channelMembers,
   channels,
   memberships,
   uiState,
 } from '@/db/collections'
-import { addAgentToChannel, channelSendPrompt } from '@/lib/session-controller'
+import {
+  channelSendPrompt,
+  createPrWatcherTeam,
+  createReactNewsTeam,
+  createTeam,
+} from '@/lib/session-controller'
 import { AutomationsPanel } from '@/components/automations-panel'
 import { MemoryPanel } from '@/components/memory-panel'
 import type {
@@ -26,13 +32,17 @@ import type {
   UiStateRow,
 } from '@/db/collections'
 
-/** The devtools plugin body: resolve the active channel, then render its controls. */
+/** The devtools plugin body: seeded-demo launchers, then the active channel's controls. */
 export function DemoControlsPanel() {
+  const navigate = useNavigate()
   const { data: rows = [] } = useLiveQuery((q) => q.from({ u: uiState }))
   const active = (rows as Array<UiStateRow>).find((r) => r.id === 'active')
 
+  const go = (teamId: string) =>
+    navigate({ to: '/teams/$teamId', params: { teamId } })
+
   return (
-    <div className="min-h-full space-y-3 bg-neutral-950 p-4 text-white">
+    <div className="min-h-full space-y-4 bg-neutral-950 p-4 text-white">
       <div>
         <h2 className="text-sm font-semibold text-amber-200/90">
           Demo controls
@@ -42,11 +52,40 @@ export function DemoControlsPanel() {
           app state (TanStack DB) from the devtools render root.
         </p>
       </div>
+
+      <div className="space-y-2">
+        <div className="text-xs uppercase tracking-wide text-white/40">
+          Seeded demos
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() =>
+              go(createTeam('Support triage', 'support/triage').teamId)
+            }
+            className="rounded-md border border-white/15 px-3 py-1.5 text-sm text-white/70 hover:bg-white/[0.05]"
+          >
+            + New team
+          </button>
+          <button
+            onClick={() => go(createReactNewsTeam().teamId)}
+            className="rounded-md border border-white/15 px-3 py-1.5 text-sm text-white/70 hover:bg-white/[0.05]"
+          >
+            + React-news demo
+          </button>
+          <button
+            onClick={() => go(createPrWatcherTeam().teamId)}
+            className="rounded-md border border-white/15 px-3 py-1.5 text-sm text-white/70 hover:bg-white/[0.05]"
+          >
+            + PR-watcher demo
+          </button>
+        </div>
+      </div>
+
       {active?.channelId ? (
         <DemoControls channelId={active.channelId} />
       ) : (
         <p className="text-xs text-white/40">
-          Open a team channel to see its demo controls.
+          Open a team channel to see its per-channel demo controls.
         </p>
       )}
     </div>
@@ -92,38 +131,22 @@ function DemoControls({ channelId }: { channelId: string }) {
   }
 
   return (
-    <div className="space-y-4">
-      {isMain && (
-        <div className="flex flex-wrap gap-2">
-          <button
-            disabled={!primary}
-            onClick={() =>
-              primary &&
-              void channelSendPrompt(
-                primary,
-                'Please handle ticket T-1042 for Ada.',
-                channelId,
-              )
-            }
-            className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05] disabled:opacity-40"
-          >
-            ▶ Start triage demo
-          </button>
-          <button
-            onClick={() => addAgentToChannel(channelId, 'support/triage')}
-            className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05]"
-          >
-            + Add agent
-          </button>
-          <button
-            onClick={() =>
-              addAgentToChannel(channelId, 'dashboard/meta', 'operator')
-            }
-            className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05]"
-          >
-            + Add operator
-          </button>
-        </div>
+    <div className="space-y-4 border-t border-white/10 pt-3">
+      {isMain && primary?.harness === 'support/triage' && (
+        <button
+          disabled={!primary}
+          onClick={() =>
+            primary &&
+            void channelSendPrompt(
+              primary,
+              'Please handle ticket T-1042 for Ada.',
+              channelId,
+            )
+          }
+          className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05] disabled:opacity-40"
+        >
+          ▶ Start triage demo
+        </button>
       )}
       {primary && isMain && (
         <AutomationsPanel channelId={channelId} primary={primary} />

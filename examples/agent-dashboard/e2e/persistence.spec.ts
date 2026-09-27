@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { openDemo } from './devtools'
 
 // Server-side persistence: a team, its runs, and its resolved approvals survive a
 // full page reload (the roster rehydrates from the server; the session replays
@@ -9,7 +10,8 @@ import { expect, test } from '@playwright/test'
 test('a team and its approved run survive a reload', async ({ page }) => {
   await page.goto('/')
 
-  // Create a triage team and run it to the approval.
+  // Create a triage team and run it to the approval (demos live in the panel).
+  await openDemo(page)
   await page.getByRole('button', { name: '+ New team' }).click()
   await expect(page).toHaveURL(/\/teams\//)
   await page.getByRole('button', { name: 'Start triage demo' }).click()
@@ -20,11 +22,15 @@ test('a team and its approved run survive a reload', async ({ page }) => {
   // Approve via the AG-UI resume flow; the run continues and finishes.
   await page.getByRole('button', { name: 'Approve', exact: true }).click()
   await expect(page.getByText(/Sent ✅/)).toBeVisible()
-  await expect(page.getByText('Approval required', { exact: true })).toHaveCount(0)
+  await expect(
+    page.getByText('Approval required', { exact: true }),
+  ).toHaveCount(0)
 
   // Reload: the team must reappear (roster is persisted) and the finished run must
   // replay — WITHOUT the resolved approval coming back.
   await page.reload()
   await expect(page.getByText(/Sent ✅/)).toBeVisible()
-  await expect(page.getByText('Approval required', { exact: true })).toHaveCount(0)
+  await expect(
+    page.getByText('Approval required', { exact: true }),
+  ).toHaveCount(0)
 })
