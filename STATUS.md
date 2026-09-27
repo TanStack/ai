@@ -4,8 +4,9 @@ Spec: `~/Downloads/agent-dashboard-spec.md` (original four phases), then the
 **teams reframe** (`~/Downloads/pods-design-doc.md` + `pods-implementation-plan.md`).
 Everything below is committed and verified; nothing is pushed.
 
-> **Latest work: the teams reframe (Phase 1).** See the "Teams reframe" section
-> below. The original four-phase build still stands underneath it.
+> **Latest work: teams Phase 2 (tool registry + injection).** See the "Teams
+> Phase 2" section below. The teams reframe (Phase 1) and the original four-phase
+> build still stand underneath it.
 
 ## Where this lives
 
@@ -28,6 +29,8 @@ Everything below is committed and verified; nothing is pushed.
 | `0940975` | `feat(examples/agent-dashboard)`: meta-chat over live agent state (Phase 4) |
 | `063245e` | `docs`: add STATUS.md summarizing the agent-dashboard build |
 | `9ec1ece` | `feat(examples/agent-dashboard)`: teams reframe (Phase 1) + Alem protocol proposal |
+| `9b1db82` | `feat(ai-harness)`: out-of-band tool invocation (`{ op: 'tool' }`) + tool visibility |
+| `720660d` | `feat(examples/agent-dashboard)`: teams Phase 2 — tool registry + injection |
 
 ## Phase status
 
@@ -93,10 +96,50 @@ changes.**
 - **Known cosmetic:** `/` now runs a live query, so SSR falls back to client
   rendering (`useLiveQuery` has no `getServerSnapshot`) — same class as the other
   live-query routes; page works, tests green.
-- **Deferred (behind the Alem review, D2):** injection/timers/webhooks (Phase 2),
-  system tools + channels + memory (Phase 3), bounce protection (Phase 4),
-  polyglot tool face (Phase 5), bridging (Phase 6), install model (Phase 7),
-  hibernation/policy/pricing/versioning (Phase 8).
+- **Deferred:** system tools + channels + memory (Phase 3), bounce protection
+  (Phase 4), polyglot tool face (Phase 5), bridging (Phase 6), install model
+  (Phase 7), hibernation/policy/pricing/versioning (Phase 8).
+
+## Teams Phase 2 — tool registry + injection ✅ `9b1db82`, `720660d`
+
+The dashboard invokes work **deterministically** — scheduled timers, run-now, and
+webhooks — with the structured result streaming into the team channel and **zero
+LLM tokens** on the trigger path. "The dashboard owns the clock," made concrete.
+
+Note the constraint change from Phase 1: the Alem review is now a **heads-up, not
+a gate**, so provisional harness changes ship on `feat/agent-dashboard` (the
+`7da107f` AG-UI-bridge precedent).
+
+- **Harness (`9b1db82`, additive):** a new `{ op: 'tool', name, args?, meta? }`
+  input runs one registered tool with no model turn — `session.tool()` /
+  `executeTool()` modeled on the `command` op. It publishes
+  `RUN_STARTED`/`TOOL_CALL_*`/`RUN_FINISHED` into the feed, so injected results
+  ride the existing projection path and persist for replay. Tool **visibility**
+  (`toolVisibility` on `defineHarness`, default private) — only `public` tools may
+  run out-of-band; unknown/private are rejected. 180 harness tests pass. **Rebuild
+  the dist after harness edits** (the example imports the built package).
+- **Architecture:** trigger via the control plane, observe via a **live feed
+  tail** (`/api/tail`, replays then follows live). `channel-view` opens one tail
+  per member as the single projector; `runAgent` is trigger-only. Interactive
+  runs, injected tools, timers, and webhooks all render through one
+  `project()`/`ToolCard` path. Back-compat `/sessions` and `/chat` are unchanged.
+- **Server (owns the clock):** `server/scheduler.ts` (1s interval, lazy-boot),
+  `server/injection.ts` (`runInjection` → the tool op; server-owned schedule +
+  webhook registries; idempotent jobs; 64KB result cap), `server/cron.ts` (5-field
+  cron + `everySeconds`). Routes: `api.inject`, `api.schedules`, `api.webhooks`
+  (+ `api.webhooks.$token` ingress — a single-segment param so it doesn't shadow
+  `/api/webhooks`), `api.tail`, `api.tools` (public-only registry, enforced at
+  read time), `api.dev.offline`. Public demo tool `fetch_stats` on triage.
+- **Offline** hosts are **simulated** dashboard-side (a pending queue + dev
+  toggle) because the example embeds the host — the relay and its private queue
+  are untouched.
+- **UI:** an Automations panel (public tools + run-now, schedule table,
+  send-test-webhook, offline toggle + "host offline — N queued" banner); injected
+  tool cards carry a distinct trigger badge.
+- **Deviation from the Phase 2 doc §4.1:** schedules/webhooks are **server** state
+  (not `localOnly`) because the server owns the clock, so it owns the table.
+- **Verified:** `tsc` + `oxlint` clean; **10 Playwright e2e pass** (6 prior + 4
+  new: run-now/private-hidden, timer, webhook, offline queue+flush).
 
 ## Run it
 
@@ -111,8 +154,10 @@ pnpm --filter agent-dashboard test:e2e       # Playwright
 
 Demo: **New team** → **Start triage demo** → approve the drafted reply mid-run →
 **+ Add agent** to reveal the team roster, then **▶ run** the second member and
-watch both streams share one channel. Then try **Meta-chat**, **History**,
-**Spend**, **Config**.
+watch both streams share one channel. In the **Automations** panel, **run
+`fetch_stats` now**, **add a 1s schedule**, **send a test webhook**, or **simulate
+the host offline** and watch jobs queue then flush. Then try **Meta-chat**,
+**History**, **Spend**, **Config**.
 
 ## Verification
 
