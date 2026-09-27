@@ -19,6 +19,9 @@ import {
   registerHarness,
   triage,
 } from './harness'
+// Register the demo team agents (pr-watcher, security/review) as a side effect,
+// so any route that imports meta also gets them in the registry.
+import './demo-agents'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 
 let seq = 0

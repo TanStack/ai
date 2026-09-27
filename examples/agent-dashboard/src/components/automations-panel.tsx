@@ -116,6 +116,30 @@ export function AutomationsPanel({
       }).then((r) => r.json())
     },
   })
+  // The PR-watcher demo: a prompt-mode webhook drives the watcher's full run
+  // (check_pr → channel_create → message_post). Each send is the next seeded PR.
+  const sendPrWebhook = useMutation({
+    mutationFn: async () => {
+      const created = await fetch('/api/webhooks', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          threadId: primary.threadId,
+          channelId,
+          harness: primary.harness,
+          mode: 'prompt',
+          message:
+            'A PR webhook arrived. Check for a new PR and open a review channel.',
+        }),
+      }).then((r) => r.json())
+      const token = created.webhook.token as string
+      return fetch(`/api/webhooks/${token}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ event: 'pull_request' }),
+      }).then((r) => r.json())
+    },
+  })
 
   return (
     <div className="space-y-4 rounded-lg border border-white/10 bg-white/[0.02] p-4">
@@ -229,6 +253,14 @@ export function AutomationsPanel({
         >
           Send test webhook
         </button>
+        {primary.harness === 'ops/pr-watcher' && (
+          <button
+            onClick={() => sendPrWebhook.mutate()}
+            className="rounded-md border border-emerald-500/40 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/[0.08]"
+          >
+            Send PR webhook
+          </button>
+        )}
         <button
           onClick={() => setOffline.mutate(!offline.data?.offline)}
           className="rounded-md border border-white/15 px-2 py-1 text-xs text-white/70 hover:bg-white/[0.05]"

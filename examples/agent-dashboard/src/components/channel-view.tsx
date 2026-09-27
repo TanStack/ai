@@ -4,13 +4,20 @@
  * member it looks exactly like a single-agent chat; when a second member joins,
  * team chrome (the member list, per-agent attribution) appears — the "second
  * agent reveals the team" moment.
+ *
+ * A channel's members are its team roster for the `main` channel, or the opt-in
+ * `channelMembers` for a `dynamic`/`dm` channel. Attribution is resolved against
+ * the whole team roster either way.
  */
 import { eq, useLiveQuery } from '@tanstack/react-db'
 import { useEffect, useState } from 'react'
 import {
   approvals,
+  channelMembers,
+  channels,
   memberships,
   messages,
+  runMeta,
   sessions,
   spend,
   toolCalls,
@@ -18,44 +25,90 @@ import {
 import {
   addAgentToChannel,
   channelSendPrompt,
+  createDm,
   openChannelMember,
   resolveApproval,
 } from '@/lib/session-controller'
 import { MemberList } from '@/components/member-list'
 import { AutomationsPanel } from '@/components/automations-panel'
+import { MemoryPanel } from '@/components/memory-panel'
 import type {
   ApprovalRow,
+  ChannelMemberRow,
+  ChannelRow,
   MembershipRow,
   MessageRow,
+  RunMetaRow,
   SessionRow,
   ToolCallRow,
 } from '@/db/collections'
 
-export function ChannelView({ channelId }: { channelId: string }) {
+// `pod.channel_create` / `pod.message_post` are realized as a channel and a
+// message respectively, so their raw tool cards are hidden (they'd duplicate).
+// `pod.memory_write` stays visible (the write is auditable mechanics).
+const HIDDEN_TOOL_CARDS = new Set([
+  'pod.channel_create',
+  'pod.message_post',
+  'pod.memory_read',
+])
+
+export function ChannelView({
+  channelId,
+  teamId,
+}: {
+  channelId: string
+  teamId?: string
+}) {
   const [input, setInput] = useState('')
 
-  const { data: members = [] } = useLiveQuery(
-    (q) =>
-      q.from({ m: memberships }).where(({ m }) => eq(m.channelId, channelId)),
+  const { data: chanRows = [] } = useLiveQuery(
+    (q) => q.from({ c: channels }).where(({ c }) => eq(c.id, channelId)),
     [channelId],
   )
-  const memberRows = members as Array<MembershipRow>
+  const channel = (chanRows as Array<ChannelRow>)[0]
+  const resolvedTeamId = teamId ?? channel?.teamId
 
-  // Join each member (subscribe + replay) when the roster changes.
-  const memberKey = memberRows.map((m) => m.id).join(',')
+  // The whole team roster (for attribution + main-channel membership).
+  const { data: roster = [] } = useLiveQuery(
+    (q) =>
+      q
+        .from({ m: memberships })
+        .where(({ m }) => eq(m.teamId, resolvedTeamId ?? '')),
+    [resolvedTeamId],
+  )
+  const rosterRows = roster as Array<MembershipRow>
+  // Opt-in members for a non-main channel.
+  const { data: chanMembers = [] } = useLiveQuery(
+    (q) =>
+      q.from({ cm: channelMembers }).where(({ cm }) => eq(cm.channelId, channelId)),
+    [channelId],
+  )
+  const chanMemberRows = chanMembers as Array<ChannelMemberRow>
+
+  const isMain = channel?.kind !== 'dynamic' && channel?.kind !== 'dm'
+  const memberRows: Array<MembershipRow> = isMain
+    ? rosterRows
+    : chanMemberRows
+        .map((cm) => rosterRows.find((m) => m.agentId === cm.agentId))
+        .filter((m): m is MembershipRow => Boolean(m))
+
+  // Open a live tail for every team member so background runs (a watcher firing,
+  // a subscribed agent reviewing) project even when we're not looking at them.
+  const rosterKey = rosterRows.map((m) => m.id).join(',')
   useEffect(() => {
-    for (const m of memberRows) {
+    for (const m of rosterRows) {
       openChannelMember({
         channelId: m.channelId,
         agentId: m.agentId,
         threadId: m.threadId,
+        teamId: m.teamId,
         harness: m.harness,
         role: m.role,
         displayName: m.displayName,
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [memberKey])
+  }, [rosterKey])
 
   const { data: msgs = [] } = useLiveQuery(
     (q) => q.from({ m: messages }).where(({ m }) => eq(m.channelId, channelId)),
@@ -77,9 +130,10 @@ export function ChannelView({ channelId }: { channelId: string }) {
     (q) => q.from({ s: sessions }).where(({ s }) => eq(s.channelId, channelId)),
     [channelId],
   )
+  const { data: runMetaRows = [] } = useLiveQuery((q) => q.from({ r: runMeta }))
 
   const isTeam = memberRows.length > 1
-  const nameByAgent = new Map(memberRows.map((m) => [m.agentId, m.displayName]))
+  const nameByAgent = new Map(rosterRows.map((m) => [m.agentId, m.displayName]))
   const statusByThread: Record<string, SessionRow['status']> = {}
   for (const s of sess as Array<SessionRow>) statusByThread[s.threadId] = s.status
 
@@ -103,11 +157,9 @@ export function ChannelView({ channelId }: { channelId: string }) {
       at: m.createdAt,
       m,
     })),
-    ...(tools as Array<ToolCallRow>).map((t) => ({
-      kind: 'tool' as const,
-      at: t.createdAt,
-      t,
-    })),
+    ...(tools as Array<ToolCallRow>)
+      .filter((t) => !HIDDEN_TOOL_CARDS.has(t.name))
+      .map((t) => ({ kind: 'tool' as const, at: t.createdAt, t })),
   ].sort((a, b) => a.at - b.at)
 
   // Human input targets the primary agent member (broadcast is a later phase).
@@ -115,15 +167,58 @@ export function ChannelView({ channelId }: { channelId: string }) {
     memberRows.find((m) => m.role === 'agent') ?? memberRows[0] ?? undefined
   const canSend = Boolean(primary)
 
+  // How much pod memory the platform attached to this channel's agents' last run.
+  const attachedById = new Map(
+    (runMetaRows as Array<RunMetaRow>).map((r) => [r.threadId, r.attached]),
+  )
+  const attached = primary ? (attachedById.get(primary.threadId) ?? 0) : 0
+
   const send = async (text: string) => {
     const t = text.trim()
     if (!t || !primary) return
     setInput('')
-    await channelSendPrompt(primary, t)
+    await channelSendPrompt(primary, t, channelId)
   }
 
   const runMember = (member: MembershipRow) =>
-    channelSendPrompt(member, 'Please handle ticket T-1042 for Ada.')
+    channelSendPrompt(member, 'Please handle ticket T-1042 for Ada.', channelId)
+
+  const createDmWith = (member: MembershipRow) => {
+    if (!primary || member.agentId === primary.agentId) return
+    void createDm(
+      {
+        channelId: primary.channelId,
+        agentId: primary.agentId,
+        threadId: primary.threadId,
+        teamId: primary.teamId,
+        harness: primary.harness,
+        role: primary.role,
+        displayName: primary.displayName,
+      },
+      member.agentId,
+      member.displayName,
+    )
+  }
+
+  const toggleSubscription = (member: MembershipRow) => {
+    const on = (member.subscriptions ?? []).some(
+      (s) => s.event === 'channel_created',
+    )
+    memberships.update(member.id, (draft) => {
+      draft.subscriptions = on
+        ? []
+        : [
+            { event: 'channel_created', action: 'join' },
+            { event: 'channel_created', action: 'trigger' },
+          ]
+    })
+  }
+
+  const title = isMain
+    ? isTeam
+      ? 'main'
+      : (primary?.displayName ?? channel?.name ?? channelId)
+    : `#${channel?.name ?? channelId}`
 
   return (
     <div className="space-y-4">
@@ -131,7 +226,10 @@ export function ChannelView({ channelId }: { channelId: string }) {
         <a href="/" className="text-xs text-white/40 hover:text-white/70">
           ← teams
         </a>
-        <h1 className="font-mono text-sm">{isTeam ? 'main' : primary?.displayName ?? channelId}</h1>
+        <h1 className="font-mono text-sm">{title}</h1>
+        {channel?.topic && (
+          <span className="text-xs text-white/40">{channel.topic}</span>
+        )}
         <span
           className={`rounded-full px-2 py-0.5 text-xs ${
             status === 'running'
@@ -143,6 +241,11 @@ export function ChannelView({ channelId }: { channelId: string }) {
         >
           {status.replace('_', ' ')}
         </span>
+        {attached > 0 && (
+          <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-200">
+            🧠 {attached} memory {attached === 1 ? 'entry' : 'entries'} attached
+          </span>
+        )}
         <span className="ml-auto text-xs text-white/40">
           {tokens.toLocaleString()} tokens
         </span>
@@ -164,6 +267,8 @@ export function ChannelView({ channelId }: { channelId: string }) {
             members={memberRows}
             statusByThread={statusByThread}
             onRun={runMember}
+            onCreateDm={createDmWith}
+            onToggleSubscription={toggleSubscription}
           />
         )}
         <div className="flex-1 space-y-3 rounded-lg border border-white/10 bg-white/[0.02] p-4">
@@ -174,14 +279,20 @@ export function ChannelView({ channelId }: { channelId: string }) {
           )}
           {timeline.map((entry) =>
             entry.kind === 'message' ? (
-              <MessageBubble
-                key={entry.m.id}
-                message={entry.m}
-                author={
-                  entry.m.agentId ? nameByAgent.get(entry.m.agentId) : undefined
-                }
-                showAuthor={isTeam}
-              />
+              entry.m.role === 'system' ? (
+                <SystemCard key={entry.m.id} message={entry.m} />
+              ) : (
+                <MessageBubble
+                  key={entry.m.id}
+                  message={entry.m}
+                  author={
+                    entry.m.agentId
+                      ? nameByAgent.get(entry.m.agentId)
+                      : undefined
+                  }
+                  showAuthor={isTeam}
+                />
+              )
             ) : (
               <ToolCard
                 key={entry.t.id}
@@ -197,25 +308,33 @@ export function ChannelView({ channelId }: { channelId: string }) {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <button
-          disabled={!canSend}
-          onClick={() => send('Please handle ticket T-1042 for Ada.')}
-          className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05] disabled:opacity-40"
-        >
-          ▶ Start triage demo
-        </button>
-        <button
-          onClick={() => addAgentToChannel(channelId, 'support/triage')}
-          className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05]"
-        >
-          + Add agent
-        </button>
-        <button
-          onClick={() => addAgentToChannel(channelId, 'dashboard/meta', 'operator')}
-          className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05]"
-        >
-          + Add operator
-        </button>
+        {isMain && (
+          <button
+            disabled={!canSend}
+            onClick={() => send('Please handle ticket T-1042 for Ada.')}
+            className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05] disabled:opacity-40"
+          >
+            ▶ Start triage demo
+          </button>
+        )}
+        {isMain && (
+          <>
+            <button
+              onClick={() => addAgentToChannel(channelId, 'support/triage')}
+              className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05]"
+            >
+              + Add agent
+            </button>
+            <button
+              onClick={() =>
+                addAgentToChannel(channelId, 'dashboard/meta', 'operator')
+              }
+              className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05]"
+            >
+              + Add operator
+            </button>
+          </>
+        )}
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -231,7 +350,12 @@ export function ChannelView({ channelId }: { channelId: string }) {
         </button>
       </div>
 
-      {primary && <AutomationsPanel channelId={channelId} primary={primary} />}
+      {primary && isMain && (
+        <AutomationsPanel channelId={channelId} primary={primary} />
+      )}
+      {primary && primary.role === 'agent' && (
+        <MemoryPanel threadId={primary.threadId} name={primary.displayName} />
+      )}
     </div>
   )
 }
@@ -242,6 +366,19 @@ function AuthorTag({ author }: { author?: string }) {
     <span className="mr-1 rounded bg-white/10 px-1 text-[10px] text-white/60">
       {author}
     </span>
+  )
+}
+
+function SystemCard({ message }: { message: MessageRow }) {
+  const icon = message.system?.kind === 'channel_created' ? '📢' : '👋'
+  return (
+    <div className="rounded-md border border-sky-500/30 bg-sky-500/[0.05] px-3 py-1.5 text-xs text-sky-200/80">
+      <span className="mr-1">{icon}</span>
+      {message.text}
+      {message.system?.topic && (
+        <span className="ml-1 text-white/40">— {message.system.topic}</span>
+      )}
+    </div>
   )
 }
 

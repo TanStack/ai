@@ -12,10 +12,21 @@ export interface MessageRow {
   channelId?: string
   /** Which member produced this row (equals the member's threadId today). */
   agentId?: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   text: string
   /** Set for text produced by a subagent, for attribution. */
   subagentRunId?: string
+  /**
+   * A platform-generated system card (not a chat bubble): a channel opening, or a
+   * member joining a channel via a subscription. Rendered distinctly.
+   */
+  system?: {
+    kind: 'channel_created' | 'member_joined'
+    channelId?: string
+    channelName?: string
+    topic?: string
+    who?: string
+  }
   createdAt: number
 }
 
@@ -87,29 +98,74 @@ export interface TeamRow {
   createdAt: number
 }
 
-/** A named stream within a team. Phase 1: one `main` channel per team. */
+/**
+ * A named stream within a team. `main` is the durable team channel (every member
+ * is in it); `dynamic` channels are created on demand (e.g. per PR) and members
+ * opt in; `dm` is exactly two members. Channels are cheap and disposable — the
+ * team is the durable unit.
+ */
 export interface ChannelRow {
   id: string
   teamId: string
   name: string
-  kind: 'main'
+  kind: 'main' | 'dynamic' | 'dm'
+  topic?: string
+  /** agentId of the member that created the channel (for dynamic/dm). */
+  createdBy?: string
+  archivedAt?: number
   createdAt: number
 }
 
+/** A subscription: react to a team event by joining a channel or being triggered. */
+export interface Subscription {
+  event: 'channel_created'
+  action: 'join' | 'trigger'
+}
+
 /**
- * The join between an agent and a channel. It owns the member's `threadId`, which
- * is how N members each keep their own server-side AG-UI thread while sharing one
- * channel view (no harness change required).
+ * The durable team roster row: an agent's membership in a team. It owns the
+ * member's `threadId`, which is how N members each keep their own server-side
+ * AG-UI thread while sharing one channel view (no harness change required).
+ * (`channelId` names the team's main channel, kept for back-compat.)
  */
 export interface MembershipRow {
   id: string
   channelId: string
+  /** The team this member belongs to. */
+  teamId?: string
   agentId: string
   threadId: string
   harness: string
   role: 'agent' | 'operator'
   displayName: string
+  /** Team events this member reacts to (e.g. auto-join new PR channels). */
+  subscriptions?: Array<Subscription>
   joinedAt: number
+}
+
+/**
+ * Per-channel membership for non-main channels: which agents have opted into a
+ * `dynamic`/`dm` channel (main channel membership is every team member,
+ * implicitly). Distinct from `memberships` (team roster) so channels stay cheap.
+ */
+export interface ChannelMemberRow {
+  id: string
+  channelId: string
+  agentId: string
+  threadId: string
+  joinedAt: number
+}
+
+/**
+ * Lightweight per-member run metadata: how many pod-memory entries the platform
+ * attached to the member's most recent run (drives the "N memory entries
+ * attached" badge). Keyed by threadId.
+ */
+export interface RunMetaRow {
+  id: string
+  threadId: string
+  attached: number
+  updatedAt: number
 }
 
 export const messages = createCollection(
@@ -138,6 +194,12 @@ export const channels = createCollection(
 )
 export const memberships = createCollection(
   localOnlyCollectionOptions({ getKey: (row: MembershipRow) => row.id }),
+)
+export const channelMembers = createCollection(
+  localOnlyCollectionOptions({ getKey: (row: ChannelMemberRow) => row.id }),
+)
+export const runMeta = createCollection(
+  localOnlyCollectionOptions({ getKey: (row: RunMetaRow) => row.id }),
 )
 
 /** Default per-session token budget, for the spend alerts. */

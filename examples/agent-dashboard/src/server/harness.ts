@@ -16,6 +16,7 @@ import {
 import { permissions, usage } from '@tanstack/ai-harness/plugins'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
+import { podTools, podVisibility } from './systools'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import type { AnyHarness, Principal } from '@tanstack/ai-harness'
 
@@ -219,10 +220,12 @@ export const triage = defineHarness({
     'You are a support triage agent. Look up the ticket, then draft a reply for a human to approve before sending.',
   ],
   plugins: () => [permissions(), usage(), triageSettings],
-  tools: [lookupTicket, sendReply, fetchStats],
-  // Only `fetch_stats` may be invoked out-of-band (schedules, run-now, webhooks).
-  // The reply tools stay private to the agent's own model turns.
-  toolVisibility: { fetch_stats: 'public' },
+  tools: [lookupTicket, sendReply, fetchStats, ...podTools],
+  // Only `fetch_stats` may be invoked out-of-band from the automations UI (the
+  // reply tools stay private to the agent's own model turns). The `pod.*` system
+  // tools are public too, but they're excluded from the run-now registry (see
+  // `api.tools.ts`) — they're plumbing, not scheduled automations.
+  toolVisibility: { fetch_stats: 'public', ...podVisibility },
 })
 
 let persistence: ReturnType<typeof memoryPersistence> | undefined
@@ -255,17 +258,22 @@ export interface ThreadInfo {
 }
 const threads = new Map<string, ThreadInfo>()
 
-export function noteThread(threadId: string, harness = triage.name): void {
+export function noteThread(threadId: string, harness?: string): void {
   const now = Date.now()
   const existing = threads.get(threadId)
-  if (existing) existing.lastActivity = now
-  else
+  if (existing) {
+    existing.lastActivity = now
+    // A thread can be created (default triage) before the client tells us which
+    // harness it runs; adopt the specific harness whenever we're told it.
+    if (harness && harnessRegistry[harness]) existing.harness = harness
+  } else {
     threads.set(threadId, {
       id: threadId,
-      harness,
+      harness: harness && harnessRegistry[harness] ? harness : triage.name,
       createdAt: now,
       lastActivity: now,
     })
+  }
 }
 
 export function listThreads(): Array<ThreadInfo> {

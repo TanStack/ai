@@ -14,18 +14,30 @@
  */
 import { applyInput } from '@tanstack/ai-harness'
 import { getHarnessForThread, getHost } from './harness'
+import { memoryPreamble } from './memory'
 
 export type Trigger = 'timer' | 'manual' | 'webhook'
 
+/**
+ * A job either runs one tool out-of-band (`mode: 'tool'`, the Phase 2 default) or
+ * triggers a model run (`mode: 'prompt'`) whose pod memory is attached as a
+ * `systemPreamble`. The PR-watcher webhook uses prompt mode so the scripted model
+ * runs its full chain (check_pr → channel_create → message_post).
+ */
 export interface Job {
   id: string
   threadId: string
   channelId?: string
+  mode: 'tool' | 'prompt'
   tool: string
   args: unknown
+  /** For `mode: 'prompt'`: the message that starts the run. */
+  message?: string
   trigger: Trigger
   status: 'queued' | 'accepted' | 'rejected'
   reason?: string
+  /** For `mode: 'prompt'`: how many memory entries were attached. */
+  attached?: number
   createdAt: number
 }
 
@@ -48,9 +60,13 @@ export interface Webhook {
   token: string
   threadId: string
   channelId: string
+  mode: 'tool' | 'prompt'
+  /** For `mode: 'tool'`: the tool to run. */
   tool: string
   /** Maps a tool arg name → a dot path into the webhook payload. */
   argMapping: Record<string, string>
+  /** For `mode: 'prompt'`: the message template (payload is appended as JSON). */
+  message?: string
 }
 
 const jobs: Array<Job> = []
@@ -80,11 +96,13 @@ export function listJobs(): Array<Job> {
   return [...jobs].sort((a, b) => b.createdAt - a.createdAt).slice(0, 100)
 }
 
-/** Run (or queue, if offline) a single public tool. Idempotent by job id. */
+/** Run (or queue, if offline) an injection. Idempotent by job id. */
 export async function runInjection(params: {
   threadId: string
-  tool: string
+  mode?: 'tool' | 'prompt'
+  tool?: string
   args?: unknown
+  message?: string
   trigger: Trigger
   jobId?: string
   channelId?: string
@@ -97,8 +115,10 @@ export async function runInjection(params: {
     id,
     threadId: params.threadId,
     channelId: params.channelId,
-    tool: params.tool,
+    mode: params.mode ?? 'tool',
+    tool: params.tool ?? '',
     args: params.args ?? {},
+    message: params.message,
     trigger: params.trigger,
     status: 'accepted',
     createdAt: Date.now(),
@@ -115,6 +135,15 @@ export async function runInjection(params: {
 }
 
 async function execute(job: Job): Promise<Job> {
+  if (job.mode === 'prompt') {
+    const { attached } = await runPrompt({
+      threadId: job.threadId,
+      message: job.message ?? '',
+    })
+    job.attached = attached
+    job.status = 'accepted'
+    return job
+  }
   const harness = getHarnessForThread(job.threadId)
   const session = await getHost().open(harness, { threadId: job.threadId })
   const receipt = await applyInput(harness, session, {
@@ -126,6 +155,29 @@ async function execute(job: Job): Promise<Job> {
   job.status = receipt.status === 'rejected' ? 'rejected' : 'accepted'
   if (receipt.reason) job.reason = receipt.reason
   return job
+}
+
+/**
+ * Trigger a model run and attach the thread's current pod memory as a
+ * `systemPreamble`. This is the memory-attaching run trigger shared by the
+ * interactive channel prompt (`/api/run`), subscription dispatch, and prompt-mode
+ * webhooks — the agent author does nothing; the platform attaches the memory.
+ */
+export async function runPrompt(params: {
+  threadId: string
+  message: string
+}): Promise<{ attached: number }> {
+  const harness = getHarnessForThread(params.threadId)
+  const session = await getHost().open(harness, { threadId: params.threadId })
+  const systemPreamble = memoryPreamble(params.threadId)
+  await applyInput(harness, session, {
+    op: 'prompt',
+    message: params.message,
+    ...(systemPreamble.length ? { systemPreamble } : {}),
+  })
+  // Count entries (preamble has a header line + one line per entry).
+  const attached = systemPreamble.length ? systemPreamble.length - 1 : 0
+  return { attached }
 }
 
 /** Drain queued jobs when the host "reconnects" (offline toggled off). */

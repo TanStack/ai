@@ -13,15 +13,18 @@
 import { HttpAgent } from '@ag-ui/client'
 import {
   approvals,
+  channelMembers,
   channels,
   memberships,
   messages,
+  runMeta,
   sessions,
   spend,
   teams,
   toolCalls,
   upsert,
 } from '@/db/collections'
+import type { MembershipRow, Subscription } from '@/db/collections'
 
 export type MemberRole = 'agent' | 'operator'
 
@@ -30,6 +33,7 @@ export interface Member {
   /** Unique per member; equals `threadId` in Phase 1. */
   agentId: string
   threadId: string
+  teamId?: string
   harness: string
   role: MemberRole
   displayName: string
@@ -120,9 +124,22 @@ function setStatus(
   )
 }
 
+/**
+ * The channel a member is currently active in. A member owns one thread but can
+ * be engaged in several channels over time (main, then a PR channel). Setting
+ * this routes the member's incidental events (text, tool cards, memory writes)
+ * into the channel it's working in. `pod.message_post`/`pod.channel_create`
+ * results still route by their explicit target channel, independent of this.
+ */
+const activeChannelByThread = new Map<string, string>()
+export function setActiveChannel(threadId: string, channelId: string): void {
+  activeChannelByThread.set(threadId, channelId)
+}
+
 /** Project one AG-UI event into the collections, namespaced to a member. */
 function project(ctx: Ctx, event: any, replay = false) {
-  const { threadId, channelId, agentId } = ctx
+  const { threadId, agentId } = ctx
+  const channelId = activeChannelByThread.get(threadId) ?? ctx.channelId
   const nsKey = (raw: string) => `${agentId}:${raw}`
   switch (event.type) {
     case 'RUN_STARTED':
@@ -175,11 +192,25 @@ function project(ctx: Ctx, event: any, replay = false) {
       const key = nsKey(event.toolCallId)
       if (toolCalls.has(key)) {
         const { text, truncated } = clampResult(event.content)
+        const name = (toolCalls.get(key) as { name?: string } | undefined)?.name
         toolCalls.update(key, (draft) => {
           draft.result = text
           draft.truncated = truncated
           draft.status = 'done'
         })
+        // System tools carry structured intents in their result: create a channel,
+        // or post a message into another channel. The dashboard realizes them when
+        // it observes the tool result on the tail. (memory writes are server-side.)
+        if (name === 'pod.channel_create') {
+          handleChannelCreate(
+            ctx,
+            event.toolCallId,
+            parseResult(event.content),
+            replay,
+          )
+        } else if (name === 'pod.message_post') {
+          handleMessagePost(ctx, event.toolCallId, parseResult(event.content))
+        }
       }
       break
     }
@@ -281,6 +312,220 @@ function project(ctx: Ctx, event: any, replay = false) {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* System tools: channel_create, message_post, subscription dispatch   */
+/* ------------------------------------------------------------------ */
+
+function parseResult(content: unknown): any {
+  if (content && typeof content === 'object') return content
+  if (typeof content === 'string') {
+    try {
+      return JSON.parse(content)
+    } catch {
+      return {}
+    }
+  }
+  return {}
+}
+
+/** The team a member belongs to (from its roster row), for channel placement. */
+function teamIdForAgent(agentId: string): string | undefined {
+  const row = (memberships.toArray as Array<MembershipRow>).find(
+    (m) => m.agentId === agentId,
+  )
+  if (!row) return undefined
+  return row.teamId ?? channels.get(row.channelId)?.teamId
+}
+
+/** The team's main channel id, where system cards (channel_created) render. */
+function mainChannelId(teamId: string): string | undefined {
+  return (channels.toArray as Array<any>).find(
+    (c) => c.teamId === teamId && c.kind === 'main',
+  )?.id
+}
+
+function memberFromRow(row: MembershipRow): Member {
+  return {
+    channelId: row.channelId,
+    agentId: row.agentId,
+    threadId: row.threadId,
+    teamId: row.teamId,
+    harness: row.harness,
+    role: row.role,
+    displayName: row.displayName,
+  }
+}
+
+function addChannelMemberRow(
+  channelId: string,
+  agentId: string,
+  threadId: string,
+): void {
+  upsert(channelMembers, {
+    id: `${channelId}:${agentId}`,
+    channelId,
+    agentId,
+    threadId,
+    joinedAt: Date.now(),
+  })
+}
+
+/** A member created a channel: register it, announce it, dispatch subscriptions. */
+function handleChannelCreate(
+  ctx: Ctx,
+  toolCallId: string,
+  res: any,
+  replay = false,
+): void {
+  const channelId: string | undefined = res.channelId
+  if (!channelId || channels.has(channelId)) return
+  const teamId = res.teamId || teamIdForAgent(ctx.agentId)
+  if (!teamId) return
+  const kind = res.kind === 'dm' ? 'dm' : 'dynamic'
+  upsert(channels, {
+    id: channelId,
+    teamId,
+    name: res.name ?? 'channel',
+    kind,
+    topic: res.topic || undefined,
+    createdBy: ctx.agentId,
+    createdAt: Date.now(),
+  })
+  // Explicitly-listed members (e.g. a DM's two participants) join. The creator
+  // of a dynamic channel does not auto-join — it can post via `pod.message_post`
+  // (routed by channel id) without being a participant, so a watcher can open a
+  // review channel it doesn't sit in. Subscribers join via dispatch below.
+  for (const agentId of (res.members as Array<string> | undefined) ?? []) {
+    const row = (memberships.toArray as Array<MembershipRow>).find(
+      (m) => m.agentId === agentId,
+    )
+    if (row) addChannelMemberRow(channelId, agentId, row.threadId)
+  }
+  // Announce it in the team's main channel as a system card.
+  const main = mainChannelId(teamId)
+  if (main) {
+    upsert(messages, {
+      id: `sys-created:${channelId}`,
+      threadId: ctx.threadId,
+      channelId: main,
+      agentId: ctx.agentId,
+      role: 'system',
+      text: `Channel #${res.name ?? 'channel'} created`,
+      system: {
+        kind: 'channel_created',
+        channelId,
+        channelName: res.name,
+        topic: res.topic,
+      },
+      createdAt: Date.now(),
+    })
+  }
+  // If the creating agent posted an opening message, place it in the channel.
+  if (res.initialMessage) {
+    upsert(messages, {
+      id: `${ctx.agentId}:open:${toolCallId}`,
+      threadId: ctx.threadId,
+      channelId,
+      agentId: ctx.agentId,
+      role: 'assistant',
+      text: res.initialMessage,
+      createdAt: Date.now(),
+    })
+  }
+  // Don't fire subscription runs while rehydrating history — only for live events.
+  if (!replay) {
+    dispatchChannelCreated(teamId, channelId, res.name ?? 'channel', res.topic)
+  }
+}
+
+/** A member posted into a channel: place the message there, attributed to it. */
+function handleMessagePost(ctx: Ctx, toolCallId: string, res: any): void {
+  if (!res.channelId || typeof res.content !== 'string') return
+  upsert(messages, {
+    id: `${ctx.agentId}:post:${toolCallId}`,
+    threadId: ctx.threadId,
+    channelId: res.channelId,
+    agentId: ctx.agentId,
+    role: 'assistant',
+    text: res.content,
+    createdAt: Date.now(),
+  })
+}
+
+/**
+ * Subscription dispatch: when a channel is created, members subscribed to
+ * `channel_created` react. `join` adds them to the channel (+ a system note);
+ * `trigger` injects a templated review request (which carries their pod memory
+ * via `/api/run`). Not an orchestrator — the subscription made executable.
+ */
+const dispatched = new Set<string>()
+function dispatchChannelCreated(
+  teamId: string,
+  channelId: string,
+  name: string,
+  topic?: string,
+): void {
+  if (dispatched.has(channelId)) return
+  dispatched.add(channelId)
+  const members = (memberships.toArray as Array<MembershipRow>).filter(
+    (m) => (m.teamId ?? channels.get(m.channelId)?.teamId) === teamId,
+  )
+  const has = (subs: Array<Subscription> | undefined, action: string) =>
+    (subs ?? []).some((s) => s.event === 'channel_created' && s.action === action)
+  // Joins first, so a triggered run's events project into the channel it joined.
+  for (const m of members) {
+    if (!has(m.subscriptions, 'join')) continue
+    addChannelMemberRow(channelId, m.agentId, m.threadId)
+    openChannelMember(memberFromRow(m))
+    upsert(messages, {
+      id: `sys-join:${channelId}:${m.agentId}`,
+      threadId: m.threadId,
+      channelId,
+      agentId: m.agentId,
+      role: 'system',
+      text: `${m.displayName} joined`,
+      system: { kind: 'member_joined', channelId, who: m.displayName },
+      createdAt: Date.now(),
+    })
+  }
+  for (const m of members) {
+    if (!has(m.subscriptions, 'trigger')) continue
+    setActiveChannel(m.threadId, channelId)
+    void triggerRun(
+      m.threadId,
+      `[channel:${channelId}] A new channel #${name} was created: ${topic ?? name}. Please review it and post your findings.`,
+    )
+  }
+}
+
+/** POST the memory-attaching run trigger and record how much memory was attached. */
+async function triggerRun(threadId: string, message: string): Promise<void> {
+  try {
+    const harness = membersByThread.get(threadId)?.harness
+    const res = await fetch(`${origin()}/api/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ threadId, message, harness }),
+    })
+    const data = await res.json()
+    upsert(
+      runMeta,
+      {
+        id: threadId,
+        threadId,
+        attached: data.attached ?? 0,
+        updatedAt: Date.now(),
+      },
+      (draft) => {
+        draft.attached = data.attached ?? 0
+        draft.updatedAt = Date.now()
+      },
+    )
+  } catch {
+    // best-effort trigger
+  }
+}
+
 function agentFor(threadId: string, endpoint: string): Entry {
   let entry = registry.get(threadId)
   if (!entry) {
@@ -322,6 +567,7 @@ export function addAgentToChannel(
   harness: string,
   role: MemberRole = 'agent',
   displayName?: string,
+  subscriptions?: Array<Subscription>,
 ): Member {
   const existing = (memberships.toArray as Array<any>).filter(
     (m) => m.channelId === channelId && m.harness === harness,
@@ -330,10 +576,12 @@ export function addAgentToChannel(
     role === 'operator'
       ? `meta-${Math.random().toString(36).slice(2, 8)}`
       : rid(shortName(harness))
+  const teamId = channels.get(channelId)?.teamId
   const member: Member = {
     channelId,
     agentId: threadId,
     threadId,
+    teamId,
     harness,
     role,
     displayName:
@@ -342,11 +590,13 @@ export function addAgentToChannel(
   upsert(memberships, {
     id: `${channelId}:${member.agentId}`,
     channelId,
+    teamId,
     agentId: member.agentId,
     threadId,
     harness,
     role,
     displayName: member.displayName,
+    ...(subscriptions ? { subscriptions } : {}),
     joinedAt: Date.now(),
   })
   subscribeMember(member)
@@ -369,6 +619,20 @@ export function createTeam(
     createdAt: Date.now(),
   })
   addAgentToChannel(channelId, harness, 'agent')
+  return { teamId, channelId }
+}
+
+/**
+ * The PR-watcher demo team: a watcher agent + a security reviewer subscribed to
+ * `channel_created` (join + trigger). Sending a PR webhook drives the whole
+ * "the pod learns" loop.
+ */
+export function createPrWatcherTeam(): { teamId: string; channelId: string } {
+  const { teamId, channelId } = createTeam('PR watcher', 'ops/pr-watcher')
+  addAgentToChannel(channelId, 'security/review', 'agent', 'security', [
+    { event: 'channel_created', action: 'join' },
+    { event: 'channel_created', action: 'trigger' },
+  ])
   return { teamId, channelId }
 }
 
@@ -542,7 +806,7 @@ export function openChannelMember(member: Member): void {
     viaTail: true,
   }
   const source = new EventSource(
-    `${origin()}/api/tail?threadId=${encodeURIComponent(member.threadId)}`,
+    `${origin()}/api/tail?threadId=${encodeURIComponent(member.threadId)}&harness=${encodeURIComponent(member.harness)}`,
   )
   source.onmessage = (message) => {
     try {
@@ -554,29 +818,62 @@ export function openChannelMember(member: Member): void {
   }
 }
 
-/** Trigger a model run for a channel member. Projection comes from the tail. */
+/**
+ * Trigger a model run for a channel member via the memory-attaching run trigger
+ * (`/api/run`). Projection comes from the tail. `channelId` is the channel the
+ * human is looking at — the member becomes active there, so its run projects into
+ * that channel (not just its home channel).
+ */
 export async function channelSendPrompt(
   member: Member,
   text: string,
+  channelId: string = member.channelId,
 ): Promise<void> {
   openChannelMember(member)
-  const entry = agentFor(member.threadId, endpointFor(member.harness))
+  setActiveChannel(member.threadId, channelId)
   upsert(messages, {
     id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     threadId: member.threadId,
-    channelId: member.channelId,
+    channelId,
     agentId: 'user',
     role: 'user',
     text,
     createdAt: Date.now(),
   })
-  entry.agent.addMessage({ id: `u-${Date.now()}`, role: 'user', content: text })
-  await entry.agent.runAgent()
+  await triggerRun(member.threadId, `[channel:${channelId}] ${text}`)
+}
+
+/**
+ * Create a DM channel between two members, dashboard-initiated (out-of-band
+ * `pod.channel_create`). The result flows back through the creator's tail and the
+ * projector registers the channel + both members.
+ */
+export async function createDm(
+  from: Member,
+  toAgentId: string,
+  toName: string,
+): Promise<void> {
+  openChannelMember(from)
+  await fetch(`${origin()}/api/inject`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      threadId: from.threadId,
+      channelId: from.channelId,
+      harness: from.harness,
+      tool: 'pod.channel_create',
+      args: {
+        name: `dm-${from.displayName}-${toName}`,
+        kind: 'dm',
+        members: [from.agentId, toAgentId],
+      },
+    }),
+  })
 }
 
 /** Inject a public tool out-of-band on a member (run-now). Result via the tail. */
 export async function runInjection(
-  member: Pick<Member, 'threadId' | 'channelId'>,
+  member: Pick<Member, 'threadId' | 'channelId'> & { harness?: string },
   tool: string,
   args?: Record<string, unknown>,
 ): Promise<{ status: string; reason?: string }> {
@@ -586,6 +883,7 @@ export async function runInjection(
     body: JSON.stringify({
       threadId: member.threadId,
       channelId: member.channelId,
+      harness: member.harness,
       tool,
       args: args ?? {},
     }),

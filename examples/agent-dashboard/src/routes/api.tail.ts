@@ -1,5 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { canAccess, getHarnessForThread, getHost } from '@/server/harness'
+import {
+  canAccess,
+  getHarnessForThread,
+  getHost,
+  noteThread,
+} from '@/server/harness'
 import '@/server/meta'
 
 // A live tail of a thread's session feed: replays from a cursor, then follows new
@@ -21,6 +26,8 @@ export const Route = createFileRoute('/api/tail')({
           url.searchParams.get('from') ??
           '0'
         canAccess({ id: 'local' }, threadId)
+        const harnessName = url.searchParams.get('harness')
+        if (harnessName) noteThread(threadId, harnessName)
         const session = await getHost().open(getHarnessForThread(threadId), {
           threadId,
         })

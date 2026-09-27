@@ -22,8 +22,10 @@ import { Route as ApiTailRouteImport } from './routes/api.tail'
 import { Route as ApiSessionsRouteImport } from './routes/api.sessions'
 import { Route as ApiSchedulesRouteImport } from './routes/api.schedules'
 import { Route as ApiRunsRouteImport } from './routes/api.runs'
+import { Route as ApiRunRouteImport } from './routes/api.run'
 import { Route as ApiReplayRouteImport } from './routes/api.replay'
 import { Route as ApiMetaRouteImport } from './routes/api.meta'
+import { Route as ApiMemoryRouteImport } from './routes/api.memory'
 import { Route as ApiInjectRouteImport } from './routes/api.inject'
 import { Route as ApiHostsRouteImport } from './routes/api.hosts'
 import { Route as ApiConfigRouteImport } from './routes/api.config'
@@ -97,6 +99,11 @@ const ApiRunsRoute = ApiRunsRouteImport.update({
   path: '/api/runs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRunRoute = ApiRunRouteImport.update({
+  id: '/api/run',
+  path: '/api/run',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiReplayRoute = ApiReplayRouteImport.update({
   id: '/api/replay',
   path: '/api/replay',
@@ -105,6 +112,11 @@ const ApiReplayRoute = ApiReplayRouteImport.update({
 const ApiMetaRoute = ApiMetaRouteImport.update({
   id: '/api/meta',
   path: '/api/meta',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMemoryRoute = ApiMemoryRouteImport.update({
+  id: '/api/memory',
+  path: '/api/memory',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiInjectRoute = ApiInjectRouteImport.update({
@@ -153,8 +165,10 @@ export interface FileRoutesByFullPath {
   '/api/config': typeof ApiConfigRoute
   '/api/hosts': typeof ApiHostsRoute
   '/api/inject': typeof ApiInjectRoute
+  '/api/memory': typeof ApiMemoryRoute
   '/api/meta': typeof ApiMetaRoute
   '/api/replay': typeof ApiReplayRoute
+  '/api/run': typeof ApiRunRoute
   '/api/runs': typeof ApiRunsRoute
   '/api/schedules': typeof ApiSchedulesRoute
   '/api/sessions': typeof ApiSessionsRoute
@@ -177,8 +191,10 @@ export interface FileRoutesByTo {
   '/api/config': typeof ApiConfigRoute
   '/api/hosts': typeof ApiHostsRoute
   '/api/inject': typeof ApiInjectRoute
+  '/api/memory': typeof ApiMemoryRoute
   '/api/meta': typeof ApiMetaRoute
   '/api/replay': typeof ApiReplayRoute
+  '/api/run': typeof ApiRunRoute
   '/api/runs': typeof ApiRunsRoute
   '/api/schedules': typeof ApiSchedulesRoute
   '/api/sessions': typeof ApiSessionsRoute
@@ -202,8 +218,10 @@ export interface FileRoutesById {
   '/api/config': typeof ApiConfigRoute
   '/api/hosts': typeof ApiHostsRoute
   '/api/inject': typeof ApiInjectRoute
+  '/api/memory': typeof ApiMemoryRoute
   '/api/meta': typeof ApiMetaRoute
   '/api/replay': typeof ApiReplayRoute
+  '/api/run': typeof ApiRunRoute
   '/api/runs': typeof ApiRunsRoute
   '/api/schedules': typeof ApiSchedulesRoute
   '/api/sessions': typeof ApiSessionsRoute
@@ -228,8 +246,10 @@ export interface FileRouteTypes {
     | '/api/config'
     | '/api/hosts'
     | '/api/inject'
+    | '/api/memory'
     | '/api/meta'
     | '/api/replay'
+    | '/api/run'
     | '/api/runs'
     | '/api/schedules'
     | '/api/sessions'
@@ -252,8 +272,10 @@ export interface FileRouteTypes {
     | '/api/config'
     | '/api/hosts'
     | '/api/inject'
+    | '/api/memory'
     | '/api/meta'
     | '/api/replay'
+    | '/api/run'
     | '/api/runs'
     | '/api/schedules'
     | '/api/sessions'
@@ -276,8 +298,10 @@ export interface FileRouteTypes {
     | '/api/config'
     | '/api/hosts'
     | '/api/inject'
+    | '/api/memory'
     | '/api/meta'
     | '/api/replay'
+    | '/api/run'
     | '/api/runs'
     | '/api/schedules'
     | '/api/sessions'
@@ -301,8 +325,10 @@ export interface RootRouteChildren {
   ApiConfigRoute: typeof ApiConfigRoute
   ApiHostsRoute: typeof ApiHostsRoute
   ApiInjectRoute: typeof ApiInjectRoute
+  ApiMemoryRoute: typeof ApiMemoryRoute
   ApiMetaRoute: typeof ApiMetaRoute
   ApiReplayRoute: typeof ApiReplayRoute
+  ApiRunRoute: typeof ApiRunRoute
   ApiRunsRoute: typeof ApiRunsRoute
   ApiSchedulesRoute: typeof ApiSchedulesRoute
   ApiSessionsRoute: typeof ApiSessionsRoute
@@ -408,6 +434,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRunsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/run': {
+      id: '/api/run'
+      path: '/api/run'
+      fullPath: '/api/run'
+      preLoaderRoute: typeof ApiRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/replay': {
       id: '/api/replay'
       path: '/api/replay'
@@ -420,6 +453,13 @@ declare module '@tanstack/react-router' {
       path: '/api/meta'
       fullPath: '/api/meta'
       preLoaderRoute: typeof ApiMetaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/memory': {
+      id: '/api/memory'
+      path: '/api/memory'
+      fullPath: '/api/memory'
+      preLoaderRoute: typeof ApiMemoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/inject': {
@@ -496,8 +536,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiConfigRoute: ApiConfigRoute,
   ApiHostsRoute: ApiHostsRoute,
   ApiInjectRoute: ApiInjectRoute,
+  ApiMemoryRoute: ApiMemoryRoute,
   ApiMetaRoute: ApiMetaRoute,
   ApiReplayRoute: ApiReplayRoute,
+  ApiRunRoute: ApiRunRoute,
   ApiRunsRoute: ApiRunsRoute,
   ApiSchedulesRoute: ApiSchedulesRoute,
   ApiSessionsRoute: ApiSessionsRoute,

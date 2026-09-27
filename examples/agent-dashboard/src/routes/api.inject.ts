@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { canAccess } from '@/server/harness'
+import { canAccess, noteThread } from '@/server/harness'
 import { runInjection } from '@/server/injection'
 import { startScheduler } from '@/server/scheduler'
 import '@/server/meta'
@@ -17,6 +17,7 @@ export const Route = createFileRoute('/api/inject')({
           tool?: string
           args?: unknown
           jobId?: string
+          harness?: string
         }
         if (!body.threadId || !body.tool) {
           return Response.json(
@@ -25,6 +26,7 @@ export const Route = createFileRoute('/api/inject')({
           )
         }
         canAccess({ id: 'local' }, body.threadId)
+        if (body.harness) noteThread(body.threadId, body.harness)
         const job = await runInjection({
           threadId: body.threadId,
           channelId: body.channelId,

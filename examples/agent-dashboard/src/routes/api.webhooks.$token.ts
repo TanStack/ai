@@ -28,6 +28,18 @@ export const Route = createFileRoute('/api/webhooks/$token')({
           return Response.json({ error: 'unknown webhook' }, { status: 404 })
         }
         const payload = (await request.json().catch(() => ({}))) as unknown
+        if (webhook.mode === 'prompt') {
+          // Drive a model run: the scripted agent reacts and calls its tools.
+          const message = `${webhook.message ?? 'A webhook arrived.'}\nPayload: ${JSON.stringify(payload)}`
+          const job = await runInjection({
+            threadId: webhook.threadId,
+            channelId: webhook.channelId,
+            mode: 'prompt',
+            message,
+            trigger: 'webhook',
+          })
+          return Response.json({ ok: true, jobId: job.id, status: job.status })
+        }
         const args: Record<string, unknown> = {}
         for (const [arg, path] of Object.entries(webhook.argMapping)) {
           args[arg] = readPath(payload, path)
