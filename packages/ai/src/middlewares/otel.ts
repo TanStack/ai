@@ -221,6 +221,51 @@ function serializeContent(content: unknown): string {
   return parts.join(' ')
 }
 
+type InputPart =
+  | { type: 'text'; content: string }
+  | { type: 'uri'; modality: string; uri: string; mime_type?: string }
+  | { type: 'file'; modality: string; file_id: string; mime_type?: string }
+
+/**
+ * Structured form of `ContentPart[]` for `gen_ai.input.messages`, using the
+ * OTel GenAI semconv part shapes. URL and file-handle media keep their
+ * reference; inline bytes (and `data:` URLs) stay a `[type]` placeholder so
+ * they never blow attribute size limits. `redact` runs on text parts only.
+ */
+function serializeParts(
+  content: Array<unknown>,
+  redact: (text: string) => string,
+): Array<InputPart> {
+  const parts: Array<InputPart> = []
+  for (const part of content) {
+    if (!part || typeof part !== 'object') continue
+    const p = part as {
+      type?: string
+      text?: string
+      content?: string
+      source?: { type?: string; value?: string; mimeType?: string }
+    }
+    if (p.type === 'text') {
+      parts.push({
+        type: 'text',
+        content: redact((p.text ?? p.content ?? '').toString()),
+      })
+      continue
+    }
+    const modality = p.type ?? 'unknown'
+    const { type, value, mimeType } = p.source ?? {}
+    const mime = mimeType ? { mime_type: mimeType } : {}
+    if (type === 'url' && value && !value.startsWith('data:')) {
+      parts.push({ type: 'uri', modality, uri: value, ...mime })
+    } else if (type === 'file' && value) {
+      parts.push({ type: 'file', modality, file_id: value, ...mime })
+    } else {
+      parts.push({ type: 'text', content: `[${modality}]` })
+    }
+  }
+  return parts
+}
+
 function messageEventName(role: string): string {
   switch (role) {
     case 'user':
@@ -581,7 +626,12 @@ export function otelMiddleware(
           // Also emit the current GenAI-semconv attribute form
           // (`gen_ai.input.messages`) — backends like PostHog read prompt
           // content from this attribute, not from span events.
-          const inputMessages: Array<{ role: string; content: string }> = []
+          // Multimodal messages keep their parts structured so image / audio /
+          // video / document references survive into the trace (#1525).
+          const inputMessages: Array<{
+            role: string
+            content: string | Array<InputPart>
+          }> = []
           for (const sys of systemPromptContents) {
             inputMessages.push({
               role: 'system',
@@ -589,6 +639,12 @@ export function otelMiddleware(
             })
           }
           for (const m of config.messages) {
+            if (Array.isArray(m.content)) {
+              const parts = serializeParts(m.content, redactContent)
+              if (parts.length === 0) continue
+              inputMessages.push({ role: m.role, content: parts })
+              continue
+            }
             const body = serializeContent(m.content)
             if (body.length === 0) continue
             inputMessages.push({

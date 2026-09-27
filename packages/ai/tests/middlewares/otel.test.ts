@@ -965,6 +965,64 @@ describe('otelMiddleware — captureContent', () => {
     expect(userEvt.attributes!['content']).toBe('look at this [image]')
   })
 
+  it('keeps multimodal parts structured in gen_ai.input.messages', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({
+      tracer,
+      captureContent: true,
+      redact: (s) => s.replace('secret', '***'),
+    })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx, {
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', content: 'describe secret' },
+            {
+              type: 'image',
+              source: {
+                type: 'url',
+                value: 'https://x.test/a.png',
+                mimeType: 'image/png',
+              },
+            },
+            { type: 'audio', source: { type: 'file', value: 'file_123' } },
+            {
+              type: 'video',
+              source: { type: 'data', value: 'AAAA', mimeType: 'video/mp4' },
+            },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'data:image/png;base64,AAAA' },
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(
+      JSON.parse(spans[1]!.attributes['gen_ai.input.messages'] as string),
+    ).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', content: 'describe ***' },
+          {
+            type: 'uri',
+            modality: 'image',
+            uri: 'https://x.test/a.png',
+            mime_type: 'image/png',
+          },
+          { type: 'file', modality: 'audio', file_id: 'file_123' },
+          { type: 'text', content: '[video]' },
+          { type: 'text', content: '[image]' },
+        ],
+      },
+    ])
+  })
+
   it('emits redaction sentinel and never raw content when redact throws', async () => {
     const { tracer, spans } = createFakeTracer()
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

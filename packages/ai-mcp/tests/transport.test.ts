@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { resolveTransport } from '../src/transport'
-import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
+import type {
+  OAuthClientProvider,
+  Transport,
+} from '@modelcontextprotocol/client'
 
 const fakeAuthProvider: OAuthClientProvider = {
   redirectUrl: 'https://app.example.com/oauth/callback',
@@ -13,15 +16,35 @@ const fakeAuthProvider: OAuthClientProvider = {
   codeVerifier: () => 'verifier',
 }
 
+function expectRequestHeaders(
+  transport: Transport,
+  headers: Record<string, string>,
+) {
+  expect(Reflect.get(transport, '_requestInit')).toEqual({ headers })
+}
+
 describe('resolveTransport', () => {
   it('builds a Streamable HTTP transport from config', async () => {
+    const headers = { Authorization: 'Bearer x' }
     const t = await resolveTransport({
       type: 'http',
       url: 'https://example.com/mcp',
-      headers: { Authorization: 'Bearer x' },
+      headers,
     })
     expect(t).toBeDefined()
     expect(t.constructor.name).toMatch(/StreamableHTTP/)
+    expectRequestHeaders(t, headers)
+  })
+
+  it('builds an SSE transport from config', async () => {
+    const headers = { Authorization: 'Bearer y' }
+    const t = await resolveTransport({
+      type: 'sse',
+      url: 'https://example.com/sse',
+      headers,
+    })
+    expect(t.constructor.name).toMatch(/SSEClient/)
+    expectRequestHeaders(t, headers)
   })
 
   it('forwards authProvider to the HTTP and SSE transports', async () => {
@@ -35,20 +58,19 @@ describe('resolveTransport', () => {
       url: 'https://example.com/sse',
       authProvider: fakeAuthProvider,
     })
-    // The SDK transports keep the provider in a private `_authProvider`
-    // field (no public getter). Pinning it here guards the option actually
-    // being forwarded; the field name is stable for the pinned SDK version.
-    expect(Reflect.get(http, '_authProvider')).toBe(fakeAuthProvider)
-    expect(Reflect.get(sse, '_authProvider')).toBe(fakeAuthProvider)
+    // The client keeps an OAuthClientProvider on `_oauthProvider`.
+    // There is no public getter. This pins the forwarded option.
+    expect(Reflect.get(http, '_oauthProvider')).toBe(fakeAuthProvider)
+    expect(Reflect.get(sse, '_oauthProvider')).toBe(fakeAuthProvider)
   })
 
   it('passes through a user-supplied transport instance', async () => {
-    const fake = {
+    const fake: Transport = {
       start: async () => {},
       send: async () => {},
       close: async () => {},
     }
-    const t = await resolveTransport(fake as any)
+    const t = await resolveTransport(fake)
     expect(t).toBe(fake)
   })
 

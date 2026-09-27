@@ -18,6 +18,8 @@ TanStack AI is a lightweight, type-safe SDK for building production-ready AI exp
 
 Build a streaming React chat in [Basic Chat](../tutorials/basic-chat). The key stays in the tab.
 
+Serve a tool, a resource, and a prompt in [Build an MCP Server](../tutorials/mcp-server).
+
 Generate an image from a prompt in [Generate Image](../tutorials/generate-image).
 
 Stream a typed table from `chat({ outputSchema })` in [Streaming Structured Table](../tutorials/streaming-structured-table).

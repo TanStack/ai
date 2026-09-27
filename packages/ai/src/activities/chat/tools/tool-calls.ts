@@ -24,6 +24,7 @@ import type {
   ToolCallEndEvent,
   ToolCallStartEvent,
   ToolExecutionContext,
+  ToolInputResponse,
   ToolResultOutcome,
   ToolOutputState,
 } from '../../../types'
@@ -498,10 +499,38 @@ export interface ClientToolRequest {
   input: any
 }
 
+/** Form or sampling input that paused a server tool. */
+export interface McpInputRequest {
+  toolCallId: string
+  toolName: string
+  kind: 'form' | 'sampling'
+  request: unknown
+}
+
+interface McpInputRequiredThrow {
+  name: 'MCPInputRequiredError'
+  kind: 'form' | 'sampling'
+  request: unknown
+}
+
+function isMcpInputRequired(value: unknown): value is McpInputRequiredThrow {
+  if (typeof value !== 'object' || value === null) return false
+  if (!('name' in value) || value.name !== 'MCPInputRequiredError') {
+    return false
+  }
+  if (!('kind' in value)) return false
+  const kindIsFormOrSampling =
+    value.kind === 'form' || value.kind === 'sampling'
+  if (!kindIsFormOrSampling) return false
+  return 'request' in value
+}
+
 export interface ToolResumeExecutionState {
   clientToolErrors?: ReadonlyMap<string, string>
   deniedToolResults?: ReadonlyMap<string, unknown>
   cancelledToolCallIds?: ReadonlySet<string>
+  /** Answers to `mcp_input` interrupts, by tool call id. */
+  inputResponses?: ReadonlyMap<string, ToolInputResponse>
 }
 
 function approvalResolution(
@@ -536,6 +565,8 @@ interface ExecuteToolCallsResult {
   needsApproval: Array<ApprovalRequest>
   /** Tools that need client-side execution */
   needsClientExecution: Array<ClientToolRequest>
+  /** Server tools that paused for MCP form or sampling input */
+  inputRequired: Array<McpInputRequest>
   /** Interrupts raised by subagents that run as tools */
   subagentInterrupts: Array<Interrupt>
 }
@@ -648,6 +679,7 @@ export async function* executeServerTool<TContext = unknown>(
   pendingEvents: Array<CustomEvent | StreamChunk>,
   results: Array<ToolResult>,
   middlewareHooks?: ToolExecutionMiddlewareHooks,
+  inputRequired?: Array<McpInputRequest>,
   subagentInterrupts?: Array<Interrupt>,
 ): AsyncGenerator<CustomEvent | StreamChunk, void, void> {
   const startTime = Date.now()
@@ -751,6 +783,18 @@ export async function* executeServerTool<TContext = unknown>(
 
     if (error instanceof MiddlewareAbortError) {
       throw error
+    }
+
+    // Same shape as MCPInputRequiredError. Pause instead of a tool error.
+    if (isMcpInputRequired(error)) {
+      if (!inputRequired) throw error
+      inputRequired.push({
+        toolCallId: toolCall.id,
+        toolName,
+        kind: error.kind,
+        request: error.request,
+      })
+      return
     }
 
     const message = error instanceof Error ? error.message : 'Unknown error'
@@ -862,6 +906,7 @@ export async function* executeToolCalls<TContext = unknown>(
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
   const needsClientExecution: Array<ClientToolRequest> = []
+  const inputRequired: Array<McpInputRequest> = []
   const subagentInterrupts: Array<Interrupt> = []
 
   // Create tool lookup map
@@ -970,10 +1015,12 @@ export async function* executeToolCalls<TContext = unknown>(
 
     // Create a ToolExecutionContext for this tool call with event emission
     const pendingEvents: Array<CustomEvent | StreamChunk> = []
+    const inputResponse = resumeState?.inputResponses?.get(toolCall.id)
     const context = {
       toolCallId: toolCall.id,
       context: userContext,
       abortSignal,
+      ...(inputResponse !== undefined ? { inputResponse } : {}),
       emitCustomEvent: (
         eventName: string,
         value: Record<string, any>,
@@ -1110,6 +1157,7 @@ export async function* executeToolCalls<TContext = unknown>(
             pendingEvents,
             results,
             middlewareHooks,
+            inputRequired,
             subagentInterrupts,
           )
         } else {
@@ -1160,9 +1208,16 @@ export async function* executeToolCalls<TContext = unknown>(
       pendingEvents,
       results,
       middlewareHooks,
+      inputRequired,
       subagentInterrupts,
     )
   }
 
-  return { results, needsApproval, needsClientExecution, subagentInterrupts }
+  return {
+    results,
+    needsApproval,
+    needsClientExecution,
+    inputRequired,
+    subagentInterrupts,
+  }
 }
