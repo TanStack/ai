@@ -32,9 +32,12 @@ test('the Reddit pod loop: a news batch triggers an unprompted sentiment digest'
   await page.getByRole('button', { name: 'Close' }).click()
 
   // 1. The batch lands as a result card with (fixtured) real headlines.
-  await expect(
-    page.getByText(/React Compiler is now stable/).first(),
-  ).toBeVisible({ timeout: 15000 })
+  // The result JSON renders as a collapsed tree, so the headline is present in
+  // the DOM but not visible until expanded — assert content, not visibility.
+  await expect(page.locator('body')).toContainText(
+    /React Compiler is now stable/,
+    { timeout: 15000 },
+  )
 
   // 2. The sentiment agent posts a digest — unprompted, driven by the
   //    tool_result subscription.
@@ -71,9 +74,12 @@ test('a hand-composed Reddit team auto-reacts to a fetch', async ({ page }) => {
   await page.getByRole('button', { name: 'Run', exact: true }).click()
   await page.getByRole('button', { name: 'Close' }).click()
 
-  await expect(
-    page.getByText(/React Compiler is now stable/).first(),
-  ).toBeVisible({ timeout: 15000 })
+  // The result JSON renders as a collapsed tree, so the headline is present in
+  // the DOM but not visible until expanded — assert content, not visibility.
+  await expect(page.locator('body')).toContainText(
+    /React Compiler is now stable/,
+    { timeout: 15000 },
+  )
   await expect(page.getByText(/Sentiment digest/).first()).toBeVisible({
     timeout: 15000,
   })

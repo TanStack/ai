@@ -35,6 +35,8 @@ import {
 } from '@/lib/session-controller'
 import { MemberList } from '@/components/member-list'
 import { MemoryPanel } from '@/components/memory-panel'
+import { JsonTree, tryParse } from '@/components/json-tree'
+import { Markdown } from '@/components/markdown'
 import type {
   ApprovalRow,
   ChannelMemberRow,
@@ -457,7 +459,15 @@ function MessageBubble({
             subagent
           </span>
         )}
-        {message.text || <span className="text-white/30">…</span>}
+        {message.text ? (
+          isUser ? (
+            message.text
+          ) : (
+            <Markdown>{message.text}</Markdown>
+          )
+        ) : (
+          <span className="text-white/30">…</span>
+        )}
       </div>
     </div>
   )
@@ -500,10 +510,28 @@ function ToolCard({
           {tool.status}
         </span>
       </div>
-      {tool.args && <div className="mt-1 text-white/50">{tool.args}</div>}
-      {tool.result && (
-        <div className="mt-1 text-emerald-200/70">→ {tool.result}</div>
-      )}
+      {tool.args &&
+        (() => {
+          const parsed = tryParse(tool.args)
+          return parsed !== undefined ? (
+            <div className="mt-1">
+              <JsonTree value={parsed} />
+            </div>
+          ) : (
+            <div className="mt-1 text-white/50">{tool.args}</div>
+          )
+        })()}
+      {tool.result &&
+        (() => {
+          const parsed = tryParse(tool.result)
+          return parsed !== undefined ? (
+            <div className="mt-1">
+              <JsonTree value={parsed} />
+            </div>
+          ) : (
+            <div className="mt-1 text-emerald-200/70">→ {tool.result}</div>
+          )
+        })()}
       {tool.truncated && (
         <div className="mt-1 text-white/30">(result truncated)</div>
       )}

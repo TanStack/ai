@@ -9,3 +9,88 @@ body {
   background: #0b0d12;
   color: #e6e8ee;
 }
+
+/* Markdown message rendering (the .md wrapper in <Markdown>). Scoped, minimal —
+   just enough for the sentiment digest's tables, headings, lists and code. */
+.md {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.md > :first-child {
+  margin-top: 0;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  font-weight: 600;
+  margin: 0.75em 0 0.35em;
+  line-height: 1.25;
+}
+.md h1 {
+  font-size: 1.15em;
+}
+.md h2 {
+  font-size: 1.05em;
+}
+.md p,
+.md ul,
+.md ol,
+.md table {
+  margin: 0.5em 0;
+}
+.md ul,
+.md ol {
+  padding-left: 1.25em;
+}
+.md ul {
+  list-style: disc;
+}
+.md ol {
+  list-style: decimal;
+}
+.md a {
+  color: #7dd3fc;
+  text-decoration: underline;
+}
+.md code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.1em 0.3em;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+}
+.md pre {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.6em 0.8em;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+}
+.md pre code {
+  background: none;
+  padding: 0;
+}
+.md table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+  font-size: 0.8em;
+}
+.md th,
+.md td {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.3em 0.55em;
+  text-align: left;
+}
+.md th {
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 600;
+}
+.md blockquote {
+  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  padding-left: 0.75em;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0.5em 0;
+}
