@@ -201,6 +201,44 @@ const server = createMCPServer({
 })
 ```
 
+### Use the auth the app already has
+
+When a middleware already verified the caller, pass the result to `server.fetch`.
+`init.authInfo` is the SDK `AuthInfo`. The server skips its `auth` gate for that request.
+`init.context` reaches every tool call of that request on `ctx.context`.
+Type the values with `MCPToolContext<{ db: Db }>`.
+`authInfo`, `requestInput`, and `sample` win over a same-named value in `context`.
+
+```typescript
+import { server } from './mcp-server'
+import { verifyCaller } from './auth'
+
+export async function handleMcp(request: Request) {
+  const caller = await verifyCaller(request)
+  if (caller instanceof Response) return caller
+  return server.fetch(request, {
+    authInfo: caller.authInfo,
+    context: { db: caller.db },
+  })
+}
+```
+
+### Describe a tool to the host
+
+Set `metadata.title` and `metadata.annotations` on the tool definition.
+The host gets them as the MCP tool title and annotations.
+Use the MCP names: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`.
+A host skips its confirmation for a tool with `readOnlyHint: true`.
+
+A tool with no `outputSchema` can return an MCP `CallToolResult`.
+The server sends it as is: its content blocks, its `structuredContent`, and its `isError`.
+
+### Turn spec 2025 sessions off
+
+Set `sessions: 'reject'` on a host with many instances, such as Cloudflare Workers.
+The server opens no session. A spec 2025 request gets the SDK rejection.
+The default is `'memory'`: sessions live in the process for 30 idle minutes.
+
 ### Call a `createMCPServer` server with its types
 
 For a deployed server, pass `typeof server` and a transport.

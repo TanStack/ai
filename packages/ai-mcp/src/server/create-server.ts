@@ -20,6 +20,7 @@ import type {
   JsonSchemaType,
   McpRequestContext,
   ServerContext,
+  ToolAnnotations,
 } from '@modelcontextprotocol/server'
 import {
   ToolInputRequiredError,
@@ -95,9 +96,30 @@ export type MCPServerOptions = {
    * are optional.
    */
   auth?: BearerAuthOptions
+  /**
+   * What to do with a spec 2025 session. `'memory'` (the default) keeps
+   * sessions in this process. `'reject'` answers every spec 2025 request
+   * with the SDK rejection, so a host with many instances never opens a
+   * session it cannot find on the next request.
+   */
+  sessions?: 'memory' | 'reject'
   sample?: (request: SampleRequest) => Promise<unknown>
   waitUntil?: (promise: Promise<unknown>) => void
 }
+
+/**
+ * Per-request options for `server.fetch`.
+ *
+ * `authInfo` is a token your own middleware already verified. The server
+ * skips its `auth` gate for that request.
+ * `context` is merged into `ctx.context` for every tool call of that request.
+ */
+export type MCPFetchInit = {
+  authInfo?: AuthInfo
+  context?: Record<string, unknown>
+}
+
+type AppContext = () => Record<string, unknown> | undefined
 
 /**
  * One MCP server and the definitions it serves.
@@ -116,7 +138,7 @@ export type MCPServer<
   readonly tools: TTools
   readonly resources: TResources
   readonly prompts: TPrompts
-  fetch: (request: Request) => Promise<Response>
+  fetch: (request: Request, init?: MCPFetchInit) => Promise<Response>
 }
 
 type LegacySession = {
@@ -124,6 +146,9 @@ type LegacySession = {
   server: McpServer
   owner: string | undefined
   lastUsed: number
+  // ponytail: the latest request's context. Two calls in flight on one
+  // session share it; both belong to the same owner.
+  context: Record<string, unknown> | undefined
 }
 
 type LegacySessions = Map<string, LegacySession>
@@ -192,10 +217,13 @@ export function createMCPServer<
   const hasTaskTool = tools.some((tool) => tool.execution === 'task')
   const gate =
     options.auth === undefined ? undefined : requireBearerAuth(options.auth)
+  // The SDK hands the factory the same Request object that fetch received.
+  const contextByRequest = new WeakMap<Request, Record<string, unknown>>()
 
   const modern = createMcpHandler(
-    (ctx) =>
-      buildMcpServer({
+    (ctx) => {
+      const request = ctx.requestInfo
+      return buildMcpServer({
         options,
         tools,
         resources,
@@ -204,7 +232,10 @@ export function createMCPServer<
         era: ctx.era === 'modern' ? '2026' : '2025',
         hasTaskTool,
         owner: ownerOf(ctx.authInfo),
-      }),
+        appContext: () =>
+          request === undefined ? undefined : contextByRequest.get(request),
+      })
+    },
     { legacy: 'reject', keepAliveMs: 0 },
   )
 
@@ -221,21 +252,26 @@ export function createMCPServer<
      * A spec 2025 request uses the session id header.
      * When `auth` is set, a missing or invalid bearer token returns 401,
      * and a token without a required scope returns 403.
+     * `init.authInfo` skips that gate. `init.context` reaches every tool
+     * call of this request on `ctx.context`.
      *
      * @param request - The HTTP request to the MCP route
+     * @param init - A verified token and values for `ctx.context`
      */
-    async fetch(request: Request) {
+    async fetch(request: Request, init?: MCPFetchInit) {
       await closeIdleSessions(sessions)
 
-      let authInfo: AuthInfo | undefined
-      if (gate !== undefined) {
+      let authInfo = init?.authInfo
+      if (authInfo === undefined && gate !== undefined) {
         const verdict = await gate(request)
         if (verdict instanceof Response) return verdict
         authInfo = verdict
       }
       const owner = ownerOf(authInfo)
+      const context = init?.context
 
-      const legacy = await isLegacyRequest(request)
+      const legacy =
+        options.sessions !== 'reject' && (await isLegacyRequest(request))
       if (legacy) {
         return legacyFetch(request, {
           open: () =>
@@ -243,7 +279,8 @@ export function createMCPServer<
               sessions,
               owner,
               authInfo,
-              build: () =>
+              context,
+              build: (appContext) =>
                 buildMcpServer({
                   options,
                   tools,
@@ -253,13 +290,19 @@ export function createMCPServer<
                   era: '2025',
                   hasTaskTool,
                   owner,
+                  appContext,
                 }),
             }),
           resume: (sessionId) =>
-            resumeLegacySession(request, sessionId, sessions, owner, authInfo),
+            resumeLegacySession(request, sessionId, sessions, {
+              owner,
+              authInfo,
+              context,
+            }),
         })
       }
 
+      if (context !== undefined) contextByRequest.set(request, context)
       // The SDK passes authInfo through to the factory and to each handler.
       return modern.fetch(
         request,
@@ -300,6 +343,7 @@ function buildMcpServer(input: {
   era: ProtocolYear
   hasTaskTool: boolean
   owner: string | undefined
+  appContext: AppContext
 }) {
   const server = new McpServer(
     { name: input.options.name, version: input.options.version },
@@ -341,6 +385,7 @@ function registerServerTool(
     taskStore: TaskStore
     era: ProtocolYear
     owner: string | undefined
+    appContext: AppContext
   },
 ) {
   const inputSchema = standardSchema(tool.inputSchema) ?? emptyObjectSchema
@@ -354,6 +399,7 @@ function registerServerTool(
   const registered = server.registerTool(
     tool.name,
     {
+      ...toolPresentation(tool.metadata),
       description: tool.description,
       inputSchema,
       outputSchema,
@@ -362,7 +408,12 @@ function registerServerTool(
       if (asTask) {
         return runTaskTool(tool, args, input, sdkCtx.http?.authInfo)
       }
-      const ctx = toolCallContext(input.era, sdkCtx, input.options.sample)
+      const ctx = toolCallContext(
+        input.era,
+        sdkCtx,
+        input.options.sample,
+        input.appContext,
+      )
       try {
         const output = await runTool(tool, args, ctx)
         return toCallToolResult(output, outputSchema !== undefined)
@@ -387,6 +438,27 @@ function registerServerTool(
   }
 }
 
+const annotationHints = [
+  'readOnlyHint',
+  'destructiveHint',
+  'idempotentHint',
+  'openWorldHint',
+] as const
+
+// `metadata.title` and `metadata.annotations` on a tool definition reach
+// the host as the MCP tool title and annotations.
+function toolPresentation(metadata: Record<string, unknown> | undefined) {
+  const title = typeof metadata?.title === 'string' ? metadata.title : undefined
+  const raw = metadata?.annotations
+  if (!isRecord(raw)) return { title }
+  const annotations: ToolAnnotations = {}
+  if (typeof raw.title === 'string') annotations.title = raw.title
+  for (const hint of annotationHints) {
+    if (typeof raw[hint] === 'boolean') annotations[hint] = raw[hint]
+  }
+  return { title, annotations }
+}
+
 async function runTaskTool(
   tool: AnyServerTool,
   args: unknown,
@@ -394,10 +466,11 @@ async function runTaskTool(
     options: MCPServerOptions
     taskStore: TaskStore
     owner: string | undefined
+    appContext: AppContext
   },
   authInfo: AuthInfo | undefined,
 ) {
-  const ctx = taskContext(input.options.sample, authInfo)
+  const ctx = taskContext(input.options.sample, authInfo, input.appContext)
   const handle = await startTask(
     () => Promise.resolve(runTool(tool, args, ctx)),
     {
@@ -423,9 +496,11 @@ async function runTaskTool(
 function taskContext(
   sample: MCPServerOptions['sample'],
   authInfo: AuthInfo | undefined,
+  appContext: AppContext,
 ) {
   return {
     context: {
+      ...appContext(),
       authInfo,
       async requestInput(_request: ToolInputRequest): Promise<never> {
         throw new Error(
@@ -463,6 +538,7 @@ function toolCallContext(
   era: ProtocolYear,
   sdkCtx: ServerContext,
   sample: MCPServerOptions['sample'],
+  appContext: AppContext,
 ) {
   const authInfo = sdkCtx.http?.authInfo
   const hooks =
@@ -481,8 +557,9 @@ function toolCallContext(
           sample,
           authInfo,
         })
+  // The hooks win over a same-named value from `init.context`.
   return {
-    context: hooks,
+    context: { ...appContext(), ...hooks },
     abortSignal: sdkCtx.mcpReq.signal,
     emitCustomEvent() {},
   }
@@ -719,16 +796,22 @@ async function resumeLegacySession(
   request: Request,
   sessionId: string,
   sessions: LegacySessions,
-  owner: string | undefined,
-  authInfo: AuthInfo | undefined,
+  caller: {
+    owner: string | undefined
+    authInfo: AuthInfo | undefined
+    context: Record<string, unknown> | undefined
+  },
 ) {
   const session = sessions.get(sessionId)
   // Another caller gets the same answer as an unknown id.
-  if (session === undefined || session.owner !== owner) {
+  if (session === undefined || session.owner !== caller.owner) {
     return sessionNotFound()
   }
   session.lastUsed = Date.now()
-  return session.transport.handleRequest(request, { authInfo })
+  session.context = caller.context
+  return session.transport.handleRequest(request, {
+    authInfo: caller.authInfo,
+  })
 }
 
 async function openLegacySession(
@@ -737,21 +820,28 @@ async function openLegacySession(
     sessions: LegacySessions
     owner: string | undefined
     authInfo: AuthInfo | undefined
-    build: () => McpServer
+    context: Record<string, unknown> | undefined
+    build: (appContext: AppContext) => McpServer
   },
 ) {
-  const server = input.build()
+  // Before the session exists, the opening request's context applies.
+  let session: LegacySession | undefined
+  const server = input.build(() =>
+    session === undefined ? input.context : session.context,
+  )
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
     enableJsonResponse: true,
     keepAliveMs: 0,
     onsessioninitialized: (id) => {
-      input.sessions.set(id, {
+      session = {
         transport,
         server,
         owner: input.owner,
         lastUsed: Date.now(),
-      })
+        context: input.context,
+      }
+      input.sessions.set(id, session)
     },
     onsessionclosed: (id) => {
       input.sessions.delete(id)

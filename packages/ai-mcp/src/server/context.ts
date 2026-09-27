@@ -100,7 +100,9 @@ export class ToolInputRequiredError extends Error {
  * })
  * ```
  */
-export type MCPToolContext = ReturnType<typeof createServerToolContext>
+export type MCPToolContext<
+  TContext extends Record<string, unknown> = Record<never, never>,
+> = ReturnType<typeof createServerToolContext> & TContext
 
 /**
  * Builds the context for one tool call.

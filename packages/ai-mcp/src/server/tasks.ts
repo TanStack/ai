@@ -1,3 +1,4 @@
+import { isCallToolResult } from '@modelcontextprotocol/server'
 import type { Task } from '@modelcontextprotocol/server'
 import type { TaskStore } from './stores'
 
@@ -151,6 +152,9 @@ function taskView(record: StoredTask) {
  * value does, so the result matches an advertised output schema.
  */
 export function toCallToolResult(output: unknown, structured = false) {
+  // A tool that builds its own MCP result keeps it: its content blocks,
+  // its structuredContent, and its isError flag.
+  if (isCallToolResult(output)) return output
   // JSON.stringify(undefined) is undefined. A text block needs a string.
   const text =
     typeof output === 'string' ? output : (JSON.stringify(output) ?? '')

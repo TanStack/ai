@@ -110,6 +110,59 @@ The host can list `get_weather`. Then the host can call that tool.
 
 To call this URL from `chat()`, see [MCP Server Tools](../tools/mcp).
 
+## Tell the host what a tool does
+
+A host asks the user before it runs a tool, unless the tool says it only reads. Set `metadata.title` and `metadata.annotations` on the tool definition. The host gets them as the MCP tool title and annotations.
+
+```ts
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+export const listNotes = toolDefinition({
+  name: 'list_notes',
+  description: 'List the notes of the signed-in user',
+  inputSchema: z.object({}),
+  metadata: {
+    title: 'List notes',
+    annotations: { readOnlyHint: true, idempotentHint: true },
+  },
+}).server(async () => [])
+```
+
+The annotation names are the MCP names:
+
+- `readOnlyHint`: the tool changes nothing.
+- `destructiveHint`: the tool can delete or overwrite data.
+- `idempotentHint`: a repeat call with the same input changes nothing more.
+- `openWorldHint`: the tool reaches outside your system.
+
+## Shape the result yourself
+
+The server sends the tool output as one text block. An object also goes on `structuredContent`. When you want more than one block, or `isError` without an exception, return an MCP `CallToolResult` from a tool with no `outputSchema`. The server sends it as is.
+
+```ts
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+import { db } from './db'
+
+export const countNotes = toolDefinition({
+  name: 'count_notes',
+  description: 'Count the notes and list them',
+  inputSchema: z.object({}),
+}).server(async () => {
+  const notes = await db.notes.list()
+  return {
+    content: [
+      { type: 'text' as const, text: `${notes.length} notes.` },
+      { type: 'text' as const, text: JSON.stringify(notes) },
+    ],
+    structuredContent: { count: notes.length },
+  }
+})
+```
+
+The first block is a short summary for the model. The second block is the data.
+
 ## Call the server with types
 
 Your app calls the deployed server. You want a wrong tool name or a wrong argument to fail at compile time.

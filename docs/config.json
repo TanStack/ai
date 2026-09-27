@@ -525,7 +525,7 @@
           "label": "Serve Tools over HTTP",
           "to": "mcp/server",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-09-27"
         },
         {
           "label": "Serve Resources and Prompts",
@@ -554,13 +554,13 @@
           "label": "MCP Server Auth",
           "to": "mcp/server-auth",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-09-27"
         },
         {
           "label": "MCP Server Sessions",
           "to": "mcp/server-sessions",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-09-27"
         },
         {
           "label": "MCP Server on stdio",

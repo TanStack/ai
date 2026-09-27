@@ -205,6 +205,47 @@ export const listNotes = toolDefinition({
 
 `authInfo` is `undefined` when the server has no `auth`, and for `createMCPClient({ server })`.
 
+## Use the auth you already have
+
+Your app already checks the caller in a middleware. That middleware puts the user and a database handle on the request. You do not want to check the token a second time in `createMCPServer`.
+
+Pass the verified token and your values to `server.fetch`. The server skips its `auth` gate for that request. Every tool call of that request reads your values on `ctx.context`.
+
+```ts
+import { server } from './mcp-server'
+import { verifyCaller } from './auth'
+
+export async function handleMcp(request: Request) {
+  const caller = await verifyCaller(request)
+  if (caller instanceof Response) return caller
+  return server.fetch(request, {
+    authInfo: caller.authInfo,
+    context: { db: caller.db },
+  })
+}
+```
+
+In a tool, name the values you expect with `MCPToolContext`:
+
+```ts
+import { toolDefinition } from '@tanstack/ai'
+import type { MCPToolContext } from '@tanstack/ai-mcp/server'
+import { z } from 'zod'
+import type { Db } from './db'
+
+export const listNotes = toolDefinition({
+  name: 'list_notes',
+  description: 'List the notes of the signed-in user',
+  inputSchema: z.object({}),
+}).server<MCPToolContext<{ db: Db }>>(async (_args, ctx) => {
+  return ctx.context.db.notes.list()
+})
+```
+
+- `authInfo` is the SDK `AuthInfo`. A tool reads it as `ctx.context.authInfo`. A session or a task belongs to its `clientId` plus `extra.sub`.
+- `context` sits next to `authInfo`, `requestInput`, and `sample` on `ctx.context`. Those three names win over a value of yours.
+- `createMCPClient({ server })` passes no `context`.
+
 ## Sessions and tasks per caller
 
 A spec 2025 session belongs to the caller that opened it. A task belongs to the caller that started it. The caller is the `clientId` of the token plus its `sub` claim. A request from another caller gets "not found".

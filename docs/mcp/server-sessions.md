@@ -15,7 +15,7 @@ keywords:
 
 A spec 2025 client opens a session, then sends the same session id on each later request. On a deploy with more than one instance, a later request can reach an instance that did not open the session. That request gets 404.
 
-Route each session to one instance. Use the `mcp-session-id` header as the key for sticky routing on your load balancer.
+Route each session to one instance. Use the `mcp-session-id` header as the key for sticky routing on your load balancer. If you cannot route by header, [turn sessions off](#turn-sessions-off).
 
 ## Where a session lives
 
@@ -35,6 +35,22 @@ A session closes in two cases:
 The server checks for idle sessions when a request comes in. After a session closes, the client must open a new session.
 
 The server has no limit on the number of open sessions. Each session stays in memory until it closes, which can take 30 minutes. On a public server, set `auth`, or limit new sessions at your proxy.
+
+## Turn sessions off
+
+On Cloudflare Workers, and on other hosts with many instances, a request can reach any instance. Sticky routing by header is not always possible. Set `sessions` to `'reject'`. The server then opens no session, and a spec 2025 request gets the SDK rejection. A spec 2026 request works as before.
+
+```ts
+import { createMCPServer } from '@tanstack/ai-mcp/server'
+
+const server = createMCPServer({
+  name: 'weather',
+  version: '1.0.0',
+  sessions: 'reject',
+})
+```
+
+A client that speaks only spec 2025 cannot use that server.
 
 ## Sessions and auth
 

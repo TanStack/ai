@@ -12,6 +12,7 @@ import {
   resourceDefinition,
 } from '../../src/server/definitions'
 import { createMCPServer } from '../../src/server/create-server'
+import type { MCPFetchInit } from '../../src/server/create-server'
 import type { MCPToolContext, SampleRequest } from '../../src/server/context'
 import { inMemoryTaskStore } from '../../src/server/stores'
 import { MCPInputRequiredError } from '../../src/input-required'
@@ -180,10 +181,13 @@ function deferredText() {
 }
 
 async function withClient(
-  server: { fetch(request: Request): Promise<Response> },
+  server: {
+    fetch(request: Request, init?: MCPFetchInit): Promise<Response>
+  },
   hooks: {
     era: '2025' | '2026'
     authToken?: string
+    fetchInit?: MCPFetchInit
     onResponse?: (text: string) => void
     prepare?: (client: Client) => void
   },
@@ -208,7 +212,10 @@ async function withClient(
         ? undefined
         : { token: async () => hooks.authToken },
     fetch: async (input, init) => {
-      const response = await server.fetch(new Request(input, init))
+      const response = await server.fetch(
+        new Request(input, init),
+        hooks.fetchInit,
+      )
       if (hooks.onResponse !== undefined) {
         hooks.onResponse(await response.clone().text())
       }
@@ -477,6 +484,147 @@ describe('createMCPServer', () => {
         expect(called.content).toEqual([{ type: 'text', text: 'tester:alice' }])
       })
     }
+  })
+
+  it('takes a verified token and a context from fetch init', async () => {
+    const server = createMCPServer({
+      name: 'secure',
+      version: '1.0.0',
+      // The verifier accepts no token, so only fetch init can let a call in.
+      auth: { verifier: tokenVerifier('never') },
+      tools: [
+        toolDefinition({
+          name: 'whoami',
+          description: 'Who is calling, and from which tenant',
+          inputSchema: z.object({}),
+        }).server<MCPToolContext<{ tenant: string }>>(async (_args, ctx) => {
+          return `${String(ctx.context.authInfo?.extra?.sub)}@${ctx.context.tenant}`
+        }),
+      ],
+    })
+    const authInfo = {
+      token: 'from-middleware',
+      clientId: 'app',
+      scopes: [],
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      extra: { sub: 'carol' },
+    }
+
+    const gated = await server.fetch(mcpRequest(undefined))
+    expect(gated.status).toBe(401)
+
+    for (const era of ['2026', '2025'] as const) {
+      await withClient(
+        server,
+        { era, fetchInit: { authInfo, context: { tenant: 'acme' } } },
+        async (client) => {
+          const called = await client.callTool({
+            name: 'whoami',
+            arguments: {},
+          })
+          expect(called.content).toEqual([{ type: 'text', text: 'carol@acme' }])
+        },
+      )
+    }
+  })
+
+  it('keeps its own hooks over a same-named value in the context', async () => {
+    const server = createMCPServer({
+      name: 'plain',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'probe',
+          description: 'Reports whether requestInput is still a function',
+          inputSchema: z.object({}),
+        }).server<MCPToolContext>(async (_args, ctx) => {
+          return typeof ctx.context.requestInput
+        }),
+      ],
+    })
+
+    await withClient(
+      server,
+      { era: '2026', fetchInit: { context: { requestInput: 'shadowed' } } },
+      async (client) => {
+        const called = await client.callTool({ name: 'probe', arguments: {} })
+        expect(called.content).toEqual([{ type: 'text', text: 'function' }])
+      },
+    )
+  })
+
+  it('sends tool title and annotations from metadata to the host', async () => {
+    const server = createMCPServer({
+      name: 'library',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'list_notes',
+          description: 'List notes',
+          inputSchema: z.object({}),
+          metadata: {
+            title: 'List notes',
+            annotations: { readOnlyHint: true, openWorldHint: false },
+          },
+        }).server(async () => []),
+      ],
+    })
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      const listed = await client.listTools()
+      expect(listed.tools[0]?.title).toBe('List notes')
+      expect(listed.tools[0]?.annotations).toEqual({
+        readOnlyHint: true,
+        openWorldHint: false,
+      })
+    })
+  })
+
+  it('sends a CallToolResult from a tool as is', async () => {
+    const server = createMCPServer({
+      name: 'library',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'shaped',
+          description: 'Builds its own result',
+          inputSchema: z.object({}),
+        }).server(async () => ({
+          content: [
+            { type: 'text' as const, text: 'Two notes.' },
+            { type: 'text' as const, text: '{"count":2}' },
+          ],
+          structuredContent: { count: 2 },
+        })),
+      ],
+    })
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      const called = await client.callTool({ name: 'shaped', arguments: {} })
+      expect(called.content).toEqual([
+        { type: 'text', text: 'Two notes.' },
+        { type: 'text', text: '{"count":2}' },
+      ])
+      expect(called.structuredContent).toEqual({ count: 2 })
+    })
+  })
+
+  it('rejects a spec 2025 request when sessions is reject', async () => {
+    const server = createMCPServer({
+      name: 'stateless',
+      version: '1.0.0',
+      sessions: 'reject',
+      tools: [echoTool()],
+    })
+
+    const opened = await server.fetch(initializeRequest('any'))
+    expect(opened.ok).toBe(false)
+    expect(opened.headers.get('mcp-session-id')).toBeNull()
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      const listed = await client.listTools()
+      expect(listed.tools.map((tool) => tool.name)).toEqual(['echo'])
+    })
   })
 
   it('uses the sample adapter for a spec 2026 sample and does not ask the client', async () => {
