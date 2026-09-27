@@ -7,7 +7,9 @@ import {
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { QueryClientProvider } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { getQueryClient } from '@/lib/query'
+import { hydrateRoster } from '@/lib/session-controller'
 import appCss from '../styles.css?url'
 
 export const Route = createRootRoute({
@@ -22,6 +24,14 @@ export const Route = createRootRoute({
   shellComponent: RootDocument,
 })
 
+/** Seed the team roster from the server once, so teams survive a reload. */
+function RosterHydrator() {
+  useEffect(() => {
+    void hydrateRoster()
+  }, [])
+  return null
+}
+
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -30,6 +40,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <QueryClientProvider client={getQueryClient()}>
+          <RosterHydrator />
         <div className="min-h-screen">
           <header className="flex items-center gap-4 border-b border-white/10 px-6 py-3">
             <Link to="/" className="text-sm font-semibold tracking-tight">

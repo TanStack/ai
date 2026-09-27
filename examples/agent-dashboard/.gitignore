@@ -12,3 +12,4 @@ dist-ssr
 test-results
 playwright-report
 *.log
+.data

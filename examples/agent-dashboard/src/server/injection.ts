@@ -15,6 +15,7 @@
 import { applyInput } from '@tanstack/ai-harness'
 import { getHarnessForThread, getHost } from './harness'
 import { memoryPreamble } from './memory'
+import { fileMap } from './store'
 
 export type Trigger = 'timer' | 'manual' | 'webhook'
 
@@ -74,8 +75,10 @@ const pending: Array<Job> = []
 const seen = new Set<string>()
 let offline = false
 
-export const schedules = new Map<string, Schedule>()
-export const webhooks = new Map<string, Webhook>()
+// Durable: written through to the state file on every set/delete (see store.ts).
+// A schedule that came due while the server was down fires once on next boot.
+export const schedules = fileMap<Schedule>('schedules')
+export const webhooks = fileMap<Webhook>('webhooks')
 
 let seq = 0
 export function newId(prefix: string): string {

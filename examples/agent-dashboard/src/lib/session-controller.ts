@@ -24,7 +24,13 @@ import {
   toolCalls,
   upsert,
 } from '@/db/collections'
-import type { MembershipRow, Subscription } from '@/db/collections'
+import type {
+  ChannelMemberRow,
+  ChannelRow,
+  MembershipRow,
+  Subscription,
+  TeamRow,
+} from '@/db/collections'
 
 export type MemberRole = 'agent' | 'operator'
 
@@ -51,6 +57,56 @@ function origin() {
   return typeof window !== 'undefined'
     ? window.location.origin
     : 'http://localhost'
+}
+
+/* ------------------------------------------------------------------ */
+/* Roster persistence                                                  */
+/*                                                                     */
+/* The team roster lives in localOnly collections. These two functions */
+/* back it with the server so a team created in one session reappears  */
+/* after a reload or a server restart (see src/server/store.ts).       */
+/* ------------------------------------------------------------------ */
+
+let rosterTimer: ReturnType<typeof setTimeout> | undefined
+/** Save the roster to the server, debounced so a burst of writes is one POST. */
+function persistRoster(): void {
+  if (typeof window === 'undefined' || rosterTimer) return
+  rosterTimer = setTimeout(() => {
+    rosterTimer = undefined
+    void fetch(`${origin()}/api/roster`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        teams: teams.toArray,
+        channels: channels.toArray,
+        memberships: memberships.toArray,
+        channelMembers: channelMembers.toArray,
+      }),
+    }).catch(() => {})
+  }, 150)
+}
+
+let rosterHydrated = false
+/** Seed the roster collections from the server once, on app load. */
+export async function hydrateRoster(): Promise<void> {
+  if (rosterHydrated || typeof window === 'undefined') return
+  rosterHydrated = true
+  try {
+    const res = await fetch(`${origin()}/api/roster`)
+    if (!res.ok) return
+    const data = (await res.json()) as {
+      teams?: Array<TeamRow>
+      channels?: Array<ChannelRow>
+      memberships?: Array<MembershipRow>
+      channelMembers?: Array<ChannelMemberRow>
+    }
+    for (const row of data.teams ?? []) upsert(teams, row)
+    for (const row of data.channels ?? []) upsert(channels, row)
+    for (const row of data.memberships ?? []) upsert(memberships, row)
+    for (const row of data.channelMembers ?? []) upsert(channelMembers, row)
+  } catch {
+    // best-effort: a missing roster just means no teams yet
+  }
 }
 
 /** Which run endpoint a harness streams over. */
@@ -368,6 +424,7 @@ function addChannelMemberRow(
     threadId,
     joinedAt: Date.now(),
   })
+  persistRoster()
 }
 
 /** A member created a channel: register it, announce it, dispatch subscriptions. */
@@ -391,6 +448,7 @@ function handleChannelCreate(
     createdBy: ctx.agentId,
     createdAt: Date.now(),
   })
+  persistRoster()
   // Explicitly-listed members (e.g. a DM's two participants) join. The creator
   // of a dynamic channel does not auto-join — it can post via `pod.message_post`
   // (routed by channel id) without being a participant, so a watcher can open a
@@ -600,6 +658,7 @@ export function addAgentToChannel(
     joinedAt: Date.now(),
   })
   subscribeMember(member)
+  persistRoster()
   return member
 }
 
@@ -619,6 +678,7 @@ export function createTeam(
     createdAt: Date.now(),
   })
   addAgentToChannel(channelId, harness, 'agent')
+  persistRoster()
   return { teamId, channelId }
 }
 

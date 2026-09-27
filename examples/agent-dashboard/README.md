@@ -75,6 +75,17 @@ Demo script:
 - `GET /api/runs` — run history; `GET /api/replay` — a session's stored events.
 - `POST /api/meta` — the meta-chat's AG-UI run stream.
 
+## State
+
+Server state is durable, so you can close the tab, restart the server, and find
+each team where you left it. It lives in one JSON file (`.data/state.json`,
+gitignored; override with `DASHBOARD_STATE_FILE`), written through on every
+mutation and replayed on boot (`src/server/store.ts`). Persisted: chat run state
+(messages, runs, interrupts, agent config) plus the dashboard's side tables
+(threads, pod memory, schedules, webhooks). Not persisted: the in-flight
+injection queue and the dev offline toggle. It's a single-process file store — a
+multi-node dashboard would swap in a real database behind the same seam.
+
 ## Test
 
 ```bash

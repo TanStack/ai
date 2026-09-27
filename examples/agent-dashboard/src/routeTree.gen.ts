@@ -23,6 +23,7 @@ import { Route as ApiSessionsRouteImport } from './routes/api.sessions'
 import { Route as ApiSchedulesRouteImport } from './routes/api.schedules'
 import { Route as ApiRunsRouteImport } from './routes/api.runs'
 import { Route as ApiRunRouteImport } from './routes/api.run'
+import { Route as ApiRosterRouteImport } from './routes/api.roster'
 import { Route as ApiReplayRouteImport } from './routes/api.replay'
 import { Route as ApiMetaRouteImport } from './routes/api.meta'
 import { Route as ApiMemoryRouteImport } from './routes/api.memory'
@@ -104,6 +105,11 @@ const ApiRunRoute = ApiRunRouteImport.update({
   path: '/api/run',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRosterRoute = ApiRosterRouteImport.update({
+  id: '/api/roster',
+  path: '/api/roster',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiReplayRoute = ApiReplayRouteImport.update({
   id: '/api/replay',
   path: '/api/replay',
@@ -168,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/api/memory': typeof ApiMemoryRoute
   '/api/meta': typeof ApiMetaRoute
   '/api/replay': typeof ApiReplayRoute
+  '/api/roster': typeof ApiRosterRoute
   '/api/run': typeof ApiRunRoute
   '/api/runs': typeof ApiRunsRoute
   '/api/schedules': typeof ApiSchedulesRoute
@@ -194,6 +201,7 @@ export interface FileRoutesByTo {
   '/api/memory': typeof ApiMemoryRoute
   '/api/meta': typeof ApiMetaRoute
   '/api/replay': typeof ApiReplayRoute
+  '/api/roster': typeof ApiRosterRoute
   '/api/run': typeof ApiRunRoute
   '/api/runs': typeof ApiRunsRoute
   '/api/schedules': typeof ApiSchedulesRoute
@@ -221,6 +229,7 @@ export interface FileRoutesById {
   '/api/memory': typeof ApiMemoryRoute
   '/api/meta': typeof ApiMetaRoute
   '/api/replay': typeof ApiReplayRoute
+  '/api/roster': typeof ApiRosterRoute
   '/api/run': typeof ApiRunRoute
   '/api/runs': typeof ApiRunsRoute
   '/api/schedules': typeof ApiSchedulesRoute
@@ -249,6 +258,7 @@ export interface FileRouteTypes {
     | '/api/memory'
     | '/api/meta'
     | '/api/replay'
+    | '/api/roster'
     | '/api/run'
     | '/api/runs'
     | '/api/schedules'
@@ -275,6 +285,7 @@ export interface FileRouteTypes {
     | '/api/memory'
     | '/api/meta'
     | '/api/replay'
+    | '/api/roster'
     | '/api/run'
     | '/api/runs'
     | '/api/schedules'
@@ -301,6 +312,7 @@ export interface FileRouteTypes {
     | '/api/memory'
     | '/api/meta'
     | '/api/replay'
+    | '/api/roster'
     | '/api/run'
     | '/api/runs'
     | '/api/schedules'
@@ -328,6 +340,7 @@ export interface RootRouteChildren {
   ApiMemoryRoute: typeof ApiMemoryRoute
   ApiMetaRoute: typeof ApiMetaRoute
   ApiReplayRoute: typeof ApiReplayRoute
+  ApiRosterRoute: typeof ApiRosterRoute
   ApiRunRoute: typeof ApiRunRoute
   ApiRunsRoute: typeof ApiRunsRoute
   ApiSchedulesRoute: typeof ApiSchedulesRoute
@@ -441,6 +454,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRunRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/roster': {
+      id: '/api/roster'
+      path: '/api/roster'
+      fullPath: '/api/roster'
+      preLoaderRoute: typeof ApiRosterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/replay': {
       id: '/api/replay'
       path: '/api/replay'
@@ -539,6 +559,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMemoryRoute: ApiMemoryRoute,
   ApiMetaRoute: ApiMetaRoute,
   ApiReplayRoute: ApiReplayRoute,
+  ApiRosterRoute: ApiRosterRoute,
   ApiRunRoute: ApiRunRoute,
   ApiRunsRoute: ApiRunsRoute,
   ApiSchedulesRoute: ApiSchedulesRoute,

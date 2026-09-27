@@ -16,7 +16,10 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'pnpm run dev',
+    // Isolate persisted state to a throwaway file, wiped on start, so runs never
+    // inherit a previous run's runs/memory/automations (see src/server/store.ts).
+    command:
+      'rm -f .data/e2e-state.json && DASHBOARD_STATE_FILE=.data/e2e-state.json pnpm run dev',
     url: 'http://localhost:3002',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

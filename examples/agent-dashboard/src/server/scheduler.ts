@@ -1,7 +1,8 @@
 /**
  * The dashboard's clock. A single server-side interval ticks the schedule table
- * and fires due schedules as injections. In-memory only — a production dashboard
- * would use durable scheduling; the POC does not (documented).
+ * and fires due schedules as injections. The schedule table is durable (see
+ * store.ts); the interval itself is not — it re-arms on the first API hit after
+ * boot, and a schedule that came due while the server was down fires once then.
  *
  * Booted lazily from the injection routes (idempotent). Because module-level
  * state persists across requests in the Nitro process, one interval is enough.

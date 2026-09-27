@@ -14,8 +14,8 @@ import {
   definePlugin,
 } from '@tanstack/ai-harness'
 import { permissions, usage } from '@tanstack/ai-harness/plugins'
-import { memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
+import { fileMap, filePersistence } from './store'
 import { podTools, podVisibility } from './systools'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import type { AnyHarness, Principal } from '@tanstack/ai-harness'
@@ -228,9 +228,9 @@ export const triage = defineHarness({
   toolVisibility: { fetch_stats: 'public', ...podVisibility },
 })
 
-let persistence: ReturnType<typeof memoryPersistence> | undefined
+let persistence: ReturnType<typeof filePersistence> | undefined
 export function getPersistence() {
-  persistence ??= memoryPersistence()
+  persistence ??= filePersistence()
   return persistence
 }
 
@@ -256,7 +256,7 @@ export interface ThreadInfo {
   createdAt: number
   lastActivity: number
 }
-const threads = new Map<string, ThreadInfo>()
+const threads = fileMap<ThreadInfo>('threads')
 
 export function noteThread(threadId: string, harness?: string): void {
   const now = Date.now()
@@ -266,6 +266,7 @@ export function noteThread(threadId: string, harness?: string): void {
     // A thread can be created (default triage) before the client tells us which
     // harness it runs; adopt the specific harness whenever we're told it.
     if (harness && harnessRegistry[harness]) existing.harness = harness
+    threads.set(threadId, existing) // persist the in-place update
   } else {
     threads.set(threadId, {
       id: threadId,
