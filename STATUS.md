@@ -4,9 +4,9 @@ Spec: `~/Downloads/agent-dashboard-spec.md` (original four phases), then the
 **teams reframe** (`~/Downloads/pods-design-doc.md` + `pods-implementation-plan.md`).
 Everything below is committed and verified; nothing is pushed.
 
-> **Latest work: teams Phase 3 (system tools, channels, pod memory).** See the
-> "Teams Phase 3" section below. Phases 1–2 and the original four-phase build still
-> stand underneath it.
+> **Latest work: server-side persistence** (`66dd71b`) — the dashboard is now
+> durable across a restart. See the "Persistence" section below. Teams Phase 3
+> and everything under it still stand.
 
 ## Where this lives
 
@@ -33,6 +33,7 @@ Everything below is committed and verified; nothing is pushed.
 | `720660d` | `feat(examples/agent-dashboard)`: teams Phase 2 — tool registry + injection |
 | `04639fd` | `feat(ai-harness)`: `systemPreamble` on the prompt op + in-band tool thread id |
 | `4101e64` | `feat(examples/agent-dashboard)`: teams Phase 3 — system tools, channels, pod memory |
+| `66dd71b` | `feat(examples/agent-dashboard)`: persist agent + team state on the server |
 
 ## Phase status
 
@@ -187,6 +188,28 @@ every step a message or a tool call in the stream, **no hidden state**.
   `pod.*` are excluded from the run-now registry (plumbing, not automations).
 - **Verified:** `tsc` + `oxlint` clean; **13 Playwright e2e pass** (10 prior + the
   full §7 loop, DM creation, memory panel add/remove).
+
+## Persistence — durable across a restart ✅ `66dd71b`
+
+The dashboard was all in-process memory; a restart wiped every team. Now state is
+durable so you can close the tab, restart the server, and check in on each team.
+
+- **`src/server/store.ts`** — one JSON snapshot file, written through on every
+  mutation (debounced, atomic tmp+rename) and replayed on boot. `filePersistence()`
+  keeps the in-memory reference backend (so all store-contract semantics are
+  inherited), replays the snapshot into it, then mirrors the four chat state stores
+  (messages, runs, interrupts, metadata) back to disk. A `FileMap` subclass gives
+  the side tables (threads, pod memory, schedules, webhooks) write-through with no
+  route changes.
+- **Team roster** — teams/channels/memberships are client-only `localOnly`
+  collections, so they reset on reload even though the underlying threads persist.
+  Persisted as a server blob (`GET|POST /api/roster`), POSTed after each roster
+  mutation, seeded on app load (`hydrateRoster` in `__root`).
+- **Not persisted:** the in-flight injection queue, the dev offline toggle, and
+  inbox/credentials (secrets do not belong in a plaintext file). Single-process,
+  single-file; a multi-node dashboard swaps a real DB behind the same seam.
+- **Verified:** state round-trips across a fresh process; e2e isolates its state to
+  a wiped throwaway file; `tsc` + `oxlint` clean, **13 e2e pass**.
 
 ## Run it
 
