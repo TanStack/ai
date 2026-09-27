@@ -53,7 +53,11 @@ export function MemoryPanel({
   const entries = Object.entries(memory.data?.entries ?? {})
 
   return (
-    <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.02] p-4">
+    <div
+      role="group"
+      aria-label={`memory ${name}`}
+      className="space-y-2 rounded-lg border border-white/10 bg-white/[0.02] p-4"
+    >
       <div className="flex items-center gap-2">
         <h2 className="text-sm font-semibold text-white/80">Memory · {name}</h2>
         <span className="text-xs text-white/40">

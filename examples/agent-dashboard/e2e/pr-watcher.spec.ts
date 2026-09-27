@@ -70,7 +70,9 @@ test('the PR-watcher loop: review, correct, remember, handle the next PR better'
   await expect(page.getByText(/Security finding/)).toHaveCount(0)
 })
 
-test('a DM channel can be created from the member list', async ({ page }) => {
+test('a DM with an agent is created and routes messages to it', async ({
+  page,
+}) => {
   await newPrWatcherTeam(page)
 
   // Create a DM with the security member from the roster (a page control, so
@@ -78,24 +80,34 @@ test('a DM channel can be created from the member list', async ({ page }) => {
   await closeDemo(page)
   await page.getByRole('button', { name: /New DM with security/ }).click()
 
-  // A dm channel appears in the sidebar.
-  await expect(page.getByRole('button', { name: /@ dm-/ })).toBeVisible({
+  // A dm channel appears in the sidebar; open it.
+  const dm = page.getByRole('button', { name: /@ dm-/ })
+  await expect(dm).toBeVisible({ timeout: 15000 })
+  await dm.click()
+
+  // The DM seats the security agent as its member, so a message reaches it and
+  // it replies (regression: DMs used to be created with no members → no reply).
+  await page.getByPlaceholder('Send a message…').fill('please review this')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(page.getByText(/Security finding/).first()).toBeVisible({
     timeout: 15000,
   })
 })
 
 test('the memory panel adds and removes entries', async ({ page }) => {
   await newPrWatcherTeam(page)
+  // Memory now lives on the team page (one panel per agent); close the demo
+  // overlay and scope to the watcher's panel.
+  await closeDemo(page)
+  const mem = page.getByRole('group', { name: 'memory pr-watcher' })
+  await expect(mem.getByRole('heading', { name: /Memory ·/ })).toBeVisible()
+  await mem.getByLabel('memory key').fill('watchlist')
+  await mem.getByLabel('memory value').fill('repo:tanstack/ai')
+  await mem.getByRole('button', { name: '+ Add entry' }).click()
 
-  // The main channel's primary agent has a Memory panel.
-  await expect(page.getByRole('heading', { name: /Memory ·/ })).toBeVisible()
-  await page.getByLabel('memory key').fill('watchlist')
-  await page.getByLabel('memory value').fill('repo:tanstack/ai')
-  await page.getByRole('button', { name: '+ Add entry' }).click()
+  await expect(mem.getByText('watchlist')).toBeVisible()
+  await expect(mem.getByText('repo:tanstack/ai')).toBeVisible()
 
-  await expect(page.getByText('watchlist')).toBeVisible()
-  await expect(page.getByText('repo:tanstack/ai')).toBeVisible()
-
-  await page.getByRole('button', { name: 'delete memory watchlist' }).click()
-  await expect(page.getByText('repo:tanstack/ai')).toHaveCount(0)
+  await mem.getByRole('button', { name: 'delete memory watchlist' }).click()
+  await expect(mem.getByText('repo:tanstack/ai')).toHaveCount(0)
 })

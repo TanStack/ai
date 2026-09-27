@@ -45,14 +45,19 @@ const channelCreate = toolDefinition({
     teamId: z.string().optional(),
     kind: z.enum(['dynamic', 'dm']).optional(),
     initialMessage: z.string().optional(),
+    /** Agent ids to seat in the channel (e.g. a DM's participants). */
+    members: z.array(z.string()).optional(),
   }),
-}).server(async ({ name, topic, teamId, kind, initialMessage }) => ({
+  // `members` must be declared above (Zod strips unknown keys) AND echoed below,
+  // or the dashboard projects a channel with no participants.
+}).server(async ({ name, topic, teamId, kind, initialMessage, members }) => ({
   channelId: newId('chan'),
   name,
   topic: topic ?? '',
   teamId: teamId ?? '',
   kind: kind ?? 'dynamic',
   initialMessage: initialMessage ?? '',
+  members: members ?? [],
 }))
 
 const messagePost = toolDefinition({
@@ -72,7 +77,7 @@ const messagePost = toolDefinition({
 const memoryWrite = toolDefinition({
   name: 'pod.memory_write',
   description:
-    "Persist a standing instruction to your pod memory. It is attached to every future run. Use this when a human gives you a standing instruction about what (not) to do.",
+    'Persist a standing instruction to your pod memory. It is attached to every future run. Use this when a human gives you a standing instruction about what (not) to do.',
   inputSchema: z.object({
     key: z.string(),
     value: z.string(),

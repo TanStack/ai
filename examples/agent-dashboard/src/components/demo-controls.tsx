@@ -24,7 +24,6 @@ import {
   createTeam,
 } from '@/lib/session-controller'
 import { AutomationsPanel } from '@/components/automations-panel'
-import { MemoryPanel } from '@/components/memory-panel'
 import type {
   ChannelMemberRow,
   ChannelRow,
@@ -150,9 +149,6 @@ function DemoControls({ channelId }: { channelId: string }) {
       )}
       {primary && isMain && (
         <AutomationsPanel channelId={channelId} primary={primary} />
-      )}
-      {primary && primary.role === 'agent' && (
-        <MemoryPanel threadId={primary.threadId} name={primary.displayName} />
       )}
     </div>
   )

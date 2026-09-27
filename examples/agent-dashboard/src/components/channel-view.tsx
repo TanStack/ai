@@ -34,6 +34,7 @@ import {
   resolveApproval,
 } from '@/lib/session-controller'
 import { MemberList } from '@/components/member-list'
+import { MemoryPanel } from '@/components/memory-panel'
 import type {
   ApprovalRow,
   ChannelMemberRow,
@@ -348,6 +349,25 @@ export function ChannelView({
           Send
         </button>
       </div>
+
+      {isTeam && isMain && (
+        <section className="space-y-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-white/40">
+            Memory
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {memberRows
+              .filter((m) => m.role === 'agent')
+              .map((m) => (
+                <MemoryPanel
+                  key={m.id}
+                  threadId={m.threadId}
+                  name={m.displayName}
+                />
+              ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }

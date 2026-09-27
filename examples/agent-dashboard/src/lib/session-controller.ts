@@ -1042,9 +1042,11 @@ export async function channelSendPrompt(
 }
 
 /**
- * Create a DM channel between two members, dashboard-initiated (out-of-band
- * `pod.channel_create`). The result flows back through the creator's tail and the
- * projector registers the channel + both members.
+ * Open a DM with an agent, dashboard-initiated (out-of-band `pod.channel_create`
+ * issued on `from`'s thread). The DM seats just the target agent, so it's the
+ * channel's `primary` and receives the operator's messages — a 1:1 chat with
+ * that agent. The result flows back through `from`'s tail and the projector
+ * registers the channel + member.
  */
 export async function createDm(
   from: Member,
@@ -1061,9 +1063,9 @@ export async function createDm(
       harness: from.harness,
       tool: 'pod.channel_create',
       args: {
-        name: `dm-${from.displayName}-${toName}`,
+        name: `dm-${toName}`,
         kind: 'dm',
-        members: [from.agentId, toAgentId],
+        members: [toAgentId],
       },
     }),
   })
