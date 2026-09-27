@@ -2708,11 +2708,11 @@ export class StreamProcessor {
       toolCall.parsedArguments = undefined
     }
 
-    // Don't downgrade the rendered part of a call that already reached the
-    // terminal 'error' state (e.g. an output-error TOOL_CALL_RESULT arrived
+    // Don't downgrade the rendered part of a call that already reached a
+    // terminal 'error' or 'complete' state (e.g. a tool result arrived
     // without a preceding TOOL_CALL_END). The RUN_FINISHED / finalizeStream
-    // safety net must not clobber a failed call back to 'input-complete'.
-    if (this.isToolCallPartErrored(toolCall.id)) {
+    // safety net must not clobber a finished call back to 'input-complete'.
+    if (this.isToolCallPartTerminal(toolCall.id)) {
       return
     }
 
@@ -2758,11 +2758,11 @@ export class StreamProcessor {
   }
 
   /**
-   * Whether the rendered tool-call part for the given id has reached the
-   * terminal 'error' state. Used to prevent the completion safety net from
-   * downgrading a failed call back to 'input-complete'.
+   * Whether the rendered tool-call part for the given id has reached a
+   * terminal 'error' or 'complete' state. Used to prevent the completion
+   * safety net from downgrading a finished call back to 'input-complete'.
    */
-  private isToolCallPartErrored(toolCallId: string): boolean {
+  private isToolCallPartTerminal(toolCallId: string): boolean {
     // `initialMessages` may be ModelMessage-shaped (no `parts`) — e.g. the
     // common pattern of seeding a processor with the same messages passed to
     // `chat()`. Guard the access so iterating them never throws.
@@ -2772,7 +2772,7 @@ export class StreamProcessor {
         (part) =>
           part.type === 'tool-call' &&
           part.id === toolCallId &&
-          part.state === 'error',
+          (part.state === 'error' || part.state === 'complete'),
       ),
     )
   }

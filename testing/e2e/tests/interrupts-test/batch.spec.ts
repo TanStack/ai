@@ -1,3 +1,4 @@
+import type { Route } from '@playwright/test'
 import { test, expect } from '../fixtures'
 import {
   selectScenario,
@@ -126,14 +127,23 @@ test.describe('Batch interrupt resolution', () => {
     await waitForApproval(page)
     await waitForPendingApprovals(page, 3)
 
-    await approveAll(page)
-    await page.waitForFunction(
-      () =>
-        document
-          .getElementById('test-metadata')
-          ?.getAttribute('data-is-loading') === 'true',
+    // Hold the resume request. Without this, a fast resume ends before the
+    // clear, and the test never sees a late failure.
+    let heldRoute: Route | undefined
+    await page.route(
+      '**/api/interrupts-test',
+      (route) => {
+        heldRoute = route
+      },
+      { times: 1 },
     )
+
+    await approveAll(page)
+    await expect.poll(() => heldRoute).toBeDefined()
     await page.click('#clear-button')
+    // The submission fails after the clear. The clear can already have
+    // aborted the request, so the route can be handled already.
+    await heldRoute?.abort('failed').catch(() => undefined)
     await page.waitForTimeout(200)
 
     const meta = await getMetadata(page)
