@@ -34,6 +34,13 @@ export interface HarnessConfig<
   adapter: TAdapter
   systemPrompts?: Array<SystemPrompt>
   tools?: ReadonlyArray<AnyTool>
+  /**
+   * Per-tool visibility. `public` tools may be invoked out-of-band (by the
+   * dashboard, a schedule, a webhook — the `{ op: 'tool' }` input); `private`
+   * tools run only inside the owning agent's own model turns. Tools default to
+   * `private` — a tool is injectable only when named here as `public`.
+   */
+  toolVisibility?: Record<string, 'public' | 'private'>
   middleware?: ReadonlyArray<AnyChatMiddleware>
   /** When a turn stops calling the model. Defaults to `maxIterations(50)`. */
   agentLoopStrategy?: AgentLoopStrategy

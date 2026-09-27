@@ -44,6 +44,7 @@ const INPUT_OPS = new Set([
   'command',
   'answer',
   'config',
+  'tool',
 ])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -82,6 +83,9 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   }
   if (value.op === 'config' && typeof value.key !== 'string') {
     throw new Error('Invalid input: config needs a key.')
+  }
+  if (value.op === 'tool' && typeof value.name !== 'string') {
+    throw new Error('Invalid input: tool needs a name.')
   }
   // The checks above cover every field the session reads.
   return value as HarnessInput
@@ -162,6 +166,26 @@ export async function applyInput(
       return session.answer(input.questionId, input.value)
     case 'config':
       return session.setConfig(input.key, input.value)
+    case 'tool': {
+      // Only `public` tools may run out-of-band. Unknown or private → rejected.
+      const known = (harness.tools ?? []).some((t) => t.name === input.name)
+      if (!known) {
+        return { inputId: '', status: 'rejected', reason: 'unknown_tool' }
+      }
+      if ((harness.toolVisibility?.[input.name] ?? 'private') !== 'public') {
+        return { inputId: '', status: 'rejected', reason: 'not_public' }
+      }
+      const operation = session.tool(input.name, input.args, input.meta)
+      operation.then(
+        () => {},
+        () => {},
+      )
+      return {
+        inputId: operation.id,
+        status: 'accepted',
+        operationId: operation.id,
+      }
+    }
     case 'agent': {
       const exposed = (harness.expose?.agents ?? []).includes(input.agent)
       if (!exposed) {
@@ -199,6 +223,7 @@ export function capabilitiesOf(harness: AnyHarness) {
       items: (harness.tools ?? []).map((tool) => ({
         name: tool.name,
         description: tool.description,
+        visibility: harness.toolVisibility?.[tool.name] ?? 'private',
       })),
     },
     multiAgent: {
