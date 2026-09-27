@@ -31,6 +31,12 @@ export const Route = createFileRoute('/api/tail')({
         const session = await getHost().open(getHarnessForThread(threadId), {
           threadId,
         })
+        // The events already in the feed are history; only events appended after
+        // this head are live. The client projects history with `replay: true` so a
+        // resolved interrupt replayed from the feed does not resurface as a pending
+        // approval — the authoritative pending set is the snapshot below.
+        const snap = session.snapshot()
+        const head = snap.cursor
         const encoder = new TextEncoder()
         const controllerRef = new AbortController()
         request.signal.addEventListener('abort', () => controllerRef.abort(), {
@@ -39,6 +45,17 @@ export const Route = createFileRoute('/api/tail')({
         const stream = new ReadableStream({
           async start(controller) {
             controller.enqueue(encoder.encode(': ok\n\n'))
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({
+                  snapshot: {
+                    status: snap.status,
+                    pendingInterrupts: snap.pendingInterrupts,
+                  },
+                })}\n\n`,
+              ),
+            )
+            let live = !head || head === '0'
             try {
               for await (const entry of session.events({
                 from,
@@ -46,8 +63,9 @@ export const Route = createFileRoute('/api/tail')({
               })) {
                 const frame =
                   `id: ${entry.cursor}\n` +
-                  `data: ${JSON.stringify({ cursor: entry.cursor, event: entry.event })}\n\n`
+                  `data: ${JSON.stringify({ cursor: entry.cursor, event: entry.event, replay: !live })}\n\n`
                 controller.enqueue(encoder.encode(frame))
+                if (!live && entry.cursor === head) live = true
               }
             } catch {
               // aborted / closed

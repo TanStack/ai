@@ -871,7 +871,29 @@ export function openChannelMember(member: Member): void {
   source.onmessage = (message) => {
     try {
       const parsed = JSON.parse(message.data)
-      project(ctx, parsed.event)
+      // First frame: the authoritative snapshot. Seed the still-pending approvals
+      // (a resolved interrupt is absent here, so it never resurfaces on reload).
+      if (parsed.snapshot) {
+        for (const interrupt of parsed.snapshot.pendingInterrupts ?? []) {
+          upsert(approvals, {
+            id: `${ctx.agentId}:${interrupt.id}`,
+            threadId: ctx.threadId,
+            channelId: ctx.channelId,
+            agentId: ctx.agentId,
+            interruptId: interrupt.id,
+            toolCallId: interrupt.toolCallId
+              ? `${ctx.agentId}:${interrupt.toolCallId}`
+              : undefined,
+            reason: interrupt.reason ?? 'tool_call',
+            message: interrupt.message ?? 'Approval required',
+            responseSchema: interrupt.responseSchema,
+            status: 'pending',
+            createdAt: Date.now(),
+          })
+        }
+        return
+      }
+      project(ctx, parsed.event, parsed.replay === true)
     } catch {
       // ignore malformed frames
     }
