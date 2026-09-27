@@ -6,7 +6,9 @@ projection of the [AG-UI](../../docs/harness/ag-ui.md) event stream.
 
 It embeds a deterministic **support-triage** agent, so it runs with **no API
 key**: the agent looks up a ticket (an auto tool), drafts a customer reply (an
-approval-gated tool that pauses the run), and sends it once you approve.
+approval-gated tool that pauses the run), and sends it once you approve. (One
+team is the exception — the **Reddit pod** uses a real service and a real LLM;
+see below.)
 
 ```bash
 pnpm --filter agent-dashboard dev   # http://localhost:3002
@@ -29,6 +31,47 @@ pnpm --filter agent-dashboard dev   # http://localhost:3002
   experience. The panel renders from the devtools root (outside the route tree)
   and drives the app purely by reading the same live TanStack DB state the UI
   does — so it doubles as a state-management stress test.
+
+## Reddit pod (real service, real AI)
+
+The **+ React-news demo** team is the first pod wired to a _real_ external
+service and a _real_ LLM — the graduation from the scripted demo agents:
+
+- **`reddit/fetcher`** — a procedural agent (no LLM) carrying one real tool,
+  `reddit.search_react_news`, which reads Reddit's public **RSS (Atom)** feed
+  (read-only, no auth, no key). Run it from the Demo Controls panel, or put it
+  on a 30-min schedule.
+- **`sentiment/react`** — a **real LLM** agent (Anthropic). It's subscribed to
+  the fetcher's tool _result_
+  (`{ event: 'tool_result', tool: 'reddit.search_react_news', action: 'trigger' }`),
+  so when a news batch lands it's triggered automatically — nobody runs it — and
+  posts a sentiment digest, persisting standout signals to pod memory.
+
+The loop is **timer → tool result → subscription → LLM digest**. The trigger
+path spends zero tokens; the only cost is the digest itself. Chat messages don't
+match the `tool_result` subscription, so the loop doesn't feed itself (a Phase 4
+scoping case study — verified by letting it run several cycles).
+
+### The one manual step: an API key
+
+`sentiment/react` needs a real provider. Set `ANTHROPIC_API_KEY` before starting
+the dev server to get a live digest:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-... pnpm --filter agent-dashboard dev
+```
+
+Without a key the agent posts a "set the key" message instead of a digest — the
+rest of the dashboard still runs key-free. The e2e suite uses a deterministic
+double and a recorded Reddit fixture, so it needs neither a key nor the network.
+
+> **Why RSS, not `.json`:** Reddit's public JSON (`/r/x/new.json`) returns `403`
+> for many datacenter/VPN egress IPs regardless of `User-Agent`, while the Atom
+> feed (`/r/x/new.rss`) is served — so the tool reads RSS. RSS carries title,
+> link, author, timestamp and body (enough for a digest) but not score/comment
+> counts. Reddit still rate-limits bursts (a rapid retry can `429`); the 30-min
+> schedule stays well clear. The e2e suite uses the recorded fixture, so it
+> needs neither network nor key.
 
 ## Control plane
 

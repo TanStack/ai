@@ -119,10 +119,17 @@ export interface ChannelRow {
   createdAt: number
 }
 
-/** A subscription: react to a team event by joining a channel or being triggered. */
+/**
+ * A subscription: react to a team event by joining a channel or being triggered.
+ * `channel_created` fires when a member opens a channel; `tool_result` fires when
+ * a specific tool's result lands in a channel (set `tool` to scope it). This is
+ * the minimal, principled extension point — Phase 4 adds scoping.
+ */
 export interface Subscription {
-  event: 'channel_created'
+  event: 'channel_created' | 'tool_result'
   action: 'join' | 'trigger'
+  /** For `tool_result`: only react to this tool's results (e.g. reddit.search_react_news). */
+  tool?: string
 }
 
 /**

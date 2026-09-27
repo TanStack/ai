@@ -158,10 +158,7 @@ function clampResult(value: unknown): { text: string; truncated: boolean } {
   return { text, truncated: false }
 }
 
-function setStatus(
-  ctx: Ctx,
-  status: 'idle' | 'running' | 'requires_action',
-) {
+function setStatus(ctx: Ctx, status: 'idle' | 'running' | 'requires_action') {
   upsert(
     sessions,
     {
@@ -266,6 +263,17 @@ function project(ctx: Ctx, event: any, replay = false) {
           )
         } else if (name === 'pod.message_post') {
           handleMessagePost(ctx, event.toolCallId, parseResult(event.content))
+        } else {
+          // Any other tool result may drive a `tool_result` subscription (e.g. a
+          // Reddit news batch triggering the sentiment agent).
+          dispatchToolResult(
+            ctx,
+            channelId,
+            event.toolCallId,
+            name,
+            parseResult(event.content),
+            replay,
+          )
         }
       }
       break
@@ -529,7 +537,9 @@ function dispatchChannelCreated(
     (m) => (m.teamId ?? channels.get(m.channelId)?.teamId) === teamId,
   )
   const has = (subs: Array<Subscription> | undefined, action: string) =>
-    (subs ?? []).some((s) => s.event === 'channel_created' && s.action === action)
+    (subs ?? []).some(
+      (s) => s.event === 'channel_created' && s.action === action,
+    )
   // Joins first, so a triggered run's events project into the channel it joined.
   for (const m of members) {
     if (!has(m.subscriptions, 'join')) continue
@@ -554,6 +564,68 @@ function dispatchChannelCreated(
       `[channel:${channelId}] A new channel #${name} was created: ${topic ?? name}. Please review it and post your findings.`,
     )
   }
+}
+
+/**
+ * Subscription dispatch for tool results: when a tool's result lands in a
+ * channel, members subscribed to `{ event: 'tool_result', tool, action: 'trigger' }`
+ * are run with the batch as a prompt (carrying their pod memory via `/api/run`).
+ * The trigger path spends zero tokens; only the triggered run costs anything.
+ *
+ * Bounce guard: only the named tool triggers, and the triggered agent replies
+ * with chat text (or other tools) — never the trigger tool itself — so no cycle
+ * forms. Replays don't re-dispatch, so a reload never re-spends.
+ */
+const dispatchedResult = new Set<string>()
+function dispatchToolResult(
+  ctx: Ctx,
+  channelId: string,
+  toolCallId: string,
+  toolName: string | undefined,
+  result: any,
+  replay: boolean,
+): void {
+  if (replay || !toolName || dispatchedResult.has(toolCallId)) return
+  const teamId = teamIdForAgent(ctx.agentId)
+  if (!teamId) return
+  const members = (memberships.toArray as Array<MembershipRow>).filter(
+    (m) => (m.teamId ?? channels.get(m.channelId)?.teamId) === teamId,
+  )
+  const subscribers = members.filter((m) =>
+    (m.subscriptions ?? []).some(
+      (s) =>
+        s.event === 'tool_result' &&
+        s.action === 'trigger' &&
+        s.tool === toolName,
+    ),
+  )
+  if (!subscribers.length) return
+  dispatchedResult.add(toolCallId)
+  const message = formatBatch(result)
+  for (const m of subscribers) {
+    setActiveChannel(m.threadId, channelId)
+    openChannelMember(memberFromRow(m))
+    void triggerRun(m.threadId, `[channel:${channelId}] ${message}`)
+  }
+}
+
+/** Cap the batch to 10 items (titles + permalinks + snippets) for the prompt. */
+function formatBatch(result: any): string {
+  const items: Array<any> = Array.isArray(result?.items)
+    ? result.items
+    : Array.isArray(result)
+      ? result
+      : []
+  const capped = items.slice(0, 10)
+  const lines = capped.map(
+    (it, i) =>
+      `${i + 1}. ${it.title ?? '(untitled)'} — ${it.permalink ?? it.url ?? ''}` +
+      (it.snippet ? `\n   ${it.snippet}` : ''),
+  )
+  return (
+    `New React news batch (${capped.length} item${capped.length === 1 ? '' : 's'}):\n` +
+    lines.join('\n')
+  )
 }
 
 /** POST the memory-attaching run trigger and record how much memory was attached. */
@@ -617,7 +689,8 @@ function subscribeMember(member: Member): Entry {
 /* ------------------------------------------------------------------ */
 
 let seq = 0
-const rid = (p: string) => `${p}-${Math.random().toString(36).slice(2, 8)}-${(seq += 1)}`
+const rid = (p: string) =>
+  `${p}-${Math.random().toString(36).slice(2, 8)}-${(seq += 1)}`
 
 /** Add a member (a fresh thread) to an existing channel and start streaming it. */
 export function addAgentToChannel(
@@ -643,7 +716,8 @@ export function addAgentToChannel(
     harness,
     role,
     displayName:
-      displayName ?? `${shortName(harness)}${existing ? ` ${existing + 1}` : ''}`,
+      displayName ??
+      `${shortName(harness)}${existing ? ` ${existing + 1}` : ''}`,
   }
   upsert(memberships, {
     id: `${channelId}:${member.agentId}`,
@@ -692,6 +766,24 @@ export function createPrWatcherTeam(): { teamId: string; channelId: string } {
   addAgentToChannel(channelId, 'security/review', 'agent', 'security', [
     { event: 'channel_created', action: 'join' },
     { event: 'channel_created', action: 'trigger' },
+  ])
+  return { teamId, channelId }
+}
+
+/**
+ * The Reddit pod demo team: a procedural `reddit/fetcher` + a real-LLM
+ * `sentiment/react` subscribed to the fetcher's `reddit.search_react_news`
+ * results (`tool_result` → trigger). Schedule or run-now the fetch and the
+ * sentiment digest posts unprompted, driven purely by the subscription.
+ */
+export function createReactNewsTeam(): { teamId: string; channelId: string } {
+  const { teamId, channelId } = createTeam('react-news', 'reddit/fetcher')
+  addAgentToChannel(channelId, 'sentiment/react', 'agent', 'sentiment', [
+    {
+      event: 'tool_result',
+      tool: 'reddit.search_react_news',
+      action: 'trigger',
+    },
   ])
   return { teamId, channelId }
 }
@@ -801,7 +893,9 @@ export async function resolveApproval(
     : undefined
   const rawInterruptId =
     row?.interruptId ??
-    (approvalId.includes(':') ? approvalId.split(':').slice(1).join(':') : approvalId)
+    (approvalId.includes(':')
+      ? approvalId.split(':').slice(1).join(':')
+      : approvalId)
   const targetThread = row?.threadId ?? threadId
 
   if (approvals.has(approvalId)) {
@@ -830,7 +924,9 @@ export async function resolveApproval(
       threadId: targetThread,
       input: {
         op: 'resolve',
-        resume: [{ interruptId: rawInterruptId, status: 'cancelled', payload: false }],
+        resume: [
+          { interruptId: rawInterruptId, status: 'cancelled', payload: false },
+        ],
       },
     }),
   })

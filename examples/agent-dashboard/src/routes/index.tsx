@@ -2,7 +2,11 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useLiveQuery } from '@tanstack/react-db'
 import { teams } from '@/db/collections'
-import { createPrWatcherTeam, createTeam } from '@/lib/session-controller'
+import {
+  createPrWatcherTeam,
+  createReactNewsTeam,
+  createTeam,
+} from '@/lib/session-controller'
 import type { TeamRow } from '@/db/collections'
 
 export const Route = createFileRoute('/')({
@@ -34,12 +38,23 @@ function Home() {
     navigate({ to: '/teams/$teamId', params: { teamId } })
   }
 
+  const newReactNewsTeam = () => {
+    const { teamId } = createReactNewsTeam()
+    navigate({ to: '/teams/$teamId', params: { teamId } })
+  }
+
   return (
     <div className="space-y-8">
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-semibold">Hosts</h1>
           <div className="flex gap-2">
+            <button
+              onClick={newReactNewsTeam}
+              className="rounded-md border border-white/15 px-3 py-1.5 text-sm text-white/70 hover:bg-white/[0.05]"
+            >
+              + React-news demo
+            </button>
             <button
               onClick={newPrWatcherTeam}
               className="rounded-md border border-white/15 px-3 py-1.5 text-sm text-white/70 hover:bg-white/[0.05]"
@@ -88,8 +103,8 @@ function Home() {
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-white/70">Teams</h2>
         <p className="text-xs text-white/40">
-          A team starts as one agent in a chat. Add a second member from inside the
-          team and the roster appears — same primitives, more members.
+          A team starts as one agent in a chat. Add a second member from inside
+          the team and the roster appears — same primitives, more members.
         </p>
         {(teamRows as Array<TeamRow>).length === 0 ? (
           <p className="text-sm text-white/40">

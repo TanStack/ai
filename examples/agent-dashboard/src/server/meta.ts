@@ -22,6 +22,8 @@ import {
 // Register the demo team agents (pr-watcher, security/review) as a side effect,
 // so any route that imports meta also gets them in the registry.
 import './demo-agents'
+// Register the Reddit pod agents (reddit/fetcher, sentiment/react) too.
+import './reddit-agent'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 
 let seq = 0
@@ -114,7 +116,8 @@ const summarizeSession = toolDefinition({
   description: 'Summarize a session (defaults to the most recent)',
   inputSchema: z.object({ threadId: z.string().optional() }),
 }).server(async ({ threadId }) => {
-  const target = threadId ?? listThreads().find((t) => t.harness === triage.name)?.id
+  const target =
+    threadId ?? listThreads().find((t) => t.harness === triage.name)?.id
   if (!target) return { error: 'no sessions yet' }
   const { snapshot } = await snapshotOf(target)
   const messages = await getPersistence().stores.messages.loadThread(target)
@@ -124,13 +127,15 @@ const summarizeSession = toolDefinition({
     status: snapshot.status,
     messageCount: messages.length,
     pendingApprovals: snapshot.pendingInterrupts.length,
-    lastAssistant:
-      typeof last?.content === 'string' ? last.content : undefined,
+    lastAssistant: typeof last?.content === 'string' ? last.content : undefined,
   }
 })
 
 /** Route a prompt to a tool by keyword. */
-function pickTool(text: string): { name: string; args: Record<string, unknown> } {
+function pickTool(text: string): {
+  name: string
+  args: Record<string, unknown>
+} {
   const t = text.toLowerCase()
   if (t.includes('config') || t.includes('setting'))
     return { name: 'get_agent_config', args: {} }
@@ -149,7 +154,10 @@ function summarize(toolName: string, result: unknown): string {
       return `This host runs ${agents.length} agent(s): ${agents.map((a) => a.name).join(', ')}.`
     }
     if (toolName === 'list_sessions') {
-      const rows = result as Array<{ status: string; pendingInterrupts: number }>
+      const rows = result as Array<{
+        status: string
+        pendingInterrupts: number
+      }>
       const waiting = rows.filter((r) => r.pendingInterrupts > 0).length
       return `${rows.length} session(s); ${waiting} awaiting approval.`
     }
@@ -211,18 +219,46 @@ function metaModel(): AnyTextAdapter {
           const tool = pickTool(text)
           const messageId = id('msg')
           const toolCallId = id('call')
-          yield { type: EventType.RUN_STARTED, runId: 'run', threadId: 't', timestamp: now } as StreamChunk
-          yield { type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant', timestamp: now } as StreamChunk
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: 'run',
+            threadId: 't',
+            timestamp: now,
+          } as StreamChunk
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId,
+            role: 'assistant',
+            timestamp: now,
+          } as StreamChunk
           yield {
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId,
             delta: `Let me check that — calling ${tool.name}.`,
             timestamp: now,
           } as StreamChunk
-          yield { type: EventType.TEXT_MESSAGE_END, messageId, timestamp: now } as StreamChunk
-          yield { type: EventType.TOOL_CALL_START, toolCallId, toolCallName: tool.name, timestamp: now } as StreamChunk
-          yield { type: EventType.TOOL_CALL_ARGS, toolCallId, delta: JSON.stringify(tool.args), timestamp: now } as StreamChunk
-          yield { type: EventType.TOOL_CALL_END, toolCallId, timestamp: now } as StreamChunk
+          yield {
+            type: EventType.TEXT_MESSAGE_END,
+            messageId,
+            timestamp: now,
+          } as StreamChunk
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId,
+            toolCallName: tool.name,
+            timestamp: now,
+          } as StreamChunk
+          yield {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId,
+            delta: JSON.stringify(tool.args),
+            timestamp: now,
+          } as StreamChunk
+          yield {
+            type: EventType.TOOL_CALL_END,
+            toolCallId,
+            timestamp: now,
+          } as StreamChunk
           yield {
             type: EventType.RUN_FINISHED,
             runId: 'run',
@@ -250,15 +286,29 @@ function metaModel(): AnyTextAdapter {
           result = lastTool?.content
         }
         const messageId = id('msg')
-        yield { type: EventType.RUN_STARTED, runId: 'run', threadId: 't', timestamp: now } as StreamChunk
-        yield { type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant', timestamp: now } as StreamChunk
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: 'run',
+          threadId: 't',
+          timestamp: now,
+        } as StreamChunk
+        yield {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId,
+          role: 'assistant',
+          timestamp: now,
+        } as StreamChunk
         yield {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId,
           delta: summarize(toolName, result),
           timestamp: now,
         } as StreamChunk
-        yield { type: EventType.TEXT_MESSAGE_END, messageId, timestamp: now } as StreamChunk
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId,
+          timestamp: now,
+        } as StreamChunk
         yield {
           type: EventType.RUN_FINISHED,
           runId: 'run',

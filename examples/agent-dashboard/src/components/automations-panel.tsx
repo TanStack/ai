@@ -36,9 +36,13 @@ export function AutomationsPanel({
   }
 
   const tools = useQuery<{ tools: Array<ToolInfo> }>({
-    queryKey: ['tools', primary.threadId],
+    // Pass the harness so the registry is resolved directly — otherwise the
+    // thread may not yet be noted with its harness and we'd get triage's tools.
+    queryKey: ['tools', primary.threadId, primary.harness],
     queryFn: () =>
-      fetch(`/api/tools?threadId=${primary.threadId}`).then((r) => r.json()),
+      fetch(
+        `/api/tools?threadId=${primary.threadId}&harness=${encodeURIComponent(primary.harness)}`,
+      ).then((r) => r.json()),
   })
   const schedules = useQuery<{ schedules: Array<ScheduleRow> }>({
     queryKey: ['schedules', channelId],
@@ -167,7 +171,9 @@ export function AutomationsPanel({
           {toolNames.map((t) => (
             <button
               key={t.name}
-              onClick={() => runInjection(primary, t.name, { queue: 'run-now' })}
+              onClick={() =>
+                runInjection(primary, t.name, { queue: 'run-now' })
+              }
               className="rounded-md border border-white/15 px-2 py-1 font-mono text-xs text-white/70 hover:bg-white/[0.05]"
               title={t.description}
             >
@@ -265,7 +271,9 @@ export function AutomationsPanel({
           onClick={() => setOffline.mutate(!offline.data?.offline)}
           className="rounded-md border border-white/15 px-2 py-1 text-xs text-white/70 hover:bg-white/[0.05]"
         >
-          {offline.data?.offline ? 'Bring host online' : 'Simulate host offline'}
+          {offline.data?.offline
+            ? 'Bring host online'
+            : 'Simulate host offline'}
         </button>
       </div>
     </div>

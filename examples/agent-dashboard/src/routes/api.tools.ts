@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { capabilitiesOf } from '@tanstack/ai-harness'
-import { getHarnessForThread } from '@/server/harness'
+import { getHarnessForThread, harnessRegistry } from '@/server/harness'
 import { POD_TOOL_NAMES } from '@/server/systools'
 import '@/server/meta'
 
@@ -12,8 +12,14 @@ export const Route = createFileRoute('/api/tools')({
   server: {
     handlers: {
       GET: ({ request }) => {
-        const threadId = new URL(request.url).searchParams.get('threadId') ?? ''
-        const harness = getHarnessForThread(threadId)
+        const params = new URL(request.url).searchParams
+        const threadId = params.get('threadId') ?? ''
+        const harnessName = params.get('harness')
+        // Prefer the explicit harness (the thread may not be noted yet); fall
+        // back to the thread's recorded harness.
+        const harness =
+          (harnessName && harnessRegistry[harnessName]) ||
+          getHarnessForThread(threadId)
         const items = (
           capabilitiesOf(harness).tools.items as Array<{
             name: string
