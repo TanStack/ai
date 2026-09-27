@@ -209,7 +209,7 @@ export const listNotes = toolDefinition({
 
 Your app already checks the caller in a middleware. That middleware puts the user and a database handle on the request. You do not want to check the token a second time in `createMCPServer`.
 
-Pass the verified token and your values to `server.fetch`. The server skips its `auth` gate for that request. Every tool call of that request reads your values on `ctx.context`.
+Pass the verified token and your values to `server.handle`. The server skips its `auth` gate for that request. Every tool call of that request reads your values on `ctx.context`.
 
 ```ts
 import { server } from './mcp-server'
@@ -218,12 +218,14 @@ import { verifyCaller } from './auth'
 export async function handleMcp(request: Request) {
   const caller = await verifyCaller(request)
   if (caller instanceof Response) return caller
-  return server.fetch(request, {
+  return server.handle(request, {
     authInfo: caller.authInfo,
     context: { db: caller.db },
   })
 }
 ```
+
+`server.fetch(request)` stays a plain Fetch handler. `server.handle` is the same handler with options.
 
 In a tool, name the values you expect with `MCPToolContext`:
 

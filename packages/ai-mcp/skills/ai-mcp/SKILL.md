@@ -203,9 +203,10 @@ const server = createMCPServer({
 
 ### Use the auth the app already has
 
-When a middleware already verified the caller, pass the result to `server.fetch`.
-`init.authInfo` is the SDK `AuthInfo`. The server skips its `auth` gate for that request.
-`init.context` reaches every tool call of that request on `ctx.context`.
+When a middleware already verified the caller, pass the result to `server.handle`.
+`server.fetch(request)` stays a plain Fetch handler. `server.handle` takes options.
+`options.authInfo` is the SDK `AuthInfo`. The server skips its `auth` gate for that request.
+`options.context` reaches every tool call of that request on `ctx.context`.
 Type the values with `MCPToolContext<{ db: Db }>`.
 `authInfo`, `requestInput`, and `sample` win over a same-named value in `context`.
 
@@ -216,7 +217,7 @@ import { verifyCaller } from './auth'
 export async function handleMcp(request: Request) {
   const caller = await verifyCaller(request)
   if (caller instanceof Response) return caller
-  return server.fetch(request, {
+  return server.handle(request, {
     authInfo: caller.authInfo,
     context: { db: caller.db },
   })

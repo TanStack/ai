@@ -1,5 +1,5 @@
 export { createMCPServer } from './create-server'
-export type { MCPFetchInit, MCPServer } from './create-server'
+export type { MCPHandleOptions, MCPServer } from './create-server'
 export { promptDefinition, resourceDefinition } from './definitions'
 export { introspectionVerifier, jwtVerifier } from './auth'
 export type { IntrospectionVerifierOptions, JwtVerifierOptions } from './auth'

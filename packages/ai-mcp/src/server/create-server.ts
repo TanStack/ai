@@ -108,13 +108,13 @@ export type MCPServerOptions = {
 }
 
 /**
- * Per-request options for `server.fetch`.
+ * Per-request options for `server.handle`.
  *
  * `authInfo` is a token your own middleware already verified. The server
  * skips its `auth` gate for that request.
  * `context` is merged into `ctx.context` for every tool call of that request.
  */
-export type MCPFetchInit = {
+export type MCPHandleOptions = {
   authInfo?: AuthInfo
   context?: Record<string, unknown>
 }
@@ -138,7 +138,8 @@ export type MCPServer<
   readonly tools: TTools
   readonly resources: TResources
   readonly prompts: TPrompts
-  fetch: (request: Request, init?: MCPFetchInit) => Promise<Response>
+  fetch: (request: Request) => Promise<Response>
+  handle: (request: Request, options?: MCPHandleOptions) => Promise<Response>
 }
 
 type LegacySession = {
@@ -169,7 +170,9 @@ type LegacySessions = Map<string, LegacySession>
  * `options.sample` is the model adapter for `ctx.context.sample` on spec 2026.
  * `options.waitUntil` receives the task promise so a worker can stay alive.
  *
- * The result has `fetch(request)`, `tools`, `resources`, and `prompts`.
+ * The result has `fetch(request)`, `handle(request, options)`, `tools`,
+ * `resources`, and `prompts`. `handle` takes a token your own middleware
+ * verified and values for `ctx.context`.
  * Those three lists keep the types you passed in.
  * Export the result from one package and pass it to `createMCPClient({ server })` in another.
  * `fetch` serves tools, resources, and prompts.
@@ -246,29 +249,35 @@ export function createMCPServer<
     resources,
     prompts,
     /**
-     * Serves one MCP HTTP request.
+     * Serves one MCP HTTP request. This is a plain Fetch handler.
+     *
+     * @param request - The HTTP request to the MCP route
+     */
+    fetch: (request: Request): Promise<Response> => mcpServer.handle(request),
+    /**
+     * Serves one MCP HTTP request with values from your own middleware.
      *
      * A spec 2026 request uses the per-request envelope.
      * A spec 2025 request uses the session id header.
      * When `auth` is set, a missing or invalid bearer token returns 401,
      * and a token without a required scope returns 403.
-     * `init.authInfo` skips that gate. `init.context` reaches every tool
-     * call of this request on `ctx.context`.
+     * `handleOptions.authInfo` skips that gate. `handleOptions.context` reaches every
+     * tool call of this request on `ctx.context`.
      *
      * @param request - The HTTP request to the MCP route
-     * @param init - A verified token and values for `ctx.context`
+     * @param handleOptions - A verified token and values for `ctx.context`
      */
-    async fetch(request: Request, init?: MCPFetchInit) {
+    async handle(request: Request, handleOptions?: MCPHandleOptions) {
       await closeIdleSessions(sessions)
 
-      let authInfo = init?.authInfo
+      let authInfo = handleOptions?.authInfo
       if (authInfo === undefined && gate !== undefined) {
         const verdict = await gate(request)
         if (verdict instanceof Response) return verdict
         authInfo = verdict
       }
       const owner = ownerOf(authInfo)
-      const context = init?.context
+      const context = handleOptions?.context
 
       const legacy =
         options.sessions !== 'reject' && (await isLegacyRequest(request))
@@ -557,7 +566,7 @@ function toolCallContext(
           sample,
           authInfo,
         })
-  // The hooks win over a same-named value from `init.context`.
+  // The hooks win over a same-named value from `handle` options.
   return {
     context: { ...appContext(), ...hooks },
     abortSignal: sdkCtx.mcpReq.signal,

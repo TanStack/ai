@@ -12,7 +12,7 @@ import {
   resourceDefinition,
 } from '../../src/server/definitions'
 import { createMCPServer } from '../../src/server/create-server'
-import type { MCPFetchInit } from '../../src/server/create-server'
+import type { MCPHandleOptions } from '../../src/server/create-server'
 import type { MCPToolContext, SampleRequest } from '../../src/server/context'
 import { inMemoryTaskStore } from '../../src/server/stores'
 import { MCPInputRequiredError } from '../../src/input-required'
@@ -182,12 +182,13 @@ function deferredText() {
 
 async function withClient(
   server: {
-    fetch(request: Request, init?: MCPFetchInit): Promise<Response>
+    fetch(request: Request): Promise<Response>
+    handle(request: Request, options?: MCPHandleOptions): Promise<Response>
   },
   hooks: {
     era: '2025' | '2026'
     authToken?: string
-    fetchInit?: MCPFetchInit
+    handleOptions?: MCPHandleOptions
     onResponse?: (text: string) => void
     prepare?: (client: Client) => void
   },
@@ -212,10 +213,11 @@ async function withClient(
         ? undefined
         : { token: async () => hooks.authToken },
     fetch: async (input, init) => {
-      const response = await server.fetch(
-        new Request(input, init),
-        hooks.fetchInit,
-      )
+      const request = new Request(input, init)
+      const response =
+        hooks.handleOptions === undefined
+          ? await server.fetch(request)
+          : await server.handle(request, hooks.handleOptions)
       if (hooks.onResponse !== undefined) {
         hooks.onResponse(await response.clone().text())
       }
@@ -486,11 +488,11 @@ describe('createMCPServer', () => {
     }
   })
 
-  it('takes a verified token and a context from fetch init', async () => {
+  it('takes a verified token and a context from handle options', async () => {
     const server = createMCPServer({
       name: 'secure',
       version: '1.0.0',
-      // The verifier accepts no token, so only fetch init can let a call in.
+      // The verifier accepts no token, so only handle options can let a call in.
       auth: { verifier: tokenVerifier('never') },
       tools: [
         toolDefinition({
@@ -516,7 +518,7 @@ describe('createMCPServer', () => {
     for (const era of ['2026', '2025'] as const) {
       await withClient(
         server,
-        { era, fetchInit: { authInfo, context: { tenant: 'acme' } } },
+        { era, handleOptions: { authInfo, context: { tenant: 'acme' } } },
         async (client) => {
           const called = await client.callTool({
             name: 'whoami',
@@ -545,7 +547,7 @@ describe('createMCPServer', () => {
 
     await withClient(
       server,
-      { era: '2026', fetchInit: { context: { requestInput: 'shadowed' } } },
+      { era: '2026', handleOptions: { context: { requestInput: 'shadowed' } } },
       async (client) => {
         const called = await client.callTool({ name: 'probe', arguments: {} })
         expect(called.content).toEqual([{ type: 'text', text: 'function' }])
