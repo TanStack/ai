@@ -17,12 +17,12 @@ import {
 } from '@/db/collections'
 import {
   addAgentToChannel,
-  endpointFor,
-  hydrateMember,
+  channelSendPrompt,
+  openChannelMember,
   resolveApproval,
-  sendPrompt,
 } from '@/lib/session-controller'
 import { MemberList } from '@/components/member-list'
+import { AutomationsPanel } from '@/components/automations-panel'
 import type {
   ApprovalRow,
   MembershipRow,
@@ -45,7 +45,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
   const memberKey = memberRows.map((m) => m.id).join(',')
   useEffect(() => {
     for (const m of memberRows) {
-      void hydrateMember({
+      openChannelMember({
         channelId: m.channelId,
         agentId: m.agentId,
         threadId: m.threadId,
@@ -119,16 +119,11 @@ export function ChannelView({ channelId }: { channelId: string }) {
     const t = text.trim()
     if (!t || !primary) return
     setInput('')
-    await sendPrompt(primary.threadId, t, endpointFor(primary.harness), channelId)
+    await channelSendPrompt(primary, t)
   }
 
   const runMember = (member: MembershipRow) =>
-    sendPrompt(
-      member.threadId,
-      'Please handle ticket T-1042 for Ada.',
-      endpointFor(member.harness),
-      channelId,
-    )
+    channelSendPrompt(member, 'Please handle ticket T-1042 for Ada.')
 
   return (
     <div className="space-y-4">
@@ -235,6 +230,8 @@ export function ChannelView({ channelId }: { channelId: string }) {
           Send
         </button>
       </div>
+
+      {primary && <AutomationsPanel channelId={channelId} primary={primary} />}
     </div>
   )
 }
@@ -286,10 +283,23 @@ function ToolCard({
   author?: string
   showAuthor: boolean
 }) {
+  // Injected tool calls (timer/manual/webhook) get a distinct border + badge.
+  const injected = Boolean(tool.trigger)
   return (
-    <div className="rounded-md border border-white/10 bg-black/20 p-2 font-mono text-xs">
+    <div
+      className={`rounded-md border p-2 font-mono text-xs ${
+        injected
+          ? 'border-violet-500/40 bg-violet-500/[0.06]'
+          : 'border-white/10 bg-black/20'
+      }`}
+    >
       <div className="flex items-center gap-2">
         {showAuthor && <AuthorTag author={author} />}
+        {injected && (
+          <span className="rounded bg-violet-500/20 px-1 text-[10px] text-violet-300">
+            ⏵ {tool.trigger}
+          </span>
+        )}
         <span className="text-sky-300">⚙ {tool.name}</span>
         <span
           className={`ml-auto rounded px-1.5 text-[10px] ${
@@ -304,6 +314,9 @@ function ToolCard({
       {tool.args && <div className="mt-1 text-white/50">{tool.args}</div>}
       {tool.result && (
         <div className="mt-1 text-emerald-200/70">→ {tool.result}</div>
+      )}
+      {tool.truncated && (
+        <div className="mt-1 text-white/30">(result truncated)</div>
       )}
     </div>
   )

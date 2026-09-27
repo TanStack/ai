@@ -161,6 +161,26 @@ const sendReply = toolDefinition({
 }).server(async ({ to }) => ({ sent: true, to, at: new Date().toISOString() }))
 
 /**
+ * A deterministic, public, non-approval tool. It's the injection target: the
+ * dashboard can run it on a schedule, on demand, or from a webhook (no model
+ * turn, no tokens). Deterministic so the result is stable for the e2e.
+ */
+const fetchStats = toolDefinition({
+  name: 'fetch_stats',
+  description: 'Fetch the current support stats for a queue',
+  inputSchema: z.object({ queue: z.string().optional() }),
+}).server(async ({ queue }) => {
+  const q = queue ?? 'default'
+  const open = q.length * 3 + 7
+  return {
+    queue: q,
+    open,
+    slaBreaches: open % 5,
+    avgFirstResponseMins: 12,
+  }
+})
+
+/**
  * Typed config for the triage agent. The dashboard renders these `ConfigOption`
  * schemas as a form and writes changes back through the harness protocol.
  */
@@ -199,7 +219,10 @@ export const triage = defineHarness({
     'You are a support triage agent. Look up the ticket, then draft a reply for a human to approve before sending.',
   ],
   plugins: () => [permissions(), usage(), triageSettings],
-  tools: [lookupTicket, sendReply],
+  tools: [lookupTicket, sendReply, fetchStats],
+  // Only `fetch_stats` may be invoked out-of-band (schedules, run-now, webhooks).
+  // The reply tools stay private to the agent's own model turns.
+  toolVisibility: { fetch_stats: 'public' },
 })
 
 let persistence: ReturnType<typeof memoryPersistence> | undefined

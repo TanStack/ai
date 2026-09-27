@@ -29,6 +29,10 @@ export interface ToolCallRow {
   result?: string
   status: 'running' | 'done'
   subagentRunId?: string
+  /** Set when this tool call was injected out-of-band (not a model call). */
+  trigger?: 'timer' | 'manual' | 'webhook'
+  /** Set when the result was truncated for the live view. */
+  truncated?: boolean
   createdAt: number
 }
 

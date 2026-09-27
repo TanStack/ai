@@ -16,14 +16,21 @@ import { Route as ChatRouteImport } from './routes/chat'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TeamsTeamIdRouteImport } from './routes/teams.$teamId'
 import { Route as SessionsThreadIdRouteImport } from './routes/sessions.$threadId'
+import { Route as ApiWebhooksRouteImport } from './routes/api.webhooks'
+import { Route as ApiToolsRouteImport } from './routes/api.tools'
+import { Route as ApiTailRouteImport } from './routes/api.tail'
 import { Route as ApiSessionsRouteImport } from './routes/api.sessions'
+import { Route as ApiSchedulesRouteImport } from './routes/api.schedules'
 import { Route as ApiRunsRouteImport } from './routes/api.runs'
 import { Route as ApiReplayRouteImport } from './routes/api.replay'
 import { Route as ApiMetaRouteImport } from './routes/api.meta'
+import { Route as ApiInjectRouteImport } from './routes/api.inject'
 import { Route as ApiHostsRouteImport } from './routes/api.hosts'
 import { Route as ApiConfigRouteImport } from './routes/api.config'
 import { Route as ApiAgentRouteImport } from './routes/api.agent'
+import { Route as ApiWebhooksTokenRouteImport } from './routes/api.webhooks.$token'
 import { Route as ApiHarnessSplatRouteImport } from './routes/api.harness.$'
+import { Route as ApiDevOfflineRouteImport } from './routes/api.dev.offline'
 
 const SpendRoute = SpendRouteImport.update({
   id: '/spend',
@@ -60,9 +67,29 @@ const SessionsThreadIdRoute = SessionsThreadIdRouteImport.update({
   path: '/sessions/$threadId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWebhooksRoute = ApiWebhooksRouteImport.update({
+  id: '/api/webhooks',
+  path: '/api/webhooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiToolsRoute = ApiToolsRouteImport.update({
+  id: '/api/tools',
+  path: '/api/tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTailRoute = ApiTailRouteImport.update({
+  id: '/api/tail',
+  path: '/api/tail',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSessionsRoute = ApiSessionsRouteImport.update({
   id: '/api/sessions',
   path: '/api/sessions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSchedulesRoute = ApiSchedulesRouteImport.update({
+  id: '/api/schedules',
+  path: '/api/schedules',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiRunsRoute = ApiRunsRouteImport.update({
@@ -80,6 +107,11 @@ const ApiMetaRoute = ApiMetaRouteImport.update({
   path: '/api/meta',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInjectRoute = ApiInjectRouteImport.update({
+  id: '/api/inject',
+  path: '/api/inject',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHostsRoute = ApiHostsRouteImport.update({
   id: '/api/hosts',
   path: '/api/hosts',
@@ -95,9 +127,19 @@ const ApiAgentRoute = ApiAgentRouteImport.update({
   path: '/api/agent',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWebhooksTokenRoute = ApiWebhooksTokenRouteImport.update({
+  id: '/$token',
+  path: '/$token',
+  getParentRoute: () => ApiWebhooksRoute,
+} as any)
 const ApiHarnessSplatRoute = ApiHarnessSplatRouteImport.update({
   id: '/api/harness/$',
   path: '/api/harness/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDevOfflineRoute = ApiDevOfflineRouteImport.update({
+  id: '/api/dev/offline',
+  path: '/api/dev/offline',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -110,13 +152,20 @@ export interface FileRoutesByFullPath {
   '/api/agent': typeof ApiAgentRoute
   '/api/config': typeof ApiConfigRoute
   '/api/hosts': typeof ApiHostsRoute
+  '/api/inject': typeof ApiInjectRoute
   '/api/meta': typeof ApiMetaRoute
   '/api/replay': typeof ApiReplayRoute
   '/api/runs': typeof ApiRunsRoute
+  '/api/schedules': typeof ApiSchedulesRoute
   '/api/sessions': typeof ApiSessionsRoute
+  '/api/tail': typeof ApiTailRoute
+  '/api/tools': typeof ApiToolsRoute
+  '/api/webhooks': typeof ApiWebhooksRouteWithChildren
   '/sessions/$threadId': typeof SessionsThreadIdRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
+  '/api/dev/offline': typeof ApiDevOfflineRoute
   '/api/harness/$': typeof ApiHarnessSplatRoute
+  '/api/webhooks/$token': typeof ApiWebhooksTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -127,13 +176,20 @@ export interface FileRoutesByTo {
   '/api/agent': typeof ApiAgentRoute
   '/api/config': typeof ApiConfigRoute
   '/api/hosts': typeof ApiHostsRoute
+  '/api/inject': typeof ApiInjectRoute
   '/api/meta': typeof ApiMetaRoute
   '/api/replay': typeof ApiReplayRoute
   '/api/runs': typeof ApiRunsRoute
+  '/api/schedules': typeof ApiSchedulesRoute
   '/api/sessions': typeof ApiSessionsRoute
+  '/api/tail': typeof ApiTailRoute
+  '/api/tools': typeof ApiToolsRoute
+  '/api/webhooks': typeof ApiWebhooksRouteWithChildren
   '/sessions/$threadId': typeof SessionsThreadIdRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
+  '/api/dev/offline': typeof ApiDevOfflineRoute
   '/api/harness/$': typeof ApiHarnessSplatRoute
+  '/api/webhooks/$token': typeof ApiWebhooksTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -145,13 +201,20 @@ export interface FileRoutesById {
   '/api/agent': typeof ApiAgentRoute
   '/api/config': typeof ApiConfigRoute
   '/api/hosts': typeof ApiHostsRoute
+  '/api/inject': typeof ApiInjectRoute
   '/api/meta': typeof ApiMetaRoute
   '/api/replay': typeof ApiReplayRoute
   '/api/runs': typeof ApiRunsRoute
+  '/api/schedules': typeof ApiSchedulesRoute
   '/api/sessions': typeof ApiSessionsRoute
+  '/api/tail': typeof ApiTailRoute
+  '/api/tools': typeof ApiToolsRoute
+  '/api/webhooks': typeof ApiWebhooksRouteWithChildren
   '/sessions/$threadId': typeof SessionsThreadIdRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
+  '/api/dev/offline': typeof ApiDevOfflineRoute
   '/api/harness/$': typeof ApiHarnessSplatRoute
+  '/api/webhooks/$token': typeof ApiWebhooksTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -164,13 +227,20 @@ export interface FileRouteTypes {
     | '/api/agent'
     | '/api/config'
     | '/api/hosts'
+    | '/api/inject'
     | '/api/meta'
     | '/api/replay'
     | '/api/runs'
+    | '/api/schedules'
     | '/api/sessions'
+    | '/api/tail'
+    | '/api/tools'
+    | '/api/webhooks'
     | '/sessions/$threadId'
     | '/teams/$teamId'
+    | '/api/dev/offline'
     | '/api/harness/$'
+    | '/api/webhooks/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -181,13 +251,20 @@ export interface FileRouteTypes {
     | '/api/agent'
     | '/api/config'
     | '/api/hosts'
+    | '/api/inject'
     | '/api/meta'
     | '/api/replay'
     | '/api/runs'
+    | '/api/schedules'
     | '/api/sessions'
+    | '/api/tail'
+    | '/api/tools'
+    | '/api/webhooks'
     | '/sessions/$threadId'
     | '/teams/$teamId'
+    | '/api/dev/offline'
     | '/api/harness/$'
+    | '/api/webhooks/$token'
   id:
     | '__root__'
     | '/'
@@ -198,13 +275,20 @@ export interface FileRouteTypes {
     | '/api/agent'
     | '/api/config'
     | '/api/hosts'
+    | '/api/inject'
     | '/api/meta'
     | '/api/replay'
     | '/api/runs'
+    | '/api/schedules'
     | '/api/sessions'
+    | '/api/tail'
+    | '/api/tools'
+    | '/api/webhooks'
     | '/sessions/$threadId'
     | '/teams/$teamId'
+    | '/api/dev/offline'
     | '/api/harness/$'
+    | '/api/webhooks/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -216,12 +300,18 @@ export interface RootRouteChildren {
   ApiAgentRoute: typeof ApiAgentRoute
   ApiConfigRoute: typeof ApiConfigRoute
   ApiHostsRoute: typeof ApiHostsRoute
+  ApiInjectRoute: typeof ApiInjectRoute
   ApiMetaRoute: typeof ApiMetaRoute
   ApiReplayRoute: typeof ApiReplayRoute
   ApiRunsRoute: typeof ApiRunsRoute
+  ApiSchedulesRoute: typeof ApiSchedulesRoute
   ApiSessionsRoute: typeof ApiSessionsRoute
+  ApiTailRoute: typeof ApiTailRoute
+  ApiToolsRoute: typeof ApiToolsRoute
+  ApiWebhooksRoute: typeof ApiWebhooksRouteWithChildren
   SessionsThreadIdRoute: typeof SessionsThreadIdRoute
   TeamsTeamIdRoute: typeof TeamsTeamIdRoute
+  ApiDevOfflineRoute: typeof ApiDevOfflineRoute
   ApiHarnessSplatRoute: typeof ApiHarnessSplatRoute
 }
 
@@ -276,11 +366,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SessionsThreadIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/webhooks': {
+      id: '/api/webhooks'
+      path: '/api/webhooks'
+      fullPath: '/api/webhooks'
+      preLoaderRoute: typeof ApiWebhooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tools': {
+      id: '/api/tools'
+      path: '/api/tools'
+      fullPath: '/api/tools'
+      preLoaderRoute: typeof ApiToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tail': {
+      id: '/api/tail'
+      path: '/api/tail'
+      fullPath: '/api/tail'
+      preLoaderRoute: typeof ApiTailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/sessions': {
       id: '/api/sessions'
       path: '/api/sessions'
       fullPath: '/api/sessions'
       preLoaderRoute: typeof ApiSessionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/schedules': {
+      id: '/api/schedules'
+      path: '/api/schedules'
+      fullPath: '/api/schedules'
+      preLoaderRoute: typeof ApiSchedulesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/runs': {
@@ -304,6 +422,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMetaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/inject': {
+      id: '/api/inject'
+      path: '/api/inject'
+      fullPath: '/api/inject'
+      preLoaderRoute: typeof ApiInjectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/hosts': {
       id: '/api/hosts'
       path: '/api/hosts'
@@ -325,6 +450,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/webhooks/$token': {
+      id: '/api/webhooks/$token'
+      path: '/$token'
+      fullPath: '/api/webhooks/$token'
+      preLoaderRoute: typeof ApiWebhooksTokenRouteImport
+      parentRoute: typeof ApiWebhooksRoute
+    }
     '/api/harness/$': {
       id: '/api/harness/$'
       path: '/api/harness/$'
@@ -332,8 +464,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHarnessSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/dev/offline': {
+      id: '/api/dev/offline'
+      path: '/api/dev/offline'
+      fullPath: '/api/dev/offline'
+      preLoaderRoute: typeof ApiDevOfflineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
+
+interface ApiWebhooksRouteChildren {
+  ApiWebhooksTokenRoute: typeof ApiWebhooksTokenRoute
+}
+
+const ApiWebhooksRouteChildren: ApiWebhooksRouteChildren = {
+  ApiWebhooksTokenRoute: ApiWebhooksTokenRoute,
+}
+
+const ApiWebhooksRouteWithChildren = ApiWebhooksRoute._addFileChildren(
+  ApiWebhooksRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -344,12 +495,18 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAgentRoute: ApiAgentRoute,
   ApiConfigRoute: ApiConfigRoute,
   ApiHostsRoute: ApiHostsRoute,
+  ApiInjectRoute: ApiInjectRoute,
   ApiMetaRoute: ApiMetaRoute,
   ApiReplayRoute: ApiReplayRoute,
   ApiRunsRoute: ApiRunsRoute,
+  ApiSchedulesRoute: ApiSchedulesRoute,
   ApiSessionsRoute: ApiSessionsRoute,
+  ApiTailRoute: ApiTailRoute,
+  ApiToolsRoute: ApiToolsRoute,
+  ApiWebhooksRoute: ApiWebhooksRouteWithChildren,
   SessionsThreadIdRoute: SessionsThreadIdRoute,
   TeamsTeamIdRoute: TeamsTeamIdRoute,
+  ApiDevOfflineRoute: ApiDevOfflineRoute,
   ApiHarnessSplatRoute: ApiHarnessSplatRoute,
 }
 export const routeTree = rootRouteImport

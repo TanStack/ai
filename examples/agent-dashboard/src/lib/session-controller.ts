@@ -79,6 +79,23 @@ interface Ctx {
   threadId: string
   channelId: string
   agentId: string
+  /**
+   * True when events arrive from the raw feed tail (channel view) rather than a
+   * coalesced AG-UI run (back-compat routes). The raw feed carries per-turn
+   * usage on RUN_FINISHED but no `tanstack.spend` ticks, so spend is summed from
+   * RUN_FINISHED here; the back-compat path keeps using the spend ticks.
+   */
+  viaTail?: boolean
+}
+
+/** Cap a projected tool result so a large payload can't bloat the live view. */
+const MAX_RESULT_CHARS = 64 * 1024
+function clampResult(value: unknown): { text: string; truncated: boolean } {
+  const text = typeof value === 'string' ? value : JSON.stringify(value)
+  if (text.length > MAX_RESULT_CHARS) {
+    return { text: `${text.slice(0, MAX_RESULT_CHARS)}…`, truncated: true }
+  }
+  return { text, truncated: false }
 }
 
 function setStatus(
@@ -157,17 +174,26 @@ function project(ctx: Ctx, event: any, replay = false) {
     case 'TOOL_CALL_RESULT': {
       const key = nsKey(event.toolCallId)
       if (toolCalls.has(key)) {
+        const { text, truncated } = clampResult(event.content)
         toolCalls.update(key, (draft) => {
-          draft.result =
-            typeof event.content === 'string'
-              ? event.content
-              : JSON.stringify(event.content)
+          draft.result = text
+          draft.truncated = truncated
           draft.status = 'done'
         })
       }
       break
     }
     case 'CUSTOM':
+      // An injected tool call tags its tool-call id with the trigger, so the
+      // channel view can render it as a structured, distinctly-badged card.
+      if (event.name === 'tanstack.injection' && event.value?.toolCallId) {
+        const key = nsKey(event.value.toolCallId)
+        if (toolCalls.has(key)) {
+          toolCalls.update(key, (draft) => {
+            draft.trigger = event.value.trigger
+          })
+        }
+      }
       if (event.name === 'tanstack.spend') {
         const c = event.value?.cumulative ?? {}
         upsert(
@@ -191,7 +217,39 @@ function project(ctx: Ctx, event: any, replay = false) {
         )
       }
       break
-    case 'RUN_FINISHED':
+    case 'RUN_FINISHED': {
+      // The raw feed tail carries per-turn usage here (no spend ticks), so sum
+      // it into the spend row. The back-compat path uses `tanstack.spend` ticks.
+      if (ctx.viaTail) {
+        const usage = Array.isArray(event.usage) ? event.usage : []
+        const input = usage.reduce(
+          (sum: number, u: any) => sum + (u.inputTokens ?? 0),
+          0,
+        )
+        const output = usage.reduce(
+          (sum: number, u: any) => sum + (u.outputTokens ?? 0),
+          0,
+        )
+        if (input || output) {
+          upsert(
+            spend,
+            {
+              id: threadId,
+              threadId,
+              channelId,
+              agentId,
+              inputTokens: input,
+              outputTokens: output,
+              totalTokens: input + output,
+            },
+            (draft) => {
+              draft.inputTokens += input
+              draft.outputTokens += output
+              draft.totalTokens += input + output
+            },
+          )
+        }
+      }
       // On replay, approvals come from the live snapshot (a resolved interrupt
       // has no clearing event in the stream), so don't recreate them here.
       if (!replay && event.outcome?.type === 'interrupt') {
@@ -217,6 +275,7 @@ function project(ctx: Ctx, event: any, replay = false) {
         setStatus(ctx, 'idle')
       }
       break
+    }
     default:
       break
   }
@@ -456,4 +515,80 @@ export async function resolveApproval(
       draft.status = 'idle'
     })
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Channel tail + injection (teams view)                               */
+/* ------------------------------------------------------------------ */
+
+const tailed = new Set<string>()
+
+/**
+ * Open a live tail of a member's feed and project every event — interactive runs,
+ * injected tools, timers, webhooks — the single projection path for the channel
+ * view. The tail replays from the start then follows live, so it also rehydrates.
+ * An HttpAgent is created for triggering runs but is NOT subscribed (the tail is
+ * the only projector, so nothing is counted twice).
+ */
+export function openChannelMember(member: Member): void {
+  membersByThread.set(member.threadId, member)
+  agentFor(member.threadId, endpointFor(member.harness))
+  if (tailed.has(member.threadId) || typeof window === 'undefined') return
+  tailed.add(member.threadId)
+  const ctx: Ctx = {
+    threadId: member.threadId,
+    channelId: member.channelId,
+    agentId: member.agentId,
+    viaTail: true,
+  }
+  const source = new EventSource(
+    `${origin()}/api/tail?threadId=${encodeURIComponent(member.threadId)}`,
+  )
+  source.onmessage = (message) => {
+    try {
+      const parsed = JSON.parse(message.data)
+      project(ctx, parsed.event)
+    } catch {
+      // ignore malformed frames
+    }
+  }
+}
+
+/** Trigger a model run for a channel member. Projection comes from the tail. */
+export async function channelSendPrompt(
+  member: Member,
+  text: string,
+): Promise<void> {
+  openChannelMember(member)
+  const entry = agentFor(member.threadId, endpointFor(member.harness))
+  upsert(messages, {
+    id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    threadId: member.threadId,
+    channelId: member.channelId,
+    agentId: 'user',
+    role: 'user',
+    text,
+    createdAt: Date.now(),
+  })
+  entry.agent.addMessage({ id: `u-${Date.now()}`, role: 'user', content: text })
+  await entry.agent.runAgent()
+}
+
+/** Inject a public tool out-of-band on a member (run-now). Result via the tail. */
+export async function runInjection(
+  member: Pick<Member, 'threadId' | 'channelId'>,
+  tool: string,
+  args?: Record<string, unknown>,
+): Promise<{ status: string; reason?: string }> {
+  const res = await fetch(`${origin()}/api/inject`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      threadId: member.threadId,
+      channelId: member.channelId,
+      tool,
+      args: args ?? {},
+    }),
+  })
+  return res.json()
 }
