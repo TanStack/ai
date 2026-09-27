@@ -5,11 +5,16 @@ Spec: `~/Downloads/agent-dashboard-spec.md` (original four phases), then the
 then the **Reddit pod** (`~/Downloads/teams-reddit-pod.md`).
 Everything below is committed and verified; nothing is pushed.
 
-> **Latest work: the Reddit pod — real service, real AI** (`3a30d2f`) — the
-> first pod wired to a real external service (`reddit.search_react_news` reads
-> Reddit's public RSS) and a real LLM (`sentiment/react` on Anthropic),
-> connected by a new `tool_result` subscription. See the "Reddit pod" section
-> below. The demo-controls devtools panel (`26734dc`) and everything under it
+> **Latest work: product team-composition UI + default subscriptions**
+> (`bb4ff79`) — the home page is now an agents table with **Add to team**, the
+> team page has **＋ Add agent** and a per-agent **🔧 run-tool** dialog, and the
+> seeded-team launchers moved into the Demo Controls devtools panel. Agents
+> carry default subscriptions by harness, so a hand-composed team reacts like a
+> seeded one. See the "Product team-composition UI" section below. Before that,
+> the **Reddit pod** (`3a30d2f`) — the first pod wired to a real external
+> service (`reddit.search_react_news` reads Reddit's public RSS) and a real LLM
+> (`sentiment/react` on Anthropic). The demo-controls devtools panel (`26734dc`)
+> and everything under it
 > still stand.
 
 ## Where this lives
@@ -40,6 +45,7 @@ Everything below is committed and verified; nothing is pushed.
 | `66dd71b` | `feat(examples/agent-dashboard)`: persist agent + team state on the server |
 | `26734dc` | `feat(examples/agent-dashboard)`: move demo controls into a devtools panel |
 | `3a30d2f` | `feat(examples/agent-dashboard)`: Reddit pod — real service + real LLM |
+| `bb4ff79` | `feat(examples/agent-dashboard)`: product team-composition UI + default subscriptions |
 
 ## Phase status
 
@@ -308,6 +314,39 @@ Ran it against Jack's key + live Reddit. Two findings, one blocking-for-live:
    are dropped from `RedditPost`. Reddit still rate-limits bursts (a rapid retry
    `429`s); the 30-min schedule is well clear. E2E uses the recorded RSS fixture.
 
+## Product team-composition UI + default subscriptions ✅ `bb4ff79`
+
+The demo-era scaffolding graduated to real product controls, and hand-composed
+teams now behave like the seeded demos (raised while dogfooding a Reddit team
+built by hand).
+
+- **Home is an agents table** (`index.tsx`): name · description · **Add to
+  team** → start a new team with that agent, or add it to an existing one.
+- **Team page** (`channel-view.tsx`): **＋ Add agent** picks any available agent
+  (`/api/hosts`); each roster agent has a **🔧 tools** button opening a
+  **RunToolDialog** (`run-tool-dialog.tsx`) — pick a public tool
+  (`/api/tools?harness=`), pass JSON params, `runInjection`.
+- **Seeded launchers moved to the Demo Controls panel** (`demo-controls.tsx`):
+  `+ New team` / `+ React-news demo` / `+ PR-watcher demo`. The triage-demo
+  button is gated to triage teams, so it no longer shows on other pods.
+- **Default subscriptions by harness** (`session-controller.ts`,
+  `DEFAULT_SUBSCRIPTIONS`): `sentiment/react` → `reddit.search_react_news`
+  `tool_result`; `security/review` → `channel_created` join+trigger.
+  `addAgentToChannel` applies them when none are passed, so the demos and manual
+  composition share one source of truth. This is what makes a hand-composed team
+  react without wiring.
+- **Two demo-era bugs fixed:** the roster **▶ run** sent a hardcoded triage
+  ticket prompt to *any* agent (→ neutral "Please proceed."); the **🔔
+  subscribe** toggle set a hardcoded `channel_created` sub (→ toggles the
+  harness's real default triggers, shown only for reactive agents).
+- **Note:** RunToolDialog takes params as **JSON**, not per-field inputs —
+  `/api/tools` doesn't expose the input schema and exposing it means touching
+  the published `ai-harness` protocol. Per-field inputs are a follow-up.
+- **Verified:** `tsc` + `oxlint` + `build` clean; **16 Playwright e2e pass**
+  (15 prior + a hand-composed Reddit team reacting with no manual wiring; `team`
+  and `react-news` rewritten around the new controls; the moved-button specs
+  open the devtools panel first). The dev database was wiped for a clean run.
+
 ## Run it
 
 ```bash
@@ -343,9 +382,10 @@ the agent asks you to set the key).
 
 - `@tanstack/ai-harness`: **184 unit tests pass**; `tsc` / `oxlint` /
   `publint --strict` clean.
-- `examples/agent-dashboard`: **15 Playwright e2e pass** (approval mid-run, config
-  read/write, spend, history + replay, meta-chat, teams, injection ×4, the PR-watcher
-  loop, DM creation, memory panel, persistence reload, the Reddit pod loop);
+- `examples/agent-dashboard`: **16 Playwright e2e pass** (approval mid-run, config
+  read/write, spend, history + replay, meta-chat, teams via the agents table +
+  ＋Add agent, injection ×4, the PR-watcher loop, DM creation, memory panel,
+  persistence reload, the Reddit pod loop, a hand-composed Reddit team reacting);
   `tsc --noEmit` + `build` clean; parser **unit test** (vitest) pass.
 - Base verified before starting: `pnpm build:all` (73/73), example agent runs and
   emits AG-UI ndjson, `--serve` + relay boot.
