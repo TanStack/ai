@@ -262,6 +262,17 @@ The span carries `gen_ai.system` and `gen_ai.request.model` at start and, on fin
 
 `otelMiddleware` applies the same `spanNameFormatter`, `attributeEnricher`, `onBeforeSpanStart`, and `onSpanEnd` extension points to media spans — the span info is discriminated by `kind`, where media spans report `kind: 'generation'`. For a custom backend, implement the base `GenerationMiddleware` contract directly; its hooks (`onStart` / `onUsage` / `onFinish` / `onAbort` / `onError`) receive the `GenerationMiddlewareContext` and fire for every activity, chat included. The `GenerationMiddleware` types are exported from the package root, while the `otelMiddleware` value lives on the `@tanstack/ai/middlewares/otel` subpath so importing `@tanstack/ai` never requires the optional `@opentelemetry/api` peer.
 
+### Capturing media content
+
+Set `captureContent: true` to record what a media call was asked for and what came back. The media span then gets the same attributes as a chat iteration span:
+
+- `gen_ai.input.messages` and `langfuse.observation.input`: one `user` message. It holds the prompt as a text part and each input image, video, or audio as a part. For `generateSpeech` it holds the text to speak. For `generateTranscription` it holds the source audio.
+- `gen_ai.output.messages` and `langfuse.observation.output`: one `assistant` message. It holds each generated image, audio, or video URL as a `uri` part. For `generateTranscription` it holds the transcript as a text part.
+
+Media parts use the part shapes from [Privacy: capturing prompts and completions](#privacy-capturing-prompts-and-completions). A URL becomes `{ "type": "uri", "modality": "image", "uri": "https://..." }`. Inline data never goes onto the span. Base64 output, a `data:` URL, a `File`, or a `Blob` becomes a text placeholder such as `[image]`. `redact` and `maxContentLength` apply to each text part.
+
+For non-streaming video, the `getVideoJobStatus()` span has the output URL but not the prompt. Use `generateVideo({ stream: true })` to get both on one span.
+
 ## Related
 
 - [Middleware](./middleware) — the lifecycle this middleware hooks into

@@ -318,7 +318,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-09-27"
         },
         {
           "label": "Compaction",
