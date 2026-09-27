@@ -5,7 +5,12 @@ Spec: `~/Downloads/agent-dashboard-spec.md` (original four phases), then the
 then the **Reddit pod** (`~/Downloads/teams-reddit-pod.md`).
 Everything below is committed and verified; nothing is pushed.
 
-> **Latest work: product team-composition UI + default subscriptions**
+> **Latest work: DM membership + team-page memory fix** (`cf119c4`) — DMs were
+> created with no members (Zod stripped `members` from `pod.channel_create`), so
+> messages dropped; now "New DM with X" is a working 1:1 with that agent. Pod
+> memory moved from the devtools onto the team page (one panel per agent), so
+> remembered entries are visible directly. Before that, the **product
+> team-composition UI + default subscriptions**
 > (`bb4ff79`) — the home page is now an agents table with **Add to team**, the
 > team page has **＋ Add agent** and a per-agent **🔧 run-tool** dialog, and the
 > seeded-team launchers moved into the Demo Controls devtools panel. Agents
@@ -46,6 +51,7 @@ Everything below is committed and verified; nothing is pushed.
 | `26734dc` | `feat(examples/agent-dashboard)`: move demo controls into a devtools panel |
 | `3a30d2f` | `feat(examples/agent-dashboard)`: Reddit pod — real service + real LLM |
 | `bb4ff79` | `feat(examples/agent-dashboard)`: product team-composition UI + default subscriptions |
+| `cf119c4` | `fix(examples/agent-dashboard)`: DM membership + surface pod memory on the team page |
 
 ## Phase status
 
@@ -346,6 +352,24 @@ built by hand).
   (15 prior + a hand-composed Reddit team reacting with no manual wiring; `team`
   and `react-news` rewritten around the new controls; the moved-button specs
   open the devtools panel first). The dev database was wiped for a clean run.
+
+### DM membership + team-page memory fix ✅ `cf119c4`
+
+Two bugs found while dogfooding a hand-composed team:
+
+- **Empty DMs.** `createDm` passed `members` to `pod.channel_create`, but the
+  tool's Zod schema didn't declare it → Zod stripped it → the tool never echoed
+  participants → the projector built a channel with no members, so it had no
+  `primary` and the operator's messages silently dropped. **Fix:**
+  `pod.channel_create` declares + echoes `members` (`systools.ts`), and **New DM
+  with X** now seats just the target agent — a working 1:1 that routes the
+  operator's messages to it (pod memory attached via `/api/run`). The DM e2e now
+  sends a message and asserts the agent replies.
+- **Invisible pod memory.** The Memory panel lived only in the Demo Controls
+  devtools panel and rendered only the primary agent (e.g. `reddit/fetcher`,
+  which never writes memory), so a `sentiment/react` agent's `remember` entries
+  had nowhere to surface. **Fix:** a **Memory** section on the team page —
+  one panel per agent member (`channel-view.tsx`), removed from the demo panel.
 
 ## Run it
 
