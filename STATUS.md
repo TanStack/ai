@@ -4,9 +4,9 @@ Spec: `~/Downloads/agent-dashboard-spec.md` (original four phases), then the
 **teams reframe** (`~/Downloads/pods-design-doc.md` + `pods-implementation-plan.md`).
 Everything below is committed and verified; nothing is pushed.
 
-> **Latest work: teams Phase 2 (tool registry + injection).** See the "Teams
-> Phase 2" section below. The teams reframe (Phase 1) and the original four-phase
-> build still stand underneath it.
+> **Latest work: teams Phase 3 (system tools, channels, pod memory).** See the
+> "Teams Phase 3" section below. Phases 1–2 and the original four-phase build still
+> stand underneath it.
 
 ## Where this lives
 
@@ -31,6 +31,8 @@ Everything below is committed and verified; nothing is pushed.
 | `9ec1ece` | `feat(examples/agent-dashboard)`: teams reframe (Phase 1) + Alem protocol proposal |
 | `9b1db82` | `feat(ai-harness)`: out-of-band tool invocation (`{ op: 'tool' }`) + tool visibility |
 | `720660d` | `feat(examples/agent-dashboard)`: teams Phase 2 — tool registry + injection |
+| `04639fd` | `feat(ai-harness)`: `systemPreamble` on the prompt op + in-band tool thread id |
+| `4101e64` | `feat(examples/agent-dashboard)`: teams Phase 3 — system tools, channels, pod memory |
 
 ## Phase status
 
@@ -141,6 +143,51 @@ a gate**, so provisional harness changes ship on `feat/agent-dashboard` (the
 - **Verified:** `tsc` + `oxlint` clean; **10 Playwright e2e pass** (6 prior + 4
   new: run-now/private-hidden, timer, webhook, offline queue+flush).
 
+## Teams Phase 3 — system tools, channels, pod memory ✅ `04639fd`, `4101e64`
+
+The design doc's **"the pod learns" loop** made concrete: a webhook opens a per-PR
+channel, a subscribed security agent reviews it, the human corrects it, the
+correction is persisted to **pod memory**, and the *next* PR is handled better —
+every step a message or a tool call in the stream, **no hidden state**.
+
+- **Harness (`04639fd`, additive):** the `prompt` op gains `systemPreamble?:
+  string[]`, prepended ahead of the harness's own system prompts for one run — the
+  seam a trigger uses to attach per-run memory. The server-tool execution
+  `context` now always carries the live `threadId`/`runId`, so an **in-band**
+  `pod.*` call can resolve its caller (out-of-band already got a flat
+  `{ threadId }`). 184 harness tests pass; changeset included.
+- **System tools (`pod.*`), dual citizens:** `pod.channel_create` /
+  `pod.message_post` / `pod.memory_write` / `pod.memory_read` — public, callable
+  in-band during a run *and* out-of-band via `{ op: 'tool' }`. channel_create /
+  message_post are **structured intents** the dashboard realizes when it observes
+  them on the tail (create the channel / post the message, routed by the result's
+  channel id); memory_write mutates a server-side, thread-keyed store
+  (`server/memory.ts`, `server/systools.ts`).
+- **Memory delivery:** `/api/run` is the memory-attaching run trigger — every run
+  (interactive prompt, subscription dispatch, prompt-mode webhook) prepends the
+  thread's pod memory as a `systemPreamble`. The platform attaches it; the agent
+  author does nothing. `/api/memory` backs the Memory panel.
+- **Dynamic channels + subscriptions:** `channels` gains `kind`/`topic`/
+  `createdBy`; new `channelMembers` (per-channel opt-in) vs the durable team
+  roster; `memberships` gains `teamId` + `subscriptions`. `project()` routes
+  system-tool results into channels/messages; client-side dispatch joins
+  subscribers and triggers a review on `channel_created`.
+- **UI:** channel sidebar, `channel_created` / joined system cards, a per-agent
+  Memory panel, and an "N memory entries attached" run badge.
+- **Demo:** `ops/pr-watcher` + `security/review` scripted harnesses and a seeded,
+  stateful `github.check_pr`; "+ PR-watcher demo" and "Send PR webhook" entry
+  points. The security model flags public-internet exposure **unless** its
+  attached memory says the deployment is intranet-only.
+- **Server learns each thread's harness:** the client passes `harness` on the
+  tail/run/inject/webhook calls (`noteThread` adopts it), so a team can mix
+  harnesses (watcher, reviewer, meta) instead of defaulting everything to triage.
+- **Deviations (deliberate):** the watcher opens a review channel it does **not**
+  join (it posts via `pod.message_post`, routed by channel id); pod memory is keyed
+  by `threadId` (unique per member, so `teamId` is redundant for the store);
+  `pod.*` are excluded from the run-now registry (plumbing, not automations).
+- **Verified:** `tsc` + `oxlint` clean; **13 Playwright e2e pass** (10 prior + the
+  full §7 loop, DM creation, memory panel add/remove).
+
 ## Run it
 
 ```bash
@@ -159,12 +206,18 @@ watch both streams share one channel. In the **Automations** panel, **run
 the host offline** and watch jobs queue then flush. Then try **Meta-chat**,
 **History**, **Spend**, **Config**.
 
+For Phase 3: **+ PR-watcher demo** → **Send PR webhook**. A `#pr-…` channel opens,
+the security agent joins and flags the PR; reply **"not a security problem — we're
+intranet-only here"**, watch it write pod memory, then **Send PR webhook** again —
+the next PR is reviewed cleanly with the memory attached.
+
 ## Verification
 
-- `@tanstack/ai-harness`: **176 unit tests pass**; `tsc` / `oxlint` /
+- `@tanstack/ai-harness`: **184 unit tests pass**; `tsc` / `oxlint` /
   `publint --strict` clean.
-- `examples/agent-dashboard`: **5 Playwright e2e pass** (approval mid-run, config
-  read/write, spend, history + replay, meta-chat); `tsc --noEmit` clean.
+- `examples/agent-dashboard`: **13 Playwright e2e pass** (approval mid-run, config
+  read/write, spend, history + replay, meta-chat, teams, injection ×4, the PR-watcher
+  loop, DM creation, memory panel); `tsc --noEmit` clean.
 - Base verified before starting: `pnpm build:all` (73/73), example agent runs and
   emits AG-UI ndjson, `--serve` + relay boot.
 
