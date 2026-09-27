@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { closeDemo, openDemo } from './devtools'
 import type { Page } from '@playwright/test'
 
 // Phase 3: the PR-watcher "the pod learns" loop. A webhook opens a per-PR channel,
@@ -36,6 +37,8 @@ test('the PR-watcher loop: review, correct, remember, handle the next PR better'
   await expect(page.getByText(/public internet/).first()).toBeVisible()
 
   // 4. The human corrects it. The agent persists the standing instruction.
+  // Close the demo panel so it doesn't cover the message box / Send button.
+  await closeDemo(page)
   await page
     .getByPlaceholder('Send a message…')
     .fill("not a security problem — we're intranet-only here")
@@ -48,6 +51,8 @@ test('the PR-watcher loop: review, correct, remember, handle the next PR better'
   // 5. The next PR: a second webhook opens a new channel; this time the review is
   // clean and the run carries the "memory attached" badge.
   await page.getByRole('button', { name: /# main/ }).click()
+  // Reopen the demo panel to reach the webhook button again.
+  await openDemo(page)
   await page.getByRole('button', { name: 'Send PR webhook' }).click()
 
   // A second, different PR channel appears; open it.
@@ -66,7 +71,9 @@ test('the PR-watcher loop: review, correct, remember, handle the next PR better'
 test('a DM channel can be created from the member list', async ({ page }) => {
   await newPrWatcherTeam(page)
 
-  // Create a DM with the security member from the roster.
+  // Create a DM with the security member from the roster (a page control, so
+  // close the demo panel that would otherwise cover it).
+  await closeDemo(page)
   await page.getByRole('button', { name: /New DM with security/ }).click()
 
   // A dm channel appears in the sidebar.

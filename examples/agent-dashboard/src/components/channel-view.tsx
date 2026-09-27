@@ -21,17 +21,16 @@ import {
   sessions,
   spend,
   toolCalls,
+  uiState,
+  upsert,
 } from '@/db/collections'
 import {
-  addAgentToChannel,
   channelSendPrompt,
   createDm,
   openChannelMember,
   resolveApproval,
 } from '@/lib/session-controller'
 import { MemberList } from '@/components/member-list'
-import { AutomationsPanel } from '@/components/automations-panel'
-import { MemoryPanel } from '@/components/memory-panel'
 import type {
   ApprovalRow,
   ChannelMemberRow,
@@ -41,6 +40,7 @@ import type {
   RunMetaRow,
   SessionRow,
   ToolCallRow,
+  UiStateRow,
 } from '@/db/collections'
 
 // `pod.channel_create` / `pod.message_post` are realized as a channel and a
@@ -80,7 +80,9 @@ export function ChannelView({
   // Opt-in members for a non-main channel.
   const { data: chanMembers = [] } = useLiveQuery(
     (q) =>
-      q.from({ cm: channelMembers }).where(({ cm }) => eq(cm.channelId, channelId)),
+      q
+        .from({ cm: channelMembers })
+        .where(({ cm }) => eq(cm.channelId, channelId)),
     [channelId],
   )
   const chanMemberRows = chanMembers as Array<ChannelMemberRow>
@@ -110,16 +112,36 @@ export function ChannelView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rosterKey])
 
+  // Publish the active channel so the demo-controls devtools panel (rendered
+  // out of the route tree) knows which channel to drive. Clear on unmount
+  // unless another channel already took over.
+  useEffect(() => {
+    upsert<UiStateRow>(uiState, { id: 'active' }, (d) => {
+      d.channelId = channelId
+      d.teamId = resolvedTeamId
+    })
+    return () => {
+      if (uiState.get('active')?.channelId === channelId) {
+        upsert<UiStateRow>(uiState, { id: 'active' }, (d) => {
+          d.channelId = undefined
+          d.teamId = undefined
+        })
+      }
+    }
+  }, [channelId, resolvedTeamId])
+
   const { data: msgs = [] } = useLiveQuery(
     (q) => q.from({ m: messages }).where(({ m }) => eq(m.channelId, channelId)),
     [channelId],
   )
   const { data: tools = [] } = useLiveQuery(
-    (q) => q.from({ t: toolCalls }).where(({ t }) => eq(t.channelId, channelId)),
+    (q) =>
+      q.from({ t: toolCalls }).where(({ t }) => eq(t.channelId, channelId)),
     [channelId],
   )
   const { data: apprs = [] } = useLiveQuery(
-    (q) => q.from({ a: approvals }).where(({ a }) => eq(a.channelId, channelId)),
+    (q) =>
+      q.from({ a: approvals }).where(({ a }) => eq(a.channelId, channelId)),
     [channelId],
   )
   const { data: spendRows = [] } = useLiveQuery(
@@ -135,7 +157,8 @@ export function ChannelView({
   const isTeam = memberRows.length > 1
   const nameByAgent = new Map(rosterRows.map((m) => [m.agentId, m.displayName]))
   const statusByThread: Record<string, SessionRow['status']> = {}
-  for (const s of sess as Array<SessionRow>) statusByThread[s.threadId] = s.status
+  for (const s of sess as Array<SessionRow>)
+    statusByThread[s.threadId] = s.status
 
   const sessionRows = sess as Array<SessionRow>
   const status = sessionRows.some((s) => s.status === 'requires_action')
@@ -165,7 +188,6 @@ export function ChannelView({
   // Human input targets the primary agent member (broadcast is a later phase).
   const primary =
     memberRows.find((m) => m.role === 'agent') ?? memberRows[0] ?? undefined
-  const canSend = Boolean(primary)
 
   // How much pod memory the platform attached to this channel's agents' last run.
   const attachedById = new Map(
@@ -274,7 +296,8 @@ export function ChannelView({
         <div className="flex-1 space-y-3 rounded-lg border border-white/10 bg-white/[0.02] p-4">
           {timeline.length === 0 && (
             <p className="text-sm text-white/40">
-              No activity yet. Send a prompt or start the triage demo below.
+              No activity yet. Send a message below, or drive it from the Demo
+              controls devtools panel.
             </p>
           )}
           {timeline.map((entry) =>
@@ -307,34 +330,7 @@ export function ChannelView({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {isMain && (
-          <button
-            disabled={!canSend}
-            onClick={() => send('Please handle ticket T-1042 for Ada.')}
-            className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05] disabled:opacity-40"
-          >
-            ▶ Start triage demo
-          </button>
-        )}
-        {isMain && (
-          <>
-            <button
-              onClick={() => addAgentToChannel(channelId, 'support/triage')}
-              className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05]"
-            >
-              + Add agent
-            </button>
-            <button
-              onClick={() =>
-                addAgentToChannel(channelId, 'dashboard/meta', 'operator')
-              }
-              className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05]"
-            >
-              + Add operator
-            </button>
-          </>
-        )}
+      <div className="flex gap-2">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -349,13 +345,6 @@ export function ChannelView({
           Send
         </button>
       </div>
-
-      {primary && isMain && (
-        <AutomationsPanel channelId={channelId} primary={primary} />
-      )}
-      {primary && primary.role === 'agent' && (
-        <MemoryPanel threadId={primary.threadId} name={primary.displayName} />
-      )}
     </div>
   )
 }

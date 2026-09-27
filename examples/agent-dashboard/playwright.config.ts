@@ -18,8 +18,10 @@ export default defineConfig({
   webServer: {
     // Isolate persisted state to a throwaway file, wiped on start, so runs never
     // inherit a previous run's runs/memory/automations (see src/server/store.ts).
+    // VITE_E2E opens the devtools panel on load so specs can reach the demo
+    // controls that now live in the "Demo Controls" panel.
     command:
-      'rm -f .data/e2e-state.json && DASHBOARD_STATE_FILE=.data/e2e-state.json pnpm run dev',
+      'rm -f .data/e2e-state.json && VITE_E2E=1 DASHBOARD_STATE_FILE=.data/e2e-state.json pnpm run dev',
     url: 'http://localhost:3002',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

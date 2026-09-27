@@ -23,6 +23,12 @@ pnpm --filter agent-dashboard dev   # http://localhost:3002
   `localOnly` collections written from the stream and read with `useLiveQuery`
   (`src/db/collections.ts`). The UI is a projection of the stream, not a poller.
 - **TanStack Query** — server state: host/session/run lists and agent config.
+- **TanStack DevTools** — the demo-only controls (start the triage demo, add
+  members, automations, pod memory) live in a custom **Demo Controls** panel,
+  kept out of the product UI so it's clear what's scaffolding vs. the real
+  experience. The panel renders from the devtools root (outside the route tree)
+  and drives the app purely by reading the same live TanStack DB state the UI
+  does — so it doubles as a state-management stress test.
 
 ## Control plane
 
@@ -59,7 +65,8 @@ Demo script:
 1. Open `/chat`.
 2. Ask **"List the agents on this host"** — it calls `list_agents` (visible
    inline) and answers "This host runs 2 agents: support/triage, dashboard/meta."
-3. Run a triage session (Hosts → New triage session → Start triage demo).
+3. Run a triage session (Hosts → New team → open the **Demo Controls**
+   devtools panel → Start triage demo).
 4. Back in `/chat`, ask **"How many runs so far?"** and **"Summarize the latest
    session"** — it queries live run history and the session snapshot.
 5. Open **History** — the meta-chat's own runs are listed alongside the agents',

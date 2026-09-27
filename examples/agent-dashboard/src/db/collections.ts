@@ -3,7 +3,10 @@
  * AG-UI event stream: the session controller writes events here, and the UI
  * reads them with live queries — no polling.
  */
-import { createCollection, localOnlyCollectionOptions } from '@tanstack/react-db'
+import {
+  createCollection,
+  localOnlyCollectionOptions,
+} from '@tanstack/react-db'
 
 export interface MessageRow {
   id: string
@@ -200,6 +203,21 @@ export const channelMembers = createCollection(
 )
 export const runMeta = createCollection(
   localOnlyCollectionOptions({ getKey: (row: RunMetaRow) => row.id }),
+)
+
+/**
+ * Which channel the operator is currently viewing. A single row (`id: 'active'`)
+ * the ChannelView publishes so the (global, out-of-tree) demo-controls devtools
+ * panel knows which channel to drive — the panel reads the same live DB state
+ * everything else does.
+ */
+export interface UiStateRow {
+  id: string
+  channelId?: string
+  teamId?: string
+}
+export const uiState = createCollection(
+  localOnlyCollectionOptions({ getKey: (row: UiStateRow) => row.id }),
 )
 
 /** Default per-session token budget, for the spend alerts. */
