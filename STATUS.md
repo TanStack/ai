@@ -4,9 +4,11 @@ Spec: `~/Downloads/agent-dashboard-spec.md` (original four phases), then the
 **teams reframe** (`~/Downloads/pods-design-doc.md` + `pods-implementation-plan.md`).
 Everything below is committed and verified; nothing is pushed.
 
-> **Latest work: server-side persistence** (`66dd71b`) — the dashboard is now
-> durable across a restart. See the "Persistence" section below. Teams Phase 3
-> and everything under it still stand.
+> **Latest work: demo controls moved to a devtools panel** (`26734dc`) — the
+> demo-only scaffolding now lives in a custom "Demo Controls" TanStack DevTools
+> panel, cleanly separated from the product UX (and a state-management stress
+> test). See the "Demo controls" section below. Server-side persistence
+> (`66dd71b`) and everything under it still stand.
 
 ## Where this lives
 
@@ -34,6 +36,7 @@ Everything below is committed and verified; nothing is pushed.
 | `04639fd` | `feat(ai-harness)`: `systemPreamble` on the prompt op + in-band tool thread id |
 | `4101e64` | `feat(examples/agent-dashboard)`: teams Phase 3 — system tools, channels, pod memory |
 | `66dd71b` | `feat(examples/agent-dashboard)`: persist agent + team state on the server |
+| `26734dc` | `feat(examples/agent-dashboard)`: move demo controls into a devtools panel |
 
 ## Phase status
 
@@ -211,6 +214,32 @@ durable so you can close the tab, restart the server, and check in on each team.
 - **Verified:** state round-trips across a fresh process; e2e isolates its state to
   a wiped throwaway file; `tsc` + `oxlint` clean, **13 e2e pass**.
 
+## Demo controls — moved to a devtools panel ✅ `26734dc`
+
+The demo-only scaffolding was interleaved with the real UI, so it wasn't obvious
+what drives the demo vs. what an operator would actually use. It now lives in a
+custom **Demo Controls** TanStack DevTools panel; the channel view keeps only the
+product experience (timeline, roster, approval cards, message box).
+
+- **Moved:** Start triage demo, + Add agent / + Add operator, the Automations
+  panel (run-now, schedules, webhook tester, offline sim), and the pod Memory
+  panel — all now in `src/components/demo-controls.tsx`, registered as a devtools
+  plugin in `__root.tsx`.
+- **State-management stress test (the point):** the panel renders from the
+  devtools render root, **outside the route tree**, so it takes no props from the
+  route. `ChannelView` publishes the active channel to a new `uiState` `localOnly`
+  row; `DemoControls` re-derives the channel + primary member from the same live
+  TanStack DB collections the channel view reads. Two independent readers over one
+  source of truth.
+- **Two wiring fixes it surfaced:** (1) `TanStackDevtools` moved **inside**
+  `QueryClientProvider` — the plugin is portaled but follows the React tree, and
+  its panels use `useQuery` ("No QueryClient set" otherwise). (2) The open panel
+  is a fixed bottom overlay that covers bottom-of-page controls (message box,
+  roster "run"); `VITE_E2E=1` opens it on load for specs, and `e2e/devtools.ts`
+  `openDemo`/`closeDemo` toggle it around those clicks.
+- **Verified:** `tsc` + `oxlint` + `build` clean; **14 Playwright e2e pass** (13
+  prior + the toggling in `team`/`pr-watcher`).
+
 ## Run it
 
 ```bash
@@ -222,14 +251,16 @@ pnpm --filter agent-dashboard dev            # http://localhost:3002 (no API key
 pnpm --filter agent-dashboard test:e2e       # Playwright
 ```
 
-Demo: **New team** → **Start triage demo** → approve the drafted reply mid-run →
+Demo: **New team**, then open the **Demo Controls** devtools panel (trigger at
+bottom-left) → **Start triage demo** → approve the drafted reply mid-run →
 **+ Add agent** to reveal the team roster, then **▶ run** the second member and
-watch both streams share one channel. In the **Automations** panel, **run
-`fetch_stats` now**, **add a 1s schedule**, **send a test webhook**, or **simulate
-the host offline** and watch jobs queue then flush. Then try **Meta-chat**,
-**History**, **Spend**, **Config**.
+watch both streams share one channel. In the panel's **Automations** section,
+**run `fetch_stats` now**, **add a 1s schedule**, **send a test webhook**, or
+**simulate the host offline** and watch jobs queue then flush. Then try
+**Meta-chat**, **History**, **Spend**, **Config**.
 
-For Phase 3: **+ PR-watcher demo** → **Send PR webhook**. A `#pr-…` channel opens,
+For Phase 3: **+ PR-watcher demo** → **Send PR webhook** (Demo Controls panel). A
+`#pr-…` channel opens,
 the security agent joins and flags the PR; reply **"not a security problem — we're
 intranet-only here"**, watch it write pod memory, then **Send PR webhook** again —
 the next PR is reviewed cleanly with the memory attached.
@@ -238,9 +269,9 @@ the next PR is reviewed cleanly with the memory attached.
 
 - `@tanstack/ai-harness`: **184 unit tests pass**; `tsc` / `oxlint` /
   `publint --strict` clean.
-- `examples/agent-dashboard`: **13 Playwright e2e pass** (approval mid-run, config
+- `examples/agent-dashboard`: **14 Playwright e2e pass** (approval mid-run, config
   read/write, spend, history + replay, meta-chat, teams, injection ×4, the PR-watcher
-  loop, DM creation, memory panel); `tsc --noEmit` clean.
+  loop, DM creation, memory panel, persistence reload); `tsc --noEmit` clean.
 - Base verified before starting: `pnpm build:all` (73/73), example agent runs and
   emits AG-UI ndjson, `--serve` + relay boot.
 
