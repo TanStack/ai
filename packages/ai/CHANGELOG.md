@@ -1,5 +1,25 @@
 # @tanstack/ai
 
+## 0.63.0
+
+### Minor Changes
+
+- [#1509](https://github.com/TanStack/ai/pull/1509) [`37b2826`](https://github.com/TanStack/ai/commit/37b282655ea9c780e9793ef33013d64b1bf88625) - Add an optional `inputSchema` to `defineAgent`. The agent's tool shows the schema to the model, so the parent model writes the child's input, such as a short brief. `run` gets the checked input as a typed `ctx.input`. A bad input goes back to the model as a tool error, and the child does not start. `inputSchema` needs tool mode: `chat()` throws when `subagents.router` meets an agent that has one. Agents without `inputSchema` do not change.
+
+- [#1401](https://github.com/TanStack/ai/pull/1401) [`c5c1996`](https://github.com/TanStack/ai/commit/c5c19961b8c98497fd88ae93c5d6330d7b2ecb6a) - Preserve structured outcomes for cancelled and denied tool results. A `tool-result` part now carries `outcome: 'cancelled' | 'denied'` (new `ToolResultOutcome` type and `isToolResultOutcome` guard) across tool execution, streaming, persistence, and UI restoration, so callers can tell a user or middleware decision from an ordinary tool failure without matching error text. `state` stays `'error'` for these results. The `@tanstack/ai-client` `ToolResultPart` type (used by `useChat` messages) now has the same `outcome` field.
+
+- [#1452](https://github.com/TanStack/ai/pull/1452) [`0eb8f0b`](https://github.com/TanStack/ai/commit/0eb8f0b7f4ffa0133a814f8fcfccbc1acedd7488) - `@tanstack/ai-mcp` can create an MCP server with `createMCPServer` and `serveMCPStdio`. The client package moves from `@modelcontextprotocol/sdk` to `@modelcontextprotocol/client` and `@modelcontextprotocol/server`. The client tries spec 2026-07-28 first, then the 2025 handshake. When an MCP server asks for input, `chat()` pauses with an `mcp_input` interrupt. Answer it with `resolveInterrupt` or `cancel()`, and the tool runs again with the answer in `ctx.inputResponse`. A tool can set `execution: 'task'` for a spec 2025 task handle. A tool reads `requestInput` and `sample` on `ctx.context`, typed by `MCPToolContext`. The server `auth` option takes the MCP SDK `OAuthTokenVerifier` shape. `jwtVerifier` and `introspectionVerifier` cover JWT and opaque tokens, and a tool reads the token as `ctx.context.authInfo`. `createMCPClient<typeof server>({ transport })` types a remote client from a `createMCPServer` server, and `createMCPClient({ server })` calls a server in the same process. `server.handle(request, { authInfo, context })` takes a token your own middleware verified and values for `ctx.context`, typed with `MCPToolContext<{ db: Db }>`. A tool's `metadata.title` and `metadata.annotations` reach the host as the MCP title and annotations. A tool with no `outputSchema` can return a `CallToolResult` as is. `sessions: 'reject'` turns spec 2025 sessions off for hosts with many instances.
+
+### Patch Changes
+
+- [#1233](https://github.com/TanStack/ai/pull/1233) [`8e8ee26`](https://github.com/TanStack/ai/commit/8e8ee26959a471bb6fac180ded3a9a048ae93609) - Preserve failed client tool results across native interrupt resumes and await asynchronous client output validation
+
+- [#1512](https://github.com/TanStack/ai/pull/1512) [`3e30cde`](https://github.com/TanStack/ai/commit/3e30cde8ae7f5be7be3bc9c4f30c842159fc7edf) - Keep a tool-call part at `complete` when its result arrives before the stream ends. If a stream had no `TOOL_CALL_END`, the end-of-stream safety net set a finished tool-call part back to `input-complete`. The final state then depended on async timing.
+
+- [#1528](https://github.com/TanStack/ai/pull/1528) [`f44b6b2`](https://github.com/TanStack/ai/commit/f44b6b22578b893501e05612f02ea1aaee0951d3) - `otelMiddleware({ captureContent: true })` now records content on media spans (`generateImage`, `generateVideo`, `generateAudio`, `generateSpeech`, `generateTranscription`, and the others). `gen_ai.input.messages` gets the prompt and input media. `gen_ai.output.messages` gets the output URLs or the transcript text. Inline data stays a placeholder. `redact` and `maxContentLength` apply to each text part.
+
+- [#1527](https://github.com/TanStack/ai/pull/1527) [`d632d41`](https://github.com/TanStack/ai/commit/d632d41df227bf11bc3cdbf5542823f87562b3d4) - `otelMiddleware` with `captureContent: true` now keeps multimodal parts structured in `gen_ai.input.messages` (OTel GenAI part shapes). URL media becomes a `uri` part and provider file handles become a `file` part, so traces show what the model looked at. Inline base64 data still records a `[image]`-style placeholder.
+
 ## 0.62.0
 
 ### Minor Changes

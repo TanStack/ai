@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { auth } from '@modelcontextprotocol/sdk/client/auth.js'
+import { auth } from '@modelcontextprotocol/client'
 import {
   AuthRequiredError,
   defineCommand,
@@ -10,9 +10,9 @@ import { createMCPClient } from './client'
 import type {
   OAuthClientInformationMixed,
   OAuthClientMetadata,
+  OAuthClientProvider,
   OAuthTokens,
-} from '@modelcontextprotocol/sdk/shared/auth.js'
-import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
+} from '@modelcontextprotocol/client'
 import type { AnyTool } from '@tanstack/ai'
 import type { CredentialsAccess } from '@tanstack/ai-harness'
 import type { MCPClient } from './client'

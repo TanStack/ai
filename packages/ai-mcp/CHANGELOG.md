@@ -1,5 +1,16 @@
 # @tanstack/ai-mcp
 
+## 0.6.0
+
+### Minor Changes
+
+- [#1452](https://github.com/TanStack/ai/pull/1452) [`0eb8f0b`](https://github.com/TanStack/ai/commit/0eb8f0b7f4ffa0133a814f8fcfccbc1acedd7488) - `@tanstack/ai-mcp` can create an MCP server with `createMCPServer` and `serveMCPStdio`. The client package moves from `@modelcontextprotocol/sdk` to `@modelcontextprotocol/client` and `@modelcontextprotocol/server`. The client tries spec 2026-07-28 first, then the 2025 handshake. When an MCP server asks for input, `chat()` pauses with an `mcp_input` interrupt. Answer it with `resolveInterrupt` or `cancel()`, and the tool runs again with the answer in `ctx.inputResponse`. A tool can set `execution: 'task'` for a spec 2025 task handle. A tool reads `requestInput` and `sample` on `ctx.context`, typed by `MCPToolContext`. The server `auth` option takes the MCP SDK `OAuthTokenVerifier` shape. `jwtVerifier` and `introspectionVerifier` cover JWT and opaque tokens, and a tool reads the token as `ctx.context.authInfo`. `createMCPClient<typeof server>({ transport })` types a remote client from a `createMCPServer` server, and `createMCPClient({ server })` calls a server in the same process. `server.handle(request, { authInfo, context })` takes a token your own middleware verified and values for `ctx.context`, typed with `MCPToolContext<{ db: Db }>`. A tool's `metadata.title` and `metadata.annotations` reach the host as the MCP title and annotations. A tool with no `outputSchema` can return a `CallToolResult` as is. `sessions: 'reject'` turns spec 2025 sessions off for hosts with many instances.
+
+### Patch Changes
+
+- Updated dependencies [[`37b2826`](https://github.com/TanStack/ai/commit/37b282655ea9c780e9793ef33013d64b1bf88625), [`8e8ee26`](https://github.com/TanStack/ai/commit/8e8ee26959a471bb6fac180ded3a9a048ae93609), [`c5c1996`](https://github.com/TanStack/ai/commit/c5c19961b8c98497fd88ae93c5d6330d7b2ecb6a), [`3e30cde`](https://github.com/TanStack/ai/commit/3e30cde8ae7f5be7be3bc9c4f30c842159fc7edf), [`0eb8f0b`](https://github.com/TanStack/ai/commit/0eb8f0b7f4ffa0133a814f8fcfccbc1acedd7488), [`f44b6b2`](https://github.com/TanStack/ai/commit/f44b6b22578b893501e05612f02ea1aaee0951d3), [`d632d41`](https://github.com/TanStack/ai/commit/d632d41df227bf11bc3cdbf5542823f87562b3d4)]:
+  - @tanstack/ai@0.63.0
+
 ## 0.5.0
 
 ### Minor Changes

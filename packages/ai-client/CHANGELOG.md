@@ -1,5 +1,18 @@
 # @tanstack/ai-client
 
+## 0.36.0
+
+### Minor Changes
+
+- [#1401](https://github.com/TanStack/ai/pull/1401) [`c5c1996`](https://github.com/TanStack/ai/commit/c5c19961b8c98497fd88ae93c5d6330d7b2ecb6a) - Preserve structured outcomes for cancelled and denied tool results. A `tool-result` part now carries `outcome: 'cancelled' | 'denied'` (new `ToolResultOutcome` type and `isToolResultOutcome` guard) across tool execution, streaming, persistence, and UI restoration, so callers can tell a user or middleware decision from an ordinary tool failure without matching error text. `state` stays `'error'` for these results. The `@tanstack/ai-client` `ToolResultPart` type (used by `useChat` messages) now has the same `outcome` field.
+
+### Patch Changes
+
+- [#1233](https://github.com/TanStack/ai/pull/1233) [`8e8ee26`](https://github.com/TanStack/ai/commit/8e8ee26959a471bb6fac180ded3a9a048ae93609) - Preserve failed client tool results across native interrupt resumes and await asynchronous client output validation
+
+- Updated dependencies [[`37b2826`](https://github.com/TanStack/ai/commit/37b282655ea9c780e9793ef33013d64b1bf88625), [`8e8ee26`](https://github.com/TanStack/ai/commit/8e8ee26959a471bb6fac180ded3a9a048ae93609), [`c5c1996`](https://github.com/TanStack/ai/commit/c5c19961b8c98497fd88ae93c5d6330d7b2ecb6a), [`3e30cde`](https://github.com/TanStack/ai/commit/3e30cde8ae7f5be7be3bc9c4f30c842159fc7edf), [`0eb8f0b`](https://github.com/TanStack/ai/commit/0eb8f0b7f4ffa0133a814f8fcfccbc1acedd7488), [`f44b6b2`](https://github.com/TanStack/ai/commit/f44b6b22578b893501e05612f02ea1aaee0951d3), [`d632d41`](https://github.com/TanStack/ai/commit/d632d41df227bf11bc3cdbf5542823f87562b3d4)]:
+  - @tanstack/ai@0.63.0
+
 ## 0.35.2
 
 ### Patch Changes
