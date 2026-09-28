@@ -4,7 +4,9 @@ import {
   resumeHttpResponse,
   resumeServerSentEventsResponse,
   toHttpResponse,
+  toHttpStream,
   toServerSentEventsResponse,
+  toServerSentEventsStream,
 } from '@tanstack/ai'
 import type { StreamChunk } from '@tanstack/ai'
 
@@ -192,10 +194,42 @@ function durableResponse(
     : toServerSentEventsResponse(stream, { durability: durabilityOption })
 }
 
+/** Probe the response stream before any reader asks for bytes. */
+async function backpressureProbe(request: Request): Promise<Response> {
+  let produced = 0
+  let cleanedUp = false
+  async function* source(): AsyncIterable<StreamChunk> {
+    try {
+      for await (const chunk of fixedRun(
+        'thread-backpressure',
+        'run-backpressure',
+      )) {
+        produced++
+        yield chunk
+      }
+    } finally {
+      cleanedUp = true
+    }
+  }
+
+  const body = isNdjson(request)
+    ? toHttpStream(source())
+    : toServerSentEventsStream(source())
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const producedWithoutReader = produced
+  await body.cancel()
+  return Response.json({ producedWithoutReader, cleanedUp })
+}
+
 export const Route = createFileRoute('/api/durable-delivery')({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        if (
+          new URL(request.url).searchParams.get('scenario') === 'backpressure'
+        ) {
+          return backpressureProbe(request)
+        }
         const { durability, runId, advertiseRunId } = durableRun(request)
         return withRunId(
           durableResponse(request, runId, durability, 2),

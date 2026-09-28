@@ -45,6 +45,8 @@ export async function POST(request: Request) {
 
 `chatParamsFromRequest` reads the AG-UI body that `useChat` sends. If the body is invalid, it throws a `Response` with status 400. If your framework does not map a thrown `Response` to HTTP 400, catch it and return it.
 
+The response stream pauses `chat()` when its output queue is full. It reads more chunks when the client consumes the queued data. This also applies to `toHttpResponse` with NDJSON.
+
 ## 2. Render with `useChat`
 
 ```tsx

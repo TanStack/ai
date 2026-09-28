@@ -56,6 +56,22 @@ function contentDeltas(events: Array<SseEvent>): Array<string> {
 }
 
 test.describe('delivery durability', () => {
+  test('SSE and NDJSON pause their sources when nobody reads', async ({
+    request,
+  }) => {
+    for (const transport of ['sse', 'ndjson']) {
+      const response = await request.post(
+        `/api/durable-delivery?scenario=backpressure&transport=${transport}`,
+        { data: {} },
+      )
+      expect(response.ok()).toBeTruthy()
+      expect(await response.json()).toEqual({
+        producedWithoutReader: 1,
+        cleanedUp: true,
+      })
+    }
+  })
+
   test('disconnect → reconnect resumes the ordered stream exactly once', async ({
     request,
   }) => {
