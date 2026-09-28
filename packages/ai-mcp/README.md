@@ -37,11 +37,16 @@ Discover and run MCP server tools, resources, and prompts inside any TanStack AI
 
 ## Installation
 
+- A client app installs `@tanstack/ai-mcp` and `@modelcontextprotocol/client`.
+- A server app installs `@modelcontextprotocol/server`.
+
 ```bash
-pnpm add @tanstack/ai-mcp @modelcontextprotocol/sdk
+pnpm add @tanstack/ai-mcp @modelcontextprotocol/client
 ```
 
 ## Quick Start
+
+`createMCPClient` tries protocol `2026-07-28` first. If the server does not support that protocol, the client uses the 2025 initialize handshake.
 
 ```ts
 import { createMCPClient } from '@tanstack/ai-mcp'

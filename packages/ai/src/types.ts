@@ -702,6 +702,15 @@ export interface EmitCustomEventOptions {
 }
 
 /**
+ * The user's answer to an `mcp_input` interrupt.
+ * `resolved` carries the `payload` from `resolveInterrupt`.
+ * `cancelled` means the user called `cancel()`.
+ */
+export type ToolInputResponse =
+  | { status: 'resolved'; payload: unknown }
+  | { status: 'cancelled' }
+
+/**
  * Context passed to tool execute functions, providing capabilities like
  * emitting custom events during execution.
  */
@@ -715,6 +724,12 @@ export type ToolExecutionContext<TContext = unknown> =
      * e.g. MCP `callTool` — should forward this to cancel in-flight work.
      */
     abortSignal?: AbortSignal
+    /**
+     * The answer to the input request that this tool call raised in the
+     * previous run. It is set only when the run resumes an `mcp_input`
+     * interrupt for this tool call.
+     */
+    inputResponse?: ToolInputResponse
     /**
      * Emit a custom event during tool execution.
      * Events are streamed to the client in real-time as AG-UI CUSTOM events.
