@@ -513,6 +513,9 @@ The post-discovery payload always returns the full description and schema regard
 `@tanstack/ai-mcp` lets a server-side `chat()` call discover and invoke tools
 hosted on any MCP server (Streamable HTTP, SSE, or stdio).
 
+`createMCPClient` tries spec `2026-07-28` first.
+If the server does not support that spec, the client uses the 2025 initialize handshake.
+
 **MCP tools and UI resources:** When an MCP tool result carries a `ui://`
 resource URI (via `_meta.ui.resourceUri`), TanStack AI surfaces it as a
 `UIResourcePart` on the assistant `UIMessage` in the client message list.
@@ -720,6 +723,106 @@ export async function POST(request: Request) {
   })
 
   return toServerSentEventsResponse(stream)
+}
+```
+
+### Host your own MCP server
+
+Import `createMCPServer` from `@tanstack/ai-mcp/server`.
+Pass tools from `toolDefinition().server()`.
+Call `server.fetch(request)` in your HTTP route.
+
+```typescript
+import { toolDefinition } from '@tanstack/ai'
+import { createMCPServer } from '@tanstack/ai-mcp/server'
+import { z } from 'zod'
+
+const getWeather = toolDefinition({
+  name: 'get_weather',
+  description: 'Current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+}).server(async ({ city }) => {
+  return { city, temperature: 18, conditions: 'clear' }
+})
+
+const server = createMCPServer({
+  name: 'weather',
+  version: '1.0.0',
+  tools: [getWeather],
+})
+
+export function POST(request: Request) {
+  return server.fetch(request)
+}
+```
+
+`stdioTransport` from `@tanstack/ai-mcp/stdio` connects your client to a command.
+`serveMCPStdio` from `@tanstack/ai-mcp/server/stdio` serves your server on stdin and stdout.
+Write logs with `console.error`.
+stdout carries only protocol messages.
+
+```typescript
+import { toolDefinition } from '@tanstack/ai'
+import { createMCPServer } from '@tanstack/ai-mcp/server'
+import { serveMCPStdio } from '@tanstack/ai-mcp/server/stdio'
+import { z } from 'zod'
+
+const getWeather = toolDefinition({
+  name: 'get_weather',
+  description: 'Current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+}).server(async ({ city }) => {
+  return { city, temperature: 18, conditions: 'clear' }
+})
+
+const server = createMCPServer({
+  name: 'weather',
+  version: '1.0.0',
+  tools: [getWeather],
+})
+
+serveMCPStdio(server)
+```
+
+The `@tanstack/ai-mcp` skill shows `ctx.context.requestInput` and `ctx.context.sample`.
+
+### Read an MCP input interrupt
+
+When `chat()` receives an MCP input request, the run outcome is an interrupt.
+The stream ends with `RUN_FINISHED`.
+The outcome type is `interrupt`.
+Read each interrupt whose `reason` is `mcp_input`.
+The payload key is `tanstack:interruptPayload`.
+
+`form` means the server asks the user for input.
+`sampling` means the server asks for a model result.
+
+```typescript
+import { chat, INTERRUPT_PAYLOAD_METADATA_KEY } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const client = await createMCPClient({
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-5.5'),
+  messages: [{ role: 'user', content: 'Weather in Paris?' }],
+  tools: await client.tools(),
+})
+
+for await (const chunk of stream) {
+  if (chunk.type !== 'RUN_FINISHED') continue
+  if (chunk.outcome?.type !== 'interrupt') continue
+
+  for (const item of chunk.outcome.interrupts) {
+    if (item.reason !== 'mcp_input') continue
+    const payload = item.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
+    if (typeof payload !== 'object' || payload === null) continue
+    if (!('kind' in payload)) continue
+    // payload.kind is 'form' or 'sampling'
+  }
 }
 ```
 

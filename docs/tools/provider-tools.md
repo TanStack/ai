@@ -151,8 +151,10 @@ matrix is maintained alongside `model-meta.ts` and reflected here:
 - **Anthropic**: every registered model supports the full tool superset
   (the retired Claude 3.x models with narrower support were removed).
 - **OpenAI**: GPT-5 family and reasoning models (O-series) support the full
-  superset. GPT-4-series supports web/file/image/code/mcp but not
-  preview/shell variants. GPT-3.5 and audio-focused models: none.
+  superset. GPT-6 Astra, Sol, and Luna support every tool except
+  `webSearchPreviewTool` and `localShellTool`. GPT-4-series supports
+  web/file/image/code/mcp but not preview/shell variants. GPT-3.5 and
+  audio-focused models: none.
 - **Gemini**: 3.x Pro/Flash models support the full tool set. Lite and
   image/video variants have narrower support.
 - **OpenRouter**: every chat model supports `webSearchTool` and

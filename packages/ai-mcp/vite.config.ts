@@ -29,6 +29,8 @@ export default mergeConfig(
       './src/index.ts',
       './src/stdio.ts',
       './src/apps/index.ts',
+      './src/server/index.ts',
+      './src/server/stdio.ts',
       './src/connector.ts',
     ],
     srcDir: './src',
