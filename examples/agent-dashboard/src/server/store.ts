@@ -263,7 +263,8 @@ function replay(base: ReturnType<typeof memoryPersistence>): void {
     // so its `resolvedAt` restamps to boot time. Pending interrupts — the case
     // that matters for a paused, awaiting-approval run — restore exactly.
     void interrupts.create(rec).then(() => {
-      if (status === 'resolved') return interrupts.resolve(rec.interruptId, response)
+      if (status === 'resolved')
+        return interrupts.resolve(rec.interruptId, response)
       if (status === 'cancelled') return interrupts.cancel(rec.interruptId)
       return undefined
     })

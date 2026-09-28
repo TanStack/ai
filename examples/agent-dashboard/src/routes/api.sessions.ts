@@ -11,10 +11,9 @@ export const Route = createFileRoute('/api/sessions')({
         const host = getHost()
         const sessions = await Promise.all(
           listThreads().map(async (thread) => {
-            const session = await host.open(
-              getHarnessForThread(thread.id),
-              { threadId: thread.id },
-            )
+            const session = await host.open(getHarnessForThread(thread.id), {
+              threadId: thread.id,
+            })
             const snapshot = session.snapshot()
             return {
               ...thread,

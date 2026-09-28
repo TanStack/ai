@@ -110,9 +110,10 @@ function usageOf(event: StreamChunk): NormalizedUsage | undefined {
   const direct = normalizeUsage(record.usage)
   if (direct) return direct
   const metadata = isRecord(record.metadata) ? record.metadata : undefined
-  const ns = metadata && isRecord(metadata[TANSTACK_METADATA_NAMESPACE])
-    ? (metadata[TANSTACK_METADATA_NAMESPACE] as Record<string, unknown>)
-    : undefined
+  const ns =
+    metadata && isRecord(metadata[TANSTACK_METADATA_NAMESPACE])
+      ? (metadata[TANSTACK_METADATA_NAMESPACE] as Record<string, unknown>)
+      : undefined
   return ns ? normalizeUsage(ns.usage) : undefined
 }
 
@@ -314,7 +315,9 @@ export async function* operationToAgUiRun(
       continue
     }
     if (isHarnessCustom(event)) {
-      if ((event as { name?: string }).name === HARNESS_EVENTS.operationFinished) {
+      if (
+        (event as { name?: string }).name === HARNESS_EVENTS.operationFinished
+      ) {
         break
       }
       if (!includeHarnessEvents) continue
@@ -352,7 +355,8 @@ async function* followOperation(
     yield entry
     if (
       entry.event.type === EventType.CUSTOM &&
-      (entry.event as { name?: string }).name === HARNESS_EVENTS.operationFinished
+      (entry.event as { name?: string }).name ===
+        HARNESS_EVENTS.operationFinished
     ) {
       return
     }
@@ -456,7 +460,8 @@ export function createAgUiHandler(
         operationId = receipt.operationId
       } else {
         const message = lastUserText(params.messages)
-        if (message === undefined) return json({ error: 'no user message' }, 400)
+        if (message === undefined)
+          return json({ error: 'no user message' }, 400)
         operationId = session.prompt(message).id
       }
     } catch (error) {

@@ -93,7 +93,9 @@ export function parseHarnessInput(value: unknown): HarnessInput {
     (!Array.isArray(value.systemPreamble) ||
       value.systemPreamble.some((line) => typeof line !== 'string'))
   ) {
-    throw new Error('Invalid input: systemPreamble must be an array of strings.')
+    throw new Error(
+      'Invalid input: systemPreamble must be an array of strings.',
+    )
   }
   // The checks above cover every field the session reads.
   return value as HarnessInput

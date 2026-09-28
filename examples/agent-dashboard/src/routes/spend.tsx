@@ -38,13 +38,9 @@ function Spend() {
   const overCount = rows.filter((r) => r.over).length
 
   const setBudget = (threadId: string, maxTokens: number) => {
-    upsert(
-      budgets,
-      { id: threadId, threadId, maxTokens },
-      (draft) => {
-        draft.maxTokens = maxTokens
-      },
-    )
+    upsert(budgets, { id: threadId, threadId, maxTokens }, (draft) => {
+      draft.maxTokens = maxTokens
+    })
   }
 
   return (
@@ -148,10 +144,25 @@ function SpendChart({ rows }: { rows: Array<Row> }) {
         const budgetX = labelW + (r.budget / max) * trackW
         return (
           <g key={r.threadId}>
-            <text x={0} y={y + barH / 2 + 4} fill="#8a93a6" fontSize={11} fontFamily="monospace">
-              {r.threadId.length > 20 ? `${r.threadId.slice(0, 19)}…` : r.threadId}
+            <text
+              x={0}
+              y={y + barH / 2 + 4}
+              fill="#8a93a6"
+              fontSize={11}
+              fontFamily="monospace"
+            >
+              {r.threadId.length > 20
+                ? `${r.threadId.slice(0, 19)}…`
+                : r.threadId}
             </text>
-            <rect x={labelW} y={y} width={trackW} height={barH} fill="#141922" rx={4} />
+            <rect
+              x={labelW}
+              y={y}
+              width={trackW}
+              height={barH}
+              fill="#141922"
+              rx={4}
+            />
             <rect
               x={labelW}
               y={y}

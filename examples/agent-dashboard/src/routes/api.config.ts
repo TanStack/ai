@@ -33,9 +33,14 @@ export const Route = createFileRoute('/api/config')({
           value?: unknown
         }
         if (!body.threadId || !body.key) {
-          return Response.json({ error: 'threadId and key required' }, { status: 400 })
+          return Response.json(
+            { error: 'threadId and key required' },
+            { status: 400 },
+          )
         }
-        const session = await getHost().open(triage, { threadId: body.threadId })
+        const session = await getHost().open(triage, {
+          threadId: body.threadId,
+        })
         const receipt = await applyInput(triage, session, {
           op: 'config',
           key: body.key,

@@ -37,8 +37,16 @@ function MetaChat() {
   )
 
   const timeline = [
-    ...(msgs as Array<MessageRow>).map((m) => ({ kind: 'm' as const, at: m.createdAt, m })),
-    ...(tools as Array<ToolCallRow>).map((t) => ({ kind: 't' as const, at: t.createdAt, t })),
+    ...(msgs as Array<MessageRow>).map((m) => ({
+      kind: 'm' as const,
+      at: m.createdAt,
+      m,
+    })),
+    ...(tools as Array<ToolCallRow>).map((t) => ({
+      kind: 't' as const,
+      at: t.createdAt,
+      t,
+    })),
   ].sort((a, b) => a.at - b.at)
 
   const send = async (text: string) => {
@@ -78,7 +86,10 @@ function MetaChat() {
         )}
         {timeline.map((e) =>
           e.kind === 'm' ? (
-            <div key={e.m.id} className={e.m.role === 'user' ? 'text-right' : ''}>
+            <div
+              key={e.m.id}
+              className={e.m.role === 'user' ? 'text-right' : ''}
+            >
               <div
                 className={`inline-block max-w-[80%] rounded-lg px-3 py-2 text-sm ${
                   e.m.role === 'user'

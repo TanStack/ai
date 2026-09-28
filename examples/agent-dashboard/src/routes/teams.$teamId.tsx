@@ -46,8 +46,8 @@ function TeamView() {
           ← teams
         </a>
         <p className="text-sm text-white/50">
-          Loading this team… If it stays empty, it doesn't exist yet — create one
-          from the home page to start.
+          Loading this team… If it stays empty, it doesn't exist yet — create
+          one from the home page to start.
         </p>
       </div>
     )

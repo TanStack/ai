@@ -35,13 +35,28 @@ function turn(options: {
 }): Array<StreamChunk> {
   const now = Date.now()
   const chunks: Array<StreamChunk> = [
-    { type: EventType.RUN_STARTED, runId: gid('run'), threadId: 't', timestamp: now },
+    {
+      type: EventType.RUN_STARTED,
+      runId: gid('run'),
+      threadId: 't',
+      timestamp: now,
+    },
   ]
   if (options.text) {
     const messageId = gid('msg')
     chunks.push(
-      { type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant', timestamp: now },
-      { type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta: options.text, timestamp: now },
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId,
+        role: 'assistant',
+        timestamp: now,
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId,
+        delta: options.text,
+        timestamp: now,
+      },
       { type: EventType.TEXT_MESSAGE_END, messageId, timestamp: now },
     )
   }
@@ -60,7 +75,11 @@ function turn(options: {
         delta: JSON.stringify(options.tool.args),
         timestamp: now,
       } as StreamChunk,
-      { type: EventType.TOOL_CALL_END, toolCallId, timestamp: now } as StreamChunk,
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId,
+        timestamp: now,
+      } as StreamChunk,
     )
   }
   chunks.push({
@@ -68,8 +87,12 @@ function turn(options: {
     runId: 'run',
     threadId: 't',
     timestamp: now,
-    usage: [{ inputTokens: options.inputTokens, outputTokens: options.outputTokens }],
-    metadata: { tanstack: { finishReason: options.tool ? 'tool_calls' : 'stop' } },
+    usage: [
+      { inputTokens: options.inputTokens, outputTokens: options.outputTokens },
+    ],
+    metadata: {
+      tanstack: { finishReason: options.tool ? 'tool_calls' : 'stop' },
+    },
   } as StreamChunk)
   return chunks
 }
@@ -106,7 +129,9 @@ function resultsThisRun(messages: Array<any>): Array<any> {
   for (const m of messages.slice(lastUser + 1)) {
     if (m.role !== 'tool') continue
     try {
-      out.push(typeof m.content === 'string' ? JSON.parse(m.content) : m.content)
+      out.push(
+        typeof m.content === 'string' ? JSON.parse(m.content) : m.content,
+      )
     } catch {
       out.push({})
     }
@@ -132,8 +157,16 @@ function extractChannel(text: string): string {
 // Seeded PRs: the check returns the next one each call. Both expose an endpoint
 // to the public internet — the difference in handling comes from pod memory.
 const seededPrs = [
-  { number: 1524, title: 'Add public metrics endpoint', risk: 'exposes /metrics to the public internet without auth' },
-  { number: 1530, title: 'Broaden metrics coverage', risk: 'exposes more of /metrics to the public internet' },
+  {
+    number: 1524,
+    title: 'Add public metrics endpoint',
+    risk: 'exposes /metrics to the public internet without auth',
+  },
+  {
+    number: 1530,
+    title: 'Broaden metrics coverage',
+    risk: 'exposes more of /metrics to the public internet',
+  },
 ]
 let prCursor = 0
 
@@ -202,7 +235,11 @@ function watcherModel(): AnyTextAdapter {
         )
       }
       return stream(
-        turn({ text: 'Review channel is set up.', inputTokens: 80, outputTokens: 8 }),
+        turn({
+          text: 'Review channel is set up.',
+          inputTokens: 80,
+          outputTokens: 8,
+        }),
       )
     },
   }
@@ -221,9 +258,7 @@ function securityModel(): AnyTextAdapter {
       const messages = options.messages as Array<any>
       // Mid-run: our tool has executed, close out with a short line.
       if (messages.at(-1)?.role === 'tool') {
-        return stream(
-          turn({ text: 'Done.', inputTokens: 60, outputTokens: 6 }),
-        )
+        return stream(turn({ text: 'Done.', inputTokens: 60, outputTokens: 6 }))
       }
       const userText = lastUserText(messages)
       const channelId = extractChannel(userText)
@@ -279,7 +314,8 @@ export const prWatcher = defineHarness({
 
 export const securityReview = defineHarness({
   name: 'security/review',
-  description: 'Reviews PRs for security issues and learns from human corrections',
+  description:
+    'Reviews PRs for security issues and learns from human corrections',
   adapter: securityModel(),
   systemPrompts: [
     'You are a security reviewer. Review the PR and post your findings. When a human gives you a standing instruction about what not to flag, persist it with pod.memory_write.',

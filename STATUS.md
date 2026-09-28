@@ -34,24 +34,24 @@ Everything below is committed and verified; nothing is pushed.
 
 ## Commits (atop the base)
 
-| Commit | What |
-|--------|------|
-| `7da107f` | `feat(ai-harness)`: the `@tanstack/ai-harness/ag-ui` bridge subpath |
+| Commit    | What                                                                                       |
+| --------- | ------------------------------------------------------------------------------------------ |
+| `7da107f` | `feat(ai-harness)`: the `@tanstack/ai-harness/ag-ui` bridge subpath                        |
 | `d6c538a` | `fix(ai-harness)`: coalesce multi-turn operations + conform usage for strict AG-UI clients |
-| `78a5ba8` | `feat(examples/agent-dashboard)`: live session view + approval queue (Phase 2) |
-| `d28d9de` | `feat(examples/agent-dashboard)`: control plane — history, spend, config (Phase 3) |
-| `0940975` | `feat(examples/agent-dashboard)`: meta-chat over live agent state (Phase 4) |
-| `063245e` | `docs`: add STATUS.md summarizing the agent-dashboard build |
-| `9ec1ece` | `feat(examples/agent-dashboard)`: teams reframe (Phase 1) + Alem protocol proposal |
-| `9b1db82` | `feat(ai-harness)`: out-of-band tool invocation (`{ op: 'tool' }`) + tool visibility |
-| `720660d` | `feat(examples/agent-dashboard)`: teams Phase 2 — tool registry + injection |
-| `04639fd` | `feat(ai-harness)`: `systemPreamble` on the prompt op + in-band tool thread id |
-| `4101e64` | `feat(examples/agent-dashboard)`: teams Phase 3 — system tools, channels, pod memory |
-| `66dd71b` | `feat(examples/agent-dashboard)`: persist agent + team state on the server |
-| `26734dc` | `feat(examples/agent-dashboard)`: move demo controls into a devtools panel |
-| `3a30d2f` | `feat(examples/agent-dashboard)`: Reddit pod — real service + real LLM |
-| `bb4ff79` | `feat(examples/agent-dashboard)`: product team-composition UI + default subscriptions |
-| `cf119c4` | `fix(examples/agent-dashboard)`: DM membership + surface pod memory on the team page |
+| `78a5ba8` | `feat(examples/agent-dashboard)`: live session view + approval queue (Phase 2)             |
+| `d28d9de` | `feat(examples/agent-dashboard)`: control plane — history, spend, config (Phase 3)         |
+| `0940975` | `feat(examples/agent-dashboard)`: meta-chat over live agent state (Phase 4)                |
+| `063245e` | `docs`: add STATUS.md summarizing the agent-dashboard build                                |
+| `9ec1ece` | `feat(examples/agent-dashboard)`: teams reframe (Phase 1) + Alem protocol proposal         |
+| `9b1db82` | `feat(ai-harness)`: out-of-band tool invocation (`{ op: 'tool' }`) + tool visibility       |
+| `720660d` | `feat(examples/agent-dashboard)`: teams Phase 2 — tool registry + injection                |
+| `04639fd` | `feat(ai-harness)`: `systemPreamble` on the prompt op + in-band tool thread id             |
+| `4101e64` | `feat(examples/agent-dashboard)`: teams Phase 3 — system tools, channels, pod memory       |
+| `66dd71b` | `feat(examples/agent-dashboard)`: persist agent + team state on the server                 |
+| `26734dc` | `feat(examples/agent-dashboard)`: move demo controls into a devtools panel                 |
+| `3a30d2f` | `feat(examples/agent-dashboard)`: Reddit pod — real service + real LLM                     |
+| `bb4ff79` | `feat(examples/agent-dashboard)`: product team-composition UI + default subscriptions      |
+| `cf119c4` | `fix(examples/agent-dashboard)`: DM membership + surface pod memory on the team page       |
 
 ## Phase status
 
@@ -166,18 +166,18 @@ a gate**, so provisional harness changes ship on `feat/agent-dashboard` (the
 
 The design doc's **"the pod learns" loop** made concrete: a webhook opens a per-PR
 channel, a subscribed security agent reviews it, the human corrects it, the
-correction is persisted to **pod memory**, and the *next* PR is handled better —
+correction is persisted to **pod memory**, and the _next_ PR is handled better —
 every step a message or a tool call in the stream, **no hidden state**.
 
 - **Harness (`04639fd`, additive):** the `prompt` op gains `systemPreamble?:
-  string[]`, prepended ahead of the harness's own system prompts for one run — the
+string[]`, prepended ahead of the harness's own system prompts for one run — the
   seam a trigger uses to attach per-run memory. The server-tool execution
   `context` now always carries the live `threadId`/`runId`, so an **in-band**
   `pod.*` call can resolve its caller (out-of-band already got a flat
   `{ threadId }`). 184 harness tests pass; changeset included.
 - **System tools (`pod.*`), dual citizens:** `pod.channel_create` /
   `pod.message_post` / `pod.memory_write` / `pod.memory_read` — public, callable
-  in-band during a run *and* out-of-band via `{ op: 'tool' }`. channel_create /
+  in-band during a run _and_ out-of-band via `{ op: 'tool' }`. channel_create /
   message_post are **structured intents** the dashboard realizes when it observes
   them on the tail (create the channel / post the message, routed by the result's
   channel id); memory_write mutates a server-side, thread-keyed store
@@ -302,7 +302,7 @@ Ran it against Jack's key + live Reddit. Two findings, one blocking-for-live:
    tool — the memory loop, live.
 2. **Dotted `pod.*` tool names 400 on real providers 🐛 (fixed).** Anthropic
    (and OpenAI) require tool names to match `^[a-zA-Z0-9_-]{1,128}$`; `pod.
-   memory_write` etc. 400 with `tools.0.custom.name: String should match…`.
+memory_write` etc. 400 with `tools.0.custom.name: String should match…`.
    The scripted mocks never validated names, so this only surfaced against a
    real provider. **Fix:** `sentiment/react` carries a single provider-safe
    `remember` tool (writes the same memory store) instead of `...podTools`; its
@@ -342,7 +342,7 @@ built by hand).
   composition share one source of truth. This is what makes a hand-composed team
   react without wiring.
 - **Two demo-era bugs fixed:** the roster **▶ run** sent a hardcoded triage
-  ticket prompt to *any* agent (→ neutral "Please proceed."); the **🔔
+  ticket prompt to _any_ agent (→ neutral "Please proceed."); the **🔔
   subscribe** toggle set a hardcoded `channel_created` sub (→ toggles the
   harness's real default triggers, shown only for reactive agents).
 - **Note:** RunToolDialog takes params as **JSON**, not per-field inputs —

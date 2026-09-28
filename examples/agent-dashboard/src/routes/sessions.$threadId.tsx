@@ -49,14 +49,23 @@ function SessionDetail() {
   )
 
   const status = (sess as Array<{ status: string }>)[0]?.status ?? 'idle'
-  const tokens = (spendRows as Array<{ totalTokens: number }>)[0]?.totalTokens ?? 0
+  const tokens =
+    (spendRows as Array<{ totalTokens: number }>)[0]?.totalTokens ?? 0
   const pending = (apprs as Array<ApprovalRow>).filter(
     (a) => a.status === 'pending',
   )
 
   const timeline = [
-    ...(msgs as Array<MessageRow>).map((m) => ({ kind: 'message' as const, at: m.createdAt, m })),
-    ...(tools as Array<ToolCallRow>).map((t) => ({ kind: 'tool' as const, at: t.createdAt, t })),
+    ...(msgs as Array<MessageRow>).map((m) => ({
+      kind: 'message' as const,
+      at: m.createdAt,
+      m,
+    })),
+    ...(tools as Array<ToolCallRow>).map((t) => ({
+      kind: 'tool' as const,
+      at: t.createdAt,
+      t,
+    })),
   ].sort((a, b) => a.at - b.at)
 
   const send = async () => {

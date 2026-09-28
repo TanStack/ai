@@ -43,7 +43,10 @@ async function collect(
 ): Promise<Array<StreamChunk>> {
   const events: Array<StreamChunk> = []
   const controller = new AbortController()
-  for await (const entry of session.events({ from: '0', signal: controller.signal })) {
+  for await (const entry of session.events({
+    from: '0',
+    signal: controller.signal,
+  })) {
     events.push(entry.event)
     if (until(entry.event)) {
       controller.abort()
@@ -115,7 +118,8 @@ describe('{ op: "tool" } out-of-band invocation', () => {
         (event as any).name === 'harness.operation.finished',
     )
     const finished = events.find(
-      (e) => e.type === 'CUSTOM' && (e as any).name === 'harness.operation.finished',
+      (e) =>
+        e.type === 'CUSTOM' && (e as any).name === 'harness.operation.finished',
     ) as any
     expect(finished?.value.status).toBe('failed')
 

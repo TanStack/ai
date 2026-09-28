@@ -22,9 +22,8 @@ export const Route = createFileRoute('/api/runs')({
               threadId: thread.id,
             })
             const runs =
-              (await getPersistence().stores.runs?.listByThread?.(
-                thread.id,
-              )) ?? []
+              (await getPersistence().stores.runs?.listByThread?.(thread.id)) ??
+              []
             return runs.map((run) => ({
               runId: run.runId,
               threadId: run.threadId,
@@ -36,10 +35,11 @@ export const Route = createFileRoute('/api/runs')({
             }))
           }),
         )
-        const runs = perThread
-          .flat()
-          .sort((a, b) => b.startedAt - a.startedAt)
-        return Response.json({ protocolVersion: HARNESS_PROTOCOL_VERSION, runs })
+        const runs = perThread.flat().sort((a, b) => b.startedAt - a.startedAt)
+        return Response.json({
+          protocolVersion: HARNESS_PROTOCOL_VERSION,
+          runs,
+        })
       },
     },
   },

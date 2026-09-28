@@ -24,7 +24,12 @@ function parseField(spec: string, [min, max]: [number, number]): Set<number> {
       const [a, b] = range.split('-')
       lo = Number(a)
       hi = b === undefined ? Number(a) : Number(b)
-      if (!Number.isInteger(lo) || !Number.isInteger(hi) || lo < min || hi > max)
+      if (
+        !Number.isInteger(lo) ||
+        !Number.isInteger(hi) ||
+        lo < min ||
+        hi > max
+      )
         throw new Error('out of range')
     }
     for (let v = lo; v <= hi; v += step) values.add(v)
@@ -62,7 +67,10 @@ function matches(sets: Array<Set<number>>, date: Date): boolean {
  * The next epoch-ms at which `cron` fires strictly after `fromMs` (seconds
  * truncated to 0). Returns undefined if none within a year (invalid combos).
  */
-export function nextFireAfter(cron: string, fromMs: number): number | undefined {
+export function nextFireAfter(
+  cron: string,
+  fromMs: number,
+): number | undefined {
   let sets: Array<Set<number>>
   try {
     sets = parse(cron)

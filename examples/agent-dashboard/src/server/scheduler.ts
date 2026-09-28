@@ -14,7 +14,10 @@ import type { Schedule } from './injection'
 let timer: ReturnType<typeof setInterval> | undefined
 
 /** The next fire time for a schedule, given its cron or fixed interval. */
-export function computeNextFire(schedule: Schedule, fromMs: number): number | undefined {
+export function computeNextFire(
+  schedule: Schedule,
+  fromMs: number,
+): number | undefined {
   if (schedule.everySeconds) return fromMs + schedule.everySeconds * 1000
   if (schedule.cron) return nextFireAfter(schedule.cron, fromMs)
   return undefined

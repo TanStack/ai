@@ -649,10 +649,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     args?: unknown,
     meta?: Record<string, unknown>,
   ): Operation<unknown> {
-    const operation = new OperationImpl<unknown>(
-      'tool',
-      this.feed,
-      (target) => this.cancel(target.id),
+    const operation = new OperationImpl<unknown>('tool', this.feed, (target) =>
+      this.cancel(target.id),
     )
     this.operations.set(operation.id, operation)
     void this.executeTool(operation, name, args, meta)
@@ -952,7 +950,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     let checked: unknown = args
     const schema = (tool as { inputSchema?: unknown }).inputSchema
     if (schema !== undefined) {
-      const result = await validateWithStandardSchema(schema as never, args ?? {})
+      const result = await validateWithStandardSchema(
+        schema as never,
+        args ?? {},
+      )
       if (!result.success) {
         const reason = `Input validation failed for tool ${name}: ${result.issues
           .map((issue) => issue.message)
@@ -993,7 +994,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         timestamp: Date.now(),
       } as StreamChunk)
       if (meta) {
-        operation.publish(customEvent('tanstack.injection', { toolCallId, ...meta }))
+        operation.publish(
+          customEvent('tanstack.injection', { toolCallId, ...meta }),
+        )
       }
       const result: unknown = await execute(checked, {
         threadId: this.threadId,

@@ -42,7 +42,12 @@ const runFinished = (extra: Record<string, unknown>): StreamChunk =>
   }) as unknown as StreamChunk
 
 const custom = (name: string, value: unknown = {}): StreamChunk =>
-  ({ type: EventType.CUSTOM, name, value, timestamp: 0 }) as unknown as StreamChunk
+  ({
+    type: EventType.CUSTOM,
+    name,
+    value,
+    timestamp: 0,
+  }) as unknown as StreamChunk
 
 const typesOf = (events: Array<StreamChunk>) => events.map((e) => e.type)
 
@@ -174,14 +179,21 @@ describe('sessionEventsToAgUi mapper', () => {
     const out = await collect(
       sessionEventsToAgUi(
         feed([
-          runFinished({ runId: 'r1', usage: [{ inputTokens: 10, outputTokens: 5 }] }),
-          runFinished({ runId: 'r2', usage: [{ inputTokens: 2, outputTokens: 3 }] }),
+          runFinished({
+            runId: 'r1',
+            usage: [{ inputTokens: 10, outputTokens: 5 }],
+          }),
+          runFinished({
+            runId: 'r2',
+            usage: [{ inputTokens: 2, outputTokens: 3 }],
+          }),
         ]),
         { emitSpendEvents: true },
       ),
     )
     const spends = out.filter(
-      (e) => e.type === EventType.CUSTOM && (e as any).name === TANSTACK_SPEND_EVENT,
+      (e) =>
+        e.type === EventType.CUSTOM && (e as any).name === TANSTACK_SPEND_EVENT,
     )
     expect(spends).toHaveLength(2)
     expect((spends[0] as any).value.cumulative.totalTokens).toBe(15)
@@ -194,9 +206,9 @@ describe('sessionEventsToAgUi mapper', () => {
     const out = await collect(
       sessionEventsToAgUi(feed(text('hi')), { emitSpendEvents: true }),
     )
-    expect(
-      out.some((e) => (e as any).name === TANSTACK_SPEND_EVENT),
-    ).toBe(false)
+    expect(out.some((e) => (e as any).name === TANSTACK_SPEND_EVENT)).toBe(
+      false,
+    )
   })
 })
 
@@ -205,15 +217,27 @@ describe('operationToAgUiRun coalescer', () => {
     // Two model turns (tool then final), as the harness emits per turn, plus
     // the harness operation.finished terminator.
     const stream: Array<StreamChunk> = [
-      { type: EventType.RUN_STARTED, runId: 'r1', threadId: 't', timestamp: 0 } as StreamChunk,
+      {
+        type: EventType.RUN_STARTED,
+        runId: 'r1',
+        threadId: 't',
+        timestamp: 0,
+      } as StreamChunk,
       {
         type: EventType.TOOL_CALL_START,
         toolCallId: 'c1',
         toolCallName: 'lookup',
         timestamp: 0,
       } as StreamChunk,
-      { type: EventType.TOOL_CALL_END, toolCallId: 'c1', timestamp: 0 } as StreamChunk,
-      runFinished({ runId: 'r1', usage: [{ inputTokens: 10, outputTokens: 5 }] }),
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: 'c1',
+        timestamp: 0,
+      } as StreamChunk,
+      runFinished({
+        runId: 'r1',
+        usage: [{ inputTokens: 10, outputTokens: 5 }],
+      }),
       {
         type: EventType.TOOL_CALL_RESULT,
         toolCallId: 'c1',
@@ -221,13 +245,28 @@ describe('operationToAgUiRun coalescer', () => {
         content: '{"ok":true}',
         timestamp: 0,
       } as StreamChunk,
-      { type: EventType.RUN_STARTED, runId: 'r2', threadId: 't', timestamp: 0 } as StreamChunk,
-      runFinished({ runId: 'r2', usage: [{ inputTokens: 2, outputTokens: 3 }] }),
-      custom(HARNESS_EVENTS.operationFinished, { operationId: 'op-1', status: 'completed' }),
+      {
+        type: EventType.RUN_STARTED,
+        runId: 'r2',
+        threadId: 't',
+        timestamp: 0,
+      } as StreamChunk,
+      runFinished({
+        runId: 'r2',
+        usage: [{ inputTokens: 2, outputTokens: 3 }],
+      }),
+      custom(HARNESS_EVENTS.operationFinished, {
+        operationId: 'op-1',
+        status: 'completed',
+      }),
     ]
     const out = await collect(operationToAgUiRun(feed(stream)))
-    expect(typesOf(out).filter((t) => t === EventType.RUN_STARTED)).toHaveLength(1)
-    expect(typesOf(out).filter((t) => t === EventType.RUN_FINISHED)).toHaveLength(1)
+    expect(
+      typesOf(out).filter((t) => t === EventType.RUN_STARTED),
+    ).toHaveLength(1)
+    expect(
+      typesOf(out).filter((t) => t === EventType.RUN_FINISHED),
+    ).toHaveLength(1)
     // The tool result survives inside the single run.
     expect(out.some((e) => e.type === EventType.TOOL_CALL_RESULT)).toBe(true)
     // First is RUN_STARTED, last is RUN_FINISHED (a valid AG-UI run).
@@ -247,9 +286,17 @@ describe('operationToAgUiRun coalescer', () => {
         content: '{"sent":true}',
         timestamp: 0,
       } as StreamChunk,
-      { type: EventType.RUN_STARTED, runId: 'r2', threadId: 't', timestamp: 0 } as StreamChunk,
+      {
+        type: EventType.RUN_STARTED,
+        runId: 'r2',
+        threadId: 't',
+        timestamp: 0,
+      } as StreamChunk,
       runFinished({}),
-      custom(HARNESS_EVENTS.operationFinished, { operationId: 'op-2', status: 'completed' }),
+      custom(HARNESS_EVENTS.operationFinished, {
+        operationId: 'op-2',
+        status: 'completed',
+      }),
     ]
     const out = await collect(
       operationToAgUiRun(feed(stream), { runId: 'op-2', threadId: 't' }),
@@ -257,22 +304,37 @@ describe('operationToAgUiRun coalescer', () => {
     expect(out[0]!.type).toBe(EventType.RUN_STARTED)
     expect((out[0] as any).runId).toBe('op-2')
     expect(out[1]!.type).toBe(EventType.TOOL_CALL_RESULT)
-    expect(typesOf(out).filter((t) => t === EventType.RUN_STARTED)).toHaveLength(1)
+    expect(
+      typesOf(out).filter((t) => t === EventType.RUN_STARTED),
+    ).toHaveLength(1)
     expect(out.at(-1)!.type).toBe(EventType.RUN_FINISHED)
   })
 
   it('carries the terminal interrupt outcome onto the single RUN_FINISHED', async () => {
     const stream: Array<StreamChunk> = [
-      { type: EventType.RUN_STARTED, runId: 'r1', threadId: 't', timestamp: 0 } as StreamChunk,
+      {
+        type: EventType.RUN_STARTED,
+        runId: 'r1',
+        threadId: 't',
+        timestamp: 0,
+      } as StreamChunk,
       runFinished({}),
-      { type: EventType.RUN_STARTED, runId: 'r2', threadId: 't', timestamp: 0 } as StreamChunk,
+      {
+        type: EventType.RUN_STARTED,
+        runId: 'r2',
+        threadId: 't',
+        timestamp: 0,
+      } as StreamChunk,
       runFinished({
         outcome: {
           type: 'interrupt',
           interrupts: [{ id: 'i1', reason: 'tool_call', toolCallId: 'c1' }],
         },
       }),
-      custom(HARNESS_EVENTS.operationFinished, { operationId: 'op-1', status: 'interrupted' }),
+      custom(HARNESS_EVENTS.operationFinished, {
+        operationId: 'op-1',
+        status: 'interrupted',
+      }),
     ]
     const out = await collect(operationToAgUiRun(feed(stream)))
     const finished = out.filter((e) => e.type === EventType.RUN_FINISHED)
@@ -409,7 +471,8 @@ describe('createAgUiHandler', () => {
       ),
     ).toBe(true)
     const interrupted = events1.find(
-      (e) => e.type === EventType.RUN_FINISHED && e.outcome?.type === 'interrupt',
+      (e) =>
+        e.type === EventType.RUN_FINISHED && e.outcome?.type === 'interrupt',
     )
     expect(interrupted).toBeDefined()
     expect(execute).not.toHaveBeenCalled()

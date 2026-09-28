@@ -20,8 +20,9 @@ test('config form reads and writes ConfigOption schemas', async ({ page }) => {
   await page.waitForTimeout(500)
   const res = await page.request.get('/api/config?threadId=settings')
   const body = await res.json()
-  const toneValue = body.options.find((o: { key: string }) => o.key === 'tone')
-    .value
+  const toneValue = body.options.find(
+    (o: { key: string }) => o.key === 'tone',
+  ).value
   expect(toneValue).toBe('formal')
 })
 
@@ -29,7 +30,9 @@ test('spend dashboard shows live token usage after a run', async ({ page }) => {
   const threadId = `spend-${Date.now()}`
   await page.goto(`/sessions/${threadId}`)
   await page.getByRole('button', { name: 'Start triage demo' }).click()
-  await expect(page.getByText('Approval required', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText('Approval required', { exact: true }),
+  ).toBeVisible()
 
   // Client-side nav (no reload) so the in-memory TanStack DB projection survives.
   await page.getByRole('link', { name: 'Spend' }).click()
@@ -52,5 +55,7 @@ test('run history lists a run and replays it into the session view', async ({
   await expect(page.getByText("I'll pull up that ticket first.")).toBeVisible()
   await expect(page.getByText('lookup_ticket').first()).toBeVisible()
   // The pending approval is restored from the live snapshot.
-  await expect(page.getByText('Approval required', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText('Approval required', { exact: true }),
+  ).toBeVisible()
 })

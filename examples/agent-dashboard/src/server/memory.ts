@@ -26,7 +26,11 @@ export function readMemory(threadId: string, key: string): string | undefined {
   return store[threadId]?.[key]
 }
 
-export function writeMemory(threadId: string, key: string, value: string): void {
+export function writeMemory(
+  threadId: string,
+  key: string,
+  value: string,
+): void {
   ;(store[threadId] ??= {})[key] = value
   flush()
 }

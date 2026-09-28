@@ -6,10 +6,21 @@ export const Route = createFileRoute('/config')({
 })
 
 type ConfigOption =
-  | { type: 'select'; options: Array<string>; default: string; description?: string }
+  | {
+      type: 'select'
+      options: Array<string>
+      default: string
+      description?: string
+    }
   | { type: 'boolean'; default: boolean; description?: string }
   | { type: 'text'; default: string; description?: string }
-  | { type: 'number'; default: number; min?: number; max?: number; description?: string }
+  | {
+      type: 'number'
+      default: number
+      min?: number
+      max?: number
+      description?: string
+    }
 
 interface ConfigEntry {
   key: string
@@ -27,7 +38,8 @@ function Config() {
     options: Array<ConfigEntry>
   }>({
     queryKey: ['config', THREAD],
-    queryFn: () => fetch(`/api/config?threadId=${THREAD}`).then((r) => r.json()),
+    queryFn: () =>
+      fetch(`/api/config?threadId=${THREAD}`).then((r) => r.json()),
   })
 
   const setValue = useMutation({

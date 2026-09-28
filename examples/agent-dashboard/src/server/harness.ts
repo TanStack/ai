@@ -32,13 +32,28 @@ function turn(options: {
 }): Array<StreamChunk> {
   const now = Date.now()
   const chunks: Array<StreamChunk> = [
-    { type: EventType.RUN_STARTED, runId: id('run'), threadId: 't', timestamp: now },
+    {
+      type: EventType.RUN_STARTED,
+      runId: id('run'),
+      threadId: 't',
+      timestamp: now,
+    },
   ]
   if (options.text) {
     const messageId = id('msg')
     chunks.push(
-      { type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant', timestamp: now },
-      { type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta: options.text, timestamp: now },
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId,
+        role: 'assistant',
+        timestamp: now,
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId,
+        delta: options.text,
+        timestamp: now,
+      },
       { type: EventType.TEXT_MESSAGE_END, messageId, timestamp: now },
     )
   }
@@ -57,7 +72,11 @@ function turn(options: {
         delta: JSON.stringify(options.tool.args),
         timestamp: now,
       } as StreamChunk,
-      { type: EventType.TOOL_CALL_END, toolCallId, timestamp: now } as StreamChunk,
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId,
+        timestamp: now,
+      } as StreamChunk,
     )
   }
   chunks.push({
@@ -65,7 +84,9 @@ function turn(options: {
     runId: 'run',
     threadId: 't',
     timestamp: now,
-    usage: [{ inputTokens: options.inputTokens, outputTokens: options.outputTokens }],
+    usage: [
+      { inputTokens: options.inputTokens, outputTokens: options.outputTokens },
+    ],
     metadata: {
       tanstack: {
         finishReason: options.tool ? 'tool_calls' : 'stop',

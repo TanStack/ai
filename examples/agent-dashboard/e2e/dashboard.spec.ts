@@ -18,7 +18,9 @@ test('streams a session and approves a tool call mid-run', async ({ page }) => {
   ).toBeVisible()
 
   // The approval card appears (the run paused on the interrupt).
-  await expect(page.getByText('Approval required', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText('Approval required', { exact: true }),
+  ).toBeVisible()
   await expect(page.getByText('send_reply').first()).toBeVisible()
 
   // Spend meter is live (tokens accrued from the stream).
@@ -28,5 +30,7 @@ test('streams a session and approves a tool call mid-run', async ({ page }) => {
   await page.getByRole('button', { name: 'Approve', exact: true }).click()
 
   await expect(page.getByText(/Sent ✅/)).toBeVisible()
-  await expect(page.getByText('Approval required', { exact: true })).toHaveCount(0)
+  await expect(
+    page.getByText('Approval required', { exact: true }),
+  ).toHaveCount(0)
 })

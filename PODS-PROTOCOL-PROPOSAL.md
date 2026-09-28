@@ -26,7 +26,7 @@ of the harness PR stack).
 **Design need.** The dashboard's injection model (design §5.4) calls a single
 named tool deterministically, with **no model turn and zero tokens**
 (`injectToolCall(pod, tool, args)`), and posts the result to the stream. This is
-the *default* trigger path (timers, webhooks, "run now").
+the _default_ trigger path (timers, webhooks, "run now").
 
 **Current reality.** Every tool call originates from a model `chat()` turn. The
 input ops are fixed:
@@ -42,6 +42,7 @@ user-initiated actions outside a model turn and return a `Receipt` — this is t
 shape to copy.
 
 **Proposal.**
+
 - Add input op `{ op: 'tool', name: string, args: unknown }` to `INPUT_OPS`
   (`protocol.ts:37`) and a case in `applyInput()` (`protocol.ts:119`) that
   resolves the tool, validates `args` against its schema, invokes
@@ -51,7 +52,7 @@ shape to copy.
   the stream like any tool result (reuse `OperationImpl`/`SessionFeed`).
 
 **Open questions for you.** Should this reuse the command machinery outright
-(register injectable tools *as* commands) rather than a parallel op? What runs the
+(register injectable tools _as_ commands) rather than a parallel op? What runs the
 tool's `needsApproval` gate on the injection path — does an injected tool that
 needs approval still raise an interrupt?
 
@@ -73,6 +74,7 @@ expose?: { agents?: ReadonlyArray<...> }   // define.ts:58
 no visibility concept and no plugin/discovered tools.
 
 **Proposal.**
+
 - Add `expose?: { tools?: ReadonlyArray<string> }` to `HarnessConfig`
   (`define.ts`), defaulting to private (owner-only).
 - Add `session.tools()` mirroring `session.commands()` (`session.ts:562`).
@@ -109,6 +111,7 @@ queue is drained only on the host's `/api/host/stream` reconnect
   delivered.
 
 **Proposal / decision needed from you.** Pick one:
+
 - **(a)** Accept a minimal, additive relay change: one new frame type
   (`harness.inject`) enqueued through the existing `sendToHost()` path. Smallest
   possible surface; keeps offline semantics correct. (Recommended — the
@@ -130,6 +133,7 @@ for agent resume chains (`session.ts:163`), passed to `chat({ parentRunId })`.
 `parentEventId`, no `causedByInputId`, no `depth`.
 
 **Proposal.**
+
 - Extend the feed/`SessionEvent` with `parentEventId?`, `causedByInputId?`, and a
   monotonically-increasing `depth` set when an operation is spawned in reaction to
   another event.
