@@ -1,13 +1,9 @@
 import { createInterface } from 'node:readline'
+import { createSessionView } from '@tanstack/ai-harness/view'
 import { handleLine } from './commands'
-import {
-  applyEvent,
-  approvalQuestion,
-  resolveAll,
-  waitIdle,
-} from './session-view'
+import { createPrinter } from './printer'
+import { approvalQuestion, openUrl, resolveAll, waitIdle } from './session-view'
 import type { HarnessSession } from '@tanstack/ai-harness'
-import type { ViewEntry } from './session-view'
 
 interface Output {
   write: (text: string) => unknown
@@ -17,50 +13,27 @@ interface Output {
  * The line mode, for piped input: one message or command per line. Each
  * line waits for the turn it started. When a turn stops for approval, the
  * next line answers it (`y` approves, anything else rejects).
+ *
+ * `openSignIns`: open sign-in links in the browser (for an interactive terminal).
  */
 export async function runLines(
   session: HarnessSession,
   input: NodeJS.ReadableStream,
   stdout: Output,
-): Promise<void> {
-  const reader = new AbortController()
-  let entries: Array<ViewEntry> = []
-  // True while streamed text has no line break at its end yet.
-  let midLine = false
-  const line = (text: string) => {
-    if (midLine) stdout.write('\n')
-    midLine = false
-    stdout.write(`${text}\n`)
-  }
-  const printing = (async () => {
-    for await (const entry of session.events({
-      from: session.snapshot().cursor,
-      signal: reader.signal,
-    })) {
-      const next = applyEvent(entries, entry)
-      const last = next.at(-1)
-      if (next === entries || !last) continue
-      // Print the growth of the last assistant entry, or each new entry.
-      const previous = entries.at(-1)
-      if (
-        last.kind === 'assistant' &&
-        previous?.kind === 'assistant' &&
-        previous.operationId === last.operationId
-      ) {
-        stdout.write(last.text.slice(previous.text.length))
-        midLine = true
-      } else if (last.kind === 'assistant') {
-        if (midLine) stdout.write('\n')
-        stdout.write(last.text)
-        midLine = true
-      } else if (next.length > entries.length) {
-        // Only new entries print. An earlier entry that changed (a child's
-        // answer building up) prints later, in its finish line.
-        line(`[${last.text}]`)
-      }
-      entries = next
-    }
-  })()
+  options: { openSignIns?: boolean } = {},
+) {
+  const view = createSessionView(session)
+  const printer = createPrinter((text) => stdout.write(text))
+  await view.ready
+  // Line mode prints only what happens from now on.
+  printer.mark(view.store.get())
+  const printing = view.store.subscribe((state) => printer.print(state))
+  const stopOpening = options.openSignIns
+    ? view.on('signIn', (signIn) => {
+        if (signIn.url) openUrl(signIn.url)
+      })
+    : () => {}
+  const line = printer.line
 
   const lines = createInterface({ input, crlfDelay: Infinity })
   const pendingLater: Array<Promise<void>> = []
@@ -89,7 +62,9 @@ export async function runLines(
   lines.close()
   await Promise.allSettled(pendingLater)
   await waitIdle(session)
-  reader.abort()
-  await printing
-  if (midLine) stdout.write('\n')
+  stopOpening()
+  printing.unsubscribe()
+  printer.print(view.store.get())
+  view.dispose()
+  printer.end()
 }

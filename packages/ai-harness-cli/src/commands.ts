@@ -83,7 +83,7 @@ export type LineResult =
 
 /**
  * Handle one line of user input: a slash command, a steer while a turn runs,
- * or a new prompt. Shared by the interactive UI and the line mode.
+ * or a new prompt. Used by the line mode, and by any UI that calls it.
  */
 export async function handleLine(
   session: HarnessSession,
@@ -136,8 +136,8 @@ export async function handleLine(
               ? 'This harness has no settings.'
               : entries
                   .map(
-                    ([name, entry]) =>
-                      `  ${name} = ${JSON.stringify(entry.value)}`,
+                    ([option, entry]) =>
+                      `  ${option} = ${JSON.stringify(entry.value)}`,
                   )
                   .join('\n'),
         }

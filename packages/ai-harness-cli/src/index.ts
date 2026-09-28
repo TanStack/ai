@@ -139,7 +139,9 @@ export async function runCli(
         view.dispose()
       }
     } else {
-      await runLines(session, stdin, stdout)
+      await runLines(session, stdin, stdout, {
+        openSignIns: Boolean(stdin.isTTY),
+      })
     }
     return EXIT.ok
   } catch (error) {

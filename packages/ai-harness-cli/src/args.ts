@@ -15,7 +15,8 @@ export interface CliArgs {
 
 export const USAGE = `Usage: <your-cli> [options]
 
-With no options, starts the interactive UI.
+With no options in a terminal, starts the UI of this CLI, if it has one.
+Otherwise, and for piped input, reads one message or command per line.
 
 Options:
   -p, --print <prompt>   Run one prompt, print the answer, and exit

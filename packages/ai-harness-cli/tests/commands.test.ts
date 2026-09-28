@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, defineAgent } from '@tanstack/ai'
 import {
-  HARNESS_EVENTS,
   configOption,
   createHarnessHost,
   defineCommand,
@@ -11,9 +10,7 @@ import {
 } from '@tanstack/ai-harness'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { HELP_TEXT, handleLine, parseAnswer } from '../src/commands'
-import { applyEvent } from '../src/session-view'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
-import type { SessionEvent } from '@tanstack/ai-harness'
 
 /** A model that answers `echo: <text>`, or waits for cancel on "wait". */
 function model(): AnyTextAdapter {
@@ -21,6 +18,7 @@ function model(): AnyTextAdapter {
     kind: 'text',
     name: 'mock',
     model: 'test-model',
+    // `~types` holds types only. Its values are never read, so they are casts.
     '~types': {
       providerOptions: {} as Record<string, unknown>,
       inputModalities: ['text'] as readonly ['text'],
@@ -36,7 +34,7 @@ function model(): AnyTextAdapter {
       systemPromptMetadata: undefined as never,
     },
     structuredOutput: async () => ({ data: {}, rawText: '{}' }),
-    chatStream: (options: any) =>
+    chatStream: (options) =>
       (async function* (): AsyncGenerator<StreamChunk> {
         const said = String(options.messages.at(-1)?.content ?? '')
         const now = Date.now()
@@ -47,7 +45,7 @@ function model(): AnyTextAdapter {
           timestamp: now,
         }
         if (said === 'wait') {
-          const signal: AbortSignal | undefined =
+          const signal =
             options.abortController?.signal ?? options.request?.signal
           await new Promise<void>((resolve) => {
             if (!signal || signal.aborted) return resolve()
@@ -243,69 +241,5 @@ describe('parseAnswer', () => {
     expect(parseAnswer('yes', { type: 'string' })).toBe('yes')
     expect(parseAnswer('{"n":2}', undefined)).toEqual({ n: 2 })
     expect(parseAnswer('', undefined)).toBeUndefined()
-  })
-})
-
-describe('applyEvent', () => {
-  const entry = (event: StreamChunk, operationId = 'op'): SessionEvent => ({
-    cursor: '1',
-    operationId,
-    event,
-  })
-  const custom = (name: string, value: unknown): StreamChunk => ({
-    type: EventType.CUSTOM,
-    name,
-    value,
-    timestamp: 1,
-  })
-
-  it('shows questions, sign-ins, resumes, errors, and child agents', () => {
-    const events: Array<StreamChunk> = [
-      custom(HARNESS_EVENTS.question, { message: 'Sure?' }),
-      custom(HARNESS_EVENTS.authRequired, {
-        connector: 'gh',
-        url: 'https://gh.example/device',
-        userCode: 'ABCD',
-      }),
-      custom(HARNESS_EVENTS.authRequired, { connector: 'svc' }),
-      custom(HARNESS_EVENTS.operationResumed, {}),
-      { type: EventType.RUN_ERROR, message: 'model down', timestamp: 1 },
-      {
-        type: EventType.SUBAGENT_STARTED,
-        subagentRunId: 'child',
-        name: 'painter',
-        timestamp: 1,
-      } as StreamChunk,
-    ]
-    const shown = events.reduce(
-      (entries, event) => applyEvent(entries, entry(event)),
-      [] as ReturnType<typeof applyEvent>,
-    )
-    expect(shown.map((item) => item.text)).toEqual([
-      '? Sure?',
-      'Sign in to gh. Open https://gh.example/device and enter the code ABCD.',
-      'Sign in to svc. Run /connect svc.',
-      'Resumed a turn that a crash stopped.',
-      'Error: model down',
-      'agent painter started',
-    ])
-    // Child text builds up on the agent entry without adding a line, and an
-    // unknown custom event changes nothing.
-    const withText = applyEvent(
-      shown,
-      entry({
-        type: EventType.TEXT_MESSAGE_CONTENT,
-        messageId: 'x',
-        delta: 'child text',
-        subagentRunId: 'child',
-        timestamp: 1,
-      } as StreamChunk),
-    )
-    expect(withText).toHaveLength(shown.length)
-    expect(withText.at(-1)).toMatchObject({
-      kind: 'agent',
-      answer: 'child text',
-    })
-    expect(applyEvent(shown, entry(custom('other.event', {})))).toBe(shown)
   })
 })
