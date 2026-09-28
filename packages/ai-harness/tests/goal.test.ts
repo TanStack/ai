@@ -47,6 +47,7 @@ async function start(options: {
   maxRounds?: number
   tools?: Array<AnyTool>
   persistence?: ReturnType<typeof memoryPersistence>
+  busy?: 'queue' | 'reject'
 }) {
   const main = mockAdapter(options.replies)
   const scripted = scriptedJudge(options.verdicts ?? [])
@@ -64,6 +65,7 @@ async function start(options: {
       name: 'test/goal',
       adapter: main.adapter,
       tools: options.tools ?? [],
+      busy: options.busy,
       plugins: () => [
         goal({
           judge: options.judge ?? scripted.judge,
@@ -136,6 +138,25 @@ describe('goal', () => {
     expect(met).toEqual([{ goal: 'all tests pass', reason: 'All tests pass.' }])
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(session.snapshot().queuedTurns).toBe(0)
+    await host.close()
+  })
+
+  it('keeps going on a harness that rejects prompts while busy', async () => {
+    const { host, session, calls } = await start({
+      replies: [() => text('try one'), () => text('done')],
+      verdicts: [
+        { met: false, reason: 'Not yet.' },
+        { met: true, reason: 'Done.' },
+      ],
+      busy: 'reject',
+    })
+
+    await session.command('goal', 'finish')
+    await waitForStatus(
+      session,
+      'Goal: finish\nStatus: met, round 2 of 20.\nLast check: Done.',
+    )
+    expect(calls).toHaveLength(2)
     await host.close()
   })
 

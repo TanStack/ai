@@ -691,7 +691,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       principal: this.principal,
       snapshot: () => this.snapshot(),
       prompt: (text) => {
-        this.prompt(text).then(
+        // A plugin turn always waits its turn. It cannot see a busy rejection.
+        this.prompt(text, { busy: 'queue' }).then(
           () => {},
           () => {},
         )
