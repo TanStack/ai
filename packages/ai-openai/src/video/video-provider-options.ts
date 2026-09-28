@@ -7,10 +7,7 @@
  */
 
 import { durationToSeconds } from '@tanstack/ai/adapters'
-import type {
-  DurationOptions,
-  VideoDurationSpell,
-} from '@tanstack/ai/adapters'
+import type { DurationOptions, VideoDurationSpell } from '@tanstack/ai/adapters'
 
 /**
  * Supported video sizes for OpenAI Sora video generation.
