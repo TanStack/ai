@@ -113,6 +113,7 @@ import type {
 import type {
   ApprovalRequest,
   ClientToolRequest,
+  McpInputRequest,
   ToolResult,
 } from './tools/tool-calls'
 import type { ApprovalSchemaConfig } from './tools/tool-definition'
@@ -148,6 +149,7 @@ import type {
   ToolCallEndEvent,
   ToolCallResultEvent,
   ToolCallStartEvent,
+  ToolInputResponse,
   UIMessage,
 } from '../../types'
 import type {
@@ -887,6 +889,7 @@ class TextEngine<
   private readonly resumeClientToolErrors = new Map<string, string>()
   private readonly resumeDeniedToolResults = new Map<string, unknown>()
   private readonly resumeCancelledToolCallIds = new Set<string>()
+  private readonly resumeInputResponses = new Map<string, ToolInputResponse>()
   private readonly resumeGenericInterrupts = new Map<
     string,
     ChatResumeGenericResolution
@@ -2203,6 +2206,7 @@ class TextEngine<
         clientToolErrors: this.resumeClientToolErrors,
         deniedToolResults: this.resumeDeniedToolResults,
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
+        inputResponses: this.resumeInputResponses,
       },
     )
 
@@ -2227,11 +2231,12 @@ class TextEngine<
       }),
     )
 
-    if (
+    const pauseForDecision =
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0 ||
+      executionResult.inputRequired.length > 0 ||
       executionResult.subagentInterrupts.length > 0
-    ) {
+    if (pauseForDecision) {
       this.discardDeferredToolCallRunFinishedChunks()
 
       if (allResults.length > 0) {
@@ -2248,6 +2253,7 @@ class TextEngine<
         executionResult.needsApproval,
         executionResult.needsClientExecution,
         [],
+        executionResult.inputRequired,
         executionResult.subagentInterrupts,
       )
       this.setToolPhase(emitted ? 'wait' : 'stop')
@@ -2388,6 +2394,7 @@ class TextEngine<
         clientToolErrors: this.resumeClientToolErrors,
         deniedToolResults: this.resumeDeniedToolResults,
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
+        inputResponses: this.resumeInputResponses,
       },
     )
 
@@ -2435,16 +2442,18 @@ class TextEngine<
         finishEvent,
         toolCalls,
         afterToolRequests,
+        executionResult.inputRequired,
       )
       this.setToolPhase('wait')
       return
     }
 
-    if (
+    const pauseForDecision =
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0 ||
+      executionResult.inputRequired.length > 0 ||
       executionResult.subagentInterrupts.length > 0
-    ) {
+    if (pauseForDecision) {
       if (allResults.length > 0) {
         for (const chunk of afterToolBoundaryChunks) {
           yield* this.pipeThroughMiddleware(chunk)
@@ -2456,6 +2465,7 @@ class TextEngine<
         executionResult.needsApproval,
         executionResult.needsClientExecution,
         [],
+        executionResult.inputRequired,
         executionResult.subagentInterrupts,
       )
       this.setToolPhase(emitted ? 'wait' : 'stop')
@@ -2874,6 +2884,7 @@ class TextEngine<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     > = [],
     genericInterruptIds: ReadonlyArray<string> = [],
+    inputRequired: ReadonlyArray<McpInputRequest> = [],
     childInterrupts: ReadonlyArray<Interrupt> = [],
   ): Array<Interrupt> {
     const interrupts: Array<Interrupt> = []
@@ -2992,6 +3003,30 @@ class TextEngine<
       })
     }
 
+    for (const pendingInput of inputRequired) {
+      const id = `mcp_input_${pendingInput.toolCallId}`
+      interrupts.push({
+        id,
+        reason: 'mcp_input',
+        message: `Input required to run ${pendingInput.toolName}`,
+        toolCallId: pendingInput.toolCallId,
+        metadata: {
+          toolName: pendingInput.toolName,
+          // A generic binding with no definition id. `useChat` shows it as a
+          // generic interrupt with `resolveInterrupt` and `cancel`. The answer
+          // is not validated here. The MCP server checks it.
+          [interruptBindingMetadataKey]: {
+            v: INTERRUPT_BINDING_VERSION,
+            kind: 'generic',
+            interruptId: id,
+          },
+          [INTERRUPT_PAYLOAD_METADATA_KEY]: {
+            kind: pendingInput.kind,
+            request: pendingInput.request,
+          },
+        },
+      })
+    }
     // A subagent tool call raised these. They keep their `subagentRunId`.
     interrupts.push(...childInterrupts)
 
@@ -3016,6 +3051,7 @@ class TextEngine<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     > = [],
     genericInterruptIds?: ReadonlyArray<string>,
+    inputRequired: ReadonlyArray<McpInputRequest> = [],
     childInterrupts?: ReadonlyArray<Interrupt>,
   ): StreamChunk {
     return {
@@ -3028,6 +3064,7 @@ class TextEngine<
           clientRequests,
           genericRequests,
           genericInterruptIds,
+          inputRequired,
           childInterrupts,
         ),
       },
@@ -3178,6 +3215,7 @@ class TextEngine<
     genericRequests: ReadonlyArray<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     > = [],
+    inputRequired: ReadonlyArray<McpInputRequest> = [],
     childInterrupts: ReadonlyArray<Interrupt> = [],
   ): AsyncGenerator<StreamChunk, boolean, void> {
     yield* this.emitSyntheticRunStarted(finishEvent)
@@ -3192,6 +3230,7 @@ class TextEngine<
         clientRequests,
         genericRequests,
         genericInterruptIds,
+        inputRequired,
         childInterrupts,
       ),
     )
@@ -3228,6 +3267,7 @@ class TextEngine<
     requests?: ReadonlyArray<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     >,
+    inputRequired: ReadonlyArray<McpInputRequest> = [],
   ): AsyncGenerator<StreamChunk, boolean, void> {
     this.middlewareCtx.phase = phase
     const boundaryRequests =
@@ -3263,6 +3303,7 @@ class TextEngine<
       actionable.approvals,
       actionable.clientRequests,
       boundaryRequests,
+      inputRequired,
     )
     return true
   }
@@ -4490,6 +4531,26 @@ class TextEngine<
         : []
     })
     pending.push(...genericPending)
+    // An `mcp_input_*` answer is valid only for a server tool call that is
+    // still pending in history.
+    const mcpInputCallIds = new Map<string, string>()
+    for (const toolCall of pendingToolCalls) {
+      const interruptId = `mcp_input_${toolCall.id}`
+      if (!resumeInterruptIds.has(interruptId)) continue
+      if (!toolsByCallId.get(toolCall.id)?.execute) continue
+      mcpInputCallIds.set(interruptId, toolCall.id)
+      pending.push({
+        interruptId,
+        payload: { id: interruptId },
+        binding: {
+          v: INTERRUPT_BINDING_VERSION,
+          kind: 'generic',
+          interruptId,
+          interruptedRunId,
+          generation: 0,
+        },
+      })
+    }
     const validated = await validateInterruptResumeBatch({
       threadId: this.threadId,
       interruptedRunId,
@@ -4519,6 +4580,16 @@ class TextEngine<
     })
 
     const genericResolutions = validated.resumeToolState.genericInterrupts
+    for (const [interruptId, toolCallId] of mcpInputCallIds) {
+      const resolution = genericResolutions?.get(interruptId)
+      if (!resolution) continue
+      this.resumeInputResponses.set(
+        toolCallId,
+        resolution.status === 'resolved'
+          ? { status: 'resolved', payload: resolution.payload }
+          : { status: 'cancelled' },
+      )
+    }
     if (genericPending.length > 0 && genericResolutions) {
       const resolutions = genericPending
         .sort((left, right) => {
@@ -4929,6 +5000,7 @@ class TextEngine<
         results: Array<ToolResult>
         needsApproval: Array<ApprovalRequest>
         needsClientExecution: Array<ClientToolRequest>
+        inputRequired: Array<McpInputRequest>
         subagentInterrupts: Array<Interrupt>
       },
       void
@@ -4939,6 +5011,7 @@ class TextEngine<
       results: Array<ToolResult>
       needsApproval: Array<ApprovalRequest>
       needsClientExecution: Array<ClientToolRequest>
+      inputRequired: Array<McpInputRequest>
       subagentInterrupts: Array<Interrupt>
     },
     void

@@ -109,13 +109,15 @@ All image adapters support these common options:
 
 #### OpenAI Models
 
-| Model              | Supported Sizes                               |
-| ------------------ | --------------------------------------------- |
-| `gpt-image-2`      | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
-| `gpt-image-1`      | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
-| `gpt-image-1-mini` | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
-| `dall-e-3`         | `1024x1024`, `1792x1024`, `1024x1792`         |
-| `dall-e-2`         | `256x256`, `512x512`, `1024x1024`             |
+| Model                    | Supported Sizes                               |
+| ------------------------ | --------------------------------------------- |
+| `gpt-image-2.5-flare`    | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
+| `gpt-image-2.5-sunburst` | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
+| `gpt-image-2`            | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
+| `gpt-image-1`            | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
+| `gpt-image-1-mini`       | `1024x1024`, `1536x1024`, `1024x1536`, `auto` |
+| `dall-e-3`               | `1024x1024`, `1792x1024`, `1024x1792`         |
+| `dall-e-2`               | `256x256`, `512x512`, `1024x1024`             |
 
 #### Gemini Native Models (NanoBanana)
 
@@ -363,7 +365,7 @@ await generateImage({
 
 | Provider       | Behavior                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **OpenAI**     | `gpt-image-2` / `gpt-image-1` / `gpt-image-1-mini` → routes to `images.edit()`, up to 16 source images plus optional mask.<br>`dall-e-2` → `images.edit()` with 1 source image only.<br>`dall-e-3` → throws (no edit support).                                                                                                                                                                                                                        |
+| **OpenAI**     | `gpt-image-2.5-flare` / `gpt-image-2.5-sunburst` / `gpt-image-2` / `gpt-image-1` / `gpt-image-1-mini` → routes to `images.edit()`, up to 16 source images plus optional mask.<br>`dall-e-2` → `images.edit()` with 1 source image only.<br>`dall-e-3` → throws (no edit support).                                                                                                                                                                                                                        |
 | **Gemini**     | Native models (`gemini-*-flash-image`, "nano-banana", etc.) → prompt parts map 1:1 onto multimodal `contents`, preserving interleaved order. Up to ~14 input images (provider limit, not enforced by the SDK).<br>Imagen models → throws (text-to-image only).                                                                                                                                                                                        |
 | **fal.ai**     | Field names resolve per endpoint from a map generated from the fal SDK's endpoint types (e.g. nano-banana edit gets `image_urls`, Fooocus masks get `mask_image_url`). Defaults for unknown endpoints: 1 input → `image_url`; multiple → `image_urls`; `role: 'mask'` → `mask_url`; `role: 'control'` → `control_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`. Override with `modelOptions` for endpoint-specific fields. |
 | **Grok**       | grok-imagine models → xAI's `/v1/images/edits` (up to 3 source images, addressed by xAI in request order; prompt sent verbatim). `role: 'mask'` / `'control'` throw (no Imagine API equivalent).                                                                                                                                                                                                     |
@@ -604,6 +606,8 @@ const result = await generateImage({
 });
 ```
 
+`gpt-image-2.5-flare` and `gpt-image-2.5-sunburst` also take `quality: "xhigh"` and `quality: "max"`.
+
 ##### DALL-E 3
 
 ```typescript
@@ -744,13 +748,15 @@ if (result.usage?.billed) {
 
 #### OpenAI Models
 
-| Model              | Images per Request |
-| ------------------ | ------------------ |
-| `gpt-image-2`      | 1-10               |
-| `gpt-image-1`      | 1-10               |
-| `gpt-image-1-mini` | 1-10               |
-| `dall-e-3`         | 1                  |
-| `dall-e-2`         | 1-10               |
+| Model                    | Images per Request |
+| ------------------------ | ------------------ |
+| `gpt-image-2.5-flare`    | 1-10               |
+| `gpt-image-2.5-sunburst` | 1-10               |
+| `gpt-image-2`            | 1-10               |
+| `gpt-image-1`            | 1-10               |
+| `gpt-image-1-mini`       | 1-10               |
+| `dall-e-3`               | 1                  |
+| `dall-e-2`               | 1-10               |
 
 #### Gemini Native Models (NanoBanana)
 
