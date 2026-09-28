@@ -289,8 +289,9 @@ describe('applyEvent', () => {
       'Error: model down',
       'agent painter started',
     ])
-    // Other child events and unknown custom events change nothing.
-    const unchanged = applyEvent(
+    // Child text builds up on the agent entry without adding a line, and an
+    // unknown custom event changes nothing.
+    const withText = applyEvent(
       shown,
       entry({
         type: EventType.TEXT_MESSAGE_CONTENT,
@@ -300,7 +301,11 @@ describe('applyEvent', () => {
         timestamp: 1,
       } as StreamChunk),
     )
-    expect(unchanged).toBe(shown)
+    expect(withText).toHaveLength(shown.length)
+    expect(withText.at(-1)).toMatchObject({
+      kind: 'agent',
+      answer: 'child text',
+    })
     expect(applyEvent(shown, entry(custom('other.event', {})))).toBe(shown)
   })
 })

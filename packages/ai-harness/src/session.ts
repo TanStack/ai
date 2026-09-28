@@ -1067,7 +1067,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         session?.capabilityBridge,
         runPlugins?.capabilityBridge,
       ].filter((bridge): bridge is AnyChatMiddleware => bridge !== undefined)
-      const subagents = this.harness.subagents
+      // Agents the model can call: the harness's own, then the plugins'.
+      const subagentList = [
+        ...(this.harness.subagents?.agents ?? []),
+        ...(session?.subagents ?? []),
+        ...(runPlugins?.subagents ?? []),
+      ]
       const picked = [
         ...(session?.adapters ?? []),
         ...(runPlugins?.adapters ?? []),
@@ -1115,10 +1120,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           ...(runPlugins?.middleware ?? []),
           this.steering(),
         ],
-        ...(subagents
+        ...(subagentList.length > 0
           ? {
               subagents: {
-                ...subagents,
+                ...this.harness.subagents,
+                agents: subagentList,
                 limits: this.limits(),
                 binding: this.binding(),
               },

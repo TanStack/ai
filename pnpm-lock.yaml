@@ -185,9 +185,15 @@ importers:
       '@tanstack/ai-anthropic':
         specifier: workspace:*
         version: link:../../packages/ai-anthropic
+      '@tanstack/ai-claude-code':
+        specifier: workspace:*
+        version: link:../../packages/ai-claude-code
       '@tanstack/ai-code-mode':
         specifier: workspace:*
         version: link:../../packages/ai-code-mode
+      '@tanstack/ai-codex':
+        specifier: workspace:*
+        version: link:../../packages/ai-codex
       '@tanstack/ai-dashboard':
         specifier: workspace:*
         version: link:../../packages/ai-dashboard
@@ -212,6 +218,12 @@ importers:
       '@tanstack/ai-persistence':
         specifier: workspace:*
         version: link:../../packages/ai-persistence
+      '@tanstack/ai-sandbox':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox
+      '@tanstack/ai-sandbox-local-process':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox-local-process
       zod:
         specifier: ^4.2.0
         version: 4.3.6
@@ -3142,6 +3154,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
+      '@tanstack/ai-harness':
+        specifier: workspace:*
+        version: link:../ai-harness
       '@tanstack/ai-persistence':
         specifier: workspace:*
         version: link:../ai-persistence

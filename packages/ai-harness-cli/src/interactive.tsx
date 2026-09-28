@@ -28,6 +28,13 @@ function Entry({ entry }: { entry: ViewEntry }) {
       return <Text color="yellow">{`  - ${entry.text}`}</Text>
     case 'notice':
       return <Text color="gray">{entry.text}</Text>
+    case 'agent': {
+      // The child's latest words, live, while it works.
+      const latest = entry.answer.replace(/\s+/g, ' ').trim().slice(-80)
+      return (
+        <Text color="magenta">{`  - ${entry.text}${latest ? `: ${latest}` : ''}`}</Text>
+      )
+    }
   }
 }
 

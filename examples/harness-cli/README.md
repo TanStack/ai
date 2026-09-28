@@ -29,6 +29,16 @@ Try these:
 - Images use `OPENAI_API_KEY`. Videos use Grok Imagine when `XAI_API_KEY` is set, and OpenAI Sora when it is not.
 - Code mode is on: read-only tools (file reads, read-only Notion and Linear tools) are `external_*` functions in one `execute_typescript` program, which runs in a QuickJS isolate. Ask: `in one program, list my Linear issues and search Notion for them`.
 
+## Hand work to Claude Code and Codex
+
+1. Sign in to the CLIs once: `claude login` and `codex login`.
+2. Start with `CODING_AGENTS=1`. If you use Codex with a ChatGPT login, also set `CODEX_MODEL` to the model in `~/.codex/config.toml`.
+3. Ask: `have claude_code create notes.md with one line, then have codex add a second line`.
+
+- Both agents work in `./playground` with your own logins. The API keys are removed from their processes.
+- The CLI shows each agent's tool calls and a finish line. `/fresh` starts new agent sessions.
+- On Windows, the Codex sandbox can block the folder (Access is denied). Then set `CODEX_SANDBOX_MODE=danger-full-access`, only for a folder you trust.
+
 ## Other modes
 
 - One prompt for scripts and CI: `pnpm --filter harness-cli-example start -p "list the files"`

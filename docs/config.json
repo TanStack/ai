@@ -827,12 +827,14 @@
         {
           "label": "Write a plugin",
           "to": "harness/plugins",
-          "addedAt": "2026-09-26"
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-09-28"
         },
         {
           "label": "Build a coding agent",
           "to": "harness/coding-agent",
-          "addedAt": "2026-09-26"
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-09-28"
         },
         {
           "label": "Auth and connectors",
@@ -848,6 +850,11 @@
           "label": "Code mode in a harness",
           "to": "harness/code-mode",
           "addedAt": "2026-09-26"
+        },
+        {
+          "label": "Delegate to coding agents",
+          "to": "harness/coding-agents",
+          "addedAt": "2026-09-28"
         },
         {
           "label": "Run agents from a harness",

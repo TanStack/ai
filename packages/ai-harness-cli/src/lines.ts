@@ -53,7 +53,9 @@ export async function runLines(
         if (midLine) stdout.write('\n')
         stdout.write(last.text)
         midLine = true
-      } else {
+      } else if (next.length > entries.length) {
+        // Only new entries print. An earlier entry that changed (a child's
+        // answer building up) prints later, in its finish line.
         line(`[${last.text}]`)
       }
       entries = next

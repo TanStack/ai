@@ -89,7 +89,7 @@ function open(session) {
 function apply(frame) {
   if (frame.type !== 'harness.event' || !current) return
   const event = frame.event
-  if (event.subagentRunId) return
+  if (event.subagentRunId) { applyChild(event); return }
   if (event.type === 'TEXT_MESSAGE_CONTENT') {
     const last = current.messages[current.messages.length - 1]
     if (last && last.kind === 'assistant' && last.op === frame.operationId) last.text += event.delta
@@ -109,6 +109,32 @@ function apply(frame) {
   }
 }
 
+// A child agent shows as one block under the message it came from: its name,
+// status, tool calls, and text.
+function applyChild(event) {
+  const children = current.children || (current.children = new Map())
+  if (event.type === 'SUBAGENT_STARTED') {
+    const node = { kind: 'agent', name: event.name || 'agent', status: 'working', tools: [], text: '' }
+    children.set(event.subagentRunId, node)
+    current.messages.push(node)
+    return
+  }
+  const node = children.get(event.subagentRunId)
+  if (!node) return
+  if (event.type === 'TEXT_MESSAGE_CONTENT') node.text += event.delta
+  else if (event.type === 'TOOL_CALL_START') node.tools.push(event.toolCallName)
+  else if (event.type === 'SUBAGENT_FINISHED') node.status = 'done'
+  else if (event.type === 'SUBAGENT_ERROR') { node.status = 'failed'; node.text += (node.text ? '\\n' : '') + event.message }
+}
+
+function messageNode(message) {
+  if (message.kind !== 'agent') return $('div', { class: 'msg ' + message.kind }, message.text)
+  return $('div', { class: 'msg agent ' + message.status },
+    $('strong', {}, 'agent ' + message.name + ' (' + message.status + ')'),
+    ...(message.tools.length ? [$('div', { class: 'tools' }, message.tools.map((tool) => 'tool ' + tool).join(', '))] : []),
+    ...(message.text ? [$('div', {}, message.text)] : []))
+}
+
 async function send(input) {
   if (input.op === 'prompt' || input.op === 'steer') current.messages.push({ kind: 'user', text: input.message })
   const receipt = await api(current.path + '/input', { method: 'POST', body: JSON.stringify({ input }) })
@@ -119,7 +145,7 @@ async function send(input) {
 function draw() {
   const main = document.getElementById('main')
   if (!current) { main.replaceChildren($('p', { class: 'muted' }, 'Pick a session.')); return }
-  const log = $('div', { class: 'log' }, ...current.messages.map((message) => $('div', { class: 'msg ' + message.kind }, message.text)))
+  const log = $('div', { class: 'log' }, ...current.messages.map(messageNode))
   const actions = []
   if (current.interrupts.length) {
     const decide = (approved) => { const resume = current.interrupts.map((interrupt) => ({ interruptId: interrupt.id, status: 'resolved', payload: approved })); current.interrupts = []; send({ op: 'resolve', resume }) }
@@ -183,6 +209,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   .msg { white-space: pre-wrap; padding: 10px 12px; border-radius: 10px; background: var(--panel); max-width: 80ch; }
   .msg.user { align-self: flex-end; background: #1d3557; } .msg.tool, .msg.notice { color: var(--muted); background: transparent; padding: 2px 12px; }
   .msg.error { border: 1px solid #e5484d; }
+  .msg.agent { border-left: 3px solid #7c5cff; display: flex; flex-direction: column; gap: 4px; } .msg.agent.failed { border-left-color: #e5484d; } .msg.agent .tools { color: var(--muted); font-size: 0.9em; }
   code { background: var(--panel); padding: 2px 6px; border-radius: 6px; }
   @media (max-width: 720px) { #app { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--line); } }
 </style>

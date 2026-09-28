@@ -12,7 +12,9 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-acp": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
+    "@tanstack/ai-claude-code": "workspace:*",
     "@tanstack/ai-code-mode": "workspace:*",
+    "@tanstack/ai-codex": "workspace:*",
     "@tanstack/ai-dashboard": "workspace:*",
     "@tanstack/ai-grok": "workspace:*",
     "@tanstack/ai-harness": "workspace:*",
@@ -21,6 +23,8 @@
     "@tanstack/ai-mcp": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
+    "@tanstack/ai-sandbox": "workspace:*",
+    "@tanstack/ai-sandbox-local-process": "workspace:*",
     "zod": "^4.2.0"
   },
   "devDependencies": {

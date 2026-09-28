@@ -11,11 +11,20 @@ import {
   workspaceTools,
 } from '@tanstack/ai-harness/plugins'
 import { anthropicText } from '@tanstack/ai-anthropic'
+import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { codeMode } from '@tanstack/ai-code-mode/harness'
+import { codexText } from '@tanstack/ai-codex'
 import { mcpConnector } from '@tanstack/ai-mcp/connector'
 import { grokVideo } from '@tanstack/ai-grok'
 import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
 import { openaiText, openaiVideo } from '@tanstack/ai-openai'
+import {
+  defineSandbox,
+  defineWorkspace,
+  localSource,
+} from '@tanstack/ai-sandbox'
+import { codingAgents } from '@tanstack/ai-sandbox/harness'
+import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { z } from 'zod'
 import { imageAgent, videoAgent } from './media'
 import type { AnyTextAdapter } from '@tanstack/ai'
@@ -149,6 +158,51 @@ const linear = mcpConnector({
   url: 'https://mcp.linear.app/mcp',
 })
 
+// With CODING_AGENTS=1, the lead model can hand coding work to Claude Code and
+// Codex. They work in ./playground with your own `claude login` and
+// `codex login`, so the API keys are removed from their processes.
+const coding =
+  process.env.CODING_AGENTS === '1'
+    ? [
+        codingAgents({
+          sandbox: defineSandbox({
+            id: 'playground',
+            provider: localProcessSandbox({
+              dir: root,
+              scrubEnv: ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY'],
+            }),
+            workspace: defineWorkspace({ source: localSource(root) }),
+          }),
+          agents: {
+            claude_code: {
+              adapter: claudeCodeText('claude-opus-4-8', {
+                authMode: 'host',
+                permissionMode: 'acceptEdits',
+              }),
+              description:
+                'Claude Code. Larger changes, refactors, and reviews in ./playground.',
+            },
+            codex: {
+              // A ChatGPT login supports only some models. Set CODEX_MODEL to the
+              // model in ~/.codex/config.toml.
+              adapter: codexText(process.env.CODEX_MODEL || 'gpt-5.3-codex', {
+                authMode: 'host',
+                // On Windows, the Codex sandbox can block the folder (Access is
+                // denied). Then set CODEX_SANDBOX_MODE=danger-full-access, only for
+                // a folder you trust.
+                sandboxMode:
+                  process.env.CODEX_SANDBOX_MODE === 'danger-full-access'
+                    ? 'danger-full-access'
+                    : 'workspace-write',
+                approvalPolicy: 'never',
+              }),
+              description: 'Codex. Quick fixes and tests in ./playground.',
+            },
+          },
+        }),
+      ]
+    : []
+
 export const assistant = defineHarness({
   name: 'example/coder',
   description: 'A small coding agent that works in ./playground',
@@ -174,5 +228,6 @@ export const assistant = defineHarness({
     // The program runs in a QuickJS isolate. Any @tanstack/ai-isolate-* driver
     // works here.
     codeMode({ driver: createQuickJSIsolateDriver() }),
+    ...coding,
   ],
 })

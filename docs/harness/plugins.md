@@ -33,6 +33,7 @@ Add it with `plugins: () => [today]` in `defineHarness`. `setup` runs once per s
 - `middleware`: chat middleware, the same type as `chat({ middleware })`.
 - `generationMiddleware`: middleware for the activities agents call.
 - `agents`: agents added to `session.agents`.
+- `subagents`: agents the model can call as tools. They are also added to `session.agents`. [Delegate to coding agents](./coding-agents) uses them.
 - `commands`: user actions, see below.
 - `config`: session settings, see below.
 - `contribute`: items for another plugin's extension point.

@@ -1,2 +1,4 @@
 .env
 playground/media/
+# Marker the sandbox writes into the workspace.
+playground/.tanstack-projected-*

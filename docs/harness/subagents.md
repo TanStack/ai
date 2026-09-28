@@ -1,7 +1,7 @@
 ---
 title: Run agents from a harness
 id: harness-subagents
-order: 10
+order: 11
 description: "Start typed agents from commands and plugins, run them in groups, call a whole harness as a child, and keep the tree within limits."
 keywords:
   - tanstack ai

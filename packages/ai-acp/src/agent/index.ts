@@ -40,9 +40,11 @@ function promptText(
 
 /** One AG-UI chunk as an ACP session update, or `undefined` to skip it. */
 export function toSessionUpdate(chunk: StreamChunk): SessionUpdate | undefined {
-  // Child agent work stays inside the harness. ACP shows the main turn.
-  if ('subagentRunId' in chunk && chunk.subagentRunId) return undefined
+  // A child agent's text and thoughts stay out of the main message. Its tool
+  // calls (the edits and commands it runs) show up like the lead's own.
+  const fromChild = 'subagentRunId' in chunk && Boolean(chunk.subagentRunId)
   if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+    if (fromChild) return undefined
     return {
       sessionUpdate: 'agent_message_chunk',
       messageId: chunk.messageId,
@@ -50,6 +52,7 @@ export function toSessionUpdate(chunk: StreamChunk): SessionUpdate | undefined {
     }
   }
   if (chunk.type === EventType.REASONING_MESSAGE_CONTENT) {
+    if (fromChild) return undefined
     return {
       sessionUpdate: 'agent_thought_chunk',
       messageId: chunk.messageId,

@@ -90,6 +90,10 @@ A trailing `*` matches every tool that starts with the text. The last matching r
 
 The workspace tools run on your machine with your permissions. Run code you do not trust in a sandbox.
 
+## Hand work to Claude Code or Codex
+
+Your agent can also give tasks to coding agents you already use. [Delegate to coding agents](./coding-agents) shows how.
+
 ## What you have now
 
 - A terminal coding agent with file tools, approvals, modes, a todo list, and a model picker.

@@ -51,6 +51,12 @@ export interface PluginContributions {
   generationMiddleware?: ReadonlyArray<AnyGenerationMiddleware>
   /** Agents added to `session.agents`. */
   agents?: ReadonlyArray<AnyAgent>
+  /**
+   * Agents the main model can call as tools, merged into the turn's
+   * `chat({ subagents })` after `defineHarness({ subagents })`. They are
+   * also added to `session.agents`.
+   */
+  subagents?: ReadonlyArray<AnyAgent>
   /** User actions, keyed by name. Run with `session.command(name, input)`. */
   commands?: Record<string, AnyCommand>
   /** Session settings, keyed by name. Read with `ctx.config.get(name)`. */
@@ -261,6 +267,8 @@ export interface MountedPlugins {
     prepare: NonNullable<PluginContributions['prepareTools']>
     owner: string
   }>
+  /** Agents plugins give the main model, in plugin order. */
+  subagents: Array<AnyAgent>
   /** Who contributed what, for `session.inspect()`. */
   owners: {
     plugins: Array<{
@@ -445,6 +453,7 @@ export async function mountPlugins(
   const adapters: Array<() => AnyTextAdapter | undefined> = []
   const discoverers: MountedPlugins['discoverers'] = []
   const preparers: MountedPlugins['preparers'] = []
+  const subagents: Array<AnyAgent> = []
   const services = env.services ?? NO_SERVICES
 
   try {
@@ -590,6 +599,10 @@ export async function mountPlugins(
       for (const agent of contributions.agents ?? []) {
         env.registry.add(agent, plugin.name)
       }
+      for (const agent of contributions.subagents ?? []) {
+        env.registry.add(agent, plugin.name)
+        subagents.push(agent)
+      }
     }
     for (const plugin of plugins) {
       for (const produces of plugin.needs?.produces ?? []) {
@@ -641,6 +654,7 @@ export async function mountPlugins(
     adapters,
     discoverers,
     preparers,
+    subagents,
     owners: {
       plugins: plugins.map((plugin) => ({
         name: plugin.name,
