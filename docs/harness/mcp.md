@@ -71,7 +71,10 @@ The sign-in follows the MCP authorization spec:
 - The connector reads the server's OAuth metadata and registers a client for this sign-in.
 - It signs in with PKCE and a random `state`, and listens on `127.0.0.1` for one callback.
 - The token and the registered client go into `stores.credentials`. The next start of the harness uses them, so the user signs in once.
+- A new `/connect linear` replaces them. Nothing from the old sign-in stays.
 - `/disconnect linear` deletes them.
+
+Sometimes the server no longer accepts the sign-in, for example after the user removes the app in Linear. Then the turn runs without the Linear tools, and clients get a `harness.auth_required` event. The CLI prints `Sign in to linear. Run /connect linear.`, and the model tells the user to run `/connect linear`. If the server refuses the saved refresh token, the connector deletes the saved sign-in.
 
 The model never sees the token. To keep sign-ins after a restart, give the host a credential store. [Auth and connectors](./auth) shows one.
 

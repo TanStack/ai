@@ -427,9 +427,15 @@ export type Credential =
       scopes?: Array<string>
       /**
        * The OAuth client these tokens belong to (for example one made by
-       * dynamic client registration). A refresh needs it.
+       * dynamic client registration). A refresh needs it. `issuer` is the
+       * authorization server that issued the client and the tokens.
        */
-      client?: { clientId: string; clientSecret?: string; redirectUri?: string }
+      client?: {
+        clientId: string
+        clientSecret?: string
+        redirectUri?: string
+        issuer?: string
+      }
     }
 
 /**

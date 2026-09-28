@@ -149,6 +149,8 @@ export async function startProtectedServer() {
   base = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`
   return {
     url: `${base}/mcp`,
+    /** The `issuer` of the authorization server metadata. */
+    issuer: base,
     seen,
     revoke: (token: string) => valid.delete(token),
     close: () =>
