@@ -25,6 +25,9 @@ const weatherTool = toolDefinition({
  *   `completion_tokens_details.reasoning_tokens`.
  * - `provider: 'openrouter'` → `/openrouter-cost` mount, whose trailing usage
  *   chunk carries `cost` / `cost_details`.
+ * - `provider: 'multimodal'` → the `/openai-usage-details` mount with an
+ *   image part and `captureContent: true`, so the spec can check the image
+ *   URL survives into `gen_ai.input.messages` (#1525).
  *
  * The spec asserts the corresponding `gen_ai.usage.*` / `tanstack.ai.usage.*`
  * attributes land on the iteration and root spans.
@@ -63,14 +66,34 @@ export const Route = createFileRoute('/api/otel-usage')({
           for await (const _chunk of chat({
             ...createChatOptions({ adapter }),
             messages: [
-              {
-                role: 'user',
-                content:
-                  provider === 'tool-loop' ? '[with-tool] run test' : 'hi',
-              },
+              provider === 'multimodal'
+                ? {
+                    role: 'user',
+                    content: [
+                      { type: 'text', content: 'describe this' },
+                      {
+                        type: 'image',
+                        source: {
+                          type: 'url',
+                          value: 'https://example.com/cat.png',
+                          mimeType: 'image/png',
+                        },
+                      },
+                    ],
+                  }
+                : {
+                    role: 'user',
+                    content:
+                      provider === 'tool-loop' ? '[with-tool] run test' : 'hi',
+                  },
             ],
             ...(provider === 'tool-loop' ? { tools: [weatherTool] } : {}),
-            middleware: [otelMiddleware({ tracer })],
+            middleware: [
+              otelMiddleware({
+                tracer,
+                captureContent: provider === 'multimodal',
+              }),
+            ],
           })) {
             // Drain — the assertions live on the captured spans.
           }
