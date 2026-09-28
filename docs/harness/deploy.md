@@ -1,7 +1,7 @@
 ---
 title: Deploy a harness
 id: harness-deploy
-order: 12
+order: 13
 description: "Run a harness in your server, as a worker process, on another machine, or as a single executable."
 keywords:
   - tanstack ai

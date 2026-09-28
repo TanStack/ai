@@ -69,6 +69,7 @@ Run the file with `npx tsx coder.ts`. Ask for a change. The agent reads files fr
 | `fileCommands({ dir })` | Each `.md` file becomes a slash command. `$ARGUMENTS` is replaced by what you type after it. |
 | `compact({ adapter })` | `/compact` replaces a long conversation with a summary. |
 | `usage()` | `/usage` shows the tokens of the session. |
+| `goal({ judge })` | `/goal <text>` keeps the agent working until a judge model says that the goal is met. See [Work until a goal is met](./goal). |
 
 ## Add your own rules
 

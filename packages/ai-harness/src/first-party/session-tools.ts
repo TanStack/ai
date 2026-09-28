@@ -6,7 +6,7 @@ import type { AnyTextAdapter, ModelMessage } from '@tanstack/ai'
 const SUMMARY_PROMPT =
   'Summarize the conversation so far for yourself. Keep decisions, open tasks, file names, and facts you still need. Leave out small talk.'
 
-function textOf(message: ModelMessage): string {
+export function textOf(message: ModelMessage) {
   if (typeof message.content === 'string') return message.content
   if (Array.isArray(message.content)) {
     return message.content
@@ -14,6 +14,14 @@ function textOf(message: ModelMessage): string {
       .join('')
   }
   return ''
+}
+
+/** One `role: text` line per message. Messages with no text are left out. */
+export function transcriptText(messages: ReadonlyArray<ModelMessage>) {
+  return messages
+    .map((message) => `${message.role}: ${textOf(message)}`)
+    .filter((line) => !line.endsWith(': '))
+    .join('\n')
 }
 
 /**
@@ -36,10 +44,7 @@ export function compact(options: {
             if (messages.length <= keep + 2)
               return 'The conversation is already short.'
             const older = messages.slice(0, messages.length - keep)
-            const transcript = older
-              .map((message) => `${message.role}: ${textOf(message)}`)
-              .filter((line) => !line.endsWith(': '))
-              .join('\n')
+            const transcript = transcriptText(older)
             const summary = await chat({
               adapter: options.adapter,
               messages: [

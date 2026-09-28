@@ -17,6 +17,7 @@ Try these:
 - `/mode plan`, then ask for another file: the write is refused.
 - `/todos`, `/usage`, `/model fast`, `/agents`
 - `/agent haiku {"topic":"rain"}`: runs a typed agent in the background.
+- `/goal create a file hello.txt that says hi`: the agent keeps working until the model says the goal is met. `/goal` shows the status.
 - Press Esc to stop a long answer. Type while it works to steer it.
 
 ## Use Notion, Linear, images, and video

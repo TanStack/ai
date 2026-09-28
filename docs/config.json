@@ -857,6 +857,11 @@
           "addedAt": "2026-09-28"
         },
         {
+          "label": "Work until a goal is met",
+          "to": "harness/goal",
+          "addedAt": "2026-09-28"
+        },
+        {
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-09-26"

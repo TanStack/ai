@@ -3,6 +3,7 @@ import { EventType, defineAgent } from '@tanstack/ai'
 import { defineHarness } from '@tanstack/ai-harness'
 import {
   compact,
+  goal,
   modelPicker,
   permissions,
   projectInstructions,
@@ -223,6 +224,8 @@ export const assistant = defineHarness({
     projectInstructions({ root }),
     compact({ adapter: main }),
     usage(),
+    // /goal keeps the agent working until the main model says the goal is met.
+    goal({ judge: main }),
     // Read-only tools (file reads, read-only Notion and Linear tools) move
     // behind execute_typescript, so the model can call several in one program.
     // The program runs in a QuickJS isolate. Any @tanstack/ai-isolate-* driver
