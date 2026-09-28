@@ -477,6 +477,14 @@ export class AnthropicTextAdapter<
         },
       )
 
+      // A forced tool call cut off at the output cap carries partial input,
+      // which would read like a schema failure (issue #1426).
+      if (response.stop_reason === 'max_tokens') {
+        throw new Error(
+          'anthropic.structuredOutput: the response was cut off because the maximum token limit was reached (stop_reason=max_tokens); raise modelOptions.max_tokens',
+        )
+      }
+
       // Extract the tool use content from the response
       let parsed: unknown = null
       let rawText = ''
