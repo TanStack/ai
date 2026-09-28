@@ -12,6 +12,11 @@
 export type GptImageQuality = 'high' | 'medium' | 'low' | 'auto'
 
 /**
+ * Quality options for gpt-image-2.5-flare and gpt-image-2.5-sunburst models
+ */
+export type GptImage25Quality = GptImageQuality | 'xhigh' | 'max'
+
+/**
  * Quality options for dall-e-3 model
  */
 export type DallE3Quality = 'hd' | 'standard'
@@ -123,6 +128,21 @@ export interface GptImage1ProviderOptions extends OpenAIImageBaseProviderOptions
 export type GptImage1MiniProviderOptions = GptImage1ProviderOptions
 
 /**
+ * Provider options for gpt-image-2.5-flare and gpt-image-2.5-sunburst models.
+ * Same as gpt-image-1, plus the `xhigh` and `max` quality levels.
+ */
+export interface GptImage25ProviderOptions extends Omit<
+  GptImage1ProviderOptions,
+  'quality'
+> {
+  /**
+   * The quality of the image.
+   * @default 'auto'
+   */
+  quality?: GptImage25Quality
+}
+
+/**
  * Provider options for dall-e-3 model
  * Field names match the OpenAI API for direct spreading
  */
@@ -171,6 +191,7 @@ export interface DallE2ProviderOptions extends OpenAIImageBaseProviderOptions {
  * Union of all OpenAI image provider options
  */
 export type OpenAIImageProviderOptions =
+  | GptImage25ProviderOptions
   | GptImage1ProviderOptions
   | GptImage1MiniProviderOptions
   | DallE3ProviderOptions
@@ -181,6 +202,8 @@ export type OpenAIImageProviderOptions =
  * Used by the core AI types to narrow providerOptions based on the selected model.
  */
 export type OpenAIImageModelProviderOptionsByName = {
+  'gpt-image-2.5-flare': GptImage25ProviderOptions
+  'gpt-image-2.5-sunburst': GptImage25ProviderOptions
   'gpt-image-2': GptImage1ProviderOptions
   'gpt-image-1': GptImage1ProviderOptions
   'gpt-image-1-mini': GptImage1MiniProviderOptions
@@ -192,6 +215,8 @@ export type OpenAIImageModelProviderOptionsByName = {
  * Type-only map from model name to its supported sizes.
  */
 export type OpenAIImageModelSizeByName = {
+  'gpt-image-2.5-flare': GptImageSize
+  'gpt-image-2.5-sunburst': GptImageSize
   'gpt-image-2': GptImageSize
   'gpt-image-1': GptImageSize
   'gpt-image-1-mini': GptImageSize
@@ -205,6 +230,8 @@ export type OpenAIImageModelSizeByName = {
  * dall-e-3 has no edit endpoint, so its prompt is text-only at compile time.
  */
 export type OpenAIImageModelInputModalitiesByName = {
+  'gpt-image-2.5-flare': readonly ['image']
+  'gpt-image-2.5-sunburst': readonly ['image']
   'gpt-image-2': readonly ['image']
   'gpt-image-1': readonly ['image']
   'gpt-image-1-mini': readonly ['image']
@@ -232,6 +259,8 @@ export function validateImageSize(
   if (!size || size === 'auto') return
 
   const validSizes: Record<string, Array<string>> = {
+    'gpt-image-2.5-flare': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
+    'gpt-image-2.5-sunburst': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
     'gpt-image-2': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
     'gpt-image-1': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
     'gpt-image-1-mini': ['1024x1024', '1536x1024', '1024x1536', 'auto'],
@@ -279,7 +308,13 @@ export function validateNumberOfImages(
 
 export const validateBackground = (options: ImageValidationOptions) => {
   if (options.background) {
-    const supportedModels = ['gpt-image-2', 'gpt-image-1', 'gpt-image-1-mini']
+    const supportedModels = [
+      'gpt-image-2.5-flare',
+      'gpt-image-2.5-sunburst',
+      'gpt-image-2',
+      'gpt-image-1',
+      'gpt-image-1-mini',
+    ]
     if (!supportedModels.includes(options.model)) {
       throw new Error(
         `The model ${options.model} does not support background option.`,

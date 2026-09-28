@@ -171,6 +171,8 @@ Any provider implementing the OpenAI Chat Completions API works. Common ones are
 | Hugging Face (router) | `https://router.huggingface.co/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | NVIDIA NIM | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.3-70b-instruct` |
 
+On Chat Completions, `RUN_FINISHED.usage` carries the prompt cache counts that the provider reports. Cache reads arrive on `promptTokensDetails.cachedTokens`, and cache writes arrive on `promptTokensDetails.cacheWriteTokens`. Moonshot / Kimi reports both.
+
 ## Local & Self-Hosted Servers
 
 Point the adapter at any local OpenAI-compatible server. The API key is usually a placeholder:
