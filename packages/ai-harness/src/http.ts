@@ -75,6 +75,8 @@ function lastUserText(messages: ReadonlyArray<unknown>): string | undefined {
  *   is a cursor, so `Last-Event-ID` resumes it.
  * - `POST .../control`: `{ threadId, input }`. Returns the receipt.
  * - `GET  .../snapshot?threadId=`: the session snapshot.
+ * - `GET  .../transcript?threadId=`: the saved messages of the thread.
+ * - `GET  .../describe?threadId=`: the commands, settings, and tools.
  */
 export function createHarnessHandler(
   options: HarnessHandlerOptions,
@@ -190,6 +192,21 @@ export function createHarnessHandler(
         const session = await openFor(principal, threadId)
         if (!session) return json({ error: 'forbidden' }, 403)
         return json(await applyInput(harness, session, input))
+      }
+
+      if (
+        request.method === 'GET' &&
+        (route === 'transcript' || route === 'describe')
+      ) {
+        const threadId = url.searchParams.get('threadId')
+        if (!threadId) return json({ error: 'threadId is required' }, 400)
+        const session = await openFor(principal, threadId)
+        if (!session) return json({ error: 'forbidden' }, 403)
+        return json(
+          route === 'transcript'
+            ? await session.transcript()
+            : session.describe(),
+        )
       }
 
       if (request.method === 'GET' && route === 'snapshot') {

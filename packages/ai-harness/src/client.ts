@@ -1,9 +1,9 @@
 // Browser-safe: this module has type-only imports from the rest of the
 // package, so no server code (adapters, stores, secrets) reaches a client.
-import type { RunAgentResumeItem } from '@tanstack/ai'
+import type { ModelMessage, RunAgentResumeItem } from '@tanstack/ai'
 import type { AgentInputOf } from './agents'
 import type { AnyHarness, HarnessAgentsOf } from './define'
-import type { SessionSnapshot } from './session'
+import type { SessionDescription, SessionSnapshot } from './session'
 import type {
   BusyPolicy,
   Cursor,
@@ -46,15 +46,28 @@ export interface HarnessClient<THarness extends AnyHarness> {
   resolve: (resume: Array<RunAgentResumeItem>) => Promise<Receipt>
   cancel: (operationId?: string) => Promise<Receipt>
   agents: ClientAgentHandles<THarness>
+  /** Answer a question from a command or a plugin. */
+  answer: (questionId: string, value: unknown) => Promise<Receipt>
+  /** Run a plugin command. Its result arrives as a `harness.command.result` event. */
+  command: (name: string, input?: unknown) => Promise<Receipt>
+  /** Change a session setting. */
+  setConfig: (key: string, value: unknown) => Promise<Receipt>
   /**
    * The session events from `from` (exclusive). Reconnects after a network
    * error and resumes from the last cursor. Ends when `signal` aborts.
+   * `onConnection` reports `'open'` for each connection and `'reconnecting'`
+   * before each new try.
    */
   events: (options?: {
     from?: Cursor
     signal?: AbortSignal
+    onConnection?: (state: 'open' | 'reconnecting') => void
   }) => AsyncIterable<SessionEvent>
   snapshot: () => Promise<SessionSnapshot>
+  /** The saved messages of the thread. */
+  transcript: () => Promise<Array<ModelMessage>>
+  /** The commands, settings, and tools of the session. */
+  describe: () => Promise<SessionDescription>
 }
 
 /**
@@ -90,8 +103,24 @@ export function createHarnessClient<THarness extends AnyHarness>(
     return body as Receipt
   }
 
+  const read = async <T>(route: string) => {
+    const query = new URLSearchParams({ threadId: options.threadId })
+    const response = await doFetch(`${base}/${route}?${query}`, {
+      headers: headers(),
+    })
+    if (!response.ok)
+      throw new Error(`Harness ${route} failed (${response.status})`)
+    // Each GET route answers with the type of the `HarnessClient` member
+    // that reads it. That member type sets `T`.
+    return (await response.json()) as T
+  }
+
   async function* events(
-    eventOptions: { from?: Cursor; signal?: AbortSignal } = {},
+    eventOptions: {
+      from?: Cursor
+      signal?: AbortSignal
+      onConnection?: (state: 'open' | 'reconnecting') => void
+    } = {},
   ) {
     let cursor = eventOptions.from
     const signal = eventOptions.signal
@@ -106,6 +135,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
         if (!response.ok || !response.body) {
           throw new Error(`Harness events failed (${response.status})`)
         }
+        eventOptions.onConnection?.('open')
         const reader = response.body.getReader()
         // Some fetch shims ignore the signal once the body streams.
         signal?.addEventListener('abort', () => void reader.cancel(), {
@@ -149,6 +179,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
           throw error
       }
       if (signal?.aborted) return
+      eventOptions.onConnection?.('reconnecting')
       await new Promise((resolve) =>
         setTimeout(resolve, options.reconnectDelayMs ?? 1000),
       )
@@ -183,16 +214,12 @@ export function createHarnessClient<THarness extends AnyHarness>(
     cancel: (operationId) =>
       send({ op: 'cancel', ...(operationId ? { operationId } : {}) }),
     agents,
+    answer: (questionId, value) => send({ op: 'answer', questionId, value }),
+    command: (name, input) => send({ op: 'command', name, input }),
+    setConfig: (key, value) => send({ op: 'config', key, value }),
     events,
-    snapshot: async () => {
-      const query = new URLSearchParams({ threadId: options.threadId })
-      const response = await doFetch(`${base}/snapshot?${query}`, {
-        headers: headers(),
-      })
-      if (!response.ok)
-        throw new Error(`Harness snapshot failed (${response.status})`)
-      // The handler answers /snapshot with a SessionSnapshot.
-      return (await response.json()) as SessionSnapshot
-    },
+    snapshot: () => read('snapshot'),
+    transcript: () => read('transcript'),
+    describe: () => read('describe'),
   }
 }
