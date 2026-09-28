@@ -142,7 +142,14 @@ If `redact` throws, the middleware writes the literal sentinel `"[redaction_fail
 
 Accumulated assistant text (the `gen_ai.choice` event) is capped at `maxContentLength` characters (default `100 000`); longer completions are truncated with a trailing `"…"` marker.
 
-Multimodal content (images, audio, video, documents) is represented as placeholder strings (`[image]`, `[audio]`, ...) to preserve message order without dumping binary data onto spans. Use `onSpanEnd` if you need richer multimodal capture.
+Multimodal messages (images, audio, video, documents) keep their parts in `gen_ai.input.messages`, in the OTel GenAI part shapes:
+
+- Text: `{ "type": "text", "content": "..." }`. `redact` runs on it.
+- URL source: `{ "type": "uri", "modality": "image", "uri": "https://...", "mime_type": "image/png" }`.
+- Provider file handle: `{ "type": "file", "modality": "image", "file_id": "..." }`.
+- Inline base64 data or a `data:` URL: a `[image]` text placeholder, so the bytes do not go onto the span.
+
+Span events stay flat strings, with the same placeholders for every media part (`look at this [image]`).
 
 Prompt/system/user message events fire from `onConfig` at the start of every iteration, which means the full conversation history (as the adapter will re-send it) is re-emitted on each iteration span. This mirrors what the provider actually sees on the wire.
 
@@ -254,6 +261,17 @@ Each media call produces one `CLIENT` span tagged with the activity's `gen_ai.op
 The span carries `gen_ai.system` and `gen_ai.request.model` at start and, on finish, the same `gen_ai.usage.*` / `tanstack.ai.usage.*` attributes documented above — including the `tanstack.ai.usage.billed_quantity` / `tanstack.ai.usage.billed_unit` pair for unit-billed media. When a `Meter` is supplied it records the `gen_ai.client.operation.duration` histogram, tagged per activity. For streaming video the span covers the full create → poll → complete lifecycle. Non-streaming video is two calls, so the submit itself emits no span — the run opens once the provider accepts the job, and the `getVideoJobStatus()` poll that observes a terminal state ends it. If a streaming video consumer abandons the stream before completion, the span is ended via `onAbort` (status `ERROR`, `tanstack.ai.completion.reason = cancelled`) rather than leaked.
 
 `otelMiddleware` applies the same `spanNameFormatter`, `attributeEnricher`, `onBeforeSpanStart`, and `onSpanEnd` extension points to media spans — the span info is discriminated by `kind`, where media spans report `kind: 'generation'`. For a custom backend, implement the base `GenerationMiddleware` contract directly; its hooks (`onStart` / `onUsage` / `onFinish` / `onAbort` / `onError`) receive the `GenerationMiddlewareContext` and fire for every activity, chat included. The `GenerationMiddleware` types are exported from the package root, while the `otelMiddleware` value lives on the `@tanstack/ai/middlewares/otel` subpath so importing `@tanstack/ai` never requires the optional `@opentelemetry/api` peer.
+
+### Capturing media content
+
+Set `captureContent: true` to record what a media call was asked for and what came back. The media span then gets the same attributes as a chat iteration span:
+
+- `gen_ai.input.messages` and `langfuse.observation.input`: one `user` message. It holds the prompt as a text part and each input image, video, or audio as a part. For `generateSpeech` it holds the text to speak. For `generateTranscription` it holds the source audio.
+- `gen_ai.output.messages` and `langfuse.observation.output`: one `assistant` message. It holds each generated image, audio, or video URL as a `uri` part. For `generateTranscription` it holds the transcript as a text part.
+
+Media parts use the part shapes from [Privacy: capturing prompts and completions](#privacy-capturing-prompts-and-completions). A URL becomes `{ "type": "uri", "modality": "image", "uri": "https://..." }`. Inline data never goes onto the span. Base64 output, a `data:` URL, a `File`, or a `Blob` becomes a text placeholder such as `[image]`. `redact` and `maxContentLength` apply to each text part.
+
+For non-streaming video, the `getVideoJobStatus()` span has the output URL but not the prompt. Use `generateVideo({ stream: true })` to get both on one span.
 
 ## Related
 

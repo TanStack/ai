@@ -1,7 +1,11 @@
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
+import {
+  SSEClientTransport,
+  StreamableHTTPClientTransport,
+} from '@modelcontextprotocol/client'
+import type {
+  OAuthClientProvider,
+  Transport,
+} from '@modelcontextprotocol/client'
 
 export interface HttpTransportConfig {
   type: 'http'
@@ -33,16 +37,23 @@ export type TransportConfig =
   | SseTransportConfig
   | StdioTransportConfig
 
-/** Either a built-in config or a ready-made SDK Transport instance (escape hatch). */
+/** Either a built-in config or a ready-made Transport instance (escape hatch). */
 export type TransportInput = TransportConfig | Transport
 
+/**
+ * Return true when `input` is already a Transport, not a config object.
+ */
 export function isTransportInstance(input: TransportInput): input is Transport {
-  return typeof (input as Transport).start === 'function'
+  return 'start' in input && typeof input.start === 'function'
 }
 
-export async function resolveTransport(
-  input: TransportInput,
-): Promise<Transport> {
+/**
+ * Build a Transport from HTTP config, SSE config, or an existing Transport.
+ *
+ * For stdio, build the Transport with `stdioTransport` and pass that instance.
+ * Throws an Error when the config type is `stdio` or is not a known type.
+ */
+export async function resolveTransport(input: TransportInput) {
   if (isTransportInstance(input)) return input
 
   switch (input.type) {
@@ -63,7 +74,11 @@ export async function resolveTransport(
         "stdio transport must be created via '@tanstack/ai-mcp/stdio': " +
           "import { stdioTransport } from '@tanstack/ai-mcp/stdio' and pass the result as `transport`.",
       )
-    default:
-      throw new Error(`Unknown MCP transport config: ${JSON.stringify(input)}`)
+    default: {
+      const unknownConfig: never = input
+      throw new Error(
+        `Unknown MCP transport config: ${JSON.stringify(unknownConfig)}`,
+      )
+    }
   }
 }

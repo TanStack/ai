@@ -1,0 +1,26 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[mcp-typed] forecast and report",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Let me check.",
+        "toolCalls": [
+          { "name": "forecast", "arguments": "{\"city\":\"Paris\"}" },
+          { "name": "build_report", "arguments": "{}" }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[mcp-typed] forecast and report",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "It is sunny and the report is ready."
+      }
+    }
+  ]
+}

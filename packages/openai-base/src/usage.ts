@@ -8,8 +8,8 @@ import type OpenAI from 'openai'
  *
  * Shared by every provider that routes through
  * {@link OpenAIBaseChatCompletionsTextAdapter} (OpenAI Chat Completions, Grok,
- * Groq). Surfaces cached prompt tokens and reasoning/audio detail tokens when
- * the provider reports them. Returns `undefined` when the provider reported no
+ * Groq). Surfaces cache read/write prompt tokens and reasoning/audio detail
+ * tokens when the provider reports them. Returns `undefined` when the provider reported no
  * usage object, so callers omit the field rather than fabricating zeroed totals.
  */
 export function buildChatCompletionsUsage(
@@ -33,10 +33,21 @@ export function buildChatCompletionsUsage(
       : {}),
   }
 
-  const promptDetails = usage.prompt_tokens_details
+  // Moonshot (Kimi) also reports `cache_write_tokens` under
+  // `prompt_tokens_details`, and `cached_tokens` at the root of `usage`.
+  // The OpenAI SDK types have neither field.
+  const promptDetails = usage.prompt_tokens_details as
+    | (OpenAI.Completions.CompletionUsage.PromptTokensDetails & {
+        cache_write_tokens?: number
+      })
+    | undefined
+  const cachedTokens =
+    promptDetails?.cached_tokens ||
+    (usage as { cached_tokens?: number }).cached_tokens
   const promptTokensDetails = {
-    ...(promptDetails?.cached_tokens
-      ? { cachedTokens: promptDetails.cached_tokens }
+    ...(cachedTokens ? { cachedTokens } : {}),
+    ...(promptDetails?.cache_write_tokens
+      ? { cacheWriteTokens: promptDetails.cache_write_tokens }
       : {}),
     ...(promptDetails?.audio_tokens
       ? { audioTokens: promptDetails.audio_tokens }
