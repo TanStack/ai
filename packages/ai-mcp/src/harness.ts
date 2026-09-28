@@ -1,6 +1,7 @@
 import {
   EventType,
   convertSchemaToJsonSchema,
+  readUnopenedInterruptBinding,
   toolDefinition,
 } from '@tanstack/ai'
 import { HARNESS_EVENTS } from '@tanstack/ai-harness'
@@ -31,6 +32,10 @@ export interface HarnessMcpServerOptions {
    *   client without elicitation gets the approvals in the result. It answers
    *   them with `approve`, `reject`, or `resolve`.
    * - `'auto'`: approve every tool call.
+   *
+   * Both modes answer tool approvals only. When the turn also waits for
+   * another kind of interrupt, every interrupt comes back in the result. The
+   * client answers them all with one `resolve`.
    */
   approvals?: 'ask' | 'auto'
   /** The MCP server name. Default: the harness name. */
@@ -39,7 +44,11 @@ export interface HarnessMcpServerOptions {
   version?: string
 }
 
-type Decision = { interruptId: string; approved: boolean }
+/** One decision of a `resolve` call, from the client. */
+type Decision = { interruptId: string; approved?: boolean; payload?: unknown }
+
+/** The answer to one interrupt, for `session.resolve`. */
+type Answer = { interruptId: string; payload: unknown }
 
 const threadIdSchema: JSONSchema = {
   type: 'string',
@@ -56,6 +65,10 @@ const threadIdSchema: JSONSchema = {
  * `harness.expose.agents` and `command_<name>` for each plugin command.
  * Every tool takes an optional `threadId`. Sessions open with
  * `host.open(harness, { threadId })`.
+ *
+ * Each interrupt in a result has a `kind`: `approval`, `client-tool`, or
+ * `generic`. `approve` and `reject` answer approvals only. `resolve` answers
+ * every kind: `approved` for an approval, and `payload` for the others.
  *
  * The result is the server from `createMCPServer`. Mount `server.fetch` on
  * an HTTP route, or pass the server to `serveMCPStdio`.
@@ -83,27 +96,31 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
           : defaultThread,
     })
 
+  // Answers the approvals with the approval mode. `undefined` means that the
+  // client must answer. One resolve answers every interrupt, and only the
+  // client can answer an interrupt that is not an approval.
   async function decide(interrupts: Array<Interrupt>, context: MCPToolContext) {
+    if (!interrupts.every(isApproval)) return undefined
     if (approvals === 'auto') {
       return interrupts.map((interrupt) => ({
         interruptId: interrupt.id,
-        approved: true,
+        payload: true,
       }))
     }
-    const decisions: Array<Decision> = []
+    const answers: Array<Answer> = []
     for (const interrupt of interrupts) {
       try {
         const answer = await context.requestInput({
           message: approvalQuestion(interrupt),
         })
-        decisions.push({ interruptId: interrupt.id, approved: isYes(answer) })
+        answers.push({ interruptId: interrupt.id, payload: isYes(answer) })
       } catch {
         // ponytail: no elicitation, a declined question, or spec 2026 (it runs
         // the whole call again). The client answers with approve or reject.
         return undefined
       }
     }
-    return decisions
+    return answers
   }
 
   // Waits for the work. A chat turn that stops for approvals continues while
@@ -126,8 +143,8 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
       const interrupts = session.snapshot().pendingInterrupts
       const stopped =
         operation.status() === 'interrupted' && interrupts.length > 0
-      const decisions = stopped ? await decide(interrupts, context) : undefined
-      if (decisions === undefined) {
+      const answers = stopped ? await decide(interrupts, context) : undefined
+      if (answers === undefined) {
         return {
           status: operation.status(),
           text: turnText(outcome.value),
@@ -135,17 +152,17 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
         }
       }
       from = session.snapshot().cursor
-      operation = (await resolveAll(session, decisions)).turn
+      operation = (await resolveAll(session, answers)).turn
     }
   }
 
   async function resume(
     session: HarnessSession,
-    decisions: Array<Decision>,
+    answers: Array<Answer>,
     context: MCPToolContext,
   ) {
     const from = session.snapshot().cursor
-    const { turn } = await resolveAll(session, decisions)
+    const { turn } = await resolveAll(session, answers)
     return finish(session, turn, from, context)
   }
 
@@ -156,18 +173,22 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   ) {
     const session = await open(args)
     const interrupts = session.snapshot().pendingInterrupts
+    const other = interrupts.find((interrupt) => !isApproval(interrupt))
+    if (other !== undefined) {
+      throw new Error(`Use resolve: interrupt ${other.id} needs a payload.`)
+    }
     if (interrupts.length === 0) throw new Error('No approvals are waiting.')
-    const decisions = interrupts.map((interrupt) => ({
+    const answers = interrupts.map((interrupt) => ({
       interruptId: interrupt.id,
-      approved,
+      payload: approved,
     }))
-    return resume(session, decisions, context)
+    return resume(session, answers, context)
   }
 
   const chat = toolDefinition({
     name: 'chat',
     description:
-      'Send a message to the harness and wait for its answer. While a turn runs, the message waits in the queue. The result has the answer text, the status, and the approvals and questions that wait for you.',
+      'Send a message to the harness and wait for its answer. While a turn runs, the message waits in the queue. The result has the answer text, the status, and the interrupts and questions that wait for you.',
     inputSchema: withThreadId({
       type: 'object',
       properties: {
@@ -204,7 +225,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   const approve = toolDefinition({
     name: 'approve',
     description:
-      'Approve every tool call that waits for approval, then wait for the turn to continue.',
+      'Approve every tool call that waits for approval, then wait for the turn to continue. When an interrupt of another kind also waits, use resolve.',
     inputSchema: withThreadId(undefined),
   }).server<MCPToolContext>(async (args, ctx) =>
     decideAll(args, true, ctx.context),
@@ -213,7 +234,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   const reject = toolDefinition({
     name: 'reject',
     description:
-      'Reject every tool call that waits for approval, then wait for the turn to continue.',
+      'Reject every tool call that waits for approval, then wait for the turn to continue. When an interrupt of another kind also waits, use resolve.',
     inputSchema: withThreadId(undefined),
   }).server<MCPToolContext>(async (args, ctx) =>
     decideAll(args, false, ctx.context),
@@ -222,7 +243,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   const resolve = toolDefinition({
     name: 'resolve',
     description:
-      'Approve some tool calls and reject others, then wait for the turn to continue. Give one decision for each approval that waits.',
+      'Answer every interrupt that waits, then wait for the turn to continue. Give one decision for each interrupt. For an approval, set approved. For a client tool, set payload to the tool output. For a generic interrupt, set payload to a value that matches its responseSchema.',
     inputSchema: withThreadId({
       type: 'object',
       properties: {
@@ -233,11 +254,19 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
             properties: {
               interruptId: {
                 type: 'string',
-                description: 'The id of the approval.',
+                description: 'The id of the interrupt.',
               },
-              approved: { type: 'boolean' },
+              approved: {
+                type: 'boolean',
+                description:
+                  'For an approval: true runs the tool call, false rejects it.',
+              },
+              payload: {
+                description:
+                  'The answer. For a client tool, the tool output. For a generic interrupt, a value that matches its responseSchema.',
+              },
             },
-            required: ['interruptId', 'approved'],
+            required: ['interruptId'],
           },
         },
       },
@@ -245,23 +274,9 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
     }),
   }).server<MCPToolContext>(async (args, ctx) => {
     const session = await open(args)
-    const decisions = decisionsOf(args)
-    const openIds = session.snapshot().pendingInterrupts.map(({ id }) => id)
-    const missing = openIds.filter(
-      (id) => !decisions.some((decision) => decision.interruptId === id),
-    )
-    if (missing.length > 0) {
-      throw new Error(
-        `resolve must answer every open approval. Missing: ${missing.join(', ')}.`,
-      )
-    }
-    const unknown = decisions
-      .map((decision) => decision.interruptId)
-      .filter((id) => !openIds.includes(id))
-    if (unknown.length > 0) {
-      throw new Error(`These approvals are not open: ${unknown.join(', ')}.`)
-    }
-    return resume(session, decisions, ctx.context)
+    const interrupts = session.snapshot().pendingInterrupts
+    const answers = answersOf(decisionsOf(args), interrupts)
+    return resume(session, answers, ctx.context)
   })
 
   const answer = toolDefinition({
@@ -301,7 +316,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   const status = toolDefinition({
     name: 'status',
     description:
-      'Show what the harness does now: the status, the approvals and questions that wait, the background agents, and the queued turns.',
+      'Show what the harness does now: the status, the interrupts and questions that wait, the background agents, and the queued turns.',
     inputSchema: withThreadId(undefined),
   }).server(async (args) => {
     const session = await open(args)
@@ -320,36 +335,42 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   const session = await host.open(harness, { threadId: defaultThread })
 
   const exposed: ReadonlyArray<string> = harness.expose?.agents ?? []
-  const agentTools = exposed.flatMap((name) => {
+  const agents = exposed.flatMap((name) => {
     const agent = session.registry.get(name)
-    if (agent === undefined) return []
-    const tool = toolDefinition({
-      name: toolName('agent', name),
-      description: agent.description,
-      inputSchema: withThreadId(convertSchemaToJsonSchema(agent.inputSchema)),
-    }).server<MCPToolContext>(async (args, ctx) => {
-      const target = await open(args)
-      const handle = target.agent(name)
-      if (handle === undefined) throw new Error(`Unknown agent: ${name}`)
-      const from = target.snapshot().cursor
-      return finish(target, handle.start(inputOf(args)), from, ctx.context)
-    })
-    return [tool]
+    return agent === undefined
+      ? []
+      : [{ name, description: agent.description, agent }]
   })
+  const agentTools = toolNames('agent', agents).map(
+    ({ item: { name, agent }, toolName, description }) =>
+      toolDefinition({
+        name: toolName,
+        description,
+        inputSchema: withThreadId(convertSchemaToJsonSchema(agent.inputSchema)),
+      }).server<MCPToolContext>(async (args, ctx) => {
+        const target = await open(args)
+        const handle = target.agent(name)
+        if (handle === undefined) throw new Error(`Unknown agent: ${name}`)
+        const from = target.snapshot().cursor
+        return finish(target, handle.start(inputOf(args)), from, ctx.context)
+      }),
+  )
 
-  const commandTools = session.describe().commands.map((command) =>
-    toolDefinition({
-      name: toolName('command', command.name),
-      description: command.description,
-      inputSchema: withThreadId(
-        isJsonSchema(command.input) ? command.input : undefined,
-      ),
-    }).server<MCPToolContext>(async (args, ctx) => {
-      const target = await open(args)
-      const from = target.snapshot().cursor
-      const operation = target.command(command.name, inputOf(args))
-      return finish(target, operation, from, ctx.context)
-    }),
+  const commands = session.describe().commands
+  const commandTools = toolNames('command', commands).map(
+    ({ item: command, toolName, description }) =>
+      toolDefinition({
+        name: toolName,
+        description,
+        inputSchema: withThreadId(
+          isJsonSchema(command.input) ? command.input : undefined,
+        ),
+      }).server<MCPToolContext>(async (args, ctx) => {
+        const target = await open(args)
+        const from = target.snapshot().cursor
+        const operation = target.command(command.name, inputOf(args))
+        return finish(target, operation, from, ctx.context)
+      }),
   )
 
   return createMCPServer({
@@ -370,15 +391,11 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   })
 }
 
-// The harness needs one resolve that answers every open approval. An async
+// The harness needs one resolve that answers every open interrupt. An async
 // function waits for an operation that it returns, so the turn is wrapped.
-async function resolveAll(session: HarnessSession, decisions: Array<Decision>) {
+async function resolveAll(session: HarnessSession, answers: Array<Answer>) {
   const receipt = await session.resolve(
-    decisions.map((decision) => ({
-      interruptId: decision.interruptId,
-      status: 'resolved',
-      payload: decision.approved,
-    })),
+    answers.map((answer) => ({ ...answer, status: 'resolved' })),
   )
   const operation =
     receipt.operationId === undefined
@@ -439,17 +456,80 @@ async function questionAfter(
 function pending(session: HarnessSession) {
   const snapshot = session.snapshot()
   return {
-    approvals: snapshot.pendingInterrupts.map((interrupt) => ({
+    interrupts: snapshot.pendingInterrupts.map((interrupt) => ({
       id: interrupt.id,
+      kind: interruptKind(interrupt),
       tool: interrupt.metadata?.toolName,
       args: interrupt.metadata?.input,
       message: interrupt.message,
+      responseSchema: interrupt.responseSchema,
     })),
     questions: snapshot.pendingQuestions.map(({ questionId, ...question }) => ({
       id: questionId,
       ...question,
     })),
   }
+}
+
+/**
+ * How the client answers `interrupt`. `chat()` puts a binding on each
+ * interrupt. The binding marks a tool approval (answer with `approved`) and a
+ * client tool (answer with the tool output). Any other interrupt is generic:
+ * answer with a value that matches its `responseSchema`.
+ */
+function interruptKind(interrupt: Interrupt) {
+  const binding = readUnopenedInterruptBinding(interrupt)
+  switch (binding?.kind) {
+    case 'tool-approval':
+      return 'approval'
+    case 'client-tool-execution':
+      return 'client-tool'
+    case 'generic':
+    case undefined:
+      return 'generic'
+  }
+}
+
+function isApproval(interrupt: Interrupt) {
+  return interruptKind(interrupt) === 'approval'
+}
+
+/**
+ * The answers of a `resolve` call. The decisions must answer every open
+ * interrupt, and only those. An approval takes `approved` (or `payload`).
+ * Every other interrupt takes `payload`.
+ */
+function answersOf(decisions: Array<Decision>, interrupts: Array<Interrupt>) {
+  const openIds = interrupts.map(({ id }) => id)
+  const decidedIds = decisions.map(({ interruptId }) => interruptId)
+  const missing = openIds.filter((id) => !decidedIds.includes(id))
+  if (missing.length > 0) {
+    throw new Error(
+      `resolve must answer every open interrupt. Missing: ${missing.join(', ')}.`,
+    )
+  }
+  const unknown = decidedIds.filter((id) => !openIds.includes(id))
+  if (unknown.length > 0) {
+    throw new Error(`These interrupts are not open: ${unknown.join(', ')}.`)
+  }
+  const approvalIds = interrupts.filter(isApproval).map(({ id }) => id)
+  return decisions.map(({ interruptId, approved, payload }) => {
+    if (approvalIds.includes(interruptId)) {
+      const answer = approved ?? payload
+      if (answer === undefined) {
+        throw new Error(
+          `The decision for ${interruptId} needs approved or payload.`,
+        )
+      }
+      return { interruptId, payload: answer }
+    }
+    if (payload === undefined) {
+      throw new Error(
+        `The decision for ${interruptId} needs a payload. It is not an approval.`,
+      )
+    }
+    return { interruptId, payload }
+  })
 }
 
 function approvalQuestion(interrupt: Interrupt) {
@@ -467,10 +547,42 @@ function turnText(value: unknown) {
   return isRecord(value) && typeof value.text === 'string' ? value.text : ''
 }
 
-// MCP tool names allow letters, digits, and underscores, so `connect:notion`
-// becomes `command_connect_notion`.
-function toolName(prefix: string, name: string) {
-  return `${prefix}_${name.replace(/[^A-Za-z0-9_]/g, '_')}`
+/**
+ * Gives each item an MCP tool name, in name order. MCP tool names allow
+ * letters, digits, and underscores, so `connect:notion` becomes
+ * `command_connect_notion`. `connect_notion` then gets the same name, so the
+ * later one gets a number: `command_connect_notion_2`. Each tool of such a
+ * clash names its original name in the description.
+ */
+function toolNames<TItem extends { name: string; description: string }>(
+  prefix: string,
+  items: ReadonlyArray<TItem>,
+) {
+  const safeName = (name: string) =>
+    `${prefix}_${name.replace(/[^A-Za-z0-9_]/g, '_')}`
+  const sorted = [...items].sort(byName)
+  const safeNames = sorted.map((item) => safeName(item.name))
+  const used = new Set<string>()
+  return sorted.map((item) => {
+    const base = safeName(item.name)
+    let toolName = base
+    for (let count = 2; used.has(toolName); count++) {
+      toolName = `${base}_${count}`
+    }
+    used.add(toolName)
+    const isShared = safeNames.filter((other) => other === base).length > 1
+    const clashes = isShared || toolName !== base
+    const description = clashes
+      ? `${item.description} (${prefix} ${item.name})`
+      : item.description
+    return { item, toolName, description }
+  })
+}
+
+// Code unit order, so the order is the same in every locale.
+function byName(left: { name: string }, right: { name: string }) {
+  if (left.name === right.name) return 0
+  return left.name < right.name ? -1 : 1
 }
 
 function withThreadId(schema: JSONSchema | undefined) {
@@ -504,7 +616,7 @@ function isDecision(value: unknown): value is Decision {
   return (
     isRecord(value) &&
     typeof value.interruptId === 'string' &&
-    typeof value.approved === 'boolean'
+    (value.approved === undefined || typeof value.approved === 'boolean')
   )
 }
 

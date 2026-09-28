@@ -2,7 +2,13 @@ import {
   Client,
   StreamableHTTPClientTransport,
 } from '@modelcontextprotocol/client'
-import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
+import {
+  EventType,
+  defineAgent,
+  defineChatMiddleware,
+  defineInterrupt,
+  toolDefinition,
+} from '@tanstack/ai'
 import {
   HARNESS_EVENTS,
   createHarnessHost,
@@ -14,7 +20,12 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createHarnessMcpServer } from '../src/harness'
-import type { AnyTextAdapter, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  InterruptBoundaryPhase,
+  ModelMessage,
+  StreamChunk,
+} from '@tanstack/ai'
 import type { AnyHarness, HarnessSession } from '@tanstack/ai-harness'
 import type { HarnessMcpServerOptions } from '../src/harness'
 
@@ -22,9 +33,48 @@ const serverUrl = new URL('https://harness.example.com/mcp')
 const now = () => Date.now()
 
 const pendingShape = z.object({
-  approvals: z.array(z.object({ id: z.string() })),
+  interrupts: z.array(z.object({ id: z.string() })),
   questions: z.array(z.object({ id: z.string() })),
 })
+
+/** The response schema of an approval for `remove`, which takes `{ path }`. */
+const removeApprovalSchema = {
+  oneOf: [
+    {
+      type: 'object',
+      properties: {
+        approved: { const: true },
+        // zod writes the input schema, so extra keys stay allowed.
+        editedArgs: {
+          $schema: 'https://json-schema.org/draft/2020-12/schema',
+          type: 'object',
+          properties: { path: { type: 'string' } },
+          required: ['path'],
+        },
+      },
+      required: ['approved'],
+      additionalProperties: false,
+    },
+    {
+      type: 'object',
+      properties: { approved: { const: false } },
+      required: ['approved'],
+      additionalProperties: false,
+    },
+  ],
+}
+
+/** A generic interrupt that asks for a review note. */
+const review = defineInterrupt({
+  id: 'review-plan',
+  responseSchema: z.object({ note: z.string() }),
+})
+
+const reviewSchema = {
+  type: 'object',
+  properties: { note: { type: 'string' } },
+  required: ['note'],
+}
 
 const questionShape = z.object({ questionId: z.string() })
 
@@ -88,19 +138,28 @@ function errorTurn(message: string): Array<StreamChunk> {
 }
 
 /** One model call that asks to remove each path, one tool call per path. */
-function removeTurn(...paths: Array<string>): Array<StreamChunk> {
-  const calls = paths.flatMap(
-    (path, index): Array<StreamChunk> => [
+function removeTurn(...paths: Array<string>) {
+  return toolCallTurn(
+    paths.map((path) => ({ name: 'remove', input: { path } })),
+  )
+}
+
+/** One model call that makes each tool call. */
+function toolCallTurn(
+  toolCalls: Array<{ name: string; input: unknown }>,
+): Array<StreamChunk> {
+  const calls = toolCalls.flatMap(
+    ({ name, input }, index): Array<StreamChunk> => [
       {
         type: EventType.TOOL_CALL_START,
         toolCallId: `call-${index}`,
-        toolCallName: 'remove',
+        toolCallName: name,
         timestamp: now(),
       },
       {
         type: EventType.TOOL_CALL_ARGS,
         toolCallId: `call-${index}`,
-        delta: JSON.stringify({ path }),
+        delta: JSON.stringify(input),
         timestamp: now(),
       },
       {
@@ -212,11 +271,40 @@ function toolError(message: string) {
   return { isError: true, content: [{ type: 'text', text: message }] }
 }
 
-/** The ids of the approvals that wait, from a tool result. */
-function approvalIds(result: { structuredContent?: unknown }) {
+/** The ids of the interrupts that wait, from a tool result. */
+function interruptIds(result: { structuredContent?: unknown }) {
   return pendingShape
     .parse(result.structuredContent)
-    .approvals.map(({ id }) => id)
+    .interrupts.map(({ id }) => id)
+}
+
+/**
+ * A middleware that stops the first run of a turn at `phase` with a
+ * `review` interrupt. `notes` keeps each answer that it gets.
+ */
+function reviewAt(phase: InterruptBoundaryPhase) {
+  const notes: Array<unknown> = []
+  const middleware = defineChatMiddleware({
+    onInterruptBoundary(ctx) {
+      if (ctx.parentRunId || ctx.phase !== phase) return
+      return {
+        interrupts: [
+          review.interrupt({
+            key: 'plan',
+            reason: 'review',
+            message: 'Review the plan',
+          }),
+        ],
+      }
+    },
+    onInterruptResolution(_ctx, resolutions) {
+      for (const resolution of resolutions.for(review)) {
+        if (resolution.status === 'resolved') notes.push(resolution.response)
+      }
+      return { toolResume: 'continue' }
+    },
+  })
+  return { middleware, notes }
 }
 
 /** Waits until `session` asks a question, then returns its id. */
@@ -295,10 +383,15 @@ async function serve(harness: AnyHarness, options: ServerOptions = {}) {
   return { server, host }
 }
 
+/**
+ * A harness on an MCP server. With `reviewAt`, a middleware stops the turn at
+ * that phase with a `review` interrupt.
+ */
 async function harnessServer(
   turns: Array<ScriptedTurn>,
-  options: ServerOptions = {},
+  options: ServerOptions & { reviewAt?: InterruptBoundaryPhase } = {},
 ) {
+  const { reviewAt: phase, ...serverOptions } = options
   const model = scripted(turns)
   const removed: Array<string> = []
   const remove = toolDefinition({
@@ -310,6 +403,14 @@ async function harnessServer(
     removed.push(path)
     return `removed ${path}`
   })
+  // No `.server()`: the client runs it and sends the output.
+  const pickColor = toolDefinition({
+    name: 'pick_color',
+    description: 'Ask the user for a color',
+    inputSchema: z.object({ hint: z.string() }),
+    outputSchema: z.object({ color: z.string() }),
+  })
+  const reviewer = phase === undefined ? undefined : reviewAt(phase)
   const agentHold = hold()
   const waiter = defineAgent({
     name: 'waiter',
@@ -322,14 +423,24 @@ async function harnessServer(
   const harness = defineHarness({
     name: 'test/mcp-harness',
     adapter: model.adapter,
-    tools: [remove],
+    tools: [remove, pickColor],
     agents: [pricer, broken, waiter],
     expose: { agents: ['pricer', 'broken', 'waiter'] },
     plugins: () => [commands],
+    ...(reviewer === undefined
+      ? {}
+      : { middleware: [reviewer.middleware], interrupts: [review] }),
   })
-  const { server, host } = await serve(harness, options)
+  const { server, host } = await serve(harness, serverOptions)
   const session = () => host.open(harness, { threadId: 'main' })
-  return { server, session, removed, calls: model.calls, agentHold }
+  return {
+    server,
+    session,
+    removed,
+    notes: reviewer?.notes ?? [],
+    calls: model.calls,
+    agentHold,
+  }
 }
 
 type ElicitReply =
@@ -422,6 +533,61 @@ describe('createHarnessMcpServer', () => {
     expect(listed.tools.map((tool) => tool.name).sort()).toEqual(controlTools)
   })
 
+  it('gives command names that clash as tool names distinct tool names, in name order', async () => {
+    const clashing = definePlugin({
+      name: 'test/clashing',
+      setup: () => ({
+        commands: {
+          // Added first, but `connect:notion` comes first in name order.
+          connect_notion: defineCommand({
+            description: 'Sign in with the new flow',
+            run: () => 'New flow.',
+          }),
+          'connect:notion': defineCommand({
+            description: 'Sign in to Notion',
+            run: () => 'Connected to Notion.',
+          }),
+        },
+      }),
+    })
+    const { server } = await serve(
+      defineHarness({
+        name: 'test/clash',
+        adapter: scripted([]).adapter,
+        plugins: () => [clashing],
+      }),
+    )
+    const { client } = await connect(server)
+
+    const listed = await client.listTools()
+    const commandTools = listed.tools
+      .filter((tool) => tool.name.startsWith('command_'))
+      .map(({ name, description }) => ({ name, description }))
+      .sort((left, right) => left.name.localeCompare(right.name))
+    expect(commandTools).toEqual([
+      {
+        name: 'command_connect_notion',
+        description: 'Sign in to Notion (command connect:notion)',
+      },
+      {
+        name: 'command_connect_notion_2',
+        description: 'Sign in with the new flow (command connect_notion)',
+      },
+    ])
+    const plain = await client.callTool({
+      name: 'command_connect_notion',
+      arguments: {},
+    })
+    expect(plain.content).toEqual([
+      { type: 'text', text: 'Connected to Notion.' },
+    ])
+    const suffixed = await client.callTool({
+      name: 'command_connect_notion_2',
+      arguments: {},
+    })
+    expect(suffixed.content).toEqual([{ type: 'text', text: 'New flow.' }])
+  })
+
   it.each([
     {
       options: {},
@@ -454,7 +620,7 @@ describe('createHarnessMcpServer', () => {
     expect(reply.structuredContent).toEqual({
       status: 'completed',
       text: 'Hello from the harness.',
-      approvals: [],
+      interrupts: [],
       questions: [],
     })
   })
@@ -484,12 +650,14 @@ describe('createHarnessMcpServer', () => {
     expect(pending.structuredContent).toEqual({
       status: 'interrupted',
       text: '',
-      approvals: [
+      interrupts: [
         {
           id: expect.any(String),
+          kind: 'approval',
           tool: 'remove',
           args: { path: 'a.txt' },
           message: 'Approval required to run remove',
+          responseSchema: removeApprovalSchema,
         },
       ],
       questions: [],
@@ -499,7 +667,7 @@ describe('createHarnessMcpServer', () => {
     const status = await client.callTool({ name: 'status', arguments: {} })
     expect(status.structuredContent).toMatchObject({
       status: 'requires_action',
-      approvals: [{ tool: 'remove' }],
+      interrupts: [{ kind: 'approval', tool: 'remove' }],
       agents: [],
       queuedTurns: 0,
     })
@@ -508,7 +676,7 @@ describe('createHarnessMcpServer', () => {
     expect(approved.structuredContent).toEqual({
       status: 'completed',
       text: 'Removed a.txt.',
-      approvals: [],
+      interrupts: [],
       questions: [],
     })
     expect(removed).toEqual(['a.txt'])
@@ -529,7 +697,7 @@ describe('createHarnessMcpServer', () => {
     expect(rejected.structuredContent).toEqual({
       status: 'completed',
       text: 'Kept a.txt.',
-      approvals: [],
+      interrupts: [],
       questions: [],
     })
     expect(removed).toEqual([])
@@ -543,7 +711,7 @@ describe('createHarnessMcpServer', () => {
     expect(refused).toMatchObject(toolError('No approvals are waiting.'))
   })
 
-  it('refuses a resolve that does not answer every open approval', async () => {
+  it('refuses a resolve that does not answer every open interrupt', async () => {
     const { server, removed } = await harnessServer([
       removeTurn('a.txt', 'b.txt'),
       textTurn('Removed one file.'),
@@ -554,7 +722,7 @@ describe('createHarnessMcpServer', () => {
       name: 'chat',
       arguments: { message: 'remove both files' },
     })
-    const ids = approvalIds(pending)
+    const ids = interruptIds(pending)
     expect(ids).toHaveLength(2)
     const [first, second] = ids
 
@@ -563,7 +731,9 @@ describe('createHarnessMcpServer', () => {
       arguments: { decisions: [{ interruptId: first, approved: true }] },
     })
     expect(partial).toMatchObject(
-      toolError(`resolve must answer every open approval. Missing: ${second}.`),
+      toolError(
+        `resolve must answer every open interrupt. Missing: ${second}.`,
+      ),
     )
     expect(removed).toEqual([])
 
@@ -583,7 +753,7 @@ describe('createHarnessMcpServer', () => {
     expect(removed).toEqual(['a.txt'])
   })
 
-  it('refuses a resolve that names an approval that is not open', async () => {
+  it('refuses a resolve that names an interrupt that is not open', async () => {
     const { server, removed } = await harnessServer([removeTurn('a.txt')])
     const { client } = await connect(server)
 
@@ -591,7 +761,7 @@ describe('createHarnessMcpServer', () => {
       name: 'chat',
       arguments: { message: 'remove a.txt' },
     })
-    const [open] = approvalIds(pending)
+    const [open] = interruptIds(pending)
 
     const refused = await client.callTool({
       name: 'resolve',
@@ -603,7 +773,7 @@ describe('createHarnessMcpServer', () => {
       },
     })
     expect(refused).toMatchObject(
-      toolError('These approvals are not open: ghost.'),
+      toolError('These interrupts are not open: ghost.'),
     )
     expect(removed).toEqual([])
   })
@@ -635,7 +805,7 @@ describe('createHarnessMcpServer', () => {
     expect(reply.structuredContent).toEqual({
       status: 'completed',
       text: 'Removed a.txt.',
-      approvals: [],
+      interrupts: [],
       questions: [],
     })
     expect(removed).toEqual(['a.txt'])
@@ -676,7 +846,7 @@ describe('createHarnessMcpServer', () => {
     expect(reply.structuredContent).toEqual({
       status: 'completed',
       text: 'Kept a.txt.',
-      approvals: [],
+      interrupts: [],
       questions: [],
     })
     expect(removed).toEqual([])
@@ -694,10 +864,209 @@ describe('createHarnessMcpServer', () => {
     })
     expect(reply.structuredContent).toMatchObject({
       status: 'interrupted',
-      approvals: [{ tool: 'remove', args: { path: 'a.txt' } }],
+      interrupts: [
+        { kind: 'approval', tool: 'remove', args: { path: 'a.txt' } },
+      ],
     })
     expect(asked).toHaveLength(1)
     expect(removed).toEqual([])
+  })
+
+  it('returns a generic interrupt with its kind and schema, and resolve answers it with a payload', async () => {
+    const { server, notes } = await harnessServer(
+      [textTurn('Here is the plan.'), textTurn('Plan approved.')],
+      { reviewAt: 'afterModel' },
+    )
+    const { client } = await connect(server)
+
+    const pending = await client.callTool({
+      name: 'chat',
+      arguments: { message: 'make a plan' },
+    })
+    expect(pending.structuredContent).toEqual({
+      status: 'interrupted',
+      text: 'Here is the plan.',
+      interrupts: [
+        {
+          id: expect.any(String),
+          kind: 'generic',
+          message: 'Review the plan',
+          responseSchema: reviewSchema,
+        },
+      ],
+      questions: [],
+    })
+    const [id] = interruptIds(pending)
+
+    const refused = await client.callTool({ name: 'approve', arguments: {} })
+    expect(refused).toMatchObject(
+      toolError(`Use resolve: interrupt ${id} needs a payload.`),
+    )
+
+    const resolved = await client.callTool({
+      name: 'resolve',
+      arguments: {
+        decisions: [{ interruptId: id, payload: { note: 'Ship it.' } }],
+      },
+    })
+    expect(resolved.structuredContent).toEqual({
+      status: 'completed',
+      text: 'Plan approved.',
+      interrupts: [],
+      questions: [],
+    })
+    expect(notes).toEqual([{ note: 'Ship it.' }])
+  })
+
+  it("approvals 'auto' leaves a generic interrupt pending", async () => {
+    const { server, notes } = await harnessServer(
+      [textTurn('Here is the plan.')],
+      { approvals: 'auto', reviewAt: 'afterModel' },
+    )
+    const { client } = await connect(server)
+
+    const reply = await client.callTool({
+      name: 'chat',
+      arguments: { message: 'make a plan' },
+    })
+    expect(reply.structuredContent).toMatchObject({
+      status: 'interrupted',
+      interrupts: [{ kind: 'generic', message: 'Review the plan' }],
+    })
+    expect(notes).toEqual([])
+  })
+
+  it('resolves an approval and a generic interrupt of one turn in one call', async () => {
+    const { server, removed, notes } = await harnessServer(
+      [removeTurn('a.txt'), textTurn('Removed a.txt.')],
+      { approvals: 'auto', reviewAt: 'beforeTools' },
+    )
+    const { client } = await connect(server)
+
+    const pending = await client.callTool({
+      name: 'chat',
+      arguments: { message: 'remove a.txt' },
+    })
+    // 'auto' answers approvals only. The review is open, so both wait.
+    expect(pending.structuredContent).toMatchObject({
+      status: 'interrupted',
+      interrupts: [{ kind: 'approval', tool: 'remove' }, { kind: 'generic' }],
+    })
+    expect(removed).toEqual([])
+    const [approval, reviewId] = interruptIds(pending)
+
+    const resolved = await client.callTool({
+      name: 'resolve',
+      arguments: {
+        decisions: [
+          { interruptId: approval, approved: true },
+          { interruptId: reviewId, payload: { note: 'Go ahead.' } },
+        ],
+      },
+    })
+    expect(resolved.structuredContent).toEqual({
+      status: 'completed',
+      text: 'Removed a.txt.',
+      interrupts: [],
+      questions: [],
+    })
+    expect(removed).toEqual(['a.txt'])
+    expect(notes).toEqual([{ note: 'Go ahead.' }])
+  })
+
+  it.each([
+    {
+      given: 'no approved and no payload for an approval',
+      approval: {},
+      reviewDecision: { payload: { note: 'Go ahead.' } },
+      refused: 0,
+      problem: 'needs approved or payload.',
+    },
+    {
+      given: 'only approved for a generic interrupt',
+      approval: { approved: true },
+      reviewDecision: { approved: true },
+      refused: 1,
+      problem: 'needs a payload. It is not an approval.',
+    },
+  ])(
+    'refuses a decision with $given',
+    async ({ approval, reviewDecision, refused, problem }) => {
+      const { server, removed, notes } = await harnessServer(
+        [removeTurn('a.txt')],
+        { reviewAt: 'beforeTools' },
+      )
+      const { client } = await connect(server)
+
+      const pending = await client.callTool({
+        name: 'chat',
+        arguments: { message: 'remove a.txt' },
+      })
+      const ids = interruptIds(pending)
+      const [approvalId, reviewId] = ids
+
+      const reply = await client.callTool({
+        name: 'resolve',
+        arguments: {
+          decisions: [
+            { interruptId: approvalId, ...approval },
+            { interruptId: reviewId, ...reviewDecision },
+          ],
+        },
+      })
+      expect(reply).toMatchObject(
+        toolError(`The decision for ${ids[refused]} ${problem}`),
+      )
+      const status = await client.callTool({ name: 'status', arguments: {} })
+      expect(status.structuredContent).toMatchObject({
+        status: 'requires_action',
+        interrupts: [{ kind: 'approval' }, { kind: 'generic' }],
+      })
+      expect(removed).toEqual([])
+      expect(notes).toEqual([])
+    },
+  )
+
+  it('returns a client tool call as pending, and resolve sends its output', async () => {
+    const { server, calls } = await harnessServer([
+      toolCallTurn([{ name: 'pick_color', input: { hint: 'sky' } }]),
+      textTurn('Blue it is.'),
+    ])
+    const { client } = await connect(server)
+
+    const pending = await client.callTool({
+      name: 'chat',
+      arguments: { message: 'pick a color' },
+    })
+    expect(pending.structuredContent).toMatchObject({
+      status: 'interrupted',
+      interrupts: [
+        {
+          kind: 'client-tool',
+          tool: 'pick_color',
+          args: { hint: 'sky' },
+          message: 'Client tool pick_color is ready to run',
+        },
+      ],
+    })
+    const [id] = interruptIds(pending)
+
+    const resolved = await client.callTool({
+      name: 'resolve',
+      arguments: {
+        decisions: [{ interruptId: id, payload: { color: 'blue' } }],
+      },
+    })
+    expect(resolved.structuredContent).toMatchObject({
+      status: 'completed',
+      text: 'Blue it is.',
+    })
+    const toolResults = (calls[1] ?? []).filter(
+      (message) => message.role === 'tool',
+    )
+    expect(toolResults).toMatchObject([
+      { toolCallId: 'call-0', content: '{"color":"blue"}' },
+    ])
   })
 
   it('answer resolves the question of a command and returns its result', async () => {
@@ -710,7 +1079,7 @@ describe('createHarnessMcpServer', () => {
     })
     expect(waiting.structuredContent).toEqual({
       status: 'waiting',
-      approvals: [],
+      interrupts: [],
       questions: [
         {
           id: expect.any(String),
@@ -742,7 +1111,7 @@ describe('createHarnessMcpServer', () => {
     })
     expect(answered.structuredContent).toEqual({
       status: 'answered',
-      approvals: [],
+      interrupts: [],
       questions: [],
     })
     expect(await confirm).toBe('Confirmed.')
@@ -897,7 +1266,7 @@ describe('createHarnessMcpServer', () => {
     const status = await client.callTool({ name: 'status', arguments: {} })
     expect(status.structuredContent).toEqual({
       status: 'running',
-      approvals: [],
+      interrupts: [],
       questions: [],
       agents: [{ id: expect.any(String), agent: 'waiter' }],
       queuedTurns: 1,

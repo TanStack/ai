@@ -67,18 +67,20 @@ To talk to the harness:
 - `chat`: send a message and wait for the answer. While a turn runs, the message waits in the queue.
 - `steer`: add a message to the running turn.
 - `cancel`: cancel the running turn.
-- `status`: show the status, the approvals and questions that wait, the background agents, and the queued turns.
+- `status`: show the status, the interrupts and questions that wait, the background agents, and the queued turns.
 
 To answer the harness:
 
 - `approve` and `reject`: answer every approval that waits.
-- `resolve`: approve some tool calls and reject the others. Give one decision for each approval that waits.
+- `resolve`: answer every interrupt that waits, in one call.
 - `answer`: answer a question from a command or a plugin.
 
 To run what the harness has:
 
 - `agent_<name>`: one tool for each agent in `expose.agents`. It takes the agent input and returns the agent result.
 - `command_<name>`: one tool for each plugin command. The command `connect:notion` becomes the tool `command_connect_notion`.
+
+Two names can give the same tool name, for example `connect:notion` and `connect_notion`. Then the later one in name order gets a number: `command_connect_notion_2`. The description of each of these tools names its command or agent.
 
 Every tool takes an optional `threadId`. Each thread is its own conversation. Without a `threadId`, a tool uses the `--thread` conversation (default `main`).
 
@@ -88,36 +90,69 @@ Every tool takes an optional `threadId`. Each thread is its own conversation. Wi
 {
   "status": "completed",
   "text": "You have three open tickets.",
-  "approvals": [],
+  "interrupts": [],
   "questions": []
 }
 ```
 
-## Approvals and questions
+## Interrupts and questions
 
-A turn can stop for a tool call that needs approval. Then the client asks you in its own window (MCP elicitation). Answer `yes` to run the tool. Any other answer rejects it.
+A turn can stop for an interrupt. The turn then waits for your answer. Each interrupt has a `kind`:
 
-If the client cannot ask you, `chat` returns the approvals with `status: "interrupted"`. The same happens when you close the question without an answer:
+- `approval`: a tool call that needs your yes or no.
+- `client-tool`: a tool that the client runs. The turn waits for the tool output.
+- `generic`: a question from a middleware. The answer must match its `responseSchema`.
+
+For an approval, the client asks you in its own window (MCP elicitation). Answer `yes` to run the tool. Any other answer rejects it.
+
+In these cases, `chat` returns the interrupts with `status: "interrupted"`:
+
+- The client cannot ask you.
+- You close the question without an answer.
+- An interrupt of another kind also waits.
 
 ```json
 {
   "status": "interrupted",
-  "text": "",
-  "approvals": [
+  "text": "Here is the plan.",
+  "interrupts": [
     {
-      "id": "approval-1",
-      "tool": "remove",
-      "args": { "path": "old.log" },
-      "message": "Approval required to run remove"
+      "id": "interrupt-1",
+      "kind": "generic",
+      "message": "Review the plan",
+      "responseSchema": {
+        "type": "object",
+        "properties": { "note": { "type": "string" } },
+        "required": ["note"]
+      }
     }
   ],
   "questions": []
 }
 ```
 
-Then the client calls `approve`, `reject`, or `resolve`. That call waits for the turn to continue and returns the same JSON as `chat`. `resolve` refuses a list that does not answer every approval.
+An approval and a client tool also have `tool` and `args`, the tool call that waits.
 
-To approve every tool call without a question, start the CLI with `--yes`. Use it only with tools that you trust.
+Then the client calls `approve`, `reject`, or `resolve`. That call waits for the turn to continue and returns the same JSON as `chat`. `approve` and `reject` answer approvals only. When an interrupt of another kind also waits, they refuse, and the client uses `resolve`.
+
+`resolve` takes one decision for each interrupt that waits. This example answers a turn with one approval and one generic interrupt:
+
+```json
+{
+  "decisions": [
+    { "interruptId": "approval-1", "approved": true },
+    { "interruptId": "interrupt-1", "payload": { "note": "Ship it." } }
+  ]
+}
+```
+
+- For an approval, set `approved`. `true` runs the tool, and `false` rejects it.
+- For a client tool, set `payload` to the tool output.
+- For a generic interrupt, set `payload` to a value that matches its `responseSchema`.
+
+`resolve` refuses a list that does not answer every interrupt. It also refuses a decision without the field that its kind needs.
+
+To approve every tool call without a question, start the CLI with `--yes`. Use it only with tools that you trust. `--yes` answers approvals only, so other interrupts still come back in the result.
 
 A command or a plugin can also ask you a question. The result then has `status: "waiting"` and the question in `questions`. The client calls `answer` with the question `id` as `questionId` and your `value`. `answer` waits for the work that asked, then returns its result.
 
@@ -168,7 +203,7 @@ export async function handleMcp(request: Request) {
 Mount `handleMcp` on a route, for example `/mcp`. The options are:
 
 - `threadId`: the conversation of a tool call without a `threadId`. Default `main`.
-- `approvals`: `'ask'` (default) asks in the client, or returns the approvals when the client cannot ask. `'auto'` approves every tool call.
+- `approvals`: `'ask'` (default) asks in the client, or returns the approvals when the client cannot ask. `'auto'` approves every tool call. Both answer approvals only.
 - `name` and `version`: the MCP server name and version. Default: the harness name and `1.0.0`.
 
 For a process that a client starts, serve the same server on stdio:
@@ -182,7 +217,8 @@ serveMCPStdio(server)
 ## What you have now
 
 - Your harness in Claude Code, Claude Desktop, Cursor, or any other MCP client.
-- Approvals that the client asks you about, or answers with `approve`, `reject`, and `resolve`.
+- Approvals that the client asks you about, or answers with `approve` and `reject`.
+- Every kind of interrupt, answered with one `resolve` call.
 - The agents and commands of your harness as MCP tools.
 
 Next: put the harness on a server with [Deploy a harness](./deploy).
