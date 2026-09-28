@@ -1,5 +1,6 @@
 import { renderHook, waitFor } from '@solidjs/testing-library'
 import { ChatClient } from '@tanstack/ai-client'
+import { toolDefinition } from '@tanstack/ai'
 import { createSignal } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 import { useChat } from '../src/use-chat'
@@ -282,6 +283,77 @@ describe('useChat', () => {
       expect(
         result.chat.messages().filter((message) => message.role === 'user'),
       ).toHaveLength(2)
+    })
+
+    it('clears removed reactive request fields without losing history', async () => {
+      const requests: Array<{
+        users: number
+        provider: unknown
+        region: unknown
+      }> = []
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Response'),
+        onConnect: (messages, data) => {
+          requests.push({
+            users: messages.filter((message) => message.role === 'user').length,
+            provider: data?.['provider'],
+            region: data?.['region'],
+          })
+        },
+      })
+      const { result } = renderHook(() => {
+        const [provider, setProvider] = createSignal<string | undefined>(
+          'openai',
+        )
+        const [region, setRegion] = createSignal<string | undefined>('west')
+        const chat = useChat({
+          connection: adapter,
+          get body() {
+            const value = provider()
+            return value === undefined ? undefined : { provider: value }
+          },
+          get forwardedProps() {
+            const value = region()
+            return value === undefined ? undefined : { region: value }
+          },
+        })
+        return { chat, setProvider, setRegion }
+      })
+
+      await result.chat.sendMessage('First')
+      result.setProvider(undefined)
+      result.setRegion(undefined)
+      await result.chat.sendMessage('Second')
+
+      expect(requests).toEqual([
+        { users: 1, provider: 'openai', region: 'west' },
+        { users: 2, provider: undefined, region: undefined },
+      ])
+    })
+
+    it('clears removed reactive client tools', () => {
+      const updateOptions = vi.spyOn(ChatClient.prototype, 'updateOptions')
+      const tool = toolDefinition({
+        name: 'getWeather',
+        description: 'Look up weather',
+      }).client(() => ({ ok: true }))
+      const { result, cleanup } = renderHook(() => {
+        const [tools, setTools] = createSignal<
+          ReadonlyArray<typeof tool> | undefined
+        >([tool])
+        const chat = useChat({
+          connection: createMockConnectionAdapter(),
+          get tools() {
+            return tools()
+          },
+        })
+        return { chat, setTools }
+      })
+
+      result.setTools(undefined)
+      expect(updateOptions).toHaveBeenCalledWith({ tools: [] })
+      cleanup()
+      updateOptions.mockRestore()
     })
 
     it('replaces and disposes the client when reactive threadId changes', async () => {

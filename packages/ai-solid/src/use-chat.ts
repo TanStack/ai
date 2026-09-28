@@ -236,10 +236,8 @@ export function useChat<
     // Conditional spread: `updateOptions` declares strict-optional
     // fields and rejects explicit `undefined` under EOPT.
     client().updateOptions({
-      ...(options.body !== undefined && { body: options.body }),
-      ...(options.forwardedProps !== undefined && {
-        forwardedProps: options.forwardedProps,
-      }),
+      body: options.body ?? {},
+      forwardedProps: options.forwardedProps ?? {},
       context: options.context,
       ...(options.queue !== undefined && { queue: options.queue }),
     })
@@ -249,7 +247,7 @@ export function useChat<
   // updates the client.
   createEffect(() => {
     const tools = options.tools
-    if (tools !== undefined) client().updateOptions({ tools })
+    client().updateOptions({ tools: (tools ?? []) as TTools })
   })
 
   // Apply initial live mode immediately on hook creation.
