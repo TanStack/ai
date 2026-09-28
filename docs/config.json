@@ -155,7 +155,7 @@
           "label": "Subagents",
           "to": "chat/subagents",
           "addedAt": "2026-09-21",
-          "updatedAt": "2026-09-26"
+          "updatedAt": "2026-09-28"
         },
         {
           "label": "Agentic Cycle",
@@ -871,7 +871,8 @@
         {
           "label": "Run agents from a harness",
           "to": "harness/subagents",
-          "addedAt": "2026-09-26"
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-09-28"
         },
         {
           "label": "Deploy a harness",

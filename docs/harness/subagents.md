@@ -62,6 +62,8 @@ export const review = definePlugin({
 - `ctx.agents.start(agent, input, { wake: true })` runs it in the background and starts a turn when it is done.
 - `ctx.agents.group(options, body)` runs several. With `onFailure: 'cancel-siblings'`, one failure cancels the others. With `'collect'`, use `group.runSettled` to get every result or error. Every child settles before `group` returns.
 
+To track usage or apply a policy in each of these runs, see [Middleware in every agent](./plugins#middleware-in-every-agent).
+
 ## Call a harness as a child
 
 `harnessAgent` turns a harness into an agent. Put it in `subagents.agents`, and the main model calls it as a tool. The child harness keeps its own tools, plugins, and history.

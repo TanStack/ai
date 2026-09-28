@@ -30,7 +30,7 @@ Add it with `plugins: () => [today]` in `defineHarness`. `setup` runs once per s
 
 - `tools`: tools for the model, made with `toolDefinition`.
 - `prompts`: text for the system prompt. A function runs for each turn, so it can show current state.
-- `middleware`: chat middleware, the same type as `chat({ middleware })`.
+- `middleware`: chat middleware for the lead turn, the same type as `chat({ middleware })`. `agentMiddleware` is for agent runs, see [Middleware in every agent](#middleware-in-every-agent).
 - `generationMiddleware`: middleware for the activities agents call.
 - `agents`: agents added to `session.agents`.
 - `subagents`: agents the model can call as tools. They are also added to `session.agents`. [Delegate to coding agents](./coding-agents) uses them.
@@ -99,6 +99,42 @@ export const counter = definePlugin({
 
 When two writers race, `update` runs your function again with fresh state.
 
+## Middleware in every agent
+
+You want to track token cost, or apply a policy, for every model call. But `middleware` runs only in the lead turn. The agents that the lead model calls, the agents you start in the background, and their own children each run a separate chat. Put the same middleware in `agentMiddleware` too. Then it runs in each of those chats.
+
+```ts group=harness-plugins
+import type { ChatMiddleware } from '@tanstack/ai'
+
+export const usageByAgent = definePlugin({
+  name: 'acme/usage-by-agent',
+  setup: () => {
+    const tokens = new Map<string, number>()
+    const tracker: ChatMiddleware = {
+      name: 'acme/usage-by-agent',
+      onUsage: (ctx, usage) => {
+        const agent = ctx.subagentName ?? 'lead'
+        tokens.set(agent, (tokens.get(agent) ?? 0) + usage.totalTokens)
+      },
+    }
+    return {
+      middleware: [tracker],
+      agentMiddleware: [tracker],
+      commands: {
+        tokens: defineCommand({
+          description: 'Show the tokens of each agent',
+          run: () => Object.fromEntries(tokens),
+        }),
+      },
+    }
+  },
+})
+```
+
+- `ctx.subagentName` is the name of the agent. In the lead turn, it is `undefined`.
+- `ctx.subagentRunId` is different for each run of an agent. For a nested child, `ctx.parentSubagentRunId` is the id of the child that started it.
+- Each model call goes to `onUsage` one time, in the run that made the call. The lead turn does not count the usage of a child again.
+
 ## Let plugins work together
 
 Three ways, from simple to loose:
@@ -152,6 +188,7 @@ Set `lifetime: 'run'` to set a plugin up again for each turn.
 ## What you have now
 
 - A plugin that adds tools, prompts, commands, settings, and state to any harness.
+- Middleware that sees every model call, in the lead turn and in every agent.
 - Plugins that share services, lists, and events without knowing each other.
 
 Next: see the [first-party plugins](./coding-agent) that turn a harness into a coding agent.
