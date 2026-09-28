@@ -56,6 +56,10 @@
     "./connector": {
       "types": "./dist/esm/connector.d.ts",
       "import": "./dist/esm/connector.js"
+    },
+    "./harness": {
+      "types": "./dist/esm/harness.d.ts",
+      "import": "./dist/esm/harness.js"
     }
   },
   "files": [
