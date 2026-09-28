@@ -5,6 +5,7 @@ import { definePlugin } from '../plugins'
 import { textOf, transcriptText } from './session-tools'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { ChatTurnResult, Operation } from '../types'
+import type { SessionViewState } from '../view/types'
 
 /** The goal of a session. It is plugin state, so it survives restarts. */
 export interface Goal {
@@ -42,6 +43,25 @@ function isVerdict(value: unknown): value is { met: boolean; reason: string } {
     'reason' in value &&
     typeof value.reason === 'string'
   )
+}
+
+function isGoal(value: unknown): value is Goal {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'text' in value &&
+    typeof value.text === 'string' &&
+    'status' in value &&
+    typeof value.status === 'string' &&
+    'round' in value &&
+    typeof value.round === 'number'
+  )
+}
+
+/** The goal of the session a view shows, or `null` when there is none. */
+export function selectGoal(state: SessionViewState) {
+  const saved = state.plugins['tanstack/goal']
+  return isGoal(saved) ? saved : null
 }
 
 function keepWorking(text: string, reason: string) {

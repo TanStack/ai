@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
-import { GoalMet, goal } from '../src/first-party'
+import { GoalMet, goal, selectGoal } from '../src/first-party'
+import { createSessionView } from '../src/view'
 import {
   after,
   gate,
@@ -379,5 +380,26 @@ describe('goal', () => {
       'Keep working on the goal: all tests pass. Last check: Half done.',
     )
     await second.host.close()
+  })
+
+  it('gives a UI the goal through the session view', async () => {
+    const { host, session } = await start({
+      replies: [() => text('done')],
+      verdicts: [{ met: true, reason: 'Done.' }],
+    })
+    const view = createSessionView(session)
+    await view.ready
+    expect(selectGoal(view.store.get())).toBeNull()
+
+    await session.command('goal', 'finish')
+
+    await vi.waitFor(() =>
+      expect(selectGoal(view.store.get())).toMatchObject({
+        text: 'finish',
+        status: 'met',
+      }),
+    )
+    view.dispose()
+    await host.close()
   })
 })
