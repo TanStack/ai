@@ -69,6 +69,7 @@ export type {
   AgentRunOptions,
   AgentStartOptions,
   DynamicAgentHandle,
+  SessionDescription,
   SessionInspection,
   SessionSnapshot,
 } from './session'

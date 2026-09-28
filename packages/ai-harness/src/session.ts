@@ -128,6 +128,8 @@ export interface SessionSnapshot {
     message: string
     schema?: unknown
   }>
+  /** The state of each plugin that uses `ctx.state`, by plugin name. */
+  plugins: Record<string, unknown>
   /** The cursor of the newest event. */
   cursor: Cursor
 }
@@ -141,6 +143,24 @@ export interface SessionInspection {
   config: Array<{ key: string; owner: string }>
   extensionPoints: Record<string, Array<string>>
   agents: Array<string>
+}
+
+/** What a UI can show and run in a session: commands, settings, and tools. */
+export interface SessionDescription {
+  commands: Array<{
+    name: string
+    description: string
+    owner: string
+    /** The command input as JSON Schema, when it has one. */
+    input?: unknown
+  }>
+  config: Array<{
+    key: string
+    owner: string
+    value: unknown
+    option: ConfigOption
+  }>
+  tools: SessionInspection['tools']
 }
 
 /** What the host hands a new session. */
@@ -245,6 +265,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }
   >()
   private readonly stateDoc: Record<string, unknown> = {}
+  /** Reads each plugin's saved state, so the first snapshot has it. */
+  private readonly stateLoaders = new Map<string, () => Promise<unknown>>()
   private readonly localState = new Map<string, unknown>()
   private readonly credentialAccess: CredentialsAccess
   private readonly services: PluginServices
@@ -361,6 +383,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       },
     )
     await this.loadConfig()
+    await this.loadPluginState()
     await this.recoverCrashedTurn()
     await this.recoverInbox()
   }
@@ -500,6 +523,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             : {}),
         }),
       ),
+      plugins: { ...this.stateDoc },
       cursor: this.feed.head(),
     }
   }
@@ -573,6 +597,25 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         ? { input: convertSchemaToJsonSchema(entry.command.input) }
         : {}),
     }))
+  }
+
+  /** The saved messages of this thread, oldest first. */
+  async transcript() {
+    return [
+      ...(await this.persistence.stores.messages.loadThread(this.threadId)),
+    ]
+  }
+
+  /** The commands, settings, and tools of this session, for a UI. */
+  describe() {
+    return {
+      commands: this.commands(),
+      config: Object.entries(this.config()).map(([key, entry]) => ({
+        key,
+        ...entry,
+      })),
+      tools: this.inspect().tools,
+    } satisfies SessionDescription
   }
 
   /** Run a plugin command. Its input is checked against the command's schema. */
@@ -662,6 +705,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }
   }
 
+  /** Put each plugin's saved state in the snapshot before the first read. */
+  private async loadPluginState() {
+    for (const [plugin, load] of this.stateLoaders) {
+      if (!(plugin in this.stateDoc)) this.stateDoc[plugin] = await load()
+    }
+  }
+
   private ask(question: Question<SchemaInput | undefined>): Promise<unknown> {
     if (this.closing) return Promise.reject(new Error('Session closed.'))
     const questionId = `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
@@ -692,9 +742,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       snapshot: () => this.snapshot(),
       // A plugin turn always waits its turn. It cannot see a busy rejection.
       prompt: (text) => this.prompt(text, { busy: 'queue' }),
-      transcript: async () => [
-        ...(await this.persistence.stores.messages.loadThread(this.threadId)),
-      ],
+      transcript: () => this.transcript(),
       replaceTranscript: (messages) =>
         this.persistence.stores.messages.saveThread(this.threadId, messages),
       // The public type narrows the answer from the schema.
@@ -749,6 +797,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         revision: null,
       }
     }
+    this.stateLoaders.set(plugin, async () => (await read()).value)
     const publish = (value: T) => {
       this.stateDoc[plugin] = value
       this.feed.publish('session', {
