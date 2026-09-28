@@ -2,9 +2,7 @@ import {
   createEffect,
   createMemo,
   createSignal,
-  createUniqueId,
   onCleanup,
-  onMount,
   untrack,
 } from 'solid-js'
 
@@ -57,10 +55,7 @@ export function useChat<
   > = {} as UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TSchema, TInterrupts> {
   // The hook's identity is its `threadId`. Reload with the same `threadId`
-  // restores the same conversation. `hookId` is only a recreation key when no
-  // `threadId` is given. It is never sent on the wire.
-  const hookId = createUniqueId()
-  const clientId = options.threadId ?? hookId
+  // restores the same conversation.
 
   const [messages, setMessages] = createSignal<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
@@ -103,120 +98,132 @@ export function useChat<
   // in-place mutations propagate. When the user clears a callback (sets it to
   // undefined), `?.` no-ops.
   const client = createMemo(() => {
+    // Only threadId is an identity change. All other reactive options are
+    // synced below or read by callbacks at call time.
+    const threadId = options.threadId
     // Build options with conditional spreads for fields whose source
     // type is `T | undefined` but the ChatClient target uses a strict
     // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
     // assigning `undefined` to those, so we omit the key when absent.
-    const transport = options.connection
-      ? { connection: options.connection }
-      : { fetcher: options.fetcher }
-    const instance = new ChatClient<TTools, TContext, TInterrupts>({
-      devtoolsBridgeFactory: createChatDevtoolsBridge,
-      ...transport,
-      ...(options.initialMessages !== undefined && {
-        initialMessages: options.initialMessages,
-      }),
-      ...(typeof options.threadId === 'string' && options.persistence === true
-        ? {
-            persistence: true,
-            threadId: options.threadId,
-            ...(options.history !== undefined && {
-              history: options.history,
-            }),
-          }
-        : typeof options.threadId === 'string' && options.persistence
-          ? {
-              persistence: options.persistence,
-              threadId: options.threadId,
-            }
-          : {
-              ...(options.threadId !== undefined && {
-                threadId: options.threadId,
-              }),
-            }),
-      ...(options.initialResumeSnapshot !== undefined && {
-        initialResumeSnapshot: options.initialResumeSnapshot,
-      }),
-      body: options.body,
-      ...(options.forwardedProps !== undefined && {
-        forwardedProps: options.forwardedProps,
-      }),
-      ...(options.byok !== undefined && { byok: options.byok }),
-      byokProvider: () => options.byokProvider?.(),
-      ...(options.context !== undefined && { context: options.context }),
-      devtools: {
-        ...options.devtools,
-        framework: 'solid',
-        hookName: 'useChat',
-        outputKind: options.outputSchema ? 'structured' : 'chat',
-      },
-      onResponse: (response) => options.onResponse?.(response),
-      onChunk: (chunk: StreamChunk) => {
-        options.onChunk?.(chunk)
-      },
-      onFinish: (message) => {
-        options.onFinish?.(message)
-      },
-      onError: (err) => {
-        options.onError?.(err)
-      },
-      // Untracked: a tools change must not rebuild the client. The effect
-      // below syncs it instead.
-      tools: untrack(() => options.tools),
-      ...(options.interrupts !== undefined && {
-        interrupts: options.interrupts,
-      }),
-      onCustomEvent: (eventType, data, context) =>
-        options.onCustomEvent?.(eventType, data, context),
-      ...(options.streamProcessor !== undefined && {
-        streamProcessor: options.streamProcessor,
-      }),
-      onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
-        setMessages(newMessages)
-        setHasOlderMessages(instance.getHasOlderMessages())
-      },
-      onLoadingChange: (newIsLoading: boolean) => {
-        setIsLoading(newIsLoading)
-        syncResumeState()
-      },
-      onStatusChange: (newStatus: ChatClientState) => {
-        setStatus(newStatus)
-      },
-      onErrorChange: (newError: Error | undefined) => {
-        setError(newError)
-      },
-      onSubscriptionChange: (nextIsSubscribed: boolean) => {
-        setIsSubscribed(nextIsSubscribed)
-      },
-      onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
-        setConnectionStatus(nextStatus)
-      },
-      onSessionGeneratingChange: (isGenerating: boolean) => {
-        setSessionGenerating(isGenerating)
-      },
-      ...(options.queue !== undefined && { queue: options.queue }),
-      onQueueChange: (nextQueue: Array<QueuedMessage>) => {
-        setQueue(nextQueue)
-      },
-      onRunIdChange: (nextRunId) => {
-        setRunId(nextRunId)
-      },
-      onResumeStateChange: (_nextResumeState, nextPendingInterrupts) => {
-        setInterruptState((current) => ({
-          ...current,
-          interrupts: nextPendingInterrupts,
-          pendingInterrupts: nextPendingInterrupts,
-        }))
-      },
-      onInterruptStateChange: (nextInterruptState, context) => {
-        setInterruptState(nextInterruptState)
-        options.onInterruptStateChange?.(nextInterruptState, context)
-      },
+    let active = true
+    const instance = untrack(
+      () =>
+        new ChatClient<TTools, TContext, TInterrupts>({
+          ...(options.connection
+            ? { connection: options.connection }
+            : { fetcher: options.fetcher }),
+          devtoolsBridgeFactory: createChatDevtoolsBridge,
+          ...(options.initialMessages !== undefined && {
+            initialMessages: options.initialMessages,
+          }),
+          ...(typeof threadId === 'string' && options.persistence === true
+            ? {
+                persistence: true,
+                threadId,
+                ...(options.history !== undefined && {
+                  history: options.history,
+                }),
+              }
+            : typeof threadId === 'string' && options.persistence
+              ? {
+                  persistence: options.persistence,
+                  threadId,
+                }
+              : {
+                  ...(threadId !== undefined && {
+                    threadId,
+                  }),
+                }),
+          ...(options.initialResumeSnapshot !== undefined && {
+            initialResumeSnapshot: options.initialResumeSnapshot,
+          }),
+          body: options.body,
+          ...(options.forwardedProps !== undefined && {
+            forwardedProps: options.forwardedProps,
+          }),
+          ...(options.byok !== undefined && { byok: options.byok }),
+          byokProvider: () => options.byokProvider?.(),
+          ...(options.context !== undefined && { context: options.context }),
+          devtools: {
+            ...options.devtools,
+            framework: 'solid',
+            hookName: 'useChat',
+            outputKind: options.outputSchema ? 'structured' : 'chat',
+          },
+          onResponse: (response) => {
+            if (active) return options.onResponse?.(response)
+          },
+          onChunk: (chunk: StreamChunk) => {
+            if (active) options.onChunk?.(chunk)
+          },
+          onFinish: (message) => {
+            if (active) options.onFinish?.(message)
+          },
+          onError: (err) => {
+            if (active) options.onError?.(err)
+          },
+          tools: options.tools,
+          ...(options.interrupts !== undefined && {
+            interrupts: options.interrupts,
+          }),
+          onCustomEvent: (eventType, data, context) => {
+            if (active) options.onCustomEvent?.(eventType, data, context)
+          },
+          ...(options.streamProcessor !== undefined && {
+            streamProcessor: options.streamProcessor,
+          }),
+          onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
+            if (!active) return
+            setMessages(newMessages)
+            setHasOlderMessages(instance.getHasOlderMessages())
+          },
+          onLoadingChange: (newIsLoading: boolean) => {
+            if (!active) return
+            setIsLoading(newIsLoading)
+            syncResumeState()
+          },
+          onStatusChange: (newStatus: ChatClientState) => {
+            if (active) setStatus(newStatus)
+          },
+          onErrorChange: (newError: Error | undefined) => {
+            if (active) setError(newError)
+          },
+          onSubscriptionChange: (nextIsSubscribed: boolean) => {
+            if (active) setIsSubscribed(nextIsSubscribed)
+          },
+          onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
+            if (active) setConnectionStatus(nextStatus)
+          },
+          onSessionGeneratingChange: (isGenerating: boolean) => {
+            if (active) setSessionGenerating(isGenerating)
+          },
+          ...(options.queue !== undefined && { queue: options.queue }),
+          onQueueChange: (nextQueue: Array<QueuedMessage>) => {
+            if (active) setQueue(nextQueue)
+          },
+          onRunIdChange: (nextRunId) => {
+            if (active) setRunId(nextRunId)
+          },
+          onResumeStateChange: (_nextResumeState, nextPendingInterrupts) => {
+            if (!active) return
+            setInterruptState((current) => ({
+              ...current,
+              interrupts: nextPendingInterrupts,
+              pendingInterrupts: nextPendingInterrupts,
+            }))
+          },
+          onInterruptStateChange: (nextInterruptState, context) => {
+            if (!active) return
+            setInterruptState(nextInterruptState)
+            options.onInterruptStateChange?.(nextInterruptState, context)
+          },
+        }),
+    )
+    onCleanup(() => {
+      active = false
     })
-    // Only recreate when clientId changes
-    // Connection and other options are captured at creation time
     return instance
-  }, [clientId])
+  })
 
   setMessages(client().getMessages())
   setHasOlderMessages(client().getHasOlderMessages())
@@ -260,31 +267,37 @@ export function useChat<
     }
   })
 
-  onMount(() => {
+  createEffect(() => {
+    const instance = client()
+    setMessages(instance.getMessages())
+    setHasOlderMessages(instance.getHasOlderMessages())
+    setIsLoading(instance.getIsLoading())
+    setError(instance.getError())
+    setStatus(instance.getStatus())
+    setIsSubscribed(instance.getIsSubscribed())
+    setConnectionStatus(instance.getConnectionStatus())
+    setSessionGenerating(instance.getSessionGenerating())
+    setQueue(instance.getQueue())
     // START TAILING HERE, not in the constructor. A client is idle until a view
     // attaches it, so a client that gets built and thrown away never opens a
     // connection — an unreachable stream would hold one of the browser's ~6
     // connections per origin until the page reloaded.
-    client().attach()
-    client().mountDevtools()
+    instance.attach()
+    instance.mountDevtools()
     // Delivery-durability resume is transparent: the resumable SSE connection
     // adapter reattaches via the browser's native Last-Event-ID on reconnect.
     // We only seed interrupt (state) resume from the client here.
     syncResumeState()
-  })
-
-  // Cleanup on unmount: stop any in-flight requests.
-  onCleanup(() => {
-    // Release the connection first: `detach` is the counterpart of the `attach`
-    // above, and it keeps the transcript and resume pointer so a later mount can
-    // pick the run back up from the durable log.
-    client().detach()
-    if (options.live) {
-      client().unsubscribe()
-    } else {
-      client().stop()
-    }
-    client().dispose()
+    onCleanup(() => {
+      // Release the old connection before attaching another thread or unmounting.
+      instance.detach()
+      if (options.live) {
+        instance.unsubscribe()
+      } else {
+        instance.stop()
+      }
+      instance.dispose()
+    })
   })
 
   // Callback options are read through `options.xxx` at call time, so reactive

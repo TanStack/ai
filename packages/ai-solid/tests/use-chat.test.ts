@@ -1,5 +1,6 @@
 import { renderHook, waitFor } from '@solidjs/testing-library'
 import { ChatClient } from '@tanstack/ai-client'
+import { createSignal } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 import { useChat } from '../src/use-chat'
 import {
@@ -248,6 +249,135 @@ describe('useChat', () => {
   })
 
   describe('state synchronization', () => {
+    it('keeps conversation history when reactive body changes', async () => {
+      const requests: Array<{ users: number; body: unknown }> = []
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Response'),
+        onConnect: (messages, data) => {
+          requests.push({
+            users: messages.filter((message) => message.role === 'user').length,
+            body: data?.['provider'],
+          })
+        },
+      })
+      const { result } = renderHook(() => {
+        const [provider, setProvider] = createSignal('openai')
+        const chat = useChat({
+          connection: adapter,
+          get body() {
+            return { provider: provider() }
+          },
+        })
+        return { chat, setProvider }
+      })
+
+      await result.chat.sendMessage('First')
+      result.setProvider('anthropic')
+      await result.chat.sendMessage('Second')
+
+      expect(requests).toEqual([
+        { users: 1, body: 'openai' },
+        { users: 2, body: 'anthropic' },
+      ])
+      expect(
+        result.chat.messages().filter((message) => message.role === 'user'),
+      ).toHaveLength(2)
+    })
+
+    it('replaces and disposes the client when reactive threadId changes', async () => {
+      const dispose = vi.spyOn(ChatClient.prototype, 'dispose')
+      const attach = vi.spyOn(ChatClient.prototype, 'attach')
+      const detach = vi.spyOn(ChatClient.prototype, 'detach')
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Response'),
+      })
+      const errorAdapter = createMockConnectionAdapter({
+        shouldError: true,
+        error: new Error('Old thread failed'),
+      })
+      const { result, cleanup } = renderHook(() => {
+        const [threadId, setThreadId] = createSignal('first-thread')
+        const chat = useChat({
+          get connection() {
+            return threadId() === 'first-thread' ? errorAdapter : adapter
+          },
+          get threadId() {
+            return threadId()
+          },
+        })
+        return { chat, setThreadId }
+      })
+
+      await result.chat.sendMessage('First')
+      expect(result.chat.error()?.message).toBe('Old thread failed')
+      expect(result.chat.status()).toBe('error')
+      result.setThreadId('second-thread')
+      await waitFor(() => expect(result.chat.messages()).toEqual([]))
+      expect(result.chat.error()).toBeUndefined()
+      expect(result.chat.status()).toBe('ready')
+      expect(result.chat.isLoading()).toBe(false)
+      expect(result.chat.queue()).toEqual([])
+      expect(dispose).toHaveBeenCalledTimes(1)
+      expect(detach).toHaveBeenCalledTimes(1)
+      expect(attach).toHaveBeenCalledTimes(2)
+
+      await result.chat.sendMessage('Second')
+      expect(
+        result.chat.messages().filter((message) => message.role === 'user'),
+      ).toHaveLength(1)
+
+      cleanup()
+      expect(dispose).toHaveBeenCalledTimes(2)
+      expect(detach).toHaveBeenCalledTimes(2)
+      dispose.mockRestore()
+      attach.mockRestore()
+      detach.mockRestore()
+    })
+
+    it('ignores callbacks from a disposed thread', async () => {
+      let started = () => {}
+      let release = () => {}
+      const startedPromise = new Promise<void>((resolve) => {
+        started = resolve
+      })
+      const releasePromise = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const oldAdapter = {
+        async *connect() {
+          started()
+          await releasePromise
+          throw new Error('Late old-thread error')
+        },
+      }
+      const newAdapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Response'),
+      })
+      const { result } = renderHook(() => {
+        const [threadId, setThreadId] = createSignal('old')
+        const chat = useChat({
+          get connection() {
+            return threadId() === 'old' ? oldAdapter : newAdapter
+          },
+          get threadId() {
+            return threadId()
+          },
+        })
+        return { chat, setThreadId }
+      })
+
+      const oldSend = result.chat.sendMessage('Old message')
+      await startedPromise
+      result.setThreadId('new')
+      await waitFor(() => expect(result.chat.messages()).toEqual([]))
+      release()
+      await oldSend
+
+      expect(result.chat.error()).toBeUndefined()
+      expect(result.chat.status()).toBe('ready')
+      expect(result.chat.messages()).toEqual([])
+    })
+
     it('should update messages via onMessagesChange callback', async () => {
       const chunks = createTextChunks('Hello, world!')
       const adapter = createMockConnectionAdapter({ chunks })
