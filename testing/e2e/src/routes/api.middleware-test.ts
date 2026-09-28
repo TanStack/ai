@@ -566,6 +566,17 @@ export const Route = createFileRoute('/api/middleware-test')({
             middleware.push(chunkTransformMiddleware)
           if (middlewareMode === 'tool-skip')
             middleware.push(toolSkipMiddleware)
+          if (middlewareMode === 'after-tool-error') {
+            let calls = 0
+            middleware.push({
+              name: 'after-tool-error',
+              onAfterToolCall() {
+                // Return on a second call so the old behavior would emit two
+                // conflicting results instead of a RUN_ERROR.
+                if (++calls === 1) throw new Error('post-hook failed')
+              },
+            })
+          }
           if (middlewareMode === 'capability') {
             // Order matters: the provider's setup() must run before the
             // consumer reads the capability. Array order is preserved.

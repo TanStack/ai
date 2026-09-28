@@ -683,6 +683,7 @@ export async function* executeServerTool<TContext = unknown>(
   subagentInterrupts?: Array<Interrupt>,
 ): AsyncGenerator<CustomEvent | StreamChunk, void, void> {
   const startTime = Date.now()
+  let resultRecorded = false
   try {
     if (!tool.execute) {
       throw new Error(`Tool ${toolName} has no execute() implementation`)
@@ -717,6 +718,7 @@ export async function* executeServerTool<TContext = unknown>(
         duration,
         ...(outcome.error ? { state: 'output-error' as const } : {}),
       })
+      resultRecorded = true
       await middlewareHooks?.onAfterToolCall?.({
         toolCall,
         tool,
@@ -760,6 +762,7 @@ export async function* executeServerTool<TContext = unknown>(
       output: finalResult,
       duration,
     })
+    resultRecorded = true
 
     if (middlewareHooks?.onAfterToolCall) {
       await middlewareHooks.onAfterToolCall({
@@ -773,6 +776,10 @@ export async function* executeServerTool<TContext = unknown>(
       })
     }
   } catch (error: unknown) {
+    // A post-execution hook failed after the tool result was recorded. Let the
+    // run handle that failure; reporting it as a second tool result would give
+    // the model contradictory outcomes and call the hook a second time.
+    if (resultRecorded) throw error
     const duration = Date.now() - startTime
 
     // Flush remaining events
