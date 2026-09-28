@@ -1,0 +1,118 @@
+import { EventType } from '@tanstack/ai'
+import { HARNESS_EVENTS } from '@tanstack/ai-harness'
+import type { AnyTextAdapter, StreamChunk, TextOptions } from '@tanstack/ai'
+import type { HarnessSession } from '@tanstack/ai-harness'
+
+/** A text adapter for the connector tests. Only `chatStream` changes. */
+export function mockTextAdapter(chatStream: AnyTextAdapter['chatStream']) {
+  const adapter: AnyTextAdapter = {
+    kind: 'text',
+    name: 'mock',
+    model: 'mock',
+    '~types': {
+      providerOptions: {},
+      inputModalities: ['text'],
+      messageMetadataByModality: {
+        text: undefined,
+        image: undefined,
+        audio: undefined,
+        video: undefined,
+        document: undefined,
+      },
+      toolCapabilities: [],
+      toolCallMetadata: undefined,
+      systemPromptMetadata: undefined,
+    },
+    structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+    chatStream,
+  }
+  return adapter
+}
+
+/** A model that records the calls it gets, calls `tool` once, then stops. */
+export function recorder(tool?: string) {
+  const calls: Array<TextOptions> = []
+  const now = () => Date.now()
+  const adapter = mockTextAdapter((options) => {
+    calls.push(options)
+    const first = calls.length === 1 && tool !== undefined
+    return (async function* (): AsyncGenerator<StreamChunk> {
+      yield {
+        type: EventType.RUN_STARTED,
+        runId: 'r',
+        threadId: 't',
+        timestamp: now(),
+      }
+      if (first) {
+        yield {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'c1',
+          toolCallName: tool,
+          timestamp: now(),
+        }
+        yield {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'c1',
+          delta: '{"text":"hi"}',
+          timestamp: now(),
+        }
+        yield {
+          type: EventType.TOOL_CALL_END,
+          toolCallId: 'c1',
+          timestamp: now(),
+        }
+      }
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId: 'r',
+        threadId: 't',
+        timestamp: now(),
+        metadata: {
+          tanstack: { finishReason: first ? 'tool_calls' : 'stop' },
+        },
+      }
+    })()
+  })
+  const toolNames = (index: number) =>
+    (calls[index]?.tools ?? []).map((entry) => entry.name)
+  return { adapter, calls, toolNames }
+}
+
+/** The sign-in URL of a `harness.auth_required` event, or `undefined`. */
+export function authorizationUrlOf(event: StreamChunk) {
+  if (
+    event.type !== EventType.CUSTOM ||
+    event.name !== HARNESS_EVENTS.authRequired
+  )
+    return undefined
+  const value: unknown = event.value
+  if (typeof value !== 'object' || value === null || !('url' in value))
+    return undefined
+  return typeof value.url === 'string' ? new URL(value.url) : undefined
+}
+
+/**
+ * Act as the user's browser for `/connect`: approve each sign-in the session
+ * asks for by calling its loopback redirect with `code` and the same `state`.
+ */
+export function approveSignIns(session: HarnessSession, code: string) {
+  const authorizationUrls: Array<URL> = []
+  const controller = new AbortController()
+  void (async () => {
+    for await (const entry of session.events({ signal: controller.signal })) {
+      const authorizationUrl = authorizationUrlOf(entry.event)
+      if (!authorizationUrl) continue
+      authorizationUrls.push(authorizationUrl)
+      const redirect = new URL(
+        authorizationUrl.searchParams.get('redirect_uri') ?? '',
+      )
+      redirect.searchParams.set('code', code)
+      redirect.searchParams.set(
+        'state',
+        authorizationUrl.searchParams.get('state') ?? '',
+      )
+      await fetch(redirect)
+    }
+  })()
+  return { authorizationUrls, stop: () => controller.abort() }
+}

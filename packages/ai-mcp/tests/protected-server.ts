@@ -22,6 +22,7 @@ function webHeaders(req: IncomingMessage) {
  * registration, a token endpoint, and an `echo` tool.
  *
  * - The code `code-1` gives `access-1` and `refresh-1`.
+ * - The code `code-2` gives only `access-1` (no refresh token, expiry, or scope).
  * - The refresh token `refresh-1` gives `access-2` (and no new refresh token).
  * - `revoke(token)` makes the MCP endpoint refuse a token.
  */
@@ -81,6 +82,12 @@ export async function startProtectedServer() {
             expires_in: 3600,
             scope: 'read write',
           })
+        }
+        if (
+          form.get('grant_type') === 'authorization_code' &&
+          form.get('code') === 'code-2'
+        ) {
+          return json(200, { access_token: 'access-1', token_type: 'Bearer' })
         }
         if (
           form.get('grant_type') === 'refresh_token' &&
