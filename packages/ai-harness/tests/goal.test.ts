@@ -5,6 +5,7 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { GoalMet, goal, selectGoal } from '../src/first-party'
 import { createSessionView } from '../src/view'
+import { emptyState } from '../src/view/reduce'
 import {
   after,
   gate,
@@ -401,5 +402,14 @@ describe('goal', () => {
     )
     view.dispose()
     await host.close()
+  })
+
+  it('gives no goal for goal plugin state that is not a goal', () => {
+    const state = {
+      ...emptyState(),
+      plugins: { 'tanstack/goal': { text: 'finish' } },
+    }
+
+    expect(selectGoal(state)).toBeNull()
   })
 })

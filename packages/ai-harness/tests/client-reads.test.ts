@@ -39,6 +39,7 @@ function setup(
     host,
     harness,
     authorize: () => ({ id: 'u' }),
+    canAccess: (_principal, threadId) => threadId !== 'someone-else',
   })
   const direct: typeof globalThis.fetch = (input, init) =>
     handler(new Request(input, init))
@@ -48,7 +49,7 @@ function setup(
     fetch: fetchWrap ? fetchWrap(direct) : direct,
     reconnectDelayMs: 1,
   })
-  return { host, client }
+  return { host, client, handler }
 }
 
 describe('client reads and actions', () => {
@@ -89,6 +90,29 @@ describe('client reads and actions', () => {
 
     expect((await client.setConfig('tone', 'warm')).status).toBe('accepted')
     expect((await client.describe()).config[0]?.value).toBe('warm')
+    await host.close()
+  })
+
+  it('refuses a read without a thread id, or for a thread the user may not open', async () => {
+    const { host, handler } = setup()
+    const statusOf = async (path: string) =>
+      (await handler(new Request(`http://local/api/harness/${path}`))).status
+
+    expect(await statusOf('transcript')).toBe(400)
+    expect(await statusOf('describe')).toBe(400)
+    expect(await statusOf('transcript?threadId=someone-else')).toBe(403)
+    expect(await statusOf('describe?threadId=someone-else')).toBe(403)
+    await host.close()
+  })
+
+  it('throws with the route and the status when a read fails', async () => {
+    const { host, client } = setup(
+      () => async () => new Response('down', { status: 500 }),
+    )
+
+    await expect(client.describe()).rejects.toThrow(
+      'Harness describe failed (500)',
+    )
     await host.close()
   })
 

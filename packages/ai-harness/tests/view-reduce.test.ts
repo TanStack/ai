@@ -8,21 +8,15 @@ import {
   emptyState,
   messagesFromTranscript,
   withNotice,
+  withUserMessage,
 } from '../src/view/reduce'
-import type { StreamChunk } from '@tanstack/ai'
-import type { SessionEvent, SessionSnapshot } from '../src'
+import { at, childRun, custom, sessionSnapshot } from './view-fixtures'
+import type { SessionEvent } from '../src'
 import type { ItemFactory } from '../src/view/reduce'
 import type { SessionViewState } from '../src/view/types'
 
-let cursor = 0
-const at = (event: StreamChunk, operationId = 'op-1'): SessionEvent => {
-  cursor += 1
-  return { cursor: String(cursor), operationId, event }
-}
 const fold = (events: Array<SessionEvent>, start = emptyState()) =>
   events.reduce(applyEvent, start)
-const custom = (name: string, value: unknown) =>
-  at({ type: EventType.CUSTOM, name, value }, 'session')
 
 const factory: ItemFactory = {
   approval: (interrupt, call) => ({
@@ -39,18 +33,6 @@ const factory: ItemFactory = {
     answer: async () => ({ inputId: 'i', status: 'accepted' }),
   }),
 }
-
-const snapshot = (over: Partial<SessionSnapshot> = {}): SessionSnapshot => ({
-  threadId: 't',
-  status: 'idle',
-  activeOperations: [],
-  queuedTurns: 0,
-  pendingInterrupts: [],
-  pendingQuestions: [],
-  plugins: {},
-  cursor: '0',
-  ...over,
-})
 
 function assistantParts(state: SessionViewState) {
   const message = state.messages.find((item) => item.role === 'assistant')
@@ -263,6 +245,7 @@ describe('view reducer', () => {
         'op-d',
       ),
       custom(HARNESS_EVENTS.inputRejected, { inputId: 'i', reason: 'busy' }),
+      custom(HARNESS_EVENTS.inputRejected, { inputId: 'j' }),
     ])
     expect(state.messages.filter((item) => item.role === 'notice')).toEqual([
       { id: 'notice-1', role: 'notice', kind: 'error', text: 'Error: boom' },
@@ -279,6 +262,12 @@ describe('view reducer', () => {
         kind: 'rejected',
         text: 'Not accepted: busy',
       },
+      {
+        id: 'notice-5',
+        role: 'notice',
+        kind: 'rejected',
+        text: 'Not accepted: unknown reason',
+      },
     ])
     expect(assistantParts(state)[0]).toMatchObject({ status: 'failed' })
   })
@@ -294,9 +283,11 @@ describe('view reducer', () => {
         url: 'https://b',
         userCode: 'X1',
       }),
+      custom(HARNESS_EVENTS.authRequired, { connector: 'github' }),
     ])
     expect(signedOut.signIns).toEqual([
       { connector: 'notion', url: 'https://b', userCode: 'X1' },
+      { connector: 'github' },
     ])
     const next = applyEvent(
       signedOut,
@@ -348,7 +339,7 @@ describe('view reducer', () => {
       at({ type: EventType.TOOL_CALL_ARGS, toolCallId: 'c1', delta: '{}' }),
       at({ type: EventType.TOOL_CALL_END, toolCallId: 'c1' }),
     ])
-    const waiting = snapshot({
+    const waiting = sessionSnapshot({
       status: 'requires_action',
       pendingInterrupts: [
         { id: 'int-1', reason: 'tool_approval', toolCallId: 'c1' },
@@ -421,6 +412,400 @@ describe('view reducer', () => {
     expect(state.messages.map((item) => item.id)).toEqual([
       'notice-0',
       'notice-1',
+    ])
+  })
+
+  // A user message, then a turn with text, a tool call, and a child agent.
+  const placed = fold(
+    [
+      at({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta: 'Hi' }),
+      at({
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'c1',
+        toolCallName: 'read',
+      }),
+      at({
+        subagentRunId: 'child-1',
+        type: EventType.SUBAGENT_STARTED,
+        name: 'helper',
+      }),
+    ],
+    withUserMessage(emptyState(), 'hi'),
+  )
+  const unchanged: Array<[string, SessionEvent]> = [
+    [
+      'an empty delta',
+      at({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta: '' }),
+    ],
+    [
+      'an empty delta of a child',
+      at({
+        subagentRunId: 'child-1',
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'c',
+        delta: '',
+      }),
+    ],
+    [
+      'text of a child it does not know',
+      at({
+        subagentRunId: 'ghost',
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'g',
+        delta: 'boo',
+      }),
+    ],
+    [
+      'a tool call start that repeats an id',
+      at({
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'c1',
+        toolCallName: 'read',
+      }),
+    ],
+    [
+      'args of a tool call it does not know',
+      at({ type: EventType.TOOL_CALL_ARGS, toolCallId: 'ghost', delta: '{}' }),
+    ],
+    [
+      'a result of a tool call it does not know',
+      at({
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: 'ghost',
+        messageId: 'x',
+        content: '1',
+      }),
+    ],
+    [
+      'a child start that repeats an id',
+      at({
+        subagentRunId: 'child-1',
+        type: EventType.SUBAGENT_STARTED,
+        name: 'helper',
+      }),
+    ],
+    ['a run error of a child', at(childRun.error)],
+    [
+      'a state snapshot without plugins',
+      at({ type: EventType.STATE_SNAPSHOT, snapshot: { other: 1 } }, 'session'),
+    ],
+    [
+      'an event it does not show',
+      at({ type: EventType.RUN_STARTED, threadId: 't', runId: 'r' }),
+    ],
+    [
+      'a config change for a key it does not know',
+      custom(HARNESS_EVENTS.configChanged, { key: 'ghost', value: 1 }),
+    ],
+    [
+      'a config change without a key',
+      custom(HARNESS_EVENTS.configChanged, { value: 1 }),
+    ],
+    [
+      'a command result with no text',
+      custom('harness.command.result', { name: 'stats', result: '' }),
+    ],
+    [
+      'a sign-in request without a connector',
+      custom(HARNESS_EVENTS.authRequired, { url: 'https://a' }),
+    ],
+    [
+      'a chat start with no sign-ins',
+      custom(HARNESS_EVENTS.operationStarted, {
+        operationId: 'op-2',
+        kind: 'chat',
+      }),
+    ],
+    ['a custom event it does not know', custom('app.unknown', null)],
+  ]
+
+  it.each(unchanged)('returns the same state for %s', (_name, entry) => {
+    expect(applyEvent(placed, entry)).toBe(placed)
+  })
+
+  it('routes child events to the right agent among nested and sibling agents', () => {
+    const state = fold([
+      at({
+        subagentRunId: 'child-1',
+        type: EventType.SUBAGENT_STARTED,
+        name: 'helper',
+      }),
+      at({
+        subagentRunId: 'grand-1',
+        type: EventType.SUBAGENT_STARTED,
+        name: 'inner',
+        parentSubagentRunId: 'child-1',
+      }),
+      at({
+        subagentRunId: 'child-2',
+        type: EventType.SUBAGENT_STARTED,
+        name: 'fixer',
+      }),
+      // Its parent is unknown, so it goes to the top level.
+      at({
+        subagentRunId: 'child-3',
+        type: EventType.SUBAGENT_STARTED,
+        name: 'lost',
+        parentSubagentRunId: 'ghost',
+      }),
+      at({
+        subagentRunId: 'child-2',
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'c2',
+        delta: 'two',
+      }),
+      at({
+        subagentRunId: 'grand-1',
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'g1',
+        delta: 'inner',
+      }),
+      at({
+        subagentRunId: 'child-2',
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 't2',
+        toolCallName: 'Edit',
+      }),
+      at({
+        subagentRunId: 'child-2',
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: 't2',
+        messageId: 'r2',
+        content: '{"ok":true}',
+      }),
+    ])
+    expect(assistantParts(state)).toEqual([
+      {
+        type: 'agent',
+        id: 'child-1',
+        name: 'helper',
+        status: 'running',
+        parts: [
+          {
+            type: 'agent',
+            id: 'grand-1',
+            name: 'inner',
+            status: 'running',
+            parts: [{ type: 'text', text: 'inner' }],
+          },
+        ],
+      },
+      {
+        type: 'agent',
+        id: 'child-2',
+        name: 'fixer',
+        status: 'running',
+        parts: [
+          { type: 'text', text: 'two' },
+          {
+            type: 'tool-call',
+            id: 't2',
+            name: 'Edit',
+            argsText: '',
+            args: undefined,
+            status: 'done',
+            result: { ok: true },
+          },
+        ],
+      },
+      {
+        type: 'agent',
+        id: 'child-3',
+        name: 'lost',
+        status: 'running',
+        parts: [],
+      },
+    ])
+  })
+
+  it('keeps content parts of a tool result, and text that is not JSON', () => {
+    const state = fold([
+      at({
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'c1',
+        toolCallName: 'shot',
+      }),
+      at({
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: 'c1',
+        messageId: 'r1',
+        content: [{ type: 'text', text: 'see the image' }],
+      }),
+      at({
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'c2',
+        toolCallName: 'say',
+      }),
+      at({ type: EventType.TOOL_CALL_ARGS, toolCallId: 'c2', delta: 'loud' }),
+      at({ type: EventType.TOOL_CALL_END, toolCallId: 'c2' }),
+      at({
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: 'c2',
+        messageId: 'r2',
+        content: 'plain words',
+      }),
+    ])
+    expect(assistantParts(state)).toEqual([
+      {
+        type: 'tool-call',
+        id: 'c1',
+        name: 'shot',
+        argsText: '',
+        args: undefined,
+        status: 'done',
+        result: [{ type: 'text', text: 'see the image' }],
+      },
+      {
+        type: 'tool-call',
+        id: 'c2',
+        name: 'say',
+        argsText: 'loud',
+        args: 'loud',
+        status: 'done',
+        result: 'plain words',
+      },
+    ])
+  })
+
+  it('marks only running tool calls as failed on a run error', () => {
+    const state = fold([
+      at({
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'm',
+        delta: 'Trying.',
+      }),
+      at({
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'c1',
+        toolCallName: 'read',
+      }),
+      at({
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: 'c1',
+        messageId: 'r',
+        content: '"ok"',
+      }),
+      at({
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'c2',
+        toolCallName: 'write',
+      }),
+      at({ type: EventType.RUN_ERROR, message: 'boom' }),
+    ])
+    expect(
+      assistantParts(state).map((part) =>
+        part.type === 'tool-call' ? `${part.id}:${part.status}` : part.type,
+      ),
+    ).toEqual(['text', 'c1:done', 'c2:failed'])
+  })
+
+  it('adds only a notice for a run error with no running tool call', () => {
+    const state = fold([at({ type: EventType.RUN_ERROR, message: 'boom' })])
+    expect(state.messages).toEqual([
+      { id: 'notice-0', role: 'notice', kind: 'error', text: 'Error: boom' },
+    ])
+  })
+
+  it('finds tool calls in earlier turns, names unnamed agents, and skips other operations', () => {
+    const turns = fold(
+      [
+        at({
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'c1',
+          toolCallName: 'read',
+        }),
+        at(
+          {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'n',
+            delta: 'Next.',
+          },
+          'op-2',
+        ),
+      ],
+      withUserMessage(emptyState(), 'hi'),
+    )
+    const state = applySnapshot(
+      turns,
+      sessionSnapshot({
+        pendingInterrupts: [
+          { id: 'i1', reason: 'tool_approval', toolCallId: 'c1' },
+          { id: 'i2', reason: 'tool_approval', toolCallId: 'ghost' },
+          { id: 'i3', reason: 'confirm' },
+        ],
+        activeOperations: [
+          { id: 'op-a', kind: 'agent' },
+          { id: 'op-c', kind: 'chat' },
+        ],
+      }),
+      factory,
+    )
+    expect(state.approvals.map((item) => item.tool)).toEqual([
+      'read',
+      'tool',
+      'tool',
+    ])
+    expect(state.agents).toEqual([{ id: 'op-a', name: 'agent' }])
+    expect(state.messages[1]).toMatchObject({
+      parts: [{ id: 'c1', status: 'needs-approval' }],
+    })
+    expect(state.messages[0]).toBe(turns.messages[0])
+    expect(state.messages[2]).toBe(turns.messages[2])
+  })
+
+  it('builds transcript messages from content parts, saved ids, and failed tool results', () => {
+    const messages = messagesFromTranscript([
+      {
+        id: 'saved-1',
+        role: 'user',
+        content: [
+          { type: 'text', content: 'Look at ' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/a.png' },
+          },
+          { type: 'text', content: 'this.' },
+        ],
+      },
+      {
+        role: 'assistant',
+        content: null,
+        toolCalls: [
+          {
+            id: 'c1',
+            type: 'function',
+            function: { name: 'read', arguments: 'not json' },
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        content: 'no such file',
+        toolCallId: 'c1',
+        error: 'ENOENT',
+      },
+      // A result whose call is not in the transcript.
+      { role: 'tool', content: 'orphan', toolCallId: 'ghost' },
+      { role: 'assistant', content: '' },
+    ])
+    expect(messages).toEqual([
+      { id: 'saved-1', role: 'user', text: 'Look at this.' },
+      {
+        id: 'history-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'c1',
+            name: 'read',
+            argsText: 'not json',
+            args: 'not json',
+            status: 'failed',
+            result: 'no such file',
+          },
+        ],
+      },
+      { id: 'history-4', role: 'assistant', parts: [] },
     ])
   })
 })
