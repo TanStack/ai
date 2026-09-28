@@ -4,6 +4,7 @@ import {
   SUPPORTED_PROTOCOL_VERSIONS,
 } from '@modelcontextprotocol/client'
 import { Server } from '@modelcontextprotocol/server'
+import { DuplicateToolNameError } from '../src/errors'
 import { createMCPClients } from '../src/pool'
 import {
   makeServerWithMismatchedResource,
@@ -23,6 +24,28 @@ describe('createMCPClients', () => {
     const names = (await pool.tools()).map((t) => t.name)
     expect(names).toContain('alpha_get_weather')
     expect(names).toContain('beta_get_weather') // no collision despite same server tool name
+  })
+
+  it("keeps the server tool names with prefix ''", async () => {
+    const a = await makeServerWithWeatherTool()
+    await using pool = await createMCPClients({
+      alpha: { transport: a.clientTransport, prefix: '' },
+    })
+    const names = (await pool.tools()).map((tool) => tool.name)
+    expect(names).toEqual(['get_weather'])
+    expect(pool.getServers()).toEqual({
+      alpha: { transport: undefined, prefix: undefined },
+    })
+  })
+
+  it('refuses two servers that give one tool name without a prefix', async () => {
+    const a = await makeServerWithWeatherTool()
+    const b = await makeServerWithWeatherTool()
+    await using pool = await createMCPClients({
+      alpha: { transport: a.clientTransport, prefix: '' },
+      beta: { transport: b.clientTransport, prefix: '' },
+    })
+    await expect(pool.tools()).rejects.toThrow(DuplicateToolNameError)
   })
 
   it('exposes typed per-server access via .clients', async () => {

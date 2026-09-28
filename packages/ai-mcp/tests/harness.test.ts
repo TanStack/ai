@@ -4,6 +4,7 @@ import {
 } from '@modelcontextprotocol/client'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import {
+  HARNESS_EVENTS,
   createHarnessHost,
   defineCommand,
   defineHarness,
@@ -14,6 +15,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createHarnessMcpServer } from '../src/harness'
 import type { AnyTextAdapter, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { AnyHarness, HarnessSession } from '@tanstack/ai-harness'
+import type { HarnessMcpServerOptions } from '../src/harness'
 
 const serverUrl = new URL('https://harness.example.com/mcp')
 const now = () => Date.now()
@@ -22,6 +25,19 @@ const pendingShape = z.object({
   approvals: z.array(z.object({ id: z.string() })),
   questions: z.array(z.object({ id: z.string() })),
 })
+
+const questionShape = z.object({ questionId: z.string() })
+
+const controlTools = [
+  'answer',
+  'approve',
+  'cancel',
+  'chat',
+  'reject',
+  'resolve',
+  'status',
+  'steer',
+]
 
 function textTurn(text: string): Array<StreamChunk> {
   return [
@@ -55,6 +71,19 @@ function textTurn(text: string): Array<StreamChunk> {
       timestamp: now(),
       metadata: { tanstack: { finishReason: 'stop' } },
     },
+  ]
+}
+
+/** One model call that fails with `message`. */
+function errorTurn(message: string): Array<StreamChunk> {
+  return [
+    {
+      type: EventType.RUN_STARTED,
+      runId: 'r',
+      threadId: 't',
+      timestamp: now(),
+    },
+    { type: EventType.RUN_ERROR, message, timestamp: now() },
   ]
 }
 
@@ -99,8 +128,49 @@ function removeTurn(...paths: Array<string>): Array<StreamChunk> {
   ]
 }
 
+function deferred() {
+  let resolve: (value: void) => void = () => {}
+  const promise = new Promise<void>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
+/**
+ * A point that work reaches and then waits at. `reached` resolves when the
+ * work arrives. The work continues after `release()`.
+ */
+function hold() {
+  const reached = deferred()
+  const released = deferred()
+  return {
+    reached: reached.promise,
+    release: () => released.resolve(),
+    async wait() {
+      reached.resolve()
+      await released.promise
+    },
+  }
+}
+
+/** A model call that waits at its `hold`, then streams `chunks`. */
+function heldTurn(chunks: Array<StreamChunk>) {
+  return { hold: hold(), chunks }
+}
+
+type ScriptedTurn = Array<StreamChunk> | ReturnType<typeof heldTurn>
+
+async function* play(turn: ScriptedTurn) {
+  if (Array.isArray(turn)) {
+    yield* turn
+    return
+  }
+  await turn.hold.wait()
+  yield* turn.chunks
+}
+
 /** A model that plays `turns` in order and keeps the messages of each call. */
-function scripted(turns: Array<Array<StreamChunk>>) {
+function scripted(turns: Array<ScriptedTurn>) {
   const calls: Array<Array<ModelMessage>> = []
   const adapter: AnyTextAdapter = {
     kind: 'text',
@@ -123,11 +193,9 @@ function scripted(turns: Array<Array<StreamChunk>>) {
     },
     structuredOutput: async () => ({ data: {}, rawText: '{}' }),
     chatStream: (options) => {
-      const chunks = turns[calls.length] ?? textTurn('')
+      const turn = turns[calls.length] ?? textTurn('')
       calls.push(options.messages)
-      return (async function* () {
-        yield* chunks
-      })()
+      return play(turn)
     },
   }
   return { adapter, calls }
@@ -139,11 +207,41 @@ function userTexts(messages: Array<ModelMessage> | undefined) {
     .map((message) => message.content)
 }
 
+/** The MCP result of a tool call that threw an error with `message`. */
+function toolError(message: string) {
+  return { isError: true, content: [{ type: 'text', text: message }] }
+}
+
+/** The ids of the approvals that wait, from a tool result. */
+function approvalIds(result: { structuredContent?: unknown }) {
+  return pendingShape
+    .parse(result.structuredContent)
+    .approvals.map(({ id }) => id)
+}
+
+/** Waits until `session` asks a question, then returns its id. */
+async function nextQuestionId(session: HarnessSession) {
+  for await (const { event } of session.events()) {
+    const isQuestion =
+      event.type === EventType.CUSTOM && event.name === HARNESS_EVENTS.question
+    if (isQuestion) return questionShape.parse(event.value).questionId
+  }
+  throw new Error('The session closed before it asked a question')
+}
+
 const pricer = defineAgent({
   name: 'pricer',
   description: 'Prices a vendor',
   inputSchema: z.object({ vendor: z.string() }),
   run: async (ctx) => `${ctx.input.vendor}: twelve dollars`,
+})
+
+const broken = defineAgent({
+  name: 'broken',
+  description: 'Always fails',
+  run: async () => {
+    throw new Error('The price list is gone.')
+  },
 })
 
 const commands = definePlugin({
@@ -153,6 +251,10 @@ const commands = definePlugin({
       'connect:notion': defineCommand({
         description: 'Sign in to Notion',
         run: () => 'Connected to Notion.',
+      }),
+      'release/v2.1-beta': defineCommand({
+        description: 'Release the beta',
+        run: () => 'Released.',
       }),
       confirm: defineCommand({
         description: 'Ask first',
@@ -164,6 +266,17 @@ const commands = definePlugin({
           return sure === true ? 'Confirmed.' : 'Stopped.'
         },
       }),
+      greet: defineCommand({
+        description: 'Greet a person',
+        input: z.object({ name: z.string() }),
+        run: (input) => `Hello, ${input.name}.`,
+      }),
+      fail: defineCommand({
+        description: 'Always fails',
+        run: () => {
+          throw new Error('Notion is down.')
+        },
+      }),
     },
   }),
 })
@@ -173,9 +286,18 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
 
+type ServerOptions = Omit<HarnessMcpServerOptions, 'host' | 'harness'>
+
+async function serve(harness: AnyHarness, options: ServerOptions = {}) {
+  const host = createHarnessHost({ persistence: memoryPersistence() })
+  cleanups.push(() => host.close())
+  const server = await createHarnessMcpServer({ host, harness, ...options })
+  return { server, host }
+}
+
 async function harnessServer(
-  turns: Array<Array<StreamChunk>>,
-  options: { approvals?: 'ask' | 'auto' } = {},
+  turns: Array<ScriptedTurn>,
+  options: ServerOptions = {},
 ) {
   const model = scripted(turns)
   const removed: Array<string> = []
@@ -188,40 +310,57 @@ async function harnessServer(
     removed.push(path)
     return `removed ${path}`
   })
+  const agentHold = hold()
+  const waiter = defineAgent({
+    name: 'waiter',
+    description: 'Waits until the test releases it',
+    run: async () => {
+      await agentHold.wait()
+      return 'Done waiting.'
+    },
+  })
   const harness = defineHarness({
     name: 'test/mcp-harness',
     adapter: model.adapter,
     tools: [remove],
-    agents: [pricer],
-    expose: { agents: ['pricer'] },
+    agents: [pricer, broken, waiter],
+    expose: { agents: ['pricer', 'broken', 'waiter'] },
     plugins: () => [commands],
   })
-  const host = createHarnessHost({ persistence: memoryPersistence() })
-  cleanups.push(() => host.close())
-  const server = await createHarnessMcpServer({ host, harness, ...options })
-  return { server, removed, calls: model.calls }
+  const { server, host } = await serve(harness, options)
+  const session = () => host.open(harness, { threadId: 'main' })
+  return { server, session, removed, calls: model.calls, agentHold }
+}
+
+type ElicitReply =
+  | { action: 'accept'; content: { value: string } }
+  | { action: 'decline' }
+
+function accepted(value: string): ElicitReply {
+  return { action: 'accept', content: { value } }
 }
 
 /**
- * A real MCP client on `server.fetch`. With `answer`, the client supports
- * elicitation and answers every question with it (spec 2025 sessions only).
+ * A real MCP client on `server.fetch`. With `reply`, the client supports
+ * elicitation and gives that reply to every question (spec 2025 sessions
+ * only). Without it, the client speaks spec 2026 and has no elicitation.
  */
 async function connect(
   server: { fetch: (request: Request) => Promise<Response> },
-  options: { answer?: string } = {},
+  options: { reply?: ElicitReply } = {},
 ) {
-  const answer = options.answer
+  const reply = options.reply
   const client = new Client(
     { name: 'tester', version: '1.0.0' },
-    answer === undefined
+    reply === undefined
       ? { versionNegotiation: { mode: { pin: '2026-07-28' } } }
       : { capabilities: { elicitation: { form: {} } } },
   )
   const asked: Array<string> = []
-  if (answer !== undefined) {
+  if (reply !== undefined) {
     client.setRequestHandler('elicitation/create', async (request) => {
       asked.push(request.params.message)
-      return { action: 'accept', content: { value: answer } }
+      return reply
     })
   }
   const transport = new StreamableHTTPClientTransport(serverUrl, {
@@ -239,13 +378,18 @@ describe('createHarnessMcpServer', () => {
 
     const listed = await client.listTools()
     expect(listed.tools.map((tool) => tool.name).sort()).toEqual([
+      'agent_broken',
       'agent_pricer',
+      'agent_waiter',
       'answer',
       'approve',
       'cancel',
       'chat',
       'command_confirm',
       'command_connect_notion',
+      'command_fail',
+      'command_greet',
+      'command_release_v2_1_beta',
       'reject',
       'resolve',
       'status',
@@ -261,7 +405,41 @@ describe('createHarnessMcpServer', () => {
       (tool) => tool.name === 'command_connect_notion',
     )
     expect(commandTool?.description).toBe('Sign in to Notion')
+    const inputTool = listed.tools.find((tool) => tool.name === 'command_greet')
+    expect(Object.keys(inputTool?.inputSchema.properties ?? {})).toEqual([
+      'name',
+      'threadId',
+    ])
   })
+
+  it('lists only the control tools for a harness that exposes no agents', async () => {
+    const { server } = await serve(
+      defineHarness({ name: 'test/bare', adapter: scripted([]).adapter }),
+    )
+    const { client } = await connect(server)
+
+    const listed = await client.listTools()
+    expect(listed.tools.map((tool) => tool.name).sort()).toEqual(controlTools)
+  })
+
+  it.each([
+    {
+      options: {},
+      expected: { name: 'test/mcp-harness', version: '1.0.0' },
+    },
+    {
+      options: { name: 'desk', version: '2.1.0' },
+      expected: { name: 'desk', version: '2.1.0' },
+    },
+  ])(
+    'names the server $expected.name $expected.version',
+    async ({ options, expected }) => {
+      const { server } = await harnessServer([], options)
+      const { client } = await connect(server)
+
+      expect(client.getServerVersion()).toMatchObject(expected)
+    },
+  )
 
   it('chat returns the answer of the turn', async () => {
     const { server } = await harnessServer([
@@ -279,6 +457,17 @@ describe('createHarnessMcpServer', () => {
       approvals: [],
       questions: [],
     })
+  })
+
+  it('returns a failed model call as a tool error', async () => {
+    const { server } = await harnessServer([errorTurn('The model is down.')])
+    const { client } = await connect(server)
+
+    const reply = await client.callTool({
+      name: 'chat',
+      arguments: { message: 'hi' },
+    })
+    expect(reply).toMatchObject(toolError('The model is down.'))
   })
 
   it('returns a tool that needs approval as pending, and approve runs it', async () => {
@@ -325,6 +514,35 @@ describe('createHarnessMcpServer', () => {
     expect(removed).toEqual(['a.txt'])
   })
 
+  it('reject continues the turn without running the tool', async () => {
+    const { server, removed } = await harnessServer([
+      removeTurn('a.txt'),
+      textTurn('Kept a.txt.'),
+    ])
+    const { client } = await connect(server)
+
+    await client.callTool({
+      name: 'chat',
+      arguments: { message: 'remove a.txt' },
+    })
+    const rejected = await client.callTool({ name: 'reject', arguments: {} })
+    expect(rejected.structuredContent).toEqual({
+      status: 'completed',
+      text: 'Kept a.txt.',
+      approvals: [],
+      questions: [],
+    })
+    expect(removed).toEqual([])
+  })
+
+  it('refuses approve when no approval waits', async () => {
+    const { server } = await harnessServer([])
+    const { client } = await connect(server)
+
+    const refused = await client.callTool({ name: 'approve', arguments: {} })
+    expect(refused).toMatchObject(toolError('No approvals are waiting.'))
+  })
+
   it('refuses a resolve that does not answer every open approval', async () => {
     const { server, removed } = await harnessServer([
       removeTurn('a.txt', 'b.txt'),
@@ -336,32 +554,25 @@ describe('createHarnessMcpServer', () => {
       name: 'chat',
       arguments: { message: 'remove both files' },
     })
-    const [first, second] = pendingShape.parse(
-      pending.structuredContent,
-    ).approvals
-    if (first === undefined || second === undefined) {
-      throw new Error('The turn did not stop for two approvals')
-    }
+    const ids = approvalIds(pending)
+    expect(ids).toHaveLength(2)
+    const [first, second] = ids
 
     const partial = await client.callTool({
       name: 'resolve',
-      arguments: { decisions: [{ interruptId: first.id, approved: true }] },
+      arguments: { decisions: [{ interruptId: first, approved: true }] },
     })
-    expect(partial.isError).toBe(true)
-    expect(partial.content).toEqual([
-      {
-        type: 'text',
-        text: `resolve must answer every open approval. Missing: ${second.id}.`,
-      },
-    ])
+    expect(partial).toMatchObject(
+      toolError(`resolve must answer every open approval. Missing: ${second}.`),
+    )
     expect(removed).toEqual([])
 
     const mixed = await client.callTool({
       name: 'resolve',
       arguments: {
         decisions: [
-          { interruptId: first.id, approved: true },
-          { interruptId: second.id, approved: false },
+          { interruptId: first, approved: true },
+          { interruptId: second, approved: false },
         ],
       },
     })
@@ -370,6 +581,44 @@ describe('createHarnessMcpServer', () => {
       text: 'Removed one file.',
     })
     expect(removed).toEqual(['a.txt'])
+  })
+
+  it('refuses a resolve that names an approval that is not open', async () => {
+    const { server, removed } = await harnessServer([removeTurn('a.txt')])
+    const { client } = await connect(server)
+
+    const pending = await client.callTool({
+      name: 'chat',
+      arguments: { message: 'remove a.txt' },
+    })
+    const [open] = approvalIds(pending)
+
+    const refused = await client.callTool({
+      name: 'resolve',
+      arguments: {
+        decisions: [
+          { interruptId: open, approved: true },
+          { interruptId: 'ghost', approved: true },
+        ],
+      },
+    })
+    expect(refused).toMatchObject(
+      toolError('These approvals are not open: ghost.'),
+    )
+    expect(removed).toEqual([])
+  })
+
+  it('returns the harness refusal of a resolve as a tool error', async () => {
+    const { server } = await harnessServer([])
+    const { client } = await connect(server)
+
+    const refused = await client.callTool({
+      name: 'resolve',
+      arguments: { decisions: [] },
+    })
+    expect(refused).toMatchObject(
+      toolError('The harness refused the decisions: no_pending_interrupts.'),
+    )
   })
 
   it("approves every tool call on its own with approvals 'auto'", async () => {
@@ -397,7 +646,7 @@ describe('createHarnessMcpServer', () => {
       removeTurn('a.txt'),
       textTurn('Removed a.txt.'),
     ])
-    const { client, asked } = await connect(server, { answer: 'yes' })
+    const { client, asked } = await connect(server, { reply: accepted('yes') })
 
     const reply = await client.callTool({
       name: 'chat',
@@ -411,6 +660,44 @@ describe('createHarnessMcpServer', () => {
     expect(asked).toEqual([
       'Approval required to run remove. Arguments: {"path":"a.txt"}. Approve? Answer yes or no.',
     ])
+  })
+
+  it('rejects the tool call when the user answers no', async () => {
+    const { server, removed } = await harnessServer([
+      removeTurn('a.txt'),
+      textTurn('Kept a.txt.'),
+    ])
+    const { client } = await connect(server, { reply: accepted('no') })
+
+    const reply = await client.callTool({
+      name: 'chat',
+      arguments: { message: 'remove a.txt' },
+    })
+    expect(reply.structuredContent).toEqual({
+      status: 'completed',
+      text: 'Kept a.txt.',
+      approvals: [],
+      questions: [],
+    })
+    expect(removed).toEqual([])
+  })
+
+  it('returns the approval as pending when the user declines the question', async () => {
+    const { server, removed } = await harnessServer([removeTurn('a.txt')])
+    const { client, asked } = await connect(server, {
+      reply: { action: 'decline' },
+    })
+
+    const reply = await client.callTool({
+      name: 'chat',
+      arguments: { message: 'remove a.txt' },
+    })
+    expect(reply.structuredContent).toMatchObject({
+      status: 'interrupted',
+      approvals: [{ tool: 'remove', args: { path: 'a.txt' } }],
+    })
+    expect(asked).toHaveLength(1)
+    expect(removed).toEqual([])
   })
 
   it('answer resolves the question of a command and returns its result', async () => {
@@ -442,6 +729,38 @@ describe('createHarnessMcpServer', () => {
     expect(answered.content).toEqual([{ type: 'text', text: 'Confirmed.' }])
   })
 
+  it('answer returns answered for a question that no tool call waits on', async () => {
+    const { server, session } = await harnessServer([])
+    const { client } = await connect(server)
+    const live = await session()
+    const confirm = live.command('confirm')
+    const questionId = await nextQuestionId(live)
+
+    const answered = await client.callTool({
+      name: 'answer',
+      arguments: { questionId, value: true },
+    })
+    expect(answered.structuredContent).toEqual({
+      status: 'answered',
+      approvals: [],
+      questions: [],
+    })
+    expect(await confirm).toBe('Confirmed.')
+  })
+
+  it('returns the harness refusal of an answer as a tool error', async () => {
+    const { server } = await harnessServer([])
+    const { client } = await connect(server)
+
+    const refused = await client.callTool({
+      name: 'answer',
+      arguments: { questionId: 'q-unknown', value: true },
+    })
+    expect(refused).toMatchObject(
+      toolError('The harness refused the answer: unknown_question.'),
+    )
+  })
+
   it('agent_<name> runs the agent and returns its result', async () => {
     const { server } = await harnessServer([])
     const { client } = await connect(server)
@@ -455,6 +774,17 @@ describe('createHarnessMcpServer', () => {
     ])
   })
 
+  it('returns the error of a failed agent as a tool error', async () => {
+    const { server } = await harnessServer([])
+    const { client } = await connect(server)
+
+    const result = await client.callTool({
+      name: 'agent_broken',
+      arguments: {},
+    })
+    expect(result).toMatchObject(toolError('The price list is gone.'))
+  })
+
   it('command_<name> runs the command under a tool-safe name', async () => {
     const { server } = await harnessServer([])
     const { client } = await connect(server)
@@ -466,6 +796,115 @@ describe('createHarnessMcpServer', () => {
     expect(result.content).toEqual([
       { type: 'text', text: 'Connected to Notion.' },
     ])
+  })
+
+  it('command_<name> takes the command input next to threadId', async () => {
+    const { server } = await harnessServer([])
+    const { client } = await connect(server)
+
+    const result = await client.callTool({
+      name: 'command_greet',
+      arguments: { name: 'Ada', threadId: 'main' },
+    })
+    expect(result.content).toEqual([{ type: 'text', text: 'Hello, Ada.' }])
+  })
+
+  it('returns the error of a failed command as a tool error', async () => {
+    const { server } = await harnessServer([])
+    const { client } = await connect(server)
+
+    const result = await client.callTool({
+      name: 'command_fail',
+      arguments: {},
+    })
+    expect(result).toMatchObject(toolError('Notion is down.'))
+  })
+
+  it('steer starts a turn when no turn runs', async () => {
+    const { server, calls } = await harnessServer([
+      textTurn('Tabs it is.'),
+      textTurn('Formatted.'),
+    ])
+    const { client } = await connect(server)
+
+    const steered = await client.callTool({
+      name: 'steer',
+      arguments: { message: 'use tabs' },
+    })
+    expect(steered.structuredContent).toEqual({
+      inputId: expect.any(String),
+      status: 'accepted',
+      operationId: expect.any(String),
+    })
+    const reply = await client.callTool({
+      name: 'chat',
+      arguments: { message: 'format it' },
+    })
+    expect(reply.structuredContent).toMatchObject({ text: 'Formatted.' })
+    expect(userTexts(calls[0])).toEqual(['use tabs'])
+    expect(userTexts(calls[1])).toEqual(['use tabs', 'format it'])
+  })
+
+  it('cancel stops the running turn, and its chat call ends with an error', async () => {
+    const held = heldTurn(textTurn('Too late.'))
+    const { server } = await harnessServer([held])
+    const { client } = await connect(server)
+
+    const reply = client.callTool({
+      name: 'chat',
+      arguments: { message: 'write a long story' },
+    })
+    await held.hold.reached
+    const cancelled = await client.callTool({ name: 'cancel', arguments: {} })
+    expect(cancelled.structuredContent).toEqual({
+      inputId: expect.any(String),
+      status: 'accepted',
+      operationId: expect.any(String),
+    })
+    held.hold.release()
+    expect(await reply).toMatchObject(toolError('Cancelled.'))
+  })
+
+  it('returns the refusal of cancel when no turn runs', async () => {
+    const { server } = await harnessServer([])
+    const { client } = await connect(server)
+
+    const refused = await client.callTool({ name: 'cancel', arguments: {} })
+    expect(refused.structuredContent).toEqual({
+      inputId: expect.any(String),
+      status: 'rejected',
+      reason: 'not_running',
+    })
+  })
+
+  it('status shows the running agents and the queued turns', async () => {
+    const held = heldTurn(textTurn('Busy.'))
+    const { server, session, agentHold } = await harnessServer([
+      held,
+      textTurn('Follow-up done.'),
+    ])
+    const { client } = await connect(server)
+
+    const turn = client.callTool({
+      name: 'chat',
+      arguments: { message: 'work' },
+    })
+    await held.hold.reached
+    await (await session()).followUp('then this')
+    const agent = client.callTool({ name: 'agent_waiter', arguments: {} })
+    await agentHold.reached
+
+    const status = await client.callTool({ name: 'status', arguments: {} })
+    expect(status.structuredContent).toEqual({
+      status: 'running',
+      approvals: [],
+      questions: [],
+      agents: [{ id: expect.any(String), agent: 'waiter' }],
+      queuedTurns: 1,
+    })
+    held.hold.release()
+    agentHold.release()
+    await Promise.all([turn, agent])
   })
 
   it('keeps a separate conversation per threadId', async () => {
@@ -487,4 +926,25 @@ describe('createHarnessMcpServer', () => {
     expect(userTexts(calls[1])).toEqual(['second'])
     expect(userTexts(calls[2])).toEqual(['first', 'third'])
   })
+
+  it.each([
+    { options: {}, thread: 'main' },
+    { options: { threadId: 'desk' }, thread: 'desk' },
+  ])(
+    'uses thread $thread for a call without threadId',
+    async ({ options, thread }) => {
+      const { server, calls } = await harnessServer(
+        [textTurn('one'), textTurn('two')],
+        options,
+      )
+      const { client } = await connect(server)
+
+      await client.callTool({ name: 'chat', arguments: { message: 'first' } })
+      await client.callTool({
+        name: 'chat',
+        arguments: { message: 'second', threadId: thread },
+      })
+      expect(userTexts(calls[1])).toEqual(['first', 'second'])
+    },
+  )
 })

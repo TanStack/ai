@@ -4,7 +4,9 @@ import {
   toolDefinition,
 } from '@tanstack/ai'
 import { HARNESS_EVENTS } from '@tanstack/ai-harness'
-import { createMCPServer } from './server/create-server'
+// The inferred return type names `MCPHandleOptions`. Without an import of
+// `./server/index`, the .d.ts emit writes `./server.js`, which does not resolve.
+import { createMCPServer } from './server/index'
 import type { Interrupt, JSONSchema } from '@tanstack/ai'
 import type {
   AnyHarness,
