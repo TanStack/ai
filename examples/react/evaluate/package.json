@@ -12,6 +12,7 @@
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-cloudflare": "workspace:*",
+    "@tanstack/ai-ollaya": "workspace:*",
     "@tanstack/ai-openrouter": "workspace:*",
     "@tanstack/ai-typesafe": "workspace:*",
     "@tanstack/ai-vercel-gateway": "workspace:*",

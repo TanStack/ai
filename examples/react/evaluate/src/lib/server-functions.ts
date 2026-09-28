@@ -1,5 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { boolean, choice, decide, score } from '@tanstack/ai'
+import { ollayaDecider } from '@tanstack/ai-ollaya'
 import { typesafeDecider } from '@tanstack/ai-typesafe'
 import { openRouterDecider } from '@tanstack/ai-openrouter'
 import { vercelGatewayDecider } from '@tanstack/ai-vercel-gateway'
@@ -39,7 +40,7 @@ export type TicketEvaluateResult = EvaluateResult<typeof TICKET_QUESTIONS>
  * The API key never leaves the server. Each adapter reads its key from the
  * environment inside this handler.
  *
- * The four branches call the same `decide()` with a different adapter. They
+ * The branches call the same `decide()` with a different adapter. They
  * are written out separately rather than sharing an `adapter` variable so
  * each call site keeps the adapter's literal model type.
  */
@@ -56,6 +57,15 @@ export const evaluateTicketFn = createServerFn({ method: 'POST' })
     const questions = TICKET_QUESTIONS
 
     switch (data.provider) {
+      case 'ollaya':
+        // Local Ollaya server — no key. Set OLLAYA_BASE_URL to point elsewhere.
+        return await decide({
+          adapter: ollayaDecider('laya:latest', {
+            baseURL: process.env.OLLAYA_BASE_URL,
+          }),
+          state: ticket,
+          questions,
+        })
       case 'typesafe':
         return await decide({
           adapter: typesafeDecider('jev-latest'),

@@ -110,11 +110,20 @@ export default function EvaluatePanel() {
           <div>
             <p className="font-medium">Evaluate failed</p>
             <p className="text-sm text-red-300/90 mt-1">{error}</p>
-            <p className="text-sm text-red-300/70 mt-2">
-              Set <code className="font-mono">{envVarsLabel(provider)}</code> in{' '}
-              <code className="font-mono">.env</code> and restart the dev
-              server.
-            </p>
+            {PROVIDER_ENV_VARS[provider].length > 0 ? (
+              <p className="text-sm text-red-300/70 mt-2">
+                Set{' '}
+                <code className="font-mono">{envVarsLabel(provider)}</code> in{' '}
+                <code className="font-mono">.env</code> and restart the dev
+                server.
+              </p>
+            ) : (
+              <p className="text-sm text-red-300/70 mt-2">
+                Make sure Ollaya is running:{' '}
+                <code className="font-mono">ollaya serve</code> and{' '}
+                <code className="font-mono">ollaya pull laya:latest</code>.
+              </p>
+            )}
           </div>
         </div>
       )}
