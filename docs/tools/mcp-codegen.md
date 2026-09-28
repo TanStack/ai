@@ -41,6 +41,10 @@ export default defineConfig({
 })
 ```
 
+> `createMCPClient` tries protocol `2026-07-28` first. If the server does not support that protocol, the client uses the 2025 initialize handshake. The generator uses this handshake.
+>
+> Package names for an `@modelcontextprotocol/sdk` import are in [MCP SDK packages](../migration/mcp-sdk).
+
 ## 2. Run the generator
 
 ```bash

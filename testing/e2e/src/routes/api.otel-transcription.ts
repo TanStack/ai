@@ -42,7 +42,7 @@ export const Route = createFileRoute('/api/otel-transcription')({
           await generateTranscription({
             adapter,
             audio,
-            middleware: [otelMiddleware({ tracer })],
+            middleware: [otelMiddleware({ tracer, captureContent: true })],
           })
 
           return new Response(JSON.stringify({ ok: true, spans }), {
