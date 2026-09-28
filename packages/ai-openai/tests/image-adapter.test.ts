@@ -208,6 +208,37 @@ describe('OpenAI Image Adapter', () => {
       })
     })
 
+    it.each(['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'] as const)(
+      'sends %s with a listed size and the xhigh quality',
+      async (model) => {
+        const adapter = new TestOpenAIImageAdapter(
+          { apiKey: 'test-api-key' },
+          model,
+        )
+        const mockGenerate = adapter
+          .spyOnImagesGenerate()
+          .mockResolvedValueOnce({ created: 0, data: [{ b64_json: 'img' }] })
+
+        const result = await adapter.generateImages({
+          model,
+          prompt: 'A cat wearing a hat',
+          size: '1536x1024',
+          modelOptions: { quality: 'xhigh' },
+          logger: testLogger,
+        })
+
+        expect(mockGenerate).toHaveBeenCalledWith({
+          model,
+          prompt: 'A cat wearing a hat',
+          n: 1,
+          size: '1536x1024',
+          quality: 'xhigh',
+          stream: false,
+        })
+        expect(result.images[0]!.b64Json).toBe('img')
+      },
+    )
+
     it('throws when the response contains no usable images', async () => {
       const adapter = new TestOpenAIImageAdapter(
         { apiKey: 'test-api-key' },

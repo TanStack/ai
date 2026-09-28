@@ -42,7 +42,7 @@ export const Route = createFileRoute('/api/otel-media')({
           await generateImage({
             adapter,
             prompt,
-            middleware: [otelMiddleware({ tracer })],
+            middleware: [otelMiddleware({ tracer, captureContent: true })],
           })
 
           return new Response(JSON.stringify({ ok: true, spans }), {
