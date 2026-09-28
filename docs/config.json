@@ -770,7 +770,7 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-28"
         },
         {
           "label": "Live Generation",
@@ -1234,7 +1234,7 @@
           "label": "Lovable AI Gateway",
           "to": "adapters/lovable",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-08-25"
+          "updatedAt": "2026-09-28"
         },
         {
           "label": "OpenAI-Compatible",

@@ -137,7 +137,7 @@ async function createAndAwaitVideo(prompt: string) {
     adapter: openaiVideo("sora-2"),
     prompt,
     size: "1280x720",
-    duration: 8, // 4, 8, or 12 seconds
+    duration: 8, // 4, "4", or "4s" (same forms for 8 and 12)
   });
 
   console.log("Job created:", jobId);
@@ -420,11 +420,35 @@ Based on [OpenAI API docs](https://platform.openai.com/docs/api-reference/videos
 
 ### Supported Durations
 
-The API uses the `seconds` parameter. Allowed values:
+Pass 4, 8, or 12 seconds. Write each length as a number, a numeric string, or a seconds template:
 
-- `4` seconds
-- `8` seconds (default)
-- `12` seconds
+- `4`, `"4"`, or `"4s"`
+- `8`, `"8"`, or `"8s"` (default)
+- `12`, `"12"`, or `"12s"`
+
+> **Note:** The adapter sends `"4"`, `"8"`, or `"12"` to the API.
+
+If the length is not in that list, call `snapDuration` first:
+
+```typescript
+import { generateVideo } from "@tanstack/ai";
+import { openaiVideo } from "@tanstack/ai-openai";
+
+const adapter = openaiVideo("sora-2");
+const duration = adapter.snapDuration("6s"); // "4"
+
+if (duration !== undefined) {
+  await generateVideo({
+    adapter,
+    prompt: "A cat walking through fog",
+    duration,
+  });
+}
+```
+
+Equal distances keep the earlier value. `6` and `"6s"` snap to `"4"`. `7` snaps to `"8"`.
+
+If you pass `"auto"`, `snapDuration` returns `undefined`. Sora does not list `"auto"`.
 
 ## Advanced
 
@@ -539,10 +563,10 @@ const { jobId } = await generateVideo({
   adapter: openaiVideo("sora-2"),
   prompt: "A beautiful sunset over the ocean",
   size: "1280x720", // '1280x720', '720x1280', '1792x1024', '1024x1792'
-  duration: 8, // 4, 8, or 12 seconds
+  duration: "8s", // 4, "4", or "4s" (same forms for 8 and 12)
   modelOptions: {
     size: "1280x720", // Alternative way to specify size
-    seconds: "8", // Alternative way to specify duration ('4' | '8' | '12')
+    seconds: "8", // API value: "4" | "8" | "12"
   },
 });
 ```
