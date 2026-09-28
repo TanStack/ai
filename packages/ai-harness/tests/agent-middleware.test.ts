@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { EventType, defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
+import { usage } from '../src/first-party'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { AnyChatMiddleware, StreamChunk } from '@tanstack/ai'
 import type { AnyHarness, PluginLifetime } from '../src'
@@ -175,6 +176,30 @@ describe('plugin agentMiddleware', () => {
       { agent: 'researcher', totalTokens: 20 },
       { agent: 'lead', totalTokens: 2 },
     ])
+    await host.close()
+  })
+
+  it('lets the usage() plugin count the model calls of every agent', async () => {
+    const researcher = parentAgent(
+      'researcher',
+      textAgent('fetcher', 'fetched', 100),
+      [10, 20],
+    )
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/agent-middleware',
+        adapter: leadCalling('researcher', [1, 2]),
+        subagents: { agents: [researcher] },
+        plugins: () => [usage()],
+      }),
+    )
+
+    await session.prompt('research')
+
+    // The lead (1 + 2), the researcher (10 + 20), and the fetcher (100).
+    expect(await session.command('usage')).toBe(
+      '5 model calls, 133 input tokens, 0 output tokens, 133 total.',
+    )
     await host.close()
   })
 })

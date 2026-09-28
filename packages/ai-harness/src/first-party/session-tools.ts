@@ -1,7 +1,11 @@
 import { chat } from '@tanstack/ai'
 import { defineCommand } from '../commands'
 import { definePlugin } from '../plugins'
-import type { AnyTextAdapter, ModelMessage } from '@tanstack/ai'
+import type {
+  AnyChatMiddleware,
+  AnyTextAdapter,
+  ModelMessage,
+} from '@tanstack/ai'
 
 const SUMMARY_PROMPT =
   'Summarize the conversation so far for yourself. Keep decisions, open tasks, file names, and facts you still need. Leave out small talk.'
@@ -78,7 +82,10 @@ interface UsageTotals {
   totalTokens: number
 }
 
-/** Count tokens across the session. `/usage` shows the totals. */
+/**
+ * Count tokens across the session: the lead turn and every agent run
+ * (subagents, background agents, and their children). `/usage` shows the totals.
+ */
 export function usage() {
   return definePlugin({
     name: 'tanstack/usage',
@@ -91,21 +98,22 @@ export function usage() {
       })
       const show = (totals: UsageTotals) =>
         `${totals.turns} model calls, ${totals.promptTokens} input tokens, ${totals.completionTokens} output tokens, ${totals.totalTokens} total.`
+      const count = {
+        name: 'tanstack/usage',
+        onUsage: async (_run, info) => {
+          await state.update((totals) => ({
+            turns: totals.turns + 1,
+            promptTokens: totals.promptTokens + (info.promptTokens ?? 0),
+            completionTokens:
+              totals.completionTokens + (info.completionTokens ?? 0),
+            totalTokens: totals.totalTokens + (info.totalTokens ?? 0),
+          }))
+        },
+      } satisfies AnyChatMiddleware
       return {
-        middleware: [
-          {
-            name: 'tanstack/usage',
-            onUsage: async (_run, info) => {
-              await state.update((totals) => ({
-                turns: totals.turns + 1,
-                promptTokens: totals.promptTokens + (info.promptTokens ?? 0),
-                completionTokens:
-                  totals.completionTokens + (info.completionTokens ?? 0),
-                totalTokens: totals.totalTokens + (info.totalTokens ?? 0),
-              }))
-            },
-          },
-        ],
+        // The same counter in the lead turn and in every agent run.
+        middleware: [count],
+        agentMiddleware: [count],
         commands: {
           usage: defineCommand({
             description: 'Show token usage for this session',
