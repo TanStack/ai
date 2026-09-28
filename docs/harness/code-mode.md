@@ -1,7 +1,7 @@
 ---
 title: Code mode in a harness
 id: harness-code-mode
-order: 9
+order: 10
 description: "Let the harness model write one TypeScript program that calls many tools, and run it in an isolate. Any TanStack AI isolate driver plugs in."
 keywords:
   - tanstack ai

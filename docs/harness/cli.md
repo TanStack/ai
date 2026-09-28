@@ -45,11 +45,17 @@ process.exitCode = await runCli(assistant)
 
 ## 2. Pick a mode
 
+To use the harness yourself:
+
 - No flags: line mode. Type a message and press Enter. With a `ui`, your own screen starts in its place (see [Run your own screen](#run-your-own-screen)).
 - `-p "prompt"`: run one prompt, print the answer, and exit.
 - `-p "prompt" --output ndjson`: print every AG-UI event as one JSON line.
+
+To use the harness from another program:
+
 - `--acp`: serve the harness as an ACP v2 agent over stdio, for editors. Needs `@tanstack/ai-acp`.
-- `--serve`: serve the session protocol over HTTP on `127.0.0.1:8787`. Every request needs the bearer token. Pass `--token`, set `HARNESS_TOKEN`, or copy the token the CLI prints.
+- `--mcp`: serve the harness as an MCP server over stdio, for Claude Code, Cursor, and other MCP clients. Needs `@tanstack/ai-mcp`. Add `--yes` to approve every tool call. Read [Use a harness from any MCP client](./mcp-server).
+- `--serve`: serve the session protocol over HTTP on `127.0.0.1:8787`. Every request needs the bearer token. Pass `--token`, set `HARNESS_TOKEN`, or copy the token the CLI prints. With `@tanstack/ai-mcp`, it also serves MCP at `/mcp`.
 
 Line mode reads one message or command per line and waits for each turn. It works the same in a terminal and with piped input. In a terminal, it also opens sign-in links in the browser.
 
@@ -100,7 +106,7 @@ process.exitCode = await runCli(assistant, {
 })
 ```
 
-- `ui` runs only in an interactive terminal. Piped input uses line mode. `-p`, `--acp`, `--serve`, and `--dashboard` do not use `ui`.
+- `ui` runs only in an interactive terminal. Piped input uses line mode. `-p`, `--acp`, `--mcp`, `--serve`, and `--dashboard` do not use `ui`.
 - When `ui` resolves, the CLI disposes the view and `runCli` returns.
 - To write `Screen`, read [Build your own UI](./custom-ui).
 
@@ -108,7 +114,7 @@ For a full Ink screen with approvals, questions, sign-ins, and child agents, cop
 
 ## What you have now
 
-- One entry file that runs your harness as a terminal app, a script step, an editor agent, or a server.
+- One entry file that runs your harness as a terminal app, a script step, an editor agent, an MCP server, or an HTTP server.
 - Your own terminal screen on the same session, with any TUI library.
 
 Next: keep long turns alive through crashes with [durable sessions](./durable-sessions).

@@ -907,7 +907,13 @@
         {
           "label": "Use MCP servers",
           "to": "harness/mcp",
-          "addedAt": "2026-09-26"
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-09-28"
+        },
+        {
+          "label": "Use from any MCP client",
+          "to": "harness/mcp-server",
+          "addedAt": "2026-09-28"
         },
         {
           "label": "Code mode in a harness",

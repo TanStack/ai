@@ -1,7 +1,7 @@
 ---
 title: Build your own UI
 id: harness-custom-ui
-order: 12
+order: 13
 description: "Show a harness session in your own terminal screen or web app. One live store holds the messages, tool calls, approvals, and plugin state, and works with any UI library."
 keywords:
   - tanstack ai

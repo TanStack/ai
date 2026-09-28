@@ -1,7 +1,7 @@
 ---
 title: Work until a goal is met
 id: harness-goal
-order: 11
+order: 12
 description: "Give the harness a goal, for example all tests pass. After each turn, a judge model checks the goal, and the harness keeps working until the goal is met."
 keywords:
   - tanstack ai

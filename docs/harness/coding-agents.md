@@ -1,7 +1,7 @@
 ---
 title: Delegate to coding agents
 id: harness-coding-agents
-order: 10
+order: 11
 description: "Let a harness hand coding work to Claude Code, Codex, Grok Build, or any ACP agent. Each one works in a sandbox and keeps its own session."
 keywords:
   - tanstack ai

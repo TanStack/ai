@@ -15,6 +15,8 @@ keywords:
 
 Your agent needs to read the user's Linear issues and Notion pages. Both services run MCP servers that sign in with OAuth, so you do not register an app or copy an API key. `mcpConnector` adds `/connect linear`, keeps the token in your credential store, and gives the model the server's tools after sign-in.
 
+This page connects your harness to MCP servers. To use your harness from an MCP client such as Claude Code, read [Use a harness from any MCP client](./mcp-server).
+
 ## 1. Add the connectors
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
