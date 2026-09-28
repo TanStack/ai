@@ -111,9 +111,8 @@ describe('OllayaEvaluateAdapter', () => {
   it('POSTs to the default local /v1/systemone with body, wire answers, and mapped usage', async () => {
     fetchMock.mockResolvedValue(ollayaResponse(successBody))
 
-    const result = await ollayaDecider('laya:latest').evaluate(
-      evaluateOptions(),
-    )
+    const result =
+      await ollayaDecider('laya:latest').evaluate(evaluateOptions())
 
     const [url, init] = fetchMock.mock.calls[0]!
     expect(url).toBe('http://127.0.0.1:11435/v1/systemone')
@@ -153,9 +152,9 @@ describe('OllayaEvaluateAdapter', () => {
       evaluateOptions(),
     )
 
-    expect(new Headers(fetchMock.mock.calls[0]![1]?.headers).get('Authorization')).toBe(
-      'Bearer proxy-token',
-    )
+    expect(
+      new Headers(fetchMock.mock.calls[0]![1]?.headers).get('Authorization'),
+    ).toBe('Bearer proxy-token')
   })
 
   it('throws with the response body detail on a non-OK status', async () => {

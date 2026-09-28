@@ -112,9 +112,8 @@ export default function EvaluatePanel() {
             <p className="text-sm text-red-300/90 mt-1">{error}</p>
             {PROVIDER_ENV_VARS[provider].length > 0 ? (
               <p className="text-sm text-red-300/70 mt-2">
-                Set{' '}
-                <code className="font-mono">{envVarsLabel(provider)}</code> in{' '}
-                <code className="font-mono">.env</code> and restart the dev
+                Set <code className="font-mono">{envVarsLabel(provider)}</code>{' '}
+                in <code className="font-mono">.env</code> and restart the dev
                 server.
               </p>
             ) : (

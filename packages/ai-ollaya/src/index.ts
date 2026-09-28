@@ -7,10 +7,7 @@
  * decision models.
  */
 
-export {
-  OllayaEvaluateAdapter,
-  ollayaDecider,
-} from './adapters/evaluate'
+export { OllayaEvaluateAdapter, ollayaDecider } from './adapters/evaluate'
 
 export {
   OLLAYA_DEFAULT_BASE_URL,
@@ -18,7 +15,4 @@ export {
   type OllayaClientConfig,
 } from './utils/client'
 
-export {
-  OLLAYA_EVALUATE_MODELS,
-  type OllayaEvaluateModel,
-} from './model-meta'
+export { OLLAYA_EVALUATE_MODELS, type OllayaEvaluateModel } from './model-meta'
