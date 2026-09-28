@@ -177,49 +177,48 @@ function applyChildEvent(
   const agent = entries[index]
   const found = agent?.kind === 'agent' ? agent : undefined
   const name = found?.name ?? 'agent'
-  switch (event.type) {
-    case EventType.SUBAGENT_STARTED: {
-      const started = event.name ?? 'agent'
-      return [
-        ...entries,
-        {
-          kind: 'agent',
-          subagentRunId,
-          name: started,
-          text: `agent ${started} started`,
-          answer: '',
-        },
-      ]
-    }
-    case EventType.TEXT_MESSAGE_CONTENT: {
-      if (!found) return entries
-      const next = [...entries]
-      next[index] = { ...found, answer: found.answer + event.delta }
-      return next
-    }
-    case EventType.TOOL_CALL_START:
-      return [
-        ...entries,
-        { kind: 'tool', text: `${name}: tool ${event.toolCallName}` },
-      ]
-    case EventType.SUBAGENT_FINISHED: {
-      const answer = shortAnswer(found?.answer ?? '')
-      return [
-        ...entries,
-        {
-          kind: 'tool',
-          text: answer
-            ? `agent ${name} finished: ${answer}`
-            : `agent ${name} finished`,
-        },
-      ]
-    }
-    case EventType.SUBAGENT_ERROR:
-      return [
-        ...entries,
-        { kind: 'notice', text: `agent ${name} failed: ${event.message}` },
-      ]
-    default:
-      return entries
+  if (event.type === EventType.SUBAGENT_STARTED) {
+    const started = event.name ?? 'agent'
+    return [
+      ...entries,
+      {
+        kind: 'agent',
+        subagentRunId,
+        name: started,
+        text: `agent ${started} started`,
+        answer: '',
+      },
+    ]
   }
+  if (event.type === EventType.TEXT_MESSAGE_CONTENT) {
+    if (!found) return entries
+    const next = [...entries]
+    next[index] = { ...found, answer: found.answer + event.delta }
+    return next
+  }
+  if (event.type === EventType.TOOL_CALL_START) {
+    return [
+      ...entries,
+      { kind: 'tool', text: `${name}: tool ${event.toolCallName}` },
+    ]
+  }
+  if (event.type === EventType.SUBAGENT_FINISHED) {
+    const answer = shortAnswer(found?.answer ?? '')
+    return [
+      ...entries,
+      {
+        kind: 'tool',
+        text: answer
+          ? `agent ${name} finished: ${answer}`
+          : `agent ${name} finished`,
+      },
+    ]
+  }
+  if (event.type === EventType.SUBAGENT_ERROR) {
+    return [
+      ...entries,
+      { kind: 'notice', text: `agent ${name} failed: ${event.message}` },
+    ]
+  }
+  return entries
 }
