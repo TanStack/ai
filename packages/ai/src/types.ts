@@ -1182,6 +1182,16 @@ export interface TextOptions<
    * `ctx.subagentRunId`. Absent on a top-level run.
    */
   subagentRunId?: string
+  /**
+   * The agent name when this chat runs as a subagent. Middleware reads it as
+   * `ctx.subagentName`.
+   */
+  subagentName?: string
+  /**
+   * The subagentRunId of the child that started this one, for a nested child.
+   * Middleware reads it as `ctx.parentSubagentRunId`.
+   */
+  parentSubagentRunId?: string
 
   /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
   state?: unknown

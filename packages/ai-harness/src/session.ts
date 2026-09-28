@@ -1066,10 +1066,18 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     return root.child()
   }
 
-  private binding(): SubagentBinding {
+  /** What plugins add to every agent run: session plugins, then run plugins. */
+  private binding(runPlugins?: MountedPlugins) {
     return {
-      generationMiddleware: this.sessionPlugins?.generationMiddleware ?? [],
-    }
+      generationMiddleware: [
+        ...(this.sessionPlugins?.generationMiddleware ?? []),
+        ...(runPlugins?.generationMiddleware ?? []),
+      ],
+      chatMiddleware: [
+        ...(this.sessionPlugins?.agentMiddleware ?? []),
+        ...(runPlugins?.agentMiddleware ?? []),
+      ],
+    } satisfies SubagentBinding
   }
 
   private async runTurn(turn: QueuedTurn): Promise<void> {
@@ -1171,7 +1179,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
                 ...this.harness.subagents,
                 agents: subagentList,
                 limits: this.limits(),
-                binding: this.binding(),
+                binding: this.binding(runPlugins),
               },
             }
           : {}),

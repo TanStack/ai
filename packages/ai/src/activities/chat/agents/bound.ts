@@ -37,9 +37,15 @@ export interface SubagentForward {
  * it.
  */
 export interface SubagentBinding {
-  /** Added before the call's own middleware on every `ctx.chat` call. */
+  /**
+   * Added before the call's own middleware on every `ctx.chat` call. A
+   * child's `ctx.chat({ subagents })` passes it down to its own children.
+   */
   chatMiddleware?: ReadonlyArray<AnyChatMiddleware>
-  /** Added before the call's own middleware on every generation call. */
+  /**
+   * Added before the call's own middleware on every generation call. A
+   * child's `ctx.chat({ subagents })` passes it down to its own children.
+   */
   generationMiddleware?: ReadonlyArray<GenerationMiddleware>
   /**
    * The subagent tree budget. A child's `ctx.chat({ subagents })` passes it
@@ -75,10 +81,11 @@ type LooseOptions = Record<string, any> & {
 }
 
 export function createBoundActivities(
+  agentName: string,
   input: SubagentRunInput,
   abortController: AbortController,
   binding?: SubagentBinding,
-): BoundActivities {
+) {
   let calls = 0
   const signal = abortController.signal
   const chatMiddleware = binding?.chatMiddleware ?? []
@@ -112,17 +119,28 @@ export function createBoundActivities(
         runId: input.runId,
         parentRunId: input.parentRunId,
         subagentRunId: input.subagentRunId,
+        subagentName: agentName,
+        parentSubagentRunId: input.parentSubagentRunId,
         ...(input.resume ? { resume: input.resume } : {}),
         abortController,
         ...options,
-        // Nested children share the tree budget.
-        ...(options.subagents && binding?.budget
+        // Nested children get the host middleware before their own, and share
+        // the tree budget.
+        ...(options.subagents
           ? {
               subagents: {
                 ...options.subagents,
                 binding: {
                   ...options.subagents.binding,
-                  budget: binding.budget,
+                  chatMiddleware: [
+                    ...chatMiddleware,
+                    ...(options.subagents.binding?.chatMiddleware ?? []),
+                  ],
+                  generationMiddleware: [
+                    ...generationMiddleware,
+                    ...(options.subagents.binding?.generationMiddleware ?? []),
+                  ],
+                  ...(binding?.budget ? { budget: binding.budget } : {}),
                 },
               },
             }
@@ -165,5 +183,5 @@ export function createBoundActivities(
       decide(
         withGenerationMiddleware({ abortSignal: signal, ...options }) as never,
       )) as typeof decide,
-  }
+  } satisfies BoundActivities
 }

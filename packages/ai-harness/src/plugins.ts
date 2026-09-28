@@ -47,6 +47,12 @@ export interface PluginContributions {
   prompts?: ReadonlyArray<string | (() => string) | PluginPrompt>
   /** Chat middleware, the same type as `chat({ middleware })`. */
   middleware?: ReadonlyArray<AnyChatMiddleware>
+  /**
+   * Chat middleware for every agent run: subagents, background agents, and
+   * their children. Not the lead turn: add the same middleware to
+   * `middleware` for that.
+   */
+  agentMiddleware?: ReadonlyArray<AnyChatMiddleware>
   /** Middleware for the activities agents call (`ctx.generateImage`, ...). */
   generationMiddleware?: ReadonlyArray<AnyGenerationMiddleware>
   /** Agents added to `session.agents`. */
@@ -281,6 +287,8 @@ export interface MountedPlugins {
     prompts: Array<{ id: string; owner: string }>
   }
   middleware: Array<AnyChatMiddleware>
+  /** Chat middleware for every agent run. See `PluginContributions`. */
+  agentMiddleware: Array<AnyChatMiddleware>
   generationMiddleware: Array<AnyGenerationMiddleware>
   /**
    * Chat middleware that provides every plugin capability to each chat run,
@@ -443,6 +451,7 @@ export async function mountPlugins(
   }))
   const prompts: Array<Owned<PluginPrompt>> = []
   const middleware: Array<AnyChatMiddleware> = []
+  const agentMiddleware: Array<AnyChatMiddleware> = []
   const generationMiddleware: Array<AnyGenerationMiddleware> = []
   const commands = new Map<string, { command: AnyCommand; owner: string }>()
   const config = new Map<string, { option: ConfigOption; owner: string }>()
@@ -554,6 +563,7 @@ export async function mountPlugins(
         prompts.push({ value: section, owner: plugin.name })
       })
       middleware.push(...(contributions.middleware ?? []))
+      agentMiddleware.push(...(contributions.agentMiddleware ?? []))
       generationMiddleware.push(...(contributions.generationMiddleware ?? []))
       for (const [name, command] of Object.entries(
         contributions.commands ?? {},
@@ -647,6 +657,7 @@ export async function mountPlugins(
       .map((entry) => entry.value),
     prompts: prompts.map((entry) => entry.value.text),
     middleware,
+    agentMiddleware,
     generationMiddleware,
     commands,
     config,

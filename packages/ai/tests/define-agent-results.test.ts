@@ -6,9 +6,15 @@ import { compactForModel } from '../src/activities/chat/tools/tool-calls'
 import { collectChunks, createMockAdapter, ev } from './test-utils'
 import type { ImageAdapter } from '../src/activities/generateImage/adapter'
 import type { GenerationMiddleware } from '../src/activities/middleware/types'
-import type { ChatMiddleware } from '../src/activities/chat/middleware/types'
+import type {
+  ChatMiddleware,
+  ChatMiddlewareContext,
+} from '../src/activities/chat/middleware/types'
 import type { DefinedAgent } from '../src/activities/chat/agents/define-agent'
 import type { StreamChunk } from '../src/types'
+
+type ChatStart = NonNullable<ChatMiddleware['onStart']>
+type GenerationStart = NonNullable<GenerationMiddleware['onStart']>
 
 /** A parent model that calls `agentName` once with `args`, then answers. */
 function parentCalling(agentName: string, args = '{}') {
@@ -68,12 +74,77 @@ function imageAdapter(generateImages = vi.fn()): ImageAdapter {
     images: [{ url: 'https://example.com/a.png' }],
   })
   return {
-    kind: 'image' as const,
+    kind: 'image',
     name: 'test-image',
     model: 'test-model',
-    '~types': {} as any,
+    '~types': {
+      providerOptions: {},
+      modelProviderOptionsByName: {},
+      modelSizeByName: {},
+      modelInputModalitiesByName: {},
+    },
     generateImages,
   }
+}
+
+/** The SUBAGENT_STARTED id of the child named `name`. */
+function idOf(chunks: Array<StreamChunk>, name: string): string {
+  const chunk = chunks.find(
+    (entry) => entry.type === 'SUBAGENT_STARTED' && entry.name === name,
+  )
+  if (chunk?.type !== 'SUBAGENT_STARTED') throw new Error(`no ${name}`)
+  return chunk.subagentRunId
+}
+
+/** An agent whose model calls `child` as a tool through `ctx.chat`. */
+function parentAgent(name: string, child: DefinedAgent) {
+  const { adapter } = parentCalling(child.name)
+  return defineAgent({
+    name,
+    description: `Starts ${child.name}`,
+    run: (ctx) => ctx.chat({ adapter, subagents: { agents: [child] } }),
+  })
+}
+
+/** A child that answers with one line of text through `ctx.chat`. */
+function textAgent(name: string) {
+  const { adapter } = createMockAdapter({
+    iterations: [
+      [
+        ev.runStarted(),
+        ev.textStart('t'),
+        ev.textContent(`${name} done`, 't'),
+        ev.textEnd('t'),
+        ev.runFinished('stop'),
+      ],
+    ],
+  })
+  return defineAgent({
+    name,
+    description: `The ${name} agent`,
+    run: (ctx) => ctx.chat({ adapter }),
+  })
+}
+
+/** Host chat middleware that records who each run is. */
+function recordRuns() {
+  const runs: Array<
+    Pick<
+      ChatMiddlewareContext,
+      'subagentName' | 'subagentRunId' | 'parentSubagentRunId'
+    >
+  > = []
+  const middleware: ChatMiddleware = {
+    name: 'host',
+    onStart: (ctx) => {
+      runs.push({
+        subagentName: ctx.subagentName,
+        subagentRunId: ctx.subagentRunId,
+        parentSubagentRunId: ctx.parentSubagentRunId,
+      })
+    },
+  }
+  return { runs, middleware }
 }
 
 describe('defineAgent promise results', () => {
@@ -147,7 +218,13 @@ describe('defineAgent promise results', () => {
 
 describe('agent run context', () => {
   it('gives run ctx.forward with the child ids and an abort controller', async () => {
-    const seen: Array<unknown> = []
+    const seen: Array<{
+      threadId: string
+      runId: string
+      parentRunId: string
+      subagentRunId: string
+      aborted: boolean
+    }> = []
     const agent = defineAgent({
       name: 'probe',
       description: 'Records ctx.forward',
@@ -172,8 +249,8 @@ describe('agent run context', () => {
         aborted: false,
       }),
     ])
-    const forward = seen[0] as { runId: string; subagentRunId: string }
-    expect(forward.runId).toBe(`run-p:${forward.subagentRunId}`)
+    const forward = seen[0]
+    expect(forward?.runId).toBe(`run-p:${forward?.subagentRunId}`)
   })
 
   it('runs ctx.chat with the child ids, the parent messages, and host middleware', async () => {
@@ -188,7 +265,7 @@ describe('agent run context', () => {
         ],
       ],
     })
-    const onStart = vi.fn()
+    const onStart = vi.fn<ChatStart>()
     const agent = defineAgent({
       name: 'helper',
       description: 'Uses ctx.chat',
@@ -200,12 +277,10 @@ describe('agent run context', () => {
     })
 
     expect(onStart).toHaveBeenCalledTimes(1)
-    const hostCtx = onStart.mock.calls[0]?.[0] as {
-      threadId: string
-      subagentRunId?: string
-    }
-    expect(hostCtx.threadId).toBe('thread-p:helper')
-    expect(hostCtx.subagentRunId).toBeDefined()
+    const hostCtx = onStart.mock.calls[0]?.[0]
+    expect(hostCtx?.threadId).toBe('thread-p:helper')
+    expect(hostCtx?.subagentRunId).toBe(idOf(chunks, 'helper'))
+    expect(hostCtx?.subagentName).toBe('helper')
     expect(child.calls[0]?.messages).toEqual(
       expect.arrayContaining([expect.objectContaining({ content: 'Go' })]),
     )
@@ -215,7 +290,7 @@ describe('agent run context', () => {
   it('runs ctx.generateImage with a child run id, the abort signal, and host middleware', async () => {
     const generateImages = vi.fn()
     const adapter = imageAdapter(generateImages)
-    const onStart = vi.fn()
+    const onStart = vi.fn<GenerationStart>()
     const agent = defineAgent({
       name: 'illustrator',
       description: 'Makes an image',
@@ -249,22 +324,85 @@ describe('agent run context', () => {
     expect(generateImages).toHaveBeenCalledWith(
       expect.objectContaining({ prompt: 'a cat', size: '1024x1024' }),
     )
-    const request = generateImages.mock.calls[0]?.[0] as {
-      abortSignal?: AbortSignal
-      threadId?: unknown
-    }
+    const request = generateImages.mock.calls[0]?.[0]
     expect(request.abortSignal).toBeInstanceOf(AbortSignal)
     // Ids and middleware stay in the activity; the adapter never sees them.
     expect(request.threadId).toBeUndefined()
-    const genCtx = onStart.mock.calls[0]?.[0] as {
-      threadId: string
-      runId: string
-    }
-    expect(genCtx.threadId).toBe('thread-p:illustrator')
-    expect(genCtx.runId).toMatch(/^run-p:subagent-.+:image-1$/)
+    const genCtx = onStart.mock.calls[0]?.[0]
+    expect(genCtx?.threadId).toBe('thread-p:illustrator')
+    expect(genCtx?.runId).toMatch(/^run-p:subagent-.+:image-1$/)
     expect(finished(chunks).result).toMatchObject({
       images: [{ url: 'https://example.com/a.png' }],
     })
+  })
+})
+
+describe('nested children', () => {
+  it('runs host chat middleware in a nested child, with each run name and parent', async () => {
+    const researcher = parentAgent('researcher', textAgent('fetcher'))
+    const { runs, middleware } = recordRuns()
+
+    const chunks = await runParent(researcher, { chatMiddleware: [middleware] })
+
+    const researcherId = idOf(chunks, 'researcher')
+    expect(runs).toEqual([
+      { subagentName: 'researcher', subagentRunId: researcherId },
+      {
+        subagentName: 'fetcher',
+        subagentRunId: idOf(chunks, 'fetcher'),
+        parentSubagentRunId: researcherId,
+      },
+    ])
+  })
+
+  it('runs host chat middleware in a nested child when the binding has no budget', async () => {
+    // A child a router starts gets the binding as it is, with no tree budget.
+    const lead = parentAgent('lead', textAgent('writer'))
+    const { runs, middleware } = recordRuns()
+    const { adapter } = createMockAdapter({ iterations: [] })
+
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        threadId: 'thread-p',
+        runId: 'run-p',
+        subagents: {
+          agents: [lead],
+          router: () => 'lead',
+          binding: { chatMiddleware: [middleware] },
+        },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(runs.map((run) => run.subagentName)).toEqual(['lead', 'writer'])
+    expect(runs[1]?.parentSubagentRunId).toBe(idOf(chunks, 'lead'))
+  })
+
+  it('passes host generation middleware down to a nested child', async () => {
+    const generateImages = vi.fn()
+    const onStart = vi.fn<GenerationStart>()
+    const illustrator = defineAgent({
+      name: 'illustrator',
+      description: 'Makes an image',
+      run: (ctx) =>
+        ctx.generateImage({
+          adapter: imageAdapter(generateImages),
+          prompt: 'a cat',
+          size: '1024x1024',
+        }),
+    })
+    const designer = parentAgent('designer', illustrator)
+
+    await runParent(designer, {
+      generationMiddleware: [{ name: 'host', onStart }],
+    })
+
+    expect(generateImages).toHaveBeenCalledTimes(1)
+    expect(onStart).toHaveBeenCalledTimes(1)
+    expect(onStart.mock.calls[0]?.[0].threadId).toBe(
+      'thread-p:designer:illustrator',
+    )
   })
 })
 

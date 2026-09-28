@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { GenerationMiddleware } from '../src/activities/middleware/types'
+import type { ChatMiddleware } from '../src/activities/chat/middleware/types'
 
 // Replace every activity with a spy that returns the options it got, so the
 // test sees exactly what each bound wrapper passes on.
@@ -53,17 +55,21 @@ const input = {
   subagentRunId: 'child-1',
 }
 
+// The spies return this record, not the real return type. That is why each
+// bound function is cast to one that returns `Recorded` before the call.
 type Recorded = { name: string; options: Record<string, any> }
 
 describe('createBoundActivities', () => {
-  const generationMiddleware = [{ name: 'host-generation' }]
-  const chatMiddleware = [{ name: 'host-chat' }]
+  const generationMiddleware: Array<GenerationMiddleware> = [
+    { name: 'host-generation' },
+  ]
+  const chatMiddleware: Array<ChatMiddleware> = [{ name: 'host-chat' }]
 
   function bound() {
     const controller = new AbortController()
-    const activities = createBoundActivities(input, controller, {
-      chatMiddleware: chatMiddleware as never,
-      generationMiddleware: generationMiddleware as never,
+    const activities = createBoundActivities('helper', input, controller, {
+      chatMiddleware,
+      generationMiddleware,
     })
     return { activities, controller }
   }
@@ -131,6 +137,7 @@ describe('createBoundActivities', () => {
       runId: 'run-1',
       parentRunId: 'parent-1',
       subagentRunId: 'child-1',
+      subagentName: 'helper',
       abortController: controller,
       middleware: chatMiddleware,
     })
@@ -138,8 +145,29 @@ describe('createBoundActivities', () => {
     expect(custom.options).toMatchObject({ messages: [], threadId: 'mine' })
   })
 
+  it('gives nested children the host middleware first, then their own, with no budget', () => {
+    const { activities } = bound()
+    const chat = activities.chat as unknown as (options: object) => Recorded
+    const own = { name: 'own' }
+    const nested = chat({
+      adapter: 'a',
+      subagents: {
+        agents: [],
+        binding: { chatMiddleware: [own], generationMiddleware: [own] },
+      },
+    })
+    expect(nested.options.subagents.binding).toEqual({
+      chatMiddleware: [...chatMiddleware, own],
+      generationMiddleware: [...generationMiddleware, own],
+    })
+  })
+
   it('works without a binding', () => {
-    const activities = createBoundActivities(input, new AbortController())
+    const activities = createBoundActivities(
+      'helper',
+      input,
+      new AbortController(),
+    )
     const result = (
       activities.generateImage as unknown as (options: object) => Recorded
     )({ prompt: 'x' })

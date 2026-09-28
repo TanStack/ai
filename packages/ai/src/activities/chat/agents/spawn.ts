@@ -133,6 +133,8 @@ interface SpawnContext {
   parentRunId: string
   /** The interrupted parent run, on a resume. */
   interruptedRunId?: string
+  /** The parent chat's own subagentRunId, when that chat is a child too. */
+  parentSubagentRunId?: string
 }
 
 export function createSubagentId() {
@@ -278,6 +280,9 @@ function openAgentStream(
       runId: childRunId(ctx.parentRunId, subagentRunId),
       parentRunId: resumed?.parentRunId ?? ctx.parentRunId,
       subagentRunId,
+      ...(ctx.parentSubagentRunId !== undefined
+        ? { parentSubagentRunId: ctx.parentSubagentRunId }
+        : {}),
       ...(resumed ? { resume: resumed.resume } : {}),
     },
     sink,
@@ -478,10 +483,11 @@ function* valueResultChunks(
  * bound activity functions.
  */
 function runContext(
+  agentName: string,
   input: SubagentRunInput,
   abortController: AbortController,
   binding?: SubagentBinding,
-): SubagentRunContext {
+) {
   return {
     ...input,
     forward: {
@@ -492,8 +498,8 @@ function runContext(
       ...(input.resume ? { resume: input.resume } : {}),
       abortController,
     },
-    ...createBoundActivities(input, abortController, binding),
-  }
+    ...createBoundActivities(agentName, input, abortController, binding),
+  } satisfies SubagentRunContext
 }
 
 export async function* spawnAgentStream(
@@ -504,16 +510,16 @@ export async function* spawnAgentStream(
   binding?: SubagentBinding,
 ): AsyncIterable<StreamChunk> {
   const link = linkAbort(input.abortSignal)
-  const ctx = runContext(input, link.controller, binding)
+  const ctx = runContext(agent.name, input, link.controller, binding)
   const id = ctx.subagentRunId
+  // No parentSubagentRunId here, also for a nested child: the chat that
+  // started this child lists it as a direct child. attributeChunk adds the id
+  // one level up, in the stream of the parent child.
   yield {
     type: SUBAGENT_STARTED,
     subagentRunId: id,
     name: agent.name,
     description: agent.description,
-    ...(ctx.parentSubagentRunId !== undefined
-      ? { parentSubagentRunId: ctx.parentSubagentRunId }
-      : {}),
     ...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
     timestamp: Date.now(),
   } satisfies SubagentStartedEvent
@@ -822,6 +828,8 @@ export function createSyntheticSubagentTools(
     threadId: string
     runId: string
     interruptedRunId?: string
+    /** The parent chat's own subagentRunId, when that chat is a child too. */
+    parentSubagentRunId?: string
     abortSignal?: AbortSignal
     turn?: SubagentTurn
     sink: SubagentSink
@@ -908,6 +916,9 @@ export function createSyntheticSubagentTools(
             parentRunId: parent.runId,
             ...(parent.interruptedRunId !== undefined
               ? { interruptedRunId: parent.interruptedRunId }
+              : {}),
+            ...(parent.parentSubagentRunId !== undefined
+              ? { parentSubagentRunId: parent.parentSubagentRunId }
               : {}),
           },
           sink,

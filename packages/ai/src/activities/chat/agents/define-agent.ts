@@ -43,6 +43,7 @@ export interface SubagentRunInput<
    * `ctx.subagentRunId`.
    */
   subagentRunId: string
+  /** The subagentRunId of the child that started this one, for a nested child. */
   parentSubagentRunId?: string
 }
 
