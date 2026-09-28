@@ -1,7 +1,9 @@
 import { EventType } from '@tanstack/ai'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 
-type Reply = (options: any) => AsyncIterable<StreamChunk> | Array<StreamChunk>
+export type Reply = (
+  options: any,
+) => AsyncIterable<StreamChunk> | Array<StreamChunk>
 
 /** A text adapter whose turns are scripted. Records every call. */
 export function mockAdapter(replies: Array<Reply> | Reply) {

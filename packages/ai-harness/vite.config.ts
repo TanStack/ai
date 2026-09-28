@@ -31,6 +31,7 @@ export default mergeConfig(
     entry: [
       './src/index.ts',
       './src/client.ts',
+      './src/view/index.ts',
       './src/first-party/index.ts',
       './src/build.ts',
       './src/worker.ts',
