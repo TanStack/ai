@@ -68,6 +68,7 @@ function scripted(turns: Array<Array<StreamChunk>>) {
     kind: 'text',
     name: 'mock',
     model: 'test-model',
+    // `~types` holds types only. Its values are never read, so they are casts.
     '~types': {
       providerOptions: {} as Record<string, unknown>,
       inputModalities: ['text'] as readonly ['text'],
@@ -103,6 +104,15 @@ function capture() {
       return text
     },
   }
+}
+
+/** A stdin that reads `lines`, as a terminal or as a pipe. */
+function stdinFrom(lines: Array<string>, { isTTY }: { isTTY: boolean }) {
+  // NodeJS.ReadStream is a TTY socket. A test cannot make one without a real
+  // terminal, and runCli only reads the lines and `isTTY`, so this casts.
+  return Object.assign(Readable.from(lines), {
+    isTTY,
+  }) as unknown as NodeJS.ReadStream
 }
 
 describe('parseCliArgs', () => {
@@ -189,13 +199,6 @@ describe('line mode', () => {
       textTurn('Done removing.'),
     ])
     const stdout = capture()
-    const input = Readable.from([
-      'hello\n',
-      'remove the file\n',
-      'y\n',
-      '/agents\n',
-      '/exit\n',
-    ])
     const code = await runCli(
       defineHarness({
         name: 'test/lines',
@@ -211,9 +214,10 @@ describe('line mode', () => {
       }),
       {
         argv: [],
-        stdin: Object.assign(input, {
-          isTTY: false,
-        }) as unknown as NodeJS.ReadStream,
+        stdin: stdinFrom(
+          ['hello\n', 'remove the file\n', 'y\n', '/agents\n', '/exit\n'],
+          { isTTY: false },
+        ),
         stdout,
         stderr: capture(),
         persistence: memoryPersistence(),
@@ -260,15 +264,6 @@ describe('plugin commands in line mode', () => {
     })
     const { adapter } = scripted([])
     const stdout = capture()
-    const input = Readable.from([
-      '/greet {"name":"Ada"}\n',
-      '/confirm\n',
-      'yes\n',
-      '/config tone warm\n',
-      '/config\n',
-      '/help\n',
-      '/exit\n',
-    ])
     await runCli(
       defineHarness({
         name: 'test/plugin-lines',
@@ -277,9 +272,18 @@ describe('plugin commands in line mode', () => {
       }),
       {
         argv: [],
-        stdin: Object.assign(input, {
-          isTTY: false,
-        }) as unknown as NodeJS.ReadStream,
+        stdin: stdinFrom(
+          [
+            '/greet {"name":"Ada"}\n',
+            '/confirm\n',
+            'yes\n',
+            '/config tone warm\n',
+            '/config\n',
+            '/help\n',
+            '/exit\n',
+          ],
+          { isTTY: false },
+        ),
         stdout,
         stderr: capture(),
         persistence: memoryPersistence(),
@@ -333,5 +337,67 @@ describe('serve mode', () => {
       await server.close()
       await host.close()
     }
+  })
+})
+
+describe('custom ui', () => {
+  it('gives an interactive terminal a ready session view and waits for the ui', async () => {
+    const { adapter } = scripted([textTurn('Hi from the ui.')])
+    const seen: Array<string> = []
+    const code = await runCli(defineHarness({ name: 'test/ui', adapter }), {
+      argv: [],
+      stdin: stdinFrom([], { isTTY: true }),
+      stdout: capture(),
+      stderr: capture(),
+      persistence: memoryPersistence(),
+      ui: async (view) => {
+        seen.push(view.store.get().threadId)
+        await view.send('hello')
+        await vi.waitFor(() =>
+          expect(JSON.stringify(view.store.get().messages)).toContain(
+            'Hi from the ui.',
+          ),
+        )
+      },
+    })
+    expect(code).toBe(EXIT.ok)
+    expect(seen).toEqual(['main'])
+  })
+
+  it('uses line mode for piped input, even with a ui', async () => {
+    const { adapter } = scripted([textTurn('Piped answer.')])
+    const stdout = capture()
+    const ui = vi.fn()
+    const code = await runCli(
+      defineHarness({ name: 'test/ui-piped', adapter }),
+      {
+        argv: [],
+        stdin: stdinFrom(['hello\n'], { isTTY: false }),
+        stdout,
+        stderr: capture(),
+        persistence: memoryPersistence(),
+        ui,
+      },
+    )
+    expect(code).toBe(EXIT.ok)
+    expect(ui).not.toHaveBeenCalled()
+    expect(stdout.text).toContain('Piped answer.')
+  })
+
+  it('uses line mode in a terminal without a ui', async () => {
+    const { adapter } = scripted([textTurn('Terminal answer.')])
+    const stdout = capture()
+    const code = await runCli(
+      defineHarness({ name: 'test/ui-none', adapter }),
+      {
+        argv: [],
+        stdin: stdinFrom(['hello\n'], { isTTY: true }),
+        stdout,
+        stderr: capture(),
+        persistence: memoryPersistence(),
+      },
+    )
+    expect(code).toBe(EXIT.ok)
+    expect(stdout.text).toContain('Terminal answer.')
   })
 })

@@ -1,9 +1,11 @@
 import { createHarnessHost } from '@tanstack/ai-harness'
+import { createSessionView } from '@tanstack/ai-harness/view'
 import { USAGE, parseCliArgs } from './args'
 import { runLines } from './lines'
 import { EXIT, runPrint } from './print'
 import { createToken, serve } from './serve'
 import type { AnyHarness, HarnessPersistence } from '@tanstack/ai-harness'
+import type { SessionView } from '@tanstack/ai-harness/view'
 
 export interface RunCliOptions {
   /** Where sessions keep state. Default: in memory. */
@@ -14,6 +16,12 @@ export interface RunCliOptions {
   stdout?: { write: (text: string) => unknown }
   stderr?: { write: (text: string) => unknown }
   env?: Record<string, string | undefined>
+  /**
+   * Your own screen for an interactive terminal, with any UI library. It gets
+   * a ready session view and resolves when the user quits. Piped input and
+   * the other modes (`--print`, `--acp`, `--serve`, `--dashboard`) do not use it.
+   */
+  ui?: (view: SessionView) => Promise<void> | void
 }
 
 /**
@@ -122,10 +130,14 @@ export async function runCli(
         stderr,
       })
     }
-    if (stdin.isTTY) {
-      // Loaded only here, so the other modes never load React or Ink.
-      const { runInteractive } = await import('./interactive')
-      await runInteractive(session, harness)
+    if (stdin.isTTY && options.ui) {
+      const view = createSessionView(session)
+      try {
+        await view.ready
+        await options.ui(view)
+      } finally {
+        view.dispose()
+      }
     } else {
       await runLines(session, stdin, stdout)
     }
