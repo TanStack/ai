@@ -817,7 +817,8 @@
         {
           "label": "Run in the terminal",
           "to": "harness/cli",
-          "addedAt": "2026-09-26"
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-09-28"
         },
         {
           "label": "Durable sessions",
@@ -864,7 +865,8 @@
         {
           "label": "Build your own UI",
           "to": "harness/custom-ui",
-          "addedAt": "2026-09-28"
+          "addedAt": "2026-09-28",
+          "updatedAt": "2026-09-28"
         },
         {
           "label": "Run agents from a harness",

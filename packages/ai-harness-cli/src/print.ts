@@ -42,7 +42,7 @@ export async function runPrint(
   if (status === 'completed') return EXIT.ok
   if (status === 'interrupted') {
     stderr.write(
-      'The turn stopped for an approval. Run the interactive mode to answer it.\n',
+      'The turn stopped for an approval. Run without --print, in line mode, to answer it.\n',
     )
     return EXIT.needsAction
   }

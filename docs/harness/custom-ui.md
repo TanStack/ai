@@ -103,6 +103,8 @@ await view.send('Summarize the README.')
 
 Put the code of steps 1 and 2 in one `.tsx` file, then run it. The screen shows your prompt, then the answer while it streams, then the status `idle`. Press Ctrl+C to quit.
 
+A full Ink screen, with approvals, questions, sign-ins, and child agents, is in [`examples/harness-cli/src/tui.tsx`](https://github.com/TanStack/ai/blob/main/examples/harness-cli/src/tui.tsx). It runs from [`runCli({ ui })`](./cli#run-your-own-screen).
+
 Each TanStack Store adapter reads the store the same way. Vue, Solid, Svelte, and Preact have `useSelector`. Angular has `injectSelector`. With no UI library, subscribe to the store:
 
 ```ts group=harness-custom-ui

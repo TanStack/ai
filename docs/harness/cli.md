@@ -2,7 +2,7 @@
 title: Run a harness in the terminal
 id: harness-cli
 order: 3
-description: "Give your harness a terminal UI, a print mode for scripts and CI, NDJSON output, an ACP mode for editors, and an HTTP server."
+description: "Run your harness in a terminal with line mode or your own screen, a print mode for scripts and CI, NDJSON output, an ACP mode for editors, and an HTTP server."
 keywords:
   - tanstack ai
   - harness
@@ -28,8 +28,6 @@ octane: @tanstack/ai-harness-cli
 
 <!-- ::end:tabs -->
 
-The interactive UI uses Ink, which needs Node 22 or later.
-
 ## 1. Write the entry file
 
 ```ts group=harness-cli
@@ -47,13 +45,13 @@ process.exitCode = await runCli(assistant)
 
 ## 2. Pick a mode
 
-- No flags: the interactive UI. Type a message and press Enter. While the agent works, Enter steers it and Esc cancels.
+- No flags: line mode. Type a message and press Enter. With a `ui`, your own screen starts in its place (see [Run your own screen](#run-your-own-screen)).
 - `-p "prompt"`: run one prompt, print the answer, and exit.
 - `-p "prompt" --output ndjson`: print every AG-UI event as one JSON line.
 - `--acp`: serve the harness as an ACP v2 agent over stdio, for editors. Needs `@tanstack/ai-acp`.
 - `--serve`: serve the session protocol over HTTP on `127.0.0.1:8787`. Every request needs the bearer token. Pass `--token`, set `HARNESS_TOKEN`, or copy the token the CLI prints.
 
-When stdin is a pipe, the CLI reads one message or command per line and waits for each turn.
+Line mode reads one message or command per line and waits for each turn. It works the same in a terminal and with piped input. In a terminal, it also opens sign-in links in the browser.
 
 ## 3. Use it in CI
 
@@ -66,7 +64,7 @@ When stdin is a pipe, the CLI reads one message or command per line and waits fo
 | 2 | The turn waits for an approval. |
 | 130 | The turn was cancelled. |
 
-## Commands in the interactive UI
+## Commands in line mode
 
 For the session:
 
@@ -83,8 +81,34 @@ For the running work:
 
 Plugin commands (for example `/model` or `/todos`) show up in `/help`. When a turn stops for an approval or a plugin asks a question, type your answer. For yes-or-no questions, `y` approves and `n` refuses.
 
+## Run your own screen
+
+Line mode prints plain lines. For a full screen with your own layout, pass `ui` to `runCli`. It works with any TUI library, for example Ink, OpenTUI, or blessed.
+
+`ui` gets a ready [session view](./custom-ui) and resolves when the user quits. This entry file starts an Ink screen:
+
+```tsx ignore
+import { render } from 'ink'
+import { runCli } from '@tanstack/ai-harness-cli'
+import { assistant } from './harness'
+import { Screen } from './screen'
+
+process.exitCode = await runCli(assistant, {
+  ui: async (view) => {
+    await render(<Screen view={view} />).waitUntilExit()
+  },
+})
+```
+
+- `ui` runs only in an interactive terminal. Piped input uses line mode. `-p`, `--acp`, `--serve`, and `--dashboard` do not use `ui`.
+- When `ui` resolves, the CLI disposes the view and `runCli` returns.
+- To write `Screen`, read [Build your own UI](./custom-ui).
+
+For a full Ink screen with approvals, questions, sign-ins, and child agents, copy [`examples/harness-cli/src/tui.tsx`](https://github.com/TanStack/ai/blob/main/examples/harness-cli/src/tui.tsx).
+
 ## What you have now
 
 - One entry file that runs your harness as a terminal app, a script step, an editor agent, or a server.
+- Your own terminal screen on the same session, with any TUI library.
 
 Next: keep long turns alive through crashes with [durable sessions](./durable-sessions).

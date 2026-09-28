@@ -15,10 +15,24 @@ Try these:
 
 - `create hello.txt with a short poem`: the agent asks before `write_file`. Type `y`.
 - `/mode plan`, then ask for another file: the write is refused.
-- `/todos`, `/usage`, `/model fast`, `/agents`
-- `/agent haiku {"topic":"rain"}`: runs a typed agent in the background.
+- `/todos`, `/usage`, `/model fast`
 - `/goal create a file hello.txt that says hi`: the agent keeps working until the model says the goal is met. `/goal` shows the status.
 - Press Esc to stop a long answer. Type while it works to steer it.
+
+## The terminal screen
+
+In a terminal, `start` shows an Ink screen. The screen is `src/tui.tsx`, and `src/cli.ts` gives it to `runCli` as `ui`. It is plain example code on `createSessionView`, so copy it and change it.
+
+- It shows the messages, tool calls, child agents, approvals, questions, sign-ins, the goal, and the status.
+- It has `/help`, `/connect <id>`, `/disconnect <id>`, and `/exit`. Other commands, for example `/todos`, go to the plugins.
+- It opens sign-in links in the browser.
+
+Piped input uses line mode. Line mode also has `/agents` and `/agent <name> [json]`, which runs a typed agent in the background:
+
+```bash
+echo /agents | pnpm --filter harness-cli-example start
+echo '/agent haiku {"topic":"rain"}' | pnpm --filter harness-cli-example start
+```
 
 ## Use Notion, Linear, images, and video
 
@@ -37,7 +51,7 @@ Try these:
 3. Ask: `have claude_code create notes.md with one line, then have codex add a second line`.
 
 - Both agents work in `./playground` with your own logins. The API keys are removed from their processes.
-- The CLI shows each agent's tool calls and a finish line. `/fresh` starts new agent sessions.
+- The screen shows each agent with its status, its tool calls, and its latest text. `/fresh` starts new agent sessions.
 - On Windows, the Codex sandbox can block the folder (Access is denied). Then set `CODEX_SANDBOX_MODE=danger-full-access`, only for a folder you trust.
 
 ## Other modes
