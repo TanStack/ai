@@ -19,7 +19,7 @@ export interface RunCliOptions {
   /**
    * Your own screen for an interactive terminal, with any UI library. It gets
    * a ready session view and resolves when the user quits. Piped input and
-   * the other modes (`--print`, `--acp`, `--serve`, `--dashboard`) do not use it.
+   * the other modes (`--print`, `--acp`, `--mcp`, `--serve`, `--dashboard`) do not use it.
    */
   ui?: (view: SessionView) => Promise<void> | void
 }
@@ -59,6 +59,7 @@ export async function runCli(
   const host = createHarnessHost(
     options.persistence ? { persistence: options.persistence } : {},
   )
+  const approvals = args.yes ? 'auto' : 'ask'
   try {
     if (args.acp) {
       const { serveAcp } = await import('@tanstack/ai-acp/agent').catch(() => {
@@ -68,6 +69,33 @@ export async function runCli(
       })
       const connection = serveAcp({ host, harness })
       await connection.closed
+      return EXIT.ok
+    }
+
+    if (args.mcp) {
+      const [{ createHarnessMcpServer }, { serveMCPStdio }] = await Promise.all(
+        [
+          import('@tanstack/ai-mcp/harness'),
+          import('@tanstack/ai-mcp/server/stdio'),
+        ],
+      ).catch(() => {
+        throw new Error(
+          '--mcp needs @tanstack/ai-mcp. Install it next to @tanstack/ai-harness-cli.',
+        )
+      })
+      const server = await createHarnessMcpServer({
+        host,
+        harness,
+        threadId: args.thread,
+        approvals,
+      })
+      // stdout carries only MCP messages. The server stops when stdin ends.
+      const ended = new Promise<void>((resolve) => {
+        process.stdin.once('end', resolve)
+      })
+      const stdio = serveMCPStdio(server)
+      await ended
+      await stdio.close()
       return EXIT.ok
     }
 
@@ -111,6 +139,8 @@ export async function runCli(
         port: args.port,
         hostname: args.hostname,
         token,
+        threadId: args.thread,
+        approvals,
       })
       stderr.write(`Serving ${harness.name} at ${server.url}\n`)
       if (!args.token && !env.HARNESS_TOKEN) stderr.write(`Token: ${token}\n`)

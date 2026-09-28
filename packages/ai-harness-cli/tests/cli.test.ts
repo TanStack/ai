@@ -125,6 +125,14 @@ describe('parseCliArgs', () => {
     expect(() => parseCliArgs(['--output', 'xml'])).toThrow('--output')
     expect(() => parseCliArgs(['--nope'])).toThrow()
   })
+
+  it('reads --mcp and --yes, both off by default', () => {
+    expect(parseCliArgs(['--mcp', '--yes'])).toMatchObject({
+      mcp: true,
+      yes: true,
+    })
+    expect(parseCliArgs([])).toMatchObject({ mcp: false, yes: false })
+  })
 })
 
 describe('print mode', () => {
@@ -333,6 +341,50 @@ describe('serve mode', () => {
         }),
       })
       expect((await receipt.json()).status).toBe('accepted')
+    } finally {
+      await server.close()
+      await host.close()
+    }
+  })
+
+  it('serves the harness as an MCP server at /mcp behind the same token', async () => {
+    const { adapter } = scripted([])
+    const harness = defineHarness({ name: 'test/serve-mcp', adapter })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const server = await serve({
+      host,
+      harness,
+      port: 0,
+      hostname: '127.0.0.1',
+      token: 'secret',
+    })
+    const initialize = (headers: Record<string, string>) =>
+      fetch(`${server.url}/mcp`, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-11-25',
+            capabilities: {},
+            clientInfo: { name: 'raw', version: '1.0.0' },
+          },
+        }),
+      })
+    try {
+      const denied = await initialize({})
+      expect(denied.status).toBe(401)
+      const answered = await initialize({ authorization: 'Bearer secret' })
+      expect(answered.status).toBe(200)
+      expect((await answered.json()).result.serverInfo.name).toBe(
+        'test/serve-mcp',
+      )
     } finally {
       await server.close()
       await host.close()

@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-harness-cli",
   "version": "0.0.0",
-  "description": "Run a TanStack AI harness from the terminal: line mode or your own screen, print mode, NDJSON, ACP, and an HTTP server",
+  "description": "Run a TanStack AI harness from the terminal: line mode or your own screen, print mode, NDJSON, ACP, MCP, and an HTTP server",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -63,13 +63,15 @@
     "agent",
     "cli",
     "terminal",
-    "acp"
+    "acp",
+    "mcp"
   ],
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
     "@tanstack/ai-acp": "workspace:^",
     "@tanstack/ai-dashboard": "workspace:^",
     "@tanstack/ai-harness": "workspace:^",
+    "@tanstack/ai-mcp": "workspace:^",
     "@tanstack/ai-persistence": "workspace:^"
   },
   "peerDependenciesMeta": {
@@ -78,6 +80,9 @@
     },
     "@tanstack/ai-dashboard": {
       "optional": true
+    },
+    "@tanstack/ai-mcp": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -85,6 +90,7 @@
     "@tanstack/ai-acp": "workspace:*",
     "@tanstack/ai-dashboard": "workspace:*",
     "@tanstack/ai-harness": "workspace:*",
+    "@tanstack/ai-mcp": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",

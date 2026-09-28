@@ -5,6 +5,8 @@ export interface CliArgs {
   print?: string
   output: 'text' | 'ndjson'
   acp: boolean
+  mcp: boolean
+  yes: boolean
   serve: boolean
   port: number
   hostname: string
@@ -22,7 +24,9 @@ Options:
   -p, --print <prompt>   Run one prompt, print the answer, and exit
       --output <format>  Print format for --print: text (default) or ndjson
       --acp              Serve the harness as an ACP v2 agent over stdio
-      --serve            Serve the session protocol over HTTP
+      --mcp              Serve the harness as an MCP server over stdio
+      --yes              Approve every tool call in MCP mode (--mcp, and /mcp of --serve)
+      --serve            Serve the session protocol over HTTP (and MCP at /mcp, with @tanstack/ai-mcp)
       --port <port>      Port for --serve (default 8787)
       --host <name>      Host name for --serve (default 127.0.0.1)
       --token <token>    Bearer token for --serve (default: HARNESS_TOKEN, or a new random token)
@@ -41,6 +45,8 @@ export function parseCliArgs(argv: ReadonlyArray<string>): CliArgs {
       print: { type: 'string', short: 'p' },
       output: { type: 'string' },
       acp: { type: 'boolean' },
+      mcp: { type: 'boolean' },
+      yes: { type: 'boolean' },
       serve: { type: 'boolean' },
       port: { type: 'string' },
       host: { type: 'string' },
@@ -63,6 +69,8 @@ export function parseCliArgs(argv: ReadonlyArray<string>): CliArgs {
     ...(values.print !== undefined ? { print: values.print } : {}),
     output,
     acp: values.acp ?? false,
+    mcp: values.mcp ?? false,
+    yes: values.yes ?? false,
     serve: values.serve ?? false,
     port,
     hostname: values.host ?? '127.0.0.1',

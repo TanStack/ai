@@ -13,6 +13,22 @@ export interface ServeOptions {
   hostname: string
   /** Every request must send `Authorization: Bearer <token>`. */
   token: string
+  /** The conversation of an MCP tool call that names none. Default `'main'`. */
+  threadId?: string
+  /** How `/mcp` handles tool calls that need approval. Default `'ask'`. */
+  approvals?: 'ask' | 'auto'
+}
+
+/** The MCP server for `/mcp`, or `undefined` without `@tanstack/ai-mcp`. */
+async function mcpServer(options: ServeOptions) {
+  const mcp = await import('@tanstack/ai-mcp/harness').catch(() => undefined)
+  if (mcp === undefined) return undefined
+  return mcp.createHarnessMcpServer({
+    host: options.host,
+    harness: options.harness,
+    threadId: options.threadId,
+    approvals: options.approvals,
+  })
 }
 
 /** A random token for `--serve` when none is given. */
@@ -60,29 +76,35 @@ async function send(res: ServerResponse, response: Response): Promise<void> {
 
 /**
  * Serve the harness session protocol over HTTP (capabilities, run, events,
- * control, snapshot). Every request needs the bearer token.
+ * control, snapshot). With `@tanstack/ai-mcp` installed, `/mcp` serves the
+ * harness as an MCP server. Every request needs the bearer token.
  */
-export function serve(
+export async function serve(
   options: ServeOptions,
 ): Promise<{ url: string; close: () => Promise<void> }> {
+  const isAllowed = (request: Request) =>
+    sameToken(request.headers.get('authorization'), options.token)
   const handler = createHarnessHandler({
     host: options.host,
     harness: options.harness,
-    authorize: (request) =>
-      sameToken(request.headers.get('authorization'), options.token)
-        ? { id: 'cli' }
-        : null,
+    authorize: (request) => (isAllowed(request) ? { id: 'cli' } : null),
   })
+  const mcp = await mcpServer(options)
+  const route = (request: Request) => {
+    const isMcp = mcp !== undefined && new URL(request.url).pathname === '/mcp'
+    if (!isMcp) return handler(request)
+    if (!isAllowed(request)) {
+      return Response.json({ error: 'unauthorized' }, { status: 401 })
+    }
+    return mcp.fetch(request)
+  }
   const server = createServer((req, res) => {
     const aborter = new AbortController()
     res.on('close', () => aborter.abort())
     void (async () => {
       try {
         const base = `http://${req.headers.host ?? `${options.hostname}:${options.port}`}`
-        await send(
-          res,
-          await handler(await toRequest(req, base, aborter.signal)),
-        )
+        await send(res, await route(await toRequest(req, base, aborter.signal)))
       } catch (error) {
         if (!res.headersSent)
           res.writeHead(500, { 'Content-Type': 'application/json' })
