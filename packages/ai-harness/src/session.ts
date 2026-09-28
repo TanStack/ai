@@ -690,13 +690,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       threadId: this.threadId,
       principal: this.principal,
       snapshot: () => this.snapshot(),
-      prompt: (text) => {
-        // A plugin turn always waits its turn. It cannot see a busy rejection.
-        this.prompt(text, { busy: 'queue' }).then(
-          () => {},
-          () => {},
-        )
-      },
+      // A plugin turn always waits its turn. It cannot see a busy rejection.
+      prompt: (text) => this.prompt(text, { busy: 'queue' }),
       transcript: async () => [
         ...(await this.persistence.stores.messages.loadThread(this.threadId)),
       ],

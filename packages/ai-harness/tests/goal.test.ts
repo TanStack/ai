@@ -254,6 +254,36 @@ describe('goal', () => {
     await host.close()
   })
 
+  it('drops its queued turn when a late steer pauses the goal', async () => {
+    const hold = gate()
+    const { host, session, calls } = await start({
+      replies: [
+        after(hold.opened, 'step one'),
+        () => text('It is noon.'),
+        () => text('an extra goal turn'),
+      ],
+      verdicts: [{ met: false, reason: 'Not yet.' }],
+    })
+
+    await session.command('goal', 'all tests pass')
+    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    // The last model call of the turn is in flight, so the steer comes too late.
+    await session.steer('what time is it?')
+    hold.open()
+
+    await waitForStatus(
+      session,
+      'Goal: all tests pass\nStatus: paused, round 1 of 20.\nYou sent a message, so the goal paused. Run /goal resume to continue.\nLast check: Not yet.',
+    )
+    await vi.waitFor(() => {
+      expect(session.snapshot().status).toBe('idle')
+      expect(session.snapshot().queuedTurns).toBe(0)
+    })
+    expect(calls).toHaveLength(2)
+    expect(lastMessage(calls[1])).toBe('what time is it?')
+    await host.close()
+  })
+
   it('pauses when a user message starts a turn while the goal is active', async () => {
     // A host that stopped during a goal turn leaves the goal active.
     const persistence = memoryPersistence()

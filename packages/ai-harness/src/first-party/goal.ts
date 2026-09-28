@@ -4,6 +4,7 @@ import { createPluginEvent } from '../extensions'
 import { definePlugin } from '../plugins'
 import { textOf, transcriptText } from './session-tools'
 import type { AnyTextAdapter } from '@tanstack/ai'
+import type { ChatTurnResult, Operation } from '../types'
 
 /** The goal of a session. It is plugin state, so it survives restarts. */
 export interface Goal {
@@ -84,6 +85,19 @@ export function goal(options: { judge: AnyTextAdapter; maxRounds?: number }) {
       let current = await state.get()
       // The run id of the plugin's own turn while it runs.
       let ownRun: string | undefined
+      // The turn the plugin queued, until it starts.
+      let queuedTurn: Operation<ChatTurnResult> | undefined
+
+      const queue = (message: string) => {
+        queuedTurn = ctx.session.prompt(message)
+      }
+
+      /** Cancel the queued turn if it has not started. */
+      const dropQueued = async () => {
+        const turn = queuedTurn
+        queuedTurn = undefined
+        if (turn?.status() === 'accepted') await turn.cancel()
+      }
 
       /** Change the goal, but only while `text` is still the active goal. */
       const change = async (text: string, next: Partial<Goal>) => {
@@ -103,8 +117,9 @@ export function goal(options: { judge: AnyTextAdapter; maxRounds?: number }) {
           reason === ''
             ? `Work toward this goal: ${text}`
             : keepWorking(text, reason)
-        // A turn that is still running belongs to the old goal.
+        // A turn that is still running or queued belongs to the old goal.
         ownRun = undefined
+        await dropQueued()
         current = await state.update(() => ({
           text,
           status: 'active',
@@ -113,7 +128,7 @@ export function goal(options: { judge: AnyTextAdapter; maxRounds?: number }) {
           note: '',
           queued: message,
         }))
-        ctx.session.prompt(message)
+        queue(message)
       }
 
       /** Pause the goal when the plugin's own turn ends early. */
@@ -173,6 +188,7 @@ export function goal(options: { judge: AnyTextAdapter; maxRounds?: number }) {
                   const isRunning =
                     current?.status === 'active' || current?.status === 'paused'
                   if (!isRunning) return 'No goal is running.'
+                  await dropQueued()
                   current = await state.update(
                     (saved) =>
                       saved && {
@@ -212,12 +228,15 @@ export function goal(options: { judge: AnyTextAdapter; maxRounds?: number }) {
                 last.role === 'user'
               if (!isNewMessage || saved?.status !== 'active') return
               if (textOf(last) !== saved.queued) {
+                // A late steer runs before the goal's queued turn. Drop that turn.
+                await dropQueued()
                 await change(saved.text, {
                   status: 'paused',
                   note: USER_MESSAGE,
                 })
                 return
               }
+              queuedTurn = undefined
               ownRun = run.runId
               await change(saved.text, { round: saved.round + 1, queued: '' })
             },
@@ -277,7 +296,7 @@ export function goal(options: { judge: AnyTextAdapter; maxRounds?: number }) {
               }
               const message = keepWorking(text, reason)
               if (await change(text, { reason, queued: message }))
-                ctx.session.prompt(message)
+                queue(message)
             },
           },
         ],

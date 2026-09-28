@@ -1,6 +1,6 @@
 import type { InferSchemaType, ModelMessage, SchemaInput } from '@tanstack/ai'
 import type { SessionSnapshot } from './session'
-import type { Principal, Receipt } from './types'
+import type { ChatTurnResult, Operation, Principal, Receipt } from './types'
 
 /** A question a command asks the user. The host renders it from the schema. */
 export interface Question<TSchema extends SchemaInput | undefined = undefined> {
@@ -18,8 +18,11 @@ export interface PluginSessionApi {
   threadId: string
   principal: Principal | undefined
   snapshot: () => SessionSnapshot
-  /** Start a chat turn, as if the user typed `text`. */
-  prompt: (text: string) => void
+  /**
+   * Start a chat turn, as if the user typed `text`. While a turn runs, the new
+   * turn waits in the queue. Cancel the returned turn to drop it before it starts.
+   */
+  prompt: (text: string) => Operation<ChatTurnResult>
   /** The saved transcript. */
   transcript: () => Promise<Array<ModelMessage>>
   /** Replace the saved transcript (for example after a summary). */
