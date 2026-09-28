@@ -31,6 +31,8 @@ import type { OpenAIClientConfig } from '../utils/client'
 // Per OpenAI docs: dall-e-2 accepts 1 image to `images.edit()`; the
 // gpt-image models accept up to 16; dall-e-3 does not support edit at all.
 const EDIT_MAX_IMAGES: Record<OpenAIImageModel, number> = {
+  'gpt-image-2.5-flare': 16,
+  'gpt-image-2.5-sunburst': 16,
   'dall-e-2': 1,
   'gpt-image-1': 16,
   'gpt-image-1-mini': 16,
@@ -57,7 +59,8 @@ export interface OpenAIImageConfig extends OpenAIClientConfig {
  * OpenAI Image Generation Adapter
  *
  * Tree-shakeable adapter for OpenAI image generation functionality.
- * Supports gpt-image-2, gpt-image-1, gpt-image-1-mini, dall-e-3, and dall-e-2 models.
+ * Supports gpt-image-2.5-flare, gpt-image-2.5-sunburst, gpt-image-2,
+ * gpt-image-1, gpt-image-1-mini, dall-e-3, and dall-e-2 models.
  *
  * Features:
  * - Model-specific type-safe provider options
@@ -123,12 +126,15 @@ export class OpenAIImageAdapter<
 
     // With exactOptionalPropertyTypes, vendor SDK request shapes reject
     // `T | undefined` in optional fields. Build the request incrementally and
-    // only set `size` when it's actually defined.
+    // only set `size` when it's actually defined. The SDK's `quality` type
+    // does not list the gpt-image-2.5 `xhigh` / `max` levels yet, so cast the
+    // spread.
     const request: OpenAI_SDK.Images.ImageGenerateParams = {
       model,
       prompt,
       n: numberOfImages ?? 1,
-      ...(modelOptions ?? {}),
+      ...((modelOptions ??
+        {}) as Partial<OpenAI_SDK.Images.ImageGenerateParamsNonStreaming>),
     }
     if (size !== undefined) {
       request.size = size
@@ -192,10 +198,9 @@ export class OpenAIImageAdapter<
 
   /**
    * Image-conditioned generation via OpenAI's `images.edit()` endpoint.
-   * dall-e-2 accepts 1 input image; gpt-image-2 / gpt-image-1 /
-   * gpt-image-1-mini accept up to 16; dall-e-3 rejects entirely. A part with
-   * `metadata.role === 'mask'` is routed to the SDK's `mask` field (PNG with
-   * alpha channel).
+   * dall-e-2 accepts 1 input image; the gpt-image models accept up to 16;
+   * dall-e-3 rejects entirely. A part with `metadata.role === 'mask'` is
+   * routed to the SDK's `mask` field (PNG with alpha channel).
    */
   private async editImages(args: {
     model: OpenAIImageModel
@@ -211,7 +216,7 @@ export class OpenAIImageAdapter<
     if (maxImages === 0) {
       throw new Error(
         `${this.name}: model "${model}" does not support image prompt parts. ` +
-          `Use gpt-image-2, gpt-image-1, gpt-image-1-mini, or dall-e-2 for image-conditioned generation.`,
+          `Use a gpt-image model or dall-e-2 for image-conditioned generation.`,
       )
     }
 

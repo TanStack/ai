@@ -36,16 +36,20 @@ See [WebMCP Tools](./webmcp) to expose browser actions. If your server needs MCP
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai-mcp @modelcontextprotocol/sdk
-vue: @tanstack/ai-mcp @modelcontextprotocol/sdk
-solid: @tanstack/ai-mcp @modelcontextprotocol/sdk
-svelte: @tanstack/ai-mcp @modelcontextprotocol/sdk
-preact: @tanstack/ai-mcp @modelcontextprotocol/sdk
-angular: @tanstack/ai-mcp @modelcontextprotocol/sdk
-vanilla: @tanstack/ai-mcp @modelcontextprotocol/sdk
-octane: @tanstack/ai-mcp @modelcontextprotocol/sdk
+react: @tanstack/ai-mcp @modelcontextprotocol/client
+vue: @tanstack/ai-mcp @modelcontextprotocol/client
+solid: @tanstack/ai-mcp @modelcontextprotocol/client
+svelte: @tanstack/ai-mcp @modelcontextprotocol/client
+preact: @tanstack/ai-mcp @modelcontextprotocol/client
+angular: @tanstack/ai-mcp @modelcontextprotocol/client
+vanilla: @tanstack/ai-mcp @modelcontextprotocol/client
+octane: @tanstack/ai-mcp @modelcontextprotocol/client
 
 <!-- ::end:tabs -->
+
+> `createMCPClient` tries protocol `2026-07-28` first. If the server does not support that protocol, the client uses the 2025 initialize handshake.
+>
+> Package names for an `@modelcontextprotocol/sdk` import are in [MCP SDK packages](../migration/mcp-sdk).
 
 ## Quick Start
 
@@ -180,10 +184,10 @@ const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
 const mcp = await createMCPClient({ transport: clientTransport })
 ```
 
-For a custom network transport, pass any SDK `Transport`-compatible instance:
+For a custom network transport, pass a `Transport` from `@modelcontextprotocol/client`:
 
 ```ts ignore
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 
 const transport = new StreamableHTTPClientTransport(new URL('https://example.com/mcp'))
 const mcp = await createMCPClient({ transport })
@@ -209,11 +213,15 @@ const mcp = await createMCPClient({
 
 ### OAuth (`authProvider`)
 
-For servers implementing the [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization) (OAuth 2.1), pass an `authProvider` on the `http`/`sse` transport config. It accepts any `OAuthClientProvider` from the official SDK (`@modelcontextprotocol/sdk/client/auth.js`); the SDK transport then handles attaching tokens, refreshing them, and retrying on 401 — no extra wiring in TanStack AI.
+If the server implements the [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization) (OAuth 2.1), pass an `authProvider` on the `http` or `sse` config.
+
+The `authProvider` value is an `OAuthClientProvider` from `@modelcontextprotocol/client`.
+
+The transport attaches the token. The transport refreshes the token. The transport retries the request on 401.
 
 ```ts ignore
 import { createMCPClient } from '@tanstack/ai-mcp'
-import { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
+import type { OAuthClientProvider } from '@modelcontextprotocol/client'
 import { myTokenStore } from './token-store'
 
 // Server-side: back the provider with tokens you persist (database, KV, ...).

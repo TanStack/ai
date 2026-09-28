@@ -1,5 +1,17 @@
 # @tanstack/ai-openai
 
+## 0.25.1
+
+### Patch Changes
+
+- [#1532](https://github.com/TanStack/ai/pull/1532) [`6b8a1c0`](https://github.com/TanStack/ai/commit/6b8a1c066e79c9aea28d99583a2fe22646627eb9) - List the Responses provider tools on `gpt-6-astra`, `gpt-6-sol`, and `gpt-6-luna`. The model sync added them with `tools: []`, so `webSearchTool`, `imageGenerationTool`, and the other provider tools were type errors on GPT-6. They now accept `web_search`, `file_search`, `image_generation`, `code_interpreter`, `mcp`, `computer_use`, `shell`, and `apply_patch`, as listed on OpenAI's model pages.
+
+- [#1529](https://github.com/TanStack/ai/pull/1529) [`24baf35`](https://github.com/TanStack/ai/commit/24baf354cf4416af97ce8351f9f6ab00910c6f87) - `openaiImage()` accepts `gpt-image-2.5-flare` and `gpt-image-2.5-sunburst`. Both take sizes `1024x1024`, `1536x1024`, `1024x1536` and `auto`, and `quality` adds `xhigh` and `max` to `low`, `medium`, `high` and `auto`. Before, both ids threw `Unknown image model` before any request was sent.
+
+- Updated dependencies [[`37b2826`](https://github.com/TanStack/ai/commit/37b282655ea9c780e9793ef33013d64b1bf88625), [`8e8ee26`](https://github.com/TanStack/ai/commit/8e8ee26959a471bb6fac180ded3a9a048ae93609), [`c5c1996`](https://github.com/TanStack/ai/commit/c5c19961b8c98497fd88ae93c5d6330d7b2ecb6a), [`3e30cde`](https://github.com/TanStack/ai/commit/3e30cde8ae7f5be7be3bc9c4f30c842159fc7edf), [`0eb8f0b`](https://github.com/TanStack/ai/commit/0eb8f0b7f4ffa0133a814f8fcfccbc1acedd7488), [`bb3bf30`](https://github.com/TanStack/ai/commit/bb3bf309f41b7744c14d1b0f967e76780b7266c9), [`f44b6b2`](https://github.com/TanStack/ai/commit/f44b6b22578b893501e05612f02ea1aaee0951d3), [`d632d41`](https://github.com/TanStack/ai/commit/d632d41df227bf11bc3cdbf5542823f87562b3d4)]:
+  - @tanstack/ai@0.63.0
+  - @tanstack/openai-base@0.12.1
+
 ## 0.25.0
 
 ### Minor Changes
