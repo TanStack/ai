@@ -1,15 +1,11 @@
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import type { ClientOptions } from '@modelcontextprotocol/sdk/client/index.js'
-import {
-  ListToolsResultSchema,
-  ToolListChangedNotificationSchema,
-} from '@modelcontextprotocol/sdk/types.js'
+import { Client } from '@modelcontextprotocol/client'
 import {
   DuplicateToolNameError,
   MCPConnectionError,
   MCPTaskRequiredToolError,
   MCPToolNotFoundError,
 } from './errors'
+import { listPages } from './list-pages'
 import {
   callMcpTool,
   makeMcpExecute,
@@ -18,7 +14,14 @@ import {
   toolMcpMetadata,
   toServerTools,
 } from './tools'
+import { directMCPClient } from './direct-client'
 import { isTransportInstance, resolveTransport } from './transport'
+import type {
+  DescriptorFromServer,
+  DirectClientOptions,
+  DirectMCPClient,
+} from './direct-client'
+import type { MCPServer } from './server/create-server'
 import type { TransportConfig } from './transport'
 import type {
   AnyToolDefinition,
@@ -30,18 +33,28 @@ import type {
   ServerDescriptor,
   ToolsOptions,
 } from './types'
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import type {
+  ClientOptions,
   GetPromptResult,
-  Tool as McpToolDef,
+  McpSubscription,
   Prompt,
   ReadResourceResult,
   Resource,
-  ResourceTemplate,
-} from '@modelcontextprotocol/sdk/types.js'
+  ResourceTemplateType,
+  Tool as McpToolDef,
+  Transport,
+} from '@modelcontextprotocol/client'
 import type { ServerTool } from '@tanstack/ai'
 
-const MAX_TOOLS_LIST_PAGES = 100
+type CallToolResult = Awaited<ReturnType<Client['callTool']>>
+
+/**
+ * The raw MCP result of `callTool`. When the tool output type is known,
+ * `structuredContent` has that type. An untyped tool keeps the SDK type.
+ */
+export type TypedCallToolResult<TOutput> = unknown extends TOutput
+  ? CallToolResult
+  : Omit<CallToolResult, 'structuredContent'> & { structuredContent?: TOutput }
 
 type ToolPolicy = Pick<MCPClientOptions, 'toolFilter' | 'needsApproval'>
 
@@ -71,12 +84,22 @@ export interface MCPClient<
     ): Promise<MappedServerTools<TDefs>>
   }
   resources: () => Promise<Array<Resource>>
-  readResource: (uri: string) => Promise<ReadResourceResult>
-  resourceTemplates: () => Promise<Array<ResourceTemplate>>
+  /**
+   * Reads one resource. With a typed server, `uri` is one of its resource URIs.
+   */
+  readResource: (
+    uri: TServer['resources'][keyof TServer['resources']]['uri'],
+  ) => Promise<ReadResourceResult>
+  resourceTemplates: () => Promise<Array<ResourceTemplateType>>
   prompts: () => Promise<Array<Prompt>>
-  getPrompt: (
-    name: string,
-    args?: Record<string, string>,
+  /**
+   * Renders one prompt. With a typed server, `name` is one of its prompt
+   * names and `args` has that prompt's argument type. MCP sends each
+   * argument as a string.
+   */
+  getPrompt: <TName extends keyof TServer['prompts'] & string>(
+    name: TName,
+    args?: TServer['prompts'][TName]['args'],
   ) => Promise<GetPromptResult>
   /**
    * Call a tool directly and return its raw MCP result. Tools declaring
@@ -84,12 +107,16 @@ export interface MCPClient<
    * the server declares the tasks capability for tools/call. Pass
    * `options.signal` to abort — an in-flight task is best-effort cancelled on
    * the server.
+   *
+   * With a typed server, `name` is one of its tool names and `args` has
+   * that tool's input type. The result is the raw MCP result. For a tool
+   * with an output schema, `structuredContent` has the tool output type.
    */
-  callTool: (
-    name: string,
-    args?: Record<string, unknown>,
+  callTool: <TName extends keyof TServer['tools'] & string>(
+    name: TName,
+    args?: TServer['tools'][TName]['input'],
     options?: { signal?: AbortSignal },
-  ) => Promise<Awaited<ReturnType<Client['callTool']>>>
+  ) => Promise<TypedCallToolResult<TServer['tools'][TName]['output']>>
   /**
    * The ORIGINAL connection descriptor this client was created from — the
    * `transport` input and `prefix` passed to `createMCPClient`. Used by
@@ -128,6 +155,8 @@ class MCPClientImpl<
   readonly #client: Client
   #closed = false
   #toolDefinitions?: Map<string, McpToolDef>
+  // Open only after a spec 2026 connect when the server can report tool changes.
+  #toolListSubscription?: McpSubscription
   private readonly prefix?: string
   // The ORIGINAL serializable transport config (undefined for clients built
   // from a ready-made Transport instance, which is single-use / not reconnectable).
@@ -150,10 +179,27 @@ class MCPClientImpl<
     this.#transport = transport
     this.#clientOptions = clientOptions
     this.#policy = policy
-    // `clientOptions` is spread rather than passed straight through so an
-    // omitted option keeps the SDK's default. See MCPClientOptions.clientOptions
-    // for why edge runtimes need `jsonSchemaValidator` in particular.
-    this.#client = new Client({ name, version }, clientOptions)
+    // Try spec 2026-07-28 first. If the server does not support it, the
+    // client uses the 2025 initialize handshake. Caller options still apply.
+    // `mode` stays `auto` even when `clientOptions` sets another mode.
+    // A spec 2026 server returns `input_required` only to a client that
+    // declares elicitation and sampling. `chat()` turns that result into an
+    // `mcp_input` interrupt, so the client declares both by default.
+    this.#client = new Client(
+      { name, version },
+      {
+        ...clientOptions,
+        capabilities: {
+          elicitation: { form: {} },
+          sampling: {},
+          ...clientOptions?.capabilities,
+        },
+        versionNegotiation: {
+          ...clientOptions?.versionNegotiation,
+          mode: 'auto',
+        },
+      },
+    )
   }
 
   getInfo(): {
@@ -175,59 +221,61 @@ class MCPClientImpl<
 
   async connect(transport: Transport): Promise<void> {
     try {
-      // A tools/list_changed notification invalidates the cached definitions
-      // so the next callTool re-discovers each tool's execution mode.
+      // A tools/list_changed notice drops the cached definitions so the next
+      // callTool reads each tool's execution mode again.
       this.#client.setNotificationHandler(
-        ToolListChangedNotificationSchema,
+        'notifications/tools/list_changed',
         () => {
           this.#toolDefinitions = undefined
         },
       )
       await this.#client.connect(transport)
       this.capabilities = this.#client.getServerCapabilities() ?? {}
+      // A failed listen only means that tool changes are not pushed.
+      // The connection still works, so the error does not fail connect.
+      await this.#listenForToolListChanges().catch(() => undefined)
     } catch (err) {
+      await this.#toolListSubscription?.close().catch(() => undefined)
+      await this.#client.close().catch(() => undefined)
       throw new MCPConnectionError('Failed to connect to MCP server', err)
     }
   }
 
-  /**
-   * Fetch every page of tools/list and refresh the definition cache.
-   *
-   * `raw: true` bypasses the SDK's `listTools()` wrapper so the SDK's own
-   * metadata caches (output-schema validators, task flags) are not armed —
-   * `callTool`'s lazy lookup must not switch a previously validation-free
-   * direct call over to strict structured-content validation.
-   *
-   * When `raw` is off, only the first page uses `listTools()`. Later pages
-   * are raw requests: `listTools()` clears the SDK metadata cache before
-   * writing the current page, which would drop validators for earlier tools.
-   */
-  async #listTools(options?: { raw?: boolean }): Promise<Array<McpToolDef>> {
-    const defs: Array<McpToolDef> = []
-    let cursor: string | undefined
-    let pageCount = 0
-    do {
-      pageCount++
-      if (pageCount > MAX_TOOLS_LIST_PAGES) {
-        throw new Error(
-          `MCP tools/list pagination exceeded ${MAX_TOOLS_LIST_PAGES} pages`,
-        )
-      }
-      const useRaw = options?.raw === true || pageCount > 1
-      const page = useRaw
-        ? await this.#client.request(
-            { method: 'tools/list', ...(cursor ? { params: { cursor } } : {}) },
-            ListToolsResultSchema,
-          )
-        : await this.#client.listTools(cursor ? { cursor } : undefined)
-      defs.push(...page.tools)
-      const nextCursor = page.nextCursor
-      if (nextCursor !== undefined && nextCursor === cursor) {
-        throw new Error('MCP tools/list pagination repeated a cursor')
-      }
-      cursor = nextCursor
-    } while (cursor)
+  // Spec 2026 does not push tool-list changes. Open subscriptions/listen when
+  // the server says it can report them. The notice handler above drops the cache.
+  async #listenForToolListChanges() {
+    if (this.#client.getProtocolEra() !== 'modern') return
+    const tools = this.#client.getServerCapabilities()?.tools
+    if (tools?.listChanged !== true) return
+    this.#toolListSubscription = await this.#client.listen({
+      toolsListChanged: true,
+    })
+  }
+
+  // Read every tools/list page into the definition cache.
+  // listPages throws when a cursor repeats or the page cap is passed.
+  // A raw list does not compile `jsonSchemaValidator`. On spec 2025, SDK
+  // `callTool` then skips output checks. So `tools()` follows the raw walk
+  // with `listTools()` to fill the SDK cache and run the validator.
+  // Spec 2026 calls use a raw tools/call, which never reads that cache,
+  // so the second walk is skipped there.
+  // `raw: true` is the lazy `callTool` path. It must stay free of that cache.
+  async #listTools(options?: { raw?: boolean }) {
+    const client = this.#client
+    const defs = await listPages(async (cursor) => {
+      const page =
+        cursor === undefined
+          ? await client.request({ method: 'tools/list' })
+          : await client.request({
+              method: 'tools/list',
+              params: { cursor },
+            })
+      return { items: page.tools, nextCursor: page.nextCursor }
+    })
     this.#toolDefinitions = new Map(defs.map((def) => [def.name, def]))
+    if (options?.raw !== true && client.getProtocolEra() !== 'modern') {
+      await client.listTools()
+    }
     return defs
   }
 
@@ -326,7 +374,7 @@ class MCPClientImpl<
     return this.#client.readResource({ uri })
   }
 
-  async resourceTemplates(): Promise<Array<ResourceTemplate>> {
+  async resourceTemplates(): Promise<Array<ResourceTemplateType>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
     return (await this.#client.listResourceTemplates()).resourceTemplates
   }
@@ -336,25 +384,28 @@ class MCPClientImpl<
     return (await this.#client.listPrompts()).prompts
   }
 
-  async getPrompt(
-    name: string,
-    args?: Record<string, string>,
-  ): Promise<GetPromptResult> {
+  async getPrompt(name: string, args?: unknown): Promise<GetPromptResult> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
-    return this.#client.getPrompt({ name, arguments: args })
+    // MCP prompt arguments are strings.
+    const promptArgs = isArgs(args)
+      ? Object.fromEntries(
+          Object.entries(args).map(([key, value]) => [key, String(value)]),
+        )
+      : undefined
+    return this.#client.getPrompt({ name, arguments: promptArgs })
   }
 
-  async callTool(
-    name: string,
-    args?: Record<string, unknown>,
+  async callTool<TName extends keyof TServer['tools'] & string>(
+    name: TName,
+    args?: TServer['tools'][TName]['input'],
     options?: { signal?: AbortSignal },
-  ): Promise<Awaited<ReturnType<Client['callTool']>>> {
+  ): Promise<TypedCallToolResult<TServer['tools'][TName]['output']>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
     if (!this.#toolDefinitions) {
       // Lazy discovery so task-required tools work without a prior tools()
       // call. Best-effort: a server whose tools/list fails (or omits the
       // tool) still gets the plain tools/call it would have received before
-      // task support existed. Raw fetch — see #listTools.
+      // task support existed. See #listTools.
       try {
         await this.#listTools({ raw: true })
       } catch {
@@ -370,19 +421,28 @@ class MCPClientImpl<
     if (taskRequired && !serverSupportsTaskCalls(this.#client)) {
       throw new MCPTaskRequiredToolError(name)
     }
-    return callMcpTool(
+    const result = await callMcpTool(
       this.#client,
       name,
-      args ?? {},
+      isArgs(args) ? args : {},
       taskRequired,
       options?.signal,
     )
+    // Trust boundary: the server type says what `structuredContent` holds.
+    // The client does not check the wire value against that type.
+    return result as TypedCallToolResult<TServer['tools'][TName]['output']>
   }
 
   async close(): Promise<void> {
     if (this.#closed) return
     this.#closed = true
-    await this.#client.close()
+    const subscription = this.#toolListSubscription
+    this.#toolListSubscription = undefined
+    try {
+      await subscription?.close()
+    } finally {
+      await this.#client.close()
+    }
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
@@ -390,9 +450,57 @@ class MCPClientImpl<
   }
 }
 
+function isArgs(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Connects to an MCP server.
+ *
+ * Pass `transport` for a server at a URL, on SSE, or on stdio.
+ * The client speaks MCP over that transport, so server auth applies.
+ *
+ * To type a transport client from a TanStack server, pass `typeof server`
+ * as the type argument. Import the server with `import type`.
+ *
+ * Pass `server` to call a `createMCPServer` result in this process.
+ * That client calls the tool functions directly. It opens no connection,
+ * and the server `auth` option does not run.
+ *
+ * @param options - A transport, or a TanStack MCP server in this process
+ *
+ * @example
+ * ```ts
+ * const remote = await createMCPClient<typeof server>({
+ *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+ * })
+ * await remote.callTool('get_weather', { city: 'Paris' })
+ *
+ * const local = await createMCPClient({ server })
+ * await local.callTool('get_weather', { city: 'Paris' })
+ * ```
+ */
 export async function createMCPClient<
+  TDescriptor extends ServerDescriptor = AutomaticDescriptor,
+>(options: MCPClientOptions): Promise<MCPClient<TDescriptor>>
+export async function createMCPClient<TServer extends MCPServer>(
+  options: MCPClientOptions,
+): Promise<MCPClient<DescriptorFromServer<TServer>>>
+export async function createMCPClient<TServer extends MCPServer>(
+  options: DirectClientOptions<TServer>,
+): Promise<DirectMCPClient<TServer>>
+export async function createMCPClient(
+  options: MCPClientOptions | DirectClientOptions<MCPServer>,
+): Promise<MCPClient | DirectMCPClient<MCPServer>> {
+  if ('server' in options) {
+    return directMCPClient(options.server)
+  }
+  return connectTransport(options)
+}
+
+async function connectTransport<
   TServer extends ServerDescriptor = AutomaticDescriptor,
->(options: MCPClientOptions): Promise<MCPClient<TServer>> {
+>(options: MCPClientOptions) {
   const transport = await resolveTransport(options.transport)
   const impl = new MCPClientImpl<TServer>(
     options.prefix,

@@ -17,6 +17,10 @@ keywords:
 
 You have a live [MCP client](./mcp) and want to do more than auto-discover tools: spread fully-typed tools into a `chat()` run, inject the server's resources and prompts into the conversation, and cancel in-flight MCP calls when the run aborts. By the end of this guide you'll have wired all of these into a single `chat()` call.
 
+> `createMCPClient` tries protocol `2026-07-28` first. If the server does not support that protocol, the client uses the 2025 initialize handshake.
+>
+> Package names for an `@modelcontextprotocol/sdk` import are in [MCP SDK packages](../migration/mcp-sdk).
+
 > **Manual (`tools` spread) vs managed (`mcp` prop)**
 >
 > This page covers the **manual** path — you call `client.tools()` / `client.resources()` / `client.getPrompt()` yourself and own `close()`. If you only need runtime-typed tools with discovery and lifecycle handled for you, use the `mcp` prop instead — see [Managed MCP with `chat()`](./mcp-managed). Both paths build on the [`createMCPClient` basics](./mcp).
