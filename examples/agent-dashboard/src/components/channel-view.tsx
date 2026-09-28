@@ -446,10 +446,18 @@ function MessageBubble({
   showAuthor: boolean
 }) {
   const isUser = message.role === 'user'
+  const [expanded, setExpanded] = useState(false)
+  // Strip the internal `[channel:<id>]` routing tag the injector prefixes onto a
+  // subscription prompt — it's plumbing, not something a human should read.
+  const text = message.text.replace(/^\[channel:[^\]]+\]\s*/, '')
+  // Injected trigger prompts (a subscription's "New … batch" context) arrive as
+  // long user messages. Collapse them to a few lines so they don't drown the
+  // channel; a human's own message is short and never trips this.
+  const long = isUser && text.length > 280
   return (
     <div className={isUser ? 'text-right' : ''}>
       <div
-        className={`inline-block max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+        className={`inline-block max-w-[80%] rounded-lg px-3 py-2 text-left text-sm ${
           isUser ? 'bg-emerald-500/15 text-emerald-100' : 'bg-white/[0.06]'
         }`}
       >
@@ -459,11 +467,29 @@ function MessageBubble({
             subagent
           </span>
         )}
-        {message.text ? (
+        {text ? (
           isUser ? (
-            message.text
+            <>
+              <div
+                className={
+                  long && !expanded
+                    ? 'line-clamp-3 whitespace-pre-wrap'
+                    : 'whitespace-pre-wrap'
+                }
+              >
+                {text}
+              </div>
+              {long && (
+                <button
+                  onClick={() => setExpanded((v) => !v)}
+                  className="mt-1 text-[11px] text-emerald-300/70 hover:text-emerald-200"
+                >
+                  {expanded ? 'Show less' : 'Show more'}
+                </button>
+              )}
+            </>
           ) : (
-            <Markdown>{message.text}</Markdown>
+            <Markdown>{text}</Markdown>
           )
         ) : (
           <span className="text-white/30">…</span>

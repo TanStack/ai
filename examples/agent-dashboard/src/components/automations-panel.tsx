@@ -7,6 +7,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { runInjection } from '@/lib/session-controller'
+import { TrashIcon } from '@/components/icons'
 import type { MembershipRow } from '@/db/collections'
 
 interface ToolInfo {
@@ -241,9 +242,11 @@ export function AutomationsPanel({
               </button>
               <button
                 onClick={() => deleteSchedule.mutate(row.id)}
-                className="rounded border border-white/15 px-1.5 py-0.5 text-white/60 hover:bg-white/[0.05]"
+                aria-label="Delete schedule"
+                title="Delete"
+                className="rounded border border-white/15 p-1 text-white/60 hover:bg-white/[0.05] hover:text-white/80"
               >
-                delete
+                <TrashIcon />
               </button>
             </li>
           ))}

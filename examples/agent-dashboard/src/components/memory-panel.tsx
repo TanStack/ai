@@ -5,6 +5,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { TrashIcon } from '@/components/icons'
 
 export function MemoryPanel({
   threadId,
@@ -58,12 +59,7 @@ export function MemoryPanel({
       aria-label={`memory ${name}`}
       className="space-y-2 rounded-lg border border-white/10 bg-white/[0.02] p-4"
     >
-      <div className="flex items-center gap-2">
-        <h2 className="text-sm font-semibold text-white/80">Memory · {name}</h2>
-        <span className="text-xs text-white/40">
-          attached to every run — no tokens until then
-        </span>
-      </div>
+      <h2 className="text-sm font-semibold text-white/80">Memory · {name}</h2>
       <ul className="space-y-1">
         {entries.length === 0 && (
           <li className="text-xs text-white/40">no entries yet</li>
@@ -71,16 +67,21 @@ export function MemoryPanel({
         {entries.map(([k, v]) => (
           <li
             key={k}
-            className="flex items-start gap-2 rounded border border-white/5 px-2 py-1 text-xs"
+            className="flex items-start gap-2 rounded border border-white/5 px-2 py-1.5 text-xs"
           >
-            <span className="font-mono text-amber-300">{k}</span>
-            <span className="text-white/60">{v}</span>
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <div className="break-all font-mono text-amber-300">{k}</div>
+              <div className="line-clamp-3 text-white/60" title={v}>
+                {v}
+              </div>
+            </div>
             <button
               onClick={() => remove.mutate(k)}
               aria-label={`delete memory ${k}`}
-              className="ml-auto rounded border border-white/15 px-1.5 text-white/50 hover:bg-white/[0.05]"
+              title="Delete"
+              className="shrink-0 rounded border border-white/15 p-1 text-white/50 hover:bg-white/[0.05] hover:text-white/80"
             >
-              delete
+              <TrashIcon />
             </button>
           </li>
         ))}

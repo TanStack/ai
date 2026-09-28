@@ -192,7 +192,10 @@ export function setActiveChannel(threadId: string, channelId: string): void {
 /** Project one AG-UI event into the collections, namespaced to a member. */
 function project(ctx: Ctx, event: any, replay = false) {
   const { threadId, agentId } = ctx
-  const channelId = activeChannelByThread.get(threadId) ?? ctx.channelId
+  // A synthesized history event (see /api/tail rehydration) carries the channel
+  // its message belonged to, so a rebuilt timeline routes DM vs main correctly.
+  const channelId =
+    event.channelId ?? activeChannelByThread.get(threadId) ?? ctx.channelId
   const nsKey = (raw: string) => `${agentId}:${raw}`
   switch (event.type) {
     case 'RUN_STARTED':
