@@ -1,8 +1,20 @@
 import { createServer } from 'node:http'
 import { z } from 'zod'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
+import {
+  McpServer,
+  WebStandardStreamableHTTPServerTransport,
+} from '@modelcontextprotocol/server'
 import type { IncomingMessage, Server } from 'node:http'
+
+/** Copy the Node request headers into Web `Headers`. */
+function webHeaders(req: IncomingMessage) {
+  const headers = new Headers()
+  const entries = Object.entries(req.headersDistinct)
+  for (const [name, values] of entries) {
+    for (const value of values ?? []) headers.append(name, value)
+  }
+  return headers
+}
 
 /**
  * A local MCP server behind OAuth, like Notion's or Linear's: protected
@@ -104,12 +116,20 @@ export async function startProtectedServer() {
             content: [{ type: 'text' as const, text: `echo: ${text}` }],
           }),
         )
-        const transport = new StreamableHTTPServerTransport({
+        const transport = new WebStandardStreamableHTTPServerTransport({
           sessionIdGenerator: undefined,
           enableJsonResponse: true,
         })
         await mcp.connect(transport)
-        await transport.handleRequest(req, res, JSON.parse(await readBody(req)))
+        const response = await transport.handleRequest(
+          new Request(url, {
+            method: req.method,
+            headers: webHeaders(req),
+            body: await readBody(req),
+          }),
+        )
+        res.writeHead(response.status, Object.fromEntries(response.headers))
+        res.end(await response.text())
         return
       }
       res.writeHead(404).end()
