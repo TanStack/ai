@@ -1,5 +1,4 @@
-import type { Ai } from '@cloudflare/workers-types'
-import type { CloudflareGatewayOptions, FetchLike } from './config'
+import type { CloudflareBindingConfig, FetchLike } from './config'
 
 /**
  * Workers AI streams end with a usage-only trailer (`{"response":"","usage":
@@ -99,11 +98,15 @@ export async function normalizeResponse(response: Response): Promise<Response> {
  * Makes `env.AI` look like an OpenAI-compatible HTTP endpoint to the OpenAI
  * SDK: the JSON request body becomes `binding.run(model, inputs)` and the
  * raw inference `Response` (OpenAI-format JSON or SSE) is handed back.
+ *
+ * The SDK's own request headers (auth, user agent, `x-stainless-*`) are
+ * dropped; only the configured `defaultHeaders` reach Workers AI.
  */
-export function createBindingFetch(
-  binding: Ai,
-  gateway?: CloudflareGatewayOptions,
-): FetchLike {
+export function createBindingFetch({
+  binding,
+  gateway,
+  defaultHeaders,
+}: CloudflareBindingConfig): FetchLike {
   // `Ai` is typed against the bundled model catalog; the adapter accepts any
   // model id, so widen the binding to the open catalog shape for this call.
   const run = binding.run.bind(binding) as (
@@ -118,6 +121,7 @@ export function createBindingFetch(
     const response = (await run(model, inputs, {
       returnRawResponse: true,
       ...(gateway && { gateway }),
+      ...(defaultHeaders && { extraHeaders: defaultHeaders }),
     })) as Response
     return await normalizeResponse(response)
   }

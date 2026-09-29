@@ -20,6 +20,11 @@ export type FetchLike = NonNullable<ClientOptions['fetch']>
 export interface CloudflareBindingConfig {
   binding: Ai
   gateway?: CloudflareGatewayOptions
+  /**
+   * Workers AI request headers, such as `x-session-affinity` for prompt
+   * caching. Sent on every run as the binding's `extraHeaders` option.
+   */
+  defaultHeaders?: Record<string, string>
   accountId?: never
   apiKey?: never
 }
