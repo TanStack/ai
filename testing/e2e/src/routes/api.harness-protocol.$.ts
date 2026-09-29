@@ -11,26 +11,39 @@ import {
 import { todos } from '@tanstack/ai-harness/plugins'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
+import { createImageAdapter } from '@/lib/media-providers'
 import { createTextAdapter } from '@/lib/providers'
 
 /**
  * The harness session protocol behind `createHarnessHandler`. The main
  * model is the OpenAI adapter against aimock. The aimock port and test id
- * come from headers, so one handler serves every test.
+ * come from headers, so one handler serves every test. The model can call
+ * `painter`, which makes one image with the OpenAI image adapter. The
+ * harness keeps that image, and the uploads, in memory.
  */
-const hosts = new Map<string, ReturnType<typeof createHarnessHost>>()
+// One host for every test. Each test uses its own thread ids, and a signed
+// media URL comes without the test headers.
+const host = createHarnessHost({ persistence: memoryPersistence() })
 
 function handlerFor(request: Request) {
   const testId = request.headers.get('x-test-id') ?? 'default'
   const port = Number(request.headers.get('x-aimock-port') ?? '4010')
-  let host = hosts.get(testId)
-  if (!host) {
-    host = createHarnessHost({ persistence: memoryPersistence() })
-    hosts.set(testId, host)
-  }
+  const painter = defineAgent({
+    name: 'painter',
+    description: 'Paints one image',
+    inputSchema: z.object({ prompt: z.string() }),
+    run: async (ctx) => {
+      await ctx.generateImage({
+        adapter: createImageAdapter('openai', port, testId),
+        prompt: ctx.input.prompt,
+      })
+      return 'Painted one image.'
+    },
+  })
   const harness = defineHarness({
     name: 'e2e/protocol',
     adapter: createTextAdapter('openai', undefined, port, testId).adapter,
+    subagents: { agents: [painter] },
     agents: [
       defineAgent({
         name: 'echo',
@@ -68,6 +81,9 @@ function handlerFor(request: Request) {
       req.headers.get('authorization') === 'Bearer e2e-token'
         ? { id: 'e2e' }
         : null,
+    // Each request makes a new handler, so a fixed secret keeps a signed URL
+    // working on the next request.
+    mediaSecret: 'e2e-media-secret',
   })
 }
 

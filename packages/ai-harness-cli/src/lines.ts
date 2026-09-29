@@ -1,5 +1,6 @@
 import { createInterface } from 'node:readline'
 import { createSessionView } from '@tanstack/ai-harness/view'
+import { saveMediaLine } from './attach'
 import { handleLine } from './commands'
 import { createPrinter } from './printer'
 import { approvalQuestion, openUrl, resolveAll, waitIdle } from './session-view'
@@ -15,15 +16,23 @@ interface Output {
  * next line answers it (`y` approves, anything else rejects).
  *
  * `openSignIns`: open sign-in links in the browser (for an interactive terminal).
+ * `mediaDir`: the folder for the media a turn makes. Each new file is saved
+ * there, with one `[image saved: <path>]` line.
  */
 export async function runLines(
   session: HarnessSession,
   input: NodeJS.ReadableStream,
   stdout: Output,
-  options: { openSignIns?: boolean } = {},
+  options: { openSignIns?: boolean; mediaDir: string },
 ) {
   const view = createSessionView(session)
-  const printer = createPrinter((text) => stdout.write(text))
+  const saves: Array<Promise<unknown>> = []
+  const printer = createPrinter((text) => stdout.write(text), {
+    onMedia: (part) => {
+      const saved = saveMediaLine(session, part, options.mediaDir)
+      saves.push(saved.then(({ text }) => printer.line(text)))
+    },
+  })
   await view.ready
   // Line mode prints only what happens from now on.
   printer.mark(view.store.get())
@@ -65,6 +74,7 @@ export async function runLines(
   stopOpening()
   printing.unsubscribe()
   printer.print(view.store.get())
+  await Promise.allSettled(saves)
   view.dispose()
   printer.end()
 }

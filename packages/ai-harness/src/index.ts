@@ -98,6 +98,7 @@ export {
   mediaIdOf,
   mediaOfMessage,
   mediaPart,
+  mimeTypeOf,
 } from './media-ref'
 
 export { MediaError } from './media'

@@ -9,6 +9,7 @@ import {
   isMediaRecord,
   kindOf,
   mediaPart,
+  mimeTypeOf,
 } from '@tanstack/ai-harness'
 // The inferred return type names `MCPHandleOptions`. Without an import of
 // `./server/index`, the .d.ts emit writes `./server.js`, which does not resolve.
@@ -78,28 +79,6 @@ const MEDIA_URI_PREFIX = 'harness-media://'
 
 /** The biggest image or audio file that a result carries inline. */
 const INLINE_MEDIA_MAX_BYTES = 5 * 1024 * 1024
-
-// ponytail: common types only. Send any other file as data with its mimeType.
-const mimeTypes = new Map([
-  ['png', 'image/png'],
-  ['jpg', 'image/jpeg'],
-  ['jpeg', 'image/jpeg'],
-  ['gif', 'image/gif'],
-  ['webp', 'image/webp'],
-  ['mp3', 'audio/mpeg'],
-  ['wav', 'audio/wav'],
-  ['ogg', 'audio/ogg'],
-  ['m4a', 'audio/mp4'],
-  ['flac', 'audio/flac'],
-  ['mp4', 'video/mp4'],
-  ['webm', 'video/webm'],
-  ['mov', 'video/quicktime'],
-  ['pdf', 'application/pdf'],
-  ['txt', 'text/plain'],
-  ['md', 'text/markdown'],
-  ['csv', 'text/csv'],
-  ['html', 'text/html'],
-])
 
 const threadIdSchema: JSONSchema = {
   type: 'string',
@@ -717,14 +696,6 @@ function urlPart(attachment: { url: string; mimeType?: string }) {
     source: { type: 'url', value: url, mimeType },
   }
   return part
-}
-
-/** The MIME type of a file name or URL path by its extension, or `undefined`. */
-function mimeTypeOf(path: string) {
-  const extension = /\.([^./\\]+)$/.exec(path)?.[1]
-  return extension === undefined
-    ? undefined
-    : mimeTypes.get(extension.toLowerCase())
 }
 
 /** The media records that the settled `operation` published, in order. */

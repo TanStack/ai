@@ -76,6 +76,44 @@ export function kindOf(mimeType: string) {
   }
 }
 
+// ponytail: common types only. Send any other file with its MIME type.
+const mimeTypes = new Map([
+  ['png', 'image/png'],
+  ['jpg', 'image/jpeg'],
+  ['jpeg', 'image/jpeg'],
+  ['gif', 'image/gif'],
+  ['webp', 'image/webp'],
+  ['mp3', 'audio/mpeg'],
+  ['wav', 'audio/wav'],
+  ['ogg', 'audio/ogg'],
+  ['m4a', 'audio/mp4'],
+  ['flac', 'audio/flac'],
+  ['mp4', 'video/mp4'],
+  ['webm', 'video/webm'],
+  ['mov', 'video/quicktime'],
+  ['pdf', 'application/pdf'],
+  ['txt', 'text/plain'],
+  ['md', 'text/markdown'],
+  ['csv', 'text/csv'],
+  ['html', 'text/html'],
+])
+
+/**
+ * The MIME type of a file name, a path, or a URL path, by its extension.
+ * Returns `undefined` for no extension or an extension it does not know.
+ * It knows the common image, audio, video, PDF, and text types.
+ *
+ * @example
+ * mimeTypeOf('cat.PNG') // 'image/png'
+ * mimeTypeOf('notes') // undefined
+ */
+export function mimeTypeOf(fileName: string) {
+  const extension = /\.([^./\\]+)$/.exec(fileName)?.[1]
+  return extension === undefined
+    ? undefined
+    : mimeTypes.get(extension.toLowerCase())
+}
+
 /**
  * The content part that sends a stored media file to a turn. Its source is
  * the URL `harness-media:<id>`. The harness swaps it for the bytes only when

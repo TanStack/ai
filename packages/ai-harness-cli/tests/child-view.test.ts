@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
@@ -119,9 +121,13 @@ describe('line mode with a child agent', () => {
     )
     const input = new PassThrough()
     let out = ''
-    const running = runLines(session, input, {
-      write: (text: string) => (out += text),
-    })
+    // This turn makes no media, so nothing is written to the media folder.
+    const running = runLines(
+      session,
+      input,
+      { write: (text: string) => (out += text) },
+      { mediaDir: join(tmpdir(), 'child-view-media') },
+    )
     input.end('go\n')
     await running
     await host.close()
