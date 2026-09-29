@@ -422,8 +422,8 @@ Based on [OpenAI API docs](https://platform.openai.com/docs/api-reference/videos
 
 Pass 4, 8, or 12 seconds. Write each length as a number, a numeric string, or a seconds template:
 
-- `4`, `"4"`, or `"4s"`
-- `8`, `"8"`, or `"8s"` (default)
+- `4`, `"4"`, or `"4s"` (default)
+- `8`, `"8"`, or `"8s"`
 - `12`, `"12"`, or `"12s"`
 
 > **Note:** The adapter sends `"4"`, `"8"`, or `"12"` to the API.

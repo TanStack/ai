@@ -64,7 +64,7 @@ describe('snapToDurationOption', () => {
     expect(snapToDurationOption(2.5, grok)).toBe(3)
     expect(snapToDurationOption('2.5s', grok)).toBe(3)
     expect(snapToDurationOption(Number.POSITIVE_INFINITY, grok)).toBe(15)
-    expect(snapToDurationOption(Number.NaN, grok)).toBeNaN()
+    expect(snapToDurationOption(Number.NaN, grok)).toBeUndefined()
   })
 
   it('returns undefined when the model has no duration field', () => {

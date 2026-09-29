@@ -65,6 +65,9 @@ export function snapToDurationOption<T extends string | number | undefined>(
   input: number | string,
   options: DurationOptions<T>,
 ): T | undefined {
+  // NaN is not a length. Infinity still clamps inside snapSeconds.
+  if (typeof input === 'number' && Number.isNaN(input)) return undefined
+
   if (typeof input === 'string') {
     const seconds = templateToSeconds(input)
     if (seconds === null) return matchKeyword(input, options)
