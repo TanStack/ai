@@ -663,17 +663,26 @@ export function durableStreamSource<TOffset extends string>(
   }
 
   async function* replay(offset: TOffset): AsyncIterable<StreamChunk> {
-    // Thread the consumer's abort signal into the read so a live-tailing join
-    // (a mid-stream reconnect) that is aborted — or that hit a runId with no
-    // in-process producer — stops parking and ends instead of hanging forever.
-    for await (const { offset: eventOffset, chunk } of durability.read(
-      offset,
-      abortController.signal,
-    )) {
-      if (isAborted(abortController.signal)) break
-      validateOffset(eventOffset)
-      idByChunk.set(chunk, eventOffset)
-      yield chunk
+    try {
+      // Thread the consumer's abort signal into the read so a live-tailing join
+      // (a mid-stream reconnect) that is aborted — or that hit a runId with no
+      // in-process producer — stops parking and ends instead of hanging forever.
+      for await (const { offset: eventOffset, chunk } of durability.read(
+        offset,
+        abortController.signal,
+      )) {
+        if (isAborted(abortController.signal)) break
+        validateOffset(eventOffset)
+        idByChunk.set(chunk, eventOffset)
+        yield chunk
+      }
+    } catch (error) {
+      // The HTTP transports send this to the reader as a RUN_ERROR, but a
+      // replay has no producer to log it (`chat()` logs its own failures), so
+      // an expired run or a failed backend read would leave no server-side
+      // trace. The WebSocket resume logs the same failure.
+      logger?.errors('replaying durability stream failed', { error })
+      throw error
     }
   }
 
@@ -715,12 +724,13 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
     abortController?: AbortController
     durability?: { adapter: StreamDurability<TOffset>; batch?: number }
     /**
-     * Customize logging for durability failure paths (terminal-append and
-     * close). These failures are always logged server-side by default (the
+     * Customize logging for durability failure paths (replay, terminal-append,
+     * and close). These failures are always logged server-side by default (the
      * `errors` category is on even without `debug`, via a `ConsoleLogger`);
      * pass `debug` to route them to a custom `Logger` or raise verbosity. A
-     * joiner replaying the log only ever sees a generic incomplete error, so
-     * server-side logging is where the real cause is recoverable.
+     * joiner never learns why a terminal-append or close failed, and a replay
+     * failure reaches only its reader, so server-side logging is where the real
+     * cause is recoverable.
      */
     debug?: DebugOption
   },
@@ -1131,12 +1141,13 @@ export function toHttpResponse<TOffset extends string = string>(
     abortController?: AbortController
     durability?: { adapter: StreamDurability<TOffset>; batch?: number }
     /**
-     * Customize logging for durability failure paths (terminal-append and
-     * close). These failures are always logged server-side by default (the
+     * Customize logging for durability failure paths (replay, terminal-append,
+     * and close). These failures are always logged server-side by default (the
      * `errors` category is on even without `debug`, via a `ConsoleLogger`);
      * pass `debug` to route them to a custom `Logger` or raise verbosity. A
-     * joiner replaying the log only ever sees a generic incomplete error, so
-     * server-side logging is where the real cause is recoverable.
+     * joiner never learns why a terminal-append or close failed, and a replay
+     * failure reaches only its reader, so server-side logging is where the real
+     * cause is recoverable.
      */
     debug?: DebugOption
   },
