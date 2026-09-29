@@ -284,6 +284,8 @@ If the connection fails, `createMCPClient` throws `MCPConnectionError`.
 `createMCPClient` tries spec `2026-07-28` first.
 If the server does not support that spec, the client uses the 2025 initialize handshake.
 The client keeps negotiation mode `auto`.
+`client.instructions` holds the server's instructions from the handshake, or `undefined` when the server sends none.
+Put them in the system prompt: `systemPrompts: client.instructions ? [client.instructions] : []`.
 
 ### Transports
 
