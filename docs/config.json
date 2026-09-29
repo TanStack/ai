@@ -746,7 +746,7 @@
           "label": "Voice Creation",
           "to": "media/voice-creation",
           "addedAt": "2026-09-16",
-          "updatedAt": "2026-09-16"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Audio Recording",
@@ -1193,7 +1193,7 @@
           "label": "ElevenLabs",
           "to": "adapters/elevenlabs",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-16"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "fal.ai",

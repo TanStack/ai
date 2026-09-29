@@ -4,10 +4,16 @@ import type { ElevenLabs } from '@elevenlabs/elevenlabs-js'
  * ElevenLabs model identifiers. The lists below are the source of truth —
  * callers are blocked from passing unknown model IDs.
  *
- * Maintained by hand: `scripts/sync-provider-models.ts` deliberately excludes
- * elevenlabs, because these are media endpoint ids rather than OpenRouter
- * models. Where the SDK publishes its own union, pin the list to it with
- * `satisfies` so a removed id fails the build instead of a request.
+ * Text-to-speech ids are inserted by `scripts/sync-elevenlabs-models.ts`
+ * from modelschemas (`GET /v1/models?provider=elevenlabs`), which runs with
+ * the daily `pnpm generate:models` sync. The script only adds missing
+ * `canDoTextToSpeech` ids. It leaves rows that are already listed, including
+ * deprecated ids the catalog no longer returns.
+ *
+ * Music, sound effects, transcription, and voice design stay hand-maintained.
+ * modelschemas does not list those ids. Where the SDK publishes its own
+ * union, pin the list to it with `satisfies` so a removed id fails the build
+ * instead of a request.
  *
  * Each list is ordered newest-first, with models ElevenLabs has deprecated
  * kept at the bottom so existing callers don't break on an upgrade. An id the
@@ -22,6 +28,8 @@ import type { ElevenLabs } from '@elevenlabs/elevenlabs-js'
  * @see https://elevenlabs.io/docs/models
  */
 export const ELEVENLABS_TTS_MODELS = [
+  'eleven_v4',
+  'eleven_v4_turbo',
   'eleven_v3',
   'eleven_v3_conversational',
   'eleven_multilingual_v2',
