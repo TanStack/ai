@@ -11,12 +11,12 @@ From the repo root:
 3. Copy `.env.example` to `.env` and set the keys you have. Each key turns on more (see the table). Without a key, a demo model answers.
 4. `pnpm --filter harness-cli-example start`
 
-| Key | Adds |
-|---|---|
-| `OPENAI_API_KEY` | the `gpt` models, images, speech, Sora video, and voice input |
-| `ANTHROPIC_API_KEY` | the `claude` models |
-| `XAI_API_KEY` | the `grok` model, and video with Grok Imagine |
-| `FAL_KEY` | songs and sound effects |
+| Key                 | Adds                                                          |
+| ------------------- | ------------------------------------------------------------- |
+| `OPENAI_API_KEY`    | the `gpt` models, images, speech, Sora video, and voice input |
+| `ANTHROPIC_API_KEY` | the `claude` models                                           |
+| `XAI_API_KEY`       | the `grok` model, and video with Grok Imagine                 |
+| `FAL_KEY`           | songs and sound effects                                       |
 
 ## Talk to it
 
