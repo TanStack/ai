@@ -190,6 +190,12 @@ export function uiMessagesToWire(
     // modified"). Split the message into ordered segments at each thinking
     // part that follows a provider-executed tool call, the same rule
     // buildAssistantMessages applies, so the wire keeps the signed order.
+    // A message also splits after its tool results: an agent loop's
+    // "tool call, tool result, text" is two model calls, and the text was
+    // written after the result. Emitting the text on the tool-call anchor and
+    // the results after it hands the provider its answer before the result it
+    // was based on. Each segment's tool results follow its own anchor, the
+    // same order buildAssistantMessages produces.
     // Segments after the first get derived anchor ids; strict AG-UI consumers
     // still see plain anchors.
     type Segment = {
@@ -211,10 +217,26 @@ export function uiMessagesToWire(
           current.thinking.push(part)
         }
       } else {
+        if (
+          startsAfterToolOutcome(part) &&
+          current.parts.some(
+            (p) =>
+              p.type === 'tool-result' ||
+              (part.type !== 'tool-call' && hasToolOutcome(p)),
+          )
+        ) {
+          current = { thinking: [], parts: [] }
+          segments.push(current)
+        }
         current.parts.push(part)
       }
     }
 
+    const explicitToolResults = new Set(
+      parts.flatMap((part) =>
+        part.type === 'tool-result' ? [part.toolCallId] : [],
+      ),
+    )
     segments.forEach((segment, index) => {
       for (const part of segment.thinking) {
         const reasoning: WireReasoningMessage = {
@@ -249,76 +271,70 @@ export function uiMessagesToWire(
           includeSnapshotStructuredOutput,
         ),
       )
-    })
-
-    const explicitToolResults = new Set(
-      parts.flatMap((part) =>
-        part.type === 'tool-result' ? [part.toolCallId] : [],
-      ),
-    )
-    for (const part of parts) {
-      if (part.type === 'tool-result') {
-        const id = uniqueToolWireId(
-          part.id ?? deriveToolMessageId(part.toolCallId),
-          usedWireIds,
-        )
-        const metadata = rebuiltToolMetadata(
-          part.metadata,
-          part.createdAt,
-          part.id,
-          part.content,
-          true,
-          part.outcome,
-        )
-        wire.push({
-          role: 'tool',
-          id,
-          toolCallId: part.toolCallId,
-          ...(part.name !== undefined && { name: part.name }),
-          content:
-            typeof part.content === 'string'
-              ? part.content
-              : JSON.stringify(part.content),
-          ...(part.error !== undefined && { error: part.error }),
-          ...(metadata !== undefined && { metadata }),
-        })
-      } else if (part.type === 'tool-call') {
-        const approved = part.approval?.approved
-        if (
-          explicitToolResults.has(part.id) ||
-          (part.output === undefined &&
-            (part.state !== 'approval-responded' || approved === undefined))
-        ) {
-          continue
+      for (const part of segment.parts) {
+        if (part.type === 'tool-result') {
+          const id = uniqueToolWireId(
+            part.id ?? deriveToolMessageId(part.toolCallId),
+            usedWireIds,
+          )
+          const metadata = rebuiltToolMetadata(
+            part.metadata,
+            part.createdAt,
+            part.id,
+            part.content,
+            true,
+            part.outcome,
+          )
+          wire.push({
+            role: 'tool',
+            id,
+            toolCallId: part.toolCallId,
+            ...(part.name !== undefined && { name: part.name }),
+            content:
+              typeof part.content === 'string'
+                ? part.content
+                : JSON.stringify(part.content),
+            ...(part.error !== undefined && { error: part.error }),
+            ...(metadata !== undefined && { metadata }),
+          })
+        } else if (part.type === 'tool-call') {
+          const approved = part.approval?.approved
+          if (
+            explicitToolResults.has(part.id) ||
+            (part.output === undefined &&
+              (part.state !== 'approval-responded' || approved === undefined))
+          ) {
+            continue
+          }
+          const result =
+            part.output !== undefined
+              ? normalizeToolResult(part.output)
+              : JSON.stringify({
+                  approved,
+                  ...(approved && { pendingExecution: true }),
+                  message: approved
+                    ? 'User approved this action'
+                    : 'User denied this action',
+                })
+          const content =
+            typeof result === 'string' ? result : JSON.stringify(result)
+          wire.push({
+            role: 'tool',
+            id: uniqueToolWireId(deriveToolMessageId(part.id), usedWireIds),
+            toolCallId: part.id,
+            content,
+            metadata: rebuiltToolMetadata(
+              undefined,
+              undefined,
+              undefined,
+              result,
+              false,
+              part.approval?.approved === false ? 'denied' : undefined,
+            ),
+          })
         }
-        const result =
-          part.output !== undefined
-            ? normalizeToolResult(part.output)
-            : JSON.stringify({
-                approved,
-                ...(approved && { pendingExecution: true }),
-                message: approved
-                  ? 'User approved this action'
-                  : 'User denied this action',
-              })
-        const content =
-          typeof result === 'string' ? result : JSON.stringify(result)
-        wire.push({
-          role: 'tool',
-          id: uniqueToolWireId(deriveToolMessageId(part.id), usedWireIds),
-          toolCallId: part.id,
-          content,
-          metadata: rebuiltToolMetadata(
-            undefined,
-            undefined,
-            undefined,
-            result,
-            false,
-            part.approval?.approved === false ? 'denied' : undefined,
-          ),
-        })
       }
-    }
+    })
 
     for (const part of parts) {
       if (part.type === 'subagent') wire.push(...subagentToWire(part, options))
@@ -326,6 +342,26 @@ export function uiMessagesToWire(
   }
 
   return wire
+}
+
+/**
+ * Parts the model wrote itself. A tool result, and the ui-resource or
+ * subagent parts that ride on it, stay with the tool call they belong to.
+ */
+function startsAfterToolOutcome(part: MessagePart): boolean {
+  return (
+    part.type !== 'tool-result' &&
+    part.type !== 'ui-resource' &&
+    part.type !== 'subagent'
+  )
+}
+
+/** A tool call that already carries its outcome: a client tool's output, or an answered approval. */
+function hasToolOutcome(part: MessagePart): boolean {
+  return (
+    part.type === 'tool-call' &&
+    (part.output !== undefined || part.state === 'approval-responded')
+  )
 }
 
 function toAnchor(
