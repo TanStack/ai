@@ -20,13 +20,16 @@ From the repo root:
 
 ## Talk to it
 
-1. Press Ctrl+R and speak.
-2. Press Ctrl+R (or Enter) again. The screen shows what it heard, and sends it.
+Hold Ctrl+R while you talk, and let go to send. Or tap Ctrl+R, talk, and tap it again. The meter shows that the microphone hears you.
 
 - Name a file, and it is sent too: "describe fox dot png", "use cat.png as a reference".
 - Say "the last image" (or video, song) for the last file the agent made: "make a pencil sketch of the last image".
-- Say "Hey, run a Codex agent that adds a test": Codex runs, and the screen shows its output.
-- `/mic` lists the microphones, and `/mic 3` records from the third one. A recording with only silence is not sent.
+- Say "Hey, run a Codex agent that adds a test": Codex runs in its own card, and the screen shows its output.
+
+The first recording listens on every microphone, and keeps the one that heard you clearest. `/mic` lists them, and `/mic 3` picks the third one. The choice is kept in `~/.tanstack-harness-example/voice.json`.
+
+- A silent recording (a muted microphone) is not sent.
+- Set `VOICE_LANGUAGE=en` (or your language) so the transcript is in that language.
 - `/voice note.m4a` sends a voice message that you recorded before.
 
 Voice needs `ffmpeg` on the PATH, and `OPENAI_API_KEY` or `XAI_API_KEY` for the transcript.

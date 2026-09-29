@@ -1,7 +1,8 @@
 import { execFile, spawn } from 'node:child_process'
-import { readFile, readdir, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { basename, extname, join, relative } from 'node:path'
+import type { ChildProcess } from 'node:child_process'
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { basename, dirname, extname, join, relative } from 'node:path'
 import { generateTranscription } from '@tanstack/ai'
 import { grokTranscription } from '@tanstack/ai-grok'
 import { openaiTranscription } from '@tanstack/ai-openai'
@@ -11,6 +12,14 @@ import { openaiTranscription } from '@tanstack/ai-openai'
 // `@path` attachments that the CLI sends with the message.
 
 const ffmpeg = process.env.FFMPEG_PATH || 'ffmpeg'
+const RATE = 16000
+// The microphone you picked, kept next to the sign-ins.
+const saved = join(homedir(), '.tanstack-harness-example', 'voice.json')
+
+/** Can this session turn speech into text? */
+export function canTranscribe() {
+  return Boolean(process.env.OPENAI_API_KEY || process.env.XAI_API_KEY)
+}
 
 /**
  * The audio inputs ffmpeg can record on Windows (DirectShow). Other systems
@@ -37,126 +46,58 @@ export function listMicrophones() {
   })
 }
 
-// The microphone `/mic <n>` picked. VOICE_DEVICE wins over it.
+// The microphone `/mic <n>` picked, or the first recording found.
 let picked: string | undefined
 
-/** Record from this microphone from now on. */
-export function chooseMicrophone(name: string) {
+/** Record from this microphone from now on, also after a restart. */
+export async function chooseMicrophone(name: string) {
   picked = name
+  await mkdir(dirname(saved), { recursive: true })
+  await writeFile(saved, JSON.stringify({ microphone: name }, null, 2))
 }
 
-/**
- * The microphone to record from: VOICE_DEVICE, the one `/mic` picked, or the
- * first real microphone in the list (not a capture card or a virtual input).
- */
+/** The microphone to record from, when one is set: VOICE_DEVICE, then yours. */
 export async function currentMicrophone() {
   if (process.env.VOICE_DEVICE) return process.env.VOICE_DEVICE
   if (picked) return picked
-  const names = await listMicrophones()
-  const real = names.find(
-    (name) => /microphone|mic\b/i.test(name) && !/virtual/i.test(name),
-  )
-  const name = real ?? names[0]
-  if (!name)
-    throw new Error('No microphone found. Set VOICE_DEVICE to its name.')
-  return name
-}
-
-/** The ffmpeg input arguments for the microphone. */
-async function microphoneInput() {
-  if (process.platform === 'win32')
-    return ['-f', 'dshow', '-i', `audio=${await currentMicrophone()}`]
-  if (process.platform === 'darwin')
-    return ['-f', 'avfoundation', '-i', `:${process.env.VOICE_DEVICE || '0'}`]
-  return ['-f', 'pulse', '-i', process.env.VOICE_DEVICE || 'default']
-}
-
-export interface Recording {
-  /** Stop, and give the recorded audio (16 kHz mono WAV). */
-  stop: () => Promise<Uint8Array>
-  /** Stop and drop the audio. */
-  cancel: () => void
-}
-
-/** Start recording the microphone until `stop` or `cancel`. */
-export async function startRecording(): Promise<Recording> {
-  const file = join(tmpdir(), `harness-voice-${Date.now()}.wav`)
-  const child = spawn(
-    ffmpeg,
-    [
-      '-hide_banner',
-      '-loglevel',
-      'error',
-      ...(await microphoneInput()),
-      '-ac',
-      '1',
-      '-ar',
-      '16000',
-      '-y',
-      file,
-    ],
-    { stdio: ['pipe', 'ignore', 'pipe'] },
-  )
-  let errors = ''
-  child.stderr.on('data', (chunk: Buffer) => (errors += chunk.toString()))
-  const exited = new Promise<number | null>((resolve, reject) => {
-    child.on('error', (error: NodeJS.ErrnoException) =>
-      reject(
-        error.code === 'ENOENT'
-          ? new Error('Voice needs ffmpeg on the PATH (or FFMPEG_PATH).')
-          : error,
-      ),
+  try {
+    const parsed: unknown = JSON.parse(await readFile(saved, 'utf8'))
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'microphone' in parsed &&
+      typeof parsed.microphone === 'string'
     )
-    child.on('exit', resolve)
-  })
-  // ffmpeg stops at once when the device does not open.
-  const early = await Promise.race([
-    exited.then(() => 'exited' as const),
-    new Promise<'running'>((resolve) =>
-      setTimeout(() => resolve('running'), 400),
-    ),
-  ])
-  if (early === 'exited')
-    throw new Error(`The microphone did not open. ${errors.trim()}`.trim())
-  return {
-    stop: async () => {
-      // `q` makes ffmpeg finish the file.
-      child.stdin.end('q')
-      await exited
-      try {
-        return new Uint8Array(await readFile(file))
-      } finally {
-        await rm(file, { force: true })
-      }
-    },
-    cancel: () => {
-      child.kill()
-      void exited.finally(() => rm(file, { force: true }))
-    },
+      picked = parsed.microphone
+  } catch {
+    // No saved microphone yet.
   }
-}
-
-/** Where the samples of a WAV file start: after its `data` chunk header. */
-function wavDataStart(wav: Uint8Array) {
-  // ffmpeg adds a LIST chunk, so the header is not always 44 bytes.
-  const view = new DataView(wav.buffer, wav.byteOffset, wav.byteLength)
-  for (let offset = 12; offset + 8 <= wav.byteLength;) {
-    const id = String.fromCharCode(...wav.subarray(offset, offset + 4))
-    const size = view.getUint32(offset + 4, true)
-    if (id === 'data') return offset + 8
-    offset += 8 + size + (size % 2)
-  }
-  return wav.byteLength
+  return picked
 }
 
 /**
- * The loudness of a WAV recording: the root mean square of its 16-bit
- * samples, from 0 to 32768, without the constant offset some microphones add.
+ * The inputs a first recording listens on: every microphone, without capture
+ * cards and virtual inputs (they are often silent).
  */
-export function loudness(wav: Uint8Array) {
-  const start = wav.byteOffset + wavDataStart(wav)
-  const count = Math.floor((wav.byteOffset + wav.byteLength - start) / 2)
-  const samples = new Int16Array(wav.buffer.slice(start, start + count * 2))
+async function candidateMicrophones() {
+  const names = await listMicrophones()
+  const real = names.filter(
+    (name) => !/hdmi|cam link|virtual|stereo mix|line in/i.test(name),
+  )
+  return real.length > 0 ? real : names
+}
+
+/** The ffmpeg input arguments for one microphone. */
+function microphoneInput(name: string | undefined) {
+  if (process.platform === 'win32')
+    return ['-f', 'dshow', '-i', `audio=${name}`]
+  if (process.platform === 'darwin')
+    return ['-f', 'avfoundation', '-i', `:${name ?? '0'}`]
+  return ['-f', 'pulse', '-i', name ?? 'default']
+}
+
+/** The root mean square of 16-bit samples, without a constant offset. */
+function rms(samples: Int16Array) {
   if (samples.length === 0) return 0
   let sum = 0
   let squares = 0
@@ -168,25 +109,234 @@ export function loudness(wav: Uint8Array) {
   return Math.sqrt(Math.max(0, squares / samples.length - mean * mean))
 }
 
+function samplesOf(pcm: Uint8Array) {
+  return new Int16Array(
+    pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + (pcm.byteLength & ~1)),
+  )
+}
+
 /**
- * Is a recording too quiet to hold speech? Transcription models make up words
- * for silence, so a quiet recording is not sent. VOICE_MIN_LOUDNESS changes
- * the limit.
+ * How much speech a clip holds, from its 100 ms windows:
+ * - `peak`: the loudness of the loud part (90th percentile), 0 to 32768.
+ * - `floor`: the loudness of the quiet part (20th percentile), the noise.
+ * Speech makes the peak much louder than the floor. Steady noise and a few
+ * clicks do not, so they read as silence.
  */
-export function isSilent(wav: Uint8Array) {
-  return loudness(wav) < Number(process.env.VOICE_MIN_LOUDNESS || 300)
+export function speechStats(pcm: Uint8Array) {
+  const samples = samplesOf(pcm)
+  const size = RATE / 10
+  const windows: Array<number> = []
+  for (let start = 0; start + size <= samples.length; start += size)
+    windows.push(rms(samples.subarray(start, start + size)))
+  windows.sort((a, b) => a - b)
+  const at = (share: number) =>
+    windows[Math.min(windows.length - 1, Math.floor(windows.length * share))] ??
+    0
+  return { peak: at(0.9), floor: at(0.2) }
+}
+
+/** How clearly a clip holds speech: the peak over the noise floor. */
+function speechScore(stats: { peak: number; floor: number }) {
+  return stats.peak / Math.max(stats.floor, 30)
+}
+
+/** A 16 kHz mono 16-bit WAV file for raw samples. */
+function wavFile(pcm: Uint8Array) {
+  const header = new DataView(new ArrayBuffer(44))
+  const text = (offset: number, value: string) => {
+    for (let index = 0; index < 4; index++)
+      header.setUint8(offset + index, value.charCodeAt(index))
+  }
+  text(0, 'RIFF')
+  header.setUint32(4, 36 + pcm.byteLength, true)
+  text(8, 'WAVE')
+  text(12, 'fmt ')
+  header.setUint32(16, 16, true)
+  header.setUint16(20, 1, true)
+  header.setUint16(22, 1, true)
+  header.setUint32(24, RATE, true)
+  header.setUint32(28, RATE * 2, true)
+  header.setUint16(32, 2, true)
+  header.setUint16(34, 16, true)
+  text(36, 'data')
+  header.setUint32(40, pcm.byteLength, true)
+  const file = new Uint8Array(44 + pcm.byteLength)
+  file.set(new Uint8Array(header.buffer))
+  file.set(pcm, 44)
+  return file
+}
+
+// Every ffmpeg recorder that runs. They are stopped when the app exits, so no
+// recorder keeps the microphone open after it.
+const recorders = new Set<ChildProcess>()
+process.once('exit', () => {
+  for (const child of recorders) child.kill()
+})
+
+/** One ffmpeg process that streams raw samples from one microphone. */
+function capture(name: string | undefined) {
+  const child = spawn(
+    ffmpeg,
+    [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      ...microphoneInput(name),
+      '-ac',
+      '1',
+      '-ar',
+      String(RATE),
+      '-f',
+      's16le',
+      'pipe:1',
+    ],
+    { stdio: ['pipe', 'pipe', 'pipe'] },
+  )
+  recorders.add(child)
+  child.on('exit', () => recorders.delete(child))
+  const chunks: Array<Buffer> = []
+  let level = 0
+  let errors = ''
+  child.stdout.on('data', (chunk: Buffer) => {
+    chunks.push(chunk)
+    level = rms(samplesOf(chunk))
+  })
+  child.stderr.on('data', (chunk: Buffer) => (errors += chunk.toString()))
+  const exited = new Promise<void>((resolve, reject) => {
+    child.on('error', (error: NodeJS.ErrnoException) =>
+      reject(
+        error.code === 'ENOENT'
+          ? new Error('Voice needs ffmpeg on the PATH (or FFMPEG_PATH).')
+          : error,
+      ),
+    )
+    child.on('exit', () => resolve())
+  })
+  let running = true
+  void exited.then(
+    () => (running = false),
+    () => (running = false),
+  )
+  return {
+    name: name ?? 'the default input',
+    exited,
+    isRunning: () => running,
+    errors: () => errors.trim(),
+    level: () => level,
+    pcm: () => new Uint8Array(Buffer.concat(chunks)),
+    stop: async () => {
+      // `q` makes ffmpeg stop cleanly. Kill it if it does not.
+      child.stdin.end('q')
+      const timer = setTimeout(() => child.kill(), 2000)
+      await exited.catch(() => {})
+      clearTimeout(timer)
+    },
+    kill: () => child.kill(),
+  }
+}
+
+/** A voice message from the microphone. */
+export interface VoiceClip {
+  /** 16 kHz mono WAV. */
+  audio: Uint8Array
+  /** The loud part and the noise floor, from 0 to 32768. */
+  peak: number
+  floor: number
+  microphone: string
+  /** True when this recording picked the microphone (the clearest one). */
+  pickedMicrophone: boolean
+}
+
+export interface Recording {
+  /** The microphone, or "all microphones" while the first recording picks one. */
+  microphone: string
+  /** The loudness right now, from 0 to 32768, for a level meter. */
+  level: () => number
+  /** Stop, and give the voice message. */
+  stop: () => Promise<VoiceClip>
+  /** Stop and drop the audio. */
+  cancel: () => void
+}
+
+/**
+ * Start recording until `stop` or `cancel`. With no microphone set yet, it
+ * listens on every microphone, keeps the one that heard speech the clearest,
+ * and remembers it.
+ */
+export async function startRecording(): Promise<Recording> {
+  const chosen = await currentMicrophone()
+  const names =
+    chosen !== undefined || process.platform !== 'win32'
+      ? [chosen]
+      : await candidateMicrophones()
+  if (names.length === 0)
+    throw new Error('No microphone found. Set VOICE_DEVICE to its name.')
+  const captures = names.map(capture)
+  // ffmpeg stops at once when a device does not open.
+  await new Promise((resolve) => setTimeout(resolve, 400))
+  const live = captures.filter((item) => item.isRunning())
+  if (live.length === 0) {
+    const errors = captures.map((item) => item.errors()).filter(Boolean)
+    throw new Error(`The microphone did not open. ${errors.join(' ')}`.trim())
+  }
+  const picking = chosen === undefined && live.length > 1
+  return {
+    microphone: picking ? 'all microphones' : (live[0]?.name ?? ''),
+    level: () => Math.max(...live.map((item) => item.level())),
+    stop: async () => {
+      await Promise.all(live.map((item) => item.stop()))
+      const clips = live.map((item) => {
+        const pcm = item.pcm()
+        return { name: item.name, pcm, ...speechStats(pcm) }
+      })
+      const best = clips.reduce((clearest, clip) =>
+        speechScore(clip) > speechScore(clearest) ? clip : clearest,
+      )
+      const clip: VoiceClip = {
+        audio: wavFile(best.pcm),
+        peak: best.peak,
+        floor: best.floor,
+        microphone: best.name,
+        pickedMicrophone: false,
+      }
+      // Keep that microphone only when it heard speech: in silence, the
+      // clearest one means nothing.
+      if (picking && !isSilent(clip)) {
+        await chooseMicrophone(best.name)
+        clip.pickedMicrophone = true
+      }
+      return clip
+    },
+    cancel: () => {
+      for (const item of live) item.kill()
+    },
+  }
+}
+
+/**
+ * Is a clip silent? Transcription models make up words for silence, so a
+ * silent clip is not sent. A clip is silent when its loud part is under
+ * VOICE_MIN_LOUDNESS (default 300), for example a muted microphone.
+ */
+export function isSilent(clip: Pick<VoiceClip, 'peak'>) {
+  return clip.peak < Number(process.env.VOICE_MIN_LOUDNESS || 300)
 }
 
 /**
  * The words in `audio`, with OpenAI, or Grok when only an xAI key is set.
- * `name` gives the format, for example `voice.wav`.
+ * `name` gives the format, for example `voice.wav`. VOICE_LANGUAGE (an
+ * ISO-639-1 code such as `en`) tells the model which language to expect.
  */
 export async function transcribe(audio: Uint8Array, name = 'voice.wav') {
   const file = new File([audio.slice()], name)
+  const language = process.env.VOICE_LANGUAGE
+    ? { language: process.env.VOICE_LANGUAGE }
+    : {}
   if (process.env.OPENAI_API_KEY) {
     const result = await generateTranscription({
       adapter: openaiTranscription('gpt-4o-transcribe'),
       audio: file,
+      ...language,
     })
     return result.text.trim()
   }
@@ -194,6 +344,7 @@ export async function transcribe(audio: Uint8Array, name = 'voice.wav') {
     const result = await generateTranscription({
       adapter: grokTranscription('grok-stt'),
       audio: file,
+      ...language,
     })
     return result.text.trim()
   }

@@ -274,6 +274,43 @@ const tools = [
   ...Object.keys(codingAgentList),
 ]
 
+/** What this session can do, and what turns each one on, for the screen. */
+export const features = [
+  {
+    name: 'voice',
+    on: Boolean(process.env.OPENAI_API_KEY || process.env.XAI_API_KEY),
+    needs: 'OPENAI_API_KEY or XAI_API_KEY, and ffmpeg',
+  },
+  {
+    name: 'images',
+    on: Boolean(process.env.OPENAI_API_KEY),
+    needs: 'OPENAI_API_KEY',
+  },
+  {
+    name: 'speech',
+    on: Boolean(process.env.OPENAI_API_KEY),
+    needs: 'OPENAI_API_KEY',
+  },
+  {
+    name: 'video',
+    on: video !== undefined,
+    needs: 'XAI_API_KEY or OPENAI_API_KEY',
+  },
+  { name: 'songs', on: Boolean(process.env.FAL_KEY), needs: 'FAL_KEY' },
+  {
+    name: 'claude code',
+    on: 'claude_code' in codingAgentList,
+    needs: '`claude` on the PATH',
+  },
+  {
+    name: 'codex',
+    on: 'codex' in codingAgentList,
+    needs: '`codex` on the PATH',
+  },
+  { name: 'notion', on: true, needs: '' },
+  { name: 'linear', on: true, needs: '' },
+]
+
 export const assistant = defineHarness({
   name: 'example/coder',
   description:
