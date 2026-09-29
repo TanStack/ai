@@ -35,7 +35,7 @@ Tools you pass to Code Mode are converted to typed function stubs that appear in
 
 ### Secure sandboxing
 
-Generated code runs in an isolated environment (V8 isolate, QuickJS WASM, native QuickJS on Bun, Cloudflare Worker, or Daytona sandbox) with no access to the host file system, network, or process. The sandbox has configurable timeouts and memory limits.
+Generated code runs in an isolated environment (V8 isolate, QuickJS WASM, native QuickJS on Bun, Cloudflare Worker, Daytona sandbox, or E2B sandbox) with no access to the host file system, network, or process. The sandbox has configurable timeouts and memory limits.
 
 ## Getting Started
 
@@ -128,6 +128,21 @@ preact: @tanstack/ai-isolate-daytona @daytona/sdk
 angular: @tanstack/ai-isolate-daytona @daytona/sdk
 vanilla: @tanstack/ai-isolate-daytona @daytona/sdk
 octane: @tanstack/ai-isolate-daytona @daytona/sdk
+
+<!-- ::end:tabs -->
+
+E2B sandboxes:
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-isolate-e2b e2b
+vue: @tanstack/ai-isolate-e2b e2b
+solid: @tanstack/ai-isolate-e2b e2b
+svelte: @tanstack/ai-isolate-e2b e2b
+preact: @tanstack/ai-isolate-e2b e2b
+angular: @tanstack/ai-isolate-e2b e2b
+vanilla: @tanstack/ai-isolate-e2b e2b
+octane: @tanstack/ai-isolate-e2b e2b
 
 <!-- ::end:tabs -->
 
@@ -235,7 +250,7 @@ const { tool, systemPrompt } = createCodeMode({
 | `driver` | `IsolateDriver` | The sandbox runtime to execute code in |
 | `tools` | `Array<ServerTool \| ToolDefinition>` | Tools exposed as `external_*` functions. Must have `.server()` implementations |
 | `timeout` | `number` | Execution timeout in milliseconds (default: 30000) |
-| `memoryLimit` | `number` | Memory limit in MB (default: 128). Supported by Node and QuickJS drivers |
+| `memoryLimit` | `number` | Memory limit in MB (default: 128). Supported by Node, QuickJS, and E2B drivers |
 | `getSnippetBindings` | `() => Promise<Record<string, ToolBinding>>` | Optional function returning additional bindings at execution time |
 
 The tool returns a `CodeModeToolResult`:
@@ -286,6 +301,7 @@ interface IsolateDriver {
 | `@tanstack/ai-isolate-quickjs-bun` | `createQuickJSBunIsolateDriver()` | Bun |
 | `@tanstack/ai-isolate-cloudflare` | `createCloudflareIsolateDriver()` | Cloudflare Workers |
 | `@tanstack/ai-isolate-daytona` | `createDaytonaIsolateDriver()` | Daytona sandboxes |
+| `@tanstack/ai-isolate-e2b` | `createE2BIsolateDriver()` | E2B sandboxes |
 
 For full configuration options for each driver, see [Isolate Drivers](./code-mode-isolates.md).
 
