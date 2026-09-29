@@ -1,6 +1,7 @@
 // Browser-safe: this module has type-only imports from the rest of the
 // package, plus `media-ref`, which has type-only imports itself. So no server
 // code (adapters, stores, secrets) reaches a client.
+import { isMediaRecord } from './media-ref'
 import type { ModelMessage, RunAgentResumeItem } from '@tanstack/ai'
 import type { AgentInputOf } from './agents'
 import type { AnyHarness, HarnessAgentsOf } from './define'
@@ -186,10 +187,10 @@ export function createHarnessClient<THarness extends AnyHarness>(
       const refusal: unknown = await response.json().catch(() => undefined)
       throw failure('upload', response, refusal)
     }
-    // The handler answers POST media with the stored MediaRecord.
-    // ponytail: no shape check here; `isMediaRecord` in media-ref.ts is not
-    // exported yet. Export it and narrow instead of this cast.
-    return (await response.json()) as MediaRecord
+    const stored: unknown = await response.json()
+    if (!isMediaRecord(stored))
+      throw new Error('Harness upload failed: the answer is not a media record')
+    return stored
   }
 
   const mediaUrl = async (id: string) => {

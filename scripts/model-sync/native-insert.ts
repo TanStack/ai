@@ -7,10 +7,7 @@
 
 type ArrayRef = '.name' | '.id'
 
-export function insertConstants(
-  content: string,
-  constants: Array<string>,
-): string {
+export function insertConstants(content: string, constants: Array<string>) {
   const block = '\n' + constants.join('\n\n') + '\n'
   const exportIndex = content.indexOf('\nexport ')
   if (exportIndex === -1) {
@@ -29,7 +26,7 @@ function addToArray(
   arrayName: string,
   entries: Array<string>,
   arrayRef: string,
-): string {
+) {
   const open = `export const ${arrayName} = [`
   const openIndex = content.indexOf(open)
   if (openIndex === -1) {
@@ -48,7 +45,7 @@ function addToTypeMap(
   content: string,
   typeName: string,
   entries: Array<string>,
-): string {
+) {
   const pattern = new RegExp(
     `(export type ${typeName} = \\{[\\s\\S]*?)(\\n\\})`,
   )
@@ -66,7 +63,7 @@ function addToObjectMap(
   content: string,
   mapName: string,
   entries: Array<string>,
-): string {
+) {
   const pattern = new RegExp(
     `(const ${mapName}: Record<string, number> = \\{[\\s\\S]*?)(\\n\\})`,
   )
@@ -78,6 +75,20 @@ function addToObjectMap(
 
   const newEntries = entries.join('\n')
   return content.replace(pattern, () => `${match[1]}\n${newEntries}${match[2]}`)
+}
+
+/**
+ * Append entries to the runtime map that ends with `} satisfies <typeName>`.
+ * A file without that map is left as it is.
+ */
+function addToSatisfyingMap(
+  content: string,
+  typeName: string,
+  entries: Array<string>,
+) {
+  // ponytail: found by its `satisfies` tail, so the sync config needs no map name.
+  const pattern = new RegExp(`\\n\\} satisfies ${typeName}\\b`)
+  return content.replace(pattern, (close) => `\n${entries.join('\n')}${close}`)
 }
 
 interface ChatModelInsert {
@@ -98,14 +109,15 @@ interface ChatModelCatalogInsertConfig {
 
 /**
  * Write a new chat model into the catalog tables the adapter types read:
- * the exported id array, provider-options map, input-modalities map,
- * tool-capabilities map, and (Anthropic) max-output-tokens object.
+ * the exported id array, provider-options map, input-modalities type map and
+ * its runtime map (when the file has one), tool-capabilities map, and
+ * (Anthropic) max-output-tokens object.
  */
 export function applyChatModelCatalogInserts(
   content: string,
   config: ChatModelCatalogInsertConfig,
   chatModels: Array<ChatModelInsert>,
-): string {
+) {
   if (chatModels.length === 0) return content
 
   let next = addToArray(
@@ -132,6 +144,14 @@ export function applyChatModelCatalogInserts(
     chatModels.map(
       ({ constName }) =>
         `  [${constName}${config.arrayRef}]: typeof ${constName}.supports.input`,
+    ),
+  )
+  next = addToSatisfyingMap(
+    next,
+    config.inputModalitiesTypeName,
+    chatModels.map(
+      ({ constName }) =>
+        `  [${constName}${config.arrayRef}]: ${constName}.supports.input,`,
     ),
   )
 

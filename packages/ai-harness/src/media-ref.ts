@@ -23,7 +23,15 @@ function isOptionalString(value: unknown) {
   return value === undefined || typeof value === 'string'
 }
 
-function isMediaRecord(value: unknown): value is MediaRecord {
+/**
+ * True for a value with the shape of a `MediaRecord`, for example the answer
+ * of an upload or the value of a `harness.media` event.
+ *
+ * @example
+ * const value: unknown = await response.json()
+ * if (isMediaRecord(value)) console.log(value.name)
+ */
+export function isMediaRecord(value: unknown): value is MediaRecord {
   if (!isRecord(value)) return false
   const hasOptionalIds =
     isOptionalString(value.runId) && isOptionalString(value.subagentRunId)

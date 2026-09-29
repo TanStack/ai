@@ -93,11 +93,15 @@ export type {
 
 export {
   MEDIA_URL_PREFIX,
+  isMediaRecord,
   kindOf,
   mediaIdOf,
   mediaOfMessage,
   mediaPart,
 } from './media-ref'
+
+export { MediaError } from './media'
+export type { MediaOptions } from './media'
 
 export {
   HARNESS_PROTOCOL_VERSION,

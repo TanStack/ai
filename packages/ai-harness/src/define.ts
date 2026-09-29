@@ -8,6 +8,7 @@ import type {
   SystemPrompt,
 } from '@tanstack/ai'
 import type { AnyAgent } from './agents'
+import type { MediaOptions } from './media'
 import type { HarnessPlugin } from './plugins'
 import type { BusyPolicy } from './types'
 
@@ -55,6 +56,12 @@ export interface HarnessConfig<
   plugins?: () => ReadonlyArray<HarnessPlugin>
   /** What a `prompt` does while a chat turn runs. Default `'queue'`. */
   busy?: BusyPolicy
+  /**
+   * Files sent to a turn, and media agents make: the size limit, the kinds a
+   * user can send, the kinds the model reads, and an optional transcriber for
+   * audio the model cannot read.
+   */
+  media?: MediaOptions
   /** What clients may call. Nothing is exposed by default. */
   expose?: {
     agents?: ReadonlyArray<TAgents[number]['name'] | TSubagents[number]['name']>
@@ -94,7 +101,7 @@ export function isHarnessDefinition(value: unknown): value is AnyHarness {
 
 /**
  * Define a harness: a reusable, typed agent configuration. Use the same option
- * names as `chat()`, plus `agents`, `plugins`, `busy`, and `expose`.
+ * names as `chat()`, plus `agents`, `plugins`, `busy`, `expose`, and `media`.
  *
  * @example
  * ```ts

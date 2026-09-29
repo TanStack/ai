@@ -15,6 +15,8 @@ import { checkConfigValue } from './config'
 import { withPersistence } from '@tanstack/ai-persistence'
 import { AgentRegistry } from './agents'
 import { SessionFeed } from './feed'
+import { createMediaStore, mediaCapture, mediaMiddleware } from './media'
+import { mediaIdOf, mediaOfMessage } from './media-ref'
 import { OperationImpl } from './operation'
 import { mountPlugins } from './plugins'
 import {
@@ -25,8 +27,10 @@ import {
 import { HARNESS_EVENTS } from './types'
 import type {
   AnyChatMiddleware,
+  AnyTextAdapter,
   AnyTool,
   Interrupt,
+  Modality,
   ModelMessage,
   RunAgentResumeItem,
   SchemaInput,
@@ -34,11 +38,17 @@ import type {
   SubagentBinding,
 } from '@tanstack/ai'
 import type {
+  AIPersistence,
+  ArtifactStore,
+  BlobBody,
+  BlobStore,
   CredentialStore,
+  GenerationRunStore,
   InboxEntry,
   InboxStore,
 } from '@tanstack/ai-persistence'
 import type { CredentialsAccess } from './auth'
+import type { MediaStore } from './media'
 import type { PluginSessionApi, Question } from './commands'
 import type { ConfigOption } from './config'
 import type {
@@ -62,6 +72,8 @@ import type {
   ChatTurnResult,
   Cursor,
   HarnessInput,
+  MediaKind,
+  MediaRecord,
   Operation,
   Principal,
   Receipt,
@@ -170,6 +182,12 @@ export interface SessionDependencies {
   persistence: HarnessPersistence
   inbox: InboxStore
   credentials: CredentialStore
+  /** Where media lives: file records, bytes, and generation runs. */
+  media: AIPersistence<{
+    artifacts: ArtifactStore
+    blobs: BlobStore
+    generationRuns: GenerationRunStore
+  }>
   principal?: Principal
   /** Identifies this host on run leases. */
   hostId: string
@@ -214,6 +232,20 @@ function referenceNote(agent: string, result: unknown): string {
       : JSON.stringify(compactForModel(result))
   const clipped = body.length > 2000 ? `${body.slice(0, 2000)}...` : body
   return `[${agent} finished] ${clipped}`
+}
+
+/**
+ * The kinds a model reads: the adapter's input list, narrowed by
+ * `media.accepts`. Either one alone when only one is known, and `undefined`
+ * (send every kind) when neither is.
+ */
+function acceptedKinds(
+  modalities: ReadonlyArray<Modality> | undefined,
+  accepts: ReadonlyArray<MediaKind> | undefined,
+) {
+  if (modalities === undefined || accepts === undefined)
+    return accepts ?? modalities
+  return accepts.filter((kind) => modalities.includes(kind))
 }
 
 /**
@@ -270,12 +302,20 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private readonly localState = new Map<string, unknown>()
   private readonly credentialAccess: CredentialsAccess
   private readonly services: PluginServices
+  private readonly media: SessionDependencies['media']
+  private readonly mediaStore: MediaStore
 
   constructor(deps: SessionDependencies) {
     this.harness = deps.harness as THarness
     this.threadId = deps.threadId
     this.persistence = deps.persistence
     this.inbox = deps.inbox
+    this.media = deps.media
+    this.mediaStore = createMediaStore({
+      persistence: deps.media,
+      threadId: deps.threadId,
+      options: this.harness.media,
+    })
     this.principal = deps.principal
     this.onClose = deps.onClose
     this.checkpoint = checkpointMiddleware(deps.persistence, deps.hostId)
@@ -526,6 +566,45 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       plugins: { ...this.stateDoc },
       cursor: this.feed.head(),
     }
+  }
+
+  // ===========================
+  // Media
+  // ===========================
+
+  /**
+   * Store a file in the media store of this thread. Send it to a turn with
+   * `mediaPart(record)`. Throws a `MediaError`: 413 when the file is bigger
+   * than `media.maxBytes`, 415 for a type or kind the harness does not take.
+   *
+   * @example
+   * const record = await session.putMedia(bytes, { mimeType: 'image/png', name: 'cat.png' })
+   * session.prompt([{ type: 'text', content: 'What is this?' }, mediaPart(record)])
+   */
+  putMedia(body: BlobBody, info: { mimeType: string; name: string }) {
+    return this.mediaStore.put(body, info)
+  }
+
+  /** The record of a media file of this thread, or `null` when it is not found. */
+  getMedia(id: string) {
+    return this.mediaStore.get(id)
+  }
+
+  /** The bytes of a media file. Throws a `MediaError` with 404 when it is not found. */
+  loadMedia(id: string) {
+    return this.mediaStore.load(id)
+  }
+
+  /**
+   * A URL for a media file, for `<img>`, `<audio>`, or `<video>`. A session
+   * has no server, so this is a data URL for a file up to 1 MB, and `{}` for
+   * a bigger file (use `loadMedia`).
+   */
+  async mediaUrl(id: string) {
+    const url = await this.mediaStore.dataUrl(id)
+    const answer: { url?: string; expiresAt?: number } =
+      url === undefined ? {} : { url }
+    return answer
   }
 
   // ===========================
@@ -999,7 +1078,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   private warn(
-    operation: OperationImpl<ChatTurnResult>,
+    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
     plugin: string,
     error: unknown,
   ) {
@@ -1066,18 +1145,92 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     return root.child()
   }
 
-  /** What plugins add to every agent run: session plugins, then run plugins. */
-  private binding(runPlugins?: MountedPlugins) {
+  /**
+   * What every agent run of `operation` gets: the middleware of session
+   * plugins, then of run plugins, then the session's media middleware. It
+   * keeps the media the agents make, publishes a `harness.media` event for
+   * each file, and pushes its record to `captured`.
+   */
+  private binding(
+    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
+    captured: Array<MediaRecord>,
+    runPlugins?: MountedPlugins,
+  ) {
+    const options = this.harness.media
     return {
       generationMiddleware: [
         ...(this.sessionPlugins?.generationMiddleware ?? []),
         ...(runPlugins?.generationMiddleware ?? []),
+        ...mediaCapture({
+          persistence: this.media,
+          threadId: this.threadId,
+          options,
+          publish: (record) => {
+            captured.push(record)
+            operation.publish(customEvent(HARNESS_EVENTS.media, { ...record }))
+          },
+          onError: (error) =>
+            this.warn(
+              operation,
+              'harness:media',
+              `The media was not kept. ${String(error)}`,
+            ),
+        }),
       ],
       chatMiddleware: [
         ...(this.sessionPlugins?.agentMiddleware ?? []),
         ...(runPlugins?.agentMiddleware ?? []),
+        // Last, because a later middleware that returns `messages` resets
+        // what the model gets. A child's adapter is not known here, so only
+        // `media.accepts` narrows what it reads.
+        mediaMiddleware({
+          store: this.mediaStore,
+          accepted: options?.accepts,
+          transcribe: options?.transcribe,
+        }),
       ],
     } satisfies SubagentBinding
+  }
+
+  /**
+   * The user message of a turn. It keeps the records of its media files in
+   * `metadata.harness.media`, so a UI can show their names and sizes later.
+   * An id this thread does not know is skipped.
+   */
+  private async userMessage(content: UserInput) {
+    const ids =
+      typeof content === 'string'
+        ? []
+        : content.map(mediaIdOf).filter((id) => id !== undefined)
+    const records = await Promise.all(ids.map((id) => this.getMedia(id)))
+    const media = records.filter((record) => record !== null)
+    const message: ModelMessage = {
+      id: createMessageId(),
+      role: 'user',
+      content,
+      ...(media.length > 0 ? { metadata: { harness: { media } } } : {}),
+    }
+    return message
+  }
+
+  /** Add the media a turn made to the last assistant message of the thread. */
+  private async saveTurnMedia(media: Array<MediaRecord>) {
+    const store = this.persistence.stores.messages
+    const history = await store.loadThread(this.threadId)
+    const index = history.findLastIndex(
+      (message) => message.role === 'assistant',
+    )
+    const last = history[index]
+    if (!last) return
+    const harness = {
+      ...last.metadata?.harness,
+      media: [...mediaOfMessage(last), ...media],
+    }
+    const updated: ModelMessage = {
+      ...last,
+      metadata: { ...last.metadata, harness },
+    }
+    await store.saveThread(this.threadId, history.with(index, updated))
   }
 
   private async runTurn(turn: QueuedTurn): Promise<void> {
@@ -1090,6 +1243,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     let text = ''
     let interrupts: Array<Interrupt> | undefined
     let failure: string | undefined
+    const captured: Array<MediaRecord> = []
     try {
       await this.flushNotes()
       const perRun = this.plugins.filter((plugin) => plugin.lifetime === 'run')
@@ -1151,12 +1305,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         [...staticTools, ...discovered],
         operation,
       )
+      const adapter: AnyTextAdapter = picked ?? this.harness.adapter
+      const message =
+        turn.message !== undefined
+          ? await this.userMessage(turn.message)
+          : undefined
       const stream = chat({
-        adapter: picked ?? this.harness.adapter,
-        messages:
-          turn.message !== undefined
-            ? [{ id: createMessageId(), role: 'user', content: turn.message }]
-            : [],
+        adapter,
+        messages: message ? [message] : [],
         systemPrompts: [
           ...(this.harness.systemPrompts ?? []),
           ...[...(session?.prompts ?? []), ...(runPlugins?.prompts ?? [])]
@@ -1172,6 +1328,16 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           ...(session?.middleware ?? []),
           ...(runPlugins?.middleware ?? []),
           this.steering(),
+          // Last, because a later middleware that returns `messages` (as
+          // steering does) resets what the model gets.
+          mediaMiddleware({
+            store: this.mediaStore,
+            accepted: acceptedKinds(
+              adapter.inputModalities,
+              this.harness.media?.accepts,
+            ),
+            transcribe: this.harness.media?.transcribe,
+          }),
         ],
         ...(subagentList.length > 0
           ? {
@@ -1179,7 +1345,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
                 ...this.harness.subagents,
                 agents: subagentList,
                 limits: this.limits(),
-                binding: this.binding(runPlugins),
+                binding: this.binding(operation, captured, runPlugins),
               },
             }
           : {}),
@@ -1230,6 +1396,21 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       }
     } finally {
       await runPlugins?.dispose().catch(() => {})
+    }
+
+    // The stream has ended, so withPersistence has saved the turn. A failed or
+    // cancelled turn may not have saved its answer, and its last assistant
+    // message can be an older turn's, so its media stays in the store only.
+    const isSaved =
+      failure === undefined && !operation.abortController.signal.aborted
+    if (isSaved && captured.length > 0) {
+      await this.saveTurnMedia(captured).catch((error: unknown) =>
+        this.warn(
+          operation,
+          'harness:media',
+          `The media was not added to the transcript. ${String(error)}`,
+        ),
+      )
     }
 
     if (operation.abortController.signal.aborted) {
@@ -1398,7 +1579,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         },
         undefined,
         undefined,
-        { ...this.binding(), budget: this.codeBudget() },
+        // ponytail: the media of a background agent is kept and published,
+        // but not written to history: its messages live in its own thread
+        // (`<threadId>:<name>`). Write it to the session thread if a UI must
+        // show it after a restart.
+        { ...this.binding(operation, []), budget: this.codeBudget() },
       )
       for await (const chunk of stream) {
         operation.publish(chunk)

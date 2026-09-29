@@ -2,8 +2,11 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import { HarnessSession } from './session'
 import type {
   AIPersistence,
+  ArtifactStore,
+  BlobStore,
   ChatTranscriptStores,
   CredentialStore,
+  GenerationRunStore,
   InboxStore,
 } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
@@ -12,10 +15,17 @@ import type { Principal } from './types'
 /**
  * The stores a host needs: a message store, plus any of runs, interrupts,
  * metadata, and inbox. Without an inbox, inputs are kept in memory and a
- * restart loses the ones not yet applied.
+ * restart loses the ones not yet applied. Without `artifacts`, `blobs`, and
+ * `generationRuns`, media is kept in memory too.
  */
 export type HarnessPersistence = AIPersistence<
-  ChatTranscriptStores & { inbox?: InboxStore; credentials?: CredentialStore }
+  ChatTranscriptStores & {
+    inbox?: InboxStore
+    credentials?: CredentialStore
+    artifacts?: ArtifactStore
+    blobs?: BlobStore
+    generationRuns?: GenerationRunStore
+  }
 >
 
 export interface HarnessHostOptions {
@@ -73,6 +83,18 @@ export function createHarnessHost(
   // `stores.credentials` to keep sign-ins across restarts.
   const credentials =
     persistence.stores.credentials ?? memoryPersistence().stores.credentials
+  // ponytail: memory media stores when the stores have none. Pass
+  // `stores.artifacts`, `stores.blobs`, and `stores.generationRuns` to keep
+  // media across restarts.
+  const memory = memoryPersistence().stores
+  const media = {
+    stores: {
+      artifacts: persistence.stores.artifacts ?? memory.artifacts,
+      blobs: persistence.stores.blobs ?? memory.blobs,
+      generationRuns:
+        persistence.stores.generationRuns ?? memory.generationRuns,
+    },
+  }
   const sessions = new Map<string, Promise<HarnessSession>>()
   const hostId = `host-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 
@@ -87,6 +109,7 @@ export function createHarnessHost(
           persistence,
           inbox,
           credentials,
+          media,
           hostId,
           ...(principal ? { principal } : {}),
           onClose: () => sessions.delete(key),

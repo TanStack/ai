@@ -1,5 +1,5 @@
 import { EventType } from '@tanstack/ai'
-import { mediaIdOf, mediaOfMessage } from '../media-ref'
+import { isMediaRecord, mediaIdOf, mediaOfMessage } from '../media-ref'
 import { HARNESS_EVENTS } from '../types'
 import type { Interrupt, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { SessionDescription, SessionSnapshot } from '../session'
@@ -112,42 +112,27 @@ function mediaView(media: MediaInfo) {
   return part
 }
 
-/** The fields a media part needs from a `harness.media` event value. */
-function mediaInfoOf(value: Record<string, unknown>) {
-  const { id, kind, mimeType, name, size } = value
-  const isKind =
-    kind === 'image' ||
-    kind === 'audio' ||
-    kind === 'video' ||
-    kind === 'document'
-  const isInfo =
-    isKind &&
-    typeof id === 'string' &&
-    typeof mimeType === 'string' &&
-    typeof name === 'string' &&
-    typeof size === 'number'
-  if (!isInfo) return undefined
-  const info: MediaInfo = { id, kind, mimeType, name, size }
-  return info
-}
-
-/** Media parts for the `harness-media:` parts of a saved user message. */
-function userMedia(content: ModelMessage['content']) {
+/**
+ * Media parts for the `harness-media:` parts of a saved user message. The
+ * name and size come from the records in `metadata.harness.media`.
+ */
+function userMedia(message: ModelMessage) {
+  const { content } = message
   if (typeof content === 'string' || !content) return []
+  const records = mediaOfMessage(message)
   return content.flatMap((part) => {
     const id = mediaIdOf(part)
     if (id === undefined || part.type === 'text') return []
-    // ponytail: a saved part keeps only its id and MIME type, so the name is
-    // the id and the size is 0. Save the record on the message if a UI needs them.
-    return [
-      mediaView({
-        id,
-        kind: part.type,
-        mimeType: part.source.mimeType ?? '',
-        name: id,
-        size: 0,
-      }),
-    ]
+    // A message saved without the records keeps only the id and MIME type of
+    // a part, so the name is the id and the size is 0.
+    const record = records.find((media) => media.id === id) ?? {
+      id,
+      kind: part.type,
+      mimeType: part.source.mimeType ?? '',
+      name: id,
+      size: 0,
+    }
+    return [mediaView(record)]
   })
 }
 
@@ -457,13 +442,10 @@ export function applyEvent(
   }
   if (event.type !== EventType.CUSTOM) return state
   const value = recordOf(event.value)
-  if (event.name === HARNESS_EVENTS.media) {
-    const media = mediaInfoOf(value)
-    if (!media) return state
-    const child =
-      typeof value.subagentRunId === 'string' ? value.subagentRunId : undefined
-    return withMedia(state, operationId, media, child)
-  }
+  if (event.name === HARNESS_EVENTS.media)
+    return isMediaRecord(value)
+      ? withMedia(state, operationId, value, value.subagentRunId)
+      : state
   if (event.name === HARNESS_EVENTS.operationResumed)
     return withNotice(state, 'info', 'Resumed a turn that a crash stopped.')
   if (event.name === COMMAND_RESULT)
@@ -643,7 +625,7 @@ export function messagesFromTranscript(
   messages.forEach((message, index) => {
     const id = message.id ?? `history-${index}`
     if (message.role === 'user') {
-      const media = userMedia(message.content)
+      const media = userMedia(message)
       result.push({
         id,
         role: 'user',
