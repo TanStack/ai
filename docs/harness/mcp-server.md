@@ -64,7 +64,7 @@ Ask the client to use the harness, for example: "Ask assistant to summarize my o
 
 To talk to the harness:
 
-- `chat`: send a message and wait for the answer. While a turn runs, the message waits in the queue.
+- `chat`: send a message and wait for the answer. While a turn runs, the message waits in the queue. To send files too, see [Send files and get media](#send-files-and-get-media).
 - `steer`: add a message to the running turn.
 - `cancel`: cancel the running turn.
 - `status`: show the status, the interrupts and questions that wait, the background agents, and the queued turns.
@@ -156,6 +156,31 @@ To approve every tool call without a question, start the CLI with `--yes`. Use i
 
 A command or a plugin can also ask you a question. The result then has `status: "waiting"` and the question in `questions`. The client calls `answer` with the question `id` as `questionId` and your `value`. `answer` waits for the work that asked, then returns its result.
 
+## Send files and get media
+
+`chat` takes `attachments`, the files to send with the message. Each attachment is one of these:
+
+- `{ path }`: a file on the machine of the server. The file must be inside a folder that the server can read.
+- `{ url, mimeType }`: a URL that goes to the model as it is. The server does not download it. `mimeType` is optional when the URL ends in a known file extension.
+- `{ data, mimeType }`: the bytes of the file in base64.
+
+Each attachment also takes an optional `name`. This `chat` call sends a screenshot:
+
+```json
+{
+  "message": "What is wrong in this screenshot?",
+  "attachments": [{ "path": "./bug.png" }]
+}
+```
+
+With `--mcp`, the server can read the files in its working folder. Over HTTP (`/mcp`), the server reads no files, so send `url` or `data`.
+
+When the work makes media, the results of `chat`, `approve`, `reject`, `resolve`, and `answer` include it:
+
+- An image or an audio file up to 5 MB comes back inline, as MCP image or audio content.
+- Any other file comes back as a `resource_link` to `harness-media://<threadId>/<id>`. The client reads the bytes with `resources/read`.
+- The JSON result lists each file in `media`, with its `id`, `kind`, `name`, `mimeType`, `size`, and `uri`.
+
 ## Serve MCP over HTTP
 
 If `@tanstack/ai-mcp` is installed, `--serve` also serves the MCP server at `/mcp`. The route uses the same bearer token as the other routes:
@@ -204,6 +229,7 @@ Mount `handleMcp` on a route, for example `/mcp`. The options are:
 
 - `threadId`: the conversation of a tool call without a `threadId`. Default `main`.
 - `approvals`: `'ask'` (default) asks in the client, or returns the approvals when the client cannot ask. `'auto'` approves every tool call. Both answer approvals only.
+- `filePaths`: the folders that a `path` attachment can read from. The real path of the file, after every symlink, must be inside one of them. Default: none, so the server refuses every `path` attachment.
 - `name` and `version`: the MCP server name and version. Default: the harness name and `1.0.0`.
 
 For a process that a client starts, serve the same server on stdio:
@@ -220,5 +246,6 @@ serveMCPStdio(server)
 - Approvals that the client asks you about, or answers with `approve` and `reject`.
 - Every kind of interrupt, answered with one `resolve` call.
 - The agents and commands of your harness as MCP tools.
+- Files that the client sends with a message, and the media of each turn in the result.
 
 Next: put the harness on a server with [Deploy a harness](./deploy).

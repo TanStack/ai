@@ -44,7 +44,7 @@ export const handler = createHarnessHandler({
 The handler answers these paths under your route:
 
 - `GET capabilities`: the AG-UI capabilities, with the agents in `expose.agents`.
-- `POST run`: standard AG-UI. One request runs one prompt and streams it as SSE. Any AG-UI client works.
+- `POST run`: standard AG-UI. One request runs one prompt and streams it as SSE. Any AG-UI client works. The prompt keeps every content part of the last user message, for example an image.
 - `GET events?threadId=`: every event of the session as SSE. Each event id is a cursor, so a reconnect with `Last-Event-ID` continues where it stopped.
 - `POST control`: send `{ threadId, input }`, for example `{ op: 'prompt', message }`. You get a receipt back.
 - `GET snapshot?threadId=`: the status, running operations, and waiting approvals.
@@ -74,6 +74,8 @@ for await (const entry of client.events()) {
 
 `events()` reconnects after a network error and continues from the last cursor. A second tab, a phone, or a reload all see the same session.
 
+To upload files and show the media that your agents make, read [Send and show media](./media).
+
 ## Use a WebSocket
 
 For one connection that carries events and inputs, authorize the upgrade, then hand the socket to `handleHarnessSocket`:
@@ -99,7 +101,7 @@ import { serveAcp } from '@tanstack/ai-acp/agent'
 serveAcp({ host, harness: assistant })
 ```
 
-Tool approvals become permission requests in the editor. ACP v2 is still a draft, so this API is experimental.
+Tool approvals become permission requests in the editor. Image blocks, audio blocks, and embedded files in a prompt go to the media store of the session. ACP v2 is still a draft, so this API is experimental.
 
 ## Use it as the model of another chat
 
@@ -116,7 +118,7 @@ const stream = chat({
 })
 ```
 
-Each outer thread gets its own inner session, so the harness keeps its own history.
+Each outer thread gets its own inner session, so the harness keeps its own history. The inner session gets every content part of the last user message, so images and files go through too.
 
 ## What you have now
 

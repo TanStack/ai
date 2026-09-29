@@ -38,7 +38,8 @@ echo '/agent haiku {"topic":"rain"}' | pnpm --filter harness-cli-example start
 
 1. Run `/connect notion`. Approve the consent page that opens in the browser. Do the same with `/connect linear`.
 2. Ask: `find my latest Linear issue, look for a related Notion page, then make an image and a short video about it`.
-3. The files land in `playground/media`.
+3. The harness keeps each file. The CLI saves it in `example-coder-media` and prints `[image saved: <path>]`. Change the folder with `--media-dir <dir>`.
+4. To send a file, put `@` before its path: `describe @./playground/cat.png`.
 
 - Sign-ins are kept in `~/.tanstack-harness-example/credentials.json`, so you sign in once. `/disconnect notion` deletes one.
 - Images use `OPENAI_API_KEY`. Videos use Grok Imagine when `XAI_API_KEY` is set, and OpenAI Sora when it is not.

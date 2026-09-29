@@ -32,7 +32,6 @@ import type { AnyTextAdapter } from '@tanstack/ai'
 
 // The agent works in ./playground, so it cannot touch the rest of your disk.
 const root = fileURLToPath(new URL('../playground', import.meta.url))
-const mediaDir = fileURLToPath(new URL('../playground/media', import.meta.url))
 
 /** Without an API key, a stand-in model that explains how to add one. */
 function demoModel(): AnyTextAdapter {
@@ -133,14 +132,14 @@ const haiku = defineAgent({
 })
 
 // The model calls the media agents as tools. Images use OpenAI. Videos use
-// Grok Imagine when XAI_API_KEY is set, else OpenAI Sora.
+// Grok Imagine when XAI_API_KEY is set, else OpenAI Sora. The harness keeps
+// each file they make.
 const media = process.env.OPENAI_API_KEY
   ? [
-      imageAgent(mediaDir),
+      imageAgent,
       videoAgent(
-        mediaDir,
         process.env.XAI_API_KEY
-          ? grokVideo('grok-imagine-video')
+          ? grokVideo('grok-imagine-video-1.5')
           : openaiVideo('sora-2'),
       ),
     ]
@@ -210,7 +209,7 @@ export const assistant = defineHarness({
   adapter: main,
   systemPrompts: [
     'You are a careful coding agent. Read files before you edit them. Keep answers short.',
-    'You can read Notion and Linear when they are connected, and make images and videos with the image and video tools. Media files are saved under ./playground/media.',
+    'You can read Notion and Linear when they are connected, and make images and videos with the image and video tools. The user gets each file you make.',
   ],
   agents: [haiku],
   subagents: { agents: media },

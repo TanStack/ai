@@ -64,6 +64,8 @@ export const review = definePlugin({
 
 To track usage or apply a policy in each of these runs, see [Middleware in every agent](./plugins#middleware-in-every-agent).
 
+The harness saves the images, audio, and video that these agents make, and the UI shows them. See [Media that agents make](./media#media-that-agents-make).
+
 ## Call a harness as a child
 
 `harnessAgent` turns a harness into an agent. Put it in `subagents.agents`, and the main model calls it as a tool. The child harness keeps its own tools, plugins, and history.

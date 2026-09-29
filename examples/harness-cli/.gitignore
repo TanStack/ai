@@ -1,4 +1,6 @@
 .env
 playground/media/
+# Media the CLI saves (the default --media-dir).
+example-coder-media/
 # Marker the sandbox writes into the workspace.
 playground/.tanstack-projected-*

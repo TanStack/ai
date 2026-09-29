@@ -87,6 +87,32 @@ For the running work:
 
 Plugin commands (for example `/model` or `/todos`) show up in `/help`. When a turn stops for an approval or a plugin asks a question, type your answer. For yes-or-no questions, `y` approves and `n` refuses.
 
+## Send files and save media
+
+To send a file with a message, write `@` and the path of the file:
+
+```text
+what is wrong in @./bug.png
+compare @"old logo.png" with @./new-logo.png
+```
+
+- The path is relative to the working folder. Put quotes around a path with spaces.
+- `@path` works in line mode, with `-p`, with piped input, and in your own `ui`.
+- A `@word` that is not a file stays in the text, for example `@types/node`.
+- If the CLI does not know the type of the file, it does not send the message. To send the path as text, remove the `@`.
+
+The CLI saves the media that a turn makes in a folder. The default folder is `./<harness name>-media` in the working folder, for example `./acme-assistant-media`. To use another folder, add `--media-dir <dir>`:
+
+```bash
+npx tsx cli.ts -p "Draw a logo for acme" --media-dir ./out
+```
+
+- Line mode prints `[image saved: <path>]` for each file.
+- `-p` prints the same line on stderr, so stdout keeps only the answer.
+- `-p --output ndjson` adds the saved `path` to the value of the `harness.media` event.
+
+The CLI never replaces a file. If the name is taken, it adds `-1`, `-2`, and so on to the new name.
+
 ## Run your own screen
 
 Line mode prints plain lines. For a full screen with your own layout, pass `ui` to `runCli`. It works with any TUI library, for example Ink, OpenTUI, or blessed.
@@ -116,5 +142,6 @@ For a full Ink screen with approvals, questions, sign-ins, and child agents, cop
 
 - One entry file that runs your harness as a terminal app, a script step, an editor agent, an MCP server, or an HTTP server.
 - Your own terminal screen on the same session, with any TUI library.
+- Files that you send with `@path`, and a folder with the media that your agents make.
 
 Next: keep long turns alive through crashes with [durable sessions](./durable-sessions).

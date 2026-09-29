@@ -875,13 +875,19 @@
         {
           "label": "Connect clients",
           "to": "harness/connect",
-          "addedAt": "2026-09-26"
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-09-29"
+        },
+        {
+          "label": "Send and show media",
+          "to": "harness/media",
+          "addedAt": "2026-09-29"
         },
         {
           "label": "Run in the terminal",
           "to": "harness/cli",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-09-28"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Durable sessions",
@@ -914,7 +920,8 @@
         {
           "label": "Use from any MCP client",
           "to": "harness/mcp-server",
-          "addedAt": "2026-09-28"
+          "addedAt": "2026-09-28",
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Code mode in a harness",
@@ -935,13 +942,13 @@
           "label": "Build your own UI",
           "to": "harness/custom-ui",
           "addedAt": "2026-09-28",
-          "updatedAt": "2026-09-28"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-09-28"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Deploy a harness",

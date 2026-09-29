@@ -1,62 +1,41 @@
-import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import { defineAgent, getVideoJobStatus } from '@tanstack/ai'
+import { EventType, defineAgent } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 import { z } from 'zod'
 import type { AnyVideoAdapter } from '@tanstack/ai'
 
-/** A short file name from a prompt: `a-fox-in-the-snow-1714000000000`. */
-function fileName(prompt: string): string {
-  const slug = prompt
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 40)
-  return `${slug || 'media'}-${Date.now()}`
-}
+/**
+ * Makes an image with OpenAI. The harness keeps the file and publishes a
+ * `harness.media` event, so the screen can show it and save it.
+ */
+export const imageAgent = defineAgent({
+  name: 'image',
+  description:
+    'Generates one image from a detailed visual prompt. The user gets the image.',
+  produces: 'image',
+  inputSchema: z.object({
+    prompt: z.string().describe('A detailed description of the image'),
+  }),
+  run: async (ctx) => {
+    const result = await ctx.generateImage({
+      adapter: openaiImage('gpt-image-2.5-flare'),
+      prompt: ctx.input.prompt,
+      size: '1024x1024',
+    })
+    if (result.images.length === 0)
+      throw new Error('The image model returned no image.')
+    return `Made the image with ${result.model}. The user has it.`
+  },
+})
 
-async function download(url: string): Promise<Buffer> {
-  const response = await fetch(url)
-  if (!response.ok) throw new Error(`Download failed (${response.status}).`)
-  return Buffer.from(await response.arrayBuffer())
-}
-
-/** Makes an image with OpenAI and saves it as a PNG in `mediaDir`. */
-export function imageAgent(mediaDir: string) {
-  return defineAgent({
-    name: 'image',
-    description:
-      'Generates one image from a detailed visual prompt and saves it as a PNG file. Returns the file path.',
-    produces: 'image',
-    inputSchema: z.object({
-      prompt: z.string().describe('A detailed description of the image'),
-    }),
-    run: async (ctx) => {
-      const result = await ctx.generateImage({
-        adapter: openaiImage('gpt-image-2'),
-        prompt: ctx.input.prompt,
-        size: '1024x1024',
-      })
-      const image = result.images[0]
-      if (!image) throw new Error('The image model returned no image.')
-      let bytes: Buffer
-      if (image.b64Json) bytes = Buffer.from(image.b64Json, 'base64')
-      else if (image.url) bytes = await download(image.url)
-      else throw new Error('The image model returned no image data.')
-      await mkdir(mediaDir, { recursive: true })
-      const path = join(mediaDir, `${fileName(ctx.input.prompt)}.png`)
-      await writeFile(path, bytes)
-      return { saved: path, model: result.model }
-    },
-  })
-}
-
-/** Makes a short video with `adapter` and saves it as an MP4 in `mediaDir`. */
-export function videoAgent(mediaDir: string, adapter: AnyVideoAdapter) {
+/**
+ * Makes a short video with `adapter`. The harness keeps only streamed video,
+ * so this uses `stream: true`: one stream from the job start to the file.
+ */
+export function videoAgent(adapter: AnyVideoAdapter) {
   return defineAgent({
     name: 'video',
     description:
-      'Generates one short video clip from a detailed visual prompt and saves it as an MP4 file. Takes a minute or two. Returns the file path.',
+      'Generates one short video clip from a detailed visual prompt. Takes a minute or two. The user gets the video.',
     produces: 'video',
     inputSchema: z.object({
       prompt: z
@@ -64,27 +43,16 @@ export function videoAgent(mediaDir: string, adapter: AnyVideoAdapter) {
         .describe('A detailed description of the scene and the motion'),
     }),
     run: async (ctx) => {
-      const { jobId } = await ctx.generateVideo({
+      const stream = ctx.generateVideo({
         adapter,
         prompt: ctx.input.prompt,
+        stream: true,
       })
-      // Video models work in the background, so poll until the job is done.
-      const deadline = Date.now() + 10 * 60_000
-      let url: string | undefined
-      while (!url) {
-        if (ctx.abortSignal?.aborted) throw new Error('Stopped.')
-        if (Date.now() > deadline)
-          throw new Error('The video took longer than 10 minutes.')
-        await new Promise((resolve) => setTimeout(resolve, 4000))
-        const status = await getVideoJobStatus({ adapter, jobId })
-        if (status.status === 'failed')
-          throw new Error(status.error ?? 'The video job failed.')
-        if (status.status === 'completed') url = status.url
+      for await (const chunk of stream) {
+        // The stream reports a failed or stopped job as an event, not a throw.
+        if (chunk.type === EventType.RUN_ERROR) throw new Error(chunk.message)
       }
-      await mkdir(mediaDir, { recursive: true })
-      const path = join(mediaDir, `${fileName(ctx.input.prompt)}.mp4`)
-      await writeFile(path, await download(url))
-      return { saved: path, model: adapter.model }
+      return `Made the video with ${adapter.model}. The user has it.`
     },
   })
 }

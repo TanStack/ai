@@ -142,6 +142,7 @@ An assistant message has `parts`. Each part is one of these:
 - `text` or `reasoning`: the text, which grows while it streams.
 - `tool-call`: a tool call with its `name`, `args`, and `status` (`running`, `done`, `failed`, or `needs-approval`).
 - `agent`: a child agent, with its own `parts`.
+- `media`: a file that an agent made. See [Show media](#show-media).
 
 A notice has a `kind`:
 
@@ -194,6 +195,72 @@ Progress:
 - `'turnEnd'`: `{ operationId }`, when a chat turn ends.
 
 The view calls your handler after the item is in the state, so the handler can read `view.store.get()` and find the item. `view.on` returns a function that removes the handler.
+
+## Show media
+
+A user sends a screenshot, and an agent draws an image. The view gives you each file as a media part, with a URL that works in `<img>`, `<audio>`, and `<video>`.
+
+The media parts are in these places:
+
+- `media` of a user message: the files that the user sent.
+- `parts` of an `agent` part: the files that this child agent made.
+- `parts` of an assistant message, at the end: the files of the turn, after the view loads the history again (for example after a restart).
+
+This component shows the parts of a message, with the parts of each child agent:
+
+```tsx
+import type { MediaPart, ViewPart } from '@tanstack/ai-harness/view'
+
+function Media({ part }: { part: MediaPart }) {
+  if (part.url === undefined) return <span>{part.name}</span>
+  if (part.kind === 'image') return <img src={part.url} alt={part.name} />
+  if (part.kind === 'audio') return <audio controls src={part.url} />
+  if (part.kind === 'video') return <video controls src={part.url} />
+  return (
+    <a href={part.url} download={part.name}>
+      {part.name}
+    </a>
+  )
+}
+
+export function Parts({ parts }: { parts: Array<ViewPart> }) {
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (part.type === 'text') return <p key={index}>{part.text}</p>
+        if (part.type === 'media') return <Media key={part.id} part={part} />
+        if (part.type === 'agent') return <Parts key={part.id} parts={part.parts} />
+        return null
+      })}
+    </>
+  )
+}
+```
+
+A media part has:
+
+- `id`, `kind`, `mimeType`, `name`, and `size` (in bytes).
+- `url`: a URL for the file, when the source can give one. The view gets a new URL before the old one expires.
+- `load()`: the bytes of the file, as a `Uint8Array`.
+
+Where `url` comes from:
+
+- With `createHarnessClient`, `url` is a signed URL from the handler. See [Send and show media](./media).
+- With a local session, `url` is a data URL for a file up to 1 MB. A bigger file has no `url`, so use `load()`.
+
+To send files with a message, give their records to `view.send`. This code sends a screenshot from the disk:
+
+```ts group=harness-custom-ui
+import { readFile } from 'node:fs/promises'
+
+const screenshot = await session.putMedia(await readFile('./bug.png'), {
+  mimeType: 'image/png',
+  name: 'bug.png',
+})
+await view.send('What is wrong in this screenshot?', [screenshot])
+```
+
+In a browser, get the record from `client.upload(file, { name: file.name, mimeType: file.type })`. The user message then shows the file in `media`.
 
 ## Plugin state and plugin events
 
@@ -316,3 +383,4 @@ export function Chat() {
 - A terminal screen in about 20 lines, with no event loop and no reducer.
 - The same view in a web app, on a harness that runs on a server.
 - Actions, typed events, and plugin state that work with any UI library.
+- Images, audio, and video from the session, with URLs that the view keeps valid.
