@@ -8,7 +8,7 @@ import {
   findCrashedRuns,
   repairTranscript,
 } from '../src/resume'
-import { messageTexts, mockAdapter, text, untilAborted } from './helpers'
+import { mockAdapter, text, untilAborted } from './helpers'
 import type { RunRecord, StreamChunk } from '@tanstack/ai'
 import type { HarnessPersistence } from '../src/host'
 
@@ -162,7 +162,7 @@ describe('crash recovery edges', () => {
 })
 
 describe('harnessText edges', () => {
-  it('uses a memory host by default and reads text content parts', async () => {
+  it('uses a memory host by default and keeps the content parts', async () => {
     const inner = mockAdapter([() => text('parts answer'), () => text('empty')])
     const studio = defineHarness({ name: 'test/parts', adapter: inner.adapter })
     const model = harnessText(studio)
@@ -173,22 +173,15 @@ describe('harnessText edges', () => {
       }
       return out
     }
-    expect(
-      await collect([
-        {
-          role: 'user',
-          content: [
-            { type: 'text', content: 'one ' },
-            {
-              type: 'image',
-              source: { type: 'url', value: 'https://x/y.png' },
-            },
-            { type: 'text', content: 'two' },
-          ],
-        },
-      ]),
-    ).toBe('parts answer')
-    expect(messageTexts(inner.calls[0])).toEqual(['one two'])
+    const parts = [
+      { type: 'text', content: 'one ' },
+      { type: 'image', source: { type: 'url', value: 'https://x/y.png' } },
+      { type: 'text', content: 'two' },
+    ]
+    expect(await collect([{ role: 'user', content: parts }])).toBe(
+      'parts answer',
+    )
+    expect(inner.calls[0].messages[0].content).toEqual(parts)
     await expect(model.structuredOutput({} as never)).rejects.toThrow(
       'does not support structured output',
     )

@@ -41,6 +41,7 @@ import type {
   AIPersistence,
   ArtifactStore,
   BlobBody,
+  BlobRange,
   BlobStore,
   CredentialStore,
   GenerationRunStore,
@@ -239,7 +240,7 @@ function referenceNote(agent: string, result: unknown): string {
  * `media.accepts`. Either one alone when only one is known, and `undefined`
  * (send every kind) when neither is.
  */
-function acceptedKinds(
+export function acceptedKinds(
   modalities: ReadonlyArray<Modality> | undefined,
   accepts: ReadonlyArray<MediaKind> | undefined,
 ) {
@@ -590,9 +591,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     return this.mediaStore.get(id)
   }
 
-  /** The bytes of a media file. Throws a `MediaError` with 404 when it is not found. */
-  loadMedia(id: string) {
-    return this.mediaStore.load(id)
+  /**
+   * The bytes of a media file, or of one `range` of them. Throws a
+   * `MediaError` with 404 when it is not found.
+   */
+  loadMedia(id: string, range?: BlobRange) {
+    return this.mediaStore.load(id, range)
   }
 
   /**

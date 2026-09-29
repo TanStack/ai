@@ -94,6 +94,17 @@ describe('client media', () => {
     ).rejects.toThrow('Harness upload failed (413): Payload Too Large')
   })
 
+  it('throws a clear error when the upload answer is not a media record', async () => {
+    const { client } = setup(() => Response.json({ id: 'm1' }))
+
+    await expect(
+      client.upload(new Blob(['abc']), {
+        name: 'a.png',
+        mimeType: 'image/png',
+      }),
+    ).rejects.toThrow('Harness upload failed: the answer is not a media record')
+  })
+
   it('makes the signed path of a media file an absolute url', async () => {
     const { client, requests } = setup(() =>
       Response.json({
