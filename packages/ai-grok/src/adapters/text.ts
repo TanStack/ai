@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { fileReferenceFor, isFileSource } from '@tanstack/ai'
 import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
+import { GROK_MODEL_INPUT_MODALITIES } from '../model-meta'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import { convertToolsToProviderFormat } from '../tools'
 import type {
@@ -70,6 +71,7 @@ export class GrokTextAdapter<
   // public URL. See convertContentPartToInput below for why it is a URL and
   // not a file_id.
   override readonly supportsFileSources = true
+  override readonly inputModalities = GROK_MODEL_INPUT_MODALITIES[this.model]
 
   constructor(config: GrokTextConfig, model: TModel) {
     super(model, 'grok', new OpenAI(withGrokDefaults(config)))

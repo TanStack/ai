@@ -1,5 +1,5 @@
 import type { ConfigOption } from '../config'
-import type { Receipt } from '../types'
+import type { MediaKind, Receipt } from '../types'
 
 export type ToolCallStatus = 'running' | 'done' | 'failed' | 'needs-approval'
 
@@ -25,17 +25,42 @@ export interface AgentPart {
   parts: Array<ViewPart>
 }
 
+/** A media file that the user sent or that an agent made. */
+export interface MediaPart {
+  type: 'media'
+  id: string
+  kind: MediaKind
+  mimeType: string
+  name: string
+  /** Size in bytes. */
+  size: number
+  /**
+   * A URL for `<img>`, `<audio>`, or `<video>`, when the source gives one.
+   * The view gets a new one before it expires.
+   */
+  url?: string
+  /** Read the bytes. Rejects when the source cannot load media. */
+  load: () => Promise<Uint8Array>
+}
+
 export type ViewPart =
   | { type: 'text'; text: string }
   | { type: 'reasoning'; text: string }
   | ToolCallPart
   | AgentPart
+  | MediaPart
 
 /** Why a notice line is there. */
 export type NoticeKind = 'info' | 'error' | 'rejected' | 'command' | 'ui'
 
 export type ViewMessage =
-  | { id: string; role: 'user'; text: string }
+  | {
+      id: string
+      role: 'user'
+      text: string
+      /** The files the user sent, when there are any. */
+      media?: Array<MediaPart>
+    }
   | { id: string; role: 'assistant'; parts: Array<ViewPart> }
   | { id: string; role: 'notice'; kind: NoticeKind; text: string }
 

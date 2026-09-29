@@ -9,6 +9,7 @@ import {
 } from '../utils/client'
 import { makeMistralStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
 import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
+import { MISTRAL_MODEL_INPUT_MODALITIES } from '../model-meta'
 import type {
   ContentPart,
   Modality,
@@ -176,6 +177,7 @@ export class MistralTextAdapter<
   MistralMessageMetadataByModality
 > {
   readonly name = 'mistral' as const
+  override readonly inputModalities = MISTRAL_MODEL_INPUT_MODALITIES[this.model]
 
   private readonly client: Mistral
   private readonly rawConfig: MistralClientConfig

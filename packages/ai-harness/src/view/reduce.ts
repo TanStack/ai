@@ -1,4 +1,5 @@
 import { EventType } from '@tanstack/ai'
+import { mediaIdOf, mediaOfMessage } from '../media-ref'
 import { HARNESS_EVENTS } from '../types'
 import type { Interrupt, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { SessionDescription, SessionSnapshot } from '../session'
@@ -6,6 +7,7 @@ import type { SessionEvent } from '../types'
 import type {
   AgentPart,
   Approval,
+  MediaPart,
   NoticeKind,
   SessionViewState,
   SignIn,
@@ -89,6 +91,66 @@ function recordOf(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {}
 }
 
+/** The fields of a media part that come from its record. */
+type MediaInfo = Omit<MediaPart, 'type' | 'url' | 'load'>
+
+// ponytail: the reducer keeps only data. The view swaps this `load` for one
+// that reads from its source, and adds the `url`.
+const notInView = () =>
+  Promise.reject(new Error('Only a session view can load media bytes.'))
+
+function mediaView(media: MediaInfo) {
+  const part: MediaPart = {
+    type: 'media',
+    id: media.id,
+    kind: media.kind,
+    mimeType: media.mimeType,
+    name: media.name,
+    size: media.size,
+    load: notInView,
+  }
+  return part
+}
+
+/** The fields a media part needs from a `harness.media` event value. */
+function mediaInfoOf(value: Record<string, unknown>) {
+  const { id, kind, mimeType, name, size } = value
+  const isKind =
+    kind === 'image' ||
+    kind === 'audio' ||
+    kind === 'video' ||
+    kind === 'document'
+  const isInfo =
+    isKind &&
+    typeof id === 'string' &&
+    typeof mimeType === 'string' &&
+    typeof name === 'string' &&
+    typeof size === 'number'
+  if (!isInfo) return undefined
+  const info: MediaInfo = { id, kind, mimeType, name, size }
+  return info
+}
+
+/** Media parts for the `harness-media:` parts of a saved user message. */
+function userMedia(content: ModelMessage['content']) {
+  if (typeof content === 'string' || !content) return []
+  return content.flatMap((part) => {
+    const id = mediaIdOf(part)
+    if (id === undefined || part.type === 'text') return []
+    // ponytail: a saved part keeps only its id and MIME type, so the name is
+    // the id and the size is 0. Save the record on the message if a UI needs them.
+    return [
+      mediaView({
+        id,
+        kind: part.type,
+        mimeType: part.source.mimeType ?? '',
+        name: id,
+        size: 0,
+      }),
+    ]
+  })
+}
+
 /** Add a notice line at the end of the messages. */
 export function withNotice(
   state: SessionViewState,
@@ -104,15 +166,17 @@ export function withNotice(
   return { ...state, messages: [...state.messages, message] }
 }
 
-/** Add a user message at the end of the messages. */
+/** Add a user message, with the files the user sent, at the end of the messages. */
 export function withUserMessage(
   state: SessionViewState,
   text: string,
+  media: ReadonlyArray<MediaInfo> = [],
 ): SessionViewState {
   const message: ViewMessage = {
     id: `user-${state.messages.length}`,
     role: 'user',
     text,
+    ...(media.length > 0 ? { media: media.map(mediaView) } : {}),
   }
   return { ...state, messages: [...state.messages, message] }
 }
@@ -284,6 +348,31 @@ function updateTurn(
   return { ...state, messages }
 }
 
+function addMedia(parts: Array<ViewPart>, part: MediaPart) {
+  const isShown = parts.some(
+    (item) => item.type === 'media' && item.id === part.id,
+  )
+  return isShown ? parts : [...parts, part]
+}
+
+/** Media goes in the agent part of the child that made it, else in the lead parts. */
+function withMedia(
+  state: SessionViewState,
+  operationId: string,
+  media: MediaInfo,
+  child: string | undefined,
+) {
+  const part = mediaView(media)
+  return updateTurn(state, operationId, (parts) => {
+    if (child === undefined || !findAgent(parts, child))
+      return addMedia(parts, part)
+    return mapAgent(parts, child, (agent) => {
+      const inner = addMedia(agent.parts, part)
+      return inner === agent.parts ? agent : { ...agent, parts: inner }
+    })
+  })
+}
+
 /** A lead tool result can come in a later turn (after an approval). */
 function applyToolResult(
   state: SessionViewState,
@@ -368,6 +457,13 @@ export function applyEvent(
   }
   if (event.type !== EventType.CUSTOM) return state
   const value = recordOf(event.value)
+  if (event.name === HARNESS_EVENTS.media) {
+    const media = mediaInfoOf(value)
+    if (!media) return state
+    const child =
+      typeof value.subagentRunId === 'string' ? value.subagentRunId : undefined
+    return withMedia(state, operationId, media, child)
+  }
   if (event.name === HARNESS_EVENTS.operationResumed)
     return withNotice(state, 'info', 'Resumed a turn that a crash stopped.')
   if (event.name === COMMAND_RESULT)
@@ -445,7 +541,7 @@ function markWaiting(
 }
 
 /** `old` when `next` holds the same items, so selectors see no change. */
-function keep<T>(old: Array<T>, next: Array<T>): Array<T> {
+export function keep<T>(old: Array<T>, next: Array<T>): Array<T> {
   return old.length === next.length &&
     old.every((item, index) => item === next[index])
     ? old
@@ -535,7 +631,11 @@ export function applyDescription(
   }
 }
 
-/** Messages for a saved transcript. Tool results fill in their tool calls. */
+/**
+ * Messages for a saved transcript. Tool results fill in their tool calls.
+ * The media a turn made (`metadata.harness.media`) goes at the end of its
+ * assistant message.
+ */
 export function messagesFromTranscript(
   messages: ReadonlyArray<ModelMessage>,
 ): Array<ViewMessage> {
@@ -543,7 +643,13 @@ export function messagesFromTranscript(
   messages.forEach((message, index) => {
     const id = message.id ?? `history-${index}`
     if (message.role === 'user') {
-      result.push({ id, role: 'user', text: textOf(message.content) })
+      const media = userMedia(message.content)
+      result.push({
+        id,
+        role: 'user',
+        text: textOf(message.content),
+        ...(media.length > 0 ? { media } : {}),
+      })
       return
     }
     if (message.role === 'assistant') {
@@ -564,6 +670,8 @@ export function messagesFromTranscript(
           status: 'running',
         })
       }
+      const media = mediaOfMessage(message)
+      for (const record of media) parts.push(mediaView(record))
       result.push({ id, role: 'assistant', parts })
       return
     }
