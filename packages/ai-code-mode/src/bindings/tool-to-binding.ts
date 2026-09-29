@@ -99,13 +99,25 @@ export function toolToBinding(
  * Create event-aware bindings that emit custom events for each external function call.
  * Wraps each binding's execute function to emit events before and after execution.
  *
+ * Each call gets the parent tool's `abortSignal` and runtime `context`, so an
+ * aborted run cancels in-flight calls. `toolCallId` and `inputResponse` are not
+ * passed: they belong to the parent tool call, not to this nested call.
+ *
  * @param bindings - Original tool bindings
  * @param emitCustomEvent - Callback to emit custom events to the stream
+ * @param parentContext - Context of the tool that runs the code (e.g. `execute_typescript`)
  */
 export function createEventAwareBindings(
   bindings: Record<string, ToolBinding>,
   emitCustomEvent: ToolExecutionContext['emitCustomEvent'],
+  parentContext?: ToolExecutionContext,
 ): Record<string, ToolBinding> {
+  const toolContext: ToolExecutionContext = {
+    context: parentContext?.context,
+    abortSignal: parentContext?.abortSignal,
+    emitCustomEvent,
+  }
+
   const wrapped: Record<string, ToolBinding> = {}
 
   for (const [name, binding] of Object.entries(bindings)) {
@@ -121,8 +133,7 @@ export function createEventAwareBindings(
 
         const startTime = Date.now()
         try {
-          // Create context for the underlying tool so it can also emit events
-          const toolContext: ToolExecutionContext = { emitCustomEvent }
+          toolContext.abortSignal?.throwIfAborted()
           const result = await binding.execute(args, toolContext)
 
           // Emit result event

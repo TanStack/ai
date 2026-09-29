@@ -835,7 +835,7 @@
           "label": "Code Mode",
           "to": "code-mode/code-mode",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-11"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Showing Code Mode in the UI",
