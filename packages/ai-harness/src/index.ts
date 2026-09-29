@@ -80,6 +80,8 @@ export type {
   ChatTurnResult,
   Cursor,
   HarnessInput,
+  MediaKind,
+  MediaRecord,
   Operation,
   OperationKind,
   OperationStatus,
@@ -88,6 +90,14 @@ export type {
   SessionEvent,
   UserInput,
 } from './types'
+
+export {
+  MEDIA_URL_PREFIX,
+  kindOf,
+  mediaIdOf,
+  mediaOfMessage,
+  mediaPart,
+} from './media-ref'
 
 export {
   HARNESS_PROTOCOL_VERSION,

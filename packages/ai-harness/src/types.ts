@@ -92,6 +92,27 @@ export interface Operation<TResult> extends PromiseLike<TResult> {
   cancel: (reason?: string) => Promise<Receipt>
 }
 
+/** What a media file holds. It picks the content part a model gets. */
+export type MediaKind = 'image' | 'audio' | 'video' | 'document'
+
+/** A file in a thread's media store: sent by a user or made by an agent. */
+export interface MediaRecord {
+  id: string
+  threadId: string
+  kind: MediaKind
+  mimeType: string
+  name: string
+  /** Size in bytes. */
+  size: number
+  source: 'user' | 'generated'
+  /** Epoch milliseconds. */
+  createdAt: number
+  /** The operation that made generated media. */
+  runId?: string
+  /** The child agent run that made it, when a subagent did. */
+  subagentRunId?: string
+}
+
 /** Names of the `CUSTOM` events a harness session adds to the stream. */
 export const HARNESS_EVENTS = {
   operationStarted: 'harness.operation.started',
@@ -105,4 +126,6 @@ export const HARNESS_EVENTS = {
   inputAccepted: 'harness.input.accepted',
   inputApplied: 'harness.input.applied',
   inputRejected: 'harness.input.rejected',
+  /** A media file was stored. The value is a `MediaRecord`. */
+  media: 'harness.media',
 } as const
