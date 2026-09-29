@@ -4,16 +4,17 @@ import type { ElevenLabs } from '@elevenlabs/elevenlabs-js'
  * ElevenLabs model identifiers. The lists below are the source of truth —
  * callers are blocked from passing unknown model IDs.
  *
- * Text-to-speech ids are inserted by `scripts/sync-elevenlabs-models.ts`
- * from modelschemas (`GET /v1/models?provider=elevenlabs`), which runs with
- * the daily `pnpm generate:models` sync. The script only adds missing
- * `canDoTextToSpeech` ids. It leaves rows that are already listed, including
- * deprecated ids the catalog no longer returns.
+ * Ids are inserted by `scripts/sync-elevenlabs-models.ts` during the daily
+ * `pnpm generate:models` sync. Text-to-speech comes from
+ * `GET /v1/models?provider=elevenlabs` (`canDoTextToSpeech` only). Music,
+ * sound effects, and voice design come from the request schemas for
+ * `v1/music/video-to-music`, `v1/sound-generation`, and
+ * `v1/text-to-voice/design`. The script only adds missing ids. It leaves
+ * rows that are already listed, including deprecated ids.
  *
- * Music, sound effects, transcription, and voice design stay hand-maintained.
- * modelschemas does not list those ids. Where the SDK publishes its own
- * union, pin the list to it with `satisfies` so a removed id fails the build
- * instead of a request.
+ * Transcription stays hand-maintained: the speech-to-text schema has no
+ * `model_id` enum. Where the SDK publishes its own union, pin the list to it
+ * with `satisfies` so a removed id fails the build instead of a request.
  *
  * Each list is ordered newest-first, with models ElevenLabs has deprecated
  * kept at the bottom so existing callers don't break on an upgrade. An id the

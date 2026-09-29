@@ -29,9 +29,9 @@
  * - **fal** — media-only provider whose endpoint ids are not OpenRouter
  *   models. fal image fields have their own generator
  *   (`scripts/generate-fal-image-field-map.ts`).
- * - **elevenlabs** — text-to-speech ids come from modelschemas via
- *   `scripts/sync-elevenlabs-models.ts`, not OpenRouter. Music, sound
- *   effects, transcription, and voice design stay hand-maintained.
+ * - **elevenlabs** — text-to-speech, music, sound effects, and voice design
+ *   ids come from modelschemas via `scripts/sync-elevenlabs-models.ts`, not
+ *   OpenRouter. Transcription stays hand-maintained.
  * - **bedrock** — ids are AWS-region-qualified; see
  *   `scripts/fetch-bedrock-models.ts`.
  */
