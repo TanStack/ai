@@ -4,6 +4,7 @@ import type {
   AnyTextAdapter,
   AnyTool,
   InterruptDefinition,
+  KeyedAdapter,
   SubagentsBag,
   SystemPrompt,
 } from '@tanstack/ai'
@@ -31,8 +32,12 @@ export interface HarnessConfig<
   name: string
   /** What the harness does. Shown when another agent can call it. */
   description?: string
-  /** The main agent-loop model, the same as `chat({ adapter })`. */
-  adapter: TAdapter
+  /**
+   * The main agent-loop model, the same as `chat({ adapter })`. A
+   * `keyedAdapter(...)` is built for each turn with the user's own key: the
+   * key saved with `/connect <provider>`, else the provider's env var.
+   */
+  adapter: TAdapter | KeyedAdapter<TAdapter>
   systemPrompts?: Array<SystemPrompt>
   tools?: ReadonlyArray<AnyTool>
   middleware?: ReadonlyArray<AnyChatMiddleware>

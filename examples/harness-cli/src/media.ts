@@ -1,7 +1,15 @@
-import { EventType, defineAgent } from '@tanstack/ai'
+import { EventType, defineAgent, keyedAdapter } from '@tanstack/ai'
 import { mediaIdOf } from '@tanstack/ai-harness'
 import { falAudio } from '@tanstack/ai-fal'
-import { openaiImage, openaiSpeech } from '@tanstack/ai-openai'
+import { falByok } from '@tanstack/ai-fal/byok'
+import { createGrokVideo } from '@tanstack/ai-grok'
+import { grokByok } from '@tanstack/ai-grok/byok'
+import {
+  createOpenaiImage,
+  createOpenaiSpeech,
+  createOpenaiVideo,
+} from '@tanstack/ai-openai'
+import { openaiByok } from '@tanstack/ai-openai/byok'
 import { z } from 'zod'
 import { mediaBytes } from './store'
 import type {
@@ -14,6 +22,26 @@ import type {
 
 // Every agent here returns a short text. The harness keeps each file it makes
 // and publishes a `harness.media` event, so the screen can show and save it.
+//
+// Each agent builds its model with the user's key just before the call: the
+// key saved with `/connect <provider>`, else the env var. Without a key, the
+// call stops, and the screen says which `/connect` to run.
+const gptImage = keyedAdapter(openaiByok, (key) =>
+  createOpenaiImage('gpt-image-2.5-flare', key),
+)
+const openaiVoice = keyedAdapter(openaiByok, (key) =>
+  createOpenaiSpeech('tts-1-hd', key),
+)
+const sora = keyedAdapter(openaiByok, (key) => createOpenaiVideo('sora-2', key))
+const grokImagine = keyedAdapter(grokByok, (key) =>
+  createGrokVideo('grok-imagine-video-1.5', key),
+)
+const falMusic = keyedAdapter(falByok, (key) =>
+  falAudio('fal-ai/elevenlabs/music', { apiKey: key }),
+)
+const falSound = keyedAdapter(falByok, (key) =>
+  falAudio('fal-ai/stable-audio-25/text-to-audio', { apiKey: key }),
+)
 
 /**
  * The images in the latest user message that has files: the ones the user
@@ -64,7 +92,7 @@ export const imageAgent = defineAgent({
     const references = ctx.input.useAttachedImages
       ? await attachedImages(ctx.messages)
       : []
-    const adapter = openaiImage('gpt-image-2.5-flare')
+    const adapter = await ctx.keys.adapter(gptImage)
     // With references, the prompt is the text plus the images (an edit).
     const result =
       references.length > 0
@@ -92,34 +120,37 @@ export const imageAgent = defineAgent({
 })
 
 /**
- * Makes a short video with `adapter`. The harness keeps only streamed video,
- * so this uses `stream: true`: one stream from the job start to the file.
+ * Makes a short video: with Grok Imagine when the user has an xAI key, else
+ * with Sora. The harness keeps only streamed video, so this uses
+ * `stream: true`: one stream from the job start to the file.
  */
-export function videoAgent(adapter: AnyVideoAdapter) {
-  return defineAgent({
-    name: 'video',
-    description:
-      'Generates one short video clip from a detailed visual prompt. Takes a minute or two. The user gets the video.',
-    produces: 'video',
-    inputSchema: z.object({
-      prompt: z
-        .string()
-        .describe('A detailed description of the scene and the motion'),
-    }),
-    run: async (ctx) => {
-      const stream = ctx.generateVideo({
-        adapter,
-        prompt: ctx.input.prompt,
-        stream: true,
-      })
-      for await (const chunk of stream) {
-        // The stream reports a failed or stopped job as an event, not a throw.
-        if (chunk.type === EventType.RUN_ERROR) throw new Error(chunk.message)
-      }
-      return `Made the video with ${adapter.model}. The user has it.`
-    },
-  })
-}
+export const videoAgent = defineAgent({
+  name: 'video',
+  description:
+    'Generates one short video clip from a detailed visual prompt. Takes a minute or two. The user gets the video.',
+  produces: 'video',
+  inputSchema: z.object({
+    prompt: z
+      .string()
+      .describe('A detailed description of the scene and the motion'),
+  }),
+  run: async (ctx) => {
+    const hasGrokKey = (await ctx.keys.get(grokByok)) !== null
+    const adapter: AnyVideoAdapter = hasGrokKey
+      ? await ctx.keys.adapter(grokImagine)
+      : await ctx.keys.adapter(sora)
+    const stream = ctx.generateVideo({
+      adapter,
+      prompt: ctx.input.prompt,
+      stream: true,
+    })
+    for await (const chunk of stream) {
+      // The stream reports a failed or stopped job as an event, not a throw.
+      if (chunk.type === EventType.RUN_ERROR) throw new Error(chunk.message)
+    }
+    return `Made the video with ${adapter.model}. The user has it.`
+  },
+})
 
 /** Reads a text aloud with OpenAI text to speech. */
 export const speechAgent = defineAgent({
@@ -136,7 +167,7 @@ export const speechAgent = defineAgent({
   }),
   run: async (ctx) => {
     const result = await ctx.generateSpeech({
-      adapter: openaiSpeech('tts-1-hd'),
+      adapter: await ctx.keys.adapter(openaiVoice),
       text: ctx.input.text,
       voice: ctx.input.voice ?? 'alloy',
     })
@@ -163,7 +194,7 @@ export const songAgent = defineAgent({
   }),
   run: async (ctx) => {
     const result = await ctx.generateAudio({
-      adapter: falAudio('fal-ai/elevenlabs/music'),
+      adapter: await ctx.keys.adapter(falMusic),
       prompt: ctx.input.prompt,
       duration: ctx.input.seconds ?? 30,
     })
@@ -188,7 +219,7 @@ export const soundAgent = defineAgent({
   }),
   run: async (ctx) => {
     const result = await ctx.generateAudio({
-      adapter: falAudio('fal-ai/stable-audio-25/text-to-audio'),
+      adapter: await ctx.keys.adapter(falSound),
       prompt: ctx.input.prompt,
       duration: ctx.input.seconds ?? 8,
     })

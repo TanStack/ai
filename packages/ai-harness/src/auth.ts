@@ -1,4 +1,6 @@
-import type { Scope } from '@tanstack/ai'
+import { isKeyedAdapter } from '@tanstack/ai'
+import type { ProviderKeys, Scope } from '@tanstack/ai'
+import type { ByokProvider, ProviderId } from '@tanstack/ai/byok'
 import type { Credential, CredentialStore } from '@tanstack/ai-persistence'
 
 /**
@@ -52,6 +54,56 @@ export function credentialsFor(
     delete: (id) => store.delete(scope, id),
     list: () => store.list(scope),
   }
+}
+
+/**
+ * The first name in `provider.env` that is set, with its value. A provider
+ * id has no env names. Where `process` is missing (a browser, a worker) it
+ * returns `null`.
+ */
+export function envKeyOf(provider: ByokProvider | ProviderId) {
+  if (typeof provider === 'string') return null
+  const env = globalThis.process?.env
+  for (const name of provider.env ?? []) {
+    const value = env?.[name]
+    if (typeof value === 'string' && value.length > 0) return { name, value }
+  }
+  return null
+}
+
+/**
+ * The provider keys of the session's principal. A key is the `api_key`
+ * credential saved under the provider id (`/connect <id>` saves it), else
+ * the first `provider.env` name that is set. A missing key calls `onMissing`
+ * and throws {@link AuthRequiredError}, so the user sees `/connect <id>`.
+ */
+export function providerKeysFor(
+  credentials: CredentialsAccess,
+  onMissing: (error: AuthRequiredError) => void,
+) {
+  const providerIdOf = (provider: ByokProvider | ProviderId) =>
+    typeof provider === 'string' ? provider : provider.id
+  const get = async (provider: ByokProvider | ProviderId) => {
+    const saved = await credentials.get(providerIdOf(provider))
+    if (saved?.type === 'api_key') return saved.value
+    return envKeyOf(provider)?.value ?? null
+  }
+  const requireKey = async (provider: ByokProvider | ProviderId) => {
+    const key = await get(provider)
+    if (key !== null) return key
+    const error = new AuthRequiredError(providerIdOf(provider))
+    onMissing(error)
+    throw error
+  }
+  const keys: ProviderKeys = {
+    get,
+    require: requireKey,
+    adapter: async (adapter) =>
+      isKeyedAdapter(adapter)
+        ? adapter.create(await requireKey(adapter.provider))
+        : adapter,
+  }
+  return keys
 }
 
 /** Remove secret-looking values from a message before it reaches a model or a log. */

@@ -4,6 +4,7 @@ import { definePlugin } from '../plugins'
 import type {
   AnyChatMiddleware,
   AnyTextAdapter,
+  KeyedAdapter,
   ModelMessage,
 } from '@tanstack/ai'
 
@@ -30,10 +31,11 @@ export function transcriptText(messages: ReadonlyArray<ModelMessage>) {
 
 /**
  * `/compact`: replace a long transcript with a summary, so later turns send
- * fewer tokens. The summary is written by `adapter`.
+ * fewer tokens. The summary is written by `adapter`. A `keyedAdapter(...)`
+ * is built with the user's key when `/compact` runs.
  */
 export function compact(options: {
-  adapter: AnyTextAdapter
+  adapter: AnyTextAdapter | KeyedAdapter<AnyTextAdapter>
   keepLast?: number
 }) {
   return definePlugin({
@@ -50,7 +52,7 @@ export function compact(options: {
             const older = messages.slice(0, messages.length - keep)
             const transcript = transcriptText(older)
             const summary = await chat({
-              adapter: options.adapter,
+              adapter: await ctx.keys.adapter(options.adapter),
               messages: [
                 { role: 'user', content: `${SUMMARY_PROMPT}\n\n${transcript}` },
               ],

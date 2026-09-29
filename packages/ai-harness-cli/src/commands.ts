@@ -96,9 +96,10 @@ export async function handleLine(
   if (text === '') return { type: 'notice', text: '' }
   const [question] = session.snapshot().pendingQuestions
   if (question) {
+    // A secret (a key) is the text as typed: `123456` stays a string.
     const receipt = await session.answer(
       question.questionId,
-      parseAnswer(text, question.schema),
+      question.secret ? text : parseAnswer(text, question.schema),
     )
     return {
       type: 'notice',

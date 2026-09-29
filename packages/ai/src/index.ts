@@ -100,6 +100,12 @@ export type {
   SubagentForward,
 } from './activities/chat/agents/bound'
 export {
+  keyedAdapter,
+  isKeyedAdapter,
+  type KeyedAdapter,
+  type ProviderKeys,
+} from './byok/keyed'
+export {
   SubagentBudget,
   type SubagentLimits,
 } from './activities/chat/agents/limits'

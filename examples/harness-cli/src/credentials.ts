@@ -5,9 +5,9 @@ import { defineCredentialStore } from '@tanstack/ai-persistence'
 import type { Credential } from '@tanstack/ai-persistence'
 
 /**
- * Sign-ins (Notion, Linear) saved in a file in your home folder, so they
- * survive a restart. The file is readable by your user only. A production
- * store would encrypt the values.
+ * Sign-ins (Notion, Linear) and model keys (`/connect openai`) saved in a
+ * file in your home folder, so they survive a restart. The file is readable
+ * by your user only. A production store would encrypt the values.
  */
 export function fileCredentials(
   file = join(homedir(), '.tanstack-harness-example', 'credentials.json'),

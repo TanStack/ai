@@ -81,6 +81,8 @@ export interface ViewQuestion {
   message: string
   /** The answer's JSON Schema, when the question has one. */
   schema?: unknown
+  /** The answer is a secret (a key or a password). Do not show what the user types. */
+  secret?: boolean
   answer: (value: unknown) => Promise<Receipt>
 }
 

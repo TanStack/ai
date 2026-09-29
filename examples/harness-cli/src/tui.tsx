@@ -45,6 +45,8 @@ const KIND_COLOR: Record<string, string> = {
   video: 'blue',
   document: 'white',
 }
+// The name of the `providerKeys()` plugin: its state is in `state.plugins`.
+const PROVIDER_KEYS = 'tanstack/provider-keys'
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
 // ponytail: the CLI's default media folder, `./<harness-name>-media`. A custom
@@ -127,6 +129,56 @@ function useSavedMedia(view: SessionView, messages: Array<ViewMessage>) {
 
 function textOf(parts: ReadonlyArray<ViewPart>) {
   return parts.map((part) => (part.type === 'text' ? part.text : '')).join('')
+}
+
+/** A model provider of `providerKeys()`, and where its key comes from. */
+interface ProviderKey {
+  id: string
+  label: string
+  state: 'connected' | 'env' | 'missing'
+}
+
+function isProviderKey(value: unknown): value is ProviderKey {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    typeof value.id === 'string' &&
+    'label' in value &&
+    typeof value.label === 'string' &&
+    'state' in value &&
+    (value.state === 'connected' ||
+      value.state === 'env' ||
+      value.state === 'missing')
+  )
+}
+
+/**
+ * The providers in `saved`, the state of the provider-keys plugin (in
+ * `state.plugins`). `/connect` and `/disconnect` update it, so the screen
+ * shows the keys live. Empty before the plugin reports.
+ */
+function providerKeysIn(saved: unknown) {
+  const isState =
+    typeof saved === 'object' && saved !== null && 'providers' in saved
+  if (!isState) return []
+  const { providers } = saved
+  return Array.isArray(providers) ? providers.filter(isProviderKey) : []
+}
+
+/**
+ * Is `feature` on? A feature that needs a key follows the saved keys: any
+ * one of its providers with a key turns it on. The rest stay as at startup.
+ */
+function isOn(
+  feature: (typeof features)[number],
+  keys: ReadonlyArray<ProviderKey>,
+) {
+  const followsKeys = feature.providers.length > 0 && keys.length > 0
+  if (!followsKeys) return feature.on
+  return keys.some(
+    (key) => feature.providers.includes(key.id) && key.state !== 'missing',
+  )
 }
 
 /** Start a program without a shell. The screen still shows the path on error. */
@@ -387,6 +439,9 @@ function Header({ view }: { view: SessionView }) {
     view.store,
     (state) => state.config.find((entry) => entry.key === 'model')?.value,
   )
+  // The plugin state, not a new list, so the header renders only on a change.
+  const saved = useSelector(view.store, (state) => state.plugins[PROVIDER_KEYS])
+  const keys = providerKeysIn(saved)
   return (
     <Box
       flexDirection="column"
@@ -407,12 +462,28 @@ function Header({ view }: { view: SessionView }) {
         </Text>
       </Box>
       <Box flexWrap="wrap">
-        {features.map((feature) => (
-          <Text key={feature.name} color={feature.on ? 'green' : 'gray'}>
-            {`${feature.on ? '●' : '○'} ${feature.name}   `}
-          </Text>
-        ))}
+        {features.map((feature) => {
+          const on = isOn(feature, keys)
+          return (
+            <Text key={feature.name} color={on ? 'green' : 'gray'}>
+              {`${on ? '●' : '○'} ${feature.name}   `}
+            </Text>
+          )
+        })}
       </Box>
+      {keys.length > 0 ? (
+        <Box flexWrap="wrap">
+          <Text dimColor>keys </Text>
+          {keys.map((key) => (
+            <Text
+              key={key.id}
+              color={key.state === 'missing' ? 'gray' : 'green'}
+            >
+              {`${key.id} ${key.state === 'missing' ? '○' : '●'}  `}
+            </Text>
+          ))}
+        </Box>
+      ) : null}
     </Box>
   )
 }
@@ -498,7 +569,16 @@ function Status({
   )
 }
 
-function InputBox({ input, voice }: { input: string; voice: VoiceState }) {
+function InputBox({
+  input,
+  voice,
+  hidden,
+}: {
+  input: string
+  voice: VoiceState
+  /** The input is a secret (a key): show a dot for each character. */
+  hidden: boolean
+}) {
   const active = voice === 'idle'
   return (
     <Box
@@ -511,10 +591,12 @@ function InputBox({ input, voice }: { input: string; voice: VoiceState }) {
       </Text>
       {input === '' ? (
         <Text dimColor>
-          Type a message, @file to attach, or hold Ctrl+R to talk
+          {hidden
+            ? 'Paste the key. It stays hidden.'
+            : 'Type a message, @file to attach, or hold Ctrl+R to talk'}
         </Text>
       ) : (
-        <Text>{input}</Text>
+        <Text>{hidden ? '•'.repeat(input.length) : input}</Text>
       )}
       <Text inverse> </Text>
     </Box>
@@ -529,7 +611,9 @@ const HELP = [
   '/voice <file> send a recorded voice message',
   '/open [n]     open media file n (default: the last one)',
   '/play [n]     play audio or video file n',
-  '/connect <id> sign in to notion or linear (/disconnect <id>)',
+  '/connect <id> connect a model provider (/keys lists them), notion, or linear',
+  '/disconnect <id> remove that key or sign-in',
+  '/keys         show where each model key comes from',
   '/exit         quit',
 ]
 
@@ -542,7 +626,23 @@ function App({ view }: { view: SessionView }) {
   const { exit } = useApp()
   const messages = useSelector(view.store, (state) => state.messages)
   const saved = useSavedMedia(view, messages)
-  const [input, setInput] = useState('')
+  // The input line. `hidden`: it holds a secret (a key), typed while a
+  // question asked for one. It stays hidden until it is sent or deleted, also
+  // when the question ends first, so a key never shows or goes out as a
+  // message.
+  const [input, setInput] = useState({ text: '', hidden: false })
+  const secretAsked = useSelector(
+    view.store,
+    (state) => state.questions.at(0)?.secret === true,
+  )
+  /** Add typed or pasted text to the input line. */
+  const type = (text: string) => {
+    const asked = view.store.get().questions.at(0)?.secret === true
+    setInput((current) => ({
+      text: current.text + text,
+      hidden: asked || (current.hidden && current.text !== ''),
+    }))
+  }
   const [voice, setVoiceState] = useState<VoiceState>('idle')
   // The phase in a ref too: key events come faster than React renders, and a
   // second Ctrl+R must see "starting" at once, or it starts a second recorder.
@@ -579,7 +679,10 @@ function App({ view }: { view: SessionView }) {
         return view.notice(
           `Voice: only silence from "${clip.microphone}". Hold Ctrl+R while you talk, or pick another microphone with /mic.`,
         )
-      const text = await transcribe(audio, name)
+      const text = await transcribe(audio, {
+        name,
+        threadId: view.store.get().threadId,
+      })
       if (text === '') return view.notice('Voice: no speech heard.')
       const recent = saved.flatMap((item) =>
         item.path ? [{ kind: item.kind, path: item.path }] : [],
@@ -613,18 +716,21 @@ function App({ view }: { view: SessionView }) {
   }
 
   const startTalking = async () => {
-    if (!canTranscribe())
-      return view.notice(
-        'Voice: set OPENAI_API_KEY or XAI_API_KEY in .env to turn voice on.',
-      )
     talk.current = {
       last: Date.now(),
       holding: false,
       stopWanted: false,
       cancelWanted: false,
     }
+    // "starting" before the key check, so a repeated Ctrl+R starts nothing.
     setVoice('starting')
     try {
+      if (!(await canTranscribe(view.store.get().threadId))) {
+        setVoice('idle')
+        return view.notice(
+          'Voice: run /connect openai (or /connect grok) to turn voice on.',
+        )
+      }
       const started = await startRecording()
       if (talk.current.cancelWanted) {
         started.cancel()
@@ -675,15 +781,25 @@ function App({ view }: { view: SessionView }) {
   }
 
   /** Enter: answer an approval or a question, run a screen command, or send. */
-  const submit = async (line: string) => {
-    const text = line.trim()
+  const submit = async (line: { text: string; hidden: boolean }) => {
+    const text = line.text.trim()
     const state = view.store.get()
+    const [question] = state.questions
+    if (question?.secret) {
+      // The key goes as it is. The screen does not show it anywhere.
+      await question.answer(text)
+      return
+    }
+    if (line.hidden) {
+      // The question ended before Enter: drop the key, do not send it.
+      view.notice('The key question ended, so the key was not used.')
+      return
+    }
     if (state.approvals.length > 0) {
       if (/^y(es)?$/i.test(text)) view.approveAll()
       else view.rejectAll()
       return
     }
-    const [question] = state.questions
     if (question) {
       const answer = /^y(es)?$/i.test(text)
         ? true
@@ -695,8 +811,9 @@ function App({ view }: { view: SessionView }) {
     }
     if (text === '/exit') return exit()
     if (text === '/help') {
+      const keys = providerKeysIn(state.plugins[PROVIDER_KEYS])
       const off = features
-        .filter((feature) => !feature.on)
+        .filter((feature) => !isOn(feature, keys))
         .map(
           (feature) => `  ${feature.name} is off: it needs ${feature.needs}.`,
         )
@@ -750,7 +867,7 @@ function App({ view }: { view: SessionView }) {
     await view.send(text)
   }
 
-  usePaste((text) => setInput((current) => current + text))
+  usePaste(type)
 
   useInput((character, key) => {
     if (key.ctrl && character === 'r') return onTalkKey()
@@ -775,16 +892,15 @@ function App({ view }: { view: SessionView }) {
     if (key.return) {
       if (phase.current === 'recording' || phase.current === 'starting')
         return void stopTalking()
-      setInput('')
+      setInput({ text: '', hidden: false })
       void submit(input)
       return
     }
     if (key.backspace || key.delete) {
-      setInput((current) => current.slice(0, -1))
+      setInput((current) => ({ ...current, text: current.text.slice(0, -1) }))
       return
     }
-    if (!key.ctrl && !key.meta && character)
-      setInput((current) => current + character)
+    if (!key.ctrl && !key.meta && character) type(character)
   })
 
   return (
@@ -794,10 +910,14 @@ function App({ view }: { view: SessionView }) {
         <Message key={message.id} message={message} saved={saved} />
       ))}
       <Status view={view} voice={voice} recording={recorder} />
-      <InputBox input={input} voice={voice} />
+      <InputBox
+        input={input.text}
+        voice={voice}
+        hidden={secretAsked || (input.hidden && input.text !== '')}
+      />
       <Text dimColor>
         {
-          '  Ctrl+R talk   Esc cancel   /model   /mic   /open   /play   /help   /exit'
+          '  Ctrl+R talk   Esc cancel   /model   /keys   /mic   /open   /play   /help   /exit'
         }
       </Text>
     </Box>
@@ -814,9 +934,11 @@ export async function runTui(view: SessionView, io: RenderOptions = {}) {
   view.on('signIn', (signIn) => {
     if (signIn.url) openExternal(signIn.url)
   })
-  const keys = ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'XAI_API_KEY']
-  if (!keys.some((key) => process.env[key]))
-    view.notice('No API keys yet: copy .env.example to .env and add yours.')
+  const keys = providerKeysIn(view.store.get().plugins[PROVIDER_KEYS])
+  if (keys.every((key) => key.state === 'missing'))
+    view.notice(
+      'No model key yet. Run /connect openai to paste a key, or /connect openrouter to sign in with the browser. /keys lists them all.',
+    )
   view.notice('Hold Ctrl+R to talk, or type. /help lists the commands.')
   // ponytail: the SDK logs its warnings and errors on the console (the message,
   // then its details with console.dir). Ink prints console output above the

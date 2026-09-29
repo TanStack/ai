@@ -4,8 +4,11 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, extname, join, relative } from 'node:path'
 import { generateTranscription } from '@tanstack/ai'
-import { grokTranscription } from '@tanstack/ai-grok'
-import { openaiTranscription } from '@tanstack/ai-openai'
+import { createGrokTranscription } from '@tanstack/ai-grok'
+import { grokByok } from '@tanstack/ai-grok/byok'
+import { createOpenaiTranscription } from '@tanstack/ai-openai'
+import { openaiByok } from '@tanstack/ai-openai/byok'
+import { providerKey } from './store'
 
 // Voice input for the terminal: ffmpeg records the microphone, a
 // transcription model turns it into text, and spoken file names become
@@ -16,9 +19,16 @@ const RATE = 16000
 // The microphone you picked, kept next to the sign-ins.
 const saved = join(homedir(), '.tanstack-harness-example', 'voice.json')
 
-/** Can this session turn speech into text? */
-export function canTranscribe() {
-  return Boolean(process.env.OPENAI_API_KEY || process.env.XAI_API_KEY)
+/**
+ * Can the session of `threadId` turn speech into text? It needs an OpenAI or
+ * an xAI key: saved with `/connect`, or in the env.
+ */
+export async function canTranscribe(threadId: string) {
+  const keys = await Promise.all([
+    providerKey(openaiByok, threadId),
+    providerKey(grokByok, threadId),
+  ])
+  return keys.some((key) => key !== null)
 }
 
 /**
@@ -323,33 +333,40 @@ export function isSilent(clip: Pick<VoiceClip, 'peak'>) {
 }
 
 /**
- * The words in `audio`, with OpenAI, or Grok when only an xAI key is set.
- * `name` gives the format, for example `voice.wav`. VOICE_LANGUAGE (an
- * ISO-639-1 code such as `en`) tells the model which language to expect.
+ * The words in `audio`, with OpenAI, or Grok when there is only an xAI key.
+ * The key is the one the session of `threadId` uses: saved with `/connect`,
+ * else the env var. `name` gives the format, for example `voice.wav`.
+ * VOICE_LANGUAGE (an ISO-639-1 code such as `en`) tells the model which
+ * language to expect.
  */
-export async function transcribe(audio: Uint8Array, name = 'voice.wav') {
-  const file = new File([audio.slice()], name)
+export async function transcribe(
+  audio: Uint8Array,
+  options: { name: string; threadId: string },
+) {
+  const file = new File([audio.slice()], options.name)
   const language = process.env.VOICE_LANGUAGE
     ? { language: process.env.VOICE_LANGUAGE }
     : {}
-  if (process.env.OPENAI_API_KEY) {
+  const openaiKey = await providerKey(openaiByok, options.threadId)
+  if (openaiKey !== null) {
     const result = await generateTranscription({
-      adapter: openaiTranscription('gpt-4o-transcribe'),
+      adapter: createOpenaiTranscription('gpt-4o-transcribe', openaiKey),
       audio: file,
       ...language,
     })
     return result.text.trim()
   }
-  if (process.env.XAI_API_KEY) {
+  const grokKey = await providerKey(grokByok, options.threadId)
+  if (grokKey !== null) {
     const result = await generateTranscription({
-      adapter: grokTranscription('grok-stt'),
+      adapter: createGrokTranscription('grok-stt', grokKey),
       audio: file,
       ...language,
     })
     return result.text.trim()
   }
   throw new Error(
-    'Voice needs OPENAI_API_KEY or XAI_API_KEY for transcription.',
+    'Voice needs an OpenAI or xAI key for the transcript. Run /connect openai or /connect grok.',
   )
 }
 

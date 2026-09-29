@@ -7,6 +7,11 @@ export interface Question<TSchema extends SchemaInput | undefined = undefined> {
   message: string
   /** The answer's shape. Without one, the answer is any text. */
   schema?: TSchema
+  /**
+   * The answer is a secret, for example an API key or a password. Hosts hide
+   * it while the user types, and the session does not keep it in the inbox.
+   */
+  secret?: boolean
 }
 
 export type AnswerOf<TSchema> = TSchema extends SchemaInput

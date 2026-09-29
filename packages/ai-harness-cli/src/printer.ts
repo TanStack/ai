@@ -14,10 +14,12 @@ import type {
  *
  * Media parts print nothing here. `onMedia` gets each new media part of an
  * assistant message once, from the lead or from a child at any depth.
+ * `hidesSecrets`: the input hides what the user types for a secret
+ * question, so its line says so.
  */
 export function createPrinter(
   write: (text: string) => unknown,
-  options: { onMedia?: (part: MediaPart) => void } = {},
+  options: { onMedia?: (part: MediaPart) => void; hidesSecrets?: boolean } = {},
 ) {
   const done = new Set<string>()
   const written = new Map<string, number>()
@@ -92,8 +94,15 @@ export function createPrinter(
       })
       media(message.parts)
     }
-    for (const question of state.questions)
-      once(`question:${question.id}`, `? ${question.message}`)
+    for (const question of state.questions) {
+      const isHidden = question.secret === true && options.hidesSecrets === true
+      once(
+        `question:${question.id}`,
+        isHidden
+          ? `? ${question.message} (typing is hidden)`
+          : `? ${question.message}`,
+      )
+    }
     for (const signIn of state.signIns)
       once(
         `sign-in:${signIn.connector}:${signIn.url ?? ''}`,

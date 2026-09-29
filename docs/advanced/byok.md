@@ -182,6 +182,35 @@ byok.setServerCoverage(true);
 
 Then a send with no pasted key still POSTs. The relay uses the env key. If that is also empty, the relay returns `byokMissing` (401). The client sets `snapshot.prompt`.
 
+## Keys inside agents
+
+An agent that calls a model needs a key too. Wrap the adapter in `keyedAdapter`. Before the call, the agent makes it with `ctx.keys`:
+
+```typescript
+import { defineAgent, keyedAdapter } from "@tanstack/ai";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+import { openaiByok } from "@tanstack/ai-openai/byok";
+
+const gpt = keyedAdapter(openaiByok, (key) =>
+  createOpenaiChat("gpt-6-astra", key),
+);
+
+export const writer = defineAgent({
+  name: "writer",
+  description: "Writes a short draft",
+  run: async (ctx) =>
+    ctx.chat({
+      adapter: await ctx.keys.adapter(gpt),
+      messages: [{ role: "user", content: "Write a short draft." }],
+      stream: false,
+    }),
+});
+```
+
+- Without a host, `ctx.keys` reads the env var of the provider, here `OPENAI_API_KEY`. If it is empty, the call throws `Missing OpenAI API key. Set OPENAI_API_KEY.`
+- A host can give its own keys in `subagents.binding.keys`. A child agent gives them to its own children.
+- In a harness, `ctx.keys` reads the key that each user saved with `/connect`. See [Connect model providers](../harness/provider-keys).
+
 ## Image, audio, and OpenRouter
 
 For other cases:

@@ -16,6 +16,7 @@ import type { AnyChatMiddleware } from '../middleware/types'
 import type { RunAgentResumeItem } from '../../../types'
 import type { SubagentRunInput } from './define-agent'
 import type { SubagentBudget } from './limits'
+import type { ProviderKeys } from '../../../byok/keyed'
 
 /**
  * The fields a child `chat()` needs, in one spread:
@@ -52,6 +53,12 @@ export interface SubagentBinding {
    * down, so limits hold across the whole tree.
    */
   budget?: SubagentBudget
+  /**
+   * The provider keys an agent reads as `ctx.keys`. A child's
+   * `ctx.chat({ subagents })` passes them down to its own children. Without
+   * them, `ctx.keys` reads each provider's `env` names.
+   */
+  keys?: ProviderKeys
 }
 
 /**
@@ -124,13 +131,14 @@ export function createBoundActivities(
         ...(input.resume ? { resume: input.resume } : {}),
         abortController,
         ...options,
-        // Nested children get the host middleware before their own, and share
-        // the tree budget.
+        // Nested children get the host middleware before their own, share
+        // the tree budget, and get the host keys unless the call sets its own.
         ...(options.subagents
           ? {
               subagents: {
                 ...options.subagents,
                 binding: {
+                  ...(binding?.keys ? { keys: binding.keys } : {}),
                   ...options.subagents.binding,
                   chatMiddleware: [
                     ...chatMiddleware,

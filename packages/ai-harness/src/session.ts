@@ -10,7 +10,7 @@ import {
   runAgentStream,
   validateWithStandardSchema,
 } from '@tanstack/ai'
-import { credentialsFor } from './auth'
+import { credentialsFor, providerKeysFor } from './auth'
 import { checkConfigValue } from './config'
 import { withPersistence } from '@tanstack/ai-persistence'
 import { AgentRegistry } from './agents'
@@ -32,6 +32,7 @@ import type {
   Interrupt,
   Modality,
   ModelMessage,
+  ProviderKeys,
   RunAgentResumeItem,
   SchemaInput,
   StreamChunk,
@@ -48,7 +49,7 @@ import type {
   InboxEntry,
   InboxStore,
 } from '@tanstack/ai-persistence'
-import type { CredentialsAccess } from './auth'
+import type { AuthRequiredError, CredentialsAccess } from './auth'
 import type { MediaStore } from './media'
 import type { PluginSessionApi, Question } from './commands'
 import type { ConfigOption } from './config'
@@ -140,6 +141,8 @@ export interface SessionSnapshot {
     questionId: string
     message: string
     schema?: unknown
+    /** The answer is a secret (a key or a password). Hide it as the user types. */
+    secret?: boolean
   }>
   /** The state of each plugin that uses `ctx.state`, by plugin name. */
   plugins: Record<string, unknown>
@@ -293,6 +296,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     {
       message: string
       schema: SchemaInput | undefined
+      secret: boolean
       resolve: (value: unknown) => void
       reject: (error: unknown) => void
     }
@@ -302,6 +306,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private readonly stateLoaders = new Map<string, () => Promise<unknown>>()
   private readonly localState = new Map<string, unknown>()
   private readonly credentialAccess: CredentialsAccess
+  /** Model provider keys: saved with `/connect <provider>`, else the env var. */
+  private readonly keys: ProviderKeys
   private readonly services: PluginServices
   private readonly media: SessionDependencies['media']
   private readonly mediaStore: MediaStore
@@ -320,21 +326,23 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     this.principal = deps.principal
     this.onClose = deps.onClose
     this.checkpoint = checkpointMiddleware(deps.persistence, deps.hostId)
+    const onMissing = (error: AuthRequiredError) =>
+      this.feed.publish(
+        'session',
+        customEvent(HARNESS_EVENTS.authRequired, {
+          connector: error.connector,
+          ...(error.url ? { url: error.url } : {}),
+        }),
+      )
     this.credentialAccess = credentialsFor(
       deps.credentials,
       {
         threadId: deps.threadId,
         ...(deps.principal ? { userId: deps.principal.id } : {}),
       },
-      (error) =>
-        this.feed.publish(
-          'session',
-          customEvent(HARNESS_EVENTS.authRequired, {
-            connector: error.connector,
-            ...(error.url ? { url: error.url } : {}),
-          }),
-        ),
+      onMissing,
     )
+    this.keys = providerKeysFor(this.credentialAccess, onMissing)
     this.services = {
       emit: (plugin, name, value) => this.emitPluginEvent(plugin, name, value),
       on: (name, handler) => {
@@ -349,6 +357,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       config: { get: (key) => this.configValue(key) },
       state: (plugin, initial) => this.pluginState(plugin, initial),
       credentials: this.credentialAccess,
+      keys: this.keys,
       session: this.pluginApi(),
       agents: {
         run: ((target: string | AnyAgent, input?: unknown) =>
@@ -562,6 +571,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           ...(question.schema
             ? { schema: convertSchemaToJsonSchema(question.schema) }
             : {}),
+          ...(question.secret ? { secret: true } : {}),
         }),
       ),
       plugins: { ...this.stateDoc },
@@ -716,7 +726,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /** Answer a question from `ctx.session.ask`. */
   async answer(questionId: string, value: unknown): Promise<Receipt> {
     const inputId = createInputId()
-    await this.accept(inputId, { op: 'answer', questionId, value })
+    // A secret (a key or a password) stays out of the inbox. A restart does
+    // not replay an answer, so the inbox never needs it.
+    const isSecret = this.questions.get(questionId)?.secret === true
+    await this.accept(inputId, {
+      op: 'answer',
+      questionId,
+      value: isSecret ? '[secret]' : value,
+    })
     const question = this.questions.get(questionId)
     if (!question) {
       this.reject(inputId, 'unknown_question')
@@ -802,6 +819,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       this.questions.set(questionId, {
         message: question.message,
         schema: question.schema,
+        secret: question.secret === true,
         resolve,
         reject,
       })
@@ -813,6 +831,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           ...(question.schema
             ? { schema: convertSchemaToJsonSchema(question.schema) }
             : {}),
+          ...(question.secret ? { secret: true } : {}),
         }),
       )
     })
@@ -1153,7 +1172,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * What every agent run of `operation` gets: the middleware of session
    * plugins, then of run plugins, then the session's media middleware. It
    * keeps the media the agents make, publishes a `harness.media` event for
-   * each file, and pushes its record to `captured`.
+   * each file, and pushes its record to `captured`. The agents read the
+   * session's provider keys as `ctx.keys`.
    */
   private binding(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
@@ -1193,6 +1213,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           transcribe: options?.transcribe,
         }),
       ],
+      keys: this.keys,
     } satisfies SubagentBinding
   }
 
@@ -1309,7 +1330,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         [...staticTools, ...discovered],
         operation,
       )
-      const adapter: AnyTextAdapter = picked ?? this.harness.adapter
+      // A keyed adapter is built for this turn with the user's key. A
+      // missing key publishes `auth_required` and fails the turn.
+      const adapter: AnyTextAdapter = await this.keys.adapter(
+        picked ?? this.harness.adapter,
+      )
       const message =
         turn.message !== undefined
           ? await this.userMessage(turn.message)

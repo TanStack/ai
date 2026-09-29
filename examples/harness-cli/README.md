@@ -8,15 +8,42 @@ From the repo root:
 
 1. `pnpm install`
 2. `pnpm build:all` (the example uses the local packages)
-3. Copy `.env.example` to `.env` and set the keys you have. Each key turns on more (see the table). Without a key, a demo model answers.
-4. `pnpm --filter harness-cli-example start`
+3. `pnpm --filter harness-cli-example start`
+4. Type `/connect openai` and paste your OpenAI key. Or type `/connect openrouter` to sign in with the browser.
 
-| Key                 | Adds                                                          |
-| ------------------- | ------------------------------------------------------------- |
-| `OPENAI_API_KEY`    | the `gpt` models, images, speech, Sora video, and voice input |
-| `ANTHROPIC_API_KEY` | the `claude` models                                           |
-| `XAI_API_KEY`       | the `grok` model, and video with Grok Imagine                 |
-| `FAL_KEY`           | songs and sound effects                                       |
+Now send a message. After an OpenRouter sign-in, run `/model openrouter-gpt` first.
+
+## Connect your models
+
+You do not need a `.env` file. Connect each provider inside the app:
+
+- `/connect openai`: paste your key. The input shows dots, not the key.
+- `/connect openrouter`: sign in with the browser. OpenRouter gives the app a key.
+- `/keys`: show each provider and where its key comes from (saved, an env var, or missing).
+- `/disconnect openai`: delete the saved key.
+
+The app saves the key in `~/.tanstack-harness-example/credentials.json`. It shows only the last 4 characters of a key. The header shows which providers have a key, and it changes when you connect one.
+
+| Provider id  | Adds                                                                         |
+| ------------ | ---------------------------------------------------------------------------- |
+| `openai`     | the `gpt` and `gpt-fast` models, images, speech, Sora video, and voice input |
+| `anthropic`  | the `claude` and `claude-fast` models                                        |
+| `grok`       | the `grok` model, video with Grok Imagine, and voice input                   |
+| `fal`        | songs and sound effects                                                      |
+| `openrouter` | the `openrouter-gpt` and `openrouter-claude` models                          |
+
+If a provider has no key, its models and tools stop and tell you which `/connect` to run. If no key is set in the env, `/model demo` answers without a key.
+
+### Developer shortcut: a `.env` file
+
+1. Copy `.env.example` to `.env`.
+2. Set the keys that you have.
+
+An env var works when no key is saved. The first model with an env key starts. Audio files that you attach with `@file` become text only when `OPENAI_API_KEY` is set. Voice messages use the saved key.
+
+### Ship it to your users
+
+`src/harness.ts` wraps each model in `keyedAdapter`, and the `providerKeys` plugin adds `/connect`, `/disconnect`, and `/keys`. The harness saves the keys of each user in its credential store: a file here, your database in a hosted app. The guide is [Connect model providers](../../docs/harness/provider-keys.md).
 
 ## Talk to it
 
@@ -32,7 +59,7 @@ The first recording listens on every microphone, and keeps the one that heard yo
 - Set `VOICE_LANGUAGE=en` (or your language) so the transcript is in that language.
 - `/voice note.m4a` sends a voice message that you recorded before.
 
-Voice needs `ffmpeg` on the PATH, and `OPENAI_API_KEY` or `XAI_API_KEY` for the transcript.
+Voice needs `ffmpeg` on the PATH, and an OpenAI or xAI key for the transcript (`/connect openai` or `/connect grok`).
 
 ## Make media
 
@@ -44,6 +71,8 @@ Ask in words. The agent picks the tool:
 - `compose a 30 second synth-pop song about foxes, with the lyrics "fox in the snow"`
 - `make a 5 second sound effect of rain on a window`
 - `make a short video of snow in a pine forest` (a minute or two)
+
+Each tool needs the key of its provider (see [Connect your models](#connect-your-models)).
 
 The harness keeps each file, and the screen saves it in `example-coder-media` with a number. `/open 2` opens file 2, and `/play` plays the last song or speech (with `ffplay` from ffmpeg).
 

@@ -870,7 +870,8 @@
         {
           "label": "Build your first harness",
           "to": "harness/overview",
-          "addedAt": "2026-09-26"
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Connect clients",
@@ -905,6 +906,11 @@
           "to": "harness/coding-agent",
           "addedAt": "2026-09-26",
           "updatedAt": "2026-09-28"
+        },
+        {
+          "label": "Connect model providers",
+          "to": "harness/provider-keys",
+          "addedAt": "2026-09-29"
         },
         {
           "label": "Auth and connectors",
@@ -1171,7 +1177,7 @@
           "label": "Bring Your Own Key",
           "to": "advanced/byok",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Debug Logging",

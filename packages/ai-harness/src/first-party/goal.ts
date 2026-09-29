@@ -3,7 +3,7 @@ import { defineCommand } from '../commands'
 import { createPluginEvent } from '../extensions'
 import { definePlugin } from '../plugins'
 import { textOf, transcriptText } from './session-tools'
-import type { AnyTextAdapter } from '@tanstack/ai'
+import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
 import type { ChatTurnResult, Operation } from '../types'
 import type { SessionViewState } from '../view/types'
 
@@ -88,14 +88,18 @@ function describe(saved: Goal | null, maxRounds: number) {
  *
  * The loop stops when the goal is met, at the round limit, when a turn waits
  * for approval or fails, and when the user sends a message. `/goal` shows the
- * goal, `/goal stop` ends it, and `/goal resume` continues it.
+ * goal, `/goal stop` ends it, and `/goal resume` continues it. A
+ * `keyedAdapter(...)` judge is built with the user's key for each check.
  *
  * @example
  * ```ts
  * plugins: () => [goal({ judge: openaiText('gpt-5.6-luna') })]
  * ```
  */
-export function goal(options: { judge: AnyTextAdapter; maxRounds?: number }) {
+export function goal(options: {
+  judge: AnyTextAdapter | KeyedAdapter<AnyTextAdapter>
+  maxRounds?: number
+}) {
   const maxRounds = options.maxRounds ?? 20
   return definePlugin({
     name: 'tanstack/goal',
@@ -164,7 +168,7 @@ export function goal(options: { judge: AnyTextAdapter; maxRounds?: number }) {
           (await ctx.session.transcript()).slice(-10),
         ).slice(-8000)
         const verdict = await chat({
-          adapter: options.judge,
+          adapter: await ctx.keys.adapter(options.judge),
           messages: [
             {
               role: 'user',

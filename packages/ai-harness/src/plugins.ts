@@ -8,6 +8,8 @@ import type {
   AnyTool,
   Capability,
   CapabilityHandle,
+  KeyedAdapter,
+  ProviderKeys,
 } from '@tanstack/ai'
 import type {
   AgentInputOf,
@@ -71,9 +73,10 @@ export interface PluginContributions {
   contribute?: ReadonlyArray<ExtensionItem>
   /**
    * Pick the main-loop adapter for the next turn, or return `undefined` to
-   * keep the harness adapter. The last plugin that returns one wins.
+   * keep the harness adapter. The last plugin that returns one wins. The
+   * session builds a `keyedAdapter(...)` with the user's key.
    */
-  adapter?: () => AnyTextAdapter | undefined
+  adapter?: () => AnyTextAdapter | KeyedAdapter<AnyTextAdapter> | undefined
   /**
    * Tools found at run time, for example the tools of an MCP server the user
    * signed in to after the session opened. Called before each chat turn. A
@@ -160,6 +163,7 @@ export interface PluginServices {
   config: { get: (key: string) => unknown }
   state: <T>(plugin: string, initial: T) => PluginState<T>
   credentials: CredentialsAccess
+  keys: ProviderKeys
   session: PluginSessionApi
   agents: PluginAgentActions
 }
@@ -201,6 +205,13 @@ export interface PluginSetupContext {
   config: { get: (key: string) => unknown }
   /** Credentials of the session's principal. */
   credentials: CredentialsAccess
+  /**
+   * Model provider keys of the session's principal: the key saved with
+   * `/connect <provider>`, else the provider's env var. Build a
+   * `keyedAdapter(...)` with `await ctx.keys.adapter(adapter)` just before
+   * the call. A missing key throws `AuthRequiredError`.
+   */
+  keys: ProviderKeys
   session: PluginSessionApi
 }
 
@@ -264,7 +275,7 @@ export interface MountedPlugins {
   config: Map<string, { option: ConfigOption; owner: string }>
   /** Contributions to extension points, by point name. */
   extensions: Map<string, Array<{ value: unknown; owner: string }>>
-  adapters: Array<() => AnyTextAdapter | undefined>
+  adapters: Array<NonNullable<PluginContributions['adapter']>>
   discoverers: Array<{
     discover: () => ReadonlyArray<AnyTool> | Promise<ReadonlyArray<AnyTool>>
     owner: string
@@ -337,6 +348,11 @@ const NO_SERVICES: PluginServices = {
     set: unavailable('ctx.credentials'),
     delete: unavailable('ctx.credentials'),
     list: unavailable('ctx.credentials'),
+  },
+  keys: {
+    get: unavailable('ctx.keys'),
+    require: unavailable('ctx.keys'),
+    adapter: unavailable('ctx.keys'),
   },
   session: {
     threadId: '',
@@ -459,7 +475,7 @@ export async function mountPlugins(
   for (const [point, items] of env.inheritedExtensions ?? []) {
     extensions.set(point, [...items])
   }
-  const adapters: Array<() => AnyTextAdapter | undefined> = []
+  const adapters: MountedPlugins['adapters'] = []
   const discoverers: MountedPlugins['discoverers'] = []
   const preparers: MountedPlugins['preparers'] = []
   const subagents: Array<AnyAgent> = []
@@ -533,6 +549,7 @@ export async function mountPlugins(
         state: (initial) => services.state(plugin.name, initial),
         config: services.config,
         credentials: services.credentials,
+        keys: services.keys,
         session: services.session,
       })
       for (const handle of plugin.provides ?? []) {

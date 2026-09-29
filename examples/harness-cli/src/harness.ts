@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { EventType, defineAgent } from '@tanstack/ai'
+import { EventType, defineAgent, keyedAdapter } from '@tanstack/ai'
 import { defineHarness } from '@tanstack/ai-harness'
 import {
   compact,
@@ -10,22 +10,26 @@ import {
   modelPicker,
   permissions,
   projectInstructions,
+  providerKeys,
   todos,
   usage,
   workspaceTools,
 } from '@tanstack/ai-harness/plugins'
-import { anthropicText } from '@tanstack/ai-anthropic'
+import { createAnthropicChat } from '@tanstack/ai-anthropic'
+import { anthropicByok } from '@tanstack/ai-anthropic/byok'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { codeMode } from '@tanstack/ai-code-mode/harness'
 import { codexText } from '@tanstack/ai-codex'
+import { falByok } from '@tanstack/ai-fal/byok'
 import { mcpConnector } from '@tanstack/ai-mcp/connector'
-import { grokText, grokVideo } from '@tanstack/ai-grok'
+import { createGrokText } from '@tanstack/ai-grok'
+import { grokByok } from '@tanstack/ai-grok/byok'
 import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
-import {
-  openaiText,
-  openaiTranscription,
-  openaiVideo,
-} from '@tanstack/ai-openai'
+import { createOpenaiChat, openaiTranscription } from '@tanstack/ai-openai'
+import { openaiByok } from '@tanstack/ai-openai/byok'
+import { createOpenRouterText } from '@tanstack/ai-openrouter'
+import { openrouterByok } from '@tanstack/ai-openrouter/byok'
+import { openrouterSignIn } from '@tanstack/ai-openrouter/pkce'
 import {
   defineSandbox,
   defineWorkspace,
@@ -42,12 +46,14 @@ import {
   speechAgent,
   videoAgent,
 } from './media'
-import type { AnyTextAdapter } from '@tanstack/ai'
+import { envKey } from './store'
+import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
+import type { ByokProvider, ProviderId } from '@tanstack/ai/byok'
 
 // The agent works in ./playground, so it cannot touch the rest of your disk.
 const root = fileURLToPath(new URL('../playground', import.meta.url))
 
-/** Without an API key, a stand-in model that explains how to add one. */
+/** Without any model key, a stand-in model that explains how to add one. */
 function demoModel(): AnyTextAdapter {
   let calls = 0
   return {
@@ -91,7 +97,7 @@ function demoModel(): AnyTextAdapter {
         yield {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId,
-          delta: `(demo model) You said: "${said}". Set OPENAI_API_KEY or ANTHROPIC_API_KEY to talk to a real model.`,
+          delta: `(demo model) You said: "${said}". Run /connect openai (/keys lists the others), then /model gpt, to talk to a real model.`,
           timestamp: now,
         }
         yield { type: EventType.TEXT_MESSAGE_END, messageId, timestamp: now }
@@ -106,27 +112,57 @@ function demoModel(): AnyTextAdapter {
   }
 }
 
-/**
- * The models `/model <name>` can switch to: one or two per provider with a
- * key. The first one is the default.
- */
-function pickModels() {
-  const choices: Record<string, AnyTextAdapter> = {}
-  if (process.env.OPENAI_API_KEY) {
-    choices.gpt = openaiText('gpt-6-astra')
-    choices['gpt-fast'] = openaiText('gpt-6-luna')
-  }
-  if (process.env.ANTHROPIC_API_KEY) {
-    choices.claude = anthropicText('claude-opus-5-5')
-    choices['claude-fast'] = anthropicText('claude-sonnet-5')
-  }
-  if (process.env.XAI_API_KEY) choices.grok = grokText('grok-4.7')
-  const [main = demoModel()] = Object.values(choices)
-  if (Object.keys(choices).length === 0) choices.demo = main
-  return { main, choices }
+/** Is a key for `provider` in the environment (the `.env` shortcut)? */
+function hasEnvKey(provider: ByokProvider | ProviderId) {
+  return typeof provider !== 'string' && envKey(provider) !== null
 }
 
-const { main, choices } = pickModels()
+/**
+ * The models `/model <name>` can switch to. Each one is built for each turn
+ * with the user's own key: the key saved with `/connect <provider>`, else the
+ * env var. A model without a key asks the user to connect.
+ */
+const models = {
+  gpt: keyedAdapter(openaiByok, (key) => createOpenaiChat('gpt-6-astra', key)),
+  'gpt-fast': keyedAdapter(openaiByok, (key) =>
+    createOpenaiChat('gpt-6-luna', key),
+  ),
+  claude: keyedAdapter(anthropicByok, (key) =>
+    createAnthropicChat('claude-opus-5-5', key),
+  ),
+  'claude-fast': keyedAdapter(anthropicByok, (key) =>
+    createAnthropicChat('claude-sonnet-5', key),
+  ),
+  grok: keyedAdapter(grokByok, (key) => createGrokText('grok-4.7', key)),
+  'openrouter-gpt': keyedAdapter(openrouterByok, (key) =>
+    createOpenRouterText('openai/gpt-6-astra', key),
+  ),
+  'openrouter-claude': keyedAdapter(openrouterByok, (key) =>
+    createOpenRouterText('anthropic/claude-opus-5.5', key),
+  ),
+}
+
+// The first model with an env key starts, so a `.env` works as before. The
+// saved keys belong to a session, so without an env key `gpt` starts, and
+// the first message asks the user to run /connect openai.
+const envModel = Object.entries(models).find(([, model]) =>
+  hasEnvKey(model.provider),
+)
+const startModel = envModel?.[0] ?? 'gpt'
+// Any of the models: the harness, /compact, and /goal take this common type.
+const main: KeyedAdapter<AnyTextAdapter> = envModel?.[1] ?? models.gpt
+// With no env key at all, `/model demo` answers without a key.
+const choices = { ...models, ...(envModel ? {} : { demo: demoModel() }) }
+
+// `/connect openai` asks for the key (the screen hides it as you type), and
+// `/connect openrouter` signs in with the browser. `/keys` lists them all.
+const keyProviders = [
+  openaiByok,
+  anthropicByok,
+  grokByok,
+  falByok,
+  { ...openrouterByok, signIn: openrouterSignIn() },
+]
 
 /** Is `command` on the PATH? Checks the Windows extensions too. */
 function onPath(command: string) {
@@ -177,9 +213,9 @@ const haiku = defineAgent({
   name: 'haiku',
   description: 'Writes a haiku about a topic',
   inputSchema: z.object({ topic: z.string() }),
-  run: (ctx) =>
+  run: async (ctx) =>
     ctx.chat({
-      adapter: main,
+      adapter: await ctx.keys.adapter(main),
       messages: [
         {
           role: 'user',
@@ -191,20 +227,12 @@ const haiku = defineAgent({
 })
 
 // The model calls the media agents as tools, and the harness keeps each file
-// they make. Each one turns on with the key its provider needs:
-// - OPENAI_API_KEY: images, speech, and video with Sora.
-// - XAI_API_KEY: video with Grok Imagine (it wins over Sora).
-// - FAL_KEY: songs and sound effects.
-const video = process.env.XAI_API_KEY
-  ? videoAgent(grokVideo('grok-imagine-video-1.5'))
-  : process.env.OPENAI_API_KEY
-    ? videoAgent(openaiVideo('sora-2'))
-    : undefined
-const media = [
-  ...(process.env.OPENAI_API_KEY ? [imageAgent, speechAgent] : []),
-  ...(video ? [video] : []),
-  ...(process.env.FAL_KEY ? [songAgent, soundAgent] : []),
-]
+// they make. Each one uses the key its provider needs. Without the key, the
+// tool says which /connect to run:
+// - OpenAI: images, speech, and video with Sora.
+// - xAI Grok: video with Grok Imagine (it wins over Sora).
+// - fal: songs and sound effects.
+const media = [imageAgent, speechAgent, videoAgent, songAgent, soundAgent]
 
 // Notion and Linear through their MCP servers. `/connect notion` signs in
 // through the browser. No app setup or API key is needed.
@@ -274,41 +302,56 @@ const tools = [
   ...Object.keys(codingAgentList),
 ]
 
-/** What this session can do, and what turns each one on, for the screen. */
+/**
+ * A feature that a key for any one of `providers` turns on. `on` is the
+ * state at startup, from the env vars only. The screen follows the saved
+ * keys live.
+ */
+function keyFeature(
+  name: string,
+  providers: Array<ByokProvider>,
+  needs: string,
+) {
+  return {
+    name,
+    on: providers.some(hasEnvKey),
+    needs,
+    providers: providers.map((provider) => provider.id),
+  }
+}
+
+/**
+ * What this session can do, and what turns each one on, for the screen.
+ * `providers` are the ids of the key providers a feature needs (any one).
+ */
 export const features = [
-  {
-    name: 'voice',
-    on: Boolean(process.env.OPENAI_API_KEY || process.env.XAI_API_KEY),
-    needs: 'OPENAI_API_KEY or XAI_API_KEY, and ffmpeg',
-  },
-  {
-    name: 'images',
-    on: Boolean(process.env.OPENAI_API_KEY),
-    needs: 'OPENAI_API_KEY',
-  },
-  {
-    name: 'speech',
-    on: Boolean(process.env.OPENAI_API_KEY),
-    needs: 'OPENAI_API_KEY',
-  },
-  {
-    name: 'video',
-    on: video !== undefined,
-    needs: 'XAI_API_KEY or OPENAI_API_KEY',
-  },
-  { name: 'songs', on: Boolean(process.env.FAL_KEY), needs: 'FAL_KEY' },
+  keyFeature(
+    'voice',
+    [openaiByok, grokByok],
+    'an OpenAI or xAI key (/connect openai or /connect grok), and ffmpeg',
+  ),
+  keyFeature('images', [openaiByok], 'an OpenAI key (/connect openai)'),
+  keyFeature('speech', [openaiByok], 'an OpenAI key (/connect openai)'),
+  keyFeature(
+    'video',
+    [grokByok, openaiByok],
+    'an xAI or OpenAI key (/connect grok or /connect openai)',
+  ),
+  keyFeature('songs', [falByok], 'a fal key (/connect fal)'),
   {
     name: 'claude code',
     on: 'claude_code' in codingAgentList,
     needs: '`claude` on the PATH',
+    providers: [],
   },
   {
     name: 'codex',
     on: 'codex' in codingAgentList,
     needs: '`codex` on the PATH',
+    providers: [],
   },
-  { name: 'notion', on: true, needs: '' },
-  { name: 'linear', on: true, needs: '' },
+  { name: 'notion', on: true, needs: '', providers: [] },
+  { name: 'linear', on: true, needs: '', providers: [] },
 ]
 
 export const assistant = defineHarness({
@@ -321,11 +364,14 @@ export const assistant = defineHarness({
     `Your agent tools: ${tools.join(', ') || 'none'}. The user gets each file a media tool makes, so do not paste file contents or links.`,
     'When the user asks to run Codex or Claude Code (by voice too: "run a Codex agent"), call that tool with a clear task, then give its answer back in a few lines.',
     'The user can send files and voice messages. When they send an image and ask for a new version, a style, or an edit of it, call the image tool with useAttachedImages.',
-    'You can read Notion and Linear when they are connected. If a tool says to sign in, tell the user to run /connect notion or /connect linear.',
+    'You can read Notion and Linear when they are connected. If a tool says to sign in or that a key is missing, tell the user the /connect command it names, for example /connect notion or /connect openai.',
   ],
   agents: [haiku],
   subagents: { agents: media },
   // Audio files the user sends become text for models that cannot read audio.
+  // ponytail: `media.transcribe` takes a plain adapter, not a keyed one, so
+  // this needs OPENAI_API_KEY in the env. A key saved with /connect does not
+  // turn it on. Voice messages on the screen use the saved key (src/voice.ts).
   ...(process.env.OPENAI_API_KEY
     ? { media: { transcribe: openaiTranscription('gpt-4o-transcribe') } }
     : {}),
@@ -335,7 +381,8 @@ export const assistant = defineHarness({
     permissions(),
     workspaceTools({ root }),
     todos(),
-    modelPicker({ choices, default: Object.keys(choices)[0] }),
+    providerKeys({ providers: keyProviders }),
+    modelPicker({ choices, default: startModel }),
     projectInstructions({ root }),
     compact({ adapter: main }),
     usage(),

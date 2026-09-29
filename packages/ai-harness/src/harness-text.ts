@@ -34,7 +34,8 @@ function lastUserInput(messages: ReadonlyArray<ModelMessage>) {
  */
 function inputsOf(harness: AnyHarness) {
   // ponytail: the harness adapter only. A plugin that picks another model at
-  // runtime is not seen here.
+  // runtime is not seen here. A keyedAdapter has no model until a turn
+  // builds it, so it has no `inputModalities` and every kind is sent.
   const kinds = acceptedKinds(
     harness.adapter.inputModalities,
     harness.media?.accepts,

@@ -77,7 +77,7 @@ For the session:
 - `/agents`: list the agents.
 - `/agent <name> {"json":"input"}`: run an agent in the background. When it is done, a new turn starts with its result.
 - `/config`: show the settings. `/config <key> <value>` changes one.
-- `/connect <id>` and `/disconnect <id>`: sign in to a connector, or out.
+- `/connect <id>` and `/disconnect <id>`: sign in to a connector, or out. With [`providerKeys`](./provider-keys), they also connect a model provider, for example `/connect openai`.
 
 For the running work:
 

@@ -25,6 +25,7 @@ import type {
   Tool,
   UIMessage,
 } from '../../../types'
+import { envProviderKeys } from '../../../byok/env-keys'
 import { createBoundActivities } from './bound'
 import { SubagentBudget } from './limits'
 import type { SubagentBinding } from './bound'
@@ -479,8 +480,8 @@ function* valueResultChunks(
 }
 
 /**
- * Build the context `run` receives: the spawn input plus `forward` and the
- * bound activity functions.
+ * Build the context `run` receives: the spawn input plus `forward`, the
+ * provider keys, and the bound activity functions.
  */
 function runContext(
   agentName: string,
@@ -498,6 +499,7 @@ function runContext(
       ...(input.resume ? { resume: input.resume } : {}),
       abortController,
     },
+    keys: binding?.keys ?? envProviderKeys,
     ...createBoundActivities(agentName, input, abortController, binding),
   } satisfies SubagentRunContext
 }

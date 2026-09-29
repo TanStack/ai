@@ -218,6 +218,9 @@ importers:
       '@tanstack/ai-openai':
         specifier: workspace:*
         version: link:../../packages/ai-openai
+      '@tanstack/ai-openrouter':
+        specifier: workspace:*
+        version: link:../../packages/ai-openrouter
       '@tanstack/ai-persistence':
         specifier: workspace:*
         version: link:../../packages/ai-persistence
