@@ -197,6 +197,9 @@ importers:
       '@tanstack/ai-dashboard':
         specifier: workspace:*
         version: link:../../packages/ai-dashboard
+      '@tanstack/ai-fal':
+        specifier: workspace:*
+        version: link:../../packages/ai-fal
       '@tanstack/ai-grok':
         specifier: workspace:*
         version: link:../../packages/ai-grok

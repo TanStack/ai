@@ -1,6 +1,6 @@
 # Harness CLI example
 
-A small coding agent in your terminal, built with `@tanstack/ai-harness`. It reads and edits files in `./playground`, asks before it writes a file or runs a command, keeps a todo list, and can switch models. It can also read Notion and Linear, and make images and videos.
+A coding agent in your terminal, built with `@tanstack/ai-harness`. Talk to it or type. It edits files in `./playground`, makes images, video, speech, songs, and sound effects, reads Notion and Linear, and hands coding work to your local Claude Code and Codex.
 
 ## Run it
 
@@ -8,58 +8,76 @@ From the repo root:
 
 1. `pnpm install`
 2. `pnpm build:all` (the example uses the local packages)
-3. Copy `.env.example` to `.env` and set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. Without a key, a demo model answers.
+3. Copy `.env.example` to `.env` and set the keys you have. Each key turns on more (see the table). Without a key, a demo model answers.
 4. `pnpm --filter harness-cli-example start`
 
-Try these:
+| Key | Adds |
+|---|---|
+| `OPENAI_API_KEY` | the `gpt` models, images, speech, Sora video, and voice input |
+| `ANTHROPIC_API_KEY` | the `claude` models |
+| `XAI_API_KEY` | the `grok` model, and video with Grok Imagine |
+| `FAL_KEY` | songs and sound effects |
 
-- `create hello.txt with a short poem`: the agent asks before `write_file`. Type `y`.
-- `/mode plan`, then ask for another file: the write is refused.
-- `/todos`, `/usage`, `/model fast`
-- `/goal create a file hello.txt that says hi`: the agent keeps working until the model says the goal is met. `/goal` shows the status.
-- Press Esc to stop a long answer. Type while it works to steer it.
+## Talk to it
 
-## The terminal screen
+1. Press Ctrl+R and speak.
+2. Press Ctrl+R (or Enter) again. The screen shows what it heard, and sends it.
 
-In a terminal, `start` shows an Ink screen. The screen is `src/tui.tsx`, and `src/cli.ts` gives it to `runCli` as `ui`. It is plain example code on `createSessionView`, so copy it and change it.
+- Name a file, and it is sent too: "describe fox dot png", "use cat.png as a reference".
+- Say "the last image" (or video, song) for the last file the agent made: "make a pencil sketch of the last image".
+- Say "Hey, run a Codex agent that adds a test": Codex runs, and the screen shows its output.
+- `/mic` lists the microphones, and `/mic 3` records from the third one. A recording with only silence is not sent.
+- `/voice note.m4a` sends a voice message that you recorded before.
 
-- It shows the messages, tool calls, child agents, approvals, questions, sign-ins, the goal, and the status.
-- It has `/help`, `/connect <id>`, `/disconnect <id>`, and `/exit`. Other commands, for example `/todos`, go to the plugins.
-- It opens sign-in links in the browser.
+Voice needs `ffmpeg` on the PATH, and `OPENAI_API_KEY` or `XAI_API_KEY` for the transcript.
 
-Piped input uses line mode. Line mode also has `/agents` and `/agent <name> [json]`, which runs a typed agent in the background:
+## Make media
 
-```bash
-echo /agents | pnpm --filter harness-cli-example start
-echo '/agent haiku {"topic":"rain"}' | pnpm --filter harness-cli-example start
-```
+Ask in words. The agent picks the tool:
 
-## Use Notion, Linear, images, and video
+- `make an image of a red fox in the snow`
+- `make a watercolor version of @./playground/fox.png`: the image tool uses the images you send as references.
+- `read this aloud with the nova voice: hello`
+- `compose a 30 second synth-pop song about foxes, with the lyrics "fox in the snow"`
+- `make a 5 second sound effect of rain on a window`
+- `make a short video of snow in a pine forest` (a minute or two)
 
-1. Run `/connect notion`. Approve the consent page that opens in the browser. Do the same with `/connect linear`.
-2. Ask: `find my latest Linear issue, look for a related Notion page, then make an image and a short video about it`.
-3. The harness keeps each file. The CLI saves it in `example-coder-media` and prints `[image saved: <path>]`. Change the folder with `--media-dir <dir>`.
-4. To send a file, put `@` before its path: `describe @./playground/cat.png`.
-
-- Sign-ins are kept in `~/.tanstack-harness-example/credentials.json`, so you sign in once. `/disconnect notion` deletes one.
-- Images use `OPENAI_API_KEY`. Videos use Grok Imagine when `XAI_API_KEY` is set, and OpenAI Sora when it is not.
-- Code mode is on: read-only tools (file reads, read-only Notion and Linear tools) are `external_*` functions in one `execute_typescript` program, which runs in a QuickJS isolate. Ask: `in one program, list my Linear issues and search Notion for them`.
+The harness keeps each file, and the screen saves it in `example-coder-media` with a number. `/open 2` opens file 2, and `/play` plays the last song or speech (with `ffplay` from ffmpeg).
 
 ## Hand work to Claude Code and Codex
 
-1. Sign in to the CLIs once: `claude login` and `codex login`.
-2. Start with `CODING_AGENTS=1`. If you use Codex with a ChatGPT login, also set `CODEX_MODEL` to the model in `~/.codex/config.toml`.
-3. Ask: `have claude_code create notes.md with one line, then have codex add a second line`.
+When `claude` and `codex` are on the PATH, the agent can call them. They work in `./playground` with your own `claude login` and `codex login`, and the API keys are removed from their processes.
 
-- Both agents work in `./playground` with your own logins. The API keys are removed from their processes.
-- The screen shows each agent with its status, its tool calls, and its latest text. `/fresh` starts new agent sessions.
-- On Windows, the Codex sandbox can block the folder (Access is denied). Then set `CODEX_SANDBOX_MODE=danger-full-access`, only for a folder you trust.
+- Ask: `have codex create notes.md with one line, then have claude code add a second line`.
+- The screen shows each agent with its status, its tool calls, and its output. When it ends, the last lines of its answer stay.
+- Codex uses the `model` and `sandbox_mode` of your `~/.codex/config.toml`. `CODEX_MODEL` and `CODEX_SANDBOX_MODE` change them.
+- On Windows, the `workspace-write` sandbox of Codex can block the folder (Access is denied). Then use `danger-full-access`, only for a folder you trust.
+
+## Use Notion and Linear
+
+1. Run `/connect notion`. Approve the consent page that opens in the browser. Do the same with `/connect linear`.
+2. Ask: `list the titles of my 3 latest Linear issues`, or `search Notion for the onboarding page`.
+
+- Sign-ins are kept in `~/.tanstack-harness-example/credentials.json`, so you sign in once. `/disconnect notion` deletes one.
+- Code mode is on: read-only tools (file reads, read-only Notion and Linear tools) are functions in one `execute_typescript` program, which runs in a QuickJS isolate.
+
+## Everything else it shows
+
+- `/model` lists the models, and `/model claude` switches at the next turn. The header shows the current one.
+- `create hello.txt with a short poem`: the agent asks before `write_file`. Type `y`.
+- `/mode plan` makes it read-only. `/todos`, `/usage`, `/compact`.
+- `/goal create a file hello.txt that says hi`: the agent keeps working until the model says the goal is met.
+- Press Esc to stop a long answer. Type while it works to steer it.
+- `/help` lists every command.
+
+The screen is `src/tui.tsx`, plain example code on `createSessionView`. `src/voice.ts` records and transcribes, and `src/media.ts` has the media agents. Copy them and change them.
 
 ## Other modes
 
-- One prompt for scripts and CI: `pnpm --filter harness-cli-example start -p "list the files"`
-- AG-UI events as JSON lines: add `--output ndjson`.
+- Piped input uses line mode: `echo '/agent haiku {"topic":"rain"}' | pnpm --filter harness-cli-example start`
+- One prompt for scripts and CI: `pnpm --filter harness-cli-example start -p "list the files"`. Add `--output ndjson` for AG-UI events as JSON lines.
 - As an editor agent (ACP): `pnpm --filter harness-cli-example start --acp`
+- As an MCP server for Claude Code or Cursor: `pnpm --filter harness-cli-example start --mcp`
 - As an HTTP server: `pnpm --filter harness-cli-example start --serve` (it prints a token).
 
 ## Watch it from a browser or a phone

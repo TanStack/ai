@@ -1,11 +1,23 @@
 import { spawn } from 'node:child_process'
-import { mkdir, writeFile } from 'node:fs/promises'
-import { basename, join } from 'node:path'
-import { useEffect, useState } from 'react'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { basename, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { useEffect, useRef, useState } from 'react'
 import { Box, Text, render, useApp, useInput } from 'ink'
 import { useSelector } from '@tanstack/react-store'
 import { selectGoal } from '@tanstack/ai-harness/plugins'
 import { assistant } from './harness'
+import {
+  currentMicrophone,
+  isSilent,
+  listMicrophones,
+  startRecording,
+  transcribe,
+  chooseMicrophone,
+  withSpokenFiles,
+} from './voice'
+import type { RenderOptions } from 'ink'
+import type { Recording } from './voice'
 import type {
   AgentPart,
   MediaPart,
@@ -14,13 +26,21 @@ import type {
   ViewPart,
 } from '@tanstack/ai-harness/view'
 
-/** Where each media file is saved or why not, by media id. */
-type MediaNotes = ReadonlyMap<string, string>
-
 // ponytail: the CLI's default media folder, `./<harness-name>-media`. A custom
 // ui gets no `--media-dir`, and the CLI does not export `defaultMediaDir`, so
 // this copies its rule. The media id in front of the name keeps names unique.
 const mediaDir = `${assistant.name.replace(/[^\w.-]+/g, '-').replace(/^[-.]+|-+$/g, '')}-media`
+const playground = fileURLToPath(new URL('../playground', import.meta.url))
+
+/** A media file the screen saved. `number` is what `/open` and `/play` take. */
+interface Saved {
+  id: string
+  number: number
+  kind: string
+  name: string
+  path?: string
+  error?: string
+}
 
 /** Write the bytes of a media file into `mediaDir`, and return the path. */
 async function saveMedia(part: MediaPart) {
@@ -48,98 +68,153 @@ function generatedMedia(messages: ReadonlyArray<ViewMessage>) {
 }
 
 /**
- * Save each new media file once, and keep a note per file: the path, or why
- * it was not saved. Files in the history when the screen opens are not saved
- * again.
+ * Save each new media file once, and number it. Files in the history when
+ * the screen opens are not saved again.
  */
 function useSavedMedia(view: SessionView, messages: Array<ViewMessage>) {
-  const [notes, setNotes] = useState(() => new Map<string, string>())
+  const [saved, setSaved] = useState<ReadonlyArray<Saved>>([])
   const [seen] = useState(
     () =>
       new Set(generatedMedia(view.store.get().messages).map((part) => part.id)),
   )
   useEffect(() => {
-    const media = generatedMedia(messages)
-    for (const part of media) {
+    for (const part of generatedMedia(messages)) {
       if (seen.has(part.id)) continue
       seen.add(part.id)
-      const note = (text: string) =>
-        setNotes((current) => new Map(current).set(part.id, text))
-      saveMedia(part).then(
-        (path) => note(`saved: ${path}`),
-        (error: unknown) =>
-          note(
-            `not saved: ${error instanceof Error ? error.message : String(error)}`,
+      const number = seen.size
+      const update = (change: Partial<Saved>) =>
+        setSaved((current) =>
+          current.map((item) =>
+            item.id === part.id ? { ...item, ...change } : item,
           ),
+        )
+      setSaved((current) => [
+        ...current,
+        { id: part.id, number, kind: part.kind, name: part.name },
+      ])
+      saveMedia(part).then(
+        (path) => update({ path }),
+        (error: unknown) =>
+          update({
+            error: error instanceof Error ? error.message : String(error),
+          }),
       )
     }
   }, [messages, seen])
-  return notes
+  return saved
 }
 
 function textOf(parts: ReadonlyArray<ViewPart>) {
   return parts.map((part) => (part.type === 'text' ? part.text : '')).join('')
 }
 
-/** Open an http(s) link in the default browser. No shell is involved. */
-function openInBrowser(url: string) {
-  if (!/^https?:\/\//.test(url)) return
-  const isWindows = process.platform === 'win32'
-  // Not `cmd /c start`: cmd would read `&` in the URL as a command separator.
-  const command = isWindows
-    ? 'rundll32'
-    : process.platform === 'darwin'
-      ? 'open'
-      : 'xdg-open'
-  const args = isWindows ? ['url.dll,FileProtocolHandler', url] : [url]
+/** Start a program without a shell. The screen still shows the path on error. */
+function launch(command: string, args: Array<string>) {
   const child = spawn(command, args, { stdio: 'ignore', detached: true })
-  // The screen still shows the link when no browser opens.
   child.on('error', () => {})
   child.unref()
 }
 
-/** One line for a media file an agent made: kind, name, and where it went. */
+/** Open a link or a file with the default app. No shell is involved. */
+function openExternal(target: string) {
+  if (process.platform === 'win32') {
+    // Not `cmd /c start`: cmd would read `&` in a URL as a command separator.
+    if (/^https?:\/\//.test(target))
+      launch('rundll32', ['url.dll,FileProtocolHandler', target])
+    else launch('explorer', [resolve(target)])
+    return
+  }
+  launch(process.platform === 'darwin' ? 'open' : 'xdg-open', [target])
+}
+
+/** Play audio or video with ffplay, which comes with ffmpeg. */
+function play(item: Saved & { path: string }) {
+  const window = item.kind === 'video' ? [] : ['-nodisp']
+  launch(process.env.FFPLAY_PATH || 'ffplay', [
+    ...window,
+    '-autoexit',
+    '-loglevel',
+    'quiet',
+    item.path,
+  ])
+}
+
 function MediaLine({
   part,
-  notes,
+  saved,
   indent,
 }: {
   part: MediaPart
-  notes: MediaNotes
+  saved: ReadonlyArray<Saved>
   indent: string
 }) {
-  const note = notes.get(part.id)
+  const item = saved.find((entry) => entry.id === part.id)
+  const where = item?.path
+    ? ` saved: ${item.path}`
+    : item?.error
+      ? ` not saved: ${item.error}`
+      : ''
+  const number = item ? `[${item.number}] ` : ''
   return (
-    <Text color="green">
-      {`${indent}- ${part.kind} ${part.name}${note ? ` (${note})` : ''}`}
-    </Text>
+    <Text color="green">{`${indent}- ${number}${part.kind} ${part.name}${where}`}</Text>
   )
 }
 
-/** A child agent, for example Claude Code or Codex, with its tool calls and media. */
-function Agent({ part, notes }: { part: AgentPart; notes: MediaNotes }) {
-  const latest = textOf(part.parts).replace(/\s+/g, ' ').trim().slice(-80)
+/**
+ * A child agent, for example Codex or Claude Code: its status, its last tool
+ * calls, its media, and its output. While it runs, the last 3 lines show. When
+ * it ends, the last 15 lines of its answer stay.
+ */
+function Agent({
+  part,
+  saved,
+}: {
+  part: AgentPart
+  saved: ReadonlyArray<Saved>
+}) {
+  const lines = textOf(part.parts)
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim() !== '')
+  const output = part.status === 'running' ? lines.slice(-3) : lines.slice(-15)
+  const tools = part.parts.flatMap((inner) =>
+    inner.type === 'tool-call' ? [inner.name] : [],
+  )
+  const media = part.parts.flatMap((inner) =>
+    inner.type === 'media' ? [inner] : [],
+  )
+  const color =
+    part.status === 'failed'
+      ? 'red'
+      : part.status === 'done'
+        ? 'magenta'
+        : 'yellow'
   return (
     <Box flexDirection="column">
-      <Text color="magenta">
-        {`  - agent ${part.name} (${part.status})${latest ? `: ${latest}` : ''}`}
-      </Text>
-      {part.parts.map((inner, index) => {
-        if (inner.type === 'tool-call')
-          return (
-            <Text key={index} color="yellow">{`    - tool ${inner.name}`}</Text>
-          )
-        if (inner.type === 'media')
-          return (
-            <MediaLine key={index} part={inner} notes={notes} indent="    " />
-          )
-        return null
-      })}
+      <Text color={color}>{`  - agent ${part.name} (${part.status})`}</Text>
+      {tools.slice(-5).map((name, index) => (
+        <Text key={`tool-${index}`} color="yellow">{`    - tool ${name}`}</Text>
+      ))}
+      {media.map((inner) => (
+        <MediaLine key={inner.id} part={inner} saved={saved} indent="    " />
+      ))}
+      {output.map((line, index) => (
+        <Text key={`line-${index}`} dimColor={part.status === 'running'}>
+          {`    ${line}`}
+        </Text>
+      ))}
+      {part.error ? <Text color="red">{`    ${part.error}`}</Text> : null}
     </Box>
   )
 }
 
-function Part({ part, notes }: { part: ViewPart; notes: MediaNotes }) {
+function Part({
+  part,
+  saved,
+}: {
+  part: ViewPart
+  saved: ReadonlyArray<Saved>
+}) {
   switch (part.type) {
     case 'text':
       return <Text>{part.text}</Text>
@@ -155,26 +230,31 @@ function Part({ part, notes }: { part: ViewPart; notes: MediaNotes }) {
       return <Text color="yellow">{`  - tool ${part.name}${note}`}</Text>
     }
     case 'agent':
-      return <Agent part={part} notes={notes} />
+      return <Agent part={part} saved={saved} />
     case 'media':
-      return <MediaLine part={part} notes={notes} indent="  " />
+      return <MediaLine part={part} saved={saved} indent="  " />
   }
 }
 
 function Message({
   message,
-  notes,
+  saved,
 }: {
   message: ViewMessage
-  notes: MediaNotes
+  saved: ReadonlyArray<Saved>
 }) {
   switch (message.role) {
     case 'user': {
-      // The files the user sent go after the text: `[image cat.png]`.
+      // The files the user sent go after the text: `[image cat.png]`. A
+      // voice message names its files as `@"path"`, shown as `[cat.png]`.
       const files = (message.media ?? []).map(
         (part) => `[${part.kind} ${part.name}]`,
       )
-      const line = [message.text, ...files].filter((text) => text !== '')
+      const text = message.text.replace(
+        /@"([^"]+)"/g,
+        (_match, path: string) => `[${basename(path)}]`,
+      )
+      const line = [text, ...files].filter((item) => item !== '')
       return <Text color="cyan">{`> ${line.join(' ')}`}</Text>
     }
     case 'notice':
@@ -187,19 +267,55 @@ function Message({
       return (
         <Box flexDirection="column">
           {message.parts.map((part, index) => (
-            <Part key={index} part={part} notes={notes} />
+            <Part key={index} part={part} saved={saved} />
           ))}
         </Box>
       )
   }
 }
 
-function Status({ view }: { view: SessionView }) {
+type VoiceState = 'idle' | 'recording' | 'transcribing'
+
+function Header({ view }: { view: SessionView }) {
+  const model = useSelector(
+    view.store,
+    (state) => state.config.find((entry) => entry.key === 'model')?.value,
+  )
+  return (
+    <Box flexDirection="column" marginBottom={1}>
+      <Text
+        bold
+      >{`TanStack AI harness: ${assistant.name}  (model: ${String(model ?? '?')})`}</Text>
+      <Text color="gray">
+        Ctrl+R talk | Esc cancel | /help | /model | /connect notion | /open |
+        /play | /exit
+      </Text>
+    </Box>
+  )
+}
+
+function Status({
+  view,
+  voice,
+  microphone,
+}: {
+  view: SessionView
+  voice: VoiceState
+  microphone: string
+}) {
   const status = useSelector(view.store, (state) => state.status)
   const approvals = useSelector(view.store, (state) => state.approvals)
   const question = useSelector(view.store, (state) => state.questions.at(0))
   const signIns = useSelector(view.store, (state) => state.signIns)
   const goal = useSelector(view.store, selectGoal)
+  const line =
+    voice === 'recording'
+      ? `recording from ${microphone}: speak, then press Ctrl+R or Enter to send (Esc drops it)`
+      : voice === 'transcribing'
+        ? 'transcribing your voice message...'
+        : status === 'running'
+          ? 'working (Esc cancels, Enter steers)'
+          : status
   return (
     <Box flexDirection="column" marginTop={1}>
       {signIns.map((signIn) => (
@@ -218,60 +334,187 @@ function Status({ view }: { view: SessionView }) {
           {`Goal: ${goal.text} (${goal.status}, round ${goal.round})`}
         </Text>
       ) : null}
-      <Text color="gray">
-        {status === 'running' ? 'working (Esc cancels, Enter steers)' : status}
-      </Text>
+      <Text color={voice === 'recording' ? 'red' : 'gray'}>{line}</Text>
     </Box>
   )
 }
 
-/** Enter: answer an approval or a question, run a screen command, or send the line. */
-async function submit(view: SessionView, line: string, exit: () => void) {
-  const text = line.trim()
-  const state = view.store.get()
-  if (state.approvals.length > 0) {
-    if (/^y(es)?$/i.test(text)) view.approveAll()
-    else view.rejectAll()
-    return
-  }
-  const [question] = state.questions
-  if (question) {
-    const answer = /^y(es)?$/i.test(text)
-      ? true
-      : /^no?$/i.test(text)
-        ? false
-        : text
-    await question.answer(answer)
-    return
-  }
-  if (text === '/exit') return exit()
-  if (text === '/help') {
-    const commands = state.commands.map(
-      (command) => `/${command.name}  ${command.description}`,
-    )
-    view.notice(
-      ['/connect <id>, /disconnect <id>, /exit', ...commands].join('\n'),
-    )
-    return
-  }
-  const connect = /^\/(connect|disconnect) (\S+)$/.exec(text)
-  if (connect) return view.command(`${connect[1]}:${connect[2]}`)
-  await view.send(text)
-}
+const HELP = [
+  'Voice: press Ctrl+R, speak, press Ctrl+R again. Name a file ("use cat dot png") or say "the last image" to send it too.',
+  '/voice <audio file>  send a recorded voice message',
+  '/mic [n]  list the microphones, or record from microphone n',
+  '/open [n]  open media file n (default: the last one)',
+  '/play [n]  play audio or video file n',
+  '/connect <id>, /disconnect <id>  sign in to notion or linear',
+  '@path in a message sends that file. /exit quits.',
+]
 
 function App({ view }: { view: SessionView }) {
   const { exit } = useApp()
   const messages = useSelector(view.store, (state) => state.messages)
-  const notes = useSavedMedia(view, messages)
+  const saved = useSavedMedia(view, messages)
   const [input, setInput] = useState('')
+  const [voice, setVoice] = useState<VoiceState>('idle')
+  const [microphone, setMicrophone] = useState('')
+  const recording = useRef<Recording | undefined>(undefined)
+
+  const fail = (error: unknown) =>
+    view.notice(
+      `Voice: ${error instanceof Error ? error.message : String(error)}`,
+    )
+
+  /** A voice message: transcribe it, attach the files it names, and send it. */
+  const hear = async (audio: Uint8Array, name: string) => {
+    setVoice('transcribing')
+    try {
+      // A recording from the microphone that holds only silence is not sent:
+      // transcription models make up words for it.
+      if (name === 'voice.wav' && isSilent(audio))
+        return view.notice(
+          `Voice: only silence from "${await currentMicrophone()}". Speak closer, or pick another microphone with /mic.`,
+        )
+      const text = await transcribe(audio, name)
+      if (text === '') return view.notice('Voice: no speech heard.')
+      const recent = saved.flatMap((item) =>
+        item.path ? [{ kind: item.kind, path: item.path }] : [],
+      )
+      const message = await withSpokenFiles(
+        text,
+        [playground, mediaDir],
+        recent,
+      )
+      const files =
+        message.files.length > 0 ? ` (files: ${message.files.join(', ')})` : ''
+      view.notice(`Heard: "${text}"${files}`)
+      await view.send(message.text)
+    } catch (error) {
+      fail(error)
+    } finally {
+      setVoice('idle')
+    }
+  }
+
+  const toggleVoice = async () => {
+    if (voice === 'transcribing') return
+    const current = recording.current
+    if (current) {
+      recording.current = undefined
+      await current.stop().then((audio) => hear(audio, 'voice.wav'), fail)
+      return
+    }
+    try {
+      recording.current = await startRecording()
+      setVoice('recording')
+      setMicrophone(await currentMicrophone().catch(() => 'the default input'))
+    } catch (error) {
+      fail(error)
+    }
+  }
+
+  /** The saved media file `/open 2` or `/play` names. */
+  const pick = (arg: string | undefined) => {
+    const ready = saved.filter((item) => item.path !== undefined)
+    const item = arg
+      ? ready.find((entry) => entry.number === Number(arg))
+      : ready.at(-1)
+    if (!item?.path) {
+      view.notice(arg ? `No saved media file ${arg}.` : 'No media file yet.')
+      return undefined
+    }
+    return { ...item, path: item.path }
+  }
+
+  /** Enter: answer an approval or a question, run a screen command, or send. */
+  const submit = async (line: string) => {
+    const text = line.trim()
+    const state = view.store.get()
+    if (state.approvals.length > 0) {
+      if (/^y(es)?$/i.test(text)) view.approveAll()
+      else view.rejectAll()
+      return
+    }
+    const [question] = state.questions
+    if (question) {
+      const answer = /^y(es)?$/i.test(text)
+        ? true
+        : /^no?$/i.test(text)
+          ? false
+          : text
+      await question.answer(answer)
+      return
+    }
+    if (text === '/exit') return exit()
+    if (text === '/help') {
+      const commands = state.commands.map(
+        (command) => `/${command.name}  ${command.description}`,
+      )
+      view.notice([...HELP, ...commands].join('\n'))
+      return
+    }
+    const [command, ...rest] = text.split(' ')
+    const arg = rest.join(' ').trim() || undefined
+    if (command === '/mic') {
+      const names = await listMicrophones().catch((error: unknown) => {
+        fail(error)
+        return []
+      })
+      const chosen = arg ? names[Number(arg) - 1] : undefined
+      if (chosen) chooseMicrophone(chosen)
+      const current = await currentMicrophone().catch(() => undefined)
+      view.notice(
+        names.length === 0
+          ? `Recording from the default input${current ? ` (${current})` : ''}.`
+          : [
+              ...names.map(
+                (name, index) =>
+                  `${name === current ? '*' : ' '} ${index + 1}. ${name}`,
+              ),
+              '/mic <n> records from microphone n.',
+            ].join('\n'),
+      )
+      return
+    }
+    if (command === '/voice') {
+      if (!arg) return view.notice('Give an audio file: /voice note.m4a')
+      const audio = await readFile(arg.replace(/^@|^"|"$/g, '')).catch(fail)
+      if (audio) await hear(new Uint8Array(audio), basename(arg))
+      return
+    }
+    if (command === '/open' || command === '/play') {
+      const item = pick(arg)
+      if (!item) return
+      if (command === '/play' && item.kind !== 'image') play(item)
+      else openExternal(item.path)
+      return
+    }
+    const connect = /^\/(connect|disconnect) (\S+)$/.exec(text)
+    if (connect) return view.command(`${connect[1]}:${connect[2]}`)
+    await view.send(text)
+  }
+
   useInput((character, key) => {
+    if (key.ctrl && character === 'r') {
+      void toggleVoice()
+      return
+    }
     if (key.escape) {
+      const current = recording.current
+      if (current) {
+        recording.current = undefined
+        current.cancel()
+        setVoice('idle')
+        return
+      }
       if (view.store.get().status === 'running') void view.cancel()
       return
     }
     if (key.return) {
+      if (recording.current) {
+        void toggleVoice()
+        return
+      }
       setInput('')
-      void submit(view, input, exit)
+      void submit(input)
       return
     }
     if (key.backspace || key.delete) {
@@ -281,12 +524,14 @@ function App({ view }: { view: SessionView }) {
     if (!key.ctrl && !key.meta && character)
       setInput((current) => current + character)
   })
+
   return (
     <Box flexDirection="column">
+      <Header view={view} />
       {messages.slice(-200).map((message) => (
-        <Message key={message.id} message={message} notes={notes} />
+        <Message key={message.id} message={message} saved={saved} />
       ))}
-      <Status view={view} />
+      <Status view={view} voice={voice} microphone={microphone} />
       <Text>
         <Text color="cyan">{'> '}</Text>
         {input}
@@ -298,13 +543,29 @@ function App({ view }: { view: SessionView }) {
 
 /**
  * The Ink screen for `runCli({ ui })`. It opens sign-in links in the browser,
- * saves the media the agents make into `./<harness-name>-media`, and resolves
- * when the user types /exit or presses Ctrl+C.
+ * records voice messages, saves the media the agents make into
+ * `./<harness-name>-media`, and resolves when the user types /exit or presses
+ * Ctrl+C. `io` replaces the terminal, for a test.
  */
-export async function runTui(view: SessionView) {
+export async function runTui(view: SessionView, io: RenderOptions = {}) {
   view.on('signIn', (signIn) => {
-    if (signIn.url) openInBrowser(signIn.url)
+    if (signIn.url) openExternal(signIn.url)
   })
-  view.notice('Type a message, or /help for commands and /exit to quit.')
-  await render(<App view={view} />).waitUntilExit()
+  view.notice(
+    'Type a message, or press Ctrl+R to talk. /help lists the commands.',
+  )
+  // ponytail: the adapters warn on the console about tool schemas they send
+  // without strict mode. Ink prints console output above the screen, so the
+  // screen drops only those warnings.
+  const warn = console.warn
+  console.warn = (...args: Array<unknown>) => {
+    if (typeof args[0] === 'string' && args[0].includes('[tanstack-ai:warn]'))
+      return
+    warn(...args)
+  }
+  try {
+    await render(<App view={view} />, io).waitUntilExit()
+  } finally {
+    console.warn = warn
+  }
 }

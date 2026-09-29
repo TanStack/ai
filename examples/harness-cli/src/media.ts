@@ -1,29 +1,93 @@
 import { EventType, defineAgent } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
+import { mediaIdOf } from '@tanstack/ai-harness'
+import { falAudio } from '@tanstack/ai-fal'
+import { openaiImage, openaiSpeech } from '@tanstack/ai-openai'
 import { z } from 'zod'
-import type { AnyVideoAdapter } from '@tanstack/ai'
+import { mediaBytes } from './store'
+import type {
+  AnyVideoAdapter,
+  ImagePart,
+  MediaInputMetadata,
+  ModelMessage,
+  UIMessage,
+} from '@tanstack/ai'
+
+// Every agent here returns a short text. The harness keeps each file it makes
+// and publishes a `harness.media` event, so the screen can show and save it.
 
 /**
- * Makes an image with OpenAI. The harness keeps the file and publishes a
- * `harness.media` event, so the screen can show it and save it.
+ * The images in the latest user message that has files: the ones the user
+ * sent with `@path`, or with a voice message that named a file.
  */
+async function attachedImages(
+  messages: ReadonlyArray<UIMessage | ModelMessage>,
+) {
+  for (const message of [...messages].reverse()) {
+    if (message.role !== 'user' || !('content' in message)) continue
+    if (!Array.isArray(message.content)) continue
+    const images: Array<ImagePart<MediaInputMetadata>> = []
+    for (const part of message.content) {
+      const id = mediaIdOf(part)
+      if (id === undefined || part.type !== 'image') continue
+      const bytes = await mediaBytes(id)
+      const mimeType = part.source.mimeType ?? 'image/png'
+      if (bytes) {
+        images.push({
+          type: 'image',
+          source: {
+            type: 'data',
+            value: Buffer.from(bytes).toString('base64'),
+            mimeType,
+          },
+        })
+      }
+    }
+    if (images.length > 0) return images
+  }
+  return []
+}
+
+/** Makes an image with OpenAI. It can start from the images the user sent. */
 export const imageAgent = defineAgent({
   name: 'image',
   description:
-    'Generates one image from a detailed visual prompt. The user gets the image.',
+    'Generates one image from a detailed visual prompt. Set useAttachedImages when the user sent images to use as references (a new version, a style, an edit). The user gets the image.',
   produces: 'image',
   inputSchema: z.object({
     prompt: z.string().describe('A detailed description of the image'),
+    useAttachedImages: z
+      .boolean()
+      .optional()
+      .describe('Use the images the user sent as references'),
   }),
   run: async (ctx) => {
-    const result = await ctx.generateImage({
-      adapter: openaiImage('gpt-image-2.5-flare'),
-      prompt: ctx.input.prompt,
-      size: '1024x1024',
-    })
+    const references = ctx.input.useAttachedImages
+      ? await attachedImages(ctx.messages)
+      : []
+    const adapter = openaiImage('gpt-image-2.5-flare')
+    // With references, the prompt is the text plus the images (an edit).
+    const result =
+      references.length > 0
+        ? await ctx.generateImage({
+            adapter,
+            prompt: [
+              { type: 'text', content: ctx.input.prompt },
+              ...references,
+            ],
+            size: '1024x1024',
+          })
+        : await ctx.generateImage({
+            adapter,
+            prompt: ctx.input.prompt,
+            size: '1024x1024',
+          })
     if (result.images.length === 0)
       throw new Error('The image model returned no image.')
-    return `Made the image with ${result.model}. The user has it.`
+    const from =
+      references.length > 0
+        ? ` from ${references.length} reference image(s)`
+        : ''
+    return `Made the image${from} with ${result.model}. The user has it.`
   },
 })
 
@@ -56,3 +120,78 @@ export function videoAgent(adapter: AnyVideoAdapter) {
     },
   })
 }
+
+/** Reads a text aloud with OpenAI text to speech. */
+export const speechAgent = defineAgent({
+  name: 'speech',
+  description:
+    'Reads a text aloud and makes an audio file of it (text to speech). The user gets the audio.',
+  produces: 'speech',
+  inputSchema: z.object({
+    text: z.string().describe('The exact words to say'),
+    voice: z
+      .enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'])
+      .optional()
+      .describe('The voice. Default: alloy'),
+  }),
+  run: async (ctx) => {
+    const result = await ctx.generateSpeech({
+      adapter: openaiSpeech('tts-1-hd'),
+      text: ctx.input.text,
+      voice: ctx.input.voice ?? 'alloy',
+    })
+    return `Read the text aloud with ${result.model}. The user has the audio.`
+  },
+})
+
+/** Makes a song with vocals and music through fal (ElevenLabs Music). */
+export const songAgent = defineAgent({
+  name: 'song',
+  description:
+    'Composes a song or an instrumental track from a description (genre, mood, instruments, and lyrics if the user gave any). Takes up to a minute. The user gets the audio.',
+  produces: 'audio',
+  inputSchema: z.object({
+    prompt: z
+      .string()
+      .describe('The style, mood, instruments, and the lyrics, if any'),
+    seconds: z
+      .number()
+      .min(10)
+      .max(120)
+      .optional()
+      .describe('The length in seconds. Default: 30'),
+  }),
+  run: async (ctx) => {
+    const result = await ctx.generateAudio({
+      adapter: falAudio('fal-ai/elevenlabs/music'),
+      prompt: ctx.input.prompt,
+      duration: ctx.input.seconds ?? 30,
+    })
+    return `Composed the song with ${result.model}. The user has the audio.`
+  },
+})
+
+/** Makes a sound effect through fal (Stable Audio). */
+export const soundAgent = defineAgent({
+  name: 'sound_effect',
+  description:
+    'Makes a short sound effect or ambience from a description, for example rain on a window. The user gets the audio.',
+  produces: 'audio',
+  inputSchema: z.object({
+    prompt: z.string().describe('The sound to make'),
+    seconds: z
+      .number()
+      .min(1)
+      .max(30)
+      .optional()
+      .describe('The length in seconds. Default: 8'),
+  }),
+  run: async (ctx) => {
+    const result = await ctx.generateAudio({
+      adapter: falAudio('fal-ai/stable-audio-25/text-to-audio'),
+      prompt: ctx.input.prompt,
+      duration: ctx.input.seconds ?? 8,
+    })
+    return `Made the sound effect with ${result.model}. The user has the audio.`
+  },
+})

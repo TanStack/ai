@@ -16,6 +16,7 @@
     "@tanstack/ai-code-mode": "workspace:*",
     "@tanstack/ai-codex": "workspace:*",
     "@tanstack/ai-dashboard": "workspace:*",
+    "@tanstack/ai-fal": "workspace:*",
     "@tanstack/ai-grok": "workspace:*",
     "@tanstack/ai-harness": "workspace:*",
     "@tanstack/ai-harness-cli": "workspace:*",
