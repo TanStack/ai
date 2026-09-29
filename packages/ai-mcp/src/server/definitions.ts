@@ -7,6 +7,15 @@ type PromptArgsSchema<TArgs> = {
   parse: (input: unknown) => TArgs
 }
 
+/** The variables of a `uriTemplate`, as the MCP SDK matches them. */
+type TemplateVariables = Record<string, string | Array<string>>
+
+type ResourceArgsOf<TConfig> = TConfig extends {
+  argsSchema: PromptArgsSchema<infer TArgs>
+}
+  ? TArgs
+  : TemplateVariables
+
 /**
  * Builds a resource definition for the MCP server.
  *
@@ -14,7 +23,12 @@ type PromptArgsSchema<TArgs> = {
  * If `uri` and `uriTemplate` are both missing, this function throws a TypeError.
  * Call `.read` with a function that returns the resource contents.
  *
- * @param config - The resource `name`, `mimeType`, and `uri` or `uriTemplate`.
+ * For a `uriTemplate`, the read function gets the variables of the URI the
+ * client asked for, and the URI itself. Pass `argsSchema` to parse the
+ * variables first. A body `{ text | blob, mimeType }` sets the MIME type of
+ * that answer, for a template whose files have different types.
+ *
+ * @param config - The resource `name`, `mimeType`, `uri` or `uriTemplate`, and an optional `argsSchema`.
  * @throws {TypeError} When `uri` and `uriTemplate` are both missing.
  *
  * @example
@@ -24,6 +38,13 @@ type PromptArgsSchema<TArgs> = {
  *   name: 'readme',
  *   mimeType: 'text/markdown',
  * }).read(async () => ({ text: '# Hello' }))
+ *
+ * const user = resourceDefinition({
+ *   uriTemplate: 'users://{id}',
+ *   name: 'user',
+ *   mimeType: 'application/json',
+ *   argsSchema: z.object({ id: z.string() }),
+ * }).read(async ({ id }) => ({ text: JSON.stringify(await loadUser(id)) }))
  * ```
  */
 export function resourceDefinition<
@@ -32,6 +53,7 @@ export function resourceDefinition<
     mimeType: string
     uri?: string
     uriTemplate?: string
+    argsSchema?: PromptArgsSchema<unknown>
   },
 >(config: TConfig) {
   const hasUri = config.uri !== undefined
@@ -44,10 +66,23 @@ export function resourceDefinition<
 
   return {
     ...config,
-    read<TContents>(readContents: () => TContents | Promise<TContents>) {
+    read<TContents>(
+      readContents: (
+        args: ResourceArgsOf<TConfig>,
+        uri: URL | undefined,
+      ) => TContents | Promise<TContents>,
+    ) {
       return {
         ...config,
-        read: readContents,
+        async read(variables: TemplateVariables = {}, uri?: URL) {
+          // Without `argsSchema`, the args are the variables as matched.
+          // `ResourceArgsOf` picks the same branch from the config type, which
+          // TypeScript cannot follow through the runtime check.
+          const args = (
+            config.argsSchema ? config.argsSchema.parse(variables) : variables
+          ) as ResourceArgsOf<TConfig>
+          return readContents(args, uri)
+        },
       }
     },
   }

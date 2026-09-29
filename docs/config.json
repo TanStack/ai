@@ -530,7 +530,8 @@
         {
           "label": "Serve Resources and Prompts",
           "to": "mcp/server-content",
-          "addedAt": "2026-09-22"
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Ask for Input",

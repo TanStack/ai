@@ -1149,6 +1149,33 @@ describe('createMCPServer', () => {
     })
   })
 
+  it('reads a uri template with its variables and the MIME type of the body', async () => {
+    const server = createMCPServer({
+      name: 'files',
+      version: '1.0.0',
+      resources: [
+        resourceDefinition({
+          uriTemplate: 'media://{folder}/{id}',
+          name: 'media',
+          mimeType: 'application/octet-stream',
+          argsSchema: z.object({ folder: z.string(), id: z.string() }),
+        }).read(async ({ folder, id }) => ({
+          blob: btoa(`${folder}/${id}`),
+          mimeType: 'image/png',
+        })),
+      ],
+    })
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      const read = await client.readResource({ uri: 'media://cats/7' })
+      expect(read.contents[0]).toEqual({
+        uri: 'media://cats/7',
+        mimeType: 'image/png',
+        blob: btoa('cats/7'),
+      })
+    })
+  })
+
   it('keeps assistant prompt messages and drops invalid ones', async () => {
     const server = createMCPServer({
       name: 'prompts',

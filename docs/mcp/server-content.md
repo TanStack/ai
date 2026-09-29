@@ -41,7 +41,8 @@ const file = resourceDefinition({
   name: 'file',
   mimeType: 'text/plain',
   uriTemplate: 'file:///{path}',
-}).read(async () => ({ text: 'file body' }))
+  argsSchema: z.object({ path: z.string() }),
+}).read(async ({ path }) => ({ text: `The body of ${path}` }))
 
 const summarize = promptDefinition({
   name: 'summarize',
@@ -72,7 +73,12 @@ If the resource has no `uri` and no `uriTemplate`, `resourceDefinition` throws `
 
 If you pass `uri` and `uriTemplate`, the server uses `uri`.
 
-`read` takes no arguments. `read` returns `{ text }` for a text document. For a binary document, `read` returns `{ blob }` with a base64 string.
+`read` returns `{ text }` for a text document. For a binary document, `read` returns `{ blob }` with a base64 string. Add `mimeType` to that object when one template serves files of different types.
+
+For a `uriTemplate`, `read` gets the variables of the URI the host asked for, and the URI itself:
+
+- `argsSchema.parse` runs first, so `read` gets the parsed variables. For `file:///notes.md`, `path` is `notes.md`.
+- Without `argsSchema`, `read` gets the variables as strings.
 
 ## Prompts
 
@@ -88,5 +94,7 @@ If `role` is not `user` or `assistant`, the server sends that message as `user`.
 ## What the Host Gets
 
 The host reads `file:///readme.md`. The `text` is `# Hello`.
+
+The host reads `file:///notes.md`. The `text` is `The body of notes.md`.
 
 The host starts from the `summarize` prompt with topic `weather`. The `role` is `user`. The `content` string is `weather`.

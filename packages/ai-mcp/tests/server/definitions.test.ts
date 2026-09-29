@@ -27,6 +27,19 @@ describe('resourceDefinition', () => {
     expect(await resource.read()).toEqual({ text: 'body' })
   })
 
+  it('gives the read function the variables parsed by argsSchema', async () => {
+    const resource = resourceDefinition({
+      name: 'user',
+      mimeType: 'text/plain',
+      uriTemplate: 'users://{id}',
+      argsSchema: z.object({ id: z.string().transform(Number) }),
+    }).read(async ({ id }, uri) => ({ text: `${id + 1} ${uri?.href}` }))
+
+    expect(await resource.read({ id: '41' }, new URL('users://41'))).toEqual({
+      text: '42 users://41',
+    })
+  })
+
   it('throws when uri and uriTemplate are missing', () => {
     expect(() =>
       resourceDefinition({

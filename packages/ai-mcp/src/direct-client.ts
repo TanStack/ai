@@ -113,7 +113,7 @@ type ListedTool = {
 
 type ListedResource = {
   uri?: string
-  read: () => unknown
+  read: (variables: Record<string, string | Array<string>>, uri: URL) => unknown
 }
 
 type ListedPrompt = {
@@ -179,10 +179,14 @@ export function directMCPClient<const TServer extends MCPServer>(
       if (resource === undefined) {
         throw new Error(`The MCP server has no resource ${uri}.`)
       }
-      const read = resource.read as () =>
+      const read = resource.read as (
+        variables: Record<string, string | Array<string>>,
+        uri: URL,
+      ) =>
         | ResourceContents<ResourceByUri<TServer['resources'], TUri>>
         | Promise<ResourceContents<ResourceByUri<TServer['resources'], TUri>>>
-      return read()
+      // A fixed uri has no template variables.
+      return read({}, new URL(uri))
     },
 
     async getPrompt<const TName extends PromptNames<TServer['prompts']>>(

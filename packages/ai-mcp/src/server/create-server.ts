@@ -59,7 +59,8 @@ type McpResource = {
   mimeType: string
   uri?: string
   uriTemplate?: string
-  read: () => unknown
+  /** Gets the variables of a `uriTemplate` (none for a `uri`) and the URI. */
+  read: (variables: Record<string, string | Array<string>>, uri: URL) => unknown
 }
 
 // A method type is bivariant. A function property is strict, so a prompt
@@ -641,20 +642,38 @@ function isTextBlock(value: unknown): value is { type: 'text'; text: string } {
 
 function registerServerResource(server: McpServer, resource: McpResource) {
   const metadata = { mimeType: resource.mimeType }
-  const read = async (uri: URL) =>
-    resourceContents(uri.href, resource.mimeType, await resource.read())
+  const read = async (
+    uri: URL,
+    variables: Record<string, string | Array<string>>,
+  ) =>
+    resourceContents(
+      uri.href,
+      resource.mimeType,
+      await resource.read(variables, uri),
+    )
   if (resource.uri !== undefined) {
-    server.registerResource(resource.name, resource.uri, metadata, read)
+    // A fixed uri has no variables. The SDK's second argument is the request.
+    server.registerResource(resource.name, resource.uri, metadata, (uri) =>
+      read(uri, {}),
+    )
     return
   }
   if (resource.uriTemplate === undefined) return
   const template = new ResourceTemplate(resource.uriTemplate, {
     list: undefined,
   })
-  server.registerResource(resource.name, template, metadata, read)
+  // A template gets the variables the SDK matched in the asked-for URI.
+  server.registerResource(resource.name, template, metadata, (uri, variables) =>
+    read(uri, variables),
+  )
 }
 
-function resourceContents(uri: string, mimeType: string, body: unknown) {
+function resourceContents(uri: string, fallback: string, body: unknown) {
+  // A body can name its own MIME type: one template can serve many types.
+  const mimeType =
+    isRecord(body) && typeof body.mimeType === 'string'
+      ? body.mimeType
+      : fallback
   if (isRecord(body) && typeof body.text === 'string') {
     return { contents: [{ uri, mimeType, text: body.text }] }
   }

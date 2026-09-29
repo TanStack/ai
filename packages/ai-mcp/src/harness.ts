@@ -4,18 +4,26 @@ import {
   readUnopenedInterruptBinding,
   toolDefinition,
 } from '@tanstack/ai'
-import { HARNESS_EVENTS } from '@tanstack/ai-harness'
+import {
+  HARNESS_EVENTS,
+  isMediaRecord,
+  kindOf,
+  mediaPart,
+} from '@tanstack/ai-harness'
 // The inferred return type names `MCPHandleOptions`. Without an import of
 // `./server/index`, the .d.ts emit writes `./server.js`, which does not resolve.
-import { createMCPServer } from './server/index'
-import type { Interrupt, JSONSchema } from '@tanstack/ai'
+import { createMCPServer, resourceDefinition } from './server/index'
+import { toCallToolResult } from './server/tasks'
+import type { ContentPart, Interrupt, JSONSchema } from '@tanstack/ai'
 import type {
   AnyHarness,
   Cursor,
   HarnessHost,
   HarnessSession,
+  MediaRecord,
   Operation,
 } from '@tanstack/ai-harness'
+import type { ContentBlock } from '@modelcontextprotocol/server'
 import type { MCPToolContext } from './server/context'
 
 /** Options for {@link createHarnessMcpServer}. */
@@ -38,6 +46,15 @@ export interface HarnessMcpServerOptions {
    * client answers them all with one `resolve`.
    */
   approvals?: 'ask' | 'auto'
+  /**
+   * The folders that a `path` attachment of `chat` can read from. A path must
+   * resolve, after every symlink, to a file inside one of them. Leave it out,
+   * and every `path` attachment is refused.
+   *
+   * The stdio CLI (`--mcp`) passes the working folder. An HTTP server should
+   * pass none, because a remote client must not read files on the server.
+   */
+  filePaths?: ReadonlyArray<string>
   /** The MCP server name. Default: the harness name. */
   name?: string
   /** The MCP server version. Default `'1.0.0'`. */
@@ -50,10 +67,99 @@ type Decision = { interruptId: string; approved?: boolean; payload?: unknown }
 /** The answer to one interrupt, for `session.resolve`. */
 type Answer = { interruptId: string; payload: unknown }
 
+/** One file of a `chat` call, from the client. */
+type Attachment =
+  | { path: string; name?: string }
+  | { url: string; mimeType?: string; name?: string }
+  | { data: string; mimeType: string; name?: string }
+
+/** The URI of a media resource is `harness-media://<threadId>/<id>`. */
+const MEDIA_URI_PREFIX = 'harness-media://'
+
+/** The biggest image or audio file that a result carries inline. */
+const INLINE_MEDIA_MAX_BYTES = 5 * 1024 * 1024
+
+// ponytail: common types only. Send any other file as data with its mimeType.
+const mimeTypes = new Map([
+  ['png', 'image/png'],
+  ['jpg', 'image/jpeg'],
+  ['jpeg', 'image/jpeg'],
+  ['gif', 'image/gif'],
+  ['webp', 'image/webp'],
+  ['mp3', 'audio/mpeg'],
+  ['wav', 'audio/wav'],
+  ['ogg', 'audio/ogg'],
+  ['m4a', 'audio/mp4'],
+  ['flac', 'audio/flac'],
+  ['mp4', 'video/mp4'],
+  ['webm', 'video/webm'],
+  ['mov', 'video/quicktime'],
+  ['pdf', 'application/pdf'],
+  ['txt', 'text/plain'],
+  ['md', 'text/markdown'],
+  ['csv', 'text/csv'],
+  ['html', 'text/html'],
+])
+
 const threadIdSchema: JSONSchema = {
   type: 'string',
   description:
     'The conversation id. Leave it out to use the default conversation.',
+}
+
+const nameSchema: JSONSchema = {
+  type: 'string',
+  description: 'The file name. Optional.',
+}
+
+const attachmentsSchema: JSONSchema = {
+  type: 'array',
+  description: 'Files to send with the message.',
+  items: {
+    anyOf: [
+      {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description:
+              'A file path on the machine of the server. The file must be in a folder that the server allows.',
+          },
+          name: nameSchema,
+        },
+        required: ['path'],
+      },
+      {
+        type: 'object',
+        properties: {
+          url: {
+            type: 'string',
+            description:
+              'A URL of the file. The model reads it. The server does not download it.',
+          },
+          mimeType: {
+            type: 'string',
+            description:
+              'The MIME type, for example image/png. Needed when the URL does not end in a known file extension.',
+          },
+          name: nameSchema,
+        },
+        required: ['url'],
+      },
+      {
+        type: 'object',
+        properties: {
+          data: { type: 'string', description: 'The file bytes in base64.' },
+          mimeType: {
+            type: 'string',
+            description: 'The MIME type, for example image/png.',
+          },
+          name: nameSchema,
+        },
+        required: ['data', 'mimeType'],
+      },
+    ],
+  },
 }
 
 /**
@@ -70,10 +176,17 @@ const threadIdSchema: JSONSchema = {
  * `generic`. `approve` and `reject` answer approvals only. `resolve` answers
  * every kind: `approved` for an approval, and `payload` for the others.
  *
+ * `chat` takes `attachments`: `{ path }` (only inside `filePaths`),
+ * `{ url, mimeType? }` (the model reads the URL, the server does not fetch
+ * it), or `{ data, mimeType }` (base64). A result lists the media that the
+ * work made in `media`. An image or audio file up to 5 MB comes back inline.
+ * Any other file comes back as a `resource_link` to
+ * `harness-media://<threadId>/<id>`, which `resources/read` returns.
+ *
  * The result is the server from `createMCPServer`. Mount `server.fetch` on
  * an HTTP route, or pass the server to `serveMCPStdio`.
  *
- * @param options - The host, the harness, the default thread, and the approval mode
+ * @param options - The host, the harness, the default thread, the approval mode, and the folders for `path` attachments
  *
  * @example
  * ```ts
@@ -85,6 +198,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   const { host, harness } = options
   const defaultThread = options.threadId ?? 'main'
   const approvals = options.approvals ?? 'ask'
+  const filePaths = options.filePaths ?? []
   // Work that stopped for a question, by question id. `answer` continues it.
   const waiting = new Map<string, Operation<unknown>>()
 
@@ -124,7 +238,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   }
 
   // Waits for the work. A chat turn that stops for approvals continues while
-  // the approval mode decides them.
+  // the approval mode decides them. The result gets the media of the work.
   async function finish(
     session: HarnessSession,
     work: Operation<unknown>,
@@ -133,23 +247,29 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   ) {
     let operation = work
     let from = workFrom
+    // The media of every operation that this call waited for.
+    const media: Array<MediaRecord> = []
     while (true) {
       const outcome = await settle(session, operation, from)
       if (!outcome.done) {
         waiting.set(outcome.questionId, operation)
         return { status: 'waiting', ...pending(session) }
       }
-      if (operation.kind !== 'chat') return outcome.value
+      media.push(...(await mediaOf(operation)))
+      if (operation.kind !== 'chat') {
+        return withMedia(session, outcome.value, media)
+      }
       const interrupts = session.snapshot().pendingInterrupts
       const stopped =
         operation.status() === 'interrupted' && interrupts.length > 0
       const answers = stopped ? await decide(interrupts, context) : undefined
       if (answers === undefined) {
-        return {
+        const result = {
           status: operation.status(),
           text: turnText(outcome.value),
           ...pending(session),
         }
+        return withMedia(session, result, media)
       }
       from = session.snapshot().cursor
       operation = (await resolveAll(session, answers)).turn
@@ -188,18 +308,20 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   const chat = toolDefinition({
     name: 'chat',
     description:
-      'Send a message to the harness and wait for its answer. While a turn runs, the message waits in the queue. The result has the answer text, the status, and the interrupts and questions that wait for you.',
+      'Send a message to the harness and wait for its answer. While a turn runs, the message waits in the queue. The result has the answer text, the status, the interrupts and questions that wait for you, and the media that the turn made.',
     inputSchema: withThreadId({
       type: 'object',
       properties: {
         message: { type: 'string', description: 'The message.' },
+        attachments: attachmentsSchema,
       },
       required: ['message'],
     }),
   }).server<MCPToolContext>(async (args, ctx) => {
     const session = await open(args)
+    const message = await userInputOf(session, args, filePaths)
     const from = session.snapshot().cursor
-    const turn = session.prompt(textArg(args, 'message'), { busy: 'queue' })
+    const turn = session.prompt(message, { busy: 'queue' })
     return finish(session, turn, from, ctx.context)
   })
 
@@ -373,9 +495,27 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
       }),
   )
 
+  // The bytes of a `resource_link` from a result. The link names its thread,
+  // and a thread reads only its own media.
+  const mediaResource = resourceDefinition({
+    uriTemplate: `${MEDIA_URI_PREFIX}{threadId}/{id}`,
+    name: 'media',
+    mimeType: 'application/octet-stream',
+    argsSchema: { parse: mediaAddress },
+  }).read(async ({ threadId, id }) => {
+    const target = await host.open(harness, { threadId })
+    const record = await target.getMedia(id)
+    if (record === null) {
+      throw new Error(`Media ${id} was not found in thread ${threadId}.`)
+    }
+    const blob = toBase64(await target.loadMedia(id))
+    return { blob, mimeType: record.mimeType }
+  })
+
   return createMCPServer({
     name: options.name ?? harness.name,
     version: options.version ?? '1.0.0',
+    resources: [mediaResource],
     tools: [
       chat,
       steer,
@@ -469,6 +609,214 @@ function pending(session: HarnessSession) {
       ...question,
     })),
   }
+}
+
+/**
+ * The message of a `chat` call: the text alone, or the text and one part per
+ * attachment. A file goes into the media store of the thread first. A
+ * `MediaError` (too big, a type the harness does not take) stops the call.
+ */
+async function userInputOf(
+  session: HarnessSession,
+  args: unknown,
+  filePaths: ReadonlyArray<string>,
+) {
+  const message = textArg(args, 'message')
+  const attachments = attachmentsOf(args)
+  if (attachments.length === 0) return message
+  const parts: Array<ContentPart> = [{ type: 'text', content: message }]
+  for (const attachment of attachments) {
+    parts.push(await attachmentPart(session, attachment, filePaths))
+  }
+  return parts
+}
+
+function attachmentsOf(args: unknown) {
+  const list =
+    isRecord(args) && Array.isArray(args.attachments) ? args.attachments : []
+  const attachments = list.filter(isAttachment)
+  if (attachments.length !== list.length) {
+    throw new Error('Each attachment needs path, url, or data with mimeType.')
+  }
+  return attachments
+}
+
+async function attachmentPart(
+  session: HarnessSession,
+  attachment: Attachment,
+  filePaths: ReadonlyArray<string>,
+) {
+  if ('path' in attachment) {
+    const file = await readAllowedFile(attachment.path, filePaths)
+    const name = attachment.name ?? file.name
+    return mediaPart(
+      await session.putMedia(file.bytes, { mimeType: file.mimeType, name }),
+    )
+  }
+  if ('url' in attachment) return urlPart(attachment)
+  const bytes = Uint8Array.from(atob(attachment.data), (char) =>
+    char.charCodeAt(0),
+  )
+  const name = attachment.name ?? 'attachment'
+  return mediaPart(
+    await session.putMedia(bytes, { mimeType: attachment.mimeType, name }),
+  )
+}
+
+/**
+ * The bytes of `path` when its real path is inside one of `folders`. The real
+ * path follows every symlink and `..`, so neither can leave a folder. A
+ * missing file gets the same refusal, so a client cannot probe for files.
+ */
+async function readAllowedFile(path: string, folders: ReadonlyArray<string>) {
+  if (folders.length === 0) {
+    throw new Error(
+      'This server does not read files. Send the file as data or url.',
+    )
+  }
+  // Loaded here, not at the top: the module must also load where node:fs is
+  // missing (an edge worker), and only a path attachment needs it.
+  const { readFile, realpath } = await import('node:fs/promises')
+  const { basename, isAbsolute, relative, sep } = await import('node:path')
+  const refusal = `Cannot read ${path}. It must be a file inside the folders this server may read.`
+  const real = await realpath(path).catch(() => undefined)
+  if (real === undefined) throw new Error(refusal)
+  const roots = await Promise.all(folders.map((folder) => realpath(folder)))
+  const isInside = roots.some((root) => {
+    const rest = relative(root, real)
+    const isOut = rest === '..' || rest.startsWith(`..${sep}`)
+    return rest !== '' && !isOut && !isAbsolute(rest)
+  })
+  if (!isInside) throw new Error(refusal)
+  const name = basename(path)
+  const mimeType = mimeTypeOf(name)
+  if (mimeType === undefined) {
+    throw new Error(
+      `Unknown file type: ${name}. Send the file as data with its mimeType.`,
+    )
+  }
+  // ponytail: reads the whole file, and the store refuses it after that when
+  // it is over `media.maxBytes`. Stream it when big local files matter.
+  return { bytes: await readFile(real), mimeType, name }
+}
+
+/**
+ * A part that sends `attachment.url` to the model as it is. The server does
+ * not fetch it: a remote client must not make the server call an internal
+ * address. The kind comes from `mimeType`, or from the extension of the path.
+ */
+function urlPart(attachment: { url: string; mimeType?: string }) {
+  const { url } = attachment
+  const mimeType = attachment.mimeType ?? mimeTypeOf(new URL(url).pathname)
+  const kind = mimeType === undefined ? undefined : kindOf(mimeType)
+  if (mimeType === undefined || kind === undefined) {
+    throw new Error(`Cannot tell the kind of ${url}. Add its mimeType.`)
+  }
+  const part: ContentPart = {
+    type: kind,
+    source: { type: 'url', value: url, mimeType },
+  }
+  return part
+}
+
+/** The MIME type of a file name or URL path by its extension, or `undefined`. */
+function mimeTypeOf(path: string) {
+  const extension = /\.([^./\\]+)$/.exec(path)?.[1]
+  return extension === undefined
+    ? undefined
+    : mimeTypes.get(extension.toLowerCase())
+}
+
+/** The media records that the settled `operation` published, in order. */
+async function mediaOf(operation: Operation<unknown>) {
+  const records: Array<MediaRecord> = []
+  // The operation is settled, so its stream replays its events, then ends.
+  const events = operation.stream()
+  for await (const event of events) {
+    const isMedia =
+      event.type === EventType.CUSTOM && event.name === HARNESS_EVENTS.media
+    if (isMedia && isMediaRecord(event.value)) records.push(event.value)
+  }
+  return records
+}
+
+/**
+ * The tool result of `value` with its media. Without media, `value` stays as
+ * it is. An object result also lists the media in `media`. Each file then
+ * follows the JSON text as its own content block.
+ */
+async function withMedia(
+  session: HarnessSession,
+  value: unknown,
+  media: Array<MediaRecord>,
+) {
+  if (media.length === 0) return value
+  const listed = media.map((record) => ({
+    id: record.id,
+    kind: record.kind,
+    name: record.name,
+    mimeType: record.mimeType,
+    size: record.size,
+    uri: mediaUri(record),
+  }))
+  const blocks = await Promise.all(
+    media.map((record) => mediaBlock(session, record)),
+  )
+  const result = toCallToolResult(
+    isRecord(value) ? { ...value, media: listed } : value,
+  )
+  return { ...result, content: [...result.content, ...blocks] }
+}
+
+/** Image and audio up to 5 MB go inline. Anything else goes as a link. */
+async function mediaBlock(session: HarnessSession, record: MediaRecord) {
+  const { kind } = record
+  const isSmall = record.size <= INLINE_MEDIA_MAX_BYTES
+  if (isSmall && (kind === 'image' || kind === 'audio')) {
+    const data = toBase64(await session.loadMedia(record.id))
+    const inline: ContentBlock = { type: kind, data, mimeType: record.mimeType }
+    return inline
+  }
+  const link: ContentBlock = {
+    type: 'resource_link',
+    uri: mediaUri(record),
+    name: record.name,
+    mimeType: record.mimeType,
+  }
+  return link
+}
+
+function mediaUri(record: MediaRecord) {
+  const threadId = encodeURIComponent(record.threadId)
+  return `${MEDIA_URI_PREFIX}${threadId}/${encodeURIComponent(record.id)}`
+}
+
+/**
+ * The thread and media id of a `harness-media://<threadId>/<id>` URI, from
+ * the template variables. `mediaUri` encodes both, so they are decoded here.
+ */
+function mediaAddress(variables: unknown) {
+  const threadId = isRecord(variables) ? variables.threadId : undefined
+  const id = isRecord(variables) ? variables.id : undefined
+  if (typeof threadId !== 'string' || typeof id !== 'string') {
+    throw new Error('A media URI is harness-media://<threadId>/<id>.')
+  }
+  return {
+    threadId: decodeURIComponent(threadId),
+    id: decodeURIComponent(id),
+  }
+}
+
+// ponytail: the same as `toBase64` in `@tanstack/ai-harness/src/media.ts`,
+// which the package does not export. `btoa`, not `Buffer`, for edge workers.
+function toBase64(bytes: Uint8Array) {
+  const chunk = 0x8000
+  let binary = ''
+  // Chunks keep `fromCharCode` under the engine's argument limit.
+  for (let offset = 0; offset < bytes.length; offset += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunk))
+  }
+  return btoa(binary)
 }
 
 /**
@@ -618,6 +966,17 @@ function isDecision(value: unknown): value is Decision {
     typeof value.interruptId === 'string' &&
     (value.approved === undefined || typeof value.approved === 'boolean')
   )
+}
+
+function isAttachment(value: unknown): value is Attachment {
+  if (!isRecord(value) || !isOptionalString(value.name)) return false
+  if (typeof value.path === 'string') return true
+  if (typeof value.url === 'string') return isOptionalString(value.mimeType)
+  return typeof value.data === 'string' && typeof value.mimeType === 'string'
+}
+
+function isOptionalString(value: unknown) {
+  return value === undefined || typeof value === 'string'
 }
 
 // `session.describe()` gives each command input as JSON Schema.
