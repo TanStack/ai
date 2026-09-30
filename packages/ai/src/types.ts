@@ -6,6 +6,7 @@ import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
 import type { CapabilityContext } from './activities/chat/middleware/capabilities'
 import type { InterruptSubmissionError } from './interrupts'
+import type { ReasoningRequest } from './reasoning'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
@@ -1113,6 +1114,13 @@ export interface TextOptions<
    */
   metadata?: Record<string, any> | undefined
   modelOptions?: TProviderOptionsForModel
+  /**
+   * How hard the model thinks, normalized by `chat()`. `undefined`: the user
+   * did not ask, so the adapter sends nothing and the provider default applies.
+   * The adapter clamps the level to the model's levels and writes its own
+   * wire field.
+   */
+  reasoning?: ReasoningRequest
   request?: Request | RequestInit
 
   /**

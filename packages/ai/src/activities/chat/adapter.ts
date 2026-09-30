@@ -7,6 +7,7 @@ import type {
 } from '../../types'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
 import type { CapabilityHandle } from './middleware/capabilities'
+import type { ReasoningCapability } from '../../reasoning'
 
 /**
  * Configuration for adapter instances
@@ -72,6 +73,7 @@ export interface TextAdapter<
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
   TToolCallMetadata = unknown,
   TSystemPromptMetadata = never,
+  TReasoning extends ReasoningCapability = never,
 > {
   /** Discriminator for adapter kind */
   readonly kind: 'text'
@@ -115,6 +117,13 @@ export interface TextAdapter<
     toolCapabilities: TToolCapabilities
     toolCallMetadata: TToolCallMetadata
     systemPromptMetadata: TSystemPromptMetadata
+    /**
+     * The model's reasoning levels, for `chat({ reasoning })`. `never`: the
+     * model does not reason (or the adapter does not map `reasoning`), and
+     * the option is a type error. Optional, so an adapter written before this
+     * key existed still type-checks (and gets no `reasoning` option).
+     */
+    reasoning?: TReasoning
   }
 
   /**
@@ -196,7 +205,16 @@ export interface TextAdapter<
  * A TextAdapter with any/unknown type parameters.
  * Useful as a constraint in generic functions and interfaces.
  */
-export type AnyTextAdapter = TextAdapter<any, any, any, any, any, any, any>
+export type AnyTextAdapter = TextAdapter<
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  any
+>
 
 /**
  * Abstract base class for text adapters.
@@ -212,6 +230,7 @@ export abstract class BaseTextAdapter<
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
   TToolCallMetadata = unknown,
   TSystemPromptMetadata = never,
+  TReasoning extends ReasoningCapability = never,
 > implements TextAdapter<
   TModel,
   TProviderOptions,
@@ -219,7 +238,8 @@ export abstract class BaseTextAdapter<
   TMessageMetadataByModality,
   TToolCapabilities,
   TToolCallMetadata,
-  TSystemPromptMetadata
+  TSystemPromptMetadata,
+  TReasoning
 > {
   readonly kind = 'text' as const
   abstract readonly name: string
@@ -240,6 +260,7 @@ export abstract class BaseTextAdapter<
     toolCapabilities: TToolCapabilities
     toolCallMetadata: TToolCallMetadata
     systemPromptMetadata: TSystemPromptMetadata
+    reasoning: TReasoning
   }
 
   protected config: TextAdapterConfig
