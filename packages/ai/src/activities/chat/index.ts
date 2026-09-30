@@ -536,6 +536,8 @@ export interface TextActivityOptions<
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
   agentLoopStrategy?: TextOptions['agentLoopStrategy']
+  /** How the server tools of one model turn run. Default `'parallel'`. */
+  toolExecution?: TextOptions['toolExecution']
   /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
@@ -2228,6 +2230,7 @@ class TextEngine<
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
         inputResponses: this.resumeInputResponses,
       },
+      this.params.toolExecution,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2416,6 +2419,7 @@ class TextEngine<
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
         inputResponses: this.resumeInputResponses,
       },
+      this.params.toolExecution,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value

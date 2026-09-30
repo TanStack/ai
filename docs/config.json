@@ -242,7 +242,7 @@
           "label": "Tools",
           "to": "tools/tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Server Tools",
@@ -295,7 +295,7 @@
           "label": "Tool Architecture",
           "to": "tools/tool-architecture",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-17"
+          "updatedAt": "2026-09-30"
         }
       ],
       "tab": "guides"
@@ -307,7 +307,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Built-in Middleware",

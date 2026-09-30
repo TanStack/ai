@@ -230,6 +230,7 @@ export type ToolDefinitionConfig<
    * (default) gives the model a note that the tool may or may not have run.
    */
   replay?: 'safe' | 'never'
+  sequential?: boolean
   metadata?: Record<string, unknown>
   execution?: 'task'
 } & ApprovalConfig<TNeedsApproval, TApprovalSchema>
