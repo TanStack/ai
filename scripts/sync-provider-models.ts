@@ -92,6 +92,13 @@ interface ProviderConfig {
    * (issue #849); other providers treat token limits as optional and omit it.
    */
   maxOutputTokensMapName?: string
+  /**
+   * Runtime set of models that accept tools plus `output_config.format` in
+   * one request. New Anthropic ids are inserted here. `-fast` variants stay
+   * out: fast mode is a request parameter, and the model-meta test pins
+   * `claude-opus-5-fast` as excluded.
+   */
+  combinedToolsAndSchemaSetName?: string
   /** Provider key for conservative supports generation */
   kind: SyncedProvider
   /** Valid input modality types for this provider's ModelMeta interface */
@@ -144,6 +151,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     inputModalitiesTypeName: 'AnthropicModelInputModalitiesByName',
     toolCapabilitiesTypeName: 'AnthropicChatModelToolCapabilitiesByName',
     maxOutputTokensMapName: 'ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS',
+    combinedToolsAndSchemaSetName: 'ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     kind: 'anthropic',
     referenceSatisfies:
@@ -446,6 +454,7 @@ function generateModelConstant(
       provider: config.kind,
       inputModalities,
       supportedParameters: model.supported_parameters,
+      reasoningMandatory: model.reasoning?.mandatory === true,
     }),
   )
   lines.push(`  },`)
@@ -658,12 +667,14 @@ async function main() {
         inputModalitiesTypeName: config.inputModalitiesTypeName,
         toolCapabilitiesTypeName: config.toolCapabilitiesTypeName,
         maxOutputTokensMapName: config.maxOutputTokensMapName,
+        combinedToolsAndSchemaSetName: config.combinedToolsAndSchemaSetName,
         providerOptionsIsMappedType: config.providerOptionsIsMappedType,
       },
-      chatModels.map(({ model, constName }) => ({
+      chatModels.map(({ model, constName, strippedId }) => ({
         constName,
         providerOptionsEntry: providerOptionsEntryFor(model, config),
         hasMaxOutputTokens: Boolean(model.top_provider.max_completion_tokens),
+        acceptsCombinedToolsAndSchema: !strippedId.endsWith('-fast'),
       })),
     )
 

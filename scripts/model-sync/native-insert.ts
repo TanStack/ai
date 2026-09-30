@@ -26,10 +26,12 @@ function addToArray(
   arrayName: string,
   entries: Array<string>,
   arrayRef: string,
-) {
-  const open = `export const ${arrayName} = [`
-  const openIndex = content.indexOf(open)
-  if (openIndex === -1) {
+): string {
+  const decl = `export const ${arrayName} = `
+  const declIndex = content.indexOf(decl)
+  const afterDecl = declIndex === -1 ? -1 : declIndex + decl.length
+  const bracket = afterDecl === -1 ? -1 : content.indexOf('[', afterDecl)
+  if (declIndex === -1 || bracket === -1 || bracket - afterDecl > 40) {
     console.warn(`  Warning: Could not find array '${arrayName}' in file`)
     return content
   }
@@ -37,7 +39,7 @@ function addToArray(
   const newEntries = entries
     .map((constName) => `  ${constName}${arrayRef},`)
     .join('\n')
-  const insertAt = openIndex + open.length
+  const insertAt = bracket + 1
   return `${content.slice(0, insertAt)}\n${newEntries}${content.slice(insertAt)}`
 }
 
@@ -95,6 +97,8 @@ interface ChatModelInsert {
   constName: string
   providerOptionsEntry: string
   hasMaxOutputTokens: boolean
+  /** Anthropic: add to the combined tools + output_config.format set. */
+  acceptsCombinedToolsAndSchema?: boolean
 }
 
 interface ChatModelCatalogInsertConfig {
@@ -104,6 +108,7 @@ interface ChatModelCatalogInsertConfig {
   inputModalitiesTypeName: string
   toolCapabilitiesTypeName?: string
   maxOutputTokensMapName?: string
+  combinedToolsAndSchemaSetName?: string
   providerOptionsIsMappedType: boolean
 }
 
@@ -164,6 +169,20 @@ export function applyChatModelCatalogInserts(
           `  [${constName}${config.arrayRef}]: typeof ${constName}.supports.tools`,
       ),
     )
+  }
+
+  if (config.combinedToolsAndSchemaSetName) {
+    const combined = chatModels.filter(
+      ({ acceptsCombinedToolsAndSchema }) => acceptsCombinedToolsAndSchema,
+    )
+    if (combined.length > 0) {
+      next = addToArray(
+        next,
+        config.combinedToolsAndSchemaSetName,
+        combined.map(({ constName }) => constName),
+        config.arrayRef,
+      )
+    }
   }
 
   if (config.maxOutputTokensMapName) {

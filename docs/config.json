@@ -13,7 +13,7 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Quick Start",
@@ -824,7 +824,8 @@
         {
           "label": "Evaluate",
           "to": "evaluate/evaluate",
-          "addedAt": "2026-09-18"
+          "addedAt": "2026-09-18",
+          "updatedAt": "2026-09-29"
         }
       ],
       "tab": "guides"
@@ -1295,6 +1296,11 @@
           "label": "TypeSafe",
           "to": "adapters/typesafe",
           "addedAt": "2026-09-18"
+        },
+        {
+          "label": "Ollaya",
+          "to": "adapters/ollaya",
+          "addedAt": "2026-09-29"
         },
         {
           "label": "ElevenLabs",
