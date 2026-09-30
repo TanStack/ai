@@ -90,6 +90,48 @@ test.describe('harness protocol', () => {
     expect(command.operationId).toMatch(/^op-command-/)
   })
 
+  test('runs a retried prompt with the same inputId once on a durable host', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const threadId = `durable-${testId}`
+    const durable = { ...headers(testId, aimockPort), 'x-harness-durable': '1' }
+    const control = async (input: unknown) =>
+      (
+        await request.post('/api/harness-protocol/control', {
+          headers: { ...durable, 'content-type': 'application/json' },
+          data: { threadId, input },
+        })
+      ).json()
+    const prompt = {
+      op: 'prompt',
+      message: '[harness-durable] run once',
+      inputId: `once-${testId}`,
+    }
+
+    const first = await control(prompt)
+    const retry = await control(prompt)
+
+    expect(first.status).toBe('accepted')
+    expect(retry).toEqual(first)
+    const answers = async () => {
+      const response = await request.get(
+        `/api/harness-protocol/transcript?threadId=${threadId}`,
+        { headers: durable },
+      )
+      const transcript: Array<{ role: string; content: unknown }> =
+        await response.json()
+      return transcript
+        .filter((message) => message.role === 'assistant')
+        .map((message) => message.content)
+    }
+    await expect.poll(answers).toEqual(['Stored once.'])
+    expect(
+      await control({ ...prompt, message: '[harness-durable] other text' }),
+    ).toMatchObject({ status: 'rejected', reason: 'conflict' })
+  })
+
   test('takes a control input and returns a receipt', async ({
     request,
     testId,
