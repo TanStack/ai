@@ -54,6 +54,7 @@ import type {
   AdapterYieldChunk,
   ProviderExecutedToolMetadata,
   ProviderExecutedToolSource,
+  ReasoningCapability,
   TextOptions,
 } from '@tanstack/ai'
 
@@ -235,13 +236,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   TMessageMetadata extends DefaultMessageMetadataByModality =
     DefaultMessageMetadataByModality,
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TReasoning extends ReasoningCapability = never,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
   TMessageMetadata,
   TToolCapabilities,
-  OpenAIResponsesToolCallMetadata
+  OpenAIResponsesToolCallMetadata,
+  never,
+  TReasoning
 > {
   override readonly kind = 'text' as const
   readonly name: string

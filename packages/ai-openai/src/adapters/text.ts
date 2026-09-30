@@ -1,8 +1,10 @@
 import OpenAI from 'openai'
+import { resolveReasoning } from '@tanstack/ai/adapter-internals'
 import {
   OpenAIBaseResponsesTextAdapter,
   warnStrictFallback,
 } from '@tanstack/openai-base'
+import { OPENAI_MODEL_REASONING } from '../model-reasoning'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
@@ -19,6 +21,7 @@ import type {
 } from '../model-meta'
 import type { ResponseCreateParams } from 'openai/resources/responses/responses'
 import type { Modality, TextOptions } from '@tanstack/ai'
+import type { OpenAIModelReasoningByName } from '../model-reasoning'
 import type {
   ExternalTextProviderOptions,
   InternalTextProviderOptions,
@@ -55,6 +58,12 @@ type ResolveProviderOptions<TModel extends string> =
  * Resolve input modalities for a specific model.
  * If the model has explicit modalities in the map, use those; otherwise use all modalities.
  */
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof OpenAIModelReasoningByName
+    ? OpenAIModelReasoningByName[TModel]
+    : never
+
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof OpenAIModelInputModalitiesByName
     ? OpenAIModelInputModalitiesByName[TModel]
@@ -96,7 +105,8 @@ export class OpenAITextAdapter<
   TProviderOptions,
   TInputModalities,
   OpenAIMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'openai' as const
@@ -154,6 +164,24 @@ export class OpenAITextAdapter<
     const request: Omit<ResponseCreateParams, 'stream'> = {
       ...baseRequest,
       ...(tools && tools.length > 0 && { tools }),
+    }
+
+    // `chat({ reasoning })`: the model's effort for the level, and a summary
+    // so the thinking text streams back. The SDK type has no `max` yet, so
+    // the field goes on with Object.assign.
+    const reasoning = resolveReasoning(
+      options.reasoning,
+      OPENAI_MODEL_REASONING[options.model],
+    )
+    if (reasoning?.value) {
+      Object.assign(request, {
+        reasoning: {
+          effort: reasoning.value,
+          ...(reasoning.summary && reasoning.level !== 'off'
+            ? { summary: 'auto' }
+            : {}),
+        },
+      })
     }
 
     // Reasoning models 400 on `temperature`/`top_p`. Callers (and the summarize

@@ -128,9 +128,9 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     validInputModalities: ['text', 'image', 'audio', 'video'],
     kind: 'openai',
     referenceSatisfies:
-      'ModelMeta<OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions>',
+      'ModelMeta<OpenAIBaseOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions>',
     referenceProviderOptionsEntry:
-      'OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions',
+      'OpenAIBaseOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions',
     hasBothNameAndId: false,
     providerOptionsIsMappedType: false,
     skipPatterns: [

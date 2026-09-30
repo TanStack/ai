@@ -49,7 +49,10 @@ export type ReasoningOption<
   TCapability extends ReasoningCapability = ReasoningCapability,
 > =
   | TCapability['levels']
-  | ({ level: TCapability['levels']; summary?: boolean } & (true extends TCapability['budget']
+  | ({
+      level: TCapability['levels']
+      summary?: boolean
+    } & (true extends TCapability['budget']
       ? { budgetTokens?: number }
       : { budgetTokens?: never }))
 
@@ -171,4 +174,34 @@ export const DEFAULT_REASONING_BUDGETS: Readonly<
 export function reasoningBudget(request: ReasoningRequest): number {
   if (request.budgetTokens !== undefined) return request.budgetTokens
   return request.level === 'off' ? 0 : DEFAULT_REASONING_BUDGETS[request.level]
+}
+
+/** A request resolved for one model: the clamped level and its provider value. */
+export interface ResolvedReasoning {
+  level: ReasoningLevel
+  /** The value to send for `level`. `null`: send nothing. */
+  value: string | null
+  summary: boolean
+  budgetTokens?: number
+}
+
+/**
+ * Resolve `request` for a model: clamp the level to the model's levels, and
+ * look up its provider value. `undefined` when there is nothing to send: no
+ * request, or a model that does not reason or has no reasoning data.
+ */
+export function resolveReasoning(
+  request: ReasoningRequest | undefined,
+  reasoning: ModelReasoning | undefined,
+): ResolvedReasoning | undefined {
+  if (!request || !reasoning) return undefined
+  const level = clampReasoningLevel(reasoning, request.level)
+  return {
+    level,
+    value: reasoningValue(reasoning, level),
+    summary: request.summary,
+    ...(request.budgetTokens !== undefined
+      ? { budgetTokens: request.budgetTokens }
+      : {}),
+  }
 }

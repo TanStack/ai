@@ -2,10 +2,46 @@ import {
   OpenAIBaseChatCompletionsTextAdapter,
   OpenAIBaseResponsesTextAdapter,
 } from '@tanstack/openai-base'
+import {
+  applyRequestQuirks,
+  applyThinking,
+  replayReasoning,
+  sessionHeaders,
+} from './quirks'
 import type OpenAI from 'openai'
-import type { Modality } from '@tanstack/ai'
+import type {
+  ChatCompletionCreateParamsStreaming,
+  ChatCompletionMessageParam,
+} from 'openai/resources/chat/completions/completions'
+import type {
+  Modality,
+  ModelMessage,
+  ModelReasoning,
+  ReasoningCapability,
+  ReasoningMap,
+  TextOptions,
+} from '@tanstack/ai'
 import type { OpenAIMessageMetadataByModality } from '../message-types'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
+import type { OpenAICompatibleCompat } from './quirks'
+
+/** One model's reasoning and request quirks, from its `models` entry and the provider. */
+export interface CompatibleModelConfig {
+  /** `false`: the model does not reason. `true`: no level map. Or its level map. */
+  reasoning?: boolean | ReasoningMap
+  compat?: OpenAICompatibleCompat
+}
+
+/** The runtime reasoning data of a `models` entry. `undefined`: not declared. */
+function modelReasoning(
+  reasoning: boolean | ReasoningMap | undefined,
+): ModelReasoning | undefined {
+  if (reasoning === undefined) return undefined
+  if (reasoning === false) return false
+  return reasoning === true
+    ? { budget: false }
+    : { map: reasoning, budget: false }
+}
 
 /**
  * Generic OpenAI-compatible adapter over the Chat Completions API
@@ -17,23 +53,86 @@ export class OpenAICompatibleChatAdapter<
   TProviderOptions extends Record<string, any> = Record<string, any>,
   TInputModalities extends ReadonlyArray<Modality> = ReadonlyArray<Modality>,
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TReasoning extends ReasoningCapability = never,
 > extends OpenAIBaseChatCompletionsTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
   OpenAIMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  TReasoning
 > {
   override readonly kind = 'text' as const
   readonly maxTokensKey = 'max_tokens'
+  private readonly compat: OpenAICompatibleCompat | undefined
+  private readonly reasoning: ModelReasoning | undefined
 
   constructor(
     client: OpenAI,
     model: TModel,
     name: string,
     options?: OpenAIBaseTextAdapterOptions,
+    config: CompatibleModelConfig = {},
   ) {
     super(model, name, client, options)
+    this.compat = config.compat
+    this.reasoning = modelReasoning(config.reasoning)
+  }
+
+  /**
+   * The request, then the provider's quirks: the thinking fields for
+   * `reasoning`, and (with `compat`) the instruction role, the token field,
+   * `store`, strict tools, `tool_stream`, and cache markers.
+   */
+  protected override mapOptionsToRequest(
+    options: TextOptions,
+  ): ChatCompletionCreateParamsStreaming {
+    const params = super.mapOptionsToRequest(options)
+    if (!options.reasoning && !this.compat) return params
+    // The quirks edit loose JSON. The OpenAI SDK type has no field for
+    // `thinking` or `enable_thinking`, so the result goes back on `params`.
+    const body: Record<string, unknown> = { ...params }
+    if (options.reasoning)
+      applyThinking(body, options.reasoning, this.reasoning, this.compat ?? {})
+    if (this.compat)
+      applyRequestQuirks(
+        body,
+        this.compat,
+        this.reasoning !== undefined && this.reasoning !== false,
+      )
+    for (const key of Object.keys(params))
+      if (!(key in body)) Reflect.deleteProperty(params, key)
+    return Object.assign(params, body)
+  }
+
+  /**
+   * An assistant message carries its thinking back as `reasoning_content`
+   * when the provider needs it (DeepSeek fails the second turn without it).
+   */
+  protected override convertMessage(
+    message: ModelMessage,
+  ): ChatCompletionMessageParam {
+    const converted = super.convertMessage(message)
+    const replay =
+      message.role === 'assistant' &&
+      this.compat?.requiresReasoningContentOnAssistantMessages === true &&
+      this.reasoning !== false
+    if (!replay) return converted
+    return Object.assign(converted, {
+      reasoning_content: replayReasoning(message.thinking),
+    })
+  }
+
+  protected override includeUsageInStream(): boolean {
+    return this.compat?.supportsUsageInStreaming !== false
+  }
+
+  protected override requestHeaders(
+    options: TextOptions,
+  ): Record<string, string> | undefined {
+    return this.compat
+      ? sessionHeaders(this.compat, options.conversationId ?? options.threadId)
+      : undefined
   }
 
   /**

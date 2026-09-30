@@ -39,6 +39,7 @@ import type {
   Modality,
   ModelMessage,
   AdapterYieldChunk,
+  ReasoningCapability,
   TextOptions,
 } from '@tanstack/ai'
 
@@ -62,12 +63,16 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   TMessageMetadata extends DefaultMessageMetadataByModality =
     DefaultMessageMetadataByModality,
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
+  TReasoning extends ReasoningCapability = never,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
   TMessageMetadata,
-  TToolCapabilities
+  TToolCapabilities,
+  unknown,
+  never,
+  TReasoning
 > {
   override readonly kind = 'text' as const
   readonly name: string
@@ -115,9 +120,11 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         {
           ...requestParams,
           stream: true,
-          stream_options: { include_usage: true },
+          ...(this.includeUsageInStream()
+            ? { stream_options: { include_usage: true } }
+            : {}),
         },
-        extractRequestOptions(options.request),
+        this.requestOptionsFor(options),
       )
 
       yield* this.processStreamChunks(stream, options, aguiState)
@@ -1225,6 +1232,38 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         aguiState,
         'processStreamChunks',
       )
+    }
+  }
+
+  /**
+   * Whether a streaming request asks for usage with
+   * `stream_options: { include_usage: true }`. Override for a provider that
+   * rejects the field.
+   */
+  protected includeUsageInStream(): boolean {
+    return true
+  }
+
+  /**
+   * Extra headers for one call, for example session headers. They go on top
+   * of the headers of `options.request`.
+   */
+  protected requestHeaders(
+    _options: TextOptions,
+  ): Record<string, string> | undefined {
+    return undefined
+  }
+
+  private requestOptionsFor(options: TextOptions) {
+    const base = extractRequestOptions(options.request)
+    const extra = this.requestHeaders(options)
+    if (!extra) return base
+    return {
+      ...base,
+      headers: {
+        ...Object.fromEntries(new Headers(base.headers).entries()),
+        ...extra,
+      },
     }
   }
 

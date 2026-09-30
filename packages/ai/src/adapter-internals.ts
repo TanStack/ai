@@ -7,7 +7,9 @@ export {
   DEFAULT_REASONING_BUDGETS,
   reasoningBudget,
   reasoningValue,
+  resolveReasoning,
 } from './reasoning'
+export type { ResolvedReasoning } from './reasoning'
 export { InternalLogger } from './logger/internal-logger'
 export type { Logger } from './logger/types'
 export { resolveDebugOption } from './logger/resolve'

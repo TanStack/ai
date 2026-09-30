@@ -2,8 +2,6 @@ import type { Modality } from '@tanstack/ai'
 import type {
   OpenAIBaseOptions,
   OpenAIMetadataOptions,
-  OpenAIReasoningOptions,
-  OpenAIReasoningOptionsWithConcise,
   OpenAIStreamingOptions,
   OpenAIStructuredOutputOptions,
   OpenAIToolsOptions,
@@ -109,7 +107,6 @@ const GPT5_2 = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -148,7 +145,6 @@ const GPT5_2_PRO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
@@ -184,7 +180,6 @@ const GPT5_2_CHAT = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -229,7 +224,6 @@ const GPT5_1 = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -266,7 +260,6 @@ const GPT5_1_CODEX = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -312,7 +305,6 @@ const GPT5 = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -353,7 +345,6 @@ const GPT5_MINI = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -394,7 +385,6 @@ const GPT5_NANO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -434,7 +424,6 @@ const GPT5_PRO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -471,7 +460,6 @@ const GPT5_CODEX = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -671,10 +659,7 @@ const O3_DEEP_RESEARCH = {
     ],
   },
 } as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
+  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
 
 const O4_MINI_DEEP_RESEARCH = {
@@ -710,10 +695,7 @@ const O4_MINI_DEEP_RESEARCH = {
     ],
   },
 } as const satisfies ModelMeta<
-  OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
+  OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
 
 const O3_PRO = {
@@ -749,7 +731,6 @@ const O3_PRO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -902,7 +883,6 @@ const O3 = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -1000,7 +980,6 @@ const GPT4_1 = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -1132,7 +1111,6 @@ const O1_PRO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -1161,7 +1139,6 @@ const COMPUTER_USE_PREVIEW = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptionsWithConcise &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
@@ -1249,7 +1226,6 @@ const O3_MINI = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -1335,7 +1311,6 @@ const O1 = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -1404,7 +1379,6 @@ const GPT_4O = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -1602,7 +1576,6 @@ const GPT_5_1_CODEX_MINI = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -1639,7 +1612,6 @@ const CODEX_MINI_LATEST = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -1865,7 +1837,6 @@ const GPT_5_1_CHAT = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -1902,7 +1873,6 @@ const GPT_5_CHAT = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -1990,7 +1960,6 @@ const GPT_5_4_MINI = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2035,7 +2004,6 @@ const GPT_5_4_NANO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2080,7 +2048,6 @@ const GPT_5_4_IMAGE_2 = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2126,7 +2093,6 @@ const GPT_5_6 = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2172,7 +2138,6 @@ const GPT_5_6_SOL = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2218,7 +2183,6 @@ const GPT_5_6_TERRA = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2264,7 +2228,6 @@ const GPT_5_6_LUNA = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2309,7 +2272,6 @@ const GPT_5_5 = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2353,7 +2315,6 @@ const GPT_5_5_PRO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2398,7 +2359,6 @@ const GPT_CHAT_LATEST = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2427,7 +2387,6 @@ const GPT_5_6_LUNA_PRO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2456,7 +2415,6 @@ const GPT_5_6_SOL_PRO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2485,7 +2443,6 @@ const GPT_5_6_TERRA_PRO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2523,7 +2480,6 @@ const GPT_6_ASTRA = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2552,7 +2508,6 @@ const GPT_6_ASTRA_PRO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2590,7 +2545,6 @@ const GPT_6_LUNA = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2619,7 +2573,6 @@ const GPT_6_LUNA_PRO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2657,7 +2610,6 @@ const GPT_6_SOL = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2686,7 +2638,6 @@ const GPT_6_SOL_PRO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2726,7 +2677,6 @@ const GPT_6_1_SOL = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2766,7 +2716,6 @@ const GPT_6_1_SOL_PRO = {
   },
 } as const satisfies ModelMeta<
   OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -2970,54 +2919,45 @@ export type OpenAIEmbeddingModelInputModalitiesByName = {
  */
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_2_CHAT.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_2_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_1.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_1_CODEX.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_MINI.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_NANO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -3069,26 +3009,14 @@ export type OpenAIChatModelProviderOptionsByName = {
   [CHATGPT_40.name]: OpenAIBaseOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  [O3.name]: OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
-  [O3_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIMetadataOptions
-  [O3_MINI.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIMetadataOptions
-  [O4_MINI.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIMetadataOptions
-  [O3_DEEP_RESEARCH.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIMetadataOptions
-  [O4_MINI_DEEP_RESEARCH.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIMetadataOptions
-  [O1.name]: OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIMetadataOptions
-  [O1_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIMetadataOptions
+  [O3.name]: OpenAIBaseOptions & OpenAIMetadataOptions
+  [O3_PRO.name]: OpenAIBaseOptions & OpenAIMetadataOptions
+  [O3_MINI.name]: OpenAIBaseOptions & OpenAIMetadataOptions
+  [O4_MINI.name]: OpenAIBaseOptions & OpenAIMetadataOptions
+  [O3_DEEP_RESEARCH.name]: OpenAIBaseOptions & OpenAIMetadataOptions
+  [O4_MINI_DEEP_RESEARCH.name]: OpenAIBaseOptions & OpenAIMetadataOptions
+  [O1.name]: OpenAIBaseOptions & OpenAIMetadataOptions
+  [O1_PRO.name]: OpenAIBaseOptions & OpenAIMetadataOptions
 
   // Audio models
   [GPT_AUDIO.name]: OpenAIBaseOptions &
@@ -3106,11 +3034,9 @@ export type OpenAIChatModelProviderOptionsByName = {
 
   // Chat-only models
   [GPT_5_1_CHAT.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIMetadataOptions
   [GPT_5_CHAT.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIMetadataOptions
 
@@ -3140,132 +3066,110 @@ export type OpenAIChatModelProviderOptionsByName = {
 
   // Special models
   [COMPUTER_USE_PREVIEW.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptionsWithConcise &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_4_MINI.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_4_NANO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_4_IMAGE_2.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_6.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_6_SOL.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_6_TERRA.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_6_LUNA.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_5.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_5_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_CHAT_LATEST.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_6_LUNA_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_6_SOL_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_5_6_TERRA_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_6_ASTRA.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_6_ASTRA_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_6_LUNA.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_6_LUNA_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_6_SOL.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_6_SOL_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_6_1_SOL.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_6_1_SOL_PRO.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &

@@ -205,16 +205,7 @@ export interface TextAdapter<
  * A TextAdapter with any/unknown type parameters.
  * Useful as a constraint in generic functions and interfaces.
  */
-export type AnyTextAdapter = TextAdapter<
-  any,
-  any,
-  any,
-  any,
-  any,
-  any,
-  any,
-  any
->
+export type AnyTextAdapter = TextAdapter<any, any, any, any, any, any, any, any>
 
 /**
  * Abstract base class for text adapters.

@@ -5,6 +5,7 @@ import {
   normalizeReasoning,
   reasoningBudget,
   reasoningValue,
+  resolveReasoning,
   supportedReasoningLevels,
 } from '../src/reasoning'
 import { createMockAdapter, ev } from './test-utils'
@@ -33,14 +34,25 @@ describe('supportedReasoningLevels (pi rules)', () => {
       budget: false,
       map: { off: null, minimal: null, medium: null, xhigh: 'xhigh' },
     }
-    expect(supportedReasoningLevels(reasoning)).toEqual(['low', 'high', 'xhigh'])
+    expect(supportedReasoningLevels(reasoning)).toEqual([
+      'low',
+      'high',
+      'xhigh',
+    ])
   })
 })
 
 describe('clampReasoningLevel (pi rules)', () => {
   const lowHighMax: ModelReasoning = {
     budget: false,
-    map: { off: null, minimal: null, low: 'low', medium: null, high: 'high', max: 'max' },
+    map: {
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: null,
+      high: 'high',
+      max: 'max',
+    },
   }
 
   it.each<[ReasoningLevel, ReasoningLevel]>([
@@ -143,5 +155,26 @@ describe('chat({ reasoning })', () => {
       stream: false,
     })
     expect(calls[0]?.reasoning).toEqual({ level: 'max', summary: false })
+  })
+})
+
+describe('resolveReasoning', () => {
+  it('clamps the level and gives its value', () => {
+    expect(
+      resolveReasoning(
+        { level: 'medium', summary: true },
+        { budget: false, map: { medium: null, high: 'HIGH' } },
+      ),
+    ).toEqual({ level: 'high', value: 'HIGH', summary: true })
+  })
+
+  it('gives nothing to send without a request or for a model that does not reason', () => {
+    expect(resolveReasoning(undefined, { budget: false })).toBeUndefined()
+    expect(
+      resolveReasoning({ level: 'high', summary: true }, false),
+    ).toBeUndefined()
+    expect(
+      resolveReasoning({ level: 'high', summary: true }, undefined),
+    ).toBeUndefined()
   })
 })
