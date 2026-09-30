@@ -3,8 +3,10 @@ import { defineConfig, mergeConfig } from 'vitest/config'
 import { tanstackViteConfig } from '@tanstack/vite-config'
 import packageJson from './package.json'
 
-// One entry per provider file, so each one is its own subpath export.
-const providerEntries = readdirSync('./src/providers')
+// One entry per provider file, so each one is its own subpath export. The
+// folder is read next to this file, so tools that load the config from the
+// repo root (knip) find it too.
+const providerEntries = readdirSync(new URL('./src/providers', import.meta.url))
   .filter((file) => file.endsWith('.ts'))
   .map((file) => `./src/providers/${file}`)
 

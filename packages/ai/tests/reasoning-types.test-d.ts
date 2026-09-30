@@ -42,10 +42,10 @@ chat({
 // @ts-expect-error `medium` is not one of this model's levels
 chat({ adapter: effortModel, messages, reasoning: 'medium' })
 
-// @ts-expect-error budgetTokens needs a budget-based model
 chat({
   adapter: effortModel,
   messages,
+  // @ts-expect-error budgetTokens needs a budget-based model
   reasoning: { level: 'low', budgetTokens: 1000 },
 })
 
