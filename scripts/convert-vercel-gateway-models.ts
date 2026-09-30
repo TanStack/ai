@@ -60,7 +60,14 @@ const INPUT_MODALITY_ORDER: Array<InputModality> = [
   'video',
 ]
 
-const EXCLUDED_PARAMS = new Set(['tools', 'tool_choice'])
+// `chat({ reasoning })` owns reasoning, so its params are not model options.
+const EXCLUDED_PARAMS = new Set([
+  'tools',
+  'tool_choice',
+  'reasoning',
+  'include_reasoning',
+  'reasoning_effort',
+])
 
 const PARAM_NAME_MAP: Record<string, Array<string>> = {
   max_tokens: ['max_tokens', 'max_output_tokens'],
@@ -71,8 +78,6 @@ const PARAM_NAME_MAP: Record<string, Array<string>> = {
   seed: ['seed'],
   frequency_penalty: ['frequency_penalty'],
   presence_penalty: ['presence_penalty'],
-  reasoning: ['reasoning'],
-  include_reasoning: ['include_reasoning'],
   response_format: ['response_format'],
   structured_outputs: ['structured_outputs'],
 }
