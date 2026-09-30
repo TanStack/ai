@@ -1072,7 +1072,7 @@
           "label": "Bring Your Own Key",
           "to": "advanced/byok",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Debug Logging",
@@ -1135,7 +1135,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Anthropic",

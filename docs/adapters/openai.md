@@ -105,6 +105,149 @@ const stream = chat({
 });
 ```
 
+## Sign in with ChatGPT (BYOK)
+
+Many of your users have a ChatGPT plan but no API key. Let them sign in with ChatGPT. The token bills their ChatGPT plan, not your account.
+
+The helpers in `@tanstack/ai-openai/siwc` put the access token into the `openai` [BYOK](../advanced/byok) slot. Your relay reads it like a pasted key.
+
+Before you start, check these limits:
+
+- OpenAI allows this sign-in only for open-source and locally hosted apps. For a hosted app, fill in the [interest form](https://openai.com/form/sign-in-with-chatgpt-interest/).
+- Open the app on `http://127.0.0.1:<port>`. OpenAI rejects `localhost`.
+- The callback page must be at `/auth/callback`.
+
+### 1. Add the sign-in button
+
+Call `startChatGptSignIn` from a click. `agentName` is your app name. OpenAI shows it on the consent screen.
+
+```tsx
+import { startChatGptSignIn } from "@tanstack/ai-openai/siwc";
+
+export function ChatGptButton() {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        void startChatGptSignIn({ agentName: "My App" });
+      }}
+    >
+      Continue with ChatGPT
+    </button>
+  );
+}
+```
+
+### 2. Finish on `/auth/callback`
+
+Render this component on the `/auth/callback` route. It exchanges the code when the page loads. Then the user clicks to save.
+
+```tsx
+import { useEffect, useRef, useState } from "react";
+import {
+  completeChatGptSignIn,
+  saveChatGptSignIn,
+} from "@tanstack/ai-openai/siwc";
+import type { ChatGptSignIn } from "@tanstack/ai-openai/siwc";
+import { byok } from "./byok";
+
+export function ChatGptCallback() {
+  const started = useRef(false);
+  const [signIn, setSignIn] = useState<ChatGptSignIn | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    // The code works one time. Strict Mode runs effects two times.
+    if (started.current) return;
+    started.current = true;
+    completeChatGptSignIn().then(setSignIn, (caught: unknown) => {
+      setError(caught instanceof Error ? caught.message : "Sign-in failed");
+    });
+  }, []);
+
+  if (error) return <p>{error}</p>;
+  if (!signIn) return <p>Finishing sign-in...</p>;
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        void saveChatGptSignIn(byok, signIn);
+      }}
+    >
+      Save ChatGPT sign-in
+    </button>
+  );
+}
+```
+
+The save needs a click because passkey storage shows a browser prompt. The refresh token goes into a second keyring slot. No send attaches that slot, so the refresh token stays in the browser.
+
+### 3. Refresh the token
+
+The access token lasts one hour. Call `refreshChatGptSignIn` on a timer:
+
+```tsx
+import { useEffect } from "react";
+import { refreshChatGptSignIn } from "@tanstack/ai-openai/siwc";
+import { byok } from "./byok";
+
+export function useChatGptRefresh() {
+  useEffect(() => {
+    const refresh = () => {
+      refreshChatGptSignIn(byok).catch(console.error);
+    };
+    refresh();
+    const timer = setInterval(refresh, 60_000);
+    return () => clearInterval(timer);
+  }, []);
+}
+```
+
+The call does nothing until the token has less than five minutes left. If OpenAI rejects the refresh token, the call clears the sign-in. Then the user must sign in again.
+
+### 4. Read the token on the relay
+
+The relay code is the same as for a pasted key. Add `store: false`, because the ChatGPT route requires it.
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+import { openaiByok } from "@tanstack/ai-openai/byok";
+import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const apiKey = getByokKey(request, openaiByok);
+  if (!apiKey) return byokMissing(openaiByok);
+
+  const stream = chat({
+    adapter: createOpenaiChat("gpt-6-sol", apiKey),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    modelOptions: { store: false },
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+`store: false` also works with an API key. A ChatGPT token does not start with `sk-`, so use that test if you must send different options.
+
+The ChatGPT route has these limits:
+
+- Use a model that the user's ChatGPT plan includes.
+- Do not send `temperature`, `top_p`, `max_output_tokens`, `metadata`, or `previous_response_id`.
+- Hosted tools do not work. This includes image generation, file search, code interpreter, computer use, and hosted MCP.
+- Audio input and transcription do not work.
+
+Click **Continue with ChatGPT**, approve, save, then send a message. The relay calls OpenAI on the user's ChatGPT plan.
+
+The `ts-react-chat` example has this flow in its key dialog.
+
 ## Configuration
 
 ```typescript

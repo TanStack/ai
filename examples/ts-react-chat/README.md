@@ -39,6 +39,8 @@ An example chat application built with TanStack Start, TanStack Store, and **Tan
 OPENAI_API_KEY=your_openai_api_key
 ```
 
+No key? Open the key dialog and click **Continue with ChatGPT**. Open the app on `http://127.0.0.1:3000` first. ChatGPT sign-in rejects `localhost`.
+
 ## Trying Out Lazy Tool Discovery
 
 This example includes three **lazy tools** — tools that are not sent to the LLM upfront. Instead, the LLM sees a `__lazy__tool__discovery__` tool that lists their names. When the LLM needs one, it discovers it first (getting the full description and schema), then calls it normally.
