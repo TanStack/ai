@@ -37,11 +37,13 @@
  * starting with `rc-`, or it silently changes that expected set.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
+import { LogConflictError } from '../types'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   AIPersistence,
   AIPersistenceStores,
   ArtifactRecord,
+  LogStore,
   RunStore,
 } from '../types'
 
@@ -1654,6 +1656,139 @@ export function runPersistenceConformance(
         await store.markApplied('missing', 'op-x')
         await store.markRejected('missing', 'nope')
         expect(await store.get('missing')).toBeNull()
+      })
+    })
+
+    // The session log is opt-in: only durable harness hosts read it. A backend
+    // without it skips these cases and needs no `skip` entry. Each case uses
+    // its own thread, because the suite shares one persistence.
+    describe('log', () => {
+      const newThread = () => `log-${crypto.randomUUID()}`
+      const types = async (store: LogStore, threadId: string) =>
+        (await store.read(threadId)).map((entry) => [
+          entry.seq,
+          entry.record.type,
+        ])
+
+      it('writes a batch at consecutive positions and reads it in order', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const threadId = newThread()
+
+        await store.append(threadId, 1, [
+          { type: 'a', n: 1 },
+          { type: 'b', n: 2 },
+        ])
+        await store.append(threadId, 3, [{ type: 'c', nested: { deep: [1] } }])
+
+        expect(await store.read(threadId)).toEqual([
+          { seq: 1, record: { type: 'a', n: 1 } },
+          { seq: 2, record: { type: 'b', n: 2 } },
+          { seq: 3, record: { type: 'c', nested: { deep: [1] } } },
+        ])
+      })
+
+      it('rejects a taken position or a gap with LogConflictError and writes nothing', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const threadId = newThread()
+        await store.append(threadId, 1, [{ type: 'first' }])
+
+        const taken = store.append(threadId, 1, [
+          { type: 'late-1' },
+          { type: 'late-2' },
+        ])
+        await expect(taken).rejects.toBeInstanceOf(LogConflictError)
+        await expect(taken).rejects.toMatchObject({ threadId, seq: 1 })
+
+        // A gap (position 3 while 2 is free) is a conflict too.
+        await expect(
+          store.append(threadId, 3, [{ type: 'gap' }]),
+        ).rejects.toBeInstanceOf(LogConflictError)
+
+        expect(await types(store, threadId)).toEqual([[1, 'first']])
+      })
+
+      it('writes nothing for an empty batch', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const threadId = newThread()
+
+        await store.append(threadId, 1, [])
+
+        expect(await store.read(threadId)).toEqual([])
+        await store.append(threadId, 1, [{ type: 'still-first' }])
+        expect(await types(store, threadId)).toEqual([[1, 'still-first']])
+      })
+
+      it('reads after a position, with a limit', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const threadId = newThread()
+        await store.append(threadId, 1, [
+          { type: 'r1' },
+          { type: 'r2' },
+          { type: 'r3' },
+          { type: 'r4' },
+        ])
+
+        const page = await store.read(threadId, { after: 1, limit: 2 })
+        expect(page.map((entry) => entry.seq)).toEqual([2, 3])
+        expect(
+          (await store.read(threadId, { after: 3 })).map((entry) => entry.seq),
+        ).toEqual([4])
+        expect(await store.read(threadId, { after: 4 })).toEqual([])
+        expect(await store.read(threadId, { limit: 0 })).toEqual([])
+        expect(await store.read(newThread())).toEqual([])
+      })
+
+      it('keeps threads apart', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const left = newThread()
+        const right = newThread()
+
+        await store.append(left, 1, [{ type: 'left' }])
+        // Position 1 is free on the other thread.
+        await store.append(right, 1, [{ type: 'right' }])
+
+        expect(await types(store, left)).toEqual([[1, 'left']])
+        expect(await types(store, right)).toEqual([[1, 'right']])
+      })
+
+      it('calls a listener after each append until it unsubscribes', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const threadId = newThread()
+        let calls = 0
+        const stop = store.subscribe(threadId, () => {
+          calls += 1
+        })
+
+        await store.append(threadId, 1, [{ type: 'one' }])
+        await expect.poll(() => calls).toBe(1)
+        stop()
+        await store.append(threadId, 2, [{ type: 'two' }])
+
+        // Give a store that notifies later (a poller) the time to call again.
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        expect(calls).toBe(1)
+      })
+
+      it('does not share record objects with the caller', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const threadId = newThread()
+        const written = { type: 'shared', list: [1] }
+        await store.append(threadId, 1, [written])
+        written.list.push(2)
+
+        const [first] = await store.read(threadId)
+        if (first) first.record.type = 'changed'
+
+        expect(await store.read(threadId)).toEqual([
+          { seq: 1, record: { type: 'shared', list: [1] } },
+        ])
       })
     })
 

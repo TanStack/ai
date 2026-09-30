@@ -416,6 +416,95 @@ export function defineInboxStore(store: InboxStore): InboxStore {
   return store
 }
 
+/**
+ * One record of a session log. `type` names the kind of record. The other
+ * fields are JSON. Records with a `type` that starts with `harness.` belong
+ * to `@tanstack/ai-harness`. A host adds its own records with other types.
+ */
+export interface LogRecord {
+  type: string
+  [key: string]: unknown
+}
+
+/** A {@link LogRecord} and its position in the log. */
+export interface LogEntry {
+  /** The position of the record. The first record of a thread is at 1. */
+  seq: number
+  record: LogRecord
+}
+
+/**
+ * The error {@link LogStore.append} rejects with when `seq` is not the next
+ * free position of the thread. It means that another writer appended first.
+ * Nothing of the rejected batch is written.
+ */
+export class LogConflictError extends Error {
+  readonly threadId: string
+  readonly seq: number
+
+  constructor(threadId: string, seq: number) {
+    super(
+      `Log conflict on thread ${JSON.stringify(threadId)}: position ${seq} is not the next free position.`,
+    )
+    this.name = 'LogConflictError'
+    this.threadId = threadId
+    this.seq = seq
+  }
+}
+
+/**
+ * Durable append-only log of a harness session, one log per thread. A durable
+ * harness host keeps the events, the transcript, the inputs, and the tool
+ * steps of a thread in it.
+ *
+ * The log has one writer at a time. `append` is a compare-and-append: the
+ * writer names the position of the first record, and the store refuses the
+ * batch when another writer took that position first. In SQL, a primary key
+ * on `(thread_id, seq)` and one transaction per batch give this.
+ */
+export interface LogStore {
+  /**
+   * Write `records` at positions `seq`, `seq + 1`, and so on.
+   *
+   * INVARIANT (atomic): the whole batch is written, or none of it is. A crash
+   * or an error never leaves a part of the batch.
+   *
+   * INVARIANT (compare-and-append): `seq` must be the next free position (the
+   * last position of the thread plus 1, or 1 for a new thread). For any other
+   * `seq`, a position that is taken or a gap, reject with
+   * {@link LogConflictError} and write nothing.
+   *
+   * An empty batch writes nothing and resolves.
+   */
+  append: (
+    threadId: string,
+    seq: number,
+    records: ReadonlyArray<LogRecord>,
+  ) => Promise<void>
+  /**
+   * The entries of `threadId` with `seq` greater than `after` (default 0), in
+   * ascending order, at most `limit` of them. `limit: 0` gives `[]`.
+   *
+   * INVARIANT: a thread that has no records gives `[]`. The returned records
+   * are copies: a change to them does not change the log.
+   */
+  read: (
+    threadId: string,
+    options?: { after?: number; limit?: number },
+  ) => Promise<Array<LogEntry>>
+  /**
+   * Call `listener` after each append to `threadId` that this store can see.
+   * A store that cannot see appends from other processes can poll. Returns a
+   * function that stops the calls.
+   */
+  subscribe: (threadId: string, listener: () => void) => () => void
+}
+
+/** Type a {@link LogStore} implementation inline. */
+export function defineLogStore(store: LogStore): LogStore {
+  return store
+}
+
 /** A secret a user or an organization saved: an API key or OAuth tokens. */
 export type Credential =
   | { type: 'api_key'; value: string }
@@ -715,6 +804,8 @@ export interface AIPersistenceStores {
   inbox?: InboxStore
   /** User and tenant credentials. Optional: only harness hosts read it. */
   credentials?: CredentialStore
+  /** The harness session log. Optional: only durable harness hosts read it. */
+  log?: LogStore
 }
 
 /**
@@ -892,6 +983,7 @@ const storeKeys = [
   'blobs',
   'inbox',
   'credentials',
+  'log',
 ] satisfies Array<StoreKey>
 
 const storeKeySet = new Set<string>(storeKeys)
