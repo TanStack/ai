@@ -89,10 +89,18 @@ export class InputRejectedError extends Error {
   readonly receipt: Receipt
 
   constructor(receipt: Receipt) {
-    super(`The session rejected the input: ${receipt.reason ?? 'rejected'}.`)
+    super(rejectionMessage(receipt.reason))
     this.name = 'InputRejectedError'
     this.receipt = receipt
   }
+}
+
+function rejectionMessage(reason: string | undefined) {
+  if (reason === 'busy') return 'A chat turn is already running.'
+  if (reason === 'conflict') {
+    return 'An earlier input has this inputId and another payload.'
+  }
+  return `The session rejected the input: ${reason ?? 'rejected'}.`
 }
 
 /** Who sent an input, from the host's `authorize`. */

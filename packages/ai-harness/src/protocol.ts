@@ -1,4 +1,5 @@
 import { convertSchemaToJsonSchema } from '@tanstack/ai'
+import { isRecord } from './utils'
 import type { StreamChunk } from '@tanstack/ai'
 import type { AnyAgent } from './agents'
 import type { AnyHarness } from './define'
@@ -46,10 +47,6 @@ const INPUT_OPS = new Set([
   'config',
 ])
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
 /** Check the shape of a client input. Throws with a short reason. */
 export function parseHarnessInput(value: unknown): HarnessInput {
   if (
@@ -82,6 +79,9 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   }
   if (value.op === 'config' && typeof value.key !== 'string') {
     throw new Error('Invalid input: config needs a key.')
+  }
+  if (value.inputId !== undefined && typeof value.inputId !== 'string') {
+    throw new Error('Invalid input: inputId must be a string.')
   }
   // The checks above cover every field the session reads.
   return value as HarnessInput
@@ -121,29 +121,26 @@ export async function applyInput(
   session: HarnessSession,
   input: HarnessInput,
 ): Promise<Receipt> {
+  const id = input.inputId === undefined ? {} : { inputId: input.inputId }
   switch (input.op) {
     case 'prompt': {
-      const operation = session.prompt(
-        input.message,
-        input.busy ? { busy: input.busy } : {},
+      const operation = session.prompt(input.message, {
+        ...(input.busy ? { busy: input.busy } : {}),
+        ...id,
+      })
+      // Nobody may await a turn a client started. Its receipt is the answer.
+      operation.then(
+        () => {},
+        () => {},
       )
-      const queued = session
-        .snapshot()
-        .activeOperations.some(
-          (active) => active.kind === 'chat' && active.id !== operation.id,
-        )
-      return {
-        inputId: operation.id,
-        status: queued ? 'queued' : 'accepted',
-        operationId: operation.id,
-      }
+      return operation.receipt
     }
     case 'steer':
-      return session.steer(input.message)
+      return session.steer(input.message, id)
     case 'followUp':
-      return session.followUp(input.message)
+      return session.followUp(input.message, id)
     case 'resolve':
-      return session.resolve(input.resume)
+      return session.resolve(input.resume, id)
     case 'cancel':
       return session.cancel(input.operationId)
     case 'command': {

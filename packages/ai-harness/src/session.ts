@@ -15,6 +15,7 @@ import { checkConfigValue } from './config'
 import { LogConflictError, withPersistence } from '@tanstack/ai-persistence'
 import { AgentRegistry } from './agents'
 import { SessionFeed } from './feed'
+import { isRecord } from './utils'
 import {
   LogWriter,
   engineMessageStore,
@@ -30,7 +31,7 @@ import {
   findCrashedRuns,
   repairTranscript,
 } from './resume'
-import { HARNESS_EVENTS } from './types'
+import { HARNESS_EVENTS, InputRejectedError } from './types'
 import type {
   AnyChatMiddleware,
   AnyTextAdapter,
@@ -87,6 +88,7 @@ import type {
   ChatTurnResult,
   Cursor,
   HarnessInput,
+  InputSettlement,
   MediaKind,
   MediaRecord,
   Operation,
@@ -268,6 +270,31 @@ export function acceptedKinds(
   return accepts.filter((kind) => modalities.includes(kind))
 }
 
+/** The inputs that run as chat turns, and settle. */
+const CHAT_OPS = new Set<string>(['prompt', 'steer', 'followUp', 'resolve'])
+
+/** Why a turn stops when its input passes its time limit. */
+const TIMEOUT_REASON = 'harness:input-timeout'
+
+/** The text of the last assistant message, for an operation rebuilt from the log. */
+function lastAssistantText(messages: ReadonlyArray<ModelMessage>) {
+  const last = messages.findLast((message) => message.role === 'assistant')
+  return typeof last?.content === 'string' ? last.content : ''
+}
+
+/** The turn has its final answer: an assistant message with no open tool call after it was applied. */
+function hasFinalAnswer(
+  messages: ReadonlyArray<ModelMessage>,
+  appliedAt: number,
+) {
+  const last = messages.at(-1)
+  return (
+    messages.length > appliedAt &&
+    last?.role === 'assistant' &&
+    (last.toolCalls?.length ?? 0) === 0
+  )
+}
+
 const notOpen = () => Promise.reject(new Error('The session is not open yet.'))
 
 /** The message store of a durable session before `open()` reads its log. */
@@ -302,6 +329,19 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /** Why the session log stopped taking writes. */
   private logFailure: Error | undefined
   private readonly log: SessionDependencies['log']
+  /** Inputs this session stored, by id, as JSON: the duplicate check. */
+  private readonly admitted = new Map<string, string>()
+  /** The receipt of each chat input this session answered, by input id. */
+  private readonly receipts = new Map<string, Receipt>()
+  /** The turn operation of each chat input, by input id. */
+  private readonly turnOperations = new Map<
+    string,
+    OperationImpl<ChatTurnResult>
+  >()
+  /** The input of each turn operation, by operation id. */
+  private readonly operationInputs = new Map<string, string>()
+  /** How the chat inputs of this session ended, for `settled()`. */
+  private readonly settlements = new Map<string, InputSettlement>()
   private readonly agentRegistry = new AgentRegistry()
   private readonly operations = new Map<string, OperationImpl<unknown>>()
   private readonly queue: Array<QueuedTurn> = []
@@ -477,6 +517,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     )
     await this.loadConfig()
     await this.loadPluginState()
+    if (this.writer) {
+      await this.recoverFromLog(this.writer)
+      return
+    }
     await this.recoverCrashedTurn()
     await this.recoverInbox()
   }
@@ -584,60 +628,120 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   // Inputs
   // ===========================
 
-  /** Start a chat turn, or queue it while one runs (see `busy`). */
+  /**
+   * Start a chat turn, or queue it while one runs (see `busy`).
+   *
+   * `inputId` is an id you choose. A second prompt with the same id and the
+   * same message returns the first input's operation and does not run again.
+   * The same id with another message is rejected with `'conflict'`.
+   * `await operation.receipt` resolves when the input is stored.
+   */
   prompt(
     message: UserInput,
-    options?: { busy?: BusyPolicy },
+    options?: { busy?: BusyPolicy; inputId?: string },
   ): Operation<ChatTurnResult> {
     const busy = options?.busy ?? this.harness.busy ?? 'queue'
-    const inputId = createInputId()
+    const inputId = options?.inputId ?? createInputId()
+    const input: HarnessInput = { op: 'prompt', message, busy }
+    const known = this.knownTurn(inputId, input)
+    if (known) return known
     const operation = this.createTurnOperation()
-    void this.accept(inputId, { op: 'prompt', message, busy }).then(() => {
-      if (this.activeTurn && busy === 'reject') {
-        this.reject(inputId, 'busy')
-        operation.fail('failed', new Error('A chat turn is already running.'))
-        return
-      }
-      if (this.activeTurn && busy === 'steer') {
-        this.steerQueue.push({ inputId, message, operation })
-        return
-      }
-      this.enqueueTurn({ operation, message, inputId })
-    })
+    this.bindTurn(inputId, operation)
+    void this.accept(inputId, input).then(
+      (admission) => {
+        if (admission !== 'new') {
+          this.answerDuplicate(operation, inputId, admission)
+          return
+        }
+        if (this.activeTurn && busy === 'reject') {
+          this.reject(inputId, 'busy')
+          this.refuse(operation, {
+            inputId,
+            status: 'rejected',
+            reason: 'busy',
+          })
+          return
+        }
+        const isWaiting = this.activeTurn !== undefined || this.queue.length > 0
+        this.answerTurn(operation, {
+          inputId,
+          status: isWaiting && busy !== 'steer' ? 'queued' : 'accepted',
+          operationId: operation.id,
+        })
+        if (this.activeTurn && busy === 'steer') {
+          this.steerQueue.push({ inputId, message, operation })
+          return
+        }
+        this.enqueueTurn({ operation, message, inputId })
+      },
+      (error: unknown) => {
+        // The input was not stored. After a log failure, say why the
+        // session stopped.
+        const failure = this.logFailure ?? error
+        this.answerTurn(operation, {
+          inputId,
+          status: 'rejected',
+          reason: failure instanceof Error ? failure.message : String(failure),
+        })
+        operation.fail('failed', failure)
+      },
+    )
     return operation
   }
 
   /** Add a message to the running turn at its next model call. */
-  async steer(message: UserInput): Promise<Receipt> {
-    const inputId = createInputId()
-    await this.accept(inputId, { op: 'steer', message })
+  async steer(
+    message: UserInput,
+    options?: { inputId?: string },
+  ): Promise<Receipt> {
+    const inputId = options?.inputId ?? createInputId()
+    const admission = await this.accept(inputId, { op: 'steer', message })
+    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     if (!this.activeTurn) {
       const operation = this.createTurnOperation()
+      this.bindTurn(inputId, operation)
       this.enqueueTurn({ operation, message, inputId })
-      return { inputId, status: 'accepted', operationId: operation.id }
+      return this.keep({
+        inputId,
+        status: 'accepted',
+        operationId: operation.id,
+      })
     }
     this.steerQueue.push({ inputId, message })
-    return { inputId, status: 'accepted', operationId: this.activeTurn.id }
+    return this.keep({
+      inputId,
+      status: 'accepted',
+      operationId: this.activeTurn.id,
+    })
   }
 
   /** Run a turn after the current work settles. */
-  async followUp(message: UserInput): Promise<Receipt> {
-    const inputId = createInputId()
-    await this.accept(inputId, { op: 'followUp', message })
+  async followUp(
+    message: UserInput,
+    options?: { inputId?: string },
+  ): Promise<Receipt> {
+    const inputId = options?.inputId ?? createInputId()
+    const admission = await this.accept(inputId, { op: 'followUp', message })
+    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const operation = this.createTurnOperation()
+    this.bindTurn(inputId, operation)
     const status =
       this.activeTurn || this.queue.length > 0 ? 'queued' : 'accepted'
     this.enqueueTurn({ operation, message, inputId })
-    return { inputId, status, operationId: operation.id }
+    return this.keep({ inputId, status, operationId: operation.id })
   }
 
   /**
    * Answer the interrupts of the last turn. One resume must answer every open
    * interrupt of that turn (the AG-UI rule).
    */
-  async resolve(resume: Array<RunAgentResumeItem>): Promise<Receipt> {
-    const inputId = createInputId()
-    await this.accept(inputId, { op: 'resolve', resume })
+  async resolve(
+    resume: Array<RunAgentResumeItem>,
+    options?: { inputId?: string },
+  ): Promise<Receipt> {
+    const inputId = options?.inputId ?? createInputId()
+    const admission = await this.accept(inputId, { op: 'resolve', resume })
+    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     if (!this.interrupted) {
       this.reject(inputId, 'no_pending_interrupts')
       return { inputId, status: 'rejected', reason: 'no_pending_interrupts' }
@@ -649,11 +753,16 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     const parentRunId = this.interrupted.runId
     this.interrupted = undefined
     const operation = this.createTurnOperation()
+    this.bindTurn(inputId, operation)
     this.enqueueTurn({ operation, resume, parentRunId, inputId })
-    return { inputId, status: 'accepted', operationId: operation.id }
+    return this.keep({ inputId, status: 'accepted', operationId: operation.id })
   }
 
-  /** Cancel one operation, or the running chat turn. */
+  /**
+   * Cancel one operation, or the running chat turn. On a durable host the
+   * abort request is stored first, so a turn that a crash stops later settles
+   * `aborted` and does not run again.
+   */
   async cancel(operationId?: string): Promise<Receipt> {
     const inputId = createInputId()
     await this.accept(inputId, { op: 'cancel', operationId })
@@ -664,16 +773,67 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       this.reject(inputId, 'not_running')
       return { inputId, status: 'rejected', reason: 'not_running' }
     }
+    const targetInput = this.operationInputs.get(target.id)
+    if (this.writer && targetInput) {
+      await this.writer.append([
+        { type: 'harness.input.abort', inputId: targetInput },
+      ])
+    }
     const queued = this.queue.findIndex((turn) => turn.operation === target)
     if (queued >= 0) {
       this.queue.splice(queued, 1)
+      if (targetInput) {
+        await this.settle({
+          inputId: targetInput,
+          outcome: 'aborted',
+          operationId: target.id,
+        })
+      }
       target.fail('cancelled', new Error('Cancelled before it started.'))
       this.publishFinished(target)
     } else {
       target.abortController.abort(RUN_CANCEL_REASON)
     }
-    await this.inbox.markApplied(inputId, target.id)
+    await this.markApplied(inputId, target.id)
     return { inputId, status: 'accepted', operationId: target.id }
+  }
+
+  /**
+   * How a chat input ended: `completed`, `failed`, `aborted`, or
+   * `interrupted` (the turn waits for human input). It waits until the input
+   * ends. On a durable host it reads the log, so it also works after a
+   * restart and from another host that opens the thread.
+   *
+   * Rejects with `InputRejectedError` when the session refused the input,
+   * and with an error for an id this session does not know.
+   *
+   * @example
+   * ```ts
+   * const turn = session.prompt('Summarize the report.', { inputId: 'req-42' })
+   * const { outcome } = await session.settled('req-42')
+   * ```
+   */
+  async settled(inputId: string): Promise<InputSettlement> {
+    const known = this.knownSettlement(inputId)
+    if (known) return known
+    if (!this.isChatInput(inputId)) {
+      throw new Error(
+        `The session knows no chat input with the id ${JSON.stringify(inputId)}.`,
+      )
+    }
+    const settledEvent = (entry: SessionEvent) =>
+      entry.event.type === EventType.CUSTOM &&
+      entry.event.name === HARNESS_EVENTS.inputSettled &&
+      isRecord(entry.event.value) &&
+      entry.event.value.inputId === inputId
+    for await (const _entry of this.feed.read({
+      from: this.feed.head(),
+      filter: settledEvent,
+    })) {
+      const settlement = this.knownSettlement(inputId)
+      if (settlement) return settlement
+    }
+    throw new Error('The session closed before the input ended.')
   }
 
   // ===========================
@@ -1169,11 +1329,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   // Chat turns
   // ===========================
 
-  private createTurnOperation(): OperationImpl<ChatTurnResult> {
+  private createTurnOperation(id?: string): OperationImpl<ChatTurnResult> {
     const operation = new OperationImpl<ChatTurnResult>(
       'chat',
       this.feed,
       (target) => this.cancel(target.id),
+      undefined,
+      id,
     )
     this.operations.set(operation.id, operation as OperationImpl<unknown>)
     return operation
@@ -1404,10 +1566,41 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     await store.saveThread(this.threadId, history.with(index, updated))
   }
 
+  /**
+   * Abort `operation` when its input passes `timeoutAt` (a durable host with
+   * `durability.timeoutMs`). Returns the function that stops the timer.
+   */
+  private startTimeout(
+    inputId: string | undefined,
+    operation: OperationImpl<ChatTurnResult>,
+  ) {
+    const timeoutAt =
+      inputId === undefined
+        ? undefined
+        : this.writer?.state.inputs.get(inputId)?.timeoutAt
+    if (timeoutAt === undefined) return () => {}
+    const timer = setTimeout(
+      () => operation.abortController.abort(TIMEOUT_REASON),
+      Math.max(0, timeoutAt - Date.now()),
+    )
+    if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+    return () => clearTimeout(timer)
+  }
+
   private async runTurn(turn: QueuedTurn): Promise<void> {
     const { operation } = turn
     operation.setStatus('running')
-    if (turn.inputId) await this.applied(turn.inputId, operation.id)
+    if (turn.inputId) {
+      try {
+        await this.applied(turn.inputId, operation.id)
+      } catch (error) {
+        // The log refused the write, so the session stops.
+        operation.fail('failed', this.logFailure ?? error)
+        this.publishFinished(operation)
+        return
+      }
+    }
+    const stopTimer = this.startTimeout(turn.inputId, operation)
     this.publishStarted(operation)
 
     let runPlugins: MountedPlugins | undefined
@@ -1573,8 +1766,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         })
       }
     } finally {
+      stopTimer()
       await runPlugins?.dispose().catch(() => {})
     }
+    const timedOut = operation.abortController.signal.reason === TIMEOUT_REASON
 
     // The stream has ended, so withPersistence has saved the turn. A failed or
     // cancelled turn may not have saved its answer, and its last assistant
@@ -1591,26 +1786,54 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       )
     }
 
+    const { inputId } = turn
+    // The settlement lands before the operation ends, so a caller that sees
+    // the result can also read it with `settled()`.
+    const settleTurn = (
+      settlement: Omit<InputSettlement, 'inputId' | 'operationId'>,
+    ) =>
+      inputId === undefined || this.logFailure
+        ? Promise.resolve()
+        : this.settle({
+            inputId,
+            operationId: operation.id,
+            ...settlement,
+          }).catch(() => {})
     if (this.logFailure) {
       operation.fail('failed', this.logFailure)
+    } else if (timedOut) {
+      const message = 'The input passed its time limit.'
+      await settleTurn({
+        outcome: 'failed',
+        error: { message, code: 'timeout' },
+      })
+      operation.fail('failed', new Error(message))
     } else if (operation.abortController.signal.aborted) {
+      await settleTurn({ outcome: 'aborted' })
       operation.fail('cancelled', new Error('Cancelled.'))
     } else if (failure !== undefined) {
+      await settleTurn({ outcome: 'failed', error: { message: failure } })
       operation.fail('failed', new Error(failure))
     } else if (interrupts && interrupts.length > 0) {
       this.interrupted = { runId: operation.id, interrupts }
+      await settleTurn({ outcome: 'interrupted' })
       operation.finish('interrupted', { text, interrupts })
     } else {
+      await settleTurn({ outcome: 'completed' })
       operation.finish('completed', { text })
     }
     this.publishFinished(operation)
     // Steers the turn never reached run next, before other queued turns.
     this.queue.unshift(
-      ...this.steerQueue.splice(0).map((steer) => ({
-        operation: steer.operation ?? this.createTurnOperation(),
-        message: steer.message,
-        inputId: steer.inputId,
-      })),
+      ...this.steerQueue.splice(0).map((steer) => {
+        const next = steer.operation ?? this.createTurnOperation()
+        this.bindTurn(steer.inputId, next)
+        return {
+          operation: next,
+          message: steer.message,
+          inputId: steer.inputId,
+        }
+      }),
     )
   }
 
@@ -1864,22 +2087,81 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   // Inbox and lifecycle events
   // ===========================
 
-  private async accept(inputId: string, input: HarnessInput): Promise<void> {
-    await this.inbox.append({
-      inputId,
-      threadId: this.threadId,
-      input,
-      createdAt: Date.now(),
-      ...(this.principal ? { principal: { id: this.principal.id } } : {}),
-    })
+  /**
+   * Store an input, unless its id is known. The check before the first
+   * `await` is synchronous, so a second call with the same id in the same
+   * tick is a duplicate too.
+   */
+  private async accept(
+    inputId: string,
+    input: HarnessInput,
+  ): Promise<'new' | 'duplicate' | 'conflict'> {
+    const payload = JSON.stringify(input)
+    const local = this.admitted.get(inputId)
+    if (local !== undefined) return local === payload ? 'duplicate' : 'conflict'
+    const logged = this.writer?.state.inputs.get(inputId)
+    if (logged) {
+      return JSON.stringify(logged.input) === payload ? 'duplicate' : 'conflict'
+    }
+    this.admitted.set(inputId, payload)
+    const at = Date.now()
+    const principal = this.principal
+      ? { principal: { id: this.principal.id } }
+      : {}
+    if (this.writer) {
+      await this.writer.append([
+        { type: 'harness.input', inputId, input, at, ...principal },
+      ])
+    } else {
+      const stored = await this.inbox.append({
+        inputId,
+        threadId: this.threadId,
+        input,
+        createdAt: at,
+        ...principal,
+      })
+      // The inbox had the id before this session: a restart.
+      if (stored.createdAt !== at || stored.status !== 'pending') {
+        return JSON.stringify(stored.input) === payload
+          ? 'duplicate'
+          : 'conflict'
+      }
+    }
     this.feed.publish(
       'session',
       customEvent(HARNESS_EVENTS.inputAccepted, { inputId, op: input.op }),
     )
+    return 'new'
+  }
+
+  /** Record that `operationId` runs the input. A durable host counts attempts. */
+  private async markApplied(
+    inputId: string,
+    operationId: string,
+  ): Promise<void> {
+    if (!this.writer) {
+      await this.inbox.markApplied(inputId, operationId)
+      return
+    }
+    const logged = this.writer.state.inputs.get(inputId)
+    const timeoutMs = this.harness.durability?.timeoutMs
+    // Stamped once, at the first apply. Retries do not move it.
+    const timeoutAt =
+      logged?.timeoutAt ??
+      (timeoutMs !== undefined ? Date.now() + timeoutMs : undefined)
+    await this.writer.append([
+      {
+        type: 'harness.input.applied',
+        inputId,
+        operationId,
+        attempt: (logged?.attempt ?? 0) + 1,
+        ...(timeoutAt !== undefined ? { timeoutAt } : {}),
+      },
+    ])
   }
 
   private async applied(inputId: string, operationId: string): Promise<void> {
-    await this.inbox.markApplied(inputId, operationId)
+    await this.markApplied(inputId, operationId)
     this.feed.publish(
       operationId,
       customEvent(HARNESS_EVENTS.inputApplied, { inputId, operationId }),
@@ -1887,11 +2169,176 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   private reject(inputId: string, reason: string): void {
-    void this.inbox.markRejected(inputId, reason)
+    if (this.writer) {
+      void this.writer
+        .append([{ type: 'harness.input.rejected', inputId, reason }])
+        .catch(() => {})
+    } else {
+      void this.inbox.markRejected(inputId, reason)
+    }
+    this.receipts.set(inputId, { inputId, status: 'rejected', reason })
     this.feed.publish(
       'session',
       customEvent(HARNESS_EVENTS.inputRejected, { inputId, reason }),
     )
+  }
+
+  /**
+   * Record how inputs ended, all in one append: a turn and the inputs that
+   * joined it settle together. Clients get a `harness.input.settled` event.
+   */
+  private async settle(...settlements: Array<InputSettlement>): Promise<void> {
+    if (this.writer) {
+      await this.writer.append(
+        settlements.map((settlement) => ({
+          type: 'harness.input.settled',
+          ...settlement,
+        })),
+      )
+    }
+    for (const settlement of settlements) {
+      this.settlements.set(settlement.inputId, settlement)
+      this.feed.publish(
+        settlement.operationId ?? 'session',
+        customEvent(HARNESS_EVENTS.inputSettled, { ...settlement }),
+      )
+    }
+  }
+
+  /** How a chat input ended, when it did. Throws for a refused input. */
+  private knownSettlement(inputId: string): InputSettlement | undefined {
+    const logged = this.writer?.state.inputs.get(inputId)
+    if (logged?.settlement) return logged.settlement
+    const refused =
+      logged?.status === 'rejected'
+        ? { inputId, status: 'rejected' as const, reason: logged.reason ?? '' }
+        : this.receipts.get(inputId)
+    if (refused?.status === 'rejected') throw new InputRejectedError(refused)
+    return this.settlements.get(inputId)
+  }
+
+  private isChatInput(inputId: string) {
+    const input = this.writer?.state.inputs.get(inputId)?.input
+    if (input) return CHAT_OPS.has(input.op)
+    return this.turnOperations.has(inputId) || this.receipts.has(inputId)
+  }
+
+  /** Link a turn operation and its input. */
+  private bindTurn(inputId: string, operation: OperationImpl<ChatTurnResult>) {
+    this.turnOperations.set(inputId, operation)
+    this.operationInputs.set(operation.id, inputId)
+  }
+
+  /** Keep a chat input's receipt, for a duplicate of the input. */
+  private keep(receipt: Receipt): Receipt {
+    this.receipts.set(receipt.inputId, receipt)
+    return receipt
+  }
+
+  /** Resolve a turn's receipt, and keep it for a duplicate. */
+  private answerTurn(
+    operation: OperationImpl<ChatTurnResult>,
+    receipt: Receipt,
+  ) {
+    operation.resolveReceipt(this.keep(receipt))
+  }
+
+  private refuse(operation: OperationImpl<ChatTurnResult>, receipt: Receipt) {
+    this.answerTurn(operation, receipt)
+    operation.fail('failed', new InputRejectedError(receipt))
+  }
+
+  /** What a duplicate or a conflicting chat input gets back. */
+  private duplicateReceipt(
+    inputId: string,
+    admission: 'duplicate' | 'conflict',
+  ): Receipt {
+    if (admission === 'conflict') {
+      return { inputId, status: 'rejected', reason: 'conflict' }
+    }
+    const kept = this.receipts.get(inputId)
+    if (kept) return kept
+    const operationId = this.writer?.state.inputs.get(inputId)?.operationId
+    return {
+      inputId,
+      status: 'accepted',
+      ...(operationId ? { operationId } : {}),
+    }
+  }
+
+  /**
+   * The operation for a prompt whose id is known: the live one, one that
+   * settles from the log, or a refused one for another payload.
+   */
+  private knownTurn(inputId: string, input: HarnessInput) {
+    const payload = JSON.stringify(input)
+    const local = this.admitted.get(inputId)
+    const logged = this.writer?.state.inputs.get(inputId)
+    const stored = local ?? (logged ? JSON.stringify(logged.input) : undefined)
+    if (stored === undefined) return undefined
+    if (stored !== payload) {
+      const refused = this.createTurnOperation()
+      this.refuse(refused, { inputId, status: 'rejected', reason: 'conflict' })
+      return refused
+    }
+    const live = this.turnOperations.get(inputId)
+    if (live) return live
+    const replay = this.createTurnOperation(logged?.operationId)
+    this.answerDuplicate(replay, inputId, 'duplicate')
+    return replay
+  }
+
+  /** Settle `operation` like the earlier input with the same id. */
+  private answerDuplicate(
+    operation: OperationImpl<ChatTurnResult>,
+    inputId: string,
+    admission: 'duplicate' | 'conflict',
+  ) {
+    const receipt = this.duplicateReceipt(inputId, admission)
+    if (receipt.status === 'rejected') {
+      this.refuse(operation, receipt)
+      return
+    }
+    operation.resolveReceipt(receipt)
+    if (!this.writer) {
+      // Without a log, the result of an input from before a restart is gone.
+      operation.fail(
+        'failed',
+        new Error(
+          'This input ran before a restart. Keep its result with a durable host (stores.log).',
+        ),
+      )
+      return
+    }
+    void this.settled(inputId).then(
+      (settlement) => this.settleOperation(operation, settlement),
+      (error: unknown) => operation.fail('failed', error),
+    )
+  }
+
+  /** End `operation` with a stored settlement. */
+  private settleOperation(
+    operation: OperationImpl<ChatTurnResult>,
+    settlement: InputSettlement,
+  ) {
+    const text = lastAssistantText(this.writer?.state.messages ?? [])
+    switch (settlement.outcome) {
+      case 'completed':
+        operation.finish('completed', { text })
+        return
+      case 'interrupted':
+        operation.finish('interrupted', { text, interrupts: [] })
+        return
+      case 'aborted':
+        operation.fail('cancelled', new Error('Cancelled.'))
+        return
+      case 'failed':
+        operation.fail(
+          'failed',
+          new Error(settlement.error?.message ?? 'The input failed.'),
+        )
+        return
+    }
   }
 
   private publishStarted(
@@ -1965,6 +2412,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         input.op === 'steer'
       ) {
         const operation = this.createTurnOperation()
+        this.admitted.set(entry.inputId, JSON.stringify(input))
+        this.bindTurn(entry.inputId, operation)
         this.enqueueTurn({
           operation,
           message: input.message,
@@ -1972,6 +2421,99 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         })
       } else {
         this.reject(entry.inputId, 'expired_on_restart')
+      }
+    }
+  }
+
+  /**
+   * Recover a durable session from its log, input by input, in admission
+   * order. A chat turn whose host stopped (its run lease expired) settles
+   * `aborted` when an abort was asked, settles `failed` when no attempt or no
+   * time is left, settles `completed` when the log already has its final
+   * answer, and else runs again as the next attempt. An input that never ran
+   * runs now. Other inputs are rejected with `expired_on_restart`.
+   */
+  private async recoverFromLog(writer: LogWriter): Promise<void> {
+    const runs = this.persistence.stores.runs
+    const maxAttempts = this.harness.durability?.maxAttempts ?? 10
+    const inputs = [...writer.state.inputs.values()]
+    for (const input of inputs) {
+      const isChat = CHAT_OPS.has(input.input.op)
+      if (input.status === 'pending') {
+        if (isChat && 'message' in input.input) {
+          const operation = this.createTurnOperation()
+          this.bindTurn(input.inputId, operation)
+          this.enqueueTurn({
+            operation,
+            message: input.input.message,
+            inputId: input.inputId,
+          })
+        } else {
+          this.reject(input.inputId, 'expired_on_restart')
+        }
+        continue
+      }
+      if (input.status !== 'applied' || !isChat) continue
+      const run = input.operationId ? await runs?.get(input.operationId) : null
+      const now = Date.now()
+      const isAlive =
+        run?.status === 'running' &&
+        run.leaseExpiresAt !== undefined &&
+        run.leaseExpiresAt >= now
+      // Another host still drives this turn.
+      if (isAlive) continue
+      if (run?.status === 'running') {
+        await runs?.update(run.runId, {
+          status: 'failed',
+          finishedAt: now,
+          error: { message: 'The host stopped during this turn.' },
+        })
+      }
+      const operationId = input.operationId
+      const ended = (settlement: Omit<InputSettlement, 'inputId'>) =>
+        this.settle({
+          inputId: input.inputId,
+          ...(operationId ? { operationId } : {}),
+          ...settlement,
+        })
+      if (input.abortRequested) {
+        await ended({ outcome: 'aborted' })
+      } else if (input.attempt >= maxAttempts) {
+        await ended({
+          outcome: 'failed',
+          error: {
+            message: `The input stopped the host ${input.attempt} times.`,
+            code: 'attempts_exhausted',
+          },
+        })
+      } else if (input.timeoutAt !== undefined && now >= input.timeoutAt) {
+        await ended({
+          outcome: 'failed',
+          error: {
+            message: 'The input passed its time limit.',
+            code: 'timeout',
+          },
+        })
+      } else if (hasFinalAnswer(writer.state.messages, input.appliedAt ?? 0)) {
+        await ended({ outcome: 'completed' })
+      } else {
+        if (run) {
+          await repairTranscript({
+            messages: this.messages,
+            crashed: run,
+            finished: writer.state.toolResults,
+          })
+        }
+        const operation = this.createTurnOperation()
+        this.bindTurn(input.inputId, operation)
+        this.feed.publish(
+          operation.id,
+          customEvent(HARNESS_EVENTS.operationResumed, {
+            operationId: operation.id,
+            ...(operationId ? { resumedFrom: operationId } : {}),
+          }),
+        )
+        this.enqueueTurn({ operation, inputId: input.inputId })
       }
     }
   }
