@@ -2,10 +2,7 @@
  * Model metadata interface for documentation and type inference
  */
 import type { Modality } from '@tanstack/ai'
-import type {
-  GrokBuildProviderOptions,
-  GrokTextProviderOptions,
-} from './text/text-provider-options'
+import type { GrokTextProviderOptions } from './text/text-provider-options'
 
 interface ModelMeta {
   name: string
@@ -479,7 +476,7 @@ export type GrokProviderOptions = GrokTextProviderOptions
  */
 export type GrokChatModelProviderOptionsByName = {
   [GROK_4_3.name]: GrokProviderOptions
-  [GROK_BUILD_0_1.name]: GrokBuildProviderOptions
+  [GROK_BUILD_0_1.name]: GrokProviderOptions
   [GROK_4_20_REASONING.name]: GrokProviderOptions
   [GROK_4_20_NON_REASONING.name]: GrokProviderOptions
   [GROK_4_1_FAST_REASONING.name]: GrokProviderOptions

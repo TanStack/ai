@@ -1,3 +1,5 @@
+import type { ModelReasoning } from '../../packages/ai/src/reasoning'
+
 /**
  * The provider packages whose `src/model-reasoning.ts` the reasoning sync
  * writes, and where it finds each package's models on models.dev.
@@ -19,6 +21,11 @@ export interface ReasoningTarget {
   gateway?: 'openrouter' | 'vercel'
   /** Model ids that name another model, as `provider/model`. */
   aliases?: Readonly<Record<string, string>>
+  /**
+   * Corrections that win over models.dev, for one package's API. Keep a
+   * comment on each one that says why.
+   */
+  overrides?: Readonly<Record<string, ModelReasoning>>
 }
 
 export const REASONING_TARGETS: ReadonlyArray<ReasoningTarget> = [
@@ -55,14 +62,8 @@ export const REASONING_TARGETS: ReadonlyArray<ReasoningTarget> = [
     typePrefix: 'Grok',
     constPrefix: 'GROK',
     sources: ['xai'],
-  },
-  {
-    pkg: 'ai-grok-build',
-    models: { module: 'model-meta', lists: ['GROK_BUILD_MODELS'] },
-    typePrefix: 'GrokBuild',
-    constPrefix: 'GROK_BUILD',
-    sources: ['xai'],
-    aliases: { 'grok-build': 'xai/grok-build-0.1' },
+    // The xAI Responses API refuses a reasoning field for grok-build-0.1.
+    overrides: { 'grok-build-0.1': false },
   },
   {
     pkg: 'ai-groq',

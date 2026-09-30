@@ -186,6 +186,11 @@ async function main() {
     const entries: Array<[string, ModelReasoning]> = []
     let missing = 0
     for (const id of await modelIds(target, dev)) {
+      const override = target.overrides?.[id]
+      if (override !== undefined) {
+        entries.push([id, override])
+        continue
+      }
       const local = target.pkg === 'ai-ollama' ? ollama.get(id) : undefined
       if (local !== undefined) {
         entries.push([id, local])

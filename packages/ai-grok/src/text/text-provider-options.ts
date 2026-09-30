@@ -8,15 +8,6 @@
 
 import type { ResponseCreateParams } from 'openai/resources/responses/responses'
 
-export type GrokReasoningEffort = 'none' | 'low' | 'medium' | 'high'
-
-export type GrokReasoning = Omit<
-  NonNullable<ResponseCreateParams['reasoning']>,
-  'effort'
-> & {
-  effort?: GrokReasoningEffort
-}
-
 /**
  * Base provider options for Grok text/chat models
  */
@@ -54,10 +45,6 @@ export interface GrokSamplingOptions {
    * Additional response fields to include. Defaults to encrypted reasoning.
    */
   include?: ResponseCreateParams['include']
-  /**
-   * xAI/OpenAI-compatible reasoning controls for reasoning-capable models.
-   */
-  reasoning?: GrokReasoning
 }
 
 /**
@@ -74,13 +61,6 @@ export interface GrokSamplingOptions {
  * generic is widened to `Record<string, any>` to match OpenAI.
  */
 export type GrokTextProviderOptions = GrokBaseOptions & GrokSamplingOptions
-
-export type GrokBuildProviderOptions = Omit<
-  GrokTextProviderOptions,
-  'reasoning'
-> & {
-  reasoning?: never
-}
 
 /**
  * External provider options (what users pass in)

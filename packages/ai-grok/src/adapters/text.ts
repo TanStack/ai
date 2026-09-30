@@ -2,6 +2,8 @@ import OpenAI from 'openai'
 import { fileReferenceFor, isFileSource } from '@tanstack/ai'
 import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
 import { GROK_MODEL_INPUT_MODALITIES } from '../model-meta'
+import { GROK_MODEL_REASONING } from '../model-reasoning'
+import type { GrokModelReasoningByName } from '../model-reasoning'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import { convertToolsToProviderFormat } from '../tools'
 import type {
@@ -22,6 +24,12 @@ import type {
 /**
  * Resolve tool capabilities for a specific Grok model.
  */
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof GrokModelReasoningByName
+    ? GrokModelReasoningByName[TModel]
+    : never
+
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GrokChatModelToolCapabilitiesByName
     ? NonNullable<GrokChatModelToolCapabilitiesByName[TModel]>
@@ -63,7 +71,8 @@ export class GrokTextAdapter<
   TProviderOptions,
   TInputModalities,
   GrokMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'grok' as const
@@ -75,6 +84,10 @@ export class GrokTextAdapter<
 
   constructor(config: GrokTextConfig, model: TModel) {
     super(model, 'grok', new OpenAI(withGrokDefaults(config)))
+  }
+
+  protected override modelReasoning(model: string) {
+    return GROK_MODEL_REASONING[model]
   }
 
   /**
@@ -114,12 +127,6 @@ export class GrokTextAdapter<
       tools: undefined,
     })
     void _baseTools
-
-    if (this.model === 'grok-build-0.1' && request.reasoning !== undefined) {
-      throw new Error(
-        'grok-build-0.1 does not support reasoning modelOptions; omit reasoning for this model.',
-      )
-    }
 
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)

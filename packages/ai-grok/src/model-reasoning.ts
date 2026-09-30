@@ -9,10 +9,6 @@ export type GrokModelReasoningByName = {
   'grok-4.7': { levels: 'low' | 'medium' | 'high' | 'xhigh'; budget: false }
   'grok-4.5': { levels: 'low' | 'medium' | 'high'; budget: false }
   'grok-4.6': { levels: 'low' | 'medium' | 'high' | 'xhigh'; budget: false }
-  'grok-build-0.1': {
-    levels: 'off' | 'minimal' | 'low' | 'medium' | 'high'
-    budget: false
-  }
   'grok-4.3': { levels: 'off' | 'low' | 'medium' | 'high'; budget: false }
   'grok-4.20-reasoning': {
     levels: 'off' | 'minimal' | 'low' | 'medium' | 'high'
@@ -62,7 +58,7 @@ export const GROK_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> = {
     },
     budget: false,
   },
-  'grok-build-0.1': { budget: false },
+  'grok-build-0.1': false,
   'grok-4.3': {
     map: {
       off: 'none',

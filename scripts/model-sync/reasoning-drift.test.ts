@@ -10,10 +10,12 @@ import { MISTRAL_MODEL_REASONING } from '../../packages/ai-mistral/src/model-rea
 import { OPENAI_MODEL_REASONING } from '../../packages/ai-openai/src/model-reasoning'
 import { OPENROUTER_MODEL_REASONING } from '../../packages/ai-openrouter/src/model-reasoning'
 import { VERCEL_GATEWAY_MODEL_REASONING } from '../../packages/ai-vercel-gateway/src/model-reasoning'
+import { REASONING_TARGETS } from './reasoning-targets'
 import type { ModelReasoning } from '../../packages/ai/src/reasoning'
 
 // A provider package and the catalog read the same models.dev data. For a
-// model that is in both, the reasoning levels must be the same.
+// model that is in both, the reasoning levels must be the same, unless the
+// package's sync target overrides that model on purpose.
 const PAIRS: ReadonlyArray<
   readonly [string, string, Readonly<Record<string, ModelReasoning>>]
 > = [
@@ -30,11 +32,13 @@ const PAIRS: ReadonlyArray<
 ]
 
 describe('reasoning drift between provider packages and @tanstack/ai-models', () => {
-  it.each(PAIRS)('%s matches the %s catalog', (_pkg, provider, reasoning) => {
+  it.each(PAIRS)('%s matches the %s catalog', (pkg, provider, reasoning) => {
+    const overrides =
+      REASONING_TARGETS.find((target) => target.pkg === pkg)?.overrides ?? {}
     let compared = 0
     for (const [id, own] of Object.entries(reasoning)) {
       const record = getModel(provider, id)
-      if (!record) continue
+      if (!record || id in overrides) continue
       compared++
       const fromCatalog: ModelReasoning = record.reasoning
         ? {
