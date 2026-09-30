@@ -381,7 +381,12 @@ export interface ModelMessage<
   name?: string
   toolCalls?: Array<ToolCall>
   toolCallId?: string
-  thinking?: Array<{ content: string; signature?: string }>
+  /**
+   * Signed thinking to send back to the provider. `redacted: true` marks a
+   * block the provider encrypted: `content` is empty and `signature` holds its
+   * opaque data.
+   */
+  thinking?: Array<{ content: string; signature?: string; redacted?: boolean }>
   /** Error reported by an AG-UI tool message. */
   error?: string
   /** Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`. */
@@ -466,6 +471,12 @@ export interface ThinkingPart {
   content: string
   stepId?: string
   signature?: string
+  /**
+   * The provider encrypted this thinking block (Anthropic `redacted_thinking`).
+   * `content` is empty, and `signature` holds the opaque data that goes back
+   * to the provider unchanged.
+   */
+  redacted?: boolean
 }
 
 /**
@@ -584,6 +595,8 @@ export interface TanStackMessageMetadata {
   subagent?: SubagentWireInfo
   /** Thinking signature for a `role: 'reasoning'` fan-out message. */
   signature?: string
+  /** Set with `signature` when the provider redacted the thinking block. */
+  redacted?: boolean
   /** Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignature). */
   toolCallMetadata?: Record<string, unknown>
   toolResult?: {

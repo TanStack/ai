@@ -41,6 +41,7 @@ function encryptedValueExtras(chunk: AdapterYieldChunk): Array<StreamChunk> {
           entityId,
           encryptedValue: chunk.signature,
           timestamp,
+          redacted: chunk.redacted === true,
         }),
       )
     }
