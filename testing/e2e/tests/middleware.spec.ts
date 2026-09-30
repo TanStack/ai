@@ -34,6 +34,39 @@ async function fetchPhaseCapture(
 }
 
 test.describe('Middleware Lifecycle', () => {
+  test('a failed after-tool hook ends the run without conflicting tool results', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await page.request.post('/api/middleware-test', {
+      data: {
+        threadId: testId,
+        runId: `${testId}-after-tool-error`,
+        messages: [
+          { id: 'user-1', role: 'user', content: '[with-tool] run test' },
+        ],
+        tools: [],
+        context: [],
+        forwardedProps: {
+          scenario: 'with-tool',
+          middlewareMode: 'after-tool-error',
+          testId,
+          aimockPort,
+        },
+      },
+    })
+    const events = (await response.text())
+      .split('\n')
+      .filter((line) => line.startsWith('data: '))
+      .map((line) => JSON.parse(line.slice(6)) as { type: string })
+
+    expect(events.some((event) => event.type === 'RUN_ERROR')).toBe(true)
+    expect(events.some((event) => event.type === 'TOOL_CALL_RESULT')).toBe(
+      false,
+    )
+  })
+
   test('adapter RUN_ERROR calls onError once', async ({
     page,
     testId,
