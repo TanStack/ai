@@ -429,7 +429,7 @@ Your application owns these parts:
 - **Who shares a sandbox.** Executions in one sandbox see the same files and network. Use one sandbox for each user or trusted scope.
 - **Secrets.** The driver sends no API key or server environment into the sandbox.
 
-The driver kills the process group on timeout, on `dispose()`, and after each execution. This includes processes that the code started. The sandbox template must have `node`, `setsid`, and `timeout`. The default E2B templates have them.
+The driver kills the process group on timeout, on `dispose()`, and after each execution. This includes processes that the code started, unless they moved to a process group of their own (`detached: true`). If the driver cannot confirm that kill, `dispose()` throws. The sandbox template must have `node`, `setsid`, and `timeout`. The default E2B templates have them.
 
 ---
 

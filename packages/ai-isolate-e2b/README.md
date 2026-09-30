@@ -67,7 +67,8 @@ The `memoryLimit` of `createCodeMode` sets the heap limit of the `node` process.
 
 ## What the driver does
 
-- It kills the process group on timeout, on `dispose()`, and after each execution. This includes processes that the code started.
+- It kills the process group on timeout, on `dispose()`, and after each execution. This includes processes that the code started, unless they moved to a process group of their own (`detached: true`).
+- If it cannot confirm that kill after an execution, `dispose()` throws.
 - It returns an error name that tells you what happened:
 
 | Error name                   | Meaning                                                                      |

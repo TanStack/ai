@@ -94,6 +94,27 @@ function isSandboxGone(error: unknown): boolean {
   )
 }
 
+/**
+ * Code in the sandbox can reach the runner's stdout, so every message is
+ * checked before the host acts on it.
+ */
+function isRunnerMessage(value: unknown): value is RunnerMessage {
+  if (typeof value !== 'object' || value === null) return false
+  const m = value as Record<string, unknown>
+  if (m.type === 'log') return typeof m.line === 'string'
+  if (m.type === 'tool')
+    return typeof m.id === 'string' && typeof m.name === 'string'
+  if (m.type !== 'done' || typeof m.success !== 'boolean') return false
+  if (m.success) return true
+  const error = m.error as Record<string, unknown> | null | undefined
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    typeof error.name === 'string' &&
+    typeof error.message === 'string'
+  )
+}
+
 async function runTool(
   bindings: Record<string, ToolBinding>,
   id: string,
@@ -117,6 +138,7 @@ class E2BIsolateContext implements IsolateContext {
   private readonly running = new Set<() => Promise<void>>()
   /** Group kills still running after an execution returned its result. */
   private readonly cleanups = new Set<Promise<unknown>>()
+  private cleanupUnconfirmed = false
 
   constructor(
     private readonly sandbox: E2BSandboxLike,
@@ -126,9 +148,9 @@ class E2BIsolateContext implements IsolateContext {
   ) {}
 
   /**
-   * SIGKILL the process group the execution leads (`setsid`), which also
-   * reaches processes the code spawned. A non-zero exit only means the group
-   * is already gone.
+   * SIGKILL the process group the execution leads (`setsid`). This reaches
+   * processes the code spawned, unless they moved to a group of their own
+   * (`detached`). A non-zero exit only means the group is already gone.
    */
   private async killGroup(handle: E2BCommandHandleLike): Promise<KillOutcome> {
     let outcome: KillOutcome = 'killed'
@@ -144,12 +166,18 @@ class E2BIsolateContext implements IsolateContext {
     return outcome
   }
 
-  /** Kill the group in the background; `dispose` waits for it. */
+  /** Kill the group in the background; `dispose` waits for it and reports a failure. */
   private cleanUp(handle: E2BCommandHandleLike): void {
-    const cleanup = this.killGroup(handle).finally(() =>
-      this.cleanups.delete(cleanup),
-    )
+    const cleanup = this.killGroup(handle).then((outcome) => {
+      if (outcome === 'unconfirmed') this.cleanupUnconfirmed = true
+      this.cleanups.delete(cleanup)
+    })
     this.cleanups.add(cleanup)
+  }
+
+  /** Best effort: the runner deletes its own file once it starts. */
+  private removeFile(file: string): void {
+    void this.sandbox.commands.run(`rm -f ${file}`).catch(() => undefined)
   }
 
   async execute<T = unknown>(code: string): Promise<ExecutionResult<T>> {
@@ -246,6 +274,7 @@ class E2BIsolateContext implements IsolateContext {
       }
     }
     const onMessage = (message: RunnerMessage): void => {
+      if (finished) return
       if (message.type === 'log') {
         logs.push(message.line)
       } else if (message.type === 'done') {
@@ -270,14 +299,18 @@ class E2BIsolateContext implements IsolateContext {
         const line = buffered.slice(0, newline)
         buffered = buffered.slice(newline + 1)
         if (!line.startsWith(marker)) continue
+        let message: unknown
         try {
-          onMessage(JSON.parse(line.slice(marker.length)) as RunnerMessage)
+          message = JSON.parse(line.slice(marker.length))
         } catch {
+          message = undefined
+        }
+        if (isRunnerMessage(message)) onMessage(message)
+        else
           void halt(
             'E2BExecutionError',
             'Malformed protocol line from sandbox.',
           )
-        }
       }
     }
     const onStderr = (data: string): void => {
@@ -288,36 +321,37 @@ class E2BIsolateContext implements IsolateContext {
       stderrTail = recent.slice(-STDERR_TAIL)
     }
 
-    let timer: ReturnType<typeof setTimeout> | undefined
+    // The budget starts now: writing the file and starting the process count.
+    const timer = setTimeout(() => {
+      void halt(
+        'TimeoutError',
+        `Exceeded E2B execution timeout (${this.timeoutMs}ms).`,
+      )
+    }, this.timeoutMs)
     try {
       let h: E2BCommandHandleLike
       try {
         await this.sandbox.files.write(file, source)
         if (finished) {
           started(undefined)
+          this.removeFile(file)
           return await outcome
         }
+        const budgetSeconds = Math.ceil((deadline - Date.now()) / 1000) + 1
         h = await this.sandbox.commands.run(
           // `setsid` makes the process a group leader so a kill reaches its
           // children; `timeout` bounds an orphan if this host goes away.
-          `exec setsid timeout -s KILL ${Math.ceil(this.timeoutMs / 1000) + 1} node --max-old-space-size=${this.memoryLimitMb} ${file}`,
+          `exec setsid timeout -s KILL ${budgetSeconds} node --max-old-space-size=${this.memoryLimitMb} ${file}`,
           { background: true, stdin: true, timeoutMs: 0, onStdout, onStderr },
         )
       } catch (error) {
         started(undefined)
+        this.removeFile(file)
         finish(this.startFailure(error, logs))
         return await outcome
       }
+      // A halt that came during the start kills the process now.
       started(h)
-      timer = setTimeout(
-        () => {
-          void halt(
-            'TimeoutError',
-            `Exceeded E2B execution timeout (${this.timeoutMs}ms).`,
-          )
-        },
-        Math.max(0, deadline - Date.now()),
-      )
 
       void h.wait().then(
         () => this.exited(0, finish, outOfMemory, stderrTail, logs),
@@ -386,6 +420,11 @@ class E2BIsolateContext implements IsolateContext {
     this.disposed = true
     await Promise.all([...this.running].map((stopRun) => stopRun()))
     await Promise.all(this.cleanups)
+    if (this.cleanupUnconfirmed) {
+      throw new Error(
+        "e2b: could not confirm that a finished execution's processes were stopped; they may still be running in the sandbox.",
+      )
+    }
   }
 }
 

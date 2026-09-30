@@ -5,8 +5,9 @@
  * stopped. Nothing is replayed.
  *
  * Protocol lines on stdout start with a per-execution marker; everything else
- * is ignored. The marker lives in the runner's own scope, and the runner
- * deletes its file on start, so generated code cannot read it.
+ * is ignored. The marker keeps ordinary output from being read as protocol.
+ * It is not a security boundary: code in the sandbox can reach the same
+ * stdout, so the host validates every message.
  */
 
 export type RunnerMessage =

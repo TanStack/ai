@@ -18,6 +18,12 @@ interface FakeOptions {
   writeError?: Error
   runError?: Error
   waitError?: Error
+  /** Delay before `files.write` resolves. */
+  writeDelayMs?: number
+  /** Delay before a group kill takes effect. */
+  killDelayMs?: number
+  /** A group kill fails with this error instead of killing. */
+  killError?: Error
 }
 
 function named(name: string, message: string): Error {
@@ -77,6 +83,9 @@ function localSandbox(options: FakeOptions = {}) {
   const sandbox: E2BSandboxLike = {
     files: {
       write: async (path, data) => {
+        if (options.writeDelayMs) {
+          await new Promise((r) => setTimeout(r, options.writeDelayMs))
+        }
         if (options.writeError) throw options.writeError
         const local = join(dir, basename(path))
         writeFileSync(local, data)
@@ -92,6 +101,11 @@ function localSandbox(options: FakeOptions = {}) {
         if (io) {
           if (options.runError) throw options.runError
           return start(cmd, io)
+        }
+        if (!cmd.startsWith('kill ')) return { exitCode: 0 } // `rm -f <file>`
+        if (options.killError) throw options.killError
+        if (options.killDelayMs) {
+          await new Promise((r) => setTimeout(r, options.killDelayMs))
         }
         // Group kill: `kill -KILL -- -<pid>` exits 1 when the group is gone.
         const child = children.get(Number(/-(\d+)$/.exec(cmd)?.[1]))
@@ -313,7 +327,58 @@ describe('createE2BIsolateDriver', () => {
     release()
     await disposed
     expect((await pending).error?.name).toBe('DisposedError')
-    expect(fake.commands).toEqual([])
+    // The process never started; only the runner file is removed.
+    expect(fake.commands).toEqual([expect.stringMatching(/^rm -f \/tmp\//)])
+  })
+
+  it('counts the file write against the timeout and does not start late', async () => {
+    const fake = localSandbox({ writeDelayMs: 400 })
+    const { result } = await run('return 1', { timeout: 100, fake })
+    expect(result.error?.name).toBe('TimeoutError')
+    expect(fake.commands.some((c) => c.startsWith('exec '))).toBe(false)
+  })
+
+  it('does not run a tool that the code requests after the timeout', async () => {
+    let called = false
+    const fake = localSandbox({ killDelayMs: 1500 })
+    const { result } = await run(
+      `const end = Date.now() + 500; while (Date.now() < end) {}
+       await external_side_effect({})`,
+      {
+        timeout: 200,
+        fake,
+        bindings: {
+          external_side_effect: binding(async () => {
+            called = true
+          }),
+        },
+      },
+    )
+    expect(result.error?.name).toBe('TimeoutError')
+    expect(called).toBe(false)
+  })
+
+  it('rejects dispose when a cleanup kill cannot be confirmed', async () => {
+    const fake = localSandbox({ killError: new Error('socket hang up') })
+    const context = await createE2BIsolateDriver({
+      sandbox: fake.sandbox,
+    }).createContext({ bindings: {} })
+    expect((await context.execute('return 1')).value).toBe(1)
+    await expect(context.dispose()).rejects.toThrow(/could not confirm/)
+  })
+
+  it('rejects a protocol message with the wrong shape', async () => {
+    // Code can rewrite the runner's own stdout writes; the host must not trust them.
+    const { result } = await run(
+      `const write = process.stdout._write
+       process.stdout._write = function (chunk, _encoding, callback) {
+         const text = chunk.toString().replace(/"success":true,"value":1/, '"success":false,"error":42')
+         return write.call(this, Buffer.from(text), 'buffer', callback)
+       }
+       return 1`,
+    )
+    expect(result.error?.name).toBe('E2BExecutionError')
+    expect(result.error?.message).toMatch(/Malformed/)
   })
 
   it('reports a process that exits without a result', async () => {
