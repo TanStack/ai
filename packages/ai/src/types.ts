@@ -896,6 +896,9 @@ export interface Tool<
   /** If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools). */
   lazy?: boolean
 
+  /** If true, a batch of tool calls that contains this tool runs one call at a time, also when `toolExecution` is `'parallel'`. */
+  sequential?: boolean
+
   /** Additional metadata for adapters or custom extensions */
   metadata?: Record<string, any> | undefined
 }
@@ -1088,6 +1091,12 @@ export interface TextOptions<
    */
   systemPrompts?: Array<SystemPrompt>
   agentLoopStrategy?: AgentLoopStrategy
+  /**
+   * How the server tools of one model turn run. `'parallel'` (the default)
+   * starts them together, and `'sequential'` runs them one at a time. A tool
+   * with `sequential: true` makes its whole batch sequential.
+   */
+  toolExecution?: 'parallel' | 'sequential'
   /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
