@@ -16,6 +16,10 @@ export function Footer({ view }: { view: SessionView }) {
   const model = useSelector(view.store, (state) =>
     String(state.config.find((entry) => entry.key === 'model')?.value ?? '?'),
   )
+  const effort = useSelector(
+    view.store,
+    (state) => state.config.find((entry) => entry.key === 'effort')?.value,
+  )
   // The plugin states themselves, so the bar renders only when they change.
   const usageState = useSelector(view.store, (state) => state.plugins[USAGE])
   const keysState = useSelector(
@@ -38,6 +42,9 @@ export function Footer({ view }: { view: SessionView }) {
         <Text color={needsKey ? 'red' : ACCENT} bold>{`◆ ${model}`}</Text>
         {needsKey ? (
           <Text color="red">{`  (run /connect ${info.provider})`}</Text>
+        ) : null}
+        {typeof effort === 'string' && effort !== 'default' ? (
+          <Text dimColor>{`  effort ${effort}`}</Text>
         ) : null}
         <Text dimColor>{'   context '}</Text>
         <Text>

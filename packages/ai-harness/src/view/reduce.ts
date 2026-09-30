@@ -448,10 +448,22 @@ export function applyEvent(
       : state
   if (event.name === HARNESS_EVENTS.operationResumed)
     return withNotice(state, 'info', 'Resumed a turn that a crash stopped.')
-  if (event.name === COMMAND_RESULT)
-    return typeof value.result === 'string' && value.result !== ''
-      ? withNotice(state, 'command', value.result)
+  if (event.name === COMMAND_RESULT) {
+    // A finished `connect:<id>` ends the sign-in it waited for.
+    const connector =
+      typeof value.name === 'string'
+        ? /^connect:(.+)$/.exec(value.name)?.[1]
+        : undefined
+    const signedIn = connector
+      ? {
+          ...state,
+          signIns: state.signIns.filter((item) => item.connector !== connector),
+        }
       : state
+    return typeof value.result === 'string' && value.result !== ''
+      ? withNotice(signedIn, 'command', value.result)
+      : signedIn
+  }
   if (event.name === HARNESS_EVENTS.inputRejected)
     return withNotice(
       state,

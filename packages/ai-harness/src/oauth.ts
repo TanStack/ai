@@ -164,12 +164,16 @@ const DONE_PAGE =
  * when another library runs the OAuth flow and you only need the code back:
  * register `redirectUri`, send the user to the authorization URL, then await
  * `waitForCode(state)`. It answers one callback, then stops listening.
+ *
+ * `waitForCode` resolves with the code and the `iss` the server sent with it
+ * (RFC 9207). Pass `iss` on to the library: a server that sends it can refuse
+ * a code without it.
  */
 export async function startLoopbackReceiver(
   options: { timeoutMs?: number } = {},
 ): Promise<{
   redirectUri: string
-  waitForCode: (state: string) => Promise<string>
+  waitForCode: (state: string) => Promise<{ code: string; iss?: string }>
   close: () => void
 }> {
   const { createServer } = await import('node:http')
@@ -189,7 +193,7 @@ export async function startLoopbackReceiver(
     redirectUri,
     close,
     waitForCode: (state) =>
-      new Promise<string>((resolve, reject) => {
+      new Promise((resolve, reject) => {
         const timer = setTimeout(
           () => {
             close()
@@ -207,6 +211,7 @@ export async function startLoopbackReceiver(
           res.writeHead(200, { 'Content-Type': 'text/html' }).end(DONE_PAGE)
           close()
           const code = url.searchParams.get('code')
+          const iss = url.searchParams.get('iss')
           if (url.searchParams.get('state') !== state) {
             reject(new Error('Sign-in failed: the state does not match.'))
           } else if (!code) {
@@ -215,7 +220,7 @@ export async function startLoopbackReceiver(
                 `Sign-in failed: ${url.searchParams.get('error') ?? 'no code'}`,
               ),
             )
-          } else resolve(code)
+          } else resolve(iss ? { code, iss } : { code })
         })
       }),
   }

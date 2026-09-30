@@ -284,10 +284,20 @@ export function mcpConnector(options: McpConnectorOptions) {
                 // A new sign-in has no tokens, so this always ends in a
                 // redirect to the browser.
                 await auth(provider, { serverUrl: url, ...fetchFn })
-                const code = await receiver.waitForCode(state)
+                // The error names the service: a sign-in can end minutes later.
+                const { code, iss } = await receiver
+                  .waitForCode(state)
+                  .catch((error: unknown) => {
+                    throw new Error(
+                      `${label}: ${error instanceof Error ? error.message : String(error)}`,
+                    )
+                  })
+                // A server that sends `iss` (RFC 9207), such as Linear, gets
+                // it checked. Without it, the SDK refuses the code.
                 await auth(provider, {
                   serverUrl: url,
                   authorizationCode: code,
+                  ...(iss ? { iss } : {}),
                   ...fetchFn,
                 })
               } finally {

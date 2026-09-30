@@ -45,11 +45,22 @@ export function Status({
   const goal = useSelector(view.store, selectGoal)
   return (
     <Box flexDirection="column" marginTop={1}>
-      {signIns.map((signIn) => (
-        <Text key={signIn.connector} color="magenta">
-          {`◇ Continue in your browser for ${signIn.connector}${signIn.url ? `: ${signIn.url}` : ''}${signIn.userCode ? ` (code ${signIn.userCode})` : ''}`}
-        </Text>
-      ))}
+      {/* A key question says itself that the page is open, so it waits alone. */}
+      {question
+        ? null
+        : signIns.map((signIn) => (
+            <Box key={signIn.connector} flexDirection="column">
+              <Box>
+                <Spinner color="magenta" />
+                <Text color="magenta">
+                  {` Waiting for you to sign in to ${signIn.connector} in your browser${signIn.userCode ? ` (code ${signIn.userCode})` : ''}.`}
+                </Text>
+              </Box>
+              {signIn.url ? (
+                <Text dimColor>{`  No tab opened? Open ${signIn.url}`}</Text>
+              ) : null}
+            </Box>
+          ))}
       {approvals.length > 0 ? (
         <Text color="magenta" bold>
           {`◇ Approve ${approvals.map((item) => item.tool).join(', ')}? Type y or n.`}

@@ -26,7 +26,12 @@ function webHeaders(req: IncomingMessage) {
  * - The refresh token `refresh-1` gives `access-2` (and no new refresh token).
  * - `revoke(token)` makes the MCP endpoint refuse a token.
  */
-export async function startProtectedServer() {
+export async function startProtectedServer(
+  options: {
+    /** Advertise that callbacks carry `iss` (RFC 9207), as Linear does. */
+    issParameter?: boolean
+  } = {},
+) {
   const seen = {
     registrations: [] as Array<Record<string, unknown>>,
     tokenRequests: [] as Array<URLSearchParams>,
@@ -61,6 +66,9 @@ export async function startProtectedServer() {
           grant_types_supported: ['authorization_code', 'refresh_token'],
           code_challenge_methods_supported: ['S256'],
           token_endpoint_auth_methods_supported: ['none'],
+          ...(options.issParameter
+            ? { authorization_response_iss_parameter_supported: true }
+            : {}),
         })
       }
       if (url.pathname === '/register' && req.method === 'POST') {

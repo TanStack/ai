@@ -299,6 +299,31 @@ describe('view reducer', () => {
     expect(next.signIns).toEqual([])
   })
 
+  it('clears the sign-in of a connector when its connect command ends', () => {
+    const connected = fold([
+      custom(HARNESS_EVENTS.authRequired, {
+        connector: 'notion',
+        url: 'https://a',
+      }),
+      custom(HARNESS_EVENTS.authRequired, {
+        connector: 'linear',
+        url: 'https://b',
+      }),
+      custom('harness.command.result', {
+        name: 'connect:notion',
+        result: 'Connected to Notion.',
+      }),
+    ])
+    expect(connected.signIns).toEqual([
+      { connector: 'linear', url: 'https://b' },
+    ])
+    expect(connected.messages.at(-1)).toMatchObject({
+      role: 'notice',
+      kind: 'command',
+      text: 'Connected to Notion.',
+    })
+  })
+
   it('follows plugin state and config values', () => {
     const described = applyDescription(emptyState(), {
       commands: [],

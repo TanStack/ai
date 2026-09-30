@@ -1,8 +1,19 @@
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { useEffect, useRef, useState } from 'react'
-import { Box, Static, Text, render, useApp, useInput, usePaste } from 'ink'
+import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
+import {
+  Box,
+  Static,
+  Text,
+  measureElement,
+  render,
+  useApp,
+  useBoxMetrics,
+  useInput,
+  usePaste,
+  useWindowSize,
+} from 'ink'
 import { useSelector } from '@tanstack/react-store'
 import { assistant, features, keyProviders, modelInfo } from './harness'
 import {
@@ -23,7 +34,8 @@ import { Menu } from './screen/menu'
 import { Message, settledCount } from './screen/parts'
 import { Status } from './screen/status'
 import { ACCENT, compact } from './screen/theme'
-import type { RenderOptions } from 'ink'
+import type { ReactNode } from 'react'
+import type { DOMElement, RenderOptions } from 'ink'
 import type { Recording, VoiceClip } from './voice'
 import type { Line } from './screen/editor'
 import type { MenuItem } from './screen/menu'
@@ -45,6 +57,7 @@ const SCREEN_COMMANDS = [
   },
   { name: 'disconnect', description: 'Remove a key or a sign-in' },
   { name: 'model', description: 'Pick the model' },
+  { name: 'effort', description: 'Pick how hard the model thinks' },
   { name: 'mic', description: 'Pick the microphone' },
   { name: 'open', description: 'Open a media file (default: the last one)' },
   { name: 'play', description: 'Play an audio or video file' },
@@ -150,6 +163,30 @@ function modelItems(state: SessionViewState): Array<MenuItem> {
   })
 }
 
+const EFFORT_DETAIL: Record<string, string> = {
+  default: 'the model decides',
+  low: 'fastest, fewest tokens',
+  medium: 'balanced',
+  high: 'thinks longer',
+  max: 'the most the model can think',
+}
+
+/** The rows of the `/effort` picker, for the current model. */
+function effortItems(state: SessionViewState): Array<MenuItem> {
+  const entry = state.config.find((item) => item.key === 'effort')
+  if (entry?.option.type !== 'select') return []
+  const model = String(
+    state.config.find((item) => item.key === 'model')?.value ?? '',
+  )
+  const used = modelInfo[model]?.effort === true
+  return entry.option.options.map((name) => ({
+    id: name,
+    label: name,
+    current: name === entry.value,
+    detail: `${EFFORT_DETAIL[name] ?? ''}${used || name === 'default' ? '' : `, ${model} has no effort setting`}`,
+  }))
+}
+
 /** A list open over the input line, for example the `/connect` picker. */
 interface Picker {
   title: string
@@ -227,6 +264,45 @@ const RELEASE_WAIT = 450
 
 type Row = { id: 'header' } | ViewMessage
 
+/** Reports its height once, when Ink prints it (Static prints a row once). */
+function Measured({
+  id,
+  onHeight,
+  children,
+}: {
+  id: string
+  onHeight: (id: string, height: number) => void
+  children: ReactNode
+}) {
+  const ref = useRef<DOMElement>(null)
+  // Ink lays out the frame before layout effects run, so the height is there.
+  useLayoutEffect(() => {
+    if (ref.current) onHeight(id, measureElement(ref.current).height)
+  }, [])
+  return (
+    <Box ref={ref} flexDirection="column">
+      {children}
+    </Box>
+  )
+}
+
+/** One printed row: the header, or a message that no longer changes. */
+function PrintedRow({
+  row,
+  saved,
+  width,
+}: {
+  row: Row
+  saved: ReturnType<typeof useSavedMedia>['saved']
+  width: number
+}) {
+  return 'role' in row ? (
+    <Message message={row} saved={saved} width={width} />
+  ) : (
+    <Header />
+  )
+}
+
 function App({ view }: { view: SessionView }) {
   const { exit } = useApp()
   const messages = useSelector(view.store, (state) => state.messages)
@@ -267,6 +343,27 @@ function App({ view }: { view: SessionView }) {
     { id: 'header' },
     ...messages.slice(0, printed.current),
   ]
+
+  // The input sits at the bottom of the screen: until the printed rows fill
+  // the screen, empty space above the live area fills the rest. Each row
+  // measures itself when it prints. Ink redraws the whole screen for a frame
+  // as tall as the screen, so the frame stays one line shorter.
+  // ponytail: the heights are from the width at print time. A resize makes
+  // the space a little off until the screen is full.
+  const { columns, rows: screenRows } = useWindowSize()
+  const heights = useRef(new Map<string, number>())
+  const [, remeasure] = useReducer((count: number) => count + 1, 0)
+  const onHeight = (id: string, height: number) => {
+    heights.current.set(id, height)
+    remeasure()
+  }
+  const printedHeight = rows.reduce(
+    (sum, row) => sum + (heights.current.get(row.id) ?? 0),
+    0,
+  )
+  const live = useRef<DOMElement>(null)
+  const { height: liveHeight } = useBoxMetrics(live)
+  const space = Math.max(0, screenRows - 1 - printedHeight - liveHeight)
 
   const [voice, setVoiceState] = useState<VoiceState>('idle')
   // The phase in a ref too: key events come faster than React renders, and a
@@ -515,6 +612,13 @@ function App({ view }: { view: SessionView }) {
           items: modelItems(state),
           pick: (item) => view.command('model', item.id),
         })
+      case '/effort':
+        if (arg) break
+        return openPicker({
+          title: 'How hard should the model think?',
+          items: effortItems(state),
+          pick: (item) => view.command('effort', item.id),
+        })
       case '/mic': {
         if (!arg) return pickMicrophone().catch(failVoice)
         const names = await listMicrophones().catch(() => [])
@@ -621,38 +725,46 @@ function App({ view }: { view: SessionView }) {
   return (
     <Box flexDirection="column">
       <Static items={rows}>
-        {(row) =>
-          'role' in row ? (
-            <Message key={row.id} message={row} saved={saved} />
-          ) : (
-            <Header key={row.id} />
-          )
-        }
+        {(row) => (
+          <Measured key={row.id} id={row.id} onHeight={onHeight}>
+            <PrintedRow row={row} saved={saved} width={columns} />
+          </Measured>
+        )}
       </Static>
-      {messages.slice(printed.current).map((message) => (
-        <Message key={message.id} message={message} saved={saved} />
-      ))}
-      <Status view={view} voice={voice} recording={recorder} />
-      <InputBox
-        line={editor.line}
-        voice={voice}
-        hidden={secretAsked || (editor.line.hidden && editor.line.text !== '')}
-      />
-      {picker ? (
-        <Menu
-          title={picker.title}
-          items={picker.items}
-          selected={selected}
-          hint="↑↓ move   Enter or a number picks   Esc closes"
+      {space > 0 ? <Box height={space} /> : null}
+      <Box ref={live} flexDirection="column">
+        {messages.slice(printed.current).map((message) => (
+          <Message
+            key={message.id}
+            message={message}
+            saved={saved}
+            width={columns}
+          />
+        ))}
+        <Status view={view} voice={voice} recording={recorder} />
+        <InputBox
+          line={editor.line}
+          voice={voice}
+          hidden={
+            secretAsked || (editor.line.hidden && editor.line.text !== '')
+          }
         />
-      ) : suggestions.length > 0 ? (
-        <Menu
-          items={suggestions}
-          selected={Math.min(suggested, suggestions.length - 1)}
-          hint="↑↓ move   Tab fills   Enter runs"
-        />
-      ) : null}
-      <Footer view={view} />
+        {picker ? (
+          <Menu
+            title={picker.title}
+            items={picker.items}
+            selected={selected}
+            hint="↑↓ move   Enter or a number picks   Esc closes"
+          />
+        ) : suggestions.length > 0 ? (
+          <Menu
+            items={suggestions}
+            selected={Math.min(suggested, suggestions.length - 1)}
+            hint="↑↓ move   Tab fills   Enter runs"
+          />
+        ) : null}
+        <Footer view={view} />
+      </Box>
     </Box>
   )
 }
@@ -672,30 +784,37 @@ export async function runTui(view: SessionView, io: RenderOptions = {}) {
     view.notice(
       'No model key yet. Type /connect and pick OpenRouter to sign in with the browser.',
     )
-  // ponytail: the SDK logs its warnings and errors on the console (the message,
-  // then its details with console.dir). Ink prints console output above the
-  // screen, and the screen shows those errors itself, so it drops them.
-  const { warn, error, dir } = console
+  // Start on a clean terminal: clear the screen and the scrollback.
+  if (!io.stdout && process.stdout.isTTY)
+    process.stdout.write('\x1b[2J\x1b[3J\x1b[H')
+  const app = render(<App view={view} />, io)
+  // ponytail: the SDK logs its warnings and errors on the console (the
+  // message, then its details with console.dir), and the code highlighter
+  // warns about languages it does not know. Ink prints console output above
+  // the screen, and the screen shows the errors itself, so it drops them.
+  // This wraps the console after render(), because render() replaces it.
+  const before = { warn: console.warn, error: console.error, dir: console.dir }
   let dropDetails = false
   const quiet =
     (log: (...args: Array<unknown>) => void) =>
     (...args: Array<unknown>) => {
       const text = typeof args[0] === 'string' ? args[0] : ''
-      dropDetails = /\[tanstack-ai:(warn|errors)\]/.test(text)
+      dropDetails =
+        /\[tanstack-ai:(warn|errors)\]|Could not find the language/.test(text)
       if (!dropDetails) log(...args)
     }
-  console.warn = quiet(warn)
-  console.error = quiet(error)
+  const quietWarn = quiet(before.warn)
+  console.warn = quietWarn
+  console.error = quiet(before.error)
   console.dir = (...args: Parameters<typeof console.dir>) => {
     if (dropDetails) dropDetails = false
-    else dir(...args)
+    else before.dir(...args)
   }
-  // Start on a clean terminal: clear the screen and the scrollback.
-  if (!io.stdout && process.stdout.isTTY)
-    process.stdout.write('\x1b[2J\x1b[3J\x1b[H')
   try {
-    await render(<App view={view} />, io).waitUntilExit()
+    await app.waitUntilExit()
   } finally {
-    Object.assign(console, { warn, error, dir })
+    // Ink puts the first console back when it stops. Without its console
+    // (`patchConsole: false`), the screen puts it back itself.
+    if (console.warn === quietWarn) Object.assign(console, before)
   }
 }

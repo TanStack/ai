@@ -1,5 +1,7 @@
 import { basename } from 'node:path'
+import { useMemo } from 'react'
 import { Box, Spacer, Text, useAnimation } from 'ink'
+import { renderMarkdown } from './markdown'
 import { ACCENT, KIND_COLOR, SPINNER } from './theme'
 import type {
   AgentPart,
@@ -148,20 +150,28 @@ function Agent({
   )
 }
 
+/** The model's text as markdown, `width` columns wide. */
+function Markdown({ text, width }: { text: string; width: number }) {
+  const shown = useMemo(() => renderMarkdown(text, width), [text, width])
+  return (
+    <Box marginLeft={2}>
+      <Text>{shown}</Text>
+    </Box>
+  )
+}
+
 function Part({
   part,
   saved,
+  width,
 }: {
   part: ViewPart
   saved: ReadonlyArray<Saved>
+  width: number
 }) {
   switch (part.type) {
     case 'text':
-      return (
-        <Box marginLeft={2}>
-          <Text>{part.text}</Text>
-        </Box>
-      )
+      return <Markdown text={part.text} width={width - 2} />
     case 'reasoning':
       return (
         <Box marginLeft={2}>
@@ -182,9 +192,12 @@ function Part({
 export function Message({
   message,
   saved,
+  width,
 }: {
   message: ViewMessage
   saved: ReadonlyArray<Saved>
+  /** The terminal width, for the markdown of the model's text. */
+  width: number
 }) {
   switch (message.role) {
     case 'user': {
@@ -217,10 +230,14 @@ export function Message({
     }
     case 'notice': {
       const isError = message.kind === 'error'
+      // A command's answer, for example "Connected to Notion.", stands out.
+      const done =
+        message.kind === 'command' &&
+        /^(Connected|Disconnected|Model|Effort)\b/.test(message.text)
       return (
         <Box marginLeft={2}>
-          <Text color={isError ? 'red' : 'gray'}>
-            {`${isError ? '✗' : '·'} ${message.text}`}
+          <Text color={isError ? 'red' : done ? 'green' : 'gray'} bold={done}>
+            {`${isError ? '✗' : done ? '✓' : '·'} ${message.text}`}
           </Text>
         </Box>
       )
@@ -229,7 +246,7 @@ export function Message({
       return (
         <Box flexDirection="column" marginTop={1}>
           {message.parts.map((part, index) => (
-            <Part key={index} part={part} saved={saved} />
+            <Part key={index} part={part} saved={saved} width={width} />
           ))}
         </Box>
       )

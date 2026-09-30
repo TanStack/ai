@@ -22,8 +22,11 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
 
-async function setup(credential?: Credential) {
-  const server = await startProtectedServer()
+async function setup(
+  credential?: Credential,
+  serverOptions?: Parameters<typeof startProtectedServer>[0],
+) {
+  const server = await startProtectedServer(serverOptions)
   cleanups.push(() => server.close())
   const persistence = memoryPersistence()
   if (credential)
@@ -345,6 +348,19 @@ describe('mcpConnector /connect', () => {
     expect(warnings.filter((message) => message.includes('SEP-2352'))).toEqual(
       [],
     )
+  })
+
+  it('passes the iss of the callback on, for a server that sends one (RFC 9207)', async () => {
+    const { server, persistence, host } = await setup(undefined, {
+      issParameter: true,
+    })
+    const session = await openDemo(host, server.url, recorder())
+    const browser = approveSignIns(session, 'code-1', server.issuer)
+    cleanups.push(browser.stop)
+    expect(await session.command('connect:demo')).toBe('Connected to Demo.')
+    expect(
+      await persistence.stores.credentials.get(scope, 'demo'),
+    ).toMatchObject({ accessToken: 'access-1' })
   })
 
   it.each([

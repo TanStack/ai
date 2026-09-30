@@ -10,7 +10,7 @@ From the repo root:
 2. `pnpm build:all` (the example uses the local packages)
 3. `pnpm --filter harness-cli-example start`
 4. Type `/connect` and pick OpenRouter. It signs you in with the browser, with no key to paste.
-5. Type `/model` and pick `openrouter-gpt`.
+5. Type `/model` and pick `openai/gpt-6-astra`.
 
 Now send a message.
 
@@ -25,13 +25,13 @@ You do not need a `.env` file. Type `/connect` and pick a provider from the list
 
 The app saves the key in `~/.tanstack-harness-example/credentials.json`. It shows only the last 4 characters of a key. The footer shows which features are on, and it changes when you connect a provider.
 
-| Provider id  | Adds                                                                         |
-| ------------ | ---------------------------------------------------------------------------- |
-| `openai`     | the `gpt` and `gpt-fast` models, images, speech, Sora video, and voice input |
-| `anthropic`  | the `claude` and `claude-fast` models                                        |
-| `grok`       | the `grok` model, video with Grok Imagine, and voice input                   |
-| `fal`        | songs and sound effects                                                      |
-| `openrouter` | the `openrouter-gpt` and `openrouter-claude` models                          |
+| Provider id  | Adds                                                                                                |
+| ------------ | --------------------------------------------------------------------------------------------------- |
+| `openai`     | `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, images, speech, Sora video, and voice input               |
+| `anthropic`  | `claude-opus-5-5`, `claude-fable-5-1`, `claude-sonnet-5`, `claude-haiku-4-5`                        |
+| `grok`       | `grok-4.7`, `grok-4.6`, video with Grok Imagine, and voice input                                    |
+| `fal`        | songs and sound effects                                                                             |
+| `openrouter` | `openai/gpt-6-astra`, `anthropic/claude-opus-5.5`, `google/gemini-3.1-pro-preview`, `x-ai/grok-4.7` |
 
 If a provider has no key, its models and tools stop and tell you which `/connect` to run. If no key is set in the env, `/model demo` answers without a key.
 
@@ -88,23 +88,31 @@ When `claude` and `codex` are on the PATH, the agent can call them. They work in
 
 ## Use Notion and Linear
 
-1. Run `/connect notion`. Approve the consent page that opens in the browser. Do the same with `/connect linear`.
+1. Run `/connect notion`. Approve the consent page that opens in the browser. The screen waits with a spinner, then shows a green `✓ Connected to Notion.` Do the same with `/connect linear`.
 2. Ask: `list the titles of my 3 latest Linear issues`, or `search Notion for the onboarding page`.
 
 - Sign-ins are kept in `~/.tanstack-harness-example/credentials.json`, so you sign in once. `/disconnect notion` deletes one.
 - Code mode is on: read-only tools (file reads, read-only Notion and Linear tools) are functions in one `execute_typescript` program, which runs in a QuickJS isolate.
 
+## Pick the model and the effort
+
+- `/model` opens a list of the models, with the provider and the context size of each. `/model gpt-6-luna` switches at once. The change applies at the next turn.
+- `/effort` sets how hard the model thinks: `default` (the model decides), `low`, `medium`, `high`, or `max`. `claude-haiku-4-5` has no effort setting.
+- The footer shows the model, the effort, how full the context is, the tokens in and out, and the model calls.
+
+## The screen
+
+- Answers show as markdown: lists, tables, and highlighted code. A Mermaid block shows as a chart drawn in text. In demo mode, ask `draw me a chart`.
+- Type `/` for a list of the commands. The arrows move in it, Tab fills the command, and Enter runs it.
+- The up and down arrows go through the lines you sent, also after a restart. They are kept in `~/.tanstack-harness-example/history.json`. Keys are never kept.
+- The input stays at the bottom of the screen. `/help` lists every command.
+
 ## Everything else it shows
 
-- `/model` opens a list of the models with their context size. `/model claude` switches at once. The change applies at the next turn.
-- The footer shows the model, how full its context is, the tokens in and out, and the model calls.
 - `create hello.txt with a short poem`: the agent asks before `write_file`. Type `y`.
 - `/mode plan` makes it read-only. `/todos`, `/usage`, `/compact`.
 - `/goal create a file hello.txt that says hi`: the agent keeps working until the model says the goal is met.
 - Press Esc to stop a long answer. Type while it works to steer it.
-- Type `/` for a list of the commands. The arrows move in it, Tab fills the command, and Enter runs it.
-- The up and down arrows go through the lines you sent, also after a restart. They are kept in `~/.tanstack-harness-example/history.json`. Keys are never kept.
-- `/help` lists every command.
 
 The screen is `src/tui.tsx` and its parts in `src/screen/`, plain example code on `createSessionView`. `src/voice.ts` records and transcribes, and `src/media.ts` has the media agents. Copy them and change them.
 
