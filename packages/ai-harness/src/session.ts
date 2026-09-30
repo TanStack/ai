@@ -340,6 +340,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   >()
   /** The input of each turn operation, by operation id. */
   private readonly operationInputs = new Map<string, string>()
+  /** The inputs that joined each turn, by operation id. */
+  private readonly turnJoins = new Map<string, Array<string>>()
   /** How the chat inputs of this session ended, for `settled()`. */
   private readonly settlements = new Map<string, InputSettlement>()
   private readonly agentRegistry = new AgentRegistry()
@@ -864,7 +866,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         kind: operation.kind,
         ...(operation.agent ? { agent: operation.agent } : {}),
       })),
-      queuedTurns: this.queue.length,
+      // A steer that waits to join the running turn waits too.
+      queuedTurns: this.queue.length + this.steerQueue.length,
       pendingInterrupts: this.interrupted?.interrupts ?? [],
       pendingQuestions: [...this.questions.entries()].map(
         ([questionId, question]) => ({
@@ -1416,54 +1419,82 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * Middleware that runs before each model call. On a durable host it
-   * commits the engine's messages, and it sends the folded log when a host
-   * record changed the context. Then it adds queued steer messages.
+   * Middleware that runs before each model call. Queued steers join the
+   * running turn in admission order. On a durable host, one append commits
+   * the engine's messages, the steer messages, and the join records, so a
+   * crash never splits a join. The model gets the folded log when a host
+   * record changed the context.
    */
   private steering(): AnyChatMiddleware {
     return {
       name: 'harness:steering',
       onConfig: async (ctx, config) => {
         if (ctx.phase !== 'beforeModel') return undefined
-        const synced = await this.engine?.beforeModel(config.messages)
-        if (this.steerQueue.length === 0) {
-          return synced ? { messages: synced } : undefined
-        }
         const steers = this.steerQueue.splice(0)
-        const running = this.activeTurn
-        for (const steer of steers) {
-          // A prompt that joined the running turn settles with that turn.
-          if (steer.operation && running) {
-            const joined = steer.operation
-            this.operations.delete(joined.id)
-            running.then(
-              (result) => joined.finish('completed', result),
-              (error: unknown) => joined.fail('failed', error),
-            )
-          }
-          void this.inbox.markApplied(steer.inputId, ctx.runId)
-          this.feed.publish(
-            ctx.runId,
-            customEvent(HARNESS_EVENTS.inputApplied, {
+        const added = steers.map(
+          (steer): ModelMessage => ({
+            id: createMessageId(),
+            role: 'user',
+            content: steer.message,
+          }),
+        )
+        const hostInput = this.operationInputs.get(ctx.runId)
+        const joins = hostInput
+          ? steers.map((steer) => ({
+              type: 'harness.input.joined',
               inputId: steer.inputId,
-              operationId: ctx.runId,
-            }),
-          )
-        }
-        return {
-          messages: [
-            ...(synced ?? config.messages),
-            ...steers.map(
-              (steer): ModelMessage => ({
-                id: createMessageId(),
-                role: 'user',
-                content: steer.message,
-              }),
-            ),
-          ],
-        }
+              into: hostInput,
+            }))
+          : []
+        const list = [...config.messages, ...added]
+        const synced = await this.engine?.beforeModel(list, joins)
+        for (const steer of steers) this.join(ctx.runId, steer)
+        if (steers.length === 0 && !synced) return undefined
+        return { messages: synced ?? list }
       },
     }
+  }
+
+  /**
+   * `steer` joined the running turn `operationId`: it settles with that
+   * turn, and a prompt that joined gets the turn's result.
+   */
+  private join(
+    operationId: string,
+    steer: { inputId: string; operation?: OperationImpl<ChatTurnResult> },
+  ) {
+    const joined = this.turnJoins.get(operationId) ?? []
+    joined.push(steer.inputId)
+    this.turnJoins.set(operationId, joined)
+    const running = this.activeTurn
+    if (steer.operation && running) {
+      const follower = steer.operation
+      this.operations.delete(follower.id)
+      running.then(
+        (result) => follower.finish('completed', result),
+        (error: unknown) => follower.fail('failed', error),
+      )
+    }
+    if (!this.writer) void this.inbox.markApplied(steer.inputId, operationId)
+    this.feed.publish(
+      operationId,
+      customEvent(HARNESS_EVENTS.inputApplied, {
+        inputId: steer.inputId,
+        operationId,
+      }),
+    )
+  }
+
+  /** The inputs that joined the turn of `hostInput` (or operation). */
+  private joinedInputs(operationId: string, hostInput: string | undefined) {
+    if (this.writer && hostInput !== undefined) {
+      return [...this.writer.state.inputs.values()]
+        .filter(
+          (input) => input.status === 'joined' && input.into === hostInput,
+        )
+        .map((input) => input.inputId)
+    }
+    return this.turnJoins.get(operationId) ?? []
   }
 
   /**
@@ -1674,87 +1705,108 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       const adapter: AnyTextAdapter = await this.keys.adapter(
         picked ?? this.harness.adapter,
       )
-      const message =
+      let message =
         turn.message !== undefined
           ? await this.userMessage(turn.message)
           : undefined
-      if (!this.chatPersistence || !this.checkpoint) {
+      let resume = turn.resume
+      let parentRunId = turn.parentRunId
+      const { chatPersistence, checkpoint } = this
+      if (!chatPersistence || !checkpoint) {
         throw new Error('The session is not open yet.')
       }
-      const stream = chat({
-        adapter,
-        messages: message ? [message] : [],
-        systemPrompts: [
-          ...(this.harness.systemPrompts ?? []),
-          ...[...(session?.prompts ?? []), ...(runPlugins?.prompts ?? [])]
-            .map(resolvePrompt)
-            .filter((prompt) => prompt !== ''),
-        ],
-        tools,
-        middleware: [
-          ...bridges,
-          withPersistence(this.chatPersistence),
-          this.checkpoint,
-          ...(this.harness.middleware ?? []),
-          ...(session?.middleware ?? []),
-          ...(runPlugins?.middleware ?? []),
-          this.steering(),
-          // Last, because a later middleware that returns `messages` (as
-          // steering does) resets what the model gets.
-          mediaMiddleware({
-            store: this.mediaStore,
-            accepted: acceptedKinds(
-              adapter.inputModalities,
-              this.harness.media?.accepts,
-            ),
-            transcribe: this.harness.media?.transcribe,
-          }),
-        ],
-        ...(subagentList.length > 0
-          ? {
-              subagents: {
-                ...this.harness.subagents,
-                agents: subagentList,
-                limits: this.limits(),
-                binding: this.binding(operation, captured, runPlugins),
-              },
-            }
-          : {}),
-        // chat() stops after 5 model calls by default. An agent that reads,
-        // searches, and calls tools needs more before it can answer.
-        agentLoopStrategy: this.harness.agentLoopStrategy ?? maxIterations(50),
-        ...(this.harness.modelOptions !== undefined
-          ? { modelOptions: this.harness.modelOptions }
-          : {}),
-        ...(this.harness.interrupts
-          ? { interrupts: this.harness.interrupts }
-          : {}),
-        ...(this.harness.context !== undefined
-          ? { context: this.harness.context }
-          : {}),
-        threadId: this.threadId,
-        runId: operation.id,
-        ...(turn.parentRunId ? { parentRunId: turn.parentRunId } : {}),
-        ...(turn.resume ? { resume: turn.resume } : {}),
-        abortController: operation.abortController,
-        stream: true,
-      } as never) as AsyncIterable<StreamChunk>
+      // One chat() run, and one more each time steers wait after a final
+      // answer: a late join gets its answer in this turn.
+      for (;;) {
+        const stream = chat({
+          adapter,
+          messages: message ? [message] : [],
+          systemPrompts: [
+            ...(this.harness.systemPrompts ?? []),
+            ...[...(session?.prompts ?? []), ...(runPlugins?.prompts ?? [])]
+              .map(resolvePrompt)
+              .filter((prompt) => prompt !== ''),
+          ],
+          tools,
+          middleware: [
+            ...bridges,
+            withPersistence(chatPersistence),
+            checkpoint,
+            ...(this.harness.middleware ?? []),
+            ...(session?.middleware ?? []),
+            ...(runPlugins?.middleware ?? []),
+            this.steering(),
+            // Last, because a later middleware that returns `messages` (as
+            // steering does) resets what the model gets.
+            mediaMiddleware({
+              store: this.mediaStore,
+              accepted: acceptedKinds(
+                adapter.inputModalities,
+                this.harness.media?.accepts,
+              ),
+              transcribe: this.harness.media?.transcribe,
+            }),
+          ],
+          ...(subagentList.length > 0
+            ? {
+                subagents: {
+                  ...this.harness.subagents,
+                  agents: subagentList,
+                  limits: this.limits(),
+                  binding: this.binding(operation, captured, runPlugins),
+                },
+              }
+            : {}),
+          // chat() stops after 5 model calls by default. An agent that reads,
+          // searches, and calls tools needs more before it can answer.
+          agentLoopStrategy:
+            this.harness.agentLoopStrategy ?? maxIterations(50),
+          ...(this.harness.modelOptions !== undefined
+            ? { modelOptions: this.harness.modelOptions }
+            : {}),
+          ...(this.harness.interrupts
+            ? { interrupts: this.harness.interrupts }
+            : {}),
+          ...(this.harness.context !== undefined
+            ? { context: this.harness.context }
+            : {}),
+          threadId: this.threadId,
+          runId: operation.id,
+          ...(parentRunId ? { parentRunId } : {}),
+          ...(resume ? { resume } : {}),
+          abortController: operation.abortController,
+          stream: true,
+        } as never) as AsyncIterable<StreamChunk>
 
-      for await (const chunk of stream) {
-        operation.publish(chunk)
-        if (
-          chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
-          !('subagentRunId' in chunk && chunk.subagentRunId)
-        ) {
-          text += chunk.delta
+        for await (const chunk of stream) {
+          operation.publish(chunk)
+          if (
+            chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
+            !('subagentRunId' in chunk && chunk.subagentRunId)
+          ) {
+            text += chunk.delta
+          }
+          if (
+            chunk.type === EventType.RUN_FINISHED &&
+            chunk.outcome?.type === 'interrupt'
+          ) {
+            interrupts = chunk.outcome.interrupts
+          }
+          if (chunk.type === EventType.RUN_ERROR) failure = chunk.message
         }
-        if (
-          chunk.type === EventType.RUN_FINISHED &&
-          chunk.outcome?.type === 'interrupt'
-        ) {
-          interrupts = chunk.outcome.interrupts
-        }
-        if (chunk.type === EventType.RUN_ERROR) failure = chunk.message
+        const hasLateJoin =
+          this.steerQueue.length > 0 &&
+          failure === undefined &&
+          (interrupts?.length ?? 0) === 0 &&
+          !operation.abortController.signal.aborted
+        if (!hasLateJoin) break
+        message = undefined
+        resume = undefined
+        parentRunId = undefined
+        // withPersistence finished the run. It runs again, for the join.
+        await this.persistence.stores.runs?.update(operation.id, {
+          status: 'running',
+        })
       }
     } catch (error) {
       failure = error instanceof Error ? error.message : String(error)
@@ -1787,18 +1839,26 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }
 
     const { inputId } = turn
-    // The settlement lands before the operation ends, so a caller that sees
-    // the result can also read it with `settled()`.
+    // The turn and every input that joined it settle in one append. The
+    // settlement lands before the operation ends, so a caller that sees the
+    // result can also read it with `settled()`.
+    const settled = [
+      ...(inputId === undefined ? [] : [inputId]),
+      ...this.joinedInputs(operation.id, inputId),
+    ]
+    this.turnJoins.delete(operation.id)
     const settleTurn = (
       settlement: Omit<InputSettlement, 'inputId' | 'operationId'>,
     ) =>
-      inputId === undefined || this.logFailure
+      settled.length === 0 || this.logFailure
         ? Promise.resolve()
-        : this.settle({
-            inputId,
-            operationId: operation.id,
-            ...settlement,
-          }).catch(() => {})
+        : this.settle(
+            ...settled.map((id) => ({
+              inputId: id,
+              operationId: operation.id,
+              ...settlement,
+            })),
+          ).catch(() => {})
     if (this.logFailure) {
       operation.fail('failed', this.logFailure)
     } else if (timedOut) {
@@ -2470,12 +2530,16 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         })
       }
       const operationId = input.operationId
+      // The inputs that joined this turn settle with it, in one append.
+      const joined = this.joinedInputs(operationId ?? '', input.inputId)
       const ended = (settlement: Omit<InputSettlement, 'inputId'>) =>
-        this.settle({
-          inputId: input.inputId,
-          ...(operationId ? { operationId } : {}),
-          ...settlement,
-        })
+        this.settle(
+          ...[input.inputId, ...joined].map((inputId) => ({
+            inputId,
+            ...(operationId ? { operationId } : {}),
+            ...settlement,
+          })),
+        )
       if (input.abortRequested) {
         await ended({ outcome: 'aborted' })
       } else if (input.attempt >= maxAttempts) {

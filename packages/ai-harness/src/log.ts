@@ -813,13 +813,17 @@ export function engineMessageStore(options: {
     },
     /**
      * Before each model call: commit the engine's `list` (it has the tool
-     * results of the last phase) on top of the fold. Returns the list the
-     * model gets when a host record changed it, else `undefined`.
+     * results of the last phase) on top of the fold, with `records` in the
+     * same append. Returns the list the model gets when a host record
+     * changed it, else `undefined`.
      */
-    beforeModel: async (list: ReadonlyArray<ModelMessage>) => {
+    beforeModel: async (
+      list: ReadonlyArray<ModelMessage>,
+      records: ReadonlyArray<LogRecord> = [],
+    ) => {
       const target = rebase(held, [...list])
       held = [...target]
-      await writer.commit({ messages: target })
+      await writer.commit({ messages: target, records })
       const isSame =
         target.length === list.length &&
         commonPrefix(target, list) === list.length
@@ -828,6 +832,7 @@ export function engineMessageStore(options: {
   } satisfies MessageStore & {
     beforeModel: (
       list: ReadonlyArray<ModelMessage>,
+      records?: ReadonlyArray<LogRecord>,
     ) => Promise<Array<ModelMessage> | undefined>
   }
   return engine
