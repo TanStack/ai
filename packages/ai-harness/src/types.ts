@@ -17,7 +17,7 @@ export type UserInput = string | Array<ContentPart>
 export type BusyPolicy = 'queue' | 'steer' | 'reject'
 
 /** Kinds of work a session runs. */
-export type OperationKind = 'chat' | 'agent' | 'command' | 'compact'
+export type OperationKind = 'chat' | 'agent' | 'command' | 'compact' | 'tool'
 
 export type OperationStatus =
   | 'accepted'
@@ -48,7 +48,15 @@ export interface SessionEvent {
 
 /** An input a client sends to a session. Stored in the inbox. */
 export type HarnessInput =
-  | { op: 'prompt'; message: UserInput; busy?: BusyPolicy }
+  // `systemPreamble` prepends per-run system/developer messages (e.g. pod memory)
+  // ahead of the harness's own system prompts — additive; the agent author does
+  // nothing, the trigger attaches them.
+  | {
+      op: 'prompt'
+      message: UserInput
+      busy?: BusyPolicy
+      systemPreamble?: Array<string>
+    }
   | { op: 'steer'; message: UserInput }
   | { op: 'followUp'; message: UserInput }
   | { op: 'resolve'; resume: Array<RunAgentResumeItem> }
@@ -57,6 +65,9 @@ export type HarnessInput =
   | { op: 'command'; name: string; input?: unknown }
   | { op: 'answer'; questionId: string; value: unknown }
   | { op: 'config'; key: string; value: unknown }
+  // Out-of-band tool invocation: run one registered tool with no model turn.
+  // `meta` carries provenance (e.g. an injection trigger) onto the result event.
+  | { op: 'tool'; name: string; args?: unknown; meta?: Record<string, unknown> }
 
 /** Who sent an input, from the host's `authorize`. */
 export interface Principal {

@@ -204,6 +204,8 @@ interface QueuedTurn {
   resume?: Array<RunAgentResumeItem>
   parentRunId?: string
   inputId?: string
+  /** Per-run system/developer messages prepended ahead of harness prompts. */
+  systemPreamble?: Array<string>
 }
 
 /** Limits for a harness's children when `subagents.limits` is not set. */
@@ -445,12 +447,18 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /** Start a chat turn, or queue it while one runs (see `busy`). */
   prompt(
     message: UserInput,
-    options?: { busy?: BusyPolicy },
+    options?: { busy?: BusyPolicy; systemPreamble?: Array<string> },
   ): Operation<ChatTurnResult> {
     const busy = options?.busy ?? this.harness.busy ?? 'queue'
+    const systemPreamble = options?.systemPreamble
     const inputId = createInputId()
     const operation = this.createTurnOperation()
-    void this.accept(inputId, { op: 'prompt', message, busy }).then(() => {
+    void this.accept(inputId, {
+      op: 'prompt',
+      message,
+      busy,
+      ...(systemPreamble ? { systemPreamble } : {}),
+    }).then(() => {
       if (this.activeTurn && busy === 'reject') {
         this.reject(inputId, 'busy')
         operation.fail('failed', new Error('A chat turn is already running.'))
@@ -460,7 +468,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         this.steerQueue.push({ inputId, message, operation })
         return
       }
-      this.enqueueTurn({ operation, message, inputId })
+      this.enqueueTurn({ operation, message, inputId, systemPreamble })
     })
     return operation
   }
@@ -720,6 +728,25 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     )
     this.operations.set(operation.id, operation)
     void this.executeCommand(operation, name, input)
+    return operation
+  }
+
+  /**
+   * Run a single registered tool out-of-band — no model turn. The tool's
+   * lifecycle is published into the feed as an AG-UI run (RUN_STARTED,
+   * TOOL_CALL_*, RUN_FINISHED), so watchers render it exactly like a tool call
+   * the model made. `meta` (e.g. an injection trigger) is echoed onto the run.
+   */
+  tool(
+    name: string,
+    args?: unknown,
+    meta?: Record<string, unknown>,
+  ): Operation<unknown> {
+    const operation = new OperationImpl<unknown>('tool', this.feed, (target) =>
+      this.cancel(target.id),
+    )
+    this.operations.set(operation.id, operation)
+    void this.executeTool(operation, name, args, meta)
     return operation
   }
 
@@ -985,6 +1012,118 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         message: error instanceof Error ? error.message : String(error),
         timestamp: Date.now(),
       })
+      operation.fail(
+        operation.abortController.signal.aborted ? 'cancelled' : 'failed',
+        error,
+      )
+    }
+    this.publishFinished(operation)
+  }
+
+  private async executeTool(
+    operation: OperationImpl<unknown>,
+    name: string,
+    args: unknown,
+    meta?: Record<string, unknown>,
+  ): Promise<void> {
+    const inputId = createInputId()
+    await this.accept(inputId, {
+      op: 'tool',
+      name,
+      args,
+      ...(meta ? { meta } : {}),
+    })
+    const tool = [
+      ...(this.harness.tools ?? []),
+      ...(this.sessionPlugins?.tools ?? []),
+    ].find((candidate) => candidate.name === name)
+    const execute = (
+      tool as { execute?: (a: unknown, c?: unknown) => unknown } | undefined
+    )?.execute
+    if (!tool || typeof execute !== 'function') {
+      this.reject(inputId, 'unknown_tool')
+      operation.fail(
+        'failed',
+        new Error(`Unknown or non-executable tool: ${name}`),
+      )
+      this.publishFinished(operation)
+      return
+    }
+    let checked: unknown = args
+    const schema = (tool as { inputSchema?: unknown }).inputSchema
+    if (schema !== undefined) {
+      const result = await validateWithStandardSchema(
+        schema as never,
+        args ?? {},
+      )
+      if (!result.success) {
+        const reason = `Input validation failed for tool ${name}: ${result.issues
+          .map((issue) => issue.message)
+          .join(', ')}`
+        this.reject(inputId, 'invalid_input')
+        operation.fail('failed', new Error(reason))
+        this.publishFinished(operation)
+        return
+      }
+      checked = result.data
+    }
+    operation.setStatus('running')
+    await this.applied(inputId, operation.id)
+    this.publishStarted(operation)
+    const toolCallId = `tool-${operation.id}`
+    try {
+      operation.publish({
+        type: EventType.RUN_STARTED,
+        runId: operation.id,
+        threadId: this.threadId,
+        timestamp: Date.now(),
+      } as StreamChunk)
+      operation.publish({
+        type: EventType.TOOL_CALL_START,
+        toolCallId,
+        toolCallName: name,
+        timestamp: Date.now(),
+      } as StreamChunk)
+      operation.publish({
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        delta: JSON.stringify(checked ?? {}),
+        timestamp: Date.now(),
+      } as StreamChunk)
+      operation.publish({
+        type: EventType.TOOL_CALL_END,
+        toolCallId,
+        timestamp: Date.now(),
+      } as StreamChunk)
+      if (meta) {
+        operation.publish(
+          customEvent('tanstack.injection', { toolCallId, ...meta }),
+        )
+      }
+      const result: unknown = await execute(checked, {
+        threadId: this.threadId,
+        runId: operation.id,
+        signal: operation.abortController.signal,
+      })
+      operation.publish({
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId,
+        content: compactForModel(result),
+        timestamp: Date.now(),
+      } as StreamChunk)
+      operation.publish({
+        type: EventType.RUN_FINISHED,
+        runId: operation.id,
+        threadId: this.threadId,
+        timestamp: Date.now(),
+      } as StreamChunk)
+      operation.finish('completed', result)
+    } catch (error) {
+      operation.publish({
+        type: EventType.RUN_ERROR,
+        message: error instanceof Error ? error.message : String(error),
+        timestamp: Date.now(),
+      } as StreamChunk)
       operation.fail(
         operation.abortController.signal.aborted ? 'cancelled' : 'failed',
         error,
@@ -1343,6 +1482,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         adapter,
         messages: message ? [message] : [],
         systemPrompts: [
+          // Per-run preamble (e.g. pod memory) comes first, ahead of the
+          // harness's own system prompts.
+          ...(turn.systemPreamble ?? []),
           ...(this.harness.systemPrompts ?? []),
           ...[...(session?.prompts ?? []), ...(runPlugins?.prompts ?? [])]
             .map(resolvePrompt)
@@ -1387,9 +1529,17 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         ...(this.harness.interrupts
           ? { interrupts: this.harness.interrupts }
           : {}),
-        ...(this.harness.context !== undefined
-          ? { context: this.harness.context }
-          : {}),
+        // The tool execution context (`context` arg to a server tool) always
+        // carries the live thread/run ids, merged over the harness's static
+        // context, so in-band tools can resolve the calling thread/agent.
+        context: {
+          ...(typeof this.harness.context === 'object' &&
+          this.harness.context !== null
+            ? this.harness.context
+            : {}),
+          threadId: this.threadId,
+          runId: operation.id,
+        },
         threadId: this.threadId,
         runId: operation.id,
         ...(turn.parentRunId ? { parentRunId: turn.parentRunId } : {}),
@@ -1817,6 +1967,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           operation,
           message: input.message,
           inputId: entry.inputId,
+          ...(input.op === 'prompt' && input.systemPreamble
+            ? { systemPreamble: input.systemPreamble }
+            : {}),
         })
       } else {
         this.reject(entry.inputId, 'expired_on_restart')
