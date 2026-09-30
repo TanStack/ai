@@ -133,6 +133,20 @@ describe('OllayaEvaluateAdapter', () => {
     })
   })
 
+  it('treats a blank baseURL as the default host', async () => {
+    for (const baseURL of ['', '   ']) {
+      fetchMock.mockResolvedValue(ollayaResponse(successBody))
+
+      await ollayaDecider('laya:latest', { baseURL }).evaluate(
+        evaluateOptions(),
+      )
+
+      expect(fetchMock.mock.calls.at(-1)![0]).toBe(
+        'http://127.0.0.1:11435/v1/systemone',
+      )
+    }
+  })
+
   it('honors a custom baseURL and strips its trailing slash', async () => {
     fetchMock.mockResolvedValue(ollayaResponse(successBody))
 

@@ -29,7 +29,7 @@
 
 # @tanstack/ai-ollaya
 
-[Ollaya](https://ollaya.ai) adapter for [TanStack AI](https://tanstack.com/ai).
+[Ollaya](https://ollaya.dev) adapter for [TanStack AI](https://tanstack.com/ai).
 Call the open-source `laya` decision models with `decide()` and typed
 questions, running fully local. This package talks HTTP with `fetch`. It does
 not add an SDK.
@@ -45,9 +45,19 @@ pnpm add @tanstack/ai @tanstack/ai-ollaya
 Ollaya runs open decision models locally — think Ollama, but for the `laya`
 decision models instead of chat LLMs. No API key required.
 
-1. **Install Ollaya.** Grab the build for your platform from
-   [ollaya.ai](https://ollaya.ai) (or your internal registry) and put the
-   `ollaya` binary on your `PATH`.
+1. **Install Ollaya.** On macOS or Linux:
+
+   ```bash
+   curl -fsSL https://ollaya.dev/install.sh | sh
+   ```
+
+   On Windows, in PowerShell:
+
+   ```powershell
+   irm https://ollaya.dev/install.ps1 | iex
+   ```
+
+   Downloads and the desktop app are on [ollaya.dev/download](https://ollaya.dev/download).
 
 2. **Start the server.** It listens on `http://127.0.0.1:11435` by default —
    the same URL this adapter defaults to.
@@ -69,7 +79,7 @@ decision models instead of chat LLMs. No API key required.
 
    ```bash
    ollaya list
-   ollaya run laya:latest "My payouts have been failing for 3 days" --preset triage
+   ollaya run laya:latest --preset triage "My payouts have been failing for 3 days"
    ```
 
 That's it — the adapter below talks to the running server over HTTP.

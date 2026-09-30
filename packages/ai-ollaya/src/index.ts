@@ -9,10 +9,6 @@
 
 export { OllayaEvaluateAdapter, ollayaDecider } from './adapters/evaluate'
 
-export {
-  OLLAYA_DEFAULT_BASE_URL,
-  resolveOllayaTransport,
-  type OllayaClientConfig,
-} from './utils/client'
+export { type OllayaClientConfig } from './utils/client'
 
 export { OLLAYA_EVALUATE_MODELS, type OllayaEvaluateModel } from './model-meta'

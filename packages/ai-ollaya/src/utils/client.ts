@@ -3,16 +3,17 @@
  * package. Requests are made with plain `fetch` — no SDK dependency.
  *
  * Ollaya is a local decision server, so there is no required API key. Pass
- * `apiKey` only when you front Ollaya with an authenticating proxy.
+ * `apiKey` when the server has `OLLAYA_API_KEY` set, or when a proxy
+ * requires a bearer token.
  */
 export interface OllayaClientConfig {
-  /** Optional bearer token, for when Ollaya sits behind an auth proxy. */
+  /** Bearer token for `OLLAYA_API_KEY`, or for an auth proxy. */
   apiKey?: string
 
   /**
    * Base URL for every request (defaults to `http://127.0.0.1:11435`). Same
    * option name as the other adapters, so a gateway config can be spread into
-   * any of them. Wins over `baseUrl` when both are set.
+   * any of them. A non-blank value wins over `baseUrl`.
    */
   baseURL?: string
 
@@ -28,9 +29,6 @@ export interface OllayaClientConfig {
   /** Alias of `defaultHeaders`. */
   headers?: Record<string, string>
 
-  /** Request timeout in milliseconds (default: 30_000). */
-  timeout?: number
-
   /** Override `fetch`. Defaults to global `fetch`. */
   fetch?: typeof fetch
 }
@@ -41,8 +39,8 @@ export const OLLAYA_DEFAULT_BASE_URL = 'http://127.0.0.1:11435'
 export function resolveOllayaTransport(config: OllayaClientConfig) {
   return {
     baseUrl: (
-      config.baseURL ??
-      config.baseUrl ??
+      config.baseURL?.trim() ||
+      config.baseUrl?.trim() ||
       OLLAYA_DEFAULT_BASE_URL
     ).replace(/\/+$/, ''),
     headers: config.defaultHeaders ?? config.headers ?? {},
