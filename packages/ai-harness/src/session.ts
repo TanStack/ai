@@ -16,11 +16,13 @@ import { LogConflictError, withPersistence } from '@tanstack/ai-persistence'
 import { AgentRegistry } from './agents'
 import { SessionFeed } from './feed'
 import { isRecord } from './utils'
+import { bindDurable, createToolStep } from './durable-tool'
 import {
   LogWriter,
   engineMessageStore,
   loadLogState,
   sessionMessageStore,
+  stepKey,
 } from './log'
 import { createMediaStore, mediaCapture, mediaMiddleware } from './media'
 import { mediaIdOf, mediaOfMessage } from './media-ref'
@@ -569,12 +571,54 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         ...(stores.metadata ? { metadata: stores.metadata } : {}),
       },
     }
+    const { writer } = this
     this.checkpoint = checkpointMiddleware({
       ...(stores.runs ? { runs: stores.runs } : {}),
       messages: engineMessages,
       hostId: this.hostId,
       ...(this.lease ? { lease: this.lease } : {}),
+      // A durable host keeps each finished tool result, so a crash later in
+      // the batch does not lose it.
+      ...(writer
+        ? {
+            onToolResult: ({ toolCallId, message }) =>
+              writer.append([
+                { type: 'harness.tool.result', toolCallId, message },
+              ]),
+          }
+        : {}),
     })
+  }
+
+  /**
+   * The `step` and `append` a durable tool call gets. A step value is in the
+   * log before `step.do` resolves. Staged records land with the next
+   * transcript commit, when the tool phase completes, so a batch that a
+   * crash cuts leaves none of them.
+   */
+  private durableBinding(writer: LogWriter, toolCallId: string) {
+    const step = createToolStep({
+      recorded: (name) => {
+        const key = stepKey(toolCallId, name)
+        return writer.state.steps.has(key)
+          ? { found: true, value: writer.state.steps.get(key) }
+          : { found: false }
+      },
+      record: (name, value) =>
+        writer.append([{ type: 'harness.tool.step', toolCallId, name, value }]),
+    })
+    const append = (records: ReadonlyArray<LogRecord>) => {
+      const reserved = records.find((record) =>
+        record.type.startsWith('harness.'),
+      )
+      if (reserved) {
+        throw new Error(
+          `The record type ${JSON.stringify(reserved.type)} is reserved for the harness.`,
+        )
+      }
+      writer.stage(records)
+    }
+    return { step, append }
   }
 
   /**
@@ -1695,11 +1739,20 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         operation,
       )
       // Before the chat() options below: prompts may describe these tools.
-      const tools = await this.prepareTools(
+      const prepared = await this.prepareTools(
         [...(session?.preparers ?? []), ...(runPlugins?.preparers ?? [])],
         [...staticTools, ...discovered],
         operation,
       )
+      // A durable host gives each durableTool call its steps in the log.
+      const { writer } = this
+      const tools = writer
+        ? prepared.map((tool) =>
+            bindDurable(tool, (toolCallId) =>
+              this.durableBinding(writer, toolCallId),
+            ),
+          )
+        : prepared
       // A keyed adapter is built for this turn with the user's key. A
       // missing key publishes `auth_required` and fails the turn.
       const adapter: AnyTextAdapter = await this.keys.adapter(

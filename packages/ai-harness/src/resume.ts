@@ -153,14 +153,15 @@ export async function findCrashedRuns(
 }
 
 /**
- * Prepare the transcript of a crashed run for a new run:
+ * Prepare the transcript of a crashed run for a new run. It walks the tool
+ * calls of the batch (the last assistant message with tool calls) in order:
  *
  * - A call in `finished` gets its finished tool message. It does not run
  *   again.
- * - Another call with `replay: 'never'` gets {@link INTERRUPTED_TOOL_RESULT}
- *   as a tool error.
- * - Another call with `replay: 'safe'` stays without a result, so the engine
- *   runs it again.
+ * - A pending call with `replay: 'never'` gets
+ *   {@link INTERRUPTED_TOOL_RESULT} as a tool error.
+ * - A pending call with `replay: 'safe'`, or a call that never started, stays
+ *   without a result, so the engine runs it.
  */
 export async function repairTranscript(options: {
   messages: MessageStore
@@ -170,27 +171,39 @@ export async function repairTranscript(options: {
 }): Promise<void> {
   const { messages, crashed, finished } = options
   const pending = crashed.checkpoint?.pendingTools ?? []
-  if (pending.length === 0) return
+  if (pending.length === 0 && (finished?.size ?? 0) === 0) return
   const history = await messages.loadThread(crashed.threadId)
   const answered = new Set(
     history.flatMap((message) =>
       message.role === 'tool' && message.toolCallId ? [message.toolCallId] : [],
     ),
   )
-  const unanswered = pending.filter((tool) => !answered.has(tool.toolCallId))
-  const added = unanswered.flatMap((tool): Array<ModelMessage> => {
-    const result = finished?.get(tool.toolCallId)
-    if (result) return [result]
-    if (tool.replay === 'safe') return []
-    return [
-      {
-        role: 'tool',
-        toolCallId: tool.toolCallId,
-        content: JSON.stringify(INTERRUPTED_TOOL_RESULT),
-        error: INTERRUPTED_TOOL_RESULT.note,
-      },
-    ]
-  })
+  const batch = history.findLast(
+    (message) => message.role === 'assistant' && message.toolCalls?.length,
+  )
+  const pendingById = new Map(pending.map((tool) => [tool.toolCallId, tool]))
+  const callIds = [
+    ...new Set([
+      ...(batch?.toolCalls ?? []).map((call) => call.id),
+      ...pending.map((tool) => tool.toolCallId),
+    ]),
+  ]
+  const added = callIds
+    .filter((toolCallId) => !answered.has(toolCallId))
+    .flatMap((toolCallId): Array<ModelMessage> => {
+      const result = finished?.get(toolCallId)
+      if (result) return [result]
+      const tool = pendingById.get(toolCallId)
+      if (!tool || tool.replay === 'safe') return []
+      return [
+        {
+          role: 'tool',
+          toolCallId,
+          content: JSON.stringify(INTERRUPTED_TOOL_RESULT),
+          error: INTERRUPTED_TOOL_RESULT.note,
+        },
+      ]
+    })
   if (added.length > 0) {
     await messages.saveThread(crashed.threadId, [...history, ...added])
   }

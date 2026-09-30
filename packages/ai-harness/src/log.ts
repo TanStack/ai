@@ -401,6 +401,7 @@ export class LogWriter implements EventFeed {
   private readonly waiters = new Set<() => void>()
   private closed = false
   private writing = false
+  private hasWritten = false
   private writesSinceCheckpoint = 0
   private readonly unsubscribe: () => void
 
@@ -541,6 +542,7 @@ export class LogWriter implements EventFeed {
       this.writing = false
     }
     batch.forEach((record, index) => this.apply({ seq: seq + index, record }))
+    this.hasWritten = true
     this.writesSinceCheckpoint += 1
     if (this.writesSinceCheckpoint >= CHECKPOINT_EVERY) {
       this.writesSinceCheckpoint = 0
@@ -592,11 +594,22 @@ export class LogWriter implements EventFeed {
     }
   }
 
-  /** Fold records that another writer appended. */
+  /**
+   * Fold records that another writer appended. A host that only reads
+   * follows the log. A writer that already wrote has lost the thread to
+   * another host, so it stops, as after a conflict.
+   */
   private async catchUp() {
+    if (this.failure !== undefined) return
     const entries = await this.store.read(this.threadId, {
       after: this.state.seq,
     })
+    const [first] = entries
+    if (first && this.hasWritten) {
+      this.failure = new LogConflictError(this.threadId, first.seq)
+      this.onFailure(this.failure)
+      return
+    }
     for (const entry of entries) this.apply(entry)
     if (entries.length > 0) this.wake()
   }

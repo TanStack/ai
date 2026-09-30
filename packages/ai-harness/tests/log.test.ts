@@ -320,6 +320,28 @@ describe('events and batches', () => {
 })
 
 describe('write failures', () => {
+  it('stops a writer that sees another writer after it wrote', async () => {
+    const store = memoryLogStore()
+    const failures: Array<unknown> = []
+    const first = newWriter(store, { onFailure: (e) => failures.push(e) })
+    await first.append([{ type: 'app.mine' }])
+    const state = await loadLogState({ store, threadId: THREAD })
+    const next = newWriter(store, { state })
+
+    // The newer host writes. The first host is notified and stops.
+    await next.append([{ type: 'app.newer' }])
+
+    await expect.poll(() => failures.length).toBe(1)
+    expect(failures[0]).toBeInstanceOf(LogConflictError)
+    await expect(first.append([{ type: 'app.zombie' }])).rejects.toBeInstanceOf(
+      LogConflictError,
+    )
+    expect((await records(store)).map((record) => record.type)).toEqual([
+      'app.mine',
+      'app.newer',
+    ])
+  })
+
   it('calls onFailure on a conflict and rejects every later write', async () => {
     const store = memoryLogStore()
     const failures: Array<unknown> = []

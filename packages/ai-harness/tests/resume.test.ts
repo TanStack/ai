@@ -256,6 +256,62 @@ describe('crash resume', () => {
     ])
   })
 
+  it('keeps a finished result that is no longer pending, in batch order', async () => {
+    const { stores } = memoryPersistence()
+    await stores.messages.saveThread('t1', [
+      { id: 'u1', role: 'user', content: 'charge, then mail' },
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'call-charge',
+            type: 'function',
+            function: { name: 'charge', arguments: '{}' },
+          },
+          {
+            id: 'call-mail',
+            type: 'function',
+            function: { name: 'mail', arguments: '{}' },
+          },
+        ],
+      },
+    ])
+
+    await repairTranscript({
+      messages: stores.messages,
+      crashed: {
+        runId: 'crashed',
+        threadId: 't1',
+        status: 'running',
+        startedAt: 1,
+        // The charge ended, so only the mail is still pending.
+        checkpoint: {
+          at: 1,
+          pendingTools: [
+            { toolCallId: 'call-mail', name: 'mail', replay: 'never' },
+          ],
+        },
+      },
+      finished: new Map([
+        [
+          'call-charge',
+          { role: 'tool', toolCallId: 'call-charge', content: 'charged' },
+        ],
+      ]),
+    })
+
+    const tools = (await stores.messages.loadThread('t1')).filter(
+      (message) => message.role === 'tool',
+    )
+    expect(tools.map((message) => message.toolCallId)).toEqual([
+      'call-charge',
+      'call-mail',
+    ])
+    expect(tools[0]?.content).toBe('charged')
+  })
+
   it('leaves a run alone while its lease is still valid', async () => {
     const persistence = memoryPersistence()
     await persistence.stores.runs.createOrResume({
