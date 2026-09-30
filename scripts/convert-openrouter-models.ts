@@ -358,7 +358,8 @@ function generateModelMetaString(model: OpenRouterModel): string {
   const supportedParams =
     model.supported_parameters
       ?.map((p) => {
-        if (excludedParams.has(p)) return ''
+        // `chat({ reasoning })` owns reasoning, so it is not a model option.
+        if (excludedParams.has(p) || p === 'reasoning') return ''
         const mapped = paramNameMap[p] ?? p
         return `'${mapped}'`
       })

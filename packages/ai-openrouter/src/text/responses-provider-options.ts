@@ -46,7 +46,6 @@ export type OpenRouterResponsesBaseOptions = Pick<
   | 'topLogprobs'
   | 'frequencyPenalty'
   | 'presencePenalty'
-  | 'reasoning'
   | 'toolChoice'
   | 'parallelToolCalls'
   | 'text'

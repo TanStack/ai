@@ -96,6 +96,35 @@ describe('OpenRouter responses adapter — request shape', () => {
     vi.clearAllMocks()
   })
 
+  it('sends reasoning effort, a summary, and the token budget', async () => {
+    setupMockSdkClient([])
+    const adapter = createOpenRouterResponsesText(
+      'google/gemini-2.5-pro',
+      'test-key',
+    )
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      reasoning: { level: 'high', budgetTokens: 4000 },
+    })) {
+      // consume
+    }
+
+    const params = mockSend.mock.calls[0]![0].responsesRequest
+    expect(params.reasoning).toEqual({
+      effort: 'high',
+      summary: 'auto',
+      maxTokens: 4000,
+    })
+    const serialized = ResponsesRequest$outboundSchema.parse(params)
+    expect(serialized.reasoning).toEqual({
+      effort: 'high',
+      summary: 'auto',
+      max_tokens: 4000,
+    })
+  })
+
   it('maps options into the Responses API payload (snake → camel)', async () => {
     setupMockSdkClient([
       {

@@ -14791,7 +14791,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'toolChoice'
@@ -14801,7 +14800,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -14813,7 +14811,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -14824,7 +14821,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -14838,7 +14834,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -14855,7 +14850,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -14873,7 +14867,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'parallelToolCalls'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -14886,7 +14879,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -14898,7 +14890,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -14914,7 +14905,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -14928,7 +14918,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -14938,7 +14927,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -14948,7 +14936,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -14958,7 +14945,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -14968,7 +14954,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -14978,7 +14963,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'logprobs'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -14995,7 +14979,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'parallelToolCalls'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15013,7 +14996,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'parallelToolCalls'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15026,7 +15008,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -15036,7 +15017,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -15046,7 +15026,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -15056,7 +15035,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -15066,7 +15044,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -15077,12 +15054,7 @@ export type OpenRouterModelOptionsByName = {
   [AMAZON_NOVA_2_LITE_V1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'stop'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topP'
+      'maxCompletionTokens' | 'stop' | 'temperature' | 'toolChoice' | 'topP'
     >
   [AMAZON_NOVA_LITE_V1.id]: OpenRouterCommonOptions &
     Pick<
@@ -15124,7 +15096,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'toolChoice'
@@ -15132,18 +15103,13 @@ export type OpenRouterModelOptionsByName = {
   [ANTHROPIC_CLAUDE_FABLE_5_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'stop'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'stop' | 'toolChoice'
     >
   [ANTHROPIC_CLAUDE_FABLE_5_1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'toolChoice'
@@ -15151,18 +15117,13 @@ export type OpenRouterModelOptionsByName = {
   [ANTHROPIC_CLAUDE_FABLE_5_1_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'stop'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'stop' | 'toolChoice'
     >
   [ANTHROPIC_CLAUDE_HAIKU_4_5.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15173,7 +15134,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15183,18 +15143,12 @@ export type OpenRouterModelOptionsByName = {
   [ANTHROPIC_CLAUDE_OPUS_4_1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'stop'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topP'
+      'maxCompletionTokens' | 'stop' | 'temperature' | 'toolChoice' | 'topP'
     >
   [ANTHROPIC_CLAUDE_OPUS_4_1_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15205,7 +15159,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15215,7 +15168,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15226,7 +15178,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15237,7 +15188,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15249,7 +15199,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'toolChoice'
@@ -15257,18 +15206,13 @@ export type OpenRouterModelOptionsByName = {
   [ANTHROPIC_CLAUDE_OPUS_4_7_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'stop'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'stop' | 'toolChoice'
     >
   [ANTHROPIC_CLAUDE_OPUS_4_8.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15277,18 +15221,13 @@ export type OpenRouterModelOptionsByName = {
   [ANTHROPIC_CLAUDE_OPUS_4_8_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'stop'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'stop' | 'toolChoice'
     >
   [ANTHROPIC_CLAUDE_OPUS_5.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15297,18 +15236,13 @@ export type OpenRouterModelOptionsByName = {
   [ANTHROPIC_CLAUDE_OPUS_5_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'stop'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'stop' | 'toolChoice'
     >
   [ANTHROPIC_CLAUDE_OPUS_5_5.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15317,28 +15251,18 @@ export type OpenRouterModelOptionsByName = {
   [ANTHROPIC_CLAUDE_OPUS_5_5_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'stop'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'stop' | 'toolChoice'
     >
   [ANTHROPIC_CLAUDE_SONNET_4.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'stop'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topP'
+      'maxCompletionTokens' | 'stop' | 'temperature' | 'toolChoice' | 'topP'
     >
   [ANTHROPIC_CLAUDE_SONNET_4_5.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15349,7 +15273,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15361,7 +15284,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15372,7 +15294,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15384,7 +15305,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'toolChoice'
@@ -15392,18 +15312,13 @@ export type OpenRouterModelOptionsByName = {
   [ANTHROPIC_CLAUDE_SONNET_5_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'stop'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'stop' | 'toolChoice'
     >
   [ANTHROPIC_CLAUDE_SONNET_5_5.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15412,20 +15327,12 @@ export type OpenRouterModelOptionsByName = {
   [ANTHROPIC_CLAUDE_SONNET_5_5_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'stop'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'stop' | 'toolChoice'
     >
   [ARCEE_AI_TRINITY_LARGE_THINKING.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topP'
+      'maxCompletionTokens' | 'temperature' | 'toolChoice' | 'topP'
     >
   [BAIDU_ERNIE_4_5_VL_424B_A47B.id]: OpenRouterCommonOptions &
     Pick<
@@ -15433,7 +15340,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -15444,7 +15350,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15456,7 +15361,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15468,7 +15372,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15480,7 +15383,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15492,7 +15394,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15504,7 +15405,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15554,7 +15454,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15605,7 +15504,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -15647,7 +15545,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15662,7 +15559,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15678,7 +15574,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15694,7 +15589,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15710,7 +15604,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15727,7 +15620,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15745,7 +15637,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15763,7 +15654,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'parallelToolCalls'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15780,7 +15670,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15798,7 +15687,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15815,7 +15703,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15832,7 +15719,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15848,7 +15734,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15860,7 +15745,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -15874,7 +15758,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -15886,7 +15769,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15908,7 +15790,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15920,7 +15801,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15932,7 +15812,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15944,7 +15823,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15956,7 +15834,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15968,7 +15845,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15980,7 +15856,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -15992,7 +15867,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16004,7 +15878,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16016,7 +15889,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16026,28 +15898,17 @@ export type OpenRouterModelOptionsByName = {
   [GOOGLE_GEMINI_3_1_FLASH_IMAGE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'temperature'
-      | 'topP'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'temperature' | 'topP'
     >
   [GOOGLE_GEMINI_3_1_FLASH_IMAGE_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'temperature'
-      | 'topP'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'temperature' | 'topP'
     >
   [GOOGLE_GEMINI_3_1_FLASH_LITE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16058,18 +15919,12 @@ export type OpenRouterModelOptionsByName = {
   [GOOGLE_GEMINI_3_1_FLASH_LITE_IMAGE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'temperature'
-      | 'topP'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'temperature' | 'topP'
     >
   [GOOGLE_GEMINI_3_1_FLASH_LITE_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -16080,7 +15935,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16092,7 +15946,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16104,7 +15957,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -16115,7 +15967,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16127,7 +15978,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16139,7 +15989,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16150,18 +15999,12 @@ export type OpenRouterModelOptionsByName = {
   [GOOGLE_GEMINI_3_5_FLASH_LITE_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'stop'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'stop' | 'toolChoice'
     >
   [GOOGLE_GEMINI_3_5_FLASH_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16173,7 +16016,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16184,18 +16026,12 @@ export type OpenRouterModelOptionsByName = {
   [GOOGLE_GEMINI_3_6_FLASH_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'stop'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'stop' | 'toolChoice'
     >
   [GOOGLE_GEMINI_3_7_FLASH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16206,18 +16042,12 @@ export type OpenRouterModelOptionsByName = {
   [GOOGLE_GEMINI_3_7_FLASH_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'stop'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'stop' | 'toolChoice'
     >
   [GOOGLE_GEMINI_3_8_FLASH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16228,12 +16058,7 @@ export type OpenRouterModelOptionsByName = {
   [GOOGLE_GEMINI_3_8_FLASH_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'stop'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'stop' | 'toolChoice'
     >
   [GOOGLE_GEMMA_2_27B_IT.id]: OpenRouterCommonOptions &
     Pick<
@@ -16298,7 +16123,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16311,7 +16135,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -16326,7 +16149,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16339,7 +16161,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -16394,7 +16215,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16407,7 +16227,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -16417,7 +16236,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -16431,7 +16249,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16448,7 +16265,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -16463,7 +16279,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -16479,7 +16294,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16536,7 +16350,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16567,7 +16380,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -16695,7 +16507,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16707,7 +16518,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -16717,7 +16527,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -16727,7 +16536,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -16737,7 +16545,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -16747,7 +16554,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -16786,7 +16592,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -16800,7 +16605,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16817,7 +16621,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16833,7 +16636,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16850,7 +16652,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -16867,7 +16668,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17038,7 +16838,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17052,7 +16851,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17134,7 +16932,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17148,7 +16945,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17245,7 +17041,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17262,7 +17057,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17280,7 +17074,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'parallelToolCalls'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17298,7 +17091,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'parallelToolCalls'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17315,7 +17107,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17331,7 +17122,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17356,7 +17146,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'logprobs'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'temperature'
       | 'topLogprobs'
       | 'topP'
@@ -17366,7 +17155,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'logprobs'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'temperature'
       | 'toolChoice'
       | 'topLogprobs'
@@ -17403,7 +17191,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'topP'
@@ -17416,7 +17203,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17428,12 +17214,7 @@ export type OpenRouterModelOptionsByName = {
   [NVIDIA_NEMOTRON_3_NANO_OMNI_30B_A3B_REASONING_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'seed'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topP'
+      'maxCompletionTokens' | 'seed' | 'temperature' | 'toolChoice' | 'topP'
     >
   [NVIDIA_NEMOTRON_3_SUPER_120B_A12B.id]: OpenRouterCommonOptions &
     Pick<
@@ -17443,7 +17224,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17456,7 +17236,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -17470,7 +17249,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17481,12 +17259,7 @@ export type OpenRouterModelOptionsByName = {
   [NVIDIA_NEMOTRON_3_ULTRA_550B_A55B_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'seed'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topP'
+      'maxCompletionTokens' | 'seed' | 'temperature' | 'toolChoice' | 'topP'
     >
   [NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY.id]: OpenRouterCommonOptions &
     Pick<
@@ -17495,7 +17268,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -17504,7 +17276,7 @@ export type OpenRouterModelOptionsByName = {
   [NVIDIA_NEMOTRON_3_5_CONTENT_SAFETY_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'reasoning' | 'seed' | 'temperature' | 'topP'
+      'maxCompletionTokens' | 'seed' | 'temperature' | 'topP'
     >
   [NVIDIA_NEMOTRON_3_5_LIGHTNING.id]: OpenRouterCommonOptions &
     Pick<
@@ -17514,7 +17286,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17526,12 +17297,7 @@ export type OpenRouterModelOptionsByName = {
   [NVIDIA_NEMOTRON_3_5_LIGHTNING_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'seed'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topP'
+      'maxCompletionTokens' | 'seed' | 'temperature' | 'toolChoice' | 'topP'
     >
   [OPENAI_GPT_3_5_TURBO.id]: OpenRouterCommonOptions &
     Pick<
@@ -17862,7 +17628,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -17875,7 +17640,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17891,7 +17655,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -17904,7 +17667,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -17912,18 +17674,13 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_5_MINI_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_NANO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -17931,45 +17688,28 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_5_NANO_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_PRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_PRO_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -17977,45 +17717,28 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_5_1_CODEX.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_1_CODEX_MAX.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_1_CODEX_MINI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_1_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_2.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18028,45 +17751,28 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_5_2_CODEX.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_2_PRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_2_PRO_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_2_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_3_CODEX.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18076,7 +17782,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18089,7 +17794,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -18100,7 +17804,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18108,18 +17811,13 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_5_4_MINI_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_4_NANO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18127,18 +17825,13 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_5_4_NANO_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_4_PRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18146,27 +17839,18 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_5_4_PRO_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_4_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_5.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18174,36 +17858,23 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_5_5_PRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_5_PRO_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_5_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_6_LUNA.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18213,7 +17884,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18221,27 +17891,18 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_5_6_LUNA_PRO_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_6_LUNA_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_6_SOL.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18251,7 +17912,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18259,27 +17919,18 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_5_6_SOL_PRO_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_6_SOL_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_6_TERRA.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18289,7 +17940,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18297,27 +17947,18 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_5_6_TERRA_PRO_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_5_6_TERRA_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_6_ASTRA.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18327,7 +17968,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18335,27 +17975,18 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_6_ASTRA_PRO_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_6_ASTRA_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_6_LUNA.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18365,7 +17996,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18373,27 +18003,18 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_6_LUNA_PRO_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_6_LUNA_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_6_SOL.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18403,7 +18024,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18411,27 +18031,18 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_6_SOL_PRO_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_6_SOL_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_6_1_SOL.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18441,7 +18052,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'toolChoice'
@@ -18449,20 +18059,12 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_GPT_6_1_SOL_PRO_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_6_1_SOL_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_GPT_AUDIO.id]: OpenRouterCommonOptions &
     Pick<
@@ -18509,7 +18111,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -18525,7 +18126,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -18541,7 +18141,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -18557,7 +18156,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -18569,7 +18167,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -18580,97 +18177,57 @@ export type OpenRouterModelOptionsByName = {
   [OPENAI_O1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_O1_PRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'reasoning' | 'responseFormat' | 'seed'
+      'maxCompletionTokens' | 'responseFormat' | 'seed'
     >
   [OPENAI_O3.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_O3_MINI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_O3_MINI_HIGH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_O3_MINI_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_O3_PRO.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_O3_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_O4_MINI.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_O4_MINI_HIGH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [OPENAI_O4_MINI_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'toolChoice'
+      'maxCompletionTokens' | 'responseFormat' | 'seed' | 'toolChoice'
     >
   [PERCEPTRON_PERCEPTRON_MK1.id]: OpenRouterCommonOptions &
     Pick<
@@ -18678,7 +18235,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'temperature'
       | 'topP'
     >
@@ -18688,7 +18244,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'temperature'
       | 'toolChoice'
       | 'topP'
@@ -18708,7 +18263,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'temperature'
       | 'topP'
     >
@@ -18727,7 +18281,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'temperature'
       | 'topP'
     >
@@ -18737,29 +18290,28 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'temperature'
       | 'topP'
     >
   [POOLSIDE_LAGUNA_S_2_1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'reasoning' | 'temperature' | 'toolChoice'
+      'maxCompletionTokens' | 'temperature' | 'toolChoice'
     >
   [POOLSIDE_LAGUNA_S_2_1_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'reasoning' | 'temperature' | 'toolChoice'
+      'maxCompletionTokens' | 'temperature' | 'toolChoice'
     >
   [POOLSIDE_LAGUNA_XS_2_1.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'reasoning' | 'temperature' | 'toolChoice'
+      'maxCompletionTokens' | 'temperature' | 'toolChoice'
     >
   [POOLSIDE_LAGUNA_XS_2_1_FREE.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      'maxCompletionTokens' | 'reasoning' | 'temperature' | 'toolChoice'
+      'maxCompletionTokens' | 'temperature' | 'toolChoice'
     >
   [PRISM_ML_TERNARY_BONSAI_2_27B.id]: OpenRouterCommonOptions &
     Pick<
@@ -18768,7 +18320,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -18870,7 +18421,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -18885,7 +18435,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -18916,7 +18465,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -18932,7 +18480,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -18962,7 +18509,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -18977,7 +18523,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -18991,7 +18536,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19098,7 +18642,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19130,7 +18673,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19162,7 +18704,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19194,7 +18735,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19241,7 +18781,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19258,7 +18797,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19275,7 +18813,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19292,7 +18829,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19309,7 +18845,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19326,7 +18861,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19341,7 +18875,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19356,7 +18889,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19372,7 +18904,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19389,7 +18920,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19406,7 +18936,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19422,7 +18951,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19438,7 +18966,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19454,7 +18981,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19469,7 +18995,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -19484,7 +19009,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19500,7 +19024,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19517,7 +19040,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19534,7 +19056,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19549,7 +19070,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'stop'
       | 'temperature'
       | 'toolChoice'
@@ -19562,7 +19082,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19578,7 +19097,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19594,7 +19112,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19610,7 +19127,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19640,7 +19156,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -19661,13 +19176,13 @@ export type OpenRouterModelOptionsByName = {
       | 'topP'
     >
   [SAKANA_FUGU_MAX.id]: OpenRouterCommonOptions &
-    Pick<OpenRouterBaseOptions, 'reasoning' | 'toolChoice'>
+    Pick<OpenRouterBaseOptions, 'toolChoice'>
   [SAKANA_FUGU_ULTRA.id]: OpenRouterCommonOptions &
-    Pick<OpenRouterBaseOptions, 'reasoning' | 'toolChoice'>
+    Pick<OpenRouterBaseOptions, 'toolChoice'>
   [SAKANA_FUGU_ULTRA_V2.id]: OpenRouterCommonOptions &
-    Pick<OpenRouterBaseOptions, 'reasoning' | 'toolChoice'>
+    Pick<OpenRouterBaseOptions, 'toolChoice'>
   [SAKANA_SAKANA_NAMAZU.id]: OpenRouterCommonOptions &
-    Pick<OpenRouterBaseOptions, 'reasoning' | 'toolChoice'>
+    Pick<OpenRouterBaseOptions, 'toolChoice'>
   [SAO10K_L3_LUNARIS_8B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -19714,7 +19229,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -19725,7 +19239,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'temperature'
       | 'toolChoice'
       | 'topP'
@@ -19738,7 +19251,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19752,7 +19264,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'topP'
@@ -19788,7 +19299,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19799,12 +19309,7 @@ export type OpenRouterModelOptionsByName = {
   [TENCENT_HY3_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
-      | 'maxCompletionTokens'
-      | 'reasoning'
-      | 'seed'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topP'
+      'maxCompletionTokens' | 'seed' | 'temperature' | 'toolChoice' | 'topP'
     >
   [TENCENT_HY4_PREVIEW.id]: OpenRouterCommonOptions &
     Pick<
@@ -19814,7 +19319,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -19873,7 +19377,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -19887,7 +19390,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -19900,7 +19402,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -19912,7 +19413,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -19949,7 +19449,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'parallelToolCalls'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -19962,7 +19461,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'parallelToolCalls'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -19975,7 +19473,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'parallelToolCalls'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -19991,7 +19488,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'logprobs'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -20004,7 +19500,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'logprobs'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -20016,7 +19511,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'logprobs'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -20029,7 +19523,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'logprobs'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -20042,7 +19535,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'logprobs'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -20055,7 +19547,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'logprobs'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20069,7 +19560,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'logprobs'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -20082,7 +19572,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'logprobs'
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'temperature'
@@ -20096,7 +19585,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20111,7 +19599,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20127,7 +19614,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20142,7 +19628,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20156,7 +19641,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'stop'
       | 'temperature'
@@ -20167,7 +19651,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -20179,7 +19662,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'seed'
       | 'stop'
       | 'temperature'
@@ -20192,7 +19674,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20207,7 +19688,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20221,7 +19701,6 @@ export type OpenRouterModelOptionsByName = {
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20236,7 +19715,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20252,7 +19730,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20268,7 +19745,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20281,7 +19757,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -20295,7 +19770,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20313,7 +19787,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'parallelToolCalls'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20331,7 +19804,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'parallelToolCalls'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20349,7 +19821,6 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'parallelToolCalls'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20365,7 +19836,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20377,7 +19847,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
@@ -20390,7 +19859,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20406,7 +19874,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'maxCompletionTokens'
       | 'presencePenalty'
-      | 'reasoning'
       | 'responseFormat'
       | 'seed'
       | 'stop'
@@ -20418,7 +19885,6 @@ export type OpenRouterModelOptionsByName = {
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
-      | 'reasoning'
       | 'responseFormat'
       | 'temperature'
       | 'toolChoice'
