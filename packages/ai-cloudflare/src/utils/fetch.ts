@@ -123,6 +123,89 @@ export function createBindingFetch(
   }
 }
 
+/** Options of {@link cloudflareBindingFetch}. */
+export interface CloudflareBindingFetchOptions {
+  /** The Workers AI binding, `env.AI`. */
+  binding: Ai
+  /**
+   * The AI Gateway vendor of the model. `'anthropic'` carries Anthropic
+   * Messages requests (`anthropicText`), and `'openai'` carries OpenAI
+   * Responses requests (`openaiText`).
+   */
+  vendor: 'anthropic' | 'openai'
+  /** AI Gateway options, passed to `env.AI.run`. */
+  gateway?: CloudflareGatewayOptions
+}
+
+// The SDK's transport and auth headers. The binding authenticates by itself.
+const SDK_HEADERS = new Set([
+  'x-api-key',
+  'authorization',
+  'anthropic-version',
+  'user-agent',
+  'content-type',
+  'accept',
+  'content-length',
+])
+
+function forwardedHeaders(headers: HeadersInit | undefined) {
+  const forwarded: Record<string, string> = {}
+  for (const [name, value] of new Headers(headers)) {
+    if (!SDK_HEADERS.has(name) && !name.startsWith('x-stainless-')) {
+      forwarded[name] = value
+    }
+  }
+  return forwarded
+}
+
+/**
+ * A `fetch` that sends the requests of the Anthropic or OpenAI SDK through the
+ * Workers AI binding, to the AI Gateway `anthropic/…` or `openai/…` models.
+ * Pass it as `fetch` to `anthropicText` or `openaiText`. No provider API key
+ * is needed: the binding authenticates.
+ *
+ * The request body goes to `env.AI.run('<vendor>/<model>', body)`. Headers
+ * such as `anthropic-beta` go along as `extraHeaders`.
+ *
+ * @example
+ * ```ts
+ * const adapter = anthropicText('claude-opus-5-5', {
+ *   apiKey: 'cloudflare-binding',
+ *   fetch: cloudflareBindingFetch({ binding: env.AI, vendor: 'anthropic' }),
+ * })
+ * ```
+ */
+export function cloudflareBindingFetch(
+  options: CloudflareBindingFetchOptions,
+): FetchLike {
+  const { binding, vendor, gateway } = options
+  // `Ai` is typed against the bundled catalog; gateway ids are outside it.
+  const run = binding.run.bind(binding) as (
+    model: string,
+    inputs: Record<string, unknown>,
+    options: Record<string, unknown>,
+  ) => Promise<unknown>
+  const prefix = `${vendor}/`
+  return async (_input, init) => {
+    const { model, ...body } = JSON.parse(
+      typeof init?.body === 'string' ? init.body : '{}',
+    ) as { model?: string } & Record<string, unknown>
+    const id = model ?? ''
+    const extraHeaders = forwardedHeaders(init?.headers)
+    const response = (await run(
+      id.startsWith(prefix) ? id : prefix + id,
+      body,
+      {
+        returnRawResponse: true,
+        ...(gateway && { gateway }),
+        ...(Object.keys(extraHeaders).length > 0 && { extraHeaders }),
+        ...(init?.signal && { signal: init.signal }),
+      },
+    )) as Response
+    return response.ok ? response : await normalizeErrorResponse(response)
+  }
+}
+
 /** Wraps a REST fetch so responses get the same error and trailer fixes. */
 export function createRestFetch(baseFetch: FetchLike | undefined): FetchLike {
   const fetchImpl = baseFetch ?? fetch
