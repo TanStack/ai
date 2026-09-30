@@ -35,7 +35,7 @@ export type DurableToolContext<TContext = unknown> =
     append: (records: ReadonlyArray<LogRecord>) => void
   }
 
-type DurableExecute = (args: any, context: DurableToolContext) => unknown
+type DurableExecute = (args: unknown, context: DurableToolContext) => unknown
 
 /**
  * The key that keeps the durable `execute` on a tool. An own enumerable
