@@ -6,6 +6,7 @@ import {
 } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  resolveReasoning,
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
@@ -39,6 +40,7 @@ import type {
   Modality,
   ModelMessage,
   AdapterYieldChunk,
+  ModelReasoning,
   ReasoningCapability,
   TextOptions,
 } from '@tanstack/ai'
@@ -1245,6 +1247,15 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   }
 
   /**
+   * The model's reasoning data for `chat({ reasoning })`. The default is
+   * none, so the base sends no reasoning field. A subclass returns the
+   * model's entry from its generated `model-reasoning.ts` map.
+   */
+  protected modelReasoning(_model: string): ModelReasoning | undefined {
+    return undefined
+  }
+
+  /**
    * Extra headers for one call, for example session headers. They go on top
    * of the headers of `options.request`.
    */
@@ -1331,11 +1342,17 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         }
       : undefined
 
+    // `chat({ reasoning })`: the model's effort for the level.
+    const reasoning = resolveReasoning(
+      options.reasoning,
+      this.modelReasoning(options.model),
+    )
+
     // `modelOptions` is the sole sampling surface: callers set provider-native
     // wire names (`temperature`, `top_p`, `max_tokens`/`max_completion_tokens`)
     // there and they flow through the spread below. The root
     // `temperature`/`topP`/`maxTokens` fields are intentionally NOT read here.
-    return {
+    const params: ChatCompletionCreateParamsStreaming = {
       ...modelOptions,
       model: options.model,
       messages,
@@ -1348,6 +1365,12 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       ...(responseFormat ?? {}),
       stream: true,
     }
+    // The SDK type does not list every provider's effort values, so the
+    // field goes on with Object.assign.
+    if (reasoning?.value) {
+      Object.assign(params, { reasoning_effort: reasoning.value })
+    }
+    return params
   }
 
   /**

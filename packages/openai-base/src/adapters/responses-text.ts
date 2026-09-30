@@ -7,6 +7,7 @@ import {
 } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  resolveReasoning,
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
@@ -53,6 +54,7 @@ import type {
   ModelMessage,
   AdapterYieldChunk,
   ProviderExecutedToolMetadata,
+  ModelReasoning,
   ProviderExecutedToolSource,
   ReasoningCapability,
   TextOptions,
@@ -915,6 +917,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    */
   protected transformStructuredOutput(parsed: unknown): unknown {
     return parsed
+  }
+
+  /**
+   * The model's reasoning data for `chat({ reasoning })`. The default is
+   * none, so the base sends no reasoning field. A subclass returns the
+   * model's entry from its generated `model-reasoning.ts` map.
+   */
+  protected modelReasoning(_model: string): ModelReasoning | undefined {
+    return undefined
   }
 
   /**
@@ -2205,7 +2216,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     // `input`, `tools`, `textFormat`) are layered on top afterward so they
     // always win over any same-named key a caller happened to put in
     // `modelOptions`.
-    return {
+    const params: Omit<ResponseCreateParams, 'stream'> = {
       ...modelOptions,
       model: options.model,
       ...(options.metadata !== undefined && { metadata: options.metadata }),
@@ -2220,6 +2231,24 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       ...(tools && tools.length > 0 && { tools }),
       ...(textFormat ?? {}),
     }
+    // `chat({ reasoning })`: the model's effort for the level, and a summary
+    // so the thinking text streams back. The SDK type does not list every
+    // provider's effort values, so the field goes on with Object.assign.
+    const reasoning = resolveReasoning(
+      options.reasoning,
+      this.modelReasoning(options.model),
+    )
+    if (reasoning?.value) {
+      Object.assign(params, {
+        reasoning: {
+          effort: reasoning.value,
+          ...(reasoning.summary && reasoning.level !== 'off'
+            ? { summary: 'auto' }
+            : {}),
+        },
+      })
+    }
+    return params
   }
 
   /**

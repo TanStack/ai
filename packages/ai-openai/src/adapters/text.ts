@@ -1,5 +1,4 @@
 import OpenAI from 'openai'
-import { resolveReasoning } from '@tanstack/ai/adapter-internals'
 import {
   OpenAIBaseResponsesTextAdapter,
   warnStrictFallback,
@@ -121,6 +120,10 @@ export class OpenAITextAdapter<
     super(model, 'openai', new OpenAI(config), config)
   }
 
+  protected override modelReasoning(model: string) {
+    return OPENAI_MODEL_REASONING[model]
+  }
+
   /**
    * Maps common options to OpenAI-specific format.
    * Overrides the base class to use OpenAI's full tool converter
@@ -164,24 +167,6 @@ export class OpenAITextAdapter<
     const request: Omit<ResponseCreateParams, 'stream'> = {
       ...baseRequest,
       ...(tools && tools.length > 0 && { tools }),
-    }
-
-    // `chat({ reasoning })`: the model's effort for the level, and a summary
-    // so the thinking text streams back. The SDK type has no `max` yet, so
-    // the field goes on with Object.assign.
-    const reasoning = resolveReasoning(
-      options.reasoning,
-      OPENAI_MODEL_REASONING[options.model],
-    )
-    if (reasoning?.value) {
-      Object.assign(request, {
-        reasoning: {
-          effort: reasoning.value,
-          ...(reasoning.summary && reasoning.level !== 'off'
-            ? { summary: 'auto' }
-            : {}),
-        },
-      })
     }
 
     // Reasoning models 400 on `temperature`/`top_p`. Callers (and the summarize
