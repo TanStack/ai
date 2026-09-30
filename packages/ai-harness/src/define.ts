@@ -20,6 +20,25 @@ export type HarnessSubagents<TSubagents extends ReadonlyArray<AnyAgent>> = Omit<
 >
 
 /**
+ * Limits for one input on a durable host (a host with `stores.log`). A host
+ * without a log does not read them.
+ */
+export interface HarnessDurability {
+  /**
+   * Total attempts for one input, the first run included. Each recovery after
+   * a crash is one more attempt. When no attempt is left, the input fails
+   * with code `'attempts_exhausted'`. Default 10.
+   */
+  maxAttempts?: number
+  /**
+   * Time from the first run of an input until it fails with code
+   * `'timeout'`, in milliseconds. Retries do not reset it. Default: no
+   * timeout.
+   */
+  timeoutMs?: number
+}
+
+/**
  * What `defineHarness` takes. Where it overlaps with `chat()`, the option
  * names and types are the same.
  */
@@ -61,6 +80,8 @@ export interface HarnessConfig<
   plugins?: () => ReadonlyArray<HarnessPlugin>
   /** What a `prompt` does while a chat turn runs. Default `'queue'`. */
   busy?: BusyPolicy
+  /** Attempt and time limits for each input on a durable host. */
+  durability?: HarnessDurability
   /**
    * Files sent to a turn, and media agents make: the size limit, the kinds a
    * user can send, the kinds the model reads, and an optional transcriber for

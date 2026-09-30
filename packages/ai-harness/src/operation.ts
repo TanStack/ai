@@ -1,5 +1,5 @@
 import type { StreamChunk } from '@tanstack/ai'
-import type { SessionFeed } from './feed'
+import type { EventFeed } from './feed'
 import type {
   Cursor,
   Operation,
@@ -28,20 +28,27 @@ const TERMINAL: ReadonlySet<OperationStatus> = new Set([
 export class OperationImpl<TResult> implements Operation<TResult> {
   readonly id: string
   readonly abortController = new AbortController()
+  readonly receipt: Promise<Receipt>
   private current: OperationStatus = 'accepted'
   private readonly settled: Promise<TResult>
   private resolveResult!: (value: TResult) => void
   private rejectResult!: (error: unknown) => void
+  private settleReceipt!: (receipt: Receipt) => void
 
   constructor(
     readonly kind: OperationKind,
-    private readonly feed: SessionFeed,
+    private readonly feed: EventFeed,
     private readonly onCancel: (
       operation: OperationImpl<TResult>,
     ) => Promise<Receipt>,
     readonly agent?: string,
+    /** A stored operation id, when a restart rebuilds this operation. */
+    id?: string,
   ) {
-    this.id = createOperationId(kind)
+    this.id = id ?? createOperationId(kind)
+    this.receipt = new Promise<Receipt>((resolve) => {
+      this.settleReceipt = resolve
+    })
     this.settled = new Promise<TResult>((resolve, reject) => {
       this.resolveResult = resolve
       this.rejectResult = reject
@@ -70,8 +77,13 @@ export class OperationImpl<TResult> implements Operation<TResult> {
     this.current = status
   }
 
-  publish(event: StreamChunk): SessionEvent {
-    return this.feed.publish(this.id, event)
+  publish(event: StreamChunk): void {
+    this.feed.publish(this.id, event)
+  }
+
+  /** Answer `receipt`. The first answer wins. */
+  resolveReceipt(receipt: Receipt): void {
+    this.settleReceipt(receipt)
   }
 
   finish(status: 'completed' | 'interrupted', result: TResult): void {
