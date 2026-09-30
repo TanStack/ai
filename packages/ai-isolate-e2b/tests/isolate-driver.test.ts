@@ -459,4 +459,15 @@ describe('createE2BIsolateDriver', () => {
       }),
     ).rejects.toThrow(/timeout/)
   })
+
+  it('rejects memory limits that are not positive integers', async () => {
+    const { sandbox } = localSandbox()
+    const driver = createE2BIsolateDriver({ sandbox })
+    for (const memoryLimit of [0, -1, 1.5, Number.NaN, '64; echo x']) {
+      await expect(
+        // @ts-expect-error: a JS caller can pass any value
+        driver.createContext({ bindings: {}, memoryLimit }),
+      ).rejects.toThrow(/memoryLimit/)
+    }
+  })
 })

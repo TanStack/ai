@@ -68,6 +68,14 @@ function validateTimeout(timeout: number): number {
   return timeout
 }
 
+// The limit goes into a shell command, so only a plain integer may pass.
+function validateMemoryLimit(memoryLimit: number): number {
+  if (!Number.isSafeInteger(memoryLimit) || memoryLimit <= 0) {
+    throw new Error('memoryLimit must be a positive integer (MB)')
+  }
+  return memoryLimit
+}
+
 function failure(
   name: string,
   message: string,
@@ -437,13 +445,13 @@ export function createE2BIsolateDriver(
 ): IsolateDriver {
   const defaultTimeout = validateTimeout(config.timeout ?? 30_000)
   return {
-    // Async so a bad per-context timeout rejects instead of throwing.
+    // Async so a bad per-context option rejects instead of throwing.
     async createContext(isolateConfig: IsolateConfig): Promise<IsolateContext> {
       return new E2BIsolateContext(
         config.sandbox,
         isolateConfig.bindings,
         validateTimeout(isolateConfig.timeout ?? defaultTimeout),
-        isolateConfig.memoryLimit ?? 128,
+        validateMemoryLimit(isolateConfig.memoryLimit ?? 128),
       )
     },
   }
