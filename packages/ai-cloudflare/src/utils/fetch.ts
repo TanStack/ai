@@ -129,8 +129,8 @@ export interface CloudflareBindingFetchOptions {
   binding: Ai
   /**
    * The AI Gateway vendor of the model. `'anthropic'` carries Anthropic
-   * Messages requests (`anthropicText`), and `'openai'` carries OpenAI
-   * Responses requests (`openaiText`).
+   * Messages requests (`createAnthropicChat`), and `'openai'` carries OpenAI
+   * Responses requests (`createOpenaiChat`).
    */
   vendor: 'anthropic' | 'openai'
   /** AI Gateway options, passed to `env.AI.run`. */
@@ -161,16 +161,15 @@ function forwardedHeaders(headers: HeadersInit | undefined) {
 /**
  * A `fetch` that sends the requests of the Anthropic or OpenAI SDK through the
  * Workers AI binding, to the AI Gateway `anthropic/…` or `openai/…` models.
- * Pass it as `fetch` to `anthropicText` or `openaiText`. No provider API key
- * is needed: the binding authenticates.
+ * Pass it as `fetch` to `createAnthropicChat` or `createOpenaiChat`. The
+ * binding authenticates, so the key argument can be any placeholder.
  *
  * The request body goes to `env.AI.run('<vendor>/<model>', body)`. Headers
  * such as `anthropic-beta` go along as `extraHeaders`.
  *
  * @example
  * ```ts
- * const adapter = anthropicText('claude-opus-5-5', {
- *   apiKey: 'cloudflare-binding',
+ * const adapter = createAnthropicChat('claude-opus-5-5', 'cloudflare-binding', {
  *   fetch: cloudflareBindingFetch({ binding: env.AI, vendor: 'anthropic' }),
  * })
  * ```

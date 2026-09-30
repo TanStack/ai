@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, toolDefinition } from '@tanstack/ai'
-import { anthropicText } from '@tanstack/ai-anthropic'
+import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { cloudflareBindingFetch } from '@tanstack/ai-cloudflare'
-import { openaiText } from '@tanstack/ai-openai'
+import { createOpenaiChat } from '@tanstack/ai-openai'
 import { z } from 'zod'
 
 type RunCall = {
@@ -142,14 +142,17 @@ export const Route = createFileRoute('/api/cloudflare-binding-wire')({
 
           const claudeText = await answerText(
             chat({
-              adapter: anthropicText('claude-opus-5-5', {
-                apiKey: 'cloudflare-binding',
-                fetch: cloudflareBindingFetch({
-                  binding,
-                  vendor: 'anthropic',
-                  gateway: { id: 'e2e-gateway' },
-                }),
-              }),
+              adapter: createAnthropicChat(
+                'claude-opus-5-5',
+                'cloudflare-binding',
+                {
+                  fetch: cloudflareBindingFetch({
+                    binding,
+                    vendor: 'anthropic',
+                    gateway: { id: 'e2e-gateway' },
+                  }),
+                },
+              ),
               systemPrompts: ['Be brief.'],
               messages: [{ role: 'user', content: 'Hi' }],
               tools: [lookup],
@@ -159,8 +162,7 @@ export const Route = createFileRoute('/api/cloudflare-binding-wire')({
 
           const gptText = await answerText(
             chat({
-              adapter: openaiText('gpt-6.1-sol', {
-                apiKey: 'cloudflare-binding',
+              adapter: createOpenaiChat('gpt-6.1-sol', 'cloudflare-binding', {
                 fetch: cloudflareBindingFetch({ binding, vendor: 'openai' }),
               }),
               systemPrompts: ['Be brief.'],

@@ -157,7 +157,7 @@ Inside a Worker, the AI Gateway `anthropic/...` and `openai/...` models use thei
 
 ```typescript
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { anthropicText } from "@tanstack/ai-anthropic";
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
 import { cloudflareBindingFetch } from "@tanstack/ai-cloudflare";
 import type { Ai } from "@cloudflare/workers-types";
 
@@ -169,9 +169,8 @@ export default {
   async fetch(request: Request, env: Env) {
     const { messages } = await request.json();
 
-    const adapter = anthropicText("claude-opus-5-5", {
-      // The SDK needs a value here. The binding does not use it.
-      apiKey: "cloudflare-binding",
+    // The SDK needs a key value. The binding does not use it.
+    const adapter = createAnthropicChat("claude-opus-5-5", "cloudflare-binding", {
       fetch: cloudflareBindingFetch({
         binding: env.AI,
         vendor: "anthropic",
@@ -185,8 +184,8 @@ export default {
 };
 ```
 
-- `vendor: "anthropic"` sends Anthropic Messages requests to `anthropic/<model>`. Use it with `anthropicText`.
-- `vendor: "openai"` sends OpenAI Responses requests to `openai/<model>`. Use it with `openaiText`.
+- `vendor: "anthropic"` sends Anthropic Messages requests to `anthropic/<model>`. Use it with `createAnthropicChat`.
+- `vendor: "openai"` sends OpenAI Responses requests to `openai/<model>`. Use it with `createOpenaiChat`.
 - The adapter keeps all of its options: `chat({ reasoning })`, tools, `cache_control` for prompt caching, and Anthropic betas, which go out as the `anthropic-beta` header.
 - For `@cf/...` models and other gateway vendors, keep `createCloudflareText` with `binding: env.AI`.
 
