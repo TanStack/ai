@@ -420,7 +420,6 @@ describe('Anthropic adapter option mapping', () => {
       ],
       service_tier: 'standard_only',
       stop_sequences: ['</done>'],
-      thinking: { type: 'enabled', budget_tokens: 1500 },
       top_k: 5,
       max_tokens: 3000,
       temperature: 0.4,
@@ -449,6 +448,7 @@ describe('Anthropic adapter option mapping', () => {
       ],
       tools: [weatherTool],
       modelOptions: providerOptions,
+      reasoning: { level: 'low', budgetTokens: 1500 },
     })) {
       chunks.push(chunk)
     }
@@ -464,7 +464,7 @@ describe('Anthropic adapter option mapping', () => {
       mcp_servers: providerOptions.mcp_servers,
       service_tier: providerOptions.service_tier,
       stop_sequences: providerOptions.stop_sequences,
-      thinking: providerOptions.thinking,
+      thinking: { type: 'enabled', budget_tokens: 1500 },
       top_k: providerOptions.top_k,
     })
     expect(payload.stream).toBe(true)
@@ -1125,9 +1125,7 @@ describe('Anthropic adapter option mapping', () => {
         { role: 'user', content: 'What should I wear?' },
       ],
       tools: [weatherTool],
-      modelOptions: {
-        thinking: { type: 'enabled', budget_tokens: 1024 },
-      } satisfies AnthropicTextProviderOptions,
+      reasoning: { level: 'minimal', budgetTokens: 1024 },
     })) {
       chunks.push(chunk)
     }
@@ -1175,9 +1173,7 @@ describe('Anthropic adapter option mapping', () => {
         },
         { role: 'user', content: 'Continue.' },
       ],
-      modelOptions: {
-        thinking: { type: 'enabled', budget_tokens: 1024 },
-      } satisfies AnthropicTextProviderOptions,
+      reasoning: { level: 'minimal', budgetTokens: 1024 },
     })) {
       chunks.push(chunk)
     }
@@ -1276,9 +1272,7 @@ describe('Anthropic adapter option mapping', () => {
         },
       ],
       tools: [createBlockTool],
-      modelOptions: {
-        thinking: { type: 'enabled', budget_tokens: 1024 },
-      } satisfies AnthropicTextProviderOptions,
+      reasoning: { level: 'minimal', budgetTokens: 1024 },
     })) {
       // consume
     }

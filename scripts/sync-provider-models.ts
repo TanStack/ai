@@ -155,9 +155,9 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     kind: 'anthropic',
     referenceSatisfies:
-      'ModelMeta<AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions>',
+      'ModelMeta<AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions>',
     referenceProviderOptionsEntry:
-      'AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions',
+      'AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions',
     hasBothNameAndId: true,
     providerOptionsIsMappedType: false,
     skipPatterns: [],
@@ -251,7 +251,6 @@ function convertPrice(priceStr: string | undefined): number {
 function anthropicOptionsType(model: OpenRouterModel): string {
   return buildAnthropicProviderOptionsType({
     supportedParameters: model.supported_parameters,
-    reasoningMandatory: model.reasoning?.mandatory === true,
     hasCachedPricing: convertPrice(model.pricing.input_cache_read) > 0,
   })
 }

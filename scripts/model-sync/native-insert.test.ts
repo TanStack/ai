@@ -52,7 +52,7 @@ const ANTHROPIC_CONFIG = {
 const FABLE_5_1 = {
   constName: 'CLAUDE_FABLE_5_1',
   providerOptionsEntry:
-    'AnthropicAdaptiveOnlyThinkingOptions & AnthropicMaxTokensOptions',
+    'AnthropicToolChoiceOptions & AnthropicMaxTokensOptions',
   hasMaxOutputTokens: true,
   acceptsCombinedToolsAndSchema: true,
 }
@@ -104,7 +104,7 @@ describe('applyChatModelCatalogInserts', () => {
       '[CLAUDE_FABLE_5_1.id]: typeof CLAUDE_FABLE_5_1.supports.input',
     )
     expect(result).toContain(
-      '[CLAUDE_FABLE_5_1.id]: AnthropicAdaptiveOnlyThinkingOptions & AnthropicMaxTokensOptions',
+      '[CLAUDE_FABLE_5_1.id]: AnthropicToolChoiceOptions & AnthropicMaxTokensOptions',
     )
     expect(result).toContain(
       '[CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.max_output_tokens,',
