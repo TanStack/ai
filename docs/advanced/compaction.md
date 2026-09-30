@@ -193,6 +193,43 @@ The token count is a rough `characters / 4` estimate. It is good enough to trigg
 - **It runs before every model call.** Compaction skips `init`. It runs on `beforeModel` and `structuredOutput`. Each later call can compact again.
 - **The canonical transcript stays complete.** Compaction writes provider-only context. Persistence and other middleware still read `ctx.messages`.
 
+## Retry after an overflow
+
+The token count is an estimate, so a call can still pass the model's context limit and fail. `isContextOverflow` from `@tanstack/ai` tells you that a call failed for this reason. Compact harder, then call the model again:
+
+```ts group=compaction-overflow
+import { chat, isContextOverflow } from '@tanstack/ai'
+import type { ModelMessage } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { withCompaction } from '@tanstack/ai-compaction'
+
+async function answer(messages: Array<ModelMessage>) {
+  for (const maxTokens of [100_000, 50_000]) {
+    let text = ''
+    let overflow = false
+    for await (const chunk of chat({
+      adapter: openaiText('gpt-6.1-sol'),
+      messages,
+      middleware: [withCompaction({ maxTokens })],
+    })) {
+      if (chunk.type === 'TEXT_MESSAGE_CONTENT') text += chunk.delta
+      if (chunk.type === 'RUN_ERROR') {
+        if (!isContextOverflow({ error: chunk })) throw new Error(chunk.message)
+        overflow = true
+      }
+    }
+    if (!overflow) return text
+  }
+  throw new Error('The conversation is too long, even after compaction.')
+}
+```
+
+`isContextOverflow` knows the overflow errors of Anthropic, OpenAI, Gemini, Bedrock, Mistral, xAI, Groq, OpenRouter, Ollama, and more. It ignores rate-limit errors. It takes one object, and every field is optional:
+
+- `error`: a `RUN_ERROR` event, an `Error`, or a message string.
+- `usage`, `finishReason`, and `contextWindow`: some providers accept an overflow and cut the input without an error. With the model's `contextWindow`, a call counts as an overflow when its `usage.promptTokens` is more than the window, or when it stopped with `'length'`, wrote nothing, and its input fills the window.
+- `provider`: set `'cerebras'` for Cerebras, which answers an overflow with a bare `400` or `413`.
+
 ## DevTools
 
 After a compaction, the chat stream includes three CUSTOM events in order:

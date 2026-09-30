@@ -467,6 +467,10 @@ export {
 // Usage utilities
 export { buildBaseUsage, type BaseUsageInput } from './utilities/usage'
 
+// Context overflow detection
+export { isContextOverflow } from './utilities/context-overflow'
+export type { ContextOverflowInput } from './utilities/context-overflow'
+
 // Media-generation prompt resolution (used by image / video adapters)
 export { resolveMediaPrompt } from './utilities/media-prompt'
 export type { ResolvedMediaPrompt } from './utilities/media-prompt'
