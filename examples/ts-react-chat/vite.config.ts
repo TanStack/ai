@@ -94,6 +94,8 @@ const config = defineConfig({
   // this is a no-op there.
   build: { rollupOptions: { external: SERVER_ONLY_NATIVE } },
   resolve: { tsconfigPaths: true },
+  // Sign in with ChatGPT accepts only a 127.0.0.1 redirect, never localhost.
+  server: { host: '127.0.0.1' },
   plugins: [
     nitroServeApiToSubresources,
     devtools(),

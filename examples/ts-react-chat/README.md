@@ -39,7 +39,7 @@ An example chat application built with TanStack Start, TanStack Store, and **Tan
 OPENAI_API_KEY=your_openai_api_key
 ```
 
-No key? Open the key dialog and click **Continue with ChatGPT**. Open the app on `http://127.0.0.1:3000` first. ChatGPT sign-in rejects `localhost`.
+No key? Open the key dialog and click **Continue with ChatGPT**. The dev server runs on `http://127.0.0.1:3000`, because ChatGPT sign-in rejects `localhost`.
 
 ## Trying Out Lazy Tool Discovery
 
