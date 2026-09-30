@@ -82,11 +82,18 @@ interface UsageTotals {
   promptTokens: number
   completionTokens: number
   totalTokens: number
+  /**
+   * The input tokens of the latest model call of the lead turn: how much of
+   * the model's context the conversation fills now.
+   */
+  contextTokens: number
 }
 
 /**
  * Count tokens across the session: the lead turn and every agent run
- * (subagents, background agents, and their children). `/usage` shows the totals.
+ * (subagents, background agents, and their children). `/usage` shows the
+ * totals. The plugin state also has `contextTokens`, the size of the lead
+ * model's context at its latest call, for a UI.
  */
 export function usage() {
   return definePlugin({
@@ -97,25 +104,31 @@ export function usage() {
         promptTokens: 0,
         completionTokens: 0,
         totalTokens: 0,
+        contextTokens: 0,
       })
       const show = (totals: UsageTotals) =>
         `${totals.turns} model calls, ${totals.promptTokens} input tokens, ${totals.completionTokens} output tokens, ${totals.totalTokens} total.`
-      const count = {
-        name: 'tanstack/usage',
-        onUsage: async (_run, info) => {
-          await state.update((totals) => ({
-            turns: totals.turns + 1,
-            promptTokens: totals.promptTokens + (info.promptTokens ?? 0),
-            completionTokens:
-              totals.completionTokens + (info.completionTokens ?? 0),
-            totalTokens: totals.totalTokens + (info.totalTokens ?? 0),
-          }))
-        },
-      } satisfies AnyChatMiddleware
+      const counter = (lead: boolean) =>
+        ({
+          name: 'tanstack/usage',
+          onUsage: async (_run, info) => {
+            await state.update((totals) => ({
+              turns: totals.turns + 1,
+              promptTokens: totals.promptTokens + (info.promptTokens ?? 0),
+              completionTokens:
+                totals.completionTokens + (info.completionTokens ?? 0),
+              totalTokens: totals.totalTokens + (info.totalTokens ?? 0),
+              contextTokens: lead
+                ? (info.promptTokens ?? totals.contextTokens)
+                : totals.contextTokens,
+            }))
+          },
+        }) satisfies AnyChatMiddleware
       return {
-        // The same counter in the lead turn and in every agent run.
-        middleware: [count],
-        agentMiddleware: [count],
+        // The same totals for the lead turn and every agent run. Only the
+        // lead turn sets the context size.
+        middleware: [counter(true)],
+        agentMiddleware: [counter(false)],
         commands: {
           usage: defineCommand({
             description: 'Show token usage for this session',

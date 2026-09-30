@@ -200,6 +200,10 @@ describe('plugin agentMiddleware', () => {
     expect(await session.command('usage')).toBe(
       '5 model calls, 133 input tokens, 0 output tokens, 133 total.',
     )
+    // The context size is the input of the lead's latest call, not an agent's.
+    expect(session.snapshot().plugins['tanstack/usage']).toMatchObject({
+      contextTokens: 2,
+    })
     await host.close()
   })
 })

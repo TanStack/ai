@@ -55,7 +55,7 @@ export const assistant = defineHarness({
   plugins: () => [
     providerKeys({
       providers: [
-        openaiByok,
+        { ...openaiByok, keyUrl: 'https://platform.openai.com/api-keys' },
         anthropicByok,
         grokByok,
         falByok,
@@ -70,13 +70,14 @@ export const assistant = defineHarness({
 - For each provider, `providerKeys` adds `/connect <id>` and `/disconnect <id>`. It also adds `/keys`.
 - `modelPicker`, `compact`, and `goal` also take keyed adapters. After `/model claude`, the next turn uses the Anthropic key of the user.
 - `signIn` is optional. OpenRouter has one. See [Sign in with OpenRouter](#sign-in-with-openrouter).
+- `keyUrl` is optional. It is the page where the user makes a key. `/connect` opens it in the browser, then asks for the key.
 
 ## 3. Connect a provider
 
 This is what your user does in the CLI:
 
 1. Run `/connect openai`.
-2. The harness asks `Paste your OpenAI API key`. In a terminal, the CLI hides what you type.
+2. The page to make a key opens in the browser (from `keyUrl`). The harness asks you to paste the key. In a terminal, the CLI hides what you type.
 3. Paste the key and press Enter.
 4. The CLI prints `Connected to OpenAI (key ...abcd).`
 

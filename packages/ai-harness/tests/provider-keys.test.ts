@@ -297,6 +297,32 @@ describe('providerKeys', () => {
     await close()
   })
 
+  it('opens the key page of a provider with keyUrl before it asks', async () => {
+    const { session, persistence, events, close } = await open({
+      adapter: mockAdapter([]).adapter,
+      plugins: [
+        providerKeys({
+          providers: [{ ...acme, keyUrl: 'https://acme.example/keys' }],
+        }),
+      ],
+    })
+    const { question, result } = await connectWith(session, PASTED_KEY)
+    expect(authRequired(events)).toEqual([
+      { connector: 'acme', url: 'https://acme.example/keys' },
+    ])
+    expect(question).toMatchObject({
+      message:
+        'Paste your Acme API key. The page to make one is open in your browser.',
+      secret: true,
+    })
+    expect(result).toBe('Connected to Acme (key ...5678).')
+    expect(await persistence.stores.credentials.get(USER, 'acme')).toEqual({
+      type: 'api_key',
+      value: PASTED_KEY,
+    })
+    await close()
+  })
+
   it('runs signIn with open through authRequired and saves its key', async () => {
     const signIn = async (ctx: { open: (url: string) => void }) => {
       ctx.open('https://acme.example/sign-in')

@@ -12,8 +12,15 @@ type ProviderSignIn = (ctx: {
   signal?: AbortSignal
 }) => Promise<string>
 
-/** A provider the user can connect: its BYOK descriptor, with a sign-in when it has one. */
-type KeyProvider = ByokProvider | (ByokProvider & { signIn: ProviderSignIn })
+/**
+ * A provider the user can connect: its BYOK descriptor, with a sign-in when
+ * it has one. `keyUrl` is the provider's page to make a key: `/connect` opens
+ * it in the browser before it asks for the key.
+ */
+type KeyProvider = ByokProvider & {
+  signIn?: ProviderSignIn
+  keyUrl?: string
+}
 
 interface ProviderKeyStatus {
   id: string
@@ -66,7 +73,9 @@ async function describeKey(
  *
  * @param options.providers - BYOK descriptors, for example `openaiByok`. Add
  *   `signIn` for a provider with a browser sign-in, for example
- *   `{ ...openrouterByok, signIn: openrouterSignIn() }`.
+ *   `{ ...openrouterByok, signIn: openrouterSignIn() }`, or `keyUrl` to open
+ *   the provider's key page before the question, for example
+ *   `{ ...openaiByok, keyUrl: 'https://platform.openai.com/api-keys' }`.
  *
  * @example
  * ```ts
@@ -103,15 +112,15 @@ export function providerKeys(options: {
 
       /** The key from the provider's sign-in, else the one the user pastes. */
       const readKey = async (provider: KeyProvider, signal: AbortSignal) => {
-        if ('signIn' in provider) {
-          return provider.signIn({
-            open: (url) =>
-              ctx.session.authRequired({ connector: provider.id, url }),
-            signal,
-          })
-        }
+        const open = (url: string) =>
+          ctx.session.authRequired({ connector: provider.id, url })
+        if (provider.signIn) return provider.signIn({ open, signal })
+        // No sign-in for other apps: open the page to make a key, then ask.
+        if (provider.keyUrl) open(provider.keyUrl)
         return ctx.session.ask({
-          message: `Paste your ${provider.label} API key`,
+          message: provider.keyUrl
+            ? `Paste your ${provider.label} API key. The page to make one is open in your browser.`
+            : `Paste your ${provider.label} API key`,
           secret: true,
         })
       }

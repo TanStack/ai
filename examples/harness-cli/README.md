@@ -9,20 +9,21 @@ From the repo root:
 1. `pnpm install`
 2. `pnpm build:all` (the example uses the local packages)
 3. `pnpm --filter harness-cli-example start`
-4. Type `/connect openai` and paste your OpenAI key. Or type `/connect openrouter` to sign in with the browser.
+4. Type `/connect` and pick OpenRouter. It signs you in with the browser, with no key to paste.
+5. Type `/model` and pick `openrouter-gpt`.
 
-Now send a message. After an OpenRouter sign-in, run `/model openrouter-gpt` first.
+Now send a message.
 
 ## Connect your models
 
-You do not need a `.env` file. Connect each provider inside the app:
+You do not need a `.env` file. Type `/connect` and pick a provider from the list:
 
-- `/connect openai`: paste your key. The input shows dots, not the key.
-- `/connect openrouter`: sign in with the browser. OpenRouter gives the app a key.
-- `/keys`: show each provider and where its key comes from (saved, an env var, or missing).
-- `/disconnect openai`: delete the saved key.
+- OpenRouter signs you in with the browser. OpenRouter gives the app a key.
+- OpenAI, Anthropic, xAI, and fal have no browser sign-in for other apps. The page to make a key opens in the browser. Paste the key: the input shows dots, not the key.
+- `/connect openai` skips the list. `/keys` shows where each key comes from (saved, an env var, or missing).
+- `/disconnect` removes a saved key.
 
-The app saves the key in `~/.tanstack-harness-example/credentials.json`. It shows only the last 4 characters of a key. The header shows which providers have a key, and it changes when you connect one.
+The app saves the key in `~/.tanstack-harness-example/credentials.json`. It shows only the last 4 characters of a key. The footer shows which features are on, and it changes when you connect a provider.
 
 | Provider id  | Adds                                                                         |
 | ------------ | ---------------------------------------------------------------------------- |
@@ -95,14 +96,17 @@ When `claude` and `codex` are on the PATH, the agent can call them. They work in
 
 ## Everything else it shows
 
-- `/model` lists the models, and `/model claude` switches at the next turn. The header shows the current one.
+- `/model` opens a list of the models with their context size. `/model claude` switches at once. The change applies at the next turn.
+- The footer shows the model, how full its context is, the tokens in and out, and the model calls.
 - `create hello.txt with a short poem`: the agent asks before `write_file`. Type `y`.
 - `/mode plan` makes it read-only. `/todos`, `/usage`, `/compact`.
 - `/goal create a file hello.txt that says hi`: the agent keeps working until the model says the goal is met.
 - Press Esc to stop a long answer. Type while it works to steer it.
+- Type `/` for a list of the commands. The arrows move in it, Tab fills the command, and Enter runs it.
+- The up and down arrows go through the lines you sent, also after a restart. They are kept in `~/.tanstack-harness-example/history.json`. Keys are never kept.
 - `/help` lists every command.
 
-The screen is `src/tui.tsx`, plain example code on `createSessionView`. `src/voice.ts` records and transcribes, and `src/media.ts` has the media agents. Copy them and change them.
+The screen is `src/tui.tsx` and its parts in `src/screen/`, plain example code on `createSessionView`. `src/voice.ts` records and transcribes, and `src/media.ts` has the media agents. Copy them and change them.
 
 ## Other modes
 

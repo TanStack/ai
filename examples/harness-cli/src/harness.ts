@@ -97,7 +97,7 @@ function demoModel(): AnyTextAdapter {
         yield {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId,
-          delta: `(demo model) You said: "${said}". Run /connect openai (/keys lists the others), then /model gpt, to talk to a real model.`,
+          delta: `(demo model) You said: "${said}". Type /connect to connect a provider, then /model to pick a real model.`,
           timestamp: now,
         }
         yield { type: EventType.TEXT_MESSAGE_END, messageId, timestamp: now }
@@ -106,6 +106,15 @@ function demoModel(): AnyTextAdapter {
           runId: 'demo',
           threadId: 'demo',
           timestamp: now,
+          // ponytail: about 4 characters a token, so the footer counts in demo mode too.
+          usage: {
+            promptTokens: Math.ceil(
+              JSON.stringify(options.messages).length / 4,
+            ),
+            completionTokens: 30,
+            totalTokens:
+              Math.ceil(JSON.stringify(options.messages).length / 4) + 30,
+          },
           metadata: { tanstack: { finishReason: 'stop' } },
         }
       })(),
@@ -154,14 +163,33 @@ const main: KeyedAdapter<AnyTextAdapter> = envModel?.[1] ?? models.gpt
 // With no env key at all, `/model demo` answers without a key.
 const choices = { ...models, ...(envModel ? {} : { demo: demoModel() }) }
 
-// `/connect openai` asks for the key (the screen hides it as you type), and
-// `/connect openrouter` signs in with the browser. `/keys` lists them all.
-const keyProviders = [
-  openaiByok,
-  anthropicByok,
-  grokByok,
-  falByok,
+/**
+ * What the screen shows for each model: the provider that must be connected,
+ * and the size of its context window (from each provider's model-meta).
+ */
+export const modelInfo: Record<
+  string,
+  { provider: string; contextWindow: number }
+> = {
+  gpt: { provider: 'openai', contextWindow: 1_050_000 },
+  'gpt-fast': { provider: 'openai', contextWindow: 1_050_000 },
+  claude: { provider: 'anthropic', contextWindow: 1_000_000 },
+  'claude-fast': { provider: 'anthropic', contextWindow: 1_000_000 },
+  grok: { provider: 'grok', contextWindow: 500_000 },
+  'openrouter-gpt': { provider: 'openrouter', contextWindow: 1_050_000 },
+  'openrouter-claude': { provider: 'openrouter', contextWindow: 1_000_000 },
+}
+
+// `/connect openrouter` signs in with the browser: no key to paste, and one
+// sign-in covers GPT, Claude, Gemini, and more. OpenAI, Anthropic, xAI, and
+// fal have no browser sign-in for other apps, so `/connect openai` opens the
+// page to make a key, then asks for it (the screen hides it as you type).
+export const keyProviders = [
   { ...openrouterByok, signIn: openrouterSignIn() },
+  { ...openaiByok, keyUrl: 'https://platform.openai.com/api-keys' },
+  { ...anthropicByok, keyUrl: 'https://console.anthropic.com/settings/keys' },
+  { ...grokByok, keyUrl: 'https://console.x.ai' },
+  { ...falByok, keyUrl: 'https://fal.ai/dashboard/keys' },
 ]
 
 /** Is `command` on the PATH? Checks the Windows extensions too. */

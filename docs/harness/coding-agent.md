@@ -68,7 +68,7 @@ Run the file with `npx tsx coder.ts`. Ask for a change. The agent reads files fr
 | `projectInstructions({ root })` | Adds `AGENTS.md` and `CLAUDE.md` to the system prompt. |
 | `fileCommands({ dir })` | Each `.md` file becomes a slash command. `$ARGUMENTS` is replaced by what you type after it. |
 | `compact({ adapter })` | `/compact` replaces a long conversation with a summary. |
-| `usage()` | `/usage` shows the tokens of the session: the lead turn and every agent. |
+| `usage()` | `/usage` shows the tokens of the session: the lead turn and every agent. Its state also has `contextTokens`, the prompt size of the last lead call, for a context meter. |
 | `goal({ judge })` | `/goal <text>` keeps the agent working until a judge model says that the goal is met. See [Work until a goal is met](./goal). |
 
 ## Add your own rules
