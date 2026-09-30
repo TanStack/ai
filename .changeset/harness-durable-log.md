@@ -9,7 +9,7 @@ Add a durable session log. A harness session can now keep its events, transcript
 
 `@tanstack/ai-harness` turns on durable mode when the host gets `stores.log` and `stores.runs`:
 
-- `prompt`, `steer`, `followUp`, and `resolve` take an optional `inputId`. The same id with the same payload does not run again. `Operation.receipt` resolves when the input is stored, and `session.settled(inputId)` gives how an input ended, also after a restart.
+- `prompt`, `steer`, `followUp`, and `resolve` take an optional `inputId`, and so do `prompt`, `steer`, and `followUp` of `createHarnessClient`. The same id with the same payload does not run again. `Operation.receipt` resolves when the input is stored, and `session.settled(inputId)` gives how an input ended, also after a restart.
 - `defineHarness({ durability: { maxAttempts, timeoutMs } })` limits each input. The default is 10 attempts and no timeout.
 - `durableTool(definition, execute)` gives a tool `step.do(name, fn)`. After a crash, a finished step returns its stored value and does not run again. The tool's `append(records)` adds host records to the same append as the tool batch.
 - `session.append(records)` adds host records to the log. The host option `project: { record, version }` folds host records into the model context. `logMessageStore` reads the transcript of a log outside a session.
