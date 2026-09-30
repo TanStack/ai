@@ -849,6 +849,7 @@ export class AnthropicTextAdapter<
                 : typeof toolContent === 'string'
                   ? toolContent
                   : '',
+              ...(message.error !== undefined && { is_error: true }),
             },
           ],
         })
@@ -977,6 +978,13 @@ export class AnthropicTextAdapter<
 
     for (const thinking of thinkingParts) {
       if (!thinking.signature) continue
+      if (thinking.redacted) {
+        contentBlocks.push({
+          type: 'redacted_thinking',
+          data: thinking.signature,
+        })
+        continue
+      }
       const block: ThinkingBlockParam = {
         type: 'thinking',
         thinking: thinking.content,
@@ -1238,6 +1246,29 @@ export class AnthropicTextAdapter<
               model,
               timestamp: Date.now(),
               stepType: 'thinking',
+            }
+          } else if (event.content_block.type === 'redacted_thinking') {
+            // Encrypted thinking: no text, and its data must go back to
+            // Anthropic unchanged. It travels as the thinking step's signature.
+            const redactedStepId = genId()
+            yield {
+              type: EventType.STEP_STARTED,
+              stepName: redactedStepId,
+              stepId: redactedStepId,
+              model,
+              timestamp: Date.now(),
+              stepType: 'thinking',
+            }
+            yield {
+              type: EventType.STEP_FINISHED,
+              stepName: redactedStepId,
+              stepId: redactedStepId,
+              model,
+              timestamp: Date.now(),
+              delta: '',
+              content: '',
+              signature: event.content_block.data,
+              redacted: true,
             }
           }
         } else if (event.type === 'content_block_delta') {

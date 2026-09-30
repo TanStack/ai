@@ -872,8 +872,7 @@ class TextEngine<
   private currentMessageCreatedAt: Date | null = null
   private streamIdentityCaptured = false
   private accumulatedContent = ''
-  private accumulatedThinking: Array<{ content: string; signature?: string }> =
-    []
+  private accumulatedThinking: NonNullable<ModelMessage['thinking']> = []
   /**
    * Arrival order of this iteration's thinking steps, text and tool calls.
    * A ModelMessage keeps `thinking` apart from `content`/`toolCalls`, so a
@@ -885,6 +884,7 @@ class TextEngine<
   private turnParts: Array<TurnPart> | null = []
   private currentThinkingContent = ''
   private currentThinkingSignature = ''
+  private currentThinkingRedacted = false
   private eventOptions?: Record<string, unknown> | undefined
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
@@ -1551,6 +1551,7 @@ class TextEngine<
     this.turnParts = []
     this.currentThinkingContent = ''
     this.currentThinkingSignature = ''
+    this.currentThinkingRedacted = false
 
     this.finishedEvent = null
     this.streamedToolErrorResults.clear()
@@ -2020,6 +2021,7 @@ class TextEngine<
         ...(this.currentThinkingSignature && {
           signature: this.currentThinkingSignature,
         }),
+        ...(this.currentThinkingRedacted && { redacted: true }),
       })
       if (this.turnParts) {
         const placeholder = [...this.turnParts]
@@ -2037,6 +2039,7 @@ class TextEngine<
       }
       this.currentThinkingContent = ''
       this.currentThinkingSignature = ''
+      this.currentThinkingRedacted = false
     }
   }
 
@@ -2064,6 +2067,7 @@ class TextEngine<
     if (typeof chunk.signature === 'string' && chunk.signature !== '') {
       this.noteThinkingStepPosition()
       this.currentThinkingSignature = chunk.signature
+      this.currentThinkingRedacted = chunk.redacted === true
     }
   }
 
@@ -2093,6 +2097,7 @@ class TextEngine<
     }
     this.noteThinkingStepPosition()
     this.currentThinkingSignature = chunk.encryptedValue
+    this.currentThinkingRedacted = tanstackMetadata(chunk)?.redacted === true
   }
 
   /**
@@ -2609,7 +2614,7 @@ class TextEngine<
       ),
     )
     type Segment = {
-      thinking: Array<{ content: string; signature?: string }>
+      thinking: NonNullable<ModelMessage['thinking']>
       text: string
       callIds: Array<string>
     }
