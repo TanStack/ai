@@ -7,7 +7,7 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { z } from 'zod'
-import type { DefinedAgent, Tool } from '@tanstack/ai'
+import type { DefinedAgent, ReasoningRequest, Tool } from '@tanstack/ai'
 import { createTextAdapter } from '@/lib/providers'
 import {
   deleteLogs,
@@ -43,7 +43,7 @@ function subagentsFor(
     name: string,
     tools: Array<Tool>,
     model?: string,
-    modelOptions?: Record<string, unknown>,
+    reasoning?: ReasoningRequest,
   ) =>
     defineAgent({
       name,
@@ -58,7 +58,7 @@ function subagentsFor(
           subagentRunId: ctx.subagentRunId,
           resume: ctx.resume,
           tools,
-          ...(modelOptions ? { modelOptions } : {}),
+          ...(reasoning ? { reasoning } : {}),
           agentLoopStrategy: maxIterations(4),
         }),
     })
@@ -68,7 +68,7 @@ function subagentsFor(
       'researcher',
       [lookupFacts.server(({ topic }) => ({ topic, facts: ['three hearts'] }))],
       'o3',
-      { reasoning: { effort: 'high' } },
+      { level: 'high', summary: true },
     )
     return { agents: [researcher], router: () => 'researcher' }
   }

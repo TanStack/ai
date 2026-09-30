@@ -216,11 +216,10 @@ export const modelInfo: Record<
     contextWindow: 1_000_000,
     effort: true,
   },
-  // Haiku has no effort setting (output_config) in its model-meta.
   'claude-haiku-4-5': {
     provider: 'anthropic',
     contextWindow: 200_000,
-    effort: false,
+    effort: true,
   },
   'grok-4.7': { provider: 'grok', contextWindow: 500_000, effort: true },
   'grok-4.6': { provider: 'grok', contextWindow: 500_000, effort: true },
@@ -477,10 +476,7 @@ export const assistant = defineHarness({
     todos(),
     providerKeys({ providers: keyProviders }),
     modelPicker({ choices, default: startModel }),
-    effortPicker({
-      providerOf: (model) =>
-        modelInfo[model]?.effort ? modelInfo[model].provider : undefined,
-    }),
+    effortPicker({ reasons: (model) => modelInfo[model]?.effort === true }),
     projectInstructions({ root }),
     compact({ adapter: main }),
     usage(),

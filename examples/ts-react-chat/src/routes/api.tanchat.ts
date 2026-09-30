@@ -364,21 +364,12 @@ export const Route = createFileRoute('/api/tanchat')({
             case 'openrouter':
               return createChatOptions({
                 adapter: createOpenRouterText(model, requireApiKey(apiKey)),
-                modelOptions: {
-                  reasoning: {
-                    effort: 'medium',
-                  },
-                },
+                reasoning: 'medium',
               })
             case 'gemini':
               return createChatOptions({
                 adapter: createGeminiChat(model, requireApiKey(apiKey)),
-                modelOptions: {
-                  thinkingConfig: {
-                    includeThoughts: true,
-                    thinkingBudget: 100,
-                  },
-                },
+                reasoning: 'high',
               })
             case 'gemini-interactions':
               return createChatOptions({
@@ -441,7 +432,8 @@ export const Route = createFileRoute('/api/tanchat')({
             case 'ollama':
               return createChatOptions({
                 adapter: ollamaText(model),
-                modelOptions: { think: 'low', options: { top_k: 1 } },
+                modelOptions: { options: { top_k: 1 } },
+                reasoning: 'low',
               })
             case 'openai':
               return createChatOptions({

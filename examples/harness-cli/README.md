@@ -97,7 +97,7 @@ When `claude` and `codex` are on the PATH, the agent can call them. They work in
 ## Pick the model and the effort
 
 - `/model` opens a list of the models, with the provider and the context size of each. `/model gpt-6-luna` switches at once. The change applies at the next turn.
-- `/effort` sets how hard the model thinks: `default` (the model decides), `low`, `medium`, `high`, or `max`. `claude-haiku-4-5` has no effort setting.
+- `/effort` sets how hard the model thinks: `default` (the model decides), `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. It sets `chat({ reasoning })`, so a level the model does not have moves to the nearest one it has.
 - The footer shows the model, the effort, how full the context is, the tokens in and out, and the model calls.
 
 ## The screen
