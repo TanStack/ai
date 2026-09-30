@@ -98,7 +98,7 @@ async function ollamaReasoning(): Promise<Map<string, ModelReasoning>> {
       }
       found.set(
         name,
-        block.includes('OllamaChatRequestThinking_OpenAI')
+        name.startsWith('gpt-oss')
           ? {
               map: {
                 off: null,

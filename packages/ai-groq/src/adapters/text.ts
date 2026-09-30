@@ -1,6 +1,8 @@
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { GROQ_MODEL_INPUT_MODALITIES } from '../model-meta'
+import { GROQ_MODEL_REASONING } from '../model-reasoning'
+import type { GroqModelReasoningByName } from '../model-reasoning'
 import { getGroqApiKeyFromEnv, withGroqDefaults } from '../utils/client'
 import { makeGroqStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
 import type { Modality, TextOptions } from '@tanstack/ai'
@@ -13,6 +15,12 @@ import type {
 import type { GroqMessageMetadataByModality } from '../message-types'
 import type { GroqClientConfig } from '../utils/client'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof GroqModelReasoningByName
+    ? GroqModelReasoningByName[TModel]
+    : never
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GroqChatModelToolCapabilitiesByName
@@ -55,7 +63,8 @@ export class GroqTextAdapter<
   TProviderOptions,
   TInputModalities,
   GroqMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'groq' as const
@@ -63,6 +72,10 @@ export class GroqTextAdapter<
 
   constructor(config: GroqTextConfig, model: TModel) {
     super(model, 'groq', new OpenAI(withGroqDefaults(config)), config)
+  }
+
+  protected override modelReasoning(model: string) {
+    return GROQ_MODEL_REASONING[model]
   }
 
   protected override extractRejectedToolCall(

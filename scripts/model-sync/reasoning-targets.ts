@@ -28,6 +28,37 @@ export interface ReasoningTarget {
   overrides?: Readonly<Record<string, ModelReasoning>>
 }
 
+const NO_LEVELS = {
+  off: null,
+  minimal: null,
+  low: null,
+  medium: null,
+  high: null,
+  xhigh: null,
+  max: null,
+} as const
+
+const ARK_SEED_LEVELS: ModelReasoning = {
+  map: {
+    ...NO_LEVELS,
+    minimal: 'minimal',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+  },
+  budget: false,
+}
+
+const ARK_THINKING_SWITCH: ModelReasoning = {
+  map: { ...NO_LEVELS, off: 'disabled', high: 'enabled' },
+  budget: false,
+}
+
+const ARK_DEEPSEEK_V4: ModelReasoning = {
+  map: { ...NO_LEVELS, off: 'disabled', high: 'high', max: 'max' },
+  budget: false,
+}
+
 export const REASONING_TARGETS: ReadonlyArray<ReasoningTarget> = [
   {
     pkg: 'ai-openai',
@@ -71,6 +102,22 @@ export const REASONING_TARGETS: ReadonlyArray<ReasoningTarget> = [
     typePrefix: 'Groq',
     constPrefix: 'GROQ',
     sources: ['groq'],
+    overrides: {
+      // Groq's reasoning_effort for Qwen 3 is `none` or `default`, and it has
+      // no token budget field.
+      'qwen/qwen3-32b': {
+        map: {
+          off: 'none',
+          minimal: null,
+          low: null,
+          medium: null,
+          high: 'default',
+          xhigh: null,
+          max: null,
+        },
+        budget: false,
+      },
+    },
   },
   {
     pkg: 'ai-openrouter',
@@ -117,6 +164,23 @@ export const REASONING_TARGETS: ReadonlyArray<ReasoningTarget> = [
     typePrefix: 'BytePlus',
     constPrefix: 'BYTEPLUS',
     sources: ['volcengine'],
+    // Ark reasoning models that models.dev does not list. The Seed models
+    // take the levels of their listed siblings. `enabled` and `disabled`
+    // are Ark's `thinking.type` for a model with an on/off switch only.
+    overrides: {
+      'dola-seed-2-1-turbo-260628': ARK_SEED_LEVELS,
+      'seed-2-0-lite-260228': ARK_SEED_LEVELS,
+      'seed-2-0-mini-260215': ARK_SEED_LEVELS,
+      'seed-1-6-flash-250615': ARK_SEED_LEVELS,
+      'glm-4-7-251222': ARK_THINKING_SWITCH,
+      'deepseek-v3-2-251201': ARK_THINKING_SWITCH,
+      'deepseek-v4-pro-260425': ARK_DEEPSEEK_V4,
+      'deepseek-v4-flash-260425': ARK_DEEPSEEK_V4,
+      'gpt-oss-120b-250805': {
+        map: { ...NO_LEVELS, low: 'low', medium: 'medium', high: 'high' },
+        budget: false,
+      },
+    },
   },
   {
     pkg: 'ai-llmgateway',

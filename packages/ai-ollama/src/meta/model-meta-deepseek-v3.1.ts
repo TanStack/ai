@@ -1,7 +1,6 @@
 import type {
   OllamaChatRequest,
   OllamaChatRequestMessages,
-  OllamaChatRequestThinking,
   OllamaChatRequestTools,
   OllamaMessageTools,
   OllamaModelMeta,
@@ -19,8 +18,7 @@ const DEEPSEEK_V3_1_LATEST = {
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
 >
 
 const DEEPSEEK_V3_1_671b = {
@@ -36,8 +34,7 @@ const DEEPSEEK_V3_1_671b = {
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
 >
 
 const DEEPSEEK_V3_1_671b_cloud = {
@@ -52,8 +49,7 @@ const DEEPSEEK_V3_1_671b_cloud = {
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
 >
 
 export const DEEPSEEK_V3_1_MODELS = [
@@ -77,16 +73,13 @@ export type Deepseekv3_1ChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
   [DEEPSEEK_V3_1_LATEST.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
   [DEEPSEEK_V3_1_671b.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
   [DEEPSEEK_V3_1_671b_cloud.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking
+    OllamaChatRequestTools
 }
 
 export type Deepseekv3_1ModelInputModalitiesByName = {

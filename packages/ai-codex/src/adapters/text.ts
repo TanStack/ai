@@ -1,5 +1,8 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
-import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
+import {
+  resolveReasoning,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   SandboxCapability,
@@ -23,6 +26,7 @@ import { buildPrompt } from '../messages/prompt'
 import { translateThreadEvents } from '../stream/translate'
 import { projectCodexWorkspace } from './projection'
 import { mapPolicyToCodexFlags } from './policy-map'
+import { CODEX_MODEL_REASONING } from '../model-reasoning'
 import type { CodexPolicyFlags } from './policy-map'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
 import type {
@@ -33,9 +37,11 @@ import type {
   DefaultMessageMetadataByModality,
   Modality,
   AdapterYieldChunk,
+  ReasoningRequest,
   TextOptions,
 } from '@tanstack/ai'
 import type { CodexModel } from '../model-meta'
+import type { CodexModelReasoningByName } from '../model-reasoning'
 import type { CodexTextProviderOptions } from '../provider-options'
 import type { CodexThreadEvent } from '../stream/sdk-types'
 
@@ -77,7 +83,10 @@ export interface CodexTextConfig {
   sandboxMode?: CodexSandboxMode
   /** Codex approval policy (`--config approval_policy=`). Defaults to `'never'`. */
   approvalPolicy?: CodexApprovalMode
-  /** Model reasoning effort (`--config model_reasoning_effort=`). */
+  /**
+   * The default reasoning effort (`--config model_reasoning_effort=`) when a
+   * call sets no `chat({ reasoning })`.
+   */
   modelReasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   /** Skip Codex's git-repo safety check (`--skip-git-repo-check`). Defaults to true. */
   skipGitRepoCheck?: boolean
@@ -104,6 +113,26 @@ function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof CodexModelReasoningByName
+    ? CodexModelReasoningByName[TModel]
+    : never
+
+/**
+ * Codex's `model_reasoning_effort` for `chat({ reasoning })`: the model's
+ * effort for the level, or `fallback` when the call sets none.
+ */
+export function codexReasoningEffort(
+  model: string,
+  request: ReasoningRequest | undefined,
+  fallback: string | undefined,
+): string | undefined {
+  return (
+    resolveReasoning(request, CODEX_MODEL_REASONING[model])?.value ?? fallback
+  )
+}
+
 export class CodexTextAdapter<
   TModel extends CodexModel,
 > extends BaseTextAdapter<
@@ -113,7 +142,8 @@ export class CodexTextAdapter<
   DefaultMessageMetadataByModality,
   ReadonlyArray<string>,
   unknown,
-  never
+  never,
+  ResolveReasoning<TModel>
 > {
   readonly name = 'codex' as const
 
@@ -182,8 +212,11 @@ export class CodexTextAdapter<
       'never'
     const networkAccessEnabled =
       config.networkAccessEnabled ?? policyFlags.networkAccessEnabled
-    const reasoning =
-      modelOptions?.modelReasoningEffort ?? config.modelReasoningEffort
+    const reasoning = codexReasoningEffort(
+      this.model,
+      options.reasoning,
+      config.modelReasoningEffort,
+    )
     const skipGitRepoCheck =
       modelOptions?.skipGitRepoCheck ?? config.skipGitRepoCheck
 

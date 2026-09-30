@@ -12,7 +12,7 @@ export type GroqModelReasoningByName = {
     levels: 'low' | 'medium' | 'high'
     budget: false
   }
-  'qwen/qwen3-32b': { levels: 'off' | 'high'; budget: true }
+  'qwen/qwen3-32b': { levels: 'off' | 'high'; budget: false }
 }
 
 /** The same data at runtime. `false`: the model does not reason. */
@@ -62,7 +62,15 @@ export const GROQ_MODEL_REASONING: Readonly<Record<string, ModelReasoning>> = {
   },
   'moonshotai/kimi-k2-instruct-0905': false,
   'qwen/qwen3-32b': {
-    map: { off: 'off', minimal: null, low: null, medium: null, high: 'high' },
-    budget: true,
+    map: {
+      off: 'none',
+      minimal: null,
+      low: null,
+      medium: null,
+      high: 'default',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
   },
 }

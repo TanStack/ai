@@ -6,6 +6,10 @@ import {
 } from '@tanstack/ai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { generateId } from '@tanstack/ai-utils'
+import { resolveReasoning } from '@tanstack/ai/adapter-internals'
+import { BYTEPLUS_MODEL_REASONING } from '../model-reasoning'
+import type { ResolvedReasoning } from '@tanstack/ai/adapter-internals'
+import type { BytePlusModelReasoningByName } from '../model-reasoning'
 import {
   BYTEPLUS_MODEL_INPUT_MODALITIES,
   BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS,
@@ -88,6 +92,26 @@ export type { BytePlusTextProviderOptions } from '../text/text-provider-options'
  *    ignores the schema), and Ark rejects `json_object` everywhere, so there
  *    is no JSON-mode fallback.
  */
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof BytePlusModelReasoningByName
+    ? BytePlusModelReasoningByName[TModel]
+    : never
+
+/**
+ * Ark's thinking fields for `chat({ reasoning })`: `thinking.type`, plus
+ * `reasoning_effort` when the level has an effort value. `off` sends only
+ * `disabled`, because Ark refuses an effort next to it.
+ */
+function arkThinking(resolved: ResolvedReasoning | undefined) {
+  if (!resolved) return {}
+  if (resolved.level === 'off') return { thinking: { type: 'disabled' } }
+  const effort = resolved.value
+  return effort === null || effort === 'enabled'
+    ? { thinking: { type: 'enabled' } }
+    : { thinking: { type: 'enabled' }, reasoning_effort: effort }
+}
+
 export class BytePlusTextAdapter<
   TModel extends (typeof BYTEPLUS_CHAT_MODELS)[number],
   // `Record<string, any>` (not `unknown`) mirrors the OpenAI/Groq/Grok text
@@ -104,7 +128,8 @@ export class BytePlusTextAdapter<
   TProviderOptions,
   TInputModalities,
   BytePlusMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'byteplus' as const
@@ -117,6 +142,23 @@ export class BytePlusTextAdapter<
       'byteplus',
       new OpenAI(withBytePlusArkDefaults(config)),
       config,
+    )
+  }
+
+  /**
+   * Adds Ark's thinking fields for `chat({ reasoning })`. They are Ark
+   * fields that the OpenAI SDK type does not list, so they go on with
+   * Object.assign.
+   */
+  protected override mapOptionsToRequest(options: TextOptions) {
+    return Object.assign(
+      super.mapOptionsToRequest(options),
+      arkThinking(
+        resolveReasoning(
+          options.reasoning,
+          BYTEPLUS_MODEL_REASONING[options.model],
+        ),
+      ),
     )
   }
 

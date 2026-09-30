@@ -6,6 +6,10 @@ import type { ModelReasoning } from '@tanstack/ai'
  * `chat({ reasoning })`. A model that is not here does not reason.
  */
 export type BytePlusModelReasoningByName = {
+  'dola-seed-2-1-turbo-260628': {
+    levels: 'minimal' | 'low' | 'medium' | 'high'
+    budget: false
+  }
   'seed-2-0-lite-260428': {
     levels: 'minimal' | 'low' | 'medium' | 'high'
     budget: false
@@ -15,6 +19,14 @@ export type BytePlusModelReasoningByName = {
     budget: false
   }
   'seed-2-0-pro-260328': {
+    levels: 'minimal' | 'low' | 'medium' | 'high'
+    budget: false
+  }
+  'seed-2-0-lite-260228': {
+    levels: 'minimal' | 'low' | 'medium' | 'high'
+    budget: false
+  }
+  'seed-2-0-mini-260215': {
     levels: 'minimal' | 'low' | 'medium' | 'high'
     budget: false
   }
@@ -35,6 +47,10 @@ export type BytePlusModelReasoningByName = {
     budget: false
   }
   'seed-1-6-flash-250715': {
+    levels: 'minimal' | 'low' | 'medium' | 'high'
+    budget: false
+  }
+  'seed-1-6-flash-250615': {
     levels: 'minimal' | 'low' | 'medium' | 'high'
     budget: false
   }
@@ -42,12 +58,29 @@ export type BytePlusModelReasoningByName = {
     levels: 'off' | 'minimal' | 'low' | 'medium' | 'high'
     budget: false
   }
+  'glm-4-7-251222': { levels: 'off' | 'high'; budget: false }
+  'deepseek-v4-pro-260425': { levels: 'off' | 'high' | 'max'; budget: false }
+  'deepseek-v4-flash-260425': { levels: 'off' | 'high' | 'max'; budget: false }
+  'deepseek-v3-2-251201': { levels: 'off' | 'high'; budget: false }
+  'gpt-oss-120b-250805': { levels: 'low' | 'medium' | 'high'; budget: false }
 }
 
 /** The same data at runtime. `false`: the model does not reason. */
 export const BYTEPLUS_MODEL_REASONING: Readonly<
   Record<string, ModelReasoning>
 > = {
+  'dola-seed-2-1-turbo-260628': {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
   'seed-2-0-lite-260428': {
     map: {
       off: null,
@@ -73,6 +106,30 @@ export const BYTEPLUS_MODEL_REASONING: Readonly<
     budget: false,
   },
   'seed-2-0-pro-260328': {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'seed-2-0-lite-260228': {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'seed-2-0-mini-260215': {
     map: {
       off: null,
       minimal: 'minimal',
@@ -133,6 +190,18 @@ export const BYTEPLUS_MODEL_REASONING: Readonly<
     budget: false,
   },
   'seed-1-6-flash-250715': {
+    map: {
+      off: null,
+      minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'seed-1-6-flash-250615': {
     map: {
       off: null,
       minimal: 'minimal',
@@ -148,6 +217,66 @@ export const BYTEPLUS_MODEL_REASONING: Readonly<
     map: {
       off: 'none',
       minimal: 'minimal',
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'glm-4-7-251222': {
+    map: {
+      off: 'disabled',
+      minimal: null,
+      low: null,
+      medium: null,
+      high: 'enabled',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'deepseek-v4-pro-260425': {
+    map: {
+      off: 'disabled',
+      minimal: null,
+      low: null,
+      medium: null,
+      high: 'high',
+      xhigh: null,
+      max: 'max',
+    },
+    budget: false,
+  },
+  'deepseek-v4-flash-260425': {
+    map: {
+      off: 'disabled',
+      minimal: null,
+      low: null,
+      medium: null,
+      high: 'high',
+      xhigh: null,
+      max: 'max',
+    },
+    budget: false,
+  },
+  'deepseek-v3-2-251201': {
+    map: {
+      off: 'disabled',
+      minimal: null,
+      low: null,
+      medium: null,
+      high: 'enabled',
+      xhigh: null,
+      max: null,
+    },
+    budget: false,
+  },
+  'gpt-oss-120b-250805': {
+    map: {
+      off: null,
+      minimal: null,
       low: 'low',
       medium: 'medium',
       high: 'high',
