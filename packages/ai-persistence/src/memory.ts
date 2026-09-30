@@ -1,4 +1,4 @@
-import { defineAIPersistence } from './types'
+import { LogConflictError, defineAIPersistence } from './types'
 import { resolveBlobRange } from './blob-range'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
@@ -22,6 +22,9 @@ import type {
   InterruptCommitEntry,
   InterruptRecord,
   InterruptStore,
+  LogEntry,
+  LogRecord,
+  LogStore,
   MessageStore,
   MetadataStore,
   RunRecord,
@@ -669,6 +672,83 @@ class MemoryCredentialStore implements CredentialStore {
       })),
     )
   }
+}
+
+/** A JSON copy, so the log never shares an object with a caller. */
+const copyRecord = (record: LogRecord) =>
+  JSON.parse(JSON.stringify(record)) as LogRecord
+
+class MemoryLogStore implements LogStore {
+  private readonly threads = new Map<string, Array<LogRecord>>()
+  private readonly listeners = new Map<string, Set<() => void>>()
+
+  append(
+    threadId: string,
+    seq: number,
+    records: ReadonlyArray<LogRecord>,
+  ): Promise<void> {
+    if (records.length === 0) return Promise.resolve()
+    const log = this.threads.get(threadId) ?? []
+    if (seq !== log.length + 1) {
+      return Promise.reject(new LogConflictError(threadId, seq))
+    }
+    // Copy the whole batch before the push, so a record that cannot become
+    // JSON rejects the batch with nothing written.
+    let copies: Array<LogRecord>
+    try {
+      copies = records.map(copyRecord)
+    } catch (error) {
+      return Promise.reject(error)
+    }
+    log.push(...copies)
+    this.threads.set(threadId, log)
+    for (const listener of [...(this.listeners.get(threadId) ?? [])]) {
+      listener()
+    }
+    return Promise.resolve()
+  }
+
+  read(
+    threadId: string,
+    options?: { after?: number; limit?: number },
+  ): Promise<Array<LogEntry>> {
+    const log = this.threads.get(threadId) ?? []
+    const after = options?.after ?? 0
+    const end =
+      options?.limit === undefined ? log.length : after + options.limit
+    const entries = log.slice(after, end).map((record, index) => ({
+      seq: after + index + 1,
+      record: copyRecord(record),
+    }))
+    return Promise.resolve(entries)
+  }
+
+  subscribe(threadId: string, listener: () => void): () => void {
+    let set = this.listeners.get(threadId)
+    if (!set) {
+      set = new Set()
+      this.listeners.set(threadId, set)
+    }
+    set.add(listener)
+    return () => {
+      set.delete(listener)
+    }
+  }
+}
+
+/**
+ * In-process reference {@link LogStore}, for tests and one-process hosts. The
+ * log is lost when the process stops. Records are JSON-copied in and out.
+ *
+ * @example
+ * ```ts
+ * const host = createHarnessHost({
+ *   persistence: { stores: { log: memoryLogStore(), runs } },
+ * })
+ * ```
+ */
+export function memoryLogStore(): LogStore {
+  return new MemoryLogStore()
 }
 
 interface MemoryPersistenceStores {

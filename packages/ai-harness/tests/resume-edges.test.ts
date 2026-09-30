@@ -9,8 +9,7 @@ import {
   repairTranscript,
 } from '../src/resume'
 import { mockAdapter, text, untilAborted } from './helpers'
-import type { RunRecord, StreamChunk } from '@tanstack/ai'
-import type { HarnessPersistence } from '../src/host'
+import type { RunRecord, RunStore, StreamChunk } from '@tanstack/ai'
 
 async function crash(
   persistence: ReturnType<typeof memoryPersistence>,
@@ -32,11 +31,15 @@ async function crash(
 
 describe('crash recovery edges', () => {
   it('finds nothing when the run store cannot list a thread', async () => {
-    const noRuns = { stores: {} } as unknown as HarnessPersistence
-    expect(await findCrashedRuns(noRuns, 't1')).toEqual([])
-    const noList = {
-      stores: { runs: { get: async () => null } },
-    } as unknown as HarnessPersistence
+    expect(await findCrashedRuns(undefined, 't1')).toEqual([])
+    const runs = memoryPersistence().stores.runs
+    // A store with only the required methods: no listByThread.
+    const noList: RunStore = {
+      createOrResume: (input) => runs.createOrResume(input),
+      update: (runId, patch) => runs.update(runId, patch),
+      get: (runId) => runs.get(runId),
+      findActiveRun: (threadId) => runs.findActiveRun(threadId),
+    }
     expect(await findCrashedRuns(noList, 't1')).toEqual([])
   })
 
@@ -95,40 +98,30 @@ describe('crash recovery edges', () => {
     ]
     await persistence.stores.messages.saveThread('t1', history)
     const save = vi.spyOn(persistence.stores.messages, 'saveThread')
+    const repair = (checkpoint?: RunRecord['checkpoint']) =>
+      repairTranscript({
+        messages: persistence.stores.messages,
+        crashed: {
+          runId: 'r',
+          threadId: 't1',
+          status: 'running',
+          startedAt: 1,
+          ...(checkpoint ? { checkpoint } : {}),
+        },
+      })
 
     // Only safe tools pending: nothing to note.
-    await repairTranscript(persistence, {
-      runId: 'r',
-      threadId: 't1',
-      status: 'running',
-      startedAt: 1,
-      checkpoint: {
-        at: 1,
-        pendingTools: [
-          { toolCallId: 'call-b', name: 'lookup', replay: 'safe' },
-        ],
-      },
+    await repair({
+      at: 1,
+      pendingTools: [{ toolCallId: 'call-b', name: 'lookup', replay: 'safe' }],
     })
     // A never-replay tool that already has a result: nothing to note.
-    await repairTranscript(persistence, {
-      runId: 'r',
-      threadId: 't1',
-      status: 'running',
-      startedAt: 1,
-      checkpoint: {
-        at: 1,
-        pendingTools: [
-          { toolCallId: 'call-a', name: 'charge', replay: 'never' },
-        ],
-      },
+    await repair({
+      at: 1,
+      pendingTools: [{ toolCallId: 'call-a', name: 'charge', replay: 'never' }],
     })
     // No checkpoint at all.
-    await repairTranscript(persistence, {
-      runId: 'r',
-      threadId: 't1',
-      status: 'running',
-      startedAt: 1,
-    })
+    await repair()
     expect(save).not.toHaveBeenCalled()
     expect(
       JSON.stringify(await persistence.stores.messages.loadThread('t1')),

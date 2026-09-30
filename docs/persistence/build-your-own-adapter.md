@@ -85,6 +85,10 @@ with a tick:
 - **Sandbox files need a checkpoint store too.** That store lives on
   `@tanstack/ai-sandbox`, not in this table. See
   [Keep Files After Reload](../sandbox/portable-snapshots-configure).
+- **A durable harness host needs `log` and `runs`.** The log holds the transcript, so
+  that host takes no `messages` store. See the
+  [`LogStore` contract](./store-reference#logstore) and
+  [Durable sessions](../harness/durable-sessions).
 
 The common production shape is `messages` + `runs` + `interrupts`. When you
 keep generated files or rebuild sandbox files, add `artifacts` and `blobs`.
@@ -174,6 +178,10 @@ The optional run methods are `listByThread`, `listByParentRun`, and
 `listReclaimable`. Add an omitted `listByThread` or `listReclaimable` to
 `skipMethods`. An omitted `listByParentRun` needs no entry: the subagent checks
 skip on their own.
+
+The `log` cases run when your persistence has `stores.log`. They check the atomic
+batch, the `LogConflictError` for a taken position or a gap, `read` with `after` and
+`limit`, and `subscribe`. A backend without a log needs no `skip` entry for it.
 
 ### Turn on the newer checks
 

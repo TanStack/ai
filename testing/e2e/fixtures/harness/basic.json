@@ -42,6 +42,14 @@
     },
     {
       "match": {
+        "userMessage": "[harness-durable] run once"
+      },
+      "response": {
+        "content": "Stored once."
+      }
+    },
+    {
+      "match": {
         "userMessage": "[harness-limits] work twice",
         "sequenceIndex": 0
       },

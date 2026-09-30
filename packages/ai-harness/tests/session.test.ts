@@ -150,7 +150,7 @@ describe('chat turns', () => {
     await host.close()
   })
 
-  it('runs a steer that arrived too late as the next turn', async () => {
+  it('answers a steer that arrived after the last model call in the same turn', async () => {
     const { host } = setup()
     const first = gate()
     const { adapter, calls } = mockAdapter([
@@ -169,9 +169,15 @@ describe('chat turns', () => {
     const joined = session.prompt('and this', { busy: 'steer' })
     first.open()
 
-    await expect(a).resolves.toEqual({ text: 'one' })
-    await expect(joined).resolves.toEqual({ text: 'two' })
+    // One turn answers both messages: the joined prompt settles with it.
+    await expect(a).resolves.toEqual({ text: 'onetwo' })
+    await expect(joined).resolves.toEqual({ text: 'onetwo' })
     expect(messageTexts(calls[1]).at(-1)).toBe('and this')
+    expect(await session.settled((await joined.receipt).inputId)).toEqual({
+      inputId: (await joined.receipt).inputId,
+      outcome: 'completed',
+      operationId: a.id,
+    })
     await host.close()
   })
 

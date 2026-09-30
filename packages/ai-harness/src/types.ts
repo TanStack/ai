@@ -46,8 +46,15 @@ export interface SessionEvent {
   event: StreamChunk
 }
 
-/** An input a client sends to a session. Stored in the inbox. */
-export type HarnessInput =
+/**
+ * An input a client sends to a session. Stored in the inbox, or in the log of
+ * a durable host.
+ *
+ * `inputId` is an optional id that the caller chooses. A second input with the
+ * same id and the same payload gets the first input's receipt and does not run
+ * again. The same id with another payload is rejected with `'conflict'`.
+ */
+export type HarnessInput = (
   | { op: 'prompt'; message: UserInput; busy?: BusyPolicy }
   | { op: 'steer'; message: UserInput }
   | { op: 'followUp'; message: UserInput }
@@ -57,6 +64,44 @@ export type HarnessInput =
   | { op: 'command'; name: string; input?: unknown }
   | { op: 'answer'; questionId: string; value: unknown }
   | { op: 'config'; key: string; value: unknown }
+) & { inputId?: string }
+
+/** How an input ended. `session.settled(inputId)` resolves to it. */
+export interface InputSettlement {
+  inputId: string
+  /**
+   * `interrupted`: the turn stopped for human input. The `resolve` that
+   * answers it is a new input with its own settlement.
+   */
+  outcome: 'completed' | 'failed' | 'aborted' | 'interrupted'
+  /** The operation that ran the input, when one started. */
+  operationId?: string
+  /** Set for `failed`. `code` is `'attempts_exhausted'`, `'timeout'`, or absent. */
+  error?: { message: string; code?: string }
+}
+
+/**
+ * An awaited operation rejects with this error when the session refused its
+ * input (for example `busy: 'reject'` while a turn runs, or an `inputId`
+ * conflict). `receipt` is the refused receipt.
+ */
+export class InputRejectedError extends Error {
+  readonly receipt: Receipt
+
+  constructor(receipt: Receipt) {
+    super(rejectionMessage(receipt.reason))
+    this.name = 'InputRejectedError'
+    this.receipt = receipt
+  }
+}
+
+function rejectionMessage(reason: string | undefined) {
+  if (reason === 'busy') return 'A chat turn is already running.'
+  if (reason === 'conflict') {
+    return 'An earlier input has this inputId and another payload.'
+  }
+  return `The session rejected the input: ${reason ?? 'rejected'}.`
+}
 
 /** Who sent an input, from the host's `authorize`. */
 export interface Principal {
@@ -82,6 +127,13 @@ export interface Operation<TResult> extends PromiseLike<TResult> {
   /** The agent name, for `kind: 'agent'`. */
   readonly agent?: string
   status: () => OperationStatus
+  /**
+   * The answer to the input of this operation. It resolves after the session
+   * stored the input (`accepted` or `queued`), or refused it (`rejected`).
+   * With a durable host, a resolved receipt means that the input survives a
+   * restart.
+   */
+  readonly receipt: Promise<Receipt>
   /** This operation's events, from `from` (exclusive) onward. */
   events: (options?: {
     from?: Cursor
@@ -126,6 +178,8 @@ export const HARNESS_EVENTS = {
   inputAccepted: 'harness.input.accepted',
   inputApplied: 'harness.input.applied',
   inputRejected: 'harness.input.rejected',
+  /** An input ended. The value is an `InputSettlement`. */
+  inputSettled: 'harness.input.settled',
   /** A media file was stored. The value is a `MediaRecord`. */
   media: 'harness.media',
 } as const

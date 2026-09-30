@@ -664,7 +664,7 @@
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Migrations",
@@ -712,7 +712,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-24"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "How Persistence Works",
@@ -900,7 +900,23 @@
         {
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
-          "addedAt": "2026-09-26"
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-09-30"
+        },
+        {
+          "label": "Send inputs safely",
+          "to": "harness/inputs",
+          "addedAt": "2026-09-30"
+        },
+        {
+          "label": "Run side effects once",
+          "to": "harness/durable-tools",
+          "addedAt": "2026-09-30"
+        },
+        {
+          "label": "Build on the session log",
+          "to": "harness/session-log",
+          "addedAt": "2026-09-30"
         },
         {
           "label": "Write a plugin",

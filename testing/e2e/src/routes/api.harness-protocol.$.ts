@@ -9,7 +9,7 @@ import {
   definePlugin,
 } from '@tanstack/ai-harness'
 import { todos } from '@tanstack/ai-harness/plugins'
-import { memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import { createImageAdapter } from '@/lib/media-providers'
 import { createTextAdapter } from '@/lib/providers'
@@ -24,6 +24,13 @@ import { createTextAdapter } from '@/lib/providers'
 // One host for every test. Each test uses its own thread ids, and a signed
 // media URL comes without the test headers.
 const host = createHarnessHost({ persistence: memoryPersistence() })
+// A durable host: a session log and run leases. A request picks it with the
+// `x-harness-durable: 1` header.
+const durableHost = createHarnessHost({
+  persistence: {
+    stores: { log: memoryLogStore(), runs: memoryPersistence().stores.runs },
+  },
+})
 
 function handlerFor(request: Request) {
   const testId = request.headers.get('x-test-id') ?? 'default'
@@ -75,7 +82,7 @@ function handlerFor(request: Request) {
     ],
   })
   return createHarnessHandler({
-    host,
+    host: request.headers.get('x-harness-durable') === '1' ? durableHost : host,
     harness,
     authorize: (req) =>
       req.headers.get('authorization') === 'Bearer e2e-token'

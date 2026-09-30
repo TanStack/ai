@@ -49,12 +49,22 @@ export type ClientAgentHandles<THarness> = {
 }
 
 export interface HarnessClient<THarness extends AnyHarness> {
+  /**
+   * Send a prompt. `inputId` is an id you choose: a retry with the same id
+   * and message gets the first receipt and does not run again.
+   */
   prompt: (
     message: UserInput,
-    options?: { busy?: BusyPolicy },
+    options?: { busy?: BusyPolicy; inputId?: string },
   ) => Promise<Receipt>
-  steer: (message: UserInput) => Promise<Receipt>
-  followUp: (message: UserInput) => Promise<Receipt>
+  steer: (
+    message: UserInput,
+    options?: { inputId?: string },
+  ) => Promise<Receipt>
+  followUp: (
+    message: UserInput,
+    options?: { inputId?: string },
+  ) => Promise<Receipt>
   resolve: (resume: Array<RunAgentResumeItem>) => Promise<Receipt>
   cancel: (operationId?: string) => Promise<Receipt>
   agents: ClientAgentHandles<THarness>
@@ -295,9 +305,20 @@ export function createHarnessClient<THarness extends AnyHarness>(
         op: 'prompt',
         message,
         ...(promptOptions?.busy ? { busy: promptOptions.busy } : {}),
+        ...(promptOptions?.inputId ? { inputId: promptOptions.inputId } : {}),
       }),
-    steer: (message) => send({ op: 'steer', message }),
-    followUp: (message) => send({ op: 'followUp', message }),
+    steer: (message, steerOptions) =>
+      send({
+        op: 'steer',
+        message,
+        ...(steerOptions?.inputId ? { inputId: steerOptions.inputId } : {}),
+      }),
+    followUp: (message, followOptions) =>
+      send({
+        op: 'followUp',
+        message,
+        ...(followOptions?.inputId ? { inputId: followOptions.inputId } : {}),
+      }),
     resolve: (resume) => send({ op: 'resolve', resume }),
     cancel: (operationId) =>
       send({ op: 'cancel', ...(operationId ? { operationId } : {}) }),

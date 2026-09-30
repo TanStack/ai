@@ -1,0 +1,254 @@
+import { describe, expect, it, vi } from 'vitest'
+import { EventType, toolDefinition } from '@tanstack/ai'
+import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { createHarnessHost, defineHarness } from '../src'
+import {
+  after,
+  gate,
+  messageTexts,
+  mockAdapter,
+  text,
+  toolCall,
+} from './helpers'
+import type { AnyTool, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { LogRecord, LogStore } from '@tanstack/ai-persistence'
+import type { Reply } from './helpers'
+
+const THREAD = 't1'
+
+/** A durable store set. `batches` has the record types of each append. */
+function durablePersistence() {
+  const inner = memoryLogStore()
+  const batches: Array<Array<string>> = []
+  const log: LogStore = {
+    append: async (threadId, seq, records) => {
+      await inner.append(threadId, seq, records)
+      batches.push(records.map((record) => record.type))
+    },
+    read: (threadId, options) => inner.read(threadId, options),
+    subscribe: (threadId, listener) => inner.subscribe(threadId, listener),
+  }
+  const { runs, metadata } = memoryPersistence().stores
+  return { persistence: { stores: { log, runs, metadata } }, batches }
+}
+
+type Durable = ReturnType<typeof durablePersistence>['persistence']
+
+async function openDurable(
+  persistence: Durable,
+  replies: Array<Reply>,
+  tools: Array<AnyTool> = [],
+) {
+  const { adapter, calls } = mockAdapter(replies)
+  const host = createHarnessHost({ persistence })
+  const session = await host.open(
+    defineHarness({ name: 'test/joins', adapter, tools }),
+    { threadId: THREAD },
+  )
+  return { host, session, calls }
+}
+
+/** A model call that fails. */
+const fails: Reply = () =>
+  (async function* (): AsyncGenerator<StreamChunk> {
+    yield {
+      type: EventType.RUN_STARTED,
+      runId: 'r',
+      threadId: 't',
+      timestamp: Date.now(),
+    }
+    throw new Error('model down')
+  })()
+
+/**
+ * The log and run of a host that stopped during input `in-1`. With
+ * `joined`, input `in-2` had joined it: its join record and its message are
+ * in one append. Without it, `in-2` was only accepted.
+ */
+async function seedStoppedTurn(
+  persistence: Durable,
+  options: { joined: boolean },
+) {
+  const go: ModelMessage = { id: 'u1', role: 'user', content: 'go' }
+  const more: ModelMessage = { id: 'u2', role: 'user', content: 'and more' }
+  const records: Array<LogRecord> = [
+    {
+      type: 'harness.input',
+      inputId: 'in-1',
+      input: { op: 'prompt', message: 'go', busy: 'queue' },
+      at: 1,
+    },
+    {
+      type: 'harness.input.applied',
+      inputId: 'in-1',
+      operationId: 'op-stopped',
+      attempt: 1,
+    },
+    { type: 'harness.transcript', keep: 0, add: [go] },
+    {
+      type: 'harness.input',
+      inputId: 'in-2',
+      input: { op: 'prompt', message: 'and more', busy: 'steer' },
+      at: 2,
+    },
+    ...(options.joined
+      ? [
+          { type: 'harness.transcript', keep: 1, add: [more] },
+          { type: 'harness.input.joined', inputId: 'in-2', into: 'in-1' },
+        ]
+      : []),
+  ]
+  await persistence.stores.log.append(THREAD, 1, records)
+  await persistence.stores.runs.createOrResume({
+    runId: 'op-stopped',
+    threadId: THREAD,
+    startedAt: Date.now() - 60_000,
+  })
+  await persistence.stores.runs.update('op-stopped', {
+    leaseOwner: 'host-gone',
+    leaseExpiresAt: Date.now() - 1_000,
+    checkpoint: { at: 1, pendingTools: [] },
+  })
+}
+
+describe('durable joins', () => {
+  it('joins three inputs in admission order at the next boundary, in one append', async () => {
+    const { persistence, batches } = durablePersistence()
+    const toolDone = gate()
+    const toolStarted = gate()
+    const wait = toolDefinition({ name: 'wait', description: 'Wait' }).server(
+      async () => {
+        toolStarted.open()
+        await toolDone.opened
+        return 'waited'
+      },
+    )
+    const { host, session, calls } = await openDurable(
+      persistence,
+      [() => toolCall('wait', {}), () => text('all three answered')],
+      [wait],
+    )
+
+    const turn = session.prompt('start', { inputId: 'host' })
+    await toolStarted.opened
+    const joins = ['a', 'b', 'c'].map((name) =>
+      session.prompt(name, { busy: 'steer', inputId: `join-${name}` }),
+    )
+    await Promise.all(joins.map((join) => join.receipt))
+    toolDone.open()
+    await turn
+
+    expect(messageTexts(calls[1]).slice(-3)).toEqual(['a', 'b', 'c'])
+    const joinBatch = batches.find((batch) =>
+      batch.includes('harness.input.joined'),
+    )
+    expect(
+      joinBatch?.filter((type) => type === 'harness.input.joined'),
+    ).toHaveLength(3)
+    expect(joinBatch).toContain('harness.transcript')
+    for (const name of ['a', 'b', 'c']) {
+      expect(await session.settled(`join-${name}`)).toEqual({
+        inputId: `join-${name}`,
+        outcome: 'completed',
+        operationId: turn.id,
+      })
+    }
+    await host.close()
+  })
+
+  it('answers a join that arrives after the last tool call in the same turn', async () => {
+    const { persistence } = durablePersistence()
+    const release = gate()
+    const { host, session, calls } = await openDurable(persistence, [
+      after(release.opened, 'first answer'),
+      () => text('late answer'),
+    ])
+
+    const turn = session.prompt('first', { inputId: 'host' })
+    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    const late = session.prompt('one more thing', {
+      busy: 'steer',
+      inputId: 'late',
+    })
+    await late.receipt
+    release.open()
+
+    expect(await turn).toEqual({ text: 'first answerlate answer' })
+    expect(calls).toHaveLength(2)
+    expect(messageTexts(calls[1]).at(-1)).toBe('one more thing')
+    expect(await session.settled('late')).toMatchObject({
+      outcome: 'completed',
+      operationId: turn.id,
+    })
+    await host.close()
+  })
+
+  it('settles the joined inputs failed when the turn fails', async () => {
+    const { persistence } = durablePersistence()
+    const release = gate()
+    const { host, session, calls } = await openDurable(persistence, [
+      after(release.opened, 'first answer'),
+      fails,
+    ])
+
+    const turn = session.prompt('first', { inputId: 'host' })
+    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    const late = session.prompt('this fails', {
+      busy: 'steer',
+      inputId: 'late',
+    })
+    await late.receipt
+    release.open()
+
+    await expect(turn).rejects.toThrow('model down')
+    const expected = {
+      outcome: 'failed',
+      operationId: turn.id,
+      error: { message: 'model down' },
+    }
+    expect(await session.settled('host')).toMatchObject(expected)
+    expect(await session.settled('late')).toMatchObject(expected)
+    await host.close()
+  })
+})
+
+describe('recovery of durable joins', () => {
+  it('adopts a join whose record is in the log: it settles with the next attempt', async () => {
+    const { persistence } = durablePersistence()
+    await seedStoppedTurn(persistence, { joined: true })
+
+    const { host, session, calls } = await openDurable(persistence, [
+      () => text('answered both'),
+    ])
+    const host1 = await session.settled('in-1')
+
+    expect(calls).toHaveLength(1)
+    expect(messageTexts(calls[0]).slice(-2)).toEqual(['go', 'and more'])
+    expect(host1.outcome).toBe('completed')
+    expect(await session.settled('in-2')).toEqual({
+      inputId: 'in-2',
+      outcome: 'completed',
+      operationId: host1.operationId,
+    })
+    await host.close()
+  })
+
+  it('runs an input whose join record is not in the log as its own turn', async () => {
+    const { persistence } = durablePersistence()
+    await seedStoppedTurn(persistence, { joined: false })
+
+    const { host, session, calls } = await openDurable(persistence, [
+      () => text('answer to go'),
+      () => text('answer to more'),
+    ])
+    const first = await session.settled('in-1')
+    const second = await session.settled('in-2')
+
+    expect(calls).toHaveLength(2)
+    expect(messageTexts(calls[1]).at(-1)).toBe('and more')
+    expect(first.outcome).toBe('completed')
+    expect(second.outcome).toBe('completed')
+    expect(second.operationId).not.toBe(first.operationId)
+    await host.close()
+  })
+})
