@@ -8,6 +8,7 @@ import {
 import {
   LogWriter,
   emptyLogState,
+  engineMessageStore,
   loadLogState,
   logMessageStore,
   sessionMessageStore,
@@ -462,6 +463,117 @@ describe('fold checkpoints', () => {
     await expect
       .poll(() => metadata.get(NAMESPACE, THREAD))
       .toMatchObject({ v: 1, seq: 50, version: 'v1' })
+  })
+})
+
+describe('engine message store', () => {
+  const toolCallMessage: ModelMessage = {
+    id: 'a1',
+    role: 'assistant',
+    content: '',
+    toolCalls: [
+      {
+        id: 'call-1',
+        type: 'function',
+        function: { name: 'check', arguments: '{}' },
+      },
+    ],
+  }
+  const toolResult: ModelMessage = {
+    role: 'tool',
+    toolCallId: 'call-1',
+    content: 'checked',
+  }
+  const signal: ModelMessage = {
+    role: 'user',
+    content: '[signal] build failed',
+  }
+
+  async function engineOnLog() {
+    const store = memoryLogStore()
+    const writer = newWriter(store, { project })
+    const engine = engineMessageStore({ writer, store, project })
+    return { writer, engine }
+  }
+
+  it('puts a host message that arrives in a tool phase after the tool result', async () => {
+    const { writer, engine } = await engineOnLog()
+    const u1 = user('u1', 'go')
+    await engine.loadThread(THREAD)
+    // The engine saves before the first tool call of the phase.
+    await engine.saveThread(THREAD, [u1, toolCallMessage])
+
+    // During the tool call, a host record projects a user message.
+    await writer.append([{ type: 'app.signal', text: '[signal] build failed' }])
+    // At the end of the phase the engine saves again, still without the
+    // result: the engine adds tool results after this hook.
+    await engine.saveThread(THREAD, [u1, toolCallMessage])
+    const forModel = await engine.beforeModel([u1, toolCallMessage, toolResult])
+
+    const expected = [u1, toolCallMessage, toolResult, signal]
+    expect(forModel).toEqual(expected)
+    expect(writer.state.messages).toEqual(expected)
+  })
+
+  it('adds engine messages after a host rewrite of the fold', async () => {
+    const { writer, engine } = await engineOnLog()
+    await engine.loadThread(THREAD)
+    await engine.saveThread(THREAD, [user('u1', 'one'), assistant('a1', 'two')])
+
+    await writer.append([
+      { type: 'app.compact', summary: 'Earlier: one, two.', firstKept: 2 },
+    ])
+    await engine.saveThread(THREAD, [
+      user('u1', 'one'),
+      assistant('a1', 'two'),
+      user('u2', 'three'),
+    ])
+
+    expect(writer.state.messages).toEqual([
+      { role: 'assistant', content: 'Earlier: one, two.' },
+      user('u2', 'three'),
+    ])
+  })
+
+  it('lets an engine save that changes older messages win', async () => {
+    const { writer, engine } = await engineOnLog()
+    await engine.loadThread(THREAD)
+    await engine.saveThread(THREAD, [user('u1', 'one'), assistant('a1', 'two')])
+    await writer.append([{ type: 'app.signal', text: '[signal] late' }])
+
+    await engine.saveThread(THREAD, [assistant('s', 'engine summary')])
+
+    expect(writer.state.messages).toEqual([assistant('s', 'engine summary')])
+  })
+
+  it('commits the engine list before a model call and changes it only for a host record', async () => {
+    const { writer, engine } = await engineOnLog()
+    await engine.loadThread(THREAD)
+    await engine.saveThread(THREAD, [user('u1', 'one'), toolCallMessage])
+
+    // No host record: the tool result is committed, and the engine keeps its list.
+    expect(
+      await engine.beforeModel([
+        user('u1', 'one'),
+        toolCallMessage,
+        toolResult,
+      ]),
+    ).toBeUndefined()
+    expect(writer.state.messages).toEqual([
+      user('u1', 'one'),
+      toolCallMessage,
+      toolResult,
+    ])
+
+    await writer.append([{ type: 'app.signal', text: '[signal] build failed' }])
+
+    expect(
+      await engine.beforeModel([
+        user('u1', 'one'),
+        toolCallMessage,
+        toolResult,
+      ]),
+    ).toEqual([user('u1', 'one'), toolCallMessage, toolResult, signal])
   })
 })
 

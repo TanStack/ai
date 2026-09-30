@@ -12,9 +12,15 @@ import {
 } from '@tanstack/ai'
 import { credentialsFor, providerKeysFor } from './auth'
 import { checkConfigValue } from './config'
-import { withPersistence } from '@tanstack/ai-persistence'
+import { LogConflictError, withPersistence } from '@tanstack/ai-persistence'
 import { AgentRegistry } from './agents'
 import { SessionFeed } from './feed'
+import {
+  LogWriter,
+  engineMessageStore,
+  loadLogState,
+  sessionMessageStore,
+} from './log'
 import { createMediaStore, mediaCapture, mediaMiddleware } from './media'
 import { mediaIdOf, mediaOfMessage } from './media-ref'
 import { OperationImpl } from './operation'
@@ -44,12 +50,19 @@ import type {
   BlobBody,
   BlobRange,
   BlobStore,
+  ChatTranscriptStores,
   CredentialStore,
   GenerationRunStore,
   InboxEntry,
   InboxStore,
+  LogRecord,
+  LogStore,
+  MessageStore,
 } from '@tanstack/ai-persistence'
 import type { AuthRequiredError, CredentialsAccess } from './auth'
+import type { EventFeed } from './feed'
+import type { ProjectOptions } from './log'
+import type { LeaseOptions } from './resume'
 import type { MediaStore } from './media'
 import type { PluginSessionApi, Question } from './commands'
 import type { ConfigOption } from './config'
@@ -195,6 +208,9 @@ export interface SessionDependencies {
   principal?: Principal
   /** Identifies this host on run leases. */
   hostId: string
+  /** The session log of a durable host. */
+  log?: { store: LogStore; coalesceMs: number; project?: ProjectOptions }
+  lease?: LeaseOptions
   onClose: () => void
 }
 
@@ -252,6 +268,14 @@ export function acceptedKinds(
   return accepts.filter((kind) => modalities.includes(kind))
 }
 
+const notOpen = () => Promise.reject(new Error('The session is not open yet.'))
+
+/** The message store of a durable session before `open()` reads its log. */
+const notOpenMessages: MessageStore = {
+  loadThread: notOpen,
+  saveThread: notOpen,
+}
+
 /**
  * A live harness session: one conversation (`threadId`) with its plugins,
  * operations, inbox, and event stream. Open one with `host.open()`.
@@ -266,7 +290,18 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private readonly persistence: HarnessPersistence
   private readonly inbox: InboxStore
   private readonly principal: Principal | undefined
-  private readonly feed = new SessionFeed()
+  /** The session log writer of a durable host. It is also the feed. */
+  private writer: LogWriter | undefined
+  private feed: EventFeed = new SessionFeed()
+  /** The transcript: `stores.messages`, or a view of the log. */
+  private messages: MessageStore
+  /** What `withPersistence` gets: the chat stores, with `messages`. */
+  private chatPersistence: AIPersistence<ChatTranscriptStores> | undefined
+  /** The message store the chat engine saves through, on a durable host. */
+  private engine: ReturnType<typeof engineMessageStore> | undefined
+  /** Why the session log stopped taking writes. */
+  private logFailure: Error | undefined
+  private readonly log: SessionDependencies['log']
   private readonly agentRegistry = new AgentRegistry()
   private readonly operations = new Map<string, OperationImpl<unknown>>()
   private readonly queue: Array<QueuedTurn> = []
@@ -288,7 +323,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private sessionPlugins: MountedPlugins | undefined
   private closing: Promise<void> | undefined
   private readonly onClose: () => void
-  private readonly checkpoint: AnyChatMiddleware
+  private checkpoint: AnyChatMiddleware | undefined
+  private readonly hostId: string
+  private readonly lease: LeaseOptions | undefined
   private readonly listeners = new Map<string, Set<(value: unknown) => void>>()
   private readonly configValues = new Map<string, unknown>()
   private readonly questions = new Map<
@@ -325,11 +362,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     })
     this.principal = deps.principal
     this.onClose = deps.onClose
-    this.checkpoint = checkpointMiddleware({
-      runs: deps.persistence.stores.runs,
-      messages: deps.persistence.stores.messages,
-      hostId: deps.hostId,
-    })
+    this.hostId = deps.hostId
+    this.lease = deps.lease
+    this.log = deps.log
+    // A durable host gets its log view in `open()`.
+    this.messages = deps.persistence.stores.messages ?? notOpenMessages
     const onMissing = (error: AuthRequiredError) =>
       this.feed.publish(
         'session',
@@ -421,6 +458,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
 
   /** @internal Mount session plugins and replay inputs left in the inbox. */
   async open(): Promise<void> {
+    // First: plugins publish events while they mount.
+    await this.openLog()
     this.plugins = this.harness.plugins?.() ?? []
     this.sessionPlugins = await mountPlugins(
       this.plugins.filter(
@@ -440,6 +479,105 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     await this.loadPluginState()
     await this.recoverCrashedTurn()
     await this.recoverInbox()
+  }
+
+  /**
+   * A durable host folds the thread's log and writes through it: the log is
+   * the event feed and the transcript. Then both modes build the stores that
+   * `withPersistence` and the checkpoints get.
+   */
+  private async openLog(): Promise<void> {
+    const { stores } = this.persistence
+    if (this.log) {
+      const { store, project, coalesceMs } = this.log
+      const state = await loadLogState({
+        store,
+        threadId: this.threadId,
+        ...(stores.metadata ? { metadata: stores.metadata } : {}),
+        ...(project ? { project } : {}),
+      })
+      this.writer = new LogWriter({
+        store,
+        threadId: this.threadId,
+        state,
+        coalesceMs,
+        ...(project ? { project } : {}),
+        ...(stores.metadata ? { metadata: stores.metadata } : {}),
+        onFailure: (error) => this.stopOnLogFailure(error),
+      })
+      this.feed = this.writer
+      const view = {
+        writer: this.writer,
+        store,
+        ...(project ? { project } : {}),
+      }
+      this.messages = sessionMessageStore(view)
+      this.engine = engineMessageStore(view)
+    }
+    const engineMessages = this.engine ?? this.messages
+    this.chatPersistence = {
+      stores: {
+        messages: engineMessages,
+        ...(stores.runs ? { runs: stores.runs } : {}),
+        ...(stores.interrupts ? { interrupts: stores.interrupts } : {}),
+        ...(stores.metadata ? { metadata: stores.metadata } : {}),
+      },
+    }
+    this.checkpoint = checkpointMiddleware({
+      ...(stores.runs ? { runs: stores.runs } : {}),
+      messages: engineMessages,
+      hostId: this.hostId,
+      ...(this.lease ? { lease: this.lease } : {}),
+    })
+  }
+
+  /**
+   * The log refused a write: another host wrote to this thread, or the store
+   * failed. The state of this session is not known any more, so it stops.
+   * The next `host.open` folds the log again.
+   */
+  private stopOnLogFailure(error: unknown): void {
+    if (this.logFailure) return
+    this.logFailure = new Error(
+      error instanceof LogConflictError
+        ? 'Another host wrote to this thread, so this session stopped. Open the thread again.'
+        : `The session log failed, so this session stopped: ${error instanceof Error ? error.message : String(error)}`,
+    )
+    for (const operation of this.operations.values()) {
+      if (!operation.isSettled())
+        operation.abortController.abort(this.logFailure)
+    }
+    void this.close()
+  }
+
+  /**
+   * Append host records to the session log, in one batch after the events
+   * that wait. Only a durable host (with `stores.log`) has a log. A `type`
+   * that starts with `harness.` is refused: the harness owns those.
+   *
+   * With `project` on the host, a record can change the model context. The
+   * running turn sees the change at its next model call.
+   *
+   * @example
+   * ```ts
+   * await session.append([{ type: 'app.signal', text: 'The build failed.' }])
+   * ```
+   */
+  async append(records: ReadonlyArray<LogRecord>): Promise<void> {
+    if (!this.writer) {
+      throw new Error(
+        'session.append needs a durable host (a host with stores.log).',
+      )
+    }
+    const reserved = records.find((record) =>
+      record.type.startsWith('harness.'),
+    )
+    if (reserved) {
+      throw new Error(
+        `The record type ${JSON.stringify(reserved.type)} is reserved for the harness.`,
+      )
+    }
+    await this.writer.append(records)
   }
 
   // ===========================
@@ -698,9 +836,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
 
   /** The saved messages of this thread, oldest first. */
   async transcript() {
-    return [
-      ...(await this.persistence.stores.messages.loadThread(this.threadId)),
-    ]
+    return [...(await this.messages.loadThread(this.threadId))]
   }
 
   /** The commands, settings, and tools of this session, for a UI. */
@@ -850,7 +986,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       prompt: (text) => this.prompt(text, { busy: 'queue' }),
       transcript: () => this.transcript(),
       replaceTranscript: (messages) =>
-        this.persistence.stores.messages.saveThread(this.threadId, messages),
+        this.messages.saveThread(this.threadId, messages),
       // The public type narrows the answer from the schema.
       ask: ((question: Question<SchemaInput | undefined>) =>
         this.ask(question)) as PluginSessionApi['ask'],
@@ -1117,13 +1253,19 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     )
   }
 
-  /** Middleware that adds queued steer messages before each model call. */
+  /**
+   * Middleware that runs before each model call. On a durable host it
+   * commits the engine's messages, and it sends the folded log when a host
+   * record changed the context. Then it adds queued steer messages.
+   */
   private steering(): AnyChatMiddleware {
     return {
       name: 'harness:steering',
-      onConfig: (ctx, config) => {
-        if (ctx.phase !== 'beforeModel' || this.steerQueue.length === 0) {
-          return undefined
+      onConfig: async (ctx, config) => {
+        if (ctx.phase !== 'beforeModel') return undefined
+        const synced = await this.engine?.beforeModel(config.messages)
+        if (this.steerQueue.length === 0) {
+          return synced ? { messages: synced } : undefined
         }
         const steers = this.steerQueue.splice(0)
         const running = this.activeTurn
@@ -1148,7 +1290,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         }
         return {
           messages: [
-            ...config.messages,
+            ...(synced ?? config.messages),
             ...steers.map(
               (steer): ModelMessage => ({
                 id: createMessageId(),
@@ -1244,7 +1386,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
 
   /** Add the media a turn made to the last assistant message of the thread. */
   private async saveTurnMedia(media: Array<MediaRecord>) {
-    const store = this.persistence.stores.messages
+    const store = this.messages
     const history = await store.loadThread(this.threadId)
     const index = history.findLastIndex(
       (message) => message.role === 'assistant',
@@ -1343,6 +1485,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         turn.message !== undefined
           ? await this.userMessage(turn.message)
           : undefined
+      if (!this.chatPersistence || !this.checkpoint) {
+        throw new Error('The session is not open yet.')
+      }
       const stream = chat({
         adapter,
         messages: message ? [message] : [],
@@ -1355,7 +1500,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         tools,
         middleware: [
           ...bridges,
-          withPersistence(this.persistence),
+          withPersistence(this.chatPersistence),
           this.checkpoint,
           ...(this.harness.middleware ?? []),
           ...(session?.middleware ?? []),
@@ -1446,7 +1591,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       )
     }
 
-    if (operation.abortController.signal.aborted) {
+    if (this.logFailure) {
+      operation.fail('failed', this.logFailure)
+    } else if (operation.abortController.signal.aborted) {
       operation.fail('cancelled', new Error('Cancelled.'))
     } else if (failure !== undefined) {
       operation.fail('failed', new Error(failure))
@@ -1595,9 +1742,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     let failure: string | undefined
     let subagentRunId = ''
     try {
-      const messages = await this.persistence.stores.messages?.loadThread(
-        this.threadId,
-      )
+      const messages = await this.messages.loadThread(this.threadId)
       subagentRunId = createSubagentId()
       const stream = runAgentStream(
         agent,
@@ -1699,8 +1844,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
 
   /** Write queued agent notes to the transcript while no turn is writing it. */
   private async flushNotes(): Promise<void> {
-    const messages = this.persistence.stores.messages
-    if (!messages || this.pendingNotes.length === 0) return
+    const messages = this.messages
+    if (this.pendingNotes.length === 0) return
     const notes = this.pendingNotes.splice(0)
     const history = await messages.loadThread(this.threadId)
     await messages.saveThread(this.threadId, [
@@ -1795,10 +1940,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       })
     }
     if (!newest) return
-    await repairTranscript({
-      messages: this.persistence.stores.messages,
-      crashed: newest,
-    })
+    await repairTranscript({ messages: this.messages, crashed: newest })
     const operation = this.createTurnOperation()
     this.feed.publish(
       operation.id,

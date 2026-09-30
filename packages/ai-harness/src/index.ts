@@ -4,8 +4,16 @@ export type {
   HarnessAgentsOf,
   HarnessConfig,
   HarnessDefinition,
+  HarnessDurability,
   HarnessSubagents,
 } from './define'
+
+export { durableTool } from './durable-tool'
+export type { DurableToolContext, ToolStep } from './durable-tool'
+
+export { logMessageStore } from './log'
+export type { ProjectOptions, ProjectRecord } from './log'
+export type { LeaseOptions } from './resume'
 
 export { definePlugin } from './plugins'
 export type {
@@ -74,12 +82,13 @@ export type {
   SessionSnapshot,
 } from './session'
 
-export { HARNESS_EVENTS } from './types'
+export { HARNESS_EVENTS, InputRejectedError } from './types'
 export type {
   BusyPolicy,
   ChatTurnResult,
   Cursor,
   HarnessInput,
+  InputSettlement,
   MediaKind,
   MediaRecord,
   Operation,

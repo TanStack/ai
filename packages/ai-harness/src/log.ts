@@ -760,6 +760,80 @@ export function sessionMessageStore(options: {
 }
 
 /**
+ * The `MessageStore` the chat engine of a durable session saves through
+ * (`withPersistence` and the checkpoints). It remembers the list the engine
+ * holds. A host record can change the fold while the engine runs, and the
+ * engine does not see that until its next model call. So a save that only
+ * adds messages to what the engine holds puts them on top of the current
+ * fold, and a projected message is not lost. `beforeModel` commits the
+ * engine's list and gives the model the fold, so the two are the same at
+ * every model call.
+ */
+export function engineMessageStore(options: {
+  writer: LogWriter
+  store: LogStore
+  project?: ProjectOptions
+}) {
+  const { writer } = options
+  const shared = sessionMessageStore(options)
+  const fold = () => [...writer.state.messages]
+  let held = fold()
+  /**
+   * What to write for an engine save of `list`, when the engine held `base`:
+   *
+   * - The fold only added host messages after `base`: the engine's new
+   *   messages go first, then the host messages. So a signal never lands
+   *   between a tool call and its result.
+   * - A host record rewrote the fold (a compaction): the engine's new
+   *   messages go after the rewritten fold.
+   * - The engine changed older messages itself (a compaction middleware):
+   *   `list` wins.
+   */
+  const rebase = (base: Array<ModelMessage>, list: Array<ModelMessage>) => {
+    const current = writer.state.messages
+    const isEngineExtension = commonPrefix(base, list) === base.length
+    if (!isEngineExtension) return list
+    const added = list.slice(base.length)
+    const isFoldExtension = commonPrefix(base, current) === base.length
+    return isFoldExtension
+      ? [...base, ...added, ...current.slice(base.length)]
+      : [...current, ...added]
+  }
+  const engine = {
+    loadThread: async (threadId: string) => {
+      if (threadId !== writer.threadId) return shared.loadThread(threadId)
+      held = fold()
+      return [...held]
+    },
+    saveThread: (threadId: string, list: Array<ModelMessage>) => {
+      if (threadId !== writer.threadId) return shared.saveThread(threadId, list)
+      const target = rebase(held, list)
+      held = [...list]
+      return writer.commit({ messages: target })
+    },
+    /**
+     * Before each model call: commit the engine's `list` (it has the tool
+     * results of the last phase) on top of the fold. Returns the list the
+     * model gets when a host record changed it, else `undefined`.
+     */
+    beforeModel: async (list: ReadonlyArray<ModelMessage>) => {
+      const target = rebase(held, [...list])
+      held = [...target]
+      await writer.commit({ messages: target })
+      const isSame =
+        target.length === list.length &&
+        commonPrefix(target, list) === list.length
+      return isSame ? undefined : [...target]
+    },
+  } satisfies MessageStore & {
+    beforeModel: (
+      list: ReadonlyArray<ModelMessage>,
+    ) => Promise<Array<ModelMessage> | undefined>
+  }
+  return engine
+}
+
+/**
  * A `MessageStore` view of a session log, for a reader outside a session
  * (for example `reconstructChat`). `loadThread` folds the log. `saveThread`
  * appends the change as one transcript record.

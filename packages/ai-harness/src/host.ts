@@ -1,5 +1,6 @@
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { HarnessSession } from './session'
+import type { RunStore } from '@tanstack/ai'
 import type {
   AIPersistence,
   ArtifactStore,
@@ -8,29 +9,65 @@ import type {
   CredentialStore,
   GenerationRunStore,
   InboxStore,
+  InterruptStore,
+  LogStore,
+  MetadataStore,
 } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
+import type { ProjectOptions } from './log'
+import type { LeaseOptions } from './resume'
 import type { Principal } from './types'
 
+type SharedStores = {
+  credentials?: CredentialStore
+  artifacts?: ArtifactStore
+  blobs?: BlobStore
+  generationRuns?: GenerationRunStore
+}
+
 /**
- * The stores a host needs: a message store, plus any of runs, interrupts,
- * metadata, and inbox. Without an inbox, inputs are kept in memory and a
- * restart loses the ones not yet applied. Without `artifacts`, `blobs`, and
- * `generationRuns`, media is kept in memory too.
+ * The stores a host needs. Two shapes:
+ *
+ * - A message store, plus any of runs, interrupts, metadata, and inbox.
+ *   Without an inbox, inputs are kept in memory and a restart loses the ones
+ *   not yet applied.
+ * - Durable mode: a `log` and `runs`. The log holds the events, transcript,
+ *   inputs, and tool steps of each thread, so this shape has no `messages`
+ *   and no `inbox`.
+ *
+ * Without `artifacts`, `blobs`, and `generationRuns`, media is kept in memory.
  */
-export type HarnessPersistence = AIPersistence<
-  ChatTranscriptStores & {
-    inbox?: InboxStore
-    credentials?: CredentialStore
-    artifacts?: ArtifactStore
-    blobs?: BlobStore
-    generationRuns?: GenerationRunStore
-  }
->
+export type HarnessPersistence =
+  | AIPersistence<
+      ChatTranscriptStores & { inbox?: InboxStore; log?: never } & SharedStores
+    >
+  | AIPersistence<
+      {
+        log: LogStore
+        runs: RunStore
+        interrupts?: InterruptStore
+        metadata?: MetadataStore
+        messages?: never
+        inbox?: never
+      } & SharedStores
+    >
 
 export interface HarnessHostOptions {
   /** Where sessions keep their state. Default: in memory, lost on restart. */
   persistence?: HarnessPersistence
+  /**
+   * How a durable host folds your own log records into the model context.
+   * Only a host with `stores.log` reads it.
+   */
+  project?: ProjectOptions
+  /**
+   * How long a durable host merges streamed text before it appends it to the
+   * log, in milliseconds. Boundaries (a message start or end, a tool call, a
+   * run event) append at once. Default 100.
+   */
+  coalesceMs?: number
+  /** How long a run lease lasts, and how often the host renews it. */
+  lease?: LeaseOptions
 }
 
 export interface OpenSessionOptions {
@@ -56,6 +93,22 @@ export interface HarnessHost {
 
 let warned = false
 
+/** Throw a clear error for a durable store set that cannot work. */
+function checkDurableStores(persistence: HarnessPersistence) {
+  const { stores } = persistence
+  if (stores.log === undefined) return
+  if (stores.runs === undefined) {
+    throw new Error(
+      'A durable host (stores.log) needs stores.runs: run leases find a crashed host.',
+    )
+  }
+  if (stores.messages !== undefined || stores.inbox !== undefined) {
+    throw new Error(
+      'A durable host (stores.log) keeps the transcript and the inputs in the log. Remove stores.messages and stores.inbox. A reader outside a session can use logMessageStore({ store }).',
+    )
+  }
+}
+
 /**
  * Create a host for harness sessions.
  *
@@ -75,18 +128,20 @@ export function createHarnessHost(
       '[@tanstack/ai-harness] No persistence given: sessions live in memory and are lost on restart.',
     )
   }
-  const persistence = options.persistence ?? memoryPersistence()
+  const persistence: HarnessPersistence =
+    options.persistence ?? memoryPersistence()
+  checkDurableStores(persistence)
+  const memory = memoryPersistence().stores
   // ponytail: a memory inbox when the stores have none. Pass `stores.inbox`
-  // to keep accepted inputs across restarts.
-  const inbox = persistence.stores.inbox ?? memoryPersistence().stores.inbox
+  // to keep accepted inputs across restarts. A durable host keeps them in
+  // the log instead.
+  const inbox = persistence.stores.inbox ?? memory.inbox
   // ponytail: memory credentials when the stores have none. Pass
   // `stores.credentials` to keep sign-ins across restarts.
-  const credentials =
-    persistence.stores.credentials ?? memoryPersistence().stores.credentials
+  const credentials = persistence.stores.credentials ?? memory.credentials
   // ponytail: memory media stores when the stores have none. Pass
   // `stores.artifacts`, `stores.blobs`, and `stores.generationRuns` to keep
   // media across restarts.
-  const memory = memoryPersistence().stores
   const media = {
     stores: {
       artifacts: persistence.stores.artifacts ?? memory.artifacts,
@@ -95,6 +150,13 @@ export function createHarnessHost(
         persistence.stores.generationRuns ?? memory.generationRuns,
     },
   }
+  const log = persistence.stores.log
+    ? {
+        store: persistence.stores.log,
+        coalesceMs: options.coalesceMs ?? 100,
+        ...(options.project ? { project: options.project } : {}),
+      }
+    : undefined
   const sessions = new Map<string, Promise<HarnessSession>>()
   const hostId = `host-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 
@@ -111,6 +173,8 @@ export function createHarnessHost(
           credentials,
           media,
           hostId,
+          ...(log ? { log } : {}),
+          ...(options.lease ? { lease: options.lease } : {}),
           ...(principal ? { principal } : {}),
           onClose: () => sessions.delete(key),
         })
