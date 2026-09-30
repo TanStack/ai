@@ -39,8 +39,6 @@ Need Gemini on Vertex AI (regional endpoints and Google Cloud credentials)? Use 
 
 Use `gemini-3.8-flash` for chat with multimodal input, thinking, and built-in tools. It also supports structured output and caching.
 
-For Gemini 3.8 Flash, set `modelOptions.thinkingConfig.thinkingLevel` to `LOW`, `MEDIUM`, or `HIGH`. The Interactions adapter uses `modelOptions.generation_config.thinking_level` with `low`, `medium`, or `high`. Gemini 3.8 Flash does not accept the `minimal` thinking level.
-
 ```typescript
 import { chat } from "@tanstack/ai";
 import { geminiText } from "@tanstack/ai-gemini";
@@ -359,13 +357,13 @@ const stream = chat({
 
     // snake_case generation config distinct from geminiText's camelCase one.
     generation_config: {
-      thinking_level: "low",
-      thinking_summaries: "auto",
       stop_sequences: ["<done>"],
     },
 
     response_modalities: ["text"],
   },
+  // Sent as generation_config.thinking_level and thinking_summaries.
+  reasoning: "low",
 });
 ```
 
@@ -424,15 +422,24 @@ const stream = chat({
 
 ### Thinking
 
-Enable thinking for models that support it:
+Set how hard Gemini thinks with `reasoning` on `chat()`:
 
-```typescript ignore
-modelOptions: {
-  thinking: {
-    includeThoughts: true,
-  },
-}
+```typescript
+import { chat } from "@tanstack/ai";
+import { geminiText } from "@tanstack/ai-gemini";
+
+const stream = chat({
+  adapter: geminiText("gemini-3.8-flash"),
+  messages: [{ role: "user", content: "Plan a trip to Kyoto." }],
+  reasoning: "high",
+});
 ```
+
+- **Gemini 3 models** take thinking levels. The adapter sends `thinkingConfig.thinkingLevel`. Gemini 3.8 Flash has `low`, `medium`, and `high`.
+- **Gemini 2.5 models** take a token budget. The adapter sends `thinkingConfig.thinkingBudget`, from `budgetTokens` or a default for the level. `off` sends a budget of `0`.
+- **The Interactions adapter** sends `generation_config.thinking_level`.
+
+The thinking text streams back as thinking parts. `summary: false` sets `includeThoughts: false`. See [Reasoning](../chat/reasoning).
 
 ### Structured Output
 

@@ -78,7 +78,8 @@
         {
           "label": "Persisted subagents",
           "to": "tutorials/subagents-persisted",
-          "addedAt": "2026-09-22"
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Build an MCP Server",
@@ -177,7 +178,12 @@
           "label": "Thinking & Reasoning",
           "to": "chat/thinking-content",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-09-30"
+        },
+        {
+          "label": "Reasoning",
+          "to": "chat/reasoning",
+          "addedAt": "2026-09-30"
         },
         {
           "label": "Message Queue",
@@ -1218,13 +1224,19 @@
         {
           "label": "Extend Adapter",
           "to": "advanced/extend-adapter",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-09-30"
+        },
+        {
+          "label": "Model Catalog",
+          "to": "models/catalog",
+          "addedAt": "2026-09-30"
         },
         {
           "label": "Typed Pre-Configured Options",
           "to": "advanced/typed-options",
           "addedAt": "2026-05-25",
-          "updatedAt": "2026-09-14"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Approval Flow Processing",
@@ -1242,19 +1254,19 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-24"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Google Vertex AI",
@@ -1278,7 +1290,7 @@
           "label": "Groq",
           "to": "adapters/groq",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-07"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Mistral",
@@ -1330,7 +1342,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Perplexity Search",
@@ -1353,18 +1365,19 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "LLM Gateway",
           "to": "adapters/llmgateway",
-          "addedAt": "2026-07-29"
+          "addedAt": "2026-07-29",
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Cloudflare",
           "to": "adapters/cloudflare",
           "addedAt": "2026-09-03",
-          "updatedAt": "2026-09-18"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Claude Code",
@@ -1376,7 +1389,7 @@
           "label": "Codex",
           "to": "adapters/codex",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "OpenCode",
@@ -1406,7 +1419,7 @@
           "label": "BytePlus",
           "to": "adapters/byteplus",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-16"
+          "updatedAt": "2026-09-30"
         }
       ],
       "tab": "adapters"
@@ -1419,7 +1432,7 @@
           "label": "Community Adapters Guide",
           "to": "community-adapters/guide",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Decart",
@@ -1480,6 +1493,11 @@
           "label": "Sampling \u00e2\u2020\u2019 modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
+        },
+        {
+          "label": "Reasoning option",
+          "to": "migration/reasoning-option",
+          "addedAt": "2026-09-30"
         },
         {
           "label": "TextPart markdown",

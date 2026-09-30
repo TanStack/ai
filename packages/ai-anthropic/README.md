@@ -98,21 +98,17 @@ export async function POST(request: Request) {
 
 ### Thinking
 
-Newer Claude models use adaptive thinking — the model decides when and how much to think, and depth is tuned with `output_config.effort`:
+Set how hard Claude thinks with `reasoning` on `chat()`:
 
 ```typescript
 const stream = chat({
   adapter: anthropicText('claude-sonnet-5'),
   messages: [{ role: 'user', content: 'Plan a database migration.' }],
-  modelOptions: {
-    thinking: { type: 'adaptive', display: 'summarized' },
-    output_config: { effort: 'xhigh' },
-    max_tokens: 64_000,
-  },
+  reasoning: 'xhigh',
 })
 ```
 
-Claude 4.6 models also accept the manual `{ type: 'enabled', budget_tokens }` shape; `budget_tokens` must be less than `max_tokens`. Which shapes and sampling parameters each model accepts is enforced by the adapter's types — see the docs for the per-model rules.
+The adapter sends adaptive thinking with the effort on Claude 4.6 and later, and a thinking token budget on older models (`reasoning: { level: 'high', budgetTokens: 8000 }`). The types take only the levels each model has.
 
 ### Prompt Caching
 

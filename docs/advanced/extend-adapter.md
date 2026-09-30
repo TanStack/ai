@@ -209,3 +209,54 @@ chat({
   messages: [{ role: 'user', content: 'Analyze this...' }]
 })
 ```
+
+## Add reasoning to your adapter
+
+`chat({ reasoning })` reaches an adapter as `options.reasoning`: a level, a `summary` flag, and an optional `budgetTokens`. To support it:
+
+1. Give each model its reasoning data as a `ModelReasoning`: a map from each level to the value your provider takes, and whether it takes a token budget.
+2. Declare the levels on the adapter type, so `chat()` checks them. The last type parameter of `BaseTextAdapter` and the `openai-base` adapters is `{ levels; budget }`.
+3. Turn the request into your provider's field. `resolveReasoning` clamps the level to the model and looks up the value.
+
+An adapter built on `@tanstack/openai-base` only needs `modelReasoning`. The base then sends `reasoning_effort` on Chat Completions, or `reasoning.effort` on Responses:
+
+```typescript
+import OpenAI from "openai";
+import { OpenAIBaseChatCompletionsTextAdapter } from "@tanstack/openai-base";
+import type {
+  DefaultMessageMetadataByModality,
+  Modality,
+  ModelReasoning,
+} from "@tanstack/ai";
+
+const MY_MODEL_REASONING: Record<string, ModelReasoning> = {
+  "my-model": {
+    map: { off: "none", minimal: null, low: "low", medium: "medium", high: "high" },
+    budget: false,
+  },
+};
+
+class MyTextAdapter extends OpenAIBaseChatCompletionsTextAdapter<
+  "my-model",
+  Record<string, unknown>,
+  ReadonlyArray<Modality>,
+  DefaultMessageMetadataByModality,
+  ReadonlyArray<string>,
+  { levels: "off" | "low" | "medium" | "high"; budget: false }
+> {
+  protected override modelReasoning(model: string) {
+    return MY_MODEL_REASONING[model];
+  }
+}
+
+export const myText = () =>
+  new MyTextAdapter(
+    "my-model",
+    "my-provider",
+    new OpenAI({ apiKey: process.env.MY_API_KEY, baseURL: "https://api.example.com/v1" }),
+  );
+```
+
+An adapter with another wire format calls `resolveReasoning` from `@tanstack/ai/adapter-internals` in its request code and sends the result its own way.
+
+Models added with `extendAdapter` take no `reasoning` option, because the adapter has no reasoning data for them.

@@ -250,7 +250,7 @@ export default {
 
 ## Model options
 
-Sampling and reasoning controls go in `modelOptions`. Reasoning models stream their thinking as `reasoning_content`, which shows up as `REASONING_*` events.
+Sampling controls go in `modelOptions`, and the reasoning level goes in `reasoning`. Reasoning models stream their thinking as `reasoning_content`, which shows up as `REASONING_*` events.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -262,11 +262,12 @@ const stream = chat({
   modelOptions: {
     temperature: 0.3,
     max_tokens: 512,
-    reasoning_effort: "low",
-    chat_template_kwargs: { enable_thinking: false },
   },
+  reasoning: "low",
 });
 ```
+
+`reasoning` goes out as `reasoning_effort`. `off` sends `null`, which turns reasoning off. Model template settings, such as `chat_template_kwargs`, stay in `modelOptions`.
 
 ## Evaluate
 

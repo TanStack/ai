@@ -35,11 +35,7 @@ The `ThinkingPart` appears in `UIMessage.parts` alongside `TextPart` and `ToolCa
 
 ## Enabling Thinking
 
-How you enable thinking depends on the provider.
-
-### Anthropic (Extended Thinking)
-
-Pass the `thinking` option in `modelOptions` with `type: "enabled"` and a `budget_tokens` (minimum 1024). Keep `budget_tokens` below `modelOptions.max_tokens` so there is room for the visible response in addition to the thinking budget:
+Turn thinking on with `reasoning` on `chat()`. It works the same on every provider:
 
 ```typescript
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
@@ -50,60 +46,13 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: anthropicText("claude-sonnet-4-6"),
     messages,
-    modelOptions: {
-      max_tokens: 32000,
-      // budget_tokens must be at least 1024 and below max_tokens
-      thinking: { type: "enabled", budget_tokens: 10000 },
-    },
+    reasoning: "high",
   });
   return toServerSentEventsResponse(stream);
 }
 ```
 
-### OpenAI (Reasoning Models)
-
-OpenAI o-series models (o1, o3, o3-mini, o3-pro) perform reasoning automatically. You can control the depth with the `reasoning` option:
-
-```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-
-export async function POST(request: Request) {
-  const { messages } = await request.json();
-  const stream = chat({
-    adapter: openaiText("o3-mini"),
-    messages,
-    modelOptions: {
-      reasoning: {
-        effort: "medium", // 'none' | 'minimal' | 'low' | 'medium' | 'high'
-        summary: "auto", // 'auto' | 'detailed'
-      },
-    },
-  });
-  return toServerSentEventsResponse(stream);
-}
-```
-
-When `reasoning.summary` is set, the adapter streams reasoning summary text as thinking content. Without it, reasoning tokens are still used internally but may not be surfaced depending on the model.
-
-GPT-5 and later models also support reasoning. Their `reasoning.effort` accepts `"none" | "minimal" | "low" | "medium" | "high"`, and reasoning activates on any non-`none` value:
-
-```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-
-export async function POST(request: Request) {
-  const { messages } = await request.json();
-  const stream = chat({
-    adapter: openaiText("gpt-5.5"),
-    messages,
-    modelOptions: {
-      reasoning: { effort: "high" },
-    },
-  });
-  return toServerSentEventsResponse(stream);
-}
-```
+The thinking text streams back as `ThinkingPart`s. Some models reason without returning any text; with those, the part stays empty. See [Reasoning](./reasoning) for the levels, token budgets, and hiding the thinking text.
 
 ## Rendering in React
 

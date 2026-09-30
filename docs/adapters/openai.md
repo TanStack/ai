@@ -214,18 +214,20 @@ const stream = chat({
 
 ### Reasoning
 
-Enable reasoning for models that support it (e.g., GPT-5, O3). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
+Set how hard a reasoning model (GPT-5 and later, the o-series) thinks with `reasoning` on `chat()`:
 
-```typescript ignore
-modelOptions: {
-  reasoning: {
-    effort: "medium", // "none" | "minimal" | "low" | "medium" | "high"
-    summary: "detailed", // "auto" | "detailed" (optional)
-  },
-}
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.5"),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  reasoning: "high",
+});
 ```
 
-When reasoning is enabled, the model's reasoning process is streamed separately from the response text and appears as a collapsible thinking section in the UI.
+The adapter sends the level as `reasoning.effort`, with `summary: "auto"` so the reasoning summary streams back as thinking parts. Pass `reasoning: { level: "high", summary: false }` to skip the summary. The types list only the levels the model has. See [Reasoning](../chat/reasoning).
 
 ## Summarization
 

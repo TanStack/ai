@@ -49,13 +49,9 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: openRouterText('deepseek/deepseek-v4-pro'),
   messages,
+  // Reasoning is a chat() option, sent as reasoning.effort
+  reasoning: 'high',
   modelOptions: {
-    // Reasoning
-    reasoning: {
-      effort: 'high', // 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
-      summary: 'auto',
-      // enabled: false — explicit opt-out (normalized to effort: 'none')
-    },
     // Sampling
     temperature: 0.7,
     topP: 0.9,
