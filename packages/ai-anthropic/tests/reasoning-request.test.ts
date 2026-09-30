@@ -105,6 +105,12 @@ describe('Anthropic chat({ reasoning }) request shape', () => {
     expect(body).not.toHaveProperty('effort')
   })
 
+  it('Claude Opus 4.5: effort levels but no adaptive thinking, so a budget', async () => {
+    const body = await send('claude-opus-4-5', on('medium'))
+    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 8192 })
+    expect(body).not.toHaveProperty('output_config')
+  })
+
   it('budget models: the level picks the budget, and max_tokens grows past it', async () => {
     const body = await send('claude-haiku-4-5', on('medium'), {
       modelOptions: { max_tokens: 4000 },

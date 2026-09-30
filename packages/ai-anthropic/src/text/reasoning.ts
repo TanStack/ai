@@ -16,6 +16,13 @@ const isEffort = (value: string): value is AnthropicEffort =>
  */
 const TOP_LEVEL_EFFORT = new Set(['claude-opus-4-6', 'claude-sonnet-4-6'])
 
+/**
+ * The Claude models with adaptive thinking: 4.6 and later (pi's list). An
+ * older model with effort levels, such as Opus 4.5, still thinks with a
+ * token budget.
+ */
+const ADAPTIVE_THINKING = /opus-4-[6-9]|sonnet-4-[6-9]|opus-5|sonnet-5|fable-5/
+
 /** The Messages API thinking fields for one request. */
 export interface AnthropicThinkingFields {
   thinking?:
@@ -30,7 +37,7 @@ export interface AnthropicThinkingFields {
  * The thinking fields for `chat({ reasoning })`:
  * - `off`: thinking disabled. A model that cannot stop thinking never gets
  *   here, because the clamp moves `off` to its lowest level.
- * - a model with a token budget and no effort levels, or a request with
+ * - a budget model without adaptive thinking, or a request with
  *   `budgetTokens`: `thinking.type: 'enabled'` with the budget (pi's table
  *   when the request sets none).
  * - otherwise adaptive thinking with the model's effort for the level.
@@ -45,7 +52,10 @@ export function anthropicThinking(
   if (!resolved || !reasoning) return {}
   if (resolved.level === 'off') return { thinking: { type: 'disabled' } }
   const budgetOnly =
-    reasoning.budget && (resolved.budgetTokens !== undefined || !reasoning.map)
+    reasoning.budget &&
+    (resolved.budgetTokens !== undefined ||
+      !reasoning.map ||
+      !ADAPTIVE_THINKING.test(model))
   if (budgetOnly)
     return {
       thinking: {
