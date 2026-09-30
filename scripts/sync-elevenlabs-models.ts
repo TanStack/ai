@@ -3,8 +3,8 @@
  * `packages/ai-elevenlabs/src/model-meta.ts`.
  *
  * Text-to-speech: https://modelschemas.com/v1/models?provider=elevenlabs
- * Music: request schema `v1/music/video-to-music` (no compose schema exists;
- * that enum is the SDK `MusicModelId` set).
+ * Music: request schema `v1/music` (compose). That enum is the SDK
+ * `MusicModelId` set.
  * Sound effects: `v1/sound-generation`.
  * Voice design: `v1/text-to-voice/design`.
  *
@@ -66,7 +66,7 @@ function unwrapSchema(payload: unknown, url: string): unknown {
 }
 
 async function main() {
-  const musicUrl = schemaUrl('v1/music/video-to-music')
+  const musicUrl = schemaUrl('v1/music')
   const sfxUrl = schemaUrl('v1/sound-generation')
   const voiceUrl = schemaUrl('v1/text-to-voice/design')
   const [catalogPayload, musicPayload, sfxPayload, voicePayload] =

@@ -8,7 +8,7 @@ import type { ElevenLabs } from '@elevenlabs/elevenlabs-js'
  * `pnpm generate:models` sync. Text-to-speech comes from
  * `GET /v1/models?provider=elevenlabs` (`canDoTextToSpeech` only). Music,
  * sound effects, and voice design come from the request schemas for
- * `v1/music/video-to-music`, `v1/sound-generation`, and
+ * `v1/music`, `v1/sound-generation`, and
  * `v1/text-to-voice/design`. The script only adds missing ids. It leaves
  * rows that are already listed, including deprecated ids.
  *
