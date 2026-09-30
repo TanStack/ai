@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  completeChatGptSignInIntoByok,
+  completeChatGptSignIn,
   refreshChatGptSignIn,
+  saveChatGptSignIn,
   startChatGptSignIn,
 } from '../src/siwc'
 
@@ -90,12 +91,9 @@ describe('startChatGptSignIn', () => {
   })
 })
 
-describe('completeChatGptSignInIntoByok', () => {
+describe('completeChatGptSignIn', () => {
   it('returns false when the URL is not a callback', async () => {
-    const store = memoryStore()
-    expect(await completeChatGptSignInIntoByok(store, { url: REDIRECT })).toBe(
-      false,
-    )
+    expect(await completeChatGptSignIn({ url: REDIRECT })).toBeNull()
   })
 
   it('exchanges the code and saves the token and credential', async () => {
@@ -115,12 +113,13 @@ describe('completeChatGptSignInIntoByok', () => {
     })
     const store = memoryStore()
 
-    const done = await completeChatGptSignInIntoByok(store, {
+    const signIn = await completeChatGptSignIn({
       url: callback({ code: 'c1', state, client_id: 'oaiapp_1' }),
       fetchImpl,
     })
+    expect(signIn).not.toBeNull()
+    if (signIn) await saveChatGptSignIn(store, signIn)
 
-    expect(done).toBe(true)
     expect(store.keys().openai).toBe('access-1')
     const credential = JSON.parse(store.keys()['openai-chatgpt'] ?? '')
     expect(credential).toMatchObject({
@@ -143,7 +142,7 @@ describe('completeChatGptSignInIntoByok', () => {
   it('rejects a state that does not match', async () => {
     await start()
     await expect(
-      completeChatGptSignInIntoByok(memoryStore(), {
+      completeChatGptSignIn({
         url: callback({ code: 'c1', state: 'other', client_id: 'oaiapp_1' }),
       }),
     ).rejects.toThrow('expired')
@@ -152,7 +151,7 @@ describe('completeChatGptSignInIntoByok', () => {
   it('surfaces a declined consent', async () => {
     const state = (await start()).searchParams.get('state') ?? ''
     await expect(
-      completeChatGptSignInIntoByok(memoryStore(), {
+      completeChatGptSignIn({
         url: callback({ error: 'access_denied', state }),
       }),
     ).rejects.toThrow('access_denied')
@@ -171,9 +170,8 @@ describe('completeChatGptSignInIntoByok', () => {
         nonce: auth.searchParams.get('nonce'),
       }),
     })
-    const store = memoryStore()
     await expect(
-      completeChatGptSignInIntoByok(store, {
+      completeChatGptSignIn({
         url: callback({
           code: 'c1',
           state: auth.searchParams.get('state') ?? '',
@@ -182,7 +180,6 @@ describe('completeChatGptSignInIntoByok', () => {
         fetchImpl,
       }),
     ).rejects.toThrow('plan use')
-    expect(store.keys().openai).toBeUndefined()
   })
 
   it('rejects an ID token with the wrong nonce', async () => {
@@ -199,7 +196,7 @@ describe('completeChatGptSignInIntoByok', () => {
       }),
     })
     await expect(
-      completeChatGptSignInIntoByok(memoryStore(), {
+      completeChatGptSignIn({
         url: callback({
           code: 'c1',
           state: auth.searchParams.get('state') ?? '',

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { KeyRound, X } from 'lucide-react'
 import { useByok } from '@tanstack/ai-react'
+import { startChatGptSignIn } from '@tanstack/ai-openai/siwc'
 import { byok, KEYED_PROVIDERS, KEY_GROUPS } from '@/lib/byok'
 import type { KeyStatus } from '@tanstack/ai-client/byok'
 import type { ProviderId } from '@tanstack/ai/byok'
@@ -270,6 +271,25 @@ function ProviderRow({
           onClick={openRouter.onLogin}
         >
           Sign in with OpenRouter
+        </button>
+      ) : null}
+
+      {id === 'openai' && !hasKey ? (
+        <button
+          type="button"
+          className="w-full rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm font-semibold text-white"
+          onClick={() => {
+            setRowError('')
+            // Needs the app on http://127.0.0.1:3000 — ChatGPT rejects localhost.
+            void startChatGptSignIn({ agentName: 'TanStack AI Chat' }).catch(
+              (error: unknown) =>
+                setRowError(
+                  error instanceof Error ? error.message : 'Sign-in failed',
+                ),
+            )
+          }}
+        >
+          Continue with ChatGPT
         </button>
       ) : null}
 

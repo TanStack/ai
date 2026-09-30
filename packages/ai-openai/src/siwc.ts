@@ -74,6 +74,11 @@ interface Credential {
   expiresAt: number
 }
 
+/** A finished sign-in. Hold it in memory until you save it. */
+export interface ChatGptSignIn extends Credential {
+  accessToken: string
+}
+
 interface TokenResponse {
   access_token: string
   refresh_token: string
@@ -237,18 +242,13 @@ async function postToken(
   }
 }
 
-async function saveTokens(
-  store: ChatGptByokStore,
-  clientId: string,
-  tokens: TokenResponse,
-): Promise<void> {
-  const credential: Credential = {
+function toSignIn(clientId: string, tokens: TokenResponse): ChatGptSignIn {
+  return {
     clientId,
+    accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token,
     expiresAt: Date.now() + tokens.expires_in * 1000,
   }
-  await store.update(CREDENTIAL_ID, JSON.stringify(credential))
-  await store.update(openaiByok.id, tokens.access_token)
 }
 
 /**
@@ -306,18 +306,17 @@ export async function startChatGptSignIn(
 }
 
 /**
- * Finish the sign-in on your `/auth/callback` page. Saves the access token
- * under `openai` and the refresh credential in the same keyring.
+ * Finish the sign-in on your `/auth/callback` page: check the callback and
+ * exchange the code. Pass the result to {@link saveChatGptSignIn}.
  *
- * Returns `false` when the URL is not a sign-in callback.
+ * Returns `null` when the URL is not a sign-in callback.
  */
-export async function completeChatGptSignInIntoByok(
-  store: ChatGptByokStore,
+export async function completeChatGptSignIn(
   options: CompleteChatGptSignInOptions = {},
-): Promise<boolean> {
+): Promise<ChatGptSignIn | null> {
   const params = new URL(options.url ?? globalThis.location.href).searchParams
   const state = params.get('state')
-  if (!state || (!params.has('code') && !params.has('error'))) return false
+  if (!state || (!params.has('code') && !params.has('error'))) return null
 
   const pending = readPending()
   if (!pending || pending.state !== state) {
@@ -364,8 +363,21 @@ export async function completeChatGptSignInIntoByok(
     HOST_STORAGE_KEY,
     JSON.stringify({ ...readHost(), clientId }),
   )
-  await saveTokens(store, clientId, tokens)
-  return true
+  return toSignIn(clientId, tokens)
+}
+
+/**
+ * Save a sign-in into the BYOK keyring: the access token under `openai`, the
+ * refresh credential in a slot that no send attaches. With passkey storage,
+ * call it from a click handler, before any other `await`.
+ */
+export async function saveChatGptSignIn(
+  store: ChatGptByokStore,
+  signIn: ChatGptSignIn,
+): Promise<void> {
+  const { accessToken, ...credential } = signIn
+  await store.update(CREDENTIAL_ID, JSON.stringify(credential))
+  await store.update(openaiByok.id, accessToken)
 }
 
 const inFlight = new WeakMap<ChatGptByokStore, Promise<void>>()
@@ -413,7 +425,7 @@ async function refresh(
       },
       fetchImpl,
     )
-    await saveTokens(store, credential.clientId, tokens)
+    await saveChatGptSignIn(store, toSignIn(credential.clientId, tokens))
   } catch (error) {
     // A rejected refresh token cannot recover. Clear both so the app asks the
     // user to sign in again. Network and server errors keep the credential.
