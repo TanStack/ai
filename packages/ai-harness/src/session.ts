@@ -325,7 +325,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     })
     this.principal = deps.principal
     this.onClose = deps.onClose
-    this.checkpoint = checkpointMiddleware(deps.persistence, deps.hostId)
+    this.checkpoint = checkpointMiddleware({
+      runs: deps.persistence.stores.runs,
+      messages: deps.persistence.stores.messages,
+      hostId: deps.hostId,
+    })
     const onMissing = (error: AuthRequiredError) =>
       this.feed.publish(
         'session',
@@ -1773,7 +1777,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * crashed turns are marked failed.
    */
   private async recoverCrashedTurn(): Promise<void> {
-    const crashed = await findCrashedRuns(this.persistence, this.threadId)
+    const crashed = await findCrashedRuns(
+      this.persistence.stores.runs,
+      this.threadId,
+    )
     const newest = crashed.sort((a, b) => b.startedAt - a.startedAt)[0]
     for (const record of crashed) {
       await this.persistence.stores.runs?.update(record.runId, {
@@ -1788,7 +1795,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       })
     }
     if (!newest) return
-    await repairTranscript(this.persistence, newest)
+    await repairTranscript({
+      messages: this.persistence.stores.messages,
+      crashed: newest,
+    })
     const operation = this.createTurnOperation()
     this.feed.publish(
       operation.id,

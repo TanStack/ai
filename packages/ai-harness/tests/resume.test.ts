@@ -1,11 +1,47 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { EventType, toolDefinition } from '@tanstack/ai'
+import { EventType, chat, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { HARNESS_EVENTS, createHarnessHost, defineHarness } from '../src'
-import { INTERRUPTED_TOOL_RESULT, LEASE } from '../src/resume'
+import {
+  INTERRUPTED_TOOL_RESULT,
+  LEASE,
+  checkpointMiddleware,
+  repairTranscript,
+} from '../src/resume'
 import { gate, mockAdapter, text, toolCall } from './helpers'
+import type { AnyChatMiddleware, AnyTool, ModelMessage } from '@tanstack/ai'
 import type { SessionEvent } from '../src'
+
+/** Run one chat() turn with the checkpoint middleware and a fresh run record. */
+async function runWithCheckpoint(options: {
+  replies: Parameters<typeof mockAdapter>[0]
+  tools?: Array<AnyTool>
+  middleware: (
+    stores: ReturnType<typeof memoryPersistence>['stores'],
+  ) => AnyChatMiddleware
+}) {
+  const { stores } = memoryPersistence()
+  await stores.runs.createOrResume({
+    runId: 'run-1',
+    threadId: 't1',
+    startedAt: Date.now(),
+  })
+  const { adapter } = mockAdapter(options.replies)
+  const stream = chat({
+    adapter,
+    messages: [{ role: 'user', content: 'go' }],
+    tools: options.tools ?? [],
+    middleware: [options.middleware(stores)],
+    threadId: 't1',
+    runId: 'run-1',
+    stream: true,
+  })
+  for await (const _chunk of stream) {
+    // Run the turn to the end.
+  }
+  return stores
+}
 
 describe('checkpoints and leases', () => {
   it('holds a lease and records the running tool with its replay mode', async () => {
@@ -140,6 +176,10 @@ describe('crash resume', () => {
         message.role === 'tool' && message.toolCallId === 'call-charge',
     )
     expect(chargeResult?.content).toBe(JSON.stringify(INTERRUPTED_TOOL_RESULT))
+    // The model gets the note as a tool error.
+    expect(chargeResult?.error).toBe(
+      'The tool may or may not have run. Check before you retry.',
+    )
     expect(transcript.at(-1)?.content).toBe('recovered')
 
     expect((await persistence.stores.runs.get('crashed-run'))?.status).toBe(
@@ -154,6 +194,66 @@ describe('crash resume', () => {
       value: { resumedFrom: 'crashed-run' },
     })
     await host.close()
+  })
+
+  it('keeps the result of a tool that finished before the crash', async () => {
+    const { stores } = memoryPersistence()
+    await stores.messages.saveThread('t1', [
+      { id: 'u1', role: 'user', content: 'charge' },
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'call-charge',
+            type: 'function',
+            function: { name: 'charge', arguments: '{}' },
+          },
+          {
+            id: 'call-mail',
+            type: 'function',
+            function: { name: 'mail', arguments: '{}' },
+          },
+        ],
+      },
+    ])
+    const finished: ModelMessage = {
+      role: 'tool',
+      toolCallId: 'call-charge',
+      content: 'charged 100',
+    }
+
+    await repairTranscript({
+      messages: stores.messages,
+      crashed: {
+        runId: 'crashed',
+        threadId: 't1',
+        status: 'running',
+        startedAt: 1,
+        checkpoint: {
+          at: 1,
+          pendingTools: [
+            { toolCallId: 'call-charge', name: 'charge', replay: 'never' },
+            { toolCallId: 'call-mail', name: 'mail', replay: 'never' },
+          ],
+        },
+      },
+      finished: new Map([['call-charge', finished]]),
+    })
+
+    const tools = (await stores.messages.loadThread('t1')).filter(
+      (message) => message.role === 'tool',
+    )
+    expect(tools).toEqual([
+      { role: 'tool', toolCallId: 'call-charge', content: 'charged 100' },
+      {
+        role: 'tool',
+        toolCallId: 'call-mail',
+        content: JSON.stringify(INTERRUPTED_TOOL_RESULT),
+        error: 'The tool may or may not have run. Check before you retry.',
+      },
+    ])
   })
 
   it('leaves a run alone while its lease is still valid', async () => {
@@ -181,5 +281,72 @@ describe('crash resume', () => {
       'running',
     )
     await host.close()
+  })
+})
+
+describe('checkpoint middleware options', () => {
+  it('uses the lease time it gets', async () => {
+    const startedAt = Date.now()
+    const stores = await runWithCheckpoint({
+      replies: [() => text('done')],
+      middleware: ({ runs, messages }) =>
+        checkpointMiddleware({
+          runs,
+          messages,
+          hostId: 'host-a',
+          lease: { ttlMs: 5_000 },
+        }),
+    })
+
+    const record = await stores.runs.get('run-1')
+    expect(record?.leaseOwner).toBe('host-a')
+    // 5 seconds, not the default 30 seconds.
+    expect(record?.leaseExpiresAt).toBeGreaterThanOrEqual(startedAt + 5_000)
+    expect(record?.leaseExpiresAt).toBeLessThan(startedAt + 15_000)
+  })
+
+  it('gives onToolResult the tool message of each call that ends', async () => {
+    const seen: Array<{ toolCallId: string; message: ModelMessage }> = []
+    const tools = [
+      toolDefinition({ name: 'echo', description: 'Echo' }).server(
+        async () => 'echoed',
+      ),
+      toolDefinition({ name: 'boom', description: 'Fail' }).server(async () => {
+        throw new Error('boom failed')
+      }),
+    ]
+    await runWithCheckpoint({
+      replies: [
+        () => toolCall('echo', {}, 'call-echo'),
+        () => toolCall('boom', {}, 'call-boom'),
+        () => text('done'),
+      ],
+      tools,
+      middleware: ({ runs, messages }) =>
+        checkpointMiddleware({
+          runs,
+          messages,
+          hostId: 'host-a',
+          onToolResult: (info) => {
+            seen.push(info)
+          },
+        }),
+    })
+
+    expect(seen).toEqual([
+      {
+        toolCallId: 'call-echo',
+        message: { role: 'tool', toolCallId: 'call-echo', content: 'echoed' },
+      },
+      {
+        toolCallId: 'call-boom',
+        message: {
+          role: 'tool',
+          toolCallId: 'call-boom',
+          content: JSON.stringify({ error: 'boom failed' }),
+          error: 'boom failed',
+        },
+      },
+    ])
   })
 })
