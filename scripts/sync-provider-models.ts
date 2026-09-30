@@ -174,9 +174,9 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     kind: 'gemini',
     referenceSatisfies:
-      'ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions>',
+      'ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions>',
     referenceProviderOptionsEntry:
-      'GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions',
+      'GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions',
     hasBothNameAndId: false,
     providerOptionsIsMappedType: false,
     skipPatterns: [

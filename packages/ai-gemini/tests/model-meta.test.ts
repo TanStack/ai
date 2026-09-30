@@ -7,7 +7,6 @@ import type {
   GeminiModelInputModalitiesByName,
 } from '../src/model-meta'
 import type {
-  GeminiThinkingOptions,
   GeminiStructuredOutputOptions,
   GeminiToolConfigOptions,
   GeminiSafetyOptions,
@@ -15,7 +14,7 @@ import type {
   GeminiCachedContentOptions,
 } from '../src/text/text-provider-options'
 import type { GeminiMessageMetadataByModality } from '../src/message-types'
-import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
+import type { AdapterReasoning } from '@tanstack/ai'
 import type {
   AudioPart,
   ConstrainedModelMessage,
@@ -38,7 +37,8 @@ type MakeInputModalitiesTypes<TModalities extends ReadonlyArray<Modality>> = {
  * Type assertion tests for Gemini model provider options.
  *
  * These tests verify that:
- * 1. Models with thinking support have GeminiThinkingOptions in their provider options
+ * 1. No model takes thinkingConfig in modelOptions: `chat({ reasoning })` owns
+ *    it, with the levels from the generated reasoning map
  * 2. Models with structured output support have GeminiStructuredOutputOptions
  * 3. All models have base options (tool config, safety, generation config, cached content)
  *
@@ -60,11 +60,7 @@ describe('Gemini Model Provider Options Type Assertions', () => {
     expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
     expectTypeOf<
       GeminiChatModelProviderOptionsByName['gemini-3.8-flash']
-    >().toEqualTypeOf<
-      BaseOptions &
-        GeminiThinkingOptions<'LOW' | 'MEDIUM' | 'HIGH'> &
-        GeminiStructuredOutputOptions
-    >()
+    >().toEqualTypeOf<BaseOptions & GeminiStructuredOutputOptions>()
     expectTypeOf<
       GeminiModelInputModalitiesByName['gemini-3.8-flash'][number]
     >().toEqualTypeOf<'text' | 'image' | 'video' | 'audio' | 'document'>()
@@ -76,23 +72,21 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       'gemini-3.8-flash',
       'test-key',
     )
-    type Options = InferTextProviderOptions<typeof adapter>
-    type InteractionsOptions = InferTextProviderOptions<typeof interactions>
+    expectTypeOf<AdapterReasoning<typeof adapter>['levels']>().toEqualTypeOf<
+      'low' | 'medium' | 'high'
+    >()
     expectTypeOf<
-      NonNullable<Options['thinkingConfig']>['thinkingLevel']
-    >().toEqualTypeOf<'LOW' | 'MEDIUM' | 'HIGH' | undefined>()
-    expectTypeOf<
-      NonNullable<InteractionsOptions['generation_config']>['thinking_level']
-    >().toEqualTypeOf<'low' | 'medium' | 'high' | undefined>()
+      AdapterReasoning<typeof interactions>['levels']
+    >().toEqualTypeOf<'low' | 'medium' | 'high'>()
   })
 
   describe('Models WITH thinking support', () => {
-    it('gemini-3.1-pro-preview should support thinking options', () => {
+    it('gemini-3.1-pro-preview should support its options', () => {
       type Model = 'gemini-3.1-pro-preview'
       type Options = GeminiChatModelProviderOptionsByName[Model]
 
-      // Should have thinking options
-      expectTypeOf<Options>().toExtend<GeminiThinkingOptions>()
+      // Thinking is set with `reasoning`, not modelOptions
+      expectTypeOf<Options>().not.toHaveProperty('thinkingConfig')
 
       // Should have structured output options
       expectTypeOf<Options>().toExtend<GeminiStructuredOutputOptions>()
@@ -109,12 +103,12 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toHaveProperty('responseSchema')
     })
 
-    it('gemini-3-flash-preview should support thinking options', () => {
+    it('gemini-3-flash-preview should support its options', () => {
       type Model = 'gemini-3-flash-preview'
       type Options = GeminiChatModelProviderOptionsByName[Model]
 
-      // Should have thinking options
-      expectTypeOf<Options>().toExtend<GeminiThinkingOptions>()
+      // Thinking is set with `reasoning`, not modelOptions
+      expectTypeOf<Options>().not.toHaveProperty('thinkingConfig')
 
       // Should have structured output options
       expectTypeOf<Options>().toExtend<GeminiStructuredOutputOptions>()
@@ -131,12 +125,12 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toHaveProperty('responseSchema')
     })
 
-    it('gemini-2.5-pro should support thinking options', () => {
+    it('gemini-2.5-pro should support its options', () => {
       type Model = 'gemini-2.5-pro'
       type Options = GeminiChatModelProviderOptionsByName[Model]
 
-      // Should have thinking options
-      expectTypeOf<Options>().toExtend<GeminiThinkingOptions>()
+      // Thinking is set with `reasoning`, not modelOptions
+      expectTypeOf<Options>().not.toHaveProperty('thinkingConfig')
 
       // Should have structured output options
       expectTypeOf<Options>().toExtend<GeminiStructuredOutputOptions>()
@@ -145,12 +139,12 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
 
-    it('gemini-2.5-flash should support thinking options', () => {
+    it('gemini-2.5-flash should support its options', () => {
       type Model = 'gemini-2.5-flash'
       type Options = GeminiChatModelProviderOptionsByName[Model]
 
-      // Should have thinking options
-      expectTypeOf<Options>().toExtend<GeminiThinkingOptions>()
+      // Thinking is set with `reasoning`, not modelOptions
+      expectTypeOf<Options>().not.toHaveProperty('thinkingConfig')
 
       // Should have structured output options
       expectTypeOf<Options>().toExtend<GeminiStructuredOutputOptions>()
@@ -159,12 +153,12 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
 
-    it('gemini-2.5-flash-lite should support thinking options', () => {
+    it('gemini-2.5-flash-lite should support its options', () => {
       type Model = 'gemini-2.5-flash-lite'
       type Options = GeminiChatModelProviderOptionsByName[Model]
 
-      // Should have thinking options
-      expectTypeOf<Options>().toExtend<GeminiThinkingOptions>()
+      // Thinking is set with `reasoning`, not modelOptions
+      expectTypeOf<Options>().not.toHaveProperty('thinkingConfig')
 
       // Should have structured output options
       expectTypeOf<Options>().toExtend<GeminiStructuredOutputOptions>()
@@ -173,12 +167,12 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
 
-    it('gemini-3.1-flash-lite should support thinking options', () => {
+    it('gemini-3.1-flash-lite should support its options', () => {
       type Model = 'gemini-3.1-flash-lite'
       type Options = GeminiChatModelProviderOptionsByName[Model]
 
-      // Should have thinking options
-      expectTypeOf<Options>().toExtend<GeminiThinkingOptions>()
+      // Thinking is set with `reasoning`, not modelOptions
+      expectTypeOf<Options>().not.toHaveProperty('thinkingConfig')
 
       // Should have structured output options
       expectTypeOf<Options>().toExtend<GeminiStructuredOutputOptions>()
@@ -195,12 +189,12 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toHaveProperty('responseSchema')
     })
 
-    it('gemini-3.1-flash-lite-preview should support thinking options', () => {
+    it('gemini-3.1-flash-lite-preview should support its options', () => {
       type Model = 'gemini-3.1-flash-lite-preview'
       type Options = GeminiChatModelProviderOptionsByName[Model]
 
-      // Should have thinking options
-      expectTypeOf<Options>().toExtend<GeminiThinkingOptions>()
+      // Thinking is set with `reasoning`, not modelOptions
+      expectTypeOf<Options>().not.toHaveProperty('thinkingConfig')
 
       // Should have structured output options
       expectTypeOf<Options>().toExtend<GeminiStructuredOutputOptions>()
@@ -217,12 +211,12 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toHaveProperty('responseSchema')
     })
 
-    it('gemini-3.5-flash should support thinking options', () => {
+    it('gemini-3.5-flash should support its options', () => {
       type Model = 'gemini-3.5-flash'
       type Options = GeminiChatModelProviderOptionsByName[Model]
 
-      // Should have thinking options
-      expectTypeOf<Options>().toExtend<GeminiThinkingOptions>()
+      // Thinking is set with `reasoning`, not modelOptions
+      expectTypeOf<Options>().not.toHaveProperty('thinkingConfig')
 
       // Should have structured output options
       expectTypeOf<Options>().toExtend<GeminiStructuredOutputOptions>()
@@ -231,29 +225,29 @@ describe('Gemini Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
 
-    it('gemini-3.7-flash should support thinking options', () => {
+    it('gemini-3.7-flash should support its options', () => {
       type Model = 'gemini-3.7-flash'
       type Options = GeminiChatModelProviderOptionsByName[Model]
 
-      expectTypeOf<Options>().toExtend<GeminiThinkingOptions>()
+      expectTypeOf<Options>().not.toHaveProperty('thinkingConfig')
       expectTypeOf<Options>().toExtend<GeminiStructuredOutputOptions>()
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
 
-    it('gemini-3.6-flash should support thinking options', () => {
+    it('gemini-3.6-flash should support its options', () => {
       type Model = 'gemini-3.6-flash'
       type Options = GeminiChatModelProviderOptionsByName[Model]
 
-      expectTypeOf<Options>().toExtend<GeminiThinkingOptions>()
+      expectTypeOf<Options>().not.toHaveProperty('thinkingConfig')
       expectTypeOf<Options>().toExtend<GeminiStructuredOutputOptions>()
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
 
-    it('gemini-3.5-flash-lite should support thinking options', () => {
+    it('gemini-3.5-flash-lite should support its options', () => {
       type Model = 'gemini-3.5-flash-lite'
       type Options = GeminiChatModelProviderOptionsByName[Model]
 
-      expectTypeOf<Options>().toExtend<GeminiThinkingOptions>()
+      expectTypeOf<Options>().not.toHaveProperty('thinkingConfig')
       expectTypeOf<Options>().toExtend<GeminiStructuredOutputOptions>()
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
@@ -289,12 +283,10 @@ describe('Gemini Model Provider Options Type Assertions', () => {
   })
 
   describe('Detailed property type assertions', () => {
-    it('thinking models should allow thinkingConfig', () => {
+    it('thinking models take thinking through reasoning, not thinkingConfig', () => {
       type Options = GeminiChatModelProviderOptionsByName['gemini-2.5-pro']
 
-      // gemini-2.5-pro supports thinking, so its provider options should
-      // include thinkingConfig from GeminiThinkingOptions.
-      expectTypeOf<Options>().toHaveProperty('thinkingConfig')
+      expectTypeOf<Options>().not.toHaveProperty('thinkingConfig')
     })
 
     it('structured output options should have responseMimeType and responseSchema', () => {
@@ -415,40 +407,40 @@ describe('Gemini Model Provider Options Type Assertions', () => {
   })
 
   describe('Type discrimination between model categories', () => {
-    it('models with thinking should extend GeminiThinkingOptions', () => {
+    it('no model takes thinkingConfig in modelOptions', () => {
       expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-3.7-flash']
-      >().toExtend<GeminiThinkingOptions>()
+      >().not.toHaveProperty('thinkingConfig')
       expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-3.6-flash']
-      >().toExtend<GeminiThinkingOptions>()
+      >().not.toHaveProperty('thinkingConfig')
       expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-3.5-flash']
-      >().toExtend<GeminiThinkingOptions>()
+      >().not.toHaveProperty('thinkingConfig')
       expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-3.5-flash-lite']
-      >().toExtend<GeminiThinkingOptions>()
+      >().not.toHaveProperty('thinkingConfig')
       expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-3.1-pro-preview']
-      >().toExtend<GeminiThinkingOptions>()
+      >().not.toHaveProperty('thinkingConfig')
       expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-3-flash-preview']
-      >().toExtend<GeminiThinkingOptions>()
+      >().not.toHaveProperty('thinkingConfig')
       expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-3.1-flash-lite']
-      >().toExtend<GeminiThinkingOptions>()
+      >().not.toHaveProperty('thinkingConfig')
       expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-3.1-flash-lite-preview']
-      >().toExtend<GeminiThinkingOptions>()
+      >().not.toHaveProperty('thinkingConfig')
       expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-2.5-pro']
-      >().toExtend<GeminiThinkingOptions>()
+      >().not.toHaveProperty('thinkingConfig')
       expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-2.5-flash']
-      >().toExtend<GeminiThinkingOptions>()
+      >().not.toHaveProperty('thinkingConfig')
       expectTypeOf<
         GeminiChatModelProviderOptionsByName['gemini-2.5-flash-lite']
-      >().toExtend<GeminiThinkingOptions>()
+      >().not.toHaveProperty('thinkingConfig')
     })
 
     it('all models should extend GeminiStructuredOutputOptions', () => {
