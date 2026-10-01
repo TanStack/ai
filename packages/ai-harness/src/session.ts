@@ -302,6 +302,22 @@ function hasFinalAnswer(
   )
 }
 
+/** Throw for a record that a host may not write. */
+function checkHostRecords(records: ReadonlyArray<LogRecord>) {
+  for (const record of records) {
+    if (record.type.startsWith('harness.')) {
+      throw new Error(
+        `The record type ${JSON.stringify(record.type)} is reserved for the harness.`,
+      )
+    }
+    if (record.thread !== undefined && typeof record.thread !== 'string') {
+      throw new Error(
+        'The thread field of a log record must be a string: the thread id of a session of the same log.',
+      )
+    }
+  }
+}
+
 const notOpen = () => Promise.reject(new Error('The session is not open yet.'))
 
 /** The message store of a durable session before `open()` reads its log. */
@@ -617,21 +633,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         writer.append([{ type: 'harness.tool.step', toolCallId, name, value }]),
     })
     const append = (records: ReadonlyArray<LogRecord>) => {
-      const reserved = records.find((record) =>
-        record.type.startsWith('harness.'),
-      )
-      if (reserved) {
-        throw new Error(
-          `The record type ${JSON.stringify(reserved.type)} is reserved for the harness.`,
-        )
-      }
+      checkHostRecords(records)
       writer.stage(records)
     }
     return { step, append }
   }
 
   /**
-   * The log refused a write: another host wrote to this thread, or the store
+   * The log refused a write: another host wrote to this log, or the store
    * failed. The state of this session is not known any more, so it stops.
    * The next `host.open` folds the log again.
    */
@@ -639,7 +648,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     if (this.logFailure) return
     this.logFailure = new Error(
       error instanceof LogConflictError
-        ? 'Another host wrote to this thread, so this session stopped. Open the thread again.'
+        ? 'Another host wrote to this log, so this session stopped. Open the thread again.'
         : `The session log failed, so this session stopped: ${error instanceof Error ? error.message : String(error)}`,
     )
     for (const operation of this.operations.values()) {
@@ -653,6 +662,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * Append host records to the session log, in one batch after the events
    * that wait. Only a durable host (with `stores.log`) has a log. A `type`
    * that starts with `harness.` is refused: the harness owns those.
+   * A record can name another session of the same log with `thread`. The
+   * append is all or nothing.
    *
    * With `project` on the host, a record can change the model context. The
    * running turn sees the change at its next model call.
@@ -668,14 +679,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         'session.append needs a durable host (a host with stores.log).',
       )
     }
-    const reserved = records.find((record) =>
-      record.type.startsWith('harness.'),
-    )
-    if (reserved) {
-      throw new Error(
-        `The record type ${JSON.stringify(reserved.type)} is reserved for the harness.`,
-      )
-    }
+    checkHostRecords(records)
     await this.writer.append(records)
   }
 

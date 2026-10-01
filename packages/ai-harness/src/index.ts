@@ -16,7 +16,7 @@ export type {
 } from './durable-tool'
 
 export { logMessageStore } from './log'
-export type { ProjectOptions, ProjectRecord } from './log'
+export type { ProjectOptions, ProjectRecord, ReduceOptions } from './log'
 export type { LeaseOptions } from './resume'
 
 export { definePlugin } from './plugins'
