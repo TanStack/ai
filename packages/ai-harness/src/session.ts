@@ -18,7 +18,12 @@ import { AgentRegistry } from './agents'
 import { SessionFeed } from './feed'
 import { isRecord } from './utils'
 import { bindDurable, createToolStep } from './durable-tool'
-import { engineMessageStore, sessionMessageStore, stepKey } from './log'
+import {
+  commonPrefix,
+  engineMessageStore,
+  sessionMessageStore,
+  stepKey,
+} from './log'
 import { createMediaStore, mediaCapture, mediaMiddleware } from './media'
 import { mediaIdOf, mediaOfMessage } from './media-ref'
 import { OperationImpl } from './operation'
@@ -73,7 +78,7 @@ import type {
   AnyAgent,
 } from './agents'
 import type { AnyHarness, HarnessAgentsOf } from './define'
-import type { RecoverDecision } from './turn'
+import type { RecoverDecision, TurnAdditions } from './turn'
 import type { HarnessPersistence } from './host'
 import type {
   AgentGroup,
@@ -1870,9 +1875,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       const signal = operation.abortController.signal
       /** Retries since the last finished tool phase. */
       let retries = 0
+      /** How many times `turn.beforeFinish` continued this turn. */
+      let cycle = 0
       // One chat() run, and one more each time steers wait after a final
       // answer: a late join gets its answer in this turn. A run that failed
-      // runs again when `turn.onModelError` answers 'retry'.
+      // runs again when `turn.onModelError` answers 'retry'. A final answer
+      // runs again when `turn.beforeFinish` adds to the transcript.
       for (;;) {
         let textBefore = text
         let runError: { message: string; code?: string } | undefined
@@ -2034,18 +2042,29 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           failure = runError.message
           break
         }
-        const hasLateJoin =
-          this.steerQueue.length > 0 &&
-          failure === undefined &&
-          (interrupts?.length ?? 0) === 0 &&
-          !operation.abortController.signal.aborted
-        if (!hasLateJoin) break
+        const isFinished =
+          failure !== undefined ||
+          (interrupts?.length ?? 0) > 0 ||
+          signal.aborted
+        if (isFinished) break
+        const hasLateJoin = this.steerQueue.length > 0
+        if (!hasLateJoin) {
+          if (
+            !(await this.continueBeforeFinish(operation, turn.inputId, cycle))
+          ) {
+            break
+          }
+          cycle += 1
+        }
         message = undefined
         resume = undefined
         parentRunId = undefined
-        // withPersistence finished the run. It runs again, for the join.
+        // withPersistence finished the run. It runs again, for the join or
+        // the hook's additions.
         await this.persistence.stores.runs?.update(operation.id, {
           status: 'running',
+          finishedAt: undefined,
+          error: undefined,
         })
       }
     } catch (error) {
@@ -2145,6 +2164,70 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         }
       }),
     )
+  }
+
+  /**
+   * Add hook messages and host records to the transcript, in one append.
+   * Returns true when the transcript changed.
+   */
+  private async addToTurn(added: TurnAdditions): Promise<boolean> {
+    const records = added.records ?? []
+    const messages = (added.messages ?? []).map(
+      (message): ModelMessage =>
+        message.id ? message : { ...message, id: createMessageId() },
+    )
+    checkHostRecords(records)
+    if (!this.writer) {
+      if (records.length > 0) {
+        throw new Error(
+          'Records from a turn hook need a durable host (a host with stores.log).',
+        )
+      }
+      if (messages.length === 0) return false
+      const history = await this.messages.loadThread(this.threadId)
+      await this.messages.saveThread(this.threadId, [...history, ...messages])
+      return true
+    }
+    const before = this.writer.state.messages
+    await this.writer.commit({ messages: [...before, ...messages], records })
+    const after = this.writer.state.messages
+    return (
+      after.length !== before.length ||
+      commonPrefix(before, after) !== before.length
+    )
+  }
+
+  /**
+   * Ask `turn.beforeFinish` whether the turn goes on. True when it added to
+   * the transcript, so the turn runs the model again.
+   */
+  private async continueBeforeFinish(
+    operation: OperationImpl<ChatTurnResult>,
+    inputId: string | undefined,
+    cycle: number,
+  ): Promise<boolean> {
+    const hooks = this.harness.turn
+    if (!hooks?.beforeFinish) return false
+    const added = await hooks.beforeFinish({
+      session: this,
+      operationId: operation.id,
+      ...(inputId ? { inputId } : {}),
+      cycle,
+      messages: await this.messages.loadThread(this.threadId),
+      signal: operation.abortController.signal,
+    })
+    const isEmpty =
+      !added ||
+      ((added.messages?.length ?? 0) === 0 &&
+        (added.records?.length ?? 0) === 0)
+    if (isEmpty) return false
+    const max = hooks.maxFinishCycles ?? 32
+    if (cycle >= max) {
+      throw new Error(
+        `beforeFinish continued the turn ${max} times. Return nothing from the hook when the work is done.`,
+      )
+    }
+    return this.addToTurn(added)
   }
 
   // ===========================

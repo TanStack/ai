@@ -3,7 +3,14 @@ import { z } from 'zod'
 import { EventType, isContextOverflow, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, retryTransientErrors } from '../src'
-import { gate, messageTexts, mockAdapter, text, toolCall } from './helpers'
+import {
+  gate,
+  messageTexts,
+  mockAdapter,
+  text,
+  toolCall,
+  untilAborted,
+} from './helpers'
 import type { AnyTool, StreamChunk } from '@tanstack/ai'
 import type { HarnessTurnOptions, ProjectOptions } from '../src'
 import type { Reply } from './helpers'
@@ -350,5 +357,150 @@ describe('turn.onModelError', () => {
     await expect(session.prompt('go')).rejects.toThrow('overloaded')
     expect(calls).toHaveLength(1)
     await host.close()
+  })
+})
+
+describe('turn.beforeFinish', () => {
+  const REMINDER = 'You did not post the answer. Post it now.'
+
+  it('sends the model back to work in the same operation', async () => {
+    const { host, session, calls } = await open({
+      replies: [() => text('draft'), () => text('posted')],
+      turn: {
+        beforeFinish: ({ messages }) =>
+          messages.some((message) => message.content === REMINDER)
+            ? undefined
+            : { messages: [{ role: 'user', content: REMINDER }] },
+      },
+    })
+
+    const turn = session.prompt('answer the user')
+    expect(await turn).toEqual({ text: 'draftposted' })
+
+    expect(calls).toHaveLength(2)
+    expect(messageTexts(calls[1]).at(-1)).toBe(REMINDER)
+    const started = (await eventsOf(session, turn.id)).filter(
+      (type) => type === 'CUSTOM:harness.operation.started',
+    )
+    expect(started).toHaveLength(1)
+    await host.close()
+  })
+
+  it('continues for a record that projects to a message', async () => {
+    const signalProject: ProjectOptions = {
+      record: ({ messages, record }) =>
+        record.type === 'app.signal' && typeof record.text === 'string'
+          ? [...messages, { role: 'user', content: record.text }]
+          : undefined,
+    }
+    const { adapter, calls } = mockAdapter([
+      () => text('one'),
+      () => text('two'),
+    ])
+    const { runs } = memoryPersistence().stores
+    const host = createHarnessHost({
+      persistence: { stores: { log: memoryLogStore(), runs } },
+      project: signalProject,
+    })
+    let cycles = 0
+    const session = await host.open(
+      defineHarness({
+        name: 'test/turn-control',
+        adapter,
+        turn: {
+          beforeFinish: ({ cycle }) => {
+            cycles = cycle
+            return cycle === 0
+              ? { records: [{ type: 'app.signal', text: 'check the result' }] }
+              : undefined
+          },
+        },
+      }),
+      { threadId: THREAD },
+    )
+
+    expect(await session.prompt('go')).toEqual({ text: 'onetwo' })
+    expect(messageTexts(calls[1]).at(-1)).toBe('check the result')
+    expect(cycles).toBe(1)
+    await host.close()
+  })
+
+  it('completes for a record that changes no message', async () => {
+    const { host, session, calls } = await open({
+      durable: true,
+      replies: [() => text('done'), () => text('never')],
+      turn: {
+        beforeFinish: ({ cycle }) =>
+          cycle === 0
+            ? { records: [{ type: 'app.state_write', name: 'x', value: 1 }] }
+            : undefined,
+      },
+    })
+
+    expect(await session.prompt('go')).toEqual({ text: 'done' })
+    expect(calls).toHaveLength(1)
+    await host.close()
+  })
+
+  it('fails the turn at the cycle limit', async () => {
+    const { host, session, calls } = await open({
+      replies: () => text('again'),
+      turn: {
+        maxFinishCycles: 2,
+        beforeFinish: () => ({
+          messages: [{ role: 'user', content: 'once more' }],
+        }),
+      },
+    })
+
+    await expect(session.prompt('go')).rejects.toThrow('2 times')
+    expect(calls).toHaveLength(3)
+    await host.close()
+  })
+
+  it('refuses records without a log', async () => {
+    const { host, session } = await open({
+      replies: [() => text('done')],
+      turn: { beforeFinish: () => ({ records: [{ type: 'app.note' }] }) },
+    })
+
+    await expect(session.prompt('go')).rejects.toThrow('durable host')
+    await host.close()
+  })
+
+  it('answers the added message after a crash before the next model call', async () => {
+    const { runs, metadata } = memoryPersistence().stores
+    const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+    const beforeFinish: HarnessTurnOptions['beforeFinish'] = ({ messages }) =>
+      messages.some((message) => message.content === REMINDER)
+        ? undefined
+        : { messages: [{ role: 'user', content: REMINDER }] }
+    const openOn = async (replies: Array<Reply>) => {
+      const { adapter, calls } = mockAdapter(replies)
+      const host = createHarnessHost({ persistence })
+      const session = await host.open(
+        defineHarness({
+          name: 'test/turn-control',
+          adapter,
+          turn: { beforeFinish },
+        }),
+        { threadId: THREAD },
+      )
+      return { host, session, calls }
+    }
+    const first = await openOn([() => text('draft'), untilAborted()])
+    const turn = first.session.prompt('answer the user', { inputId: 'in-1' })
+    await vi.waitFor(() => expect(first.calls).toHaveLength(2))
+    await runs.update(turn.id, { leaseExpiresAt: Date.now() - 1 })
+
+    const next = await openOn([() => text('posted')])
+
+    expect(await next.session.settled('in-1')).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(next.calls).toHaveLength(1)
+    expect(messageTexts(next.calls[0]).at(-1)).toBe(REMINDER)
+    await first.host.close().catch(() => {})
+    await next.host.close()
   })
 })
