@@ -344,10 +344,14 @@ describe('codingAgents', () => {
     const other = codingAgent('grok-build')
     const custom = codingAgent('acp')
     const { host, session } = await open({
+      // Two calls per step: parallel tools start the calls of one step at
+      // once, and the default subagent limit runs 3 at a time.
       leadSteps: [
         [
           ['claude_code', 'look'],
           ['codex', 'look'],
+        ],
+        [
           ['grok', 'look'],
           ['custom', 'look'],
         ],
