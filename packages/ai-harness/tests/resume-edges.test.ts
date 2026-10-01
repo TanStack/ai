@@ -101,13 +101,8 @@ describe('crash recovery edges', () => {
     const repair = (checkpoint?: RunRecord['checkpoint']) =>
       repairTranscript({
         messages: persistence.stores.messages,
-        crashed: {
-          runId: 'r',
-          threadId: 't1',
-          status: 'running',
-          startedAt: 1,
-          ...(checkpoint ? { checkpoint } : {}),
-        },
+        threadId: 't1',
+        pending: checkpoint?.pendingTools ?? [],
       })
 
     // Only safe tools pending: nothing to note.

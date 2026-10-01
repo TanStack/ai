@@ -226,19 +226,11 @@ describe('crash resume', () => {
 
     await repairTranscript({
       messages: stores.messages,
-      crashed: {
-        runId: 'crashed',
-        threadId: 't1',
-        status: 'running',
-        startedAt: 1,
-        checkpoint: {
-          at: 1,
-          pendingTools: [
-            { toolCallId: 'call-charge', name: 'charge', replay: 'never' },
-            { toolCallId: 'call-mail', name: 'mail', replay: 'never' },
-          ],
-        },
-      },
+      threadId: 't1',
+      pending: [
+        { toolCallId: 'call-charge', name: 'charge', replay: 'never' },
+        { toolCallId: 'call-mail', name: 'mail', replay: 'never' },
+      ],
       finished: new Map([['call-charge', finished]]),
     })
 
@@ -281,19 +273,9 @@ describe('crash resume', () => {
 
     await repairTranscript({
       messages: stores.messages,
-      crashed: {
-        runId: 'crashed',
-        threadId: 't1',
-        status: 'running',
-        startedAt: 1,
-        // The charge ended, so only the mail is still pending.
-        checkpoint: {
-          at: 1,
-          pendingTools: [
-            { toolCallId: 'call-mail', name: 'mail', replay: 'never' },
-          ],
-        },
-      },
+      threadId: 't1',
+      // The charge ended, so only the mail is still pending.
+      pending: [{ toolCallId: 'call-mail', name: 'mail', replay: 'never' }],
       finished: new Map([
         [
           'call-charge',

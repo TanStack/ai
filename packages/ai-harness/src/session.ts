@@ -2534,7 +2534,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       })
     }
     if (!newest) return
-    await repairTranscript({ messages: this.messages, crashed: newest })
+    await repairTranscript({
+      messages: this.messages,
+      threadId: newest.threadId,
+      pending: newest.checkpoint?.pendingTools ?? [],
+    })
     const operation = this.createTurnOperation()
     this.feed.publish(
       operation.id,
@@ -2651,7 +2655,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         if (run) {
           await repairTranscript({
             messages: this.messages,
-            crashed: run,
+            threadId: this.threadId,
+            pending: run.checkpoint?.pendingTools ?? [],
             finished: writer.state.toolResults,
           })
         }

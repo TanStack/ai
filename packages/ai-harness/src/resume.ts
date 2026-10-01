@@ -24,7 +24,7 @@ export const INTERRUPTED_TOOL_RESULT = {
   note: 'The tool may or may not have run. Check before you retry.',
 }
 
-type PendingTool = {
+export type PendingTool = {
   toolCallId: string
   name: string
   replay: 'safe' | 'never'
@@ -153,7 +153,7 @@ export async function findCrashedRuns(
 }
 
 /**
- * Prepare the transcript of a crashed run for a new run. It walks the tool
+ * Prepare the transcript of a crashed thread for a new run. It walks the tool
  * calls of the batch (the last assistant message with tool calls) in order:
  *
  * - A call in `finished` gets its finished tool message. It does not run
@@ -165,14 +165,15 @@ export async function findCrashedRuns(
  */
 export async function repairTranscript(options: {
   messages: MessageStore
-  crashed: RunRecord
+  threadId: string
+  /** The tool calls that started and have no result. */
+  pending: ReadonlyArray<PendingTool>
   /** Tool messages of calls that finished before the crash, by toolCallId. */
   finished?: ReadonlyMap<string, ModelMessage>
 }): Promise<void> {
-  const { messages, crashed, finished } = options
-  const pending = crashed.checkpoint?.pendingTools ?? []
+  const { messages, threadId, pending, finished } = options
   if (pending.length === 0 && (finished?.size ?? 0) === 0) return
-  const history = await messages.loadThread(crashed.threadId)
+  const history = await messages.loadThread(threadId)
   const answered = new Set(
     history.flatMap((message) =>
       message.role === 'tool' && message.toolCallId ? [message.toolCallId] : [],
@@ -205,6 +206,6 @@ export async function repairTranscript(options: {
       ]
     })
   if (added.length > 0) {
-    await messages.saveThread(crashed.threadId, [...history, ...added])
+    await messages.saveThread(threadId, [...history, ...added])
   }
 }
