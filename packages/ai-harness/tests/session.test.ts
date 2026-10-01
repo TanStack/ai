@@ -23,7 +23,7 @@ import {
   untilAborted,
 } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
-import type { HarnessTurnOptions, SessionEvent } from '../src'
+import type { HarnessTurnOptions, Receipt, SessionEvent } from '../src'
 import type { Reply } from './helpers'
 
 function setup() {
@@ -717,6 +717,45 @@ describe('joins without a log', () => {
     for (const call of calls) expect(messageTexts(call)).not.toContain('hook')
     expect(messageTexts(calls.at(-1))).toContain('more')
     expect((await session.settled('s1')).operationId).not.toBe(turn.id)
+    await host.close()
+  })
+
+  it('stops at a steer that a cancel reaches while canJoin runs', async () => {
+    let cancelled: Receipt | undefined
+    let aId = ''
+    let session: Awaited<ReturnType<typeof openJoins>>['session'] | undefined
+    const joins = await openJoins(
+      [
+        () => toolCall('wait', {}),
+        () => text('host answer'),
+        () => text('b answer'),
+      ],
+      {
+        canJoin: async ({ inputId }) => {
+          // The cancel of the earlier steer lands while canJoin runs for `b`.
+          if (inputId === 'b' && !cancelled) {
+            cancelled = await session?.cancel(aId)
+          }
+          return true
+        },
+      },
+    )
+    session = joins.session
+    const { host, calls, wait } = joins
+
+    const turn = session.prompt('start')
+    await wait.started.opened
+    const a = session.prompt('a', { busy: 'steer', inputId: 'a' })
+    aId = a.id
+    const b = session.prompt('b', { busy: 'steer', inputId: 'b' })
+    await Promise.all([a.receipt, b.receipt])
+    wait.done.open()
+    await turn
+
+    expect(cancelled?.status).toBe('accepted')
+    expect(messageTexts(calls[1])).not.toContain('a')
+    expect(await session.settled('a')).toMatchObject({ outcome: 'aborted' })
+    expect(await b).toEqual({ text: 'b answer' })
     await host.close()
   })
 })
