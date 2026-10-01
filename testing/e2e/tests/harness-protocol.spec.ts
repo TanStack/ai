@@ -132,6 +132,80 @@ test.describe('harness protocol', () => {
     ).toMatchObject({ status: 'rejected', reason: 'conflict' })
   })
 
+  test('retries a 503 from the model in the same turn', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const threadId = `retry-${testId}`
+    const turnHeaders = {
+      ...headers(testId, aimockPort),
+      'x-harness-turn': 'retry',
+    }
+    const receipt = await (
+      await request.post('/api/harness-protocol/control', {
+        headers: { ...turnHeaders, 'content-type': 'application/json' },
+        data: {
+          threadId,
+          input: { op: 'prompt', message: '[harness-retry] try twice' },
+        },
+      })
+    ).json()
+    expect(receipt.status).toBe('accepted')
+
+    const answers = async () => {
+      const response = await request.get(
+        `/api/harness-protocol/transcript?threadId=${threadId}`,
+        { headers: turnHeaders },
+      )
+      const transcript: Array<{ role: string; content: unknown }> =
+        await response.json()
+      return transcript
+        .filter((message) => message.role === 'assistant')
+        .map((message) => message.content)
+    }
+    await expect.poll(answers).toEqual(['Back after a retry.'])
+  })
+
+  test('sends the model back to work with beforeFinish', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const threadId = `finish-${testId}`
+    const turnHeaders = {
+      ...headers(testId, aimockPort),
+      'x-harness-turn': 'finish',
+    }
+    await request.post('/api/harness-protocol/control', {
+      headers: { ...turnHeaders, 'content-type': 'application/json' },
+      data: {
+        threadId,
+        input: { op: 'prompt', message: '[harness-finish] post it' },
+      },
+    })
+
+    const transcript = async () => {
+      const response = await request.get(
+        `/api/harness-protocol/transcript?threadId=${threadId}`,
+        { headers: turnHeaders },
+      )
+      const messages: Array<{ role: string; content: unknown }> =
+        await response.json()
+      return messages.map(
+        (message) => `${message.role}: ${String(message.content)}`,
+      )
+    }
+    await expect
+      .poll(transcript)
+      .toEqual([
+        'user: [harness-finish] post it',
+        'assistant: Draft answer.',
+        'user: [harness-finish] reminder: post the answer',
+        'assistant: Posted answer.',
+      ])
+  })
+
   test('takes a control input and returns a receipt', async ({
     request,
     testId,

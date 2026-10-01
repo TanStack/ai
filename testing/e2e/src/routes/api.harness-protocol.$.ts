@@ -1,6 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { defineAgent } from '@tanstack/ai'
+import { createOpenaiChat } from '@tanstack/ai-openai'
 import {
+  type FinishContext,
+  retryTransientErrors,
   configOption,
   createHarnessHandler,
   createHarnessHost,
@@ -47,9 +50,33 @@ function handlerFor(request: Request) {
       return 'Painted one image.'
     },
   })
+  // `x-harness-turn` picks the turn hooks for a test.
+  const turnMode = request.headers.get('x-harness-turn')
+  const reminder = '[harness-finish] reminder: post the answer'
+  const turn =
+    turnMode === 'retry'
+      ? { onModelError: retryTransientErrors({ baseDelayMs: 1 }) }
+      : turnMode === 'finish'
+        ? {
+            beforeFinish: ({ messages }: FinishContext) =>
+              messages.some((message) => message.content === reminder)
+                ? undefined
+                : { messages: [{ role: 'user' as const, content: reminder }] },
+          }
+        : undefined
+  // The retry test needs the harness to see the 503, so the SDK must not retry.
+  const adapter =
+    turnMode === 'retry'
+      ? createOpenaiChat('gpt-4o', 'sk-e2e-test-dummy-key', {
+          baseURL: `http://127.0.0.1:${port}/v1`,
+          defaultHeaders: { 'X-Test-Id': testId },
+          maxRetries: 0,
+        })
+      : createTextAdapter('openai', undefined, port, testId).adapter
   const harness = defineHarness({
     name: 'e2e/protocol',
-    adapter: createTextAdapter('openai', undefined, port, testId).adapter,
+    adapter,
+    ...(turn ? { turn } : {}),
     subagents: { agents: [painter] },
     agents: [
       defineAgent({
