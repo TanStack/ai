@@ -226,9 +226,7 @@ function wrapWithTimingEvents(
   })()
 }
 
-export const Route = createFileRoute(
-  '/_database-demo/api/database-demo',
-)({
+export const Route = createFileRoute('/_database-demo/api/database-demo')({
   server: {
     handlers: {
       POST: async ({ request }) => {
