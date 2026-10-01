@@ -226,7 +226,7 @@ export async function POST(request: Request) {
   if (!apiKey) return byokMissing(openaiByok);
 
   const stream = chat({
-    adapter: createOpenaiChat("gpt-6-sol", apiKey),
+    adapter: createOpenaiChat("gpt-6-astra", apiKey),
     messages: params.messages,
     threadId: params.threadId,
     runId: params.runId,
