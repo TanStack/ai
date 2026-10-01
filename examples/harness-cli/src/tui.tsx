@@ -1,7 +1,14 @@
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react'
 import {
   Box,
   Spacer,
@@ -42,6 +49,7 @@ import { Footer } from './screen/footer'
 import { PROVIDER_KEYS, isOn, providerKeysIn } from './screen/keys'
 import { mediaDir, openExternal, play, useSavedMedia } from './screen/media'
 import { Menu } from './screen/menu'
+import { pathSuggestions } from './screen/paths'
 import { Message, settledCount } from './screen/parts'
 import { Status } from './screen/status'
 import { ACCENT, compact } from './screen/theme'
@@ -51,6 +59,7 @@ import type { ModelEntry } from './harness'
 import type { Recording, VoiceClip } from './voice'
 import type { Line } from './screen/editor'
 import type { MenuItem } from './screen/menu'
+import type { PathItem } from './screen/paths'
 import type { VoiceState } from './screen/status'
 import type {
   SessionView,
@@ -86,6 +95,7 @@ const TAKES_INPUT = new Set(['voice'])
 
 const HELP = [
   'Type / to see the commands. ↑ and ↓ go through the lines you sent.',
+  'Type @ to pick a file or a folder to send. Tab or Enter fills the path.',
   'Voice: hold Ctrl+R and talk, then let go. Or tap Ctrl+R, talk, tap again.',
   '  The words go into the input line. Fix them if needed, then press Enter.',
   '  Name a file ("use cat dot png") or say "the last image" to send it too.',
@@ -487,11 +497,26 @@ function App({ view }: { view: SessionView }) {
   )
   const [picker, setPicker] = useState<Picker | undefined>(undefined)
   const [selected, setSelected] = useState(0)
-  const suggestions =
-    // A line from the history keeps the arrows for the history.
-    picker || waiting || editor.line.hidden || editor.browsing
-      ? []
-      : suggestionsFor(editor.line.text, commands)
+  // A line from the history keeps the arrows for the history.
+  const blocked = Boolean(
+    picker || waiting || editor.line.hidden || editor.browsing,
+  )
+  const commandItems = blocked ? [] : suggestionsFor(editor.line.text, commands)
+  // The files for an `@path`, read again only when the line changes.
+  const { text: lineText, cursor: lineCursor } = editor.line
+  const paths = useMemo(
+    () =>
+      blocked || commandItems.length > 0
+        ? undefined
+        : pathSuggestions({
+            text: lineText,
+            cursor: lineCursor,
+            hidden: false,
+          }),
+    [blocked, commandItems.length, lineText, lineCursor],
+  )
+  const suggestions: Array<(MenuItem & { takesInput: boolean }) | PathItem> =
+    commandItems.length > 0 ? commandItems : (paths?.items ?? [])
   const [suggested, setSuggested] = useState(0)
   useEffect(() => setSuggested(0), [editor.line.text])
 
@@ -936,10 +961,19 @@ function App({ view }: { view: SessionView }) {
       if (key.upArrow)
         return setSuggested((index) => (index - 1 + count) % count)
       if (key.downArrow) return setSuggested((index) => (index + 1) % count)
-      if (key.tab) return editor.set(`/${suggestion.id} `)
-      if (key.return) {
-        if (suggestion.takesInput) return editor.set(`/${suggestion.id} `)
-        return send({ text: `/${suggestion.id}`, cursor: 0, hidden: false })
+      if ('fill' in suggestion) {
+        // Put the path in place of the typed `@` token.
+        if (key.tab || key.return) {
+          const { text, cursor } = editor.line
+          const filled = text.slice(0, paths?.start ?? cursor) + suggestion.fill
+          return editor.set(filled + text.slice(cursor), filled.length)
+        }
+      } else {
+        if (key.tab) return editor.set(`/${suggestion.id} `)
+        if (key.return) {
+          if (suggestion.takesInput) return editor.set(`/${suggestion.id} `)
+          return send({ text: `/${suggestion.id}`, cursor: 0, hidden: false })
+        }
       }
     }
     if (key.upArrow) return editor.older()
@@ -997,7 +1031,11 @@ function App({ view }: { view: SessionView }) {
           <Menu
             items={suggestions}
             selected={Math.min(suggested, suggestions.length - 1)}
-            hint="↑↓ move   Tab fills   Enter runs"
+            hint={
+              commandItems.length > 0
+                ? '↑↓ move   Tab fills   Enter runs'
+                : '↑↓ move   Tab or Enter fills'
+            }
           />
         ) : null}
         <Footer view={view} />

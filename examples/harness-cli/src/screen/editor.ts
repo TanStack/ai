@@ -96,7 +96,9 @@ export function useLineEditor() {
         by === 'start' ? 0 : by === 'end' ? line.text.length : line.cursor + by
       show({ ...line, cursor: Math.max(0, Math.min(line.text.length, target)) })
     },
-    set: (text: string) => edit({ text, cursor: text.length, hidden: false }),
+    /** Replace the line. The cursor goes to `cursor`, or to the end. */
+    set: (text: string, cursor = text.length) =>
+      edit({ text, cursor, hidden: false }),
     clear: () => edit(empty),
     /** Keep a sent line for the up arrow. */
     remember: (text: string) => {

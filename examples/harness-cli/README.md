@@ -118,6 +118,7 @@ A session keeps its messages, its model and effort, and its todos and usage. The
 
 - Answers show as markdown: lists, tables, and highlighted code. A Mermaid block shows as a chart drawn in text. In demo mode, ask `draw me a chart`.
 - Type `/` for a list of the commands. The arrows move in it, Tab fills the command, and Enter runs it.
+- Type `@` for a list of the files and folders in the working folder. Tab or Enter fills the path. A folder opens, so you can go on to a file in it.
 - The up and down arrows go through the lines you sent, also after a restart. They are kept in `~/.tanstack-harness-example/history.json`. Keys are never kept.
 - The input stays at the bottom of the screen. `/help` lists every command.
 
