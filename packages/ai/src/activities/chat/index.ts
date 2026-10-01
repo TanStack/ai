@@ -42,6 +42,7 @@ import {
 import { subagentHostMessageId } from '../../utilities/subagent-wire'
 import { withDurabilityBatchHint } from '../../utilities/durability-batch'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
+import { isRedactedThinkingId } from '../../utilities/reasoning-encrypted-value'
 import { restorePublicUsage } from '../../utilities/restore-inbound-chunk'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
 import {
@@ -536,6 +537,8 @@ export interface TextActivityOptions<
   abortController?: TextOptions['abortController']
   /** Strategy for controlling the agent loop */
   agentLoopStrategy?: TextOptions['agentLoopStrategy']
+  /** How the server tools of one model turn run. Default `'parallel'`. */
+  toolExecution?: TextOptions['toolExecution']
   /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
@@ -870,8 +873,7 @@ class TextEngine<
   private currentMessageCreatedAt: Date | null = null
   private streamIdentityCaptured = false
   private accumulatedContent = ''
-  private accumulatedThinking: Array<{ content: string; signature?: string }> =
-    []
+  private accumulatedThinking: NonNullable<ModelMessage['thinking']> = []
   /**
    * Arrival order of this iteration's thinking steps, text and tool calls.
    * A ModelMessage keeps `thinking` apart from `content`/`toolCalls`, so a
@@ -883,6 +885,7 @@ class TextEngine<
   private turnParts: Array<TurnPart> | null = []
   private currentThinkingContent = ''
   private currentThinkingSignature = ''
+  private currentThinkingRedacted = false
   private eventOptions?: Record<string, unknown> | undefined
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
@@ -1549,6 +1552,7 @@ class TextEngine<
     this.turnParts = []
     this.currentThinkingContent = ''
     this.currentThinkingSignature = ''
+    this.currentThinkingRedacted = false
 
     this.finishedEvent = null
     this.streamedToolErrorResults.clear()
@@ -2018,6 +2022,7 @@ class TextEngine<
         ...(this.currentThinkingSignature && {
           signature: this.currentThinkingSignature,
         }),
+        ...(this.currentThinkingRedacted && { redacted: true }),
       })
       if (this.turnParts) {
         const placeholder = [...this.turnParts]
@@ -2035,6 +2040,7 @@ class TextEngine<
       }
       this.currentThinkingContent = ''
       this.currentThinkingSignature = ''
+      this.currentThinkingRedacted = false
     }
   }
 
@@ -2062,6 +2068,7 @@ class TextEngine<
     if (typeof chunk.signature === 'string' && chunk.signature !== '') {
       this.noteThinkingStepPosition()
       this.currentThinkingSignature = chunk.signature
+      this.currentThinkingRedacted = isRedactedThinkingId(chunk.stepId)
     }
   }
 
@@ -2091,6 +2098,7 @@ class TextEngine<
     }
     this.noteThinkingStepPosition()
     this.currentThinkingSignature = chunk.encryptedValue
+    this.currentThinkingRedacted = isRedactedThinkingId(chunk.entityId)
   }
 
   /**
@@ -2228,6 +2236,7 @@ class TextEngine<
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
         inputResponses: this.resumeInputResponses,
       },
+      this.params.toolExecution,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2416,6 +2425,7 @@ class TextEngine<
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
         inputResponses: this.resumeInputResponses,
       },
+      this.params.toolExecution,
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -2605,7 +2615,7 @@ class TextEngine<
       ),
     )
     type Segment = {
-      thinking: Array<{ content: string; signature?: string }>
+      thinking: NonNullable<ModelMessage['thinking']>
       text: string
       callIds: Array<string>
     }

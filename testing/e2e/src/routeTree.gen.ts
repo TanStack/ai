@@ -125,6 +125,7 @@ import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-too
 import { Route as ApiAnthropicThinkingOrderWireRouteImport } from './routes/api.anthropic-thinking-order-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
+import { Route as ApiAnthropicRedactedThinkingWireRouteImport } from './routes/api.anthropic-redacted-thinking-wire'
 import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
 import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
@@ -741,6 +742,12 @@ const ApiAnthropicSkillsWireRoute = ApiAnthropicSkillsWireRouteImport.update({
   path: '/api/anthropic-skills-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnthropicRedactedThinkingWireRoute =
+  ApiAnthropicRedactedThinkingWireRouteImport.update({
+    id: '/api/anthropic-redacted-thinking-wire',
+    path: '/api/anthropic-redacted-thinking-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicOpus5CombinedWireRoute =
   ApiAnthropicOpus5CombinedWireRouteImport.update({
     id: '/api/anthropic-opus-5-combined-wire',
@@ -830,6 +837,7 @@ export interface FileRoutesByFullPath {
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
+  '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
@@ -958,6 +966,7 @@ export interface FileRoutesByTo {
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
+  '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
@@ -1087,6 +1096,7 @@ export interface FileRoutesById {
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
+  '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/anthropic-thinking-order-wire': typeof ApiAnthropicThinkingOrderWireRoute
@@ -1217,6 +1227,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-bug-test'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
+    | '/api/anthropic-redacted-thinking-wire'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-structured-usage'
     | '/api/anthropic-thinking-order-wire'
@@ -1345,6 +1356,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-bug-test'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
+    | '/api/anthropic-redacted-thinking-wire'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-structured-usage'
     | '/api/anthropic-thinking-order-wire'
@@ -1473,6 +1485,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-bug-test'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
+    | '/api/anthropic-redacted-thinking-wire'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-structured-usage'
     | '/api/anthropic-thinking-order-wire'
@@ -1602,6 +1615,7 @@ export interface RootRouteChildren {
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
   ApiAnthropicMultiTurnStructuredWireRoute: typeof ApiAnthropicMultiTurnStructuredWireRoute
   ApiAnthropicOpus5CombinedWireRoute: typeof ApiAnthropicOpus5CombinedWireRoute
+  ApiAnthropicRedactedThinkingWireRoute: typeof ApiAnthropicRedactedThinkingWireRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
   ApiAnthropicStructuredUsageRoute: typeof ApiAnthropicStructuredUsageRoute
   ApiAnthropicThinkingOrderWireRoute: typeof ApiAnthropicThinkingOrderWireRoute
@@ -2504,6 +2518,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAnthropicSkillsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/anthropic-redacted-thinking-wire': {
+      id: '/api/anthropic-redacted-thinking-wire'
+      path: '/api/anthropic-redacted-thinking-wire'
+      fullPath: '/api/anthropic-redacted-thinking-wire'
+      preLoaderRoute: typeof ApiAnthropicRedactedThinkingWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/anthropic-opus-5-combined-wire': {
       id: '/api/anthropic-opus-5-combined-wire'
       path: '/api/anthropic-opus-5-combined-wire'
@@ -2672,6 +2693,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAnthropicMultiTurnStructuredWireRoute:
     ApiAnthropicMultiTurnStructuredWireRoute,
   ApiAnthropicOpus5CombinedWireRoute: ApiAnthropicOpus5CombinedWireRoute,
+  ApiAnthropicRedactedThinkingWireRoute: ApiAnthropicRedactedThinkingWireRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
   ApiAnthropicStructuredUsageRoute: ApiAnthropicStructuredUsageRoute,
   ApiAnthropicThinkingOrderWireRoute: ApiAnthropicThinkingOrderWireRoute,

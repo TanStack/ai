@@ -397,6 +397,39 @@ function CartChat() {
 4. **Result is returned** - To the model as a tool result message
 5. **Model continues** - Uses the result to generate a response
 
+## Run tools one at a time
+
+When the model calls several server tools in one turn, they start at the same time, and the model gets the results in the order of its calls. Some tools must not overlap, for example a tool that writes a file and a tool that runs the tests.
+
+Set `toolExecution: 'sequential'` on `chat()` to run the tools of each turn one at a time, in call order:
+
+```ts
+import { chat, toolDefinition } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const writeFile = toolDefinition({
+  name: 'write_file',
+  description: 'Write a file',
+  inputSchema: z.object({ path: z.string(), content: z.string() }),
+}).server(async ({ path }) => ({ written: path }))
+
+const runTests = toolDefinition({
+  name: 'run_tests',
+  description: 'Run the test suite',
+  inputSchema: z.object({}),
+}).server(async () => ({ passed: true }))
+
+const stream = chat({
+  adapter: openaiText('gpt-6.1-sol'),
+  messages: [{ role: 'user', content: 'Fix the bug, then run the tests.' }],
+  tools: [writeFile, runTests],
+  toolExecution: 'sequential',
+})
+```
+
+Client tools do not change: the client runs them as their calls arrive.
+
 ## Progress Events and Runtime Context
 
 A server tool's `.server()` implementation receives a second argument, the `ToolExecutionContext` — `{ context, toolCallId, emitCustomEvent }`. Use `emitCustomEvent` to stream typed progress to the client while the tool runs, and `context` to read request-scoped dependencies (auth, DB clients, etc.):
