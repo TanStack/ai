@@ -11,6 +11,7 @@ import type {
 import type { AnyAgent } from './agents'
 import type { MediaOptions } from './media'
 import type { HarnessPlugin } from './plugins'
+import type { HarnessTurnOptions } from './turn'
 import type { BusyPolicy } from './types'
 
 /** The `subagents` option: the same as `chat({ subagents })`. */
@@ -82,6 +83,8 @@ export interface HarnessConfig<
   busy?: BusyPolicy
   /** Attempt and time limits for each input on a durable host. */
   durability?: HarnessDurability
+  /** Hooks that control a chat turn: retries, joins, and the end of a turn. */
+  turn?: HarnessTurnOptions
   /**
    * Files sent to a turn, and media agents make: the size limit, the kinds a
    * user can send, the kinds the model reads, and an optional transcriber for

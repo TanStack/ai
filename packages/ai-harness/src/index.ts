@@ -91,6 +91,18 @@ export type {
   SessionSnapshot,
 } from './session'
 
+export type {
+  FinishContext,
+  HarnessTurnOptions,
+  JoinCandidate,
+  JoinContext,
+  ModelErrorContext,
+  RecoverContext,
+  RecoverDecision,
+  RecoverHook,
+  TurnAdditions,
+} from './turn'
+
 export { HARNESS_EVENTS, InputRejectedError } from './types'
 export type {
   BusyPolicy,
