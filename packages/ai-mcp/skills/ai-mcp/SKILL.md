@@ -125,6 +125,8 @@ serveMCPStdio(server)
 
 You can also pass `resources` and `prompts`.
 Build them with `resourceDefinition` and `promptDefinition` from `@tanstack/ai-mcp/server`.
+A resource `read(uri, variables, ctx)` gets the requested URI, the template variables, and `ctx.context` (the `handle` context plus `authInfo`).
+A template resource can take `list(ctx)`, which returns `{ resources }` for `resources/list`.
 
 A tool reads its hooks on `ctx.context`.
 Give `.server()` the type `MCPToolContext` from `@tanstack/ai-mcp/server`.
@@ -230,14 +232,18 @@ Set `metadata.title` and `metadata.annotations` on the tool definition.
 The host gets them as the MCP tool title and annotations.
 Use the MCP names: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`.
 A host skips its confirmation for a tool with `readOnlyHint: true`.
+Set `metadata._meta` to send the MCP tool `_meta`, for example `{ ui: { resourceUri: 'ui://view' } }` for an MCP Apps view.
+Pass `onerror` to `createMCPServer` to log transport and protocol errors from the SDK.
 
 A tool with no `outputSchema` can return an MCP `CallToolResult`.
 The server sends it as is: its content blocks, its `structuredContent`, and its `isError`.
 
-### Turn spec 2025 sessions off
+### Spec 2025 on a host with many instances
 
-Set `sessions: 'reject'` on a host with many instances, such as Cloudflare Workers.
-The server opens no session. A spec 2025 request gets the SDK rejection.
+Set `sessions: 'stateless'` on a host with many instances, such as Cloudflare Workers.
+A new server answers each spec 2025 request, and no session is kept.
+Elicitation and client sampling do not work for a spec 2025 client in that mode.
+Set `sessions: 'reject'` to serve spec 2026 only. A spec 2025 request then gets the SDK rejection.
 The default is `'memory'`: sessions live in the process for 30 idle minutes.
 
 ### Call a `createMCPServer` server with its types

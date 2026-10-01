@@ -525,12 +525,13 @@
           "label": "Serve Tools over HTTP",
           "to": "mcp/server",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Serve Resources and Prompts",
           "to": "mcp/server-content",
-          "addedAt": "2026-09-22"
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Ask for Input",
@@ -560,7 +561,7 @@
           "label": "MCP Server Sessions",
           "to": "mcp/server-sessions",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "MCP Server on stdio",

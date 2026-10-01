@@ -75,6 +75,27 @@ const initialize = {
 
 const toolsList = { jsonrpc: '2.0', id: 2, method: 'tools/list' }
 
+// A spec 2025 request with no session id, as a stateless client sends it.
+function legacyPost(body: unknown) {
+  return {
+    headers: {
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+      'mcp-protocol-version': '2025-11-25',
+    },
+    data: body,
+  }
+}
+
+// The body is JSON or one SSE message, depending on the transport.
+function rpcResult(body: string): any {
+  const data = body
+    .split('\n')
+    .find((line) => line.startsWith('data:'))
+    ?.slice('data:'.length)
+  return JSON.parse(data ?? body).result
+}
+
 test.describe('mcp: createMCPServer with auth, output schema, and a task', () => {
   test('a client typed from the server discovers and calls its tools over HTTP', async ({
     request,
@@ -166,5 +187,40 @@ test.describe('mcp: createMCPServer with auth, output schema, and a task', () =>
       mcpPost('bob', toolsList, sessionId),
     )
     expect(other.status()).toBe(404)
+  })
+
+  test('a stateless server serves spec 2025 with resource context and tool _meta', async ({
+    request,
+  }) => {
+    const url = '/api/mcp-typed-server?stateless'
+    const opened = await request.post(url, legacyPost(initialize))
+    expect(opened.ok(), await opened.text()).toBe(true)
+    expect(opened.headers()['mcp-session-id']).toBeUndefined()
+
+    const read = await request.post(
+      url,
+      legacyPost({
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'resources/read',
+        params: { uri: 'notes://7' },
+      }),
+    )
+    expect(rpcResult(await read.text()).contents[0].text).toBe(
+      'note 7 for acme',
+    )
+
+    const listed = await request.post(
+      url,
+      legacyPost({ jsonrpc: '2.0', id: 4, method: 'resources/list' }),
+    )
+    expect(rpcResult(await listed.text()).resources).toContainEqual(
+      expect.objectContaining({ uri: 'notes://1', name: 'Note 1 for acme' }),
+    )
+
+    const tools = await request.post(url, legacyPost(toolsList))
+    expect(rpcResult(await tools.text()).tools[0]._meta).toMatchObject({
+      ui: { resourceUri: 'ui://notes/view' },
+    })
   })
 })

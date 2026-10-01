@@ -136,6 +136,36 @@ The annotation names are the MCP names:
 - `idempotentHint`: a repeat call with the same input changes nothing more.
 - `openWorldHint`: the tool reaches outside your system.
 
+To show an [MCP Apps](./apps) view for a tool, set `metadata._meta`. The host gets it as the MCP tool `_meta`. The key `ui.resourceUri` links the tool to the `ui://` resource of the view.
+
+```ts
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+export const showChart = toolDefinition({
+  name: 'show_chart',
+  description: 'Show the sales chart',
+  inputSchema: z.object({}),
+  metadata: {
+    _meta: { ui: { resourceUri: 'ui://charts/sales' } },
+  },
+}).server(async () => ({ total: 42 }))
+```
+
+## Log SDK errors
+
+Some errors never reach your tool code: transport errors, protocol errors, and rejected requests. Pass `onerror` to send them to your logs. It only reports. The response does not change.
+
+```ts
+import { createMCPServer } from '@tanstack/ai-mcp/server'
+
+const server = createMCPServer({
+  name: 'weather',
+  version: '1.0.0',
+  onerror: (error) => console.error('MCP error', error),
+})
+```
+
 ## Shape the result yourself
 
 The server sends the tool output as one text block. An object also goes on `structuredContent`. When you want more than one block, or `isError` without an exception, return an MCP `CallToolResult` from a tool with no `outputSchema`. The server sends it as is.
