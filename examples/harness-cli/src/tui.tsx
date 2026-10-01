@@ -50,6 +50,7 @@ import { PROVIDER_KEYS, isOn, providerKeysIn } from './screen/keys'
 import { mediaDir, openExternal, play, useSavedMedia } from './screen/media'
 import { Menu } from './screen/menu'
 import { pathSuggestions } from './screen/paths'
+import { showSplash } from './screen/splash'
 import { Message, settledCount } from './screen/parts'
 import { Status } from './screen/status'
 import { ACCENT, compact } from './screen/theme'
@@ -1044,6 +1045,9 @@ function App({ view }: { view: SessionView }) {
   )
 }
 
+// The boot splash shows once in a process.
+let splashShown = false
+
 /**
  * The Ink screen for `runCli({ ui })`. It clears the terminal, opens sign-in
  * links in the browser, records voice messages, saves the media the agents
@@ -1059,9 +1063,18 @@ export async function runTui(view: SessionView, io: RenderOptions = {}) {
     view.notice(
       'No model key yet. Type /connect and pick OpenRouter to sign in with the browser.',
     )
-  // Start on a clean terminal: clear the screen and the scrollback.
-  if (!io.stdout && process.stdout.isTTY)
-    process.stdout.write('\x1b[2J\x1b[3J\x1b[H')
+  // Start on a clean terminal: clear the screen and the scrollback. The
+  // splash shows once, at the first start, not again after a /resume.
+  const clear = () => {
+    if (!io.stdout && process.stdout.isTTY)
+      process.stdout.write('\x1b[2J\x1b[3J\x1b[H')
+  }
+  if (!splashShown && (io.stdout ?? process.stdout).isTTY) {
+    splashShown = true
+    clear()
+    await showSplash(io)
+  }
+  clear()
   const app = render(<App view={view} />, io)
   // ponytail: the SDK logs its warnings and errors on the console (the
   // message, then its details with console.dir), and the code highlighter

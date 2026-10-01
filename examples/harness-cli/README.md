@@ -116,6 +116,7 @@ A session keeps its messages, its model and effort, and its todos and usage. The
 
 ## The screen
 
+- At the start, TanStack AI animates in block letters for about 2 seconds. A key skips it.
 - Answers show as markdown: lists, tables, and highlighted code. A Mermaid block shows as a chart drawn in text. In demo mode, ask `draw me a chart`.
 - Type `/` for a list of the commands. The arrows move in it, Tab fills the command, and Enter runs it.
 - Type `@` for a list of the files and folders in the working folder. Tab or Enter fills the path. A folder opens, so you can go on to a file in it.
