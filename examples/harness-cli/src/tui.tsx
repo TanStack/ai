@@ -1,21 +1,39 @@
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react'
 import {
   Box,
+  Spacer,
   Static,
   Text,
   measureElement,
   render,
   useApp,
   useBoxMetrics,
+  useCursor,
   useInput,
   usePaste,
+  useStdout,
   useWindowSize,
 } from 'ink'
 import { useSelector } from '@tanstack/react-store'
-import { assistant, features, keyProviders, modelInfo } from './harness'
+import { supportedReasoningLevels } from '@tanstack/ai-models'
+import {
+  assistant,
+  features,
+  keyProviders,
+  modelInfo,
+  modelProviders,
+  reasons,
+} from './harness'
+import { hasSession, listSessions } from './sessions'
 import {
   canTranscribe,
   chooseMicrophone,
@@ -30,15 +48,20 @@ import { useLineEditor } from './screen/editor'
 import { Footer } from './screen/footer'
 import { PROVIDER_KEYS, isOn, providerKeysIn } from './screen/keys'
 import { mediaDir, openExternal, play, useSavedMedia } from './screen/media'
+import { SCREEN_COMMANDS, TAKES_INPUT } from './screen/commands'
 import { Menu } from './screen/menu'
+import { pathSuggestions } from './screen/paths'
+import { showSplash } from './screen/splash'
 import { Message, settledCount } from './screen/parts'
 import { Status } from './screen/status'
 import { ACCENT, compact } from './screen/theme'
 import type { ReactNode } from 'react'
 import type { DOMElement, RenderOptions } from 'ink'
+import type { ModelEntry } from './harness'
 import type { Recording, VoiceClip } from './voice'
 import type { Line } from './screen/editor'
 import type { MenuItem } from './screen/menu'
+import type { PathItem } from './screen/paths'
 import type { VoiceState } from './screen/status'
 import type {
   SessionView,
@@ -47,33 +70,11 @@ import type {
   ViewMessage,
 } from '@tanstack/ai-harness/view'
 
-const playground = fileURLToPath(new URL('../playground', import.meta.url))
-
-/** The commands of the screen itself. The harness adds its own to the list. */
-const SCREEN_COMMANDS = [
-  {
-    name: 'connect',
-    description: 'Connect a model provider, Notion, or Linear',
-  },
-  { name: 'disconnect', description: 'Remove a key or a sign-in' },
-  { name: 'model', description: 'Pick the model' },
-  { name: 'effort', description: 'Pick how hard the model thinks' },
-  { name: 'mic', description: 'Pick the microphone' },
-  { name: 'open', description: 'Open a media file (default: the last one)' },
-  { name: 'play', description: 'Play an audio or video file' },
-  {
-    name: 'voice',
-    description: 'Send a recorded voice message: /voice note.m4a',
-  },
-  { name: 'help', description: 'Show the commands and the voice tips' },
-  { name: 'exit', description: 'Quit' },
-]
-// Commands that need text after the name: Enter in the list fills the name.
-const TAKES_INPUT = new Set(['voice'])
-
 const HELP = [
   'Type / to see the commands. ↑ and ↓ go through the lines you sent.',
+  'Type @ to pick a file or a folder to send. Tab or Enter fills the path.',
   'Voice: hold Ctrl+R and talk, then let go. Or tap Ctrl+R, talk, tap again.',
+  '  The words go into the input line. Fix them if needed, then press Enter.',
   '  Name a file ("use cat dot png") or say "the last image" to send it too.',
   '  The first recording listens on all microphones and keeps the loudest.',
 ]
@@ -91,9 +92,12 @@ function suggestionsFor(text: string, commands: ReadonlyArray<ViewCommand>) {
       takesInput: TAKES_INPUT.has(command.name),
     })),
     // `connect:openai` and the like are in the `/connect` picker instead.
+    // `skill:<name>` (a skill whose name was taken) shows here.
     ...commands
       .filter(
-        (command) => !command.name.includes(':') && !own.has(command.name),
+        (command) =>
+          (!command.name.includes(':') || command.name.startsWith('skill:')) &&
+          !own.has(command.name),
       )
       .map((command) => ({
         id: command.name,
@@ -142,49 +146,144 @@ function connectItems(state: SessionViewState): Array<MenuItem> {
   return [...providers, ...apps]
 }
 
-/** The rows of the `/model` picker, with the provider and the context size. */
-function modelItems(state: SessionViewState): Array<MenuItem> {
-  const entry = state.config.find((item) => item.key === 'model')
-  if (entry?.option.type !== 'select') return []
+const modelCount = (count: number) => `${count} model${count === 1 ? '' : 's'}`
+
+const currentModel = (state: SessionViewState) =>
+  String(state.config.find((item) => item.key === 'model')?.value ?? '')
+
+/** The context size, the effort levels, and the price of a model. */
+function modelDetail(model: ModelEntry) {
+  const { contextWindow, cost } = model.record
+  const levels = supportedReasoningLevels(model.record).filter(
+    (level) => level !== 'off',
+  )
+  return [
+    `${compact(contextWindow)} context`,
+    levels.length === 0
+      ? 'no effort setting'
+      : levels.length === 1
+        ? `effort ${levels[0]}`
+        : `effort ${levels[0]} to ${levels.at(-1)}`,
+    ...(cost.input > 0 ? [`$${cost.input}/$${cost.output} per 1M tokens`] : []),
+  ].join(', ')
+}
+
+/** The rows of a `/model` picker for these models. */
+function modelRows(
+  models: ReadonlyArray<ModelEntry>,
+  state: SessionViewState,
+): Array<MenuItem> {
+  const current = currentModel(state)
+  return models.map((model) => ({
+    id: model.id,
+    label: model.id,
+    current: model.id === current,
+    detail: modelDetail(model),
+  }))
+}
+
+/** The first `/model` step: the providers, then the demo model if it is on. */
+function providerItems(state: SessionViewState): Array<MenuItem> {
+  const current = currentModel(state)
   const keys = providerKeysIn(state.plugins[PROVIDER_KEYS])
-  return entry.option.options.map((name) => {
-    const info = modelInfo[name]
-    const missing = keys.some(
-      (key) => key.id === info?.provider && key.state === 'missing',
-    )
+  const rows = modelProviders.map((provider) => {
+    const missing =
+      keys.find((key) => key.id === provider.id)?.state === 'missing'
     return {
-      id: name,
-      label: name,
-      current: name === entry.value,
-      detail: info
-        ? `${info.provider}, ${compact(info.contextWindow)} context${missing ? `, needs /connect ${info.provider}` : ''}`
-        : 'no key needed',
+      id: provider.id,
+      label: provider.label,
+      current: modelInfo[current]?.provider === provider.id,
+      detail: `${modelCount(provider.models.length)}${missing ? `, needs /connect ${provider.id}` : ''}`,
     }
   })
+  const entry = state.config.find((item) => item.key === 'model')
+  const demo =
+    entry?.option.type === 'select' && entry.option.options.includes('demo')
+  return demo
+    ? [
+        ...rows,
+        {
+          id: 'demo',
+          label: 'Demo',
+          current: current === 'demo',
+          detail: 'answers without a key',
+        },
+      ]
+    : rows
+}
+
+/**
+ * The OpenRouter step between the provider and the model: the vendors. An
+ * alias vendor (`~anthropic`, its `latest` models) sorts after its vendor.
+ */
+function vendorItems(
+  models: ReadonlyArray<ModelEntry>,
+  state: SessionViewState,
+): Array<MenuItem> {
+  const current = currentModel(state)
+  const counts = new Map<string, number>()
+  for (const model of models) {
+    const [vendor = ''] = model.id.split('/')
+    counts.set(vendor, (counts.get(vendor) ?? 0) + 1)
+  }
+  return [...counts]
+    .sort(
+      ([a], [b]) =>
+        a.replace(/^~/, '').localeCompare(b.replace(/^~/, '')) ||
+        a.localeCompare(b),
+    )
+    .map(([vendor, count]) => ({
+      id: vendor,
+      label: vendor,
+      current: current.startsWith(`${vendor}/`),
+      detail: modelCount(count),
+    }))
 }
 
 const EFFORT_DETAIL: Record<string, string> = {
   default: 'the model decides',
-  low: 'fastest, fewest tokens',
+  off: 'no thinking',
+  minimal: 'the least thinking',
+  low: 'fast, few tokens',
   medium: 'balanced',
   high: 'thinks longer',
+  xhigh: 'thinks very long',
   max: 'the most the model can think',
 }
 
-/** The rows of the `/effort` picker, for the current model. */
+/** The rows of the `/effort` picker: the levels the current model has. */
 function effortItems(state: SessionViewState): Array<MenuItem> {
-  const entry = state.config.find((item) => item.key === 'effort')
-  if (entry?.option.type !== 'select') return []
-  const model = String(
-    state.config.find((item) => item.key === 'model')?.value ?? '',
-  )
-  const used = modelInfo[model]?.effort === true
-  return entry.option.options.map((name) => ({
+  const effort = state.config.find((item) => item.key === 'effort')?.value
+  const record = modelInfo[currentModel(state)]?.record
+  const levels = record ? supportedReasoningLevels(record) : []
+  return ['default', ...levels].map((name) => ({
     id: name,
     label: name,
-    current: name === entry.value,
-    detail: `${EFFORT_DETAIL[name] ?? ''}${used || name === 'default' ? '' : `, ${model} has no effort setting`}`,
+    current: name === effort,
+    detail: EFFORT_DETAIL[name] ?? '',
   }))
+}
+
+/** The rows of the `/resume` picker: the saved sessions, newest first. */
+async function sessionItems(state: SessionViewState): Promise<Array<MenuItem>> {
+  const sessions = await listSessions()
+  return sessions.map((session) => ({
+    id: session.id,
+    label: session.id,
+    current: session.id === state.threadId,
+    detail: `${new Date(session.updatedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}  ${session.title.slice(0, 60)}`,
+  }))
+}
+
+// The session the user picked with /resume. The CLI opens it after the
+// screen closes.
+let nextSession: string | undefined
+
+/** The session `/resume` picked, once. `undefined` when the user quit. */
+export function takeNextSession() {
+  const next = nextSession
+  nextSession = undefined
+  return next
 }
 
 /** A list open over the input line, for example the `/connect` picker. */
@@ -194,22 +293,74 @@ interface Picker {
   pick: (item: MenuItem) => unknown
 }
 
-function Header() {
+const HEADER_KEYS = 'Ctrl+R talk  / commands  ↑↓ history  Esc cancel'
+
+/**
+ * The header, as wide as the screen: the harness, the folder, which features
+ * are on, and the keys. It prints once, so the App prints the screen again
+ * when a feature turns on or off.
+ */
+function Header({ view, width }: { view: SessionView; width: number }) {
+  const keys = providerKeysIn(
+    useSelector(view.store, (state) => state.plugins[PROVIDER_KEYS]),
+  )
+  const threadId = useSelector(view.store, (state) => state.threadId)
+  const marks = features.map((feature) => {
+    const on = isOn(feature, keys)
+    return {
+      name: feature.name,
+      on,
+      text: `${on ? '●' : '○'} ${feature.name}  `,
+    }
+  })
+  // The border and the padding take 4 columns. The keys go next to the
+  // features when both fit, else on their own row.
+  const inner = width - 4
+  const marksWidth = marks.reduce((sum, mark) => sum + mark.text.length, 0)
+  const keysFit = marksWidth + HEADER_KEYS.length <= inner
   return (
     <Box
+      width={width}
       flexDirection="column"
       borderStyle="round"
       borderColor={ACCENT}
       paddingX={1}
     >
       <Box>
-        <Text color={ACCENT} bold>
-          ◆ TanStack AI
-        </Text>
-        <Text bold> harness</Text>
-        <Text dimColor>{`  ${assistant.name}`}</Text>
+        <Box flexShrink={0}>
+          <Text color={ACCENT} bold>
+            ◆ TanStack AI
+          </Text>
+          <Text bold> harness</Text>
+          <Text dimColor>{`  ${assistant.name}  session ${threadId}  `}</Text>
+        </Box>
+        <Spacer />
+        <Box flexShrink={1} minWidth={0}>
+          <Text dimColor wrap="truncate-start">
+            {process.cwd()}
+          </Text>
+        </Box>
       </Box>
-      <Text dimColor>{process.cwd()}</Text>
+      <Box>
+        <Box flexWrap="wrap" flexShrink={1}>
+          {marks.map((mark) => (
+            <Text key={mark.name} color={mark.on ? 'green' : 'gray'}>
+              {mark.text}
+            </Text>
+          ))}
+        </Box>
+        {keysFit && (
+          <>
+            <Spacer />
+            <Text dimColor>{HEADER_KEYS}</Text>
+          </>
+        )}
+      </Box>
+      {!keysFit && (
+        <Box justifyContent="flex-end">
+          <Text dimColor>{HEADER_KEYS}</Text>
+        </Box>
+      )}
     </Box>
   )
 }
@@ -225,6 +376,7 @@ function InputBox({
   hidden: boolean
 }) {
   const shown = hidden ? '•'.repeat(line.text.length) : line.text
+  // The terminal cursor shows where you type (see `inputCursor`).
   return (
     <Box
       borderStyle="round"
@@ -239,7 +391,7 @@ function InputBox({
       {shown === '' ? (
         // The cursor goes before the hint, so the hint does not look typed.
         <Text>
-          <Text inverse> </Text>
+          {' '}
           <Text dimColor>
             {hidden
               ? ' Paste the key. It stays hidden.'
@@ -247,14 +399,27 @@ function InputBox({
           </Text>
         </Text>
       ) : (
-        <Text>
-          {shown.slice(0, line.cursor)}
-          <Text inverse>{shown[line.cursor] ?? ' '}</Text>
-          {shown.slice(line.cursor + 1)}
-        </Text>
+        // At any character, so `inputCursor` knows the row of each one.
+        <Text wrap="hard">{shown}</Text>
       )}
     </Box>
   )
+}
+
+/**
+ * Where the terminal cursor goes in the input box, which is `width` wide
+ * and starts at `top`: after the border, the padding, and the `❯ `, at the
+ * row and the column of the line's cursor.
+ * ponytail: one column for each character. A wide character (an emoji, CJK)
+ * puts the cursor a little to the left.
+ */
+function inputCursor(line: Line, width: number, top: number) {
+  const before = 4
+  const textWidth = Math.max(1, width - before - 2)
+  return {
+    x: before + (line.cursor % textWidth),
+    y: top + 1 + Math.floor(line.cursor / textWidth),
+  }
 }
 
 // A key held down repeats. Repeats closer than this are one press.
@@ -288,10 +453,12 @@ function Measured({
 
 /** One printed row: the header, or a message that no longer changes. */
 function PrintedRow({
+  view,
   row,
   saved,
   width,
 }: {
+  view: SessionView
   row: Row
   saved: ReturnType<typeof useSavedMedia>['saved']
   width: number
@@ -299,7 +466,7 @@ function PrintedRow({
   return 'role' in row ? (
     <Message message={row} saved={saved} width={width} />
   ) : (
-    <Header />
+    <Header view={view} width={width} />
   )
 }
 
@@ -324,11 +491,26 @@ function App({ view }: { view: SessionView }) {
   )
   const [picker, setPicker] = useState<Picker | undefined>(undefined)
   const [selected, setSelected] = useState(0)
-  const suggestions =
-    // A line from the history keeps the arrows for the history.
-    picker || waiting || editor.line.hidden || editor.browsing
-      ? []
-      : suggestionsFor(editor.line.text, commands)
+  // A line from the history keeps the arrows for the history.
+  const blocked = Boolean(
+    picker || waiting || editor.line.hidden || editor.browsing,
+  )
+  const commandItems = blocked ? [] : suggestionsFor(editor.line.text, commands)
+  // The files for an `@path`, read again only when the line changes.
+  const { text: lineText, cursor: lineCursor } = editor.line
+  const paths = useMemo(
+    () =>
+      blocked || commandItems.length > 0
+        ? undefined
+        : pathSuggestions({
+            text: lineText,
+            cursor: lineCursor,
+            hidden: false,
+          }),
+    [blocked, commandItems.length, lineText, lineCursor],
+  )
+  const suggestions: Array<(MenuItem & { takesInput: boolean }) | PathItem> =
+    commandItems.length > 0 ? commandItems : (paths?.items ?? [])
   const [suggested, setSuggested] = useState(0)
   useEffect(() => setSuggested(0), [editor.line.text])
 
@@ -365,6 +547,34 @@ function App({ view }: { view: SessionView }) {
   const { height: liveHeight } = useBoxMetrics(live)
   const space = Math.max(0, screenRows - 1 - printedHeight - liveHeight)
 
+  // The terminal cursor sits in the input box, not under the screen. The
+  // box is in the live area, which starts after the empty space.
+  const inputBox = useRef<DOMElement>(null)
+  const input = useBoxMetrics(inputBox)
+  const { setCursorPosition } = useCursor()
+  setCursorPosition(
+    input.hasMeasured
+      ? inputCursor(editor.line, input.width, space + input.top)
+      : undefined,
+  )
+
+  // The header shows which features are on, but printed rows never change.
+  // So when a feature turns on or off (a /connect), clear the screen and
+  // print the header and the conversation again.
+  const { stdout } = useStdout()
+  const featureMarks = useSelector(view.store, (state) => {
+    const keys = providerKeysIn(state.plugins[PROVIDER_KEYS])
+    return features.map((feature) => (isOn(feature, keys) ? 1 : 0)).join('')
+  })
+  const shownMarks = useRef(featureMarks)
+  const [printRound, setPrintRound] = useState(0)
+  useEffect(() => {
+    if (featureMarks === shownMarks.current) return
+    shownMarks.current = featureMarks
+    if (stdout.isTTY) stdout.write('\x1b[2J\x1b[3J\x1b[H')
+    setPrintRound((round) => round + 1)
+  }, [featureMarks])
+
   const [voice, setVoiceState] = useState<VoiceState>('idle')
   // The phase in a ref too: key events come faster than React renders, and a
   // second Ctrl+R must see "starting" at once, or it starts a second recorder.
@@ -390,7 +600,11 @@ function App({ view }: { view: SessionView }) {
       `Voice: ${error instanceof Error ? error.message : String(error)}`,
     )
 
-  /** A voice message: transcribe it, attach the files it names, and send it. */
+  /**
+   * A voice message: transcribe it, and put the words in the input line, with
+   * an `@path` for each file it names. The user fixes the line if needed,
+   * then presses Enter to send it.
+   */
   const hear = async (audio: Uint8Array, name: string, clip?: VoiceClip) => {
     setVoice('transcribing')
     try {
@@ -413,10 +627,15 @@ function App({ view }: { view: SessionView }) {
       )
       const message = await withSpokenFiles(
         text,
-        [playground, mediaDir],
+        [process.cwd(), mediaDir],
         recent,
       )
-      await view.send(message.text)
+      // A key question keeps its line for the key only.
+      if (asksSecret())
+        return view.notice('Voice: answer the key question first.')
+      // After what the user typed already, so nothing they typed is lost.
+      const typed = editor.line.text.trimEnd()
+      editor.set(typed === '' ? message.text : `${typed} ${message.text}`)
     } catch (error) {
       failVoice(error)
     } finally {
@@ -537,6 +756,43 @@ function App({ view }: { view: SessionView }) {
     })
   }
 
+  /** Pick a model of the provider `id`. OpenRouter asks for the vendor first. */
+  const pickModelOf = (id: string) => {
+    if (id === 'demo') return view.command('model', 'demo')
+    const provider = modelProviders.find((entry) => entry.id === id)
+    if (!provider) return
+    const state = view.store.get()
+    const pickModel = (title: string, models: ReadonlyArray<ModelEntry>) =>
+      openPicker({
+        title,
+        items: modelRows(models, state),
+        pick: (item) => view.command('model', item.id),
+      })
+    if (provider.id !== 'openrouter')
+      return pickModel(`${provider.label}: pick the model`, provider.models)
+    openPicker({
+      title: 'OpenRouter: pick the vendor',
+      items: vendorItems(provider.models, state),
+      pick: (vendor) =>
+        pickModel(
+          `OpenRouter: pick the ${vendor.id} model`,
+          provider.models.filter((model) =>
+            model.id.startsWith(`${vendor.id}/`),
+          ),
+        ),
+    })
+  }
+
+  /** Close the screen, and the CLI opens the saved session `id`. */
+  const resume = async (id: string) => {
+    if (id === view.store.get().threadId)
+      return view.notice('You are in this session.')
+    if (!(await hasSession(id)))
+      return view.notice(`No saved session ${id}. /resume lists them.`)
+    nextSession = id
+    exit()
+  }
+
   /** Enter: answer an approval or a question, run a screen command, or send. */
   const submit = async (line: Line) => {
     const text = line.text.trim()
@@ -608,16 +864,27 @@ function App({ view }: { view: SessionView }) {
       case '/model':
         if (arg) break
         return openPicker({
-          title: 'Pick the model',
-          items: modelItems(state),
-          pick: (item) => view.command('model', item.id),
+          title: 'Pick the provider',
+          items: providerItems(state),
+          pick: (item) => pickModelOf(item.id),
         })
       case '/effort':
         if (arg) break
+        if (!reasons(currentModel(state)))
+          return view.notice(
+            `${currentModel(state)} has no effort setting. Pick another model with /model.`,
+          )
         return openPicker({
           title: 'How hard should the model think?',
           items: effortItems(state),
           pick: (item) => view.command('effort', item.id),
+        })
+      case '/resume':
+        if (arg) return resume(arg)
+        return openPicker({
+          title: 'Continue which session?',
+          items: await sessionItems(state),
+          pick: (item) => resume(item.id),
         })
       case '/mic': {
         if (!arg) return pickMicrophone().catch(failVoice)
@@ -699,10 +966,19 @@ function App({ view }: { view: SessionView }) {
       if (key.upArrow)
         return setSuggested((index) => (index - 1 + count) % count)
       if (key.downArrow) return setSuggested((index) => (index + 1) % count)
-      if (key.tab) return editor.set(`/${suggestion.id} `)
-      if (key.return) {
-        if (suggestion.takesInput) return editor.set(`/${suggestion.id} `)
-        return send({ text: `/${suggestion.id}`, cursor: 0, hidden: false })
+      if ('fill' in suggestion) {
+        // Put the path in place of the typed `@` token.
+        if (key.tab || key.return) {
+          const { text, cursor } = editor.line
+          const filled = text.slice(0, paths?.start ?? cursor) + suggestion.fill
+          return editor.set(filled + text.slice(cursor), filled.length)
+        }
+      } else {
+        if (key.tab) return editor.set(`/${suggestion.id} `)
+        if (key.return) {
+          if (suggestion.takesInput) return editor.set(`/${suggestion.id} `)
+          return send({ text: `/${suggestion.id}`, cursor: 0, hidden: false })
+        }
       }
     }
     if (key.upArrow) return editor.older()
@@ -724,10 +1000,10 @@ function App({ view }: { view: SessionView }) {
 
   return (
     <Box flexDirection="column">
-      <Static items={rows}>
+      <Static key={printRound} items={rows}>
         {(row) => (
           <Measured key={row.id} id={row.id} onHeight={onHeight}>
-            <PrintedRow row={row} saved={saved} width={columns} />
+            <PrintedRow view={view} row={row} saved={saved} width={columns} />
           </Measured>
         )}
       </Static>
@@ -742,13 +1018,16 @@ function App({ view }: { view: SessionView }) {
           />
         ))}
         <Status view={view} voice={voice} recording={recorder} />
-        <InputBox
-          line={editor.line}
-          voice={voice}
-          hidden={
-            secretAsked || (editor.line.hidden && editor.line.text !== '')
-          }
-        />
+        {/* A column, so the input box keeps the full width. */}
+        <Box ref={inputBox} flexDirection="column">
+          <InputBox
+            line={editor.line}
+            voice={voice}
+            hidden={
+              secretAsked || (editor.line.hidden && editor.line.text !== '')
+            }
+          />
+        </Box>
         {picker ? (
           <Menu
             title={picker.title}
@@ -760,7 +1039,11 @@ function App({ view }: { view: SessionView }) {
           <Menu
             items={suggestions}
             selected={Math.min(suggested, suggestions.length - 1)}
-            hint="↑↓ move   Tab fills   Enter runs"
+            hint={
+              commandItems.length > 0
+                ? '↑↓ move   Tab fills   Enter runs'
+                : '↑↓ move   Tab or Enter fills'
+            }
           />
         ) : null}
         <Footer view={view} />
@@ -768,6 +1051,9 @@ function App({ view }: { view: SessionView }) {
     </Box>
   )
 }
+
+// The boot splash shows once in a process.
+let splashShown = false
 
 /**
  * The Ink screen for `runCli({ ui })`. It clears the terminal, opens sign-in
@@ -784,9 +1070,18 @@ export async function runTui(view: SessionView, io: RenderOptions = {}) {
     view.notice(
       'No model key yet. Type /connect and pick OpenRouter to sign in with the browser.',
     )
-  // Start on a clean terminal: clear the screen and the scrollback.
-  if (!io.stdout && process.stdout.isTTY)
-    process.stdout.write('\x1b[2J\x1b[3J\x1b[H')
+  // Start on a clean terminal: clear the screen and the scrollback. The
+  // splash shows once, at the first start, not again after a /resume.
+  const clear = () => {
+    if (!io.stdout && process.stdout.isTTY)
+      process.stdout.write('\x1b[2J\x1b[3J\x1b[H')
+  }
+  if (!splashShown && (io.stdout ?? process.stdout).isTTY) {
+    splashShown = true
+    clear()
+    await showSplash(io)
+  }
+  clear()
   const app = render(<App view={view} />, io)
   // ponytail: the SDK logs its warnings and errors on the console (the
   // message, then its details with console.dir), and the code highlighter

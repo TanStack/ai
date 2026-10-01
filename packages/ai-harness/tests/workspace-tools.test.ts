@@ -1,18 +1,36 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { workspaceTools } from '../src/first-party'
+import { createWorkspaceTools } from '../src/first-party/workspace'
 import type { AnyTool } from '@tanstack/ai'
+import type {
+  OutsideAccess,
+  WorkspaceToolsOptions,
+} from '../src/first-party/workspace'
 
 let root: string
 let tools: Map<string, AnyTool>
 
-const run = (name: string, args: unknown): Promise<string> => {
-  const tool = tools.get(name)
+/** The tools by name, for `options` and the user's `access`. */
+function toolsOf(options: WorkspaceToolsOptions, access?: OutsideAccess) {
+  return new Map(
+    createWorkspaceTools(options, access).tools.map(
+      (tool): [string, AnyTool] => [tool.name, tool],
+    ),
+  )
+}
+
+const runIn = (
+  set: Map<string, AnyTool>,
+  name: string,
+  args: unknown,
+): Promise<string> => {
+  const tool = set.get(name)
   if (!tool?.execute) throw new Error(`No tool ${name}`)
   return Promise.resolve(tool.execute(args))
 }
+const run = (name: string, args: unknown) => runIn(tools, name, args)
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'harness-workspace-'))
@@ -23,14 +41,7 @@ beforeAll(async () => {
   await writeFile(join(root, 'notes.md'), 'two words\n')
   await writeFile(join(root, 'node_modules', 'pkg', 'index.js'), 'two\n')
   await writeFile(join(root, 'big.txt'), `two\n${'x'.repeat(1_100_000)}`)
-  const plugin = workspaceTools({ root, bashTimeoutMs: 20_000 })
-  const contributions = await plugin.setup()
-  tools = new Map(
-    (contributions.tools ?? []).map((tool): [string, AnyTool] => [
-      tool.name,
-      tool,
-    ]),
-  )
+  tools = toolsOf({ root, bashTimeoutMs: 20_000 })
 })
 
 afterAll(async () => {
@@ -137,5 +148,91 @@ describe('bash', () => {
     expect(ok).toContain('stderr:\nwarn')
     const failed = await run('bash', { command: `node -e "process.exit(3)"` })
     expect(failed).toMatch(/^exit code: 3/)
+  })
+})
+
+describe('outside the workspace', () => {
+  let outside: string
+  beforeAll(async () => {
+    outside = await mkdtemp(join(tmpdir(), 'harness-outside-'))
+    await mkdir(join(outside, 'docs'), { recursive: true })
+    await writeFile(join(outside, 'docs', 'a.md'), 'alpha')
+    await writeFile(join(outside, 'docs', 'b.md'), 'beta')
+    await writeFile(join(outside, 'top.md'), 'top')
+  })
+  afterAll(async () => {
+    await rm(outside, { recursive: true, force: true })
+  })
+
+  /** Tools that ask about outside paths. The user answers from `answers`. */
+  function asking(answers: Array<unknown>, mode = 'default') {
+    const questions: Array<string> = []
+    const set = toolsOf(
+      { root, outside: 'ask' },
+      {
+        ask: async (message) => {
+          questions.push(message)
+          return answers.shift()
+        },
+        mode: () => mode,
+      },
+    )
+    return { set, questions }
+  }
+
+  it('refuses outside paths without the outside option', async () => {
+    await expect(
+      run('read_file', { path: join(outside, 'top.md') }),
+    ).rejects.toThrow('outside the workspace')
+  })
+
+  it('asks once for a folder, then allows it for the session', async () => {
+    const { set, questions } = asking([true])
+    expect(
+      await runIn(set, 'read_file', { path: join(outside, 'docs', 'a.md') }),
+    ).toBe('1\talpha')
+    expect(
+      await runIn(set, 'read_file', { path: join(outside, 'docs', 'b.md') }),
+    ).toBe('1\tbeta')
+    expect(questions).toHaveLength(1)
+    expect(questions[0]).toContain(`Allow ${join(outside, 'docs')}`)
+  })
+
+  it('asks again for another folder, and refuses after a no', async () => {
+    const { set, questions } = asking([true, 'n'])
+    await runIn(set, 'read_file', { path: join(outside, 'docs', 'a.md') })
+    await expect(
+      runIn(set, 'read_file', { path: join(outside, 'top.md') }),
+    ).rejects.toThrow('The user did not allow')
+    expect(questions).toHaveLength(2)
+  })
+
+  it('asks one question for calls at the same time', async () => {
+    const { set, questions } = asking([true])
+    await Promise.all([
+      runIn(set, 'read_file', { path: join(outside, 'docs', 'a.md') }),
+      runIn(set, 'read_file', { path: join(outside, 'docs', 'b.md') }),
+    ])
+    expect(questions).toHaveLength(1)
+  })
+
+  it('lists and searches an allowed outside folder with full paths', async () => {
+    const { set } = asking([true])
+    const folder = join(outside, 'docs')
+    const shown = folder.split(sep).join('/')
+    expect(await runIn(set, 'list_files', { path: folder })).toBe(
+      `${shown}/a.md\n${shown}/b.md`,
+    )
+    expect(await runIn(set, 'grep', { pattern: 'beta', path: folder })).toBe(
+      `${shown}/b.md:1: beta`,
+    )
+  })
+
+  it('does not ask in bypass mode', async () => {
+    const { set, questions } = asking([], 'bypass')
+    expect(
+      await runIn(set, 'read_file', { path: join(outside, 'top.md') }),
+    ).toBe('1\ttop')
+    expect(questions).toHaveLength(0)
   })
 })

@@ -4,7 +4,7 @@
   "type": "module",
   "description": "A small coding agent in the terminal, built with @tanstack/ai-harness",
   "scripts": {
-    "start": "tsx --env-file-if-exists=.env src/cli.ts",
+    "start": "tsx src/cli.ts",
     "dashboard": "tanstack-ai-dashboard",
     "test:types": "tsc --noEmit"
   },
@@ -22,11 +22,13 @@
     "@tanstack/ai-harness-cli": "workspace:*",
     "@tanstack/ai-isolate-quickjs": "workspace:*",
     "@tanstack/ai-mcp": "workspace:*",
+    "@tanstack/ai-models": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-openrouter": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
+    "@tanstack/ai-skills": "workspace:*",
     "@tanstack/react-store": "^0.11.1",
     "beautiful-mermaid": "^1.1.3",
     "ink": "^7.1.1",

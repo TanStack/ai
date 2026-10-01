@@ -1,6 +1,6 @@
 # Harness CLI example
 
-A coding agent in your terminal, built with `@tanstack/ai-harness`. Talk to it or type. It edits files in `./playground`, makes images, video, speech, songs, and sound effects, reads Notion and Linear, and hands coding work to your local Claude Code and Codex.
+A coding agent in your terminal, built with `@tanstack/ai-harness`. Talk to it or type. It works in the folder where you start it, makes images, video, speech, songs, and sound effects, reads Notion and Linear, and hands coding work to your local Claude Code and Codex.
 
 ## Run it
 
@@ -10,9 +10,21 @@ From the repo root:
 2. `pnpm build:all` (the example uses the local packages)
 3. `pnpm --filter harness-cli-example start`
 4. Type `/connect` and pick OpenRouter. It signs you in with the browser, with no key to paste.
-5. Type `/model` and pick `openai/gpt-6-astra`.
+5. Type `/model`, pick OpenRouter, then `openai`, then `openai/gpt-6-astra`.
 
 Now send a message.
+
+## Your files
+
+The agent works in the folder where you run the command: that folder is the workspace. To work on another project, run the app from that project's folder:
+
+```sh
+pnpm -C <path to examples/harness-cli> start
+```
+
+- The agent reads files in the workspace without asking. A change to a file asks you first.
+- A path outside the workspace asks you first. A yes allows that folder, and the folders in it, until the session ends. `/mode bypass` allows every path without a question.
+- `bash` asks you before each command. A command can reach any file your user can, so read it before you say yes.
 
 ## Connect your models
 
@@ -23,24 +35,26 @@ You do not need a `.env` file. Type `/connect` and pick a provider from the list
 - `/connect openai` skips the list. `/keys` shows where each key comes from (saved, an env var, or missing).
 - `/disconnect` removes a saved key.
 
-The app saves the key in `~/.tanstack-harness-example/credentials.json`. It shows only the last 4 characters of a key. The footer shows which features are on, and it changes when you connect a provider.
+The app saves the key in `~/.tanstack-harness-example/credentials.json`, so you connect once. It shows only the last 4 characters of a key. The header shows which features are on, and it changes when you connect a provider.
 
-| Provider id  | Adds                                                                                                |
-| ------------ | --------------------------------------------------------------------------------------------------- |
-| `openai`     | `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, images, speech, Sora video, and voice input               |
-| `anthropic`  | `claude-opus-5-5`, `claude-fable-5-1`, `claude-sonnet-5`, `claude-haiku-4-5`                        |
-| `grok`       | `grok-4.7`, `grok-4.6`, video with Grok Imagine, and voice input                                    |
-| `fal`        | songs and sound effects                                                                             |
-| `openrouter` | `openai/gpt-6-astra`, `anthropic/claude-opus-5.5`, `google/gemini-3.1-pro-preview`, `x-ai/grok-4.7` |
+| Provider id  | Adds                                                                        |
+| ------------ | --------------------------------------------------------------------------- |
+| `openai`     | the OpenAI chat models, images, speech, Sora video, and voice input         |
+| `anthropic`  | the Claude models                                                           |
+| `grok`       | the xAI Grok models, video with Grok Imagine, and voice input               |
+| `fal`        | songs and sound effects                                                     |
+| `openrouter` | the OpenRouter models of every vendor (OpenAI, Anthropic, Google, and more) |
 
-If a provider has no key, its models and tools stop and tell you which `/connect` to run. If no key is set in the env, `/model demo` answers without a key.
+The model lists come from `@tanstack/ai-models`: each chat model that the provider's adapter knows and that the catalog has.
+
+If a provider has no key, its models and tools stop and tell you which `/connect` to run. With no key at all, `/model` lists a Demo model that answers without a key.
 
 ### Developer shortcut: a `.env` file
 
 1. Copy `.env.example` to `.env`.
 2. Set the keys that you have.
 
-An env var works when no key is saved. The first model with an env key starts. Audio files that you attach with `@file` become text only when `OPENAI_API_KEY` is set. Voice messages use the saved key.
+An env var works when no key is saved. A new session starts on the first provider that has a key, saved or from the env. Audio files that you attach with `@file` become text only when `OPENAI_API_KEY` is set. Voice messages use the saved key.
 
 ### Ship it to your users
 
@@ -48,9 +62,11 @@ An env var works when no key is saved. The first model with an env key starts. A
 
 ## Talk to it
 
-Hold Ctrl+R while you talk, and let go to send. Or tap Ctrl+R, talk, and tap it again. The meter shows that the microphone hears you.
+Hold Ctrl+R while you talk, and let go. Or tap Ctrl+R, talk, and tap it again. The meter shows that the microphone hears you.
 
-- Name a file, and it is sent too: "describe fox dot png", "use cat.png as a reference".
+The words go into the input line. Fix them if needed, then press Enter to send. If you typed something before, the words go after it.
+
+- Name a file, and the line gets an `@path` for it, so the file is sent too: "describe fox dot png", "use cat.png as a reference".
 - Say "the last image" (or video, song) for the last file the agent made: "make a pencil sketch of the last image".
 - Say "Hey, run a Codex agent that adds a test": Codex runs in its own card, and the screen shows its output.
 
@@ -58,7 +74,7 @@ The first recording listens on every microphone, and keeps the one that heard yo
 
 - A silent recording (a muted microphone) is not sent.
 - Set `VOICE_LANGUAGE=en` (or your language) so the transcript is in that language.
-- `/voice note.m4a` sends a voice message that you recorded before.
+- `/voice note.m4a` puts the words of a voice message that you recorded before into the input line.
 
 Voice needs `ffmpeg` on the PATH, and an OpenAI or xAI key for the transcript (`/connect openai` or `/connect grok`).
 
@@ -67,7 +83,7 @@ Voice needs `ffmpeg` on the PATH, and an OpenAI or xAI key for the transcript (`
 Ask in words. The agent picks the tool:
 
 - `make an image of a red fox in the snow`
-- `make a watercolor version of @./playground/fox.png`: the image tool uses the images you send as references.
+- `make a watercolor version of @./fox.png`: the image tool uses the images you send as references.
 - `read this aloud with the nova voice: hello`
 - `compose a 30 second synth-pop song about foxes, with the lyrics "fox in the snow"`
 - `make a 5 second sound effect of rain on a window`
@@ -79,7 +95,7 @@ The harness keeps each file, and the screen saves it in `example-coder-media` wi
 
 ## Hand work to Claude Code and Codex
 
-When `claude` and `codex` are on the PATH, the agent can call them. They work in `./playground` with your own `claude login` and `codex login`, and the API keys are removed from their processes.
+When `claude` and `codex` are on the PATH, the agent can call them. They work in the folder where you started the app, with your own `claude login` and `codex login`, and the API keys are removed from their processes.
 
 - Ask: `have codex create notes.md with one line, then have claude code add a second line`.
 - The screen shows each agent with its status, its tool calls, and its output. When it ends, the last lines of its answer stay.
@@ -93,17 +109,41 @@ When `claude` and `codex` are on the PATH, the agent can call them. They work in
 
 - Sign-ins are kept in `~/.tanstack-harness-example/credentials.json`, so you sign in once. `/disconnect notion` deletes one.
 - Code mode is on: read-only tools (file reads, read-only Notion and Linear tools) are functions in one `execute_typescript` program, which runs in a QuickJS isolate.
+- The code-mode tools are lazy: the model gets only their names, and asks `discover_tools` for the signatures it needs.
+
+## Use skills
+
+1. Make a folder with a `SKILL.md` in one of the skill folders, for example `./.agents/skills/release-notes/SKILL.md`.
+2. Type `/release-notes write them for v2`. The model loads the skill and does the task.
+
+- The skill folders, in order: `./.agents/skills` and `./.claude/skills` in the folder where you run the app, then `~/.tanstack-harness-example/skills` for skills in every project. When two folders have a skill with the same name, the first folder wins.
+- A skill you add while the app runs shows in the `/` list at once. No restart.
+- A skill with the name of a command, for example `help`, is `/skill:help`.
+- `/skills` lists every skill, its folder, and its command.
+- The model also sees the list of skills, with the first sentence of each description, and can load one on its own.
 
 ## Pick the model and the effort
 
-- `/model` opens a list of the models, with the provider and the context size of each. `/model gpt-6-luna` switches at once. The change applies at the next turn.
-- `/effort` sets how hard the model thinks: `default` (the model decides), `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. It sets `chat({ reasoning })`, so a level the model does not have moves to the nearest one it has.
+- `/model` asks for the provider, then the model. OpenRouter asks for the vendor between them. Each model shows its context size, its effort levels, and its price, from `@tanstack/ai-models`. `/model gpt-6-luna` switches at once. The change applies at the next turn.
+- `/effort` lists the levels the current model has, and `default` (the model decides). It sets `chat({ reasoning })`. When you switch to a model that does not have the level, the nearest level it has is used, and the footer shows it.
 - The footer shows the model, the effort, how full the context is, the tokens in and out, and the model calls.
+
+## Continue a session
+
+Each start is a new session. The header shows its id, and when you quit, the screen prints the command to continue it.
+
+- `pnpm --filter harness-cli-example start --resume 3f2a9c1d` continues session `3f2a9c1d`.
+- `--resume` with no id continues the newest session.
+- `/resume` lists the saved sessions with what you said first. Pick one, and the screen opens it.
+
+A session keeps its messages, its model and effort, and its todos and usage. The sessions are in `~/.tanstack-harness-example/sessions/`, and their settings in `metadata.json` in the same folder. The media of a session is in memory only, and the files the screen saved stay in `example-coder-media`.
 
 ## The screen
 
+- At the start, TanStack AI animates in block letters for about 2 seconds. A key skips it.
 - Answers show as markdown: lists, tables, and highlighted code. A Mermaid block shows as a chart drawn in text. In demo mode, ask `draw me a chart`.
 - Type `/` for a list of the commands. The arrows move in it, Tab fills the command, and Enter runs it.
+- Type `@` for a list of the files and folders in the working folder. Tab or Enter fills the path. A folder opens, so you can go on to a file in it.
 - The up and down arrows go through the lines you sent, also after a restart. They are kept in `~/.tanstack-harness-example/history.json`. Keys are never kept.
 - The input stays at the bottom of the screen. `/help` lists every command.
 
@@ -128,4 +168,4 @@ The screen is `src/tui.tsx` and its parts in `src/screen/`, plain example code o
 
 1. In one terminal: `pnpm --filter harness-cli-example dashboard`. It prints a sign-in link.
 2. In another: `pnpm --filter harness-cli-example start --dashboard http://127.0.0.1:8790`. It prints a pairing code.
-3. Open the sign-in link, approve the code, and open the `main` session. Messages you send there reach the agent.
+3. Open the sign-in link, approve the code, and open the session with the id that the header shows. Messages you send there reach the agent.

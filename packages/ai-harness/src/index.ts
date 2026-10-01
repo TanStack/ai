@@ -33,6 +33,7 @@ export type {
   PluginPrompt,
   AgentGroup,
   PluginAgentActions,
+  PluginCommands,
   PluginSetupContext,
   PluginState,
 } from './plugins'

@@ -85,6 +85,26 @@ export const onlyLinear = codeMode({
 
 The other options of `createCodeMode` pass through: `timeout`, `memoryLimit`, `lazyToolsConfig`, and more.
 
+## 4. Send only the tool names
+
+The prompt of code mode lists each moved tool with its full TypeScript type. With 100 tools, that is a lot of tokens on every turn, and most turns use a few tools. Set `lazy: true`, and the prompt lists only the names:
+
+```ts group=harness-code-mode
+export const lazyCodeMode = codeMode({
+  driver: createQuickJSIsolateDriver(),
+  lazy: true,
+  lazyToolsConfig: { includeDescription: 'first-sentence' },
+})
+```
+
+The model then works in three steps:
+
+1. It reads the tool names in the prompt.
+2. It calls `discover_tools` with the names it needs, and gets their TypeScript signatures.
+3. It calls those tools in `execute_typescript`.
+
+`includeDescription` sets what the prompt shows with each name: `'none'` (the default, the name only), `'first-sentence'`, or `'full'`. Tools that stay outside code mode keep their full schema.
+
 ## Tools that appear after sign-in
 
 The plugin chooses the tools again before every turn. When the user runs `/connect linear`, the read-only Linear tools move into code mode on the next turn. A plugin can do the same with its own tool changes: return the new list from `prepareTools`. [Use MCP servers](./mcp) shows `discoverTools`, which adds the tools first.
@@ -92,5 +112,6 @@ The plugin chooses the tools again before every turn. When the user runs `/conne
 ## What you have now
 
 - One `execute_typescript` tool in place of many read-only tools.
+- With `lazy: true`, a prompt that lists only the tool names.
 - Programs that run in the isolate you choose.
 - Approvals kept for every tool that can change something.

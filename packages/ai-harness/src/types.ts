@@ -171,6 +171,8 @@ export const HARNESS_EVENTS = {
   operationFinished: 'harness.operation.finished',
   operationResumed: 'harness.operation.resumed',
   configChanged: 'harness.config.changed',
+  /** A plugin added or removed a command with `ctx.commands`. */
+  commandsChanged: 'harness.commands.changed',
   question: 'harness.question',
   questionAnswered: 'harness.question.answered',
   pluginEvent: 'harness.plugin.event',

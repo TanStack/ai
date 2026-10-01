@@ -1,0 +1,31 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  // The Worker of the Cloudflare harness CLI: the sessions, the settings,
+  // the keys, and the media, plus code mode at /code-mode.
+  "name": "tanstack-harness",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      // One Durable Object for each session log.
+      { "name": "SESSIONS", "class_name": "SessionLog" },
+      // One Durable Object for the settings, the keys, the media records,
+      // and the session list.
+      { "name": "ACCOUNT", "class_name": "Account" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["SessionLog", "Account"] },
+  ],
+  // The bytes of the files you send and the files agents make.
+  "r2_buckets": [
+    { "binding": "MEDIA", "bucket_name": "tanstack-harness-media" },
+  ],
+  // Code mode runs each program in a new isolate (Dynamic Workers). A deploy
+  // needs the Workers Paid plan. `wrangler dev` works on the Free plan.
+  "worker_loaders": [{ "binding": "LOADER" }],
+  // Secrets: HARNESS_SECRET (the CLI sends it on every request) and
+  // ENCRYPTION_KEY (encrypts the keys at rest). Set them with
+  // `wrangler secret put`, or in .dev.vars for `wrangler dev`.
+}

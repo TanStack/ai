@@ -166,6 +166,31 @@ export interface PluginServices {
   keys: ProviderKeys
   session: PluginSessionApi
   agents: PluginAgentActions
+  /** Called after `ctx.commands` adds or removes a command. */
+  commandsChanged?: () => void
+}
+
+/**
+ * The commands of the session, for a plugin that adds and removes its own
+ * commands while the session runs, for example one command for each file in
+ * a folder. Commands that never change go in the `commands` of `setup`.
+ */
+export interface PluginCommands {
+  /** Is `name` a command of any plugin of this session? */
+  has: (name: string) => boolean
+  /**
+   * Add this plugin's command `name`, or replace it. A name that another
+   * plugin owns throws. Session views get the new list at once.
+   */
+  set: (name: string, command: AnyCommand) => void
+  /** Remove this plugin's command `name`. Another plugin's name does nothing. */
+  delete: (name: string) => void
+  /**
+   * Resolves when every plugin of the session is set up. Wait for it before
+   * `has` or `set`: during `setup`, the plugins after this one have not
+   * added their commands yet.
+   */
+  ready: Promise<void>
 }
 
 /** What a plugin's `setup` receives. */
@@ -213,6 +238,8 @@ export interface PluginSetupContext {
    */
   keys: ProviderKeys
   session: PluginSessionApi
+  /** Add and remove this plugin's commands while the session runs. */
+  commands: PluginCommands
 }
 
 export interface PluginDefinition {
@@ -480,6 +507,12 @@ export async function mountPlugins(
   const preparers: MountedPlugins['preparers'] = []
   const subagents: Array<AnyAgent> = []
   const services = env.services ?? NO_SERVICES
+  // `ctx.commands.ready`: resolves after the last plugin is set up. A failed
+  // mount leaves it pending, so no plugin acts on a session that never opens.
+  let markReady = () => {}
+  const ready = new Promise<void>((resolve) => (markReady = resolve))
+  const ownerOf = (name: string) =>
+    commands.get(name)?.owner ?? env.takenCommands?.get(name)?.owner
 
   try {
     for (const plugin of plugins) {
@@ -551,6 +584,25 @@ export async function mountPlugins(
         credentials: services.credentials,
         keys: services.keys,
         session: services.session,
+        commands: {
+          has: (name) => ownerOf(name) !== undefined,
+          set: (name, command) => {
+            const owner = ownerOf(name)
+            if (owner !== undefined && owner !== plugin.name) {
+              throw new Error(
+                `Command "${name}" belongs to ${owner}. ${plugin.name} cannot replace it.`,
+              )
+            }
+            commands.set(name, { command, owner: plugin.name })
+            services.commandsChanged?.()
+          },
+          delete: (name) => {
+            if (commands.get(name)?.owner !== plugin.name) return
+            commands.delete(name)
+            services.commandsChanged?.()
+          },
+          ready,
+        },
       })
       for (const handle of plugin.provides ?? []) {
         if (!provided.has(handle)) {
@@ -667,6 +719,7 @@ export async function mountPlugins(
         }
       : undefined
 
+  markReady()
   let disposed: Promise<void> | undefined
   return {
     tools: tools
