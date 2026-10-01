@@ -37,6 +37,14 @@ export const Route = createRootRoute({
         media: '(prefers-color-scheme: dark)',
       },
     ],
+    scripts: [
+      {
+        // Vite prints http://127.0.0.1:3000, but passkeys reject IP hosts.
+        // Run the app on localhost. ChatGPT sign-in still redirects to
+        // 127.0.0.1, and this sends that callback back here too.
+        children: `if (location.hostname === '127.0.0.1') { const u = new URL(location.href); u.hostname = 'localhost'; location.replace(u) }`,
+      },
+    ],
   }),
 
   shellComponent: RootDocument,

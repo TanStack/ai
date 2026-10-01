@@ -40,7 +40,10 @@ export interface ChatGptByokStore {
 export interface StartChatGptSignInOptions {
   /** Your app's name. OpenAI shows it on the consent screen. */
   agentName: string
-  /** Defaults to `<origin>/auth/callback`. The host must be `127.0.0.1`. */
+  /**
+   * Defaults to `<origin>/auth/callback`, with `localhost` swapped for
+   * `127.0.0.1`. The host must be `127.0.0.1`.
+   */
   redirectUri?: string
   navigate?: (url: string) => void
 }
@@ -49,6 +52,7 @@ export interface CompleteChatGptSignInOptions {
   /** Defaults to `location.href`. */
   url?: string
   fetchImpl?: typeof fetch
+  navigate?: (url: string) => void
 }
 
 export interface RefreshChatGptSignInOptions {
@@ -256,19 +260,27 @@ function toSignIn(clientId: string, tokens: TokenResponse): ChatGptSignIn {
  *
  * The first sign-in registers a client for your app. Later sign-ins reuse the
  * client id saved in `localStorage`.
+ *
+ * ChatGPT accepts only a `127.0.0.1` redirect. On `localhost`, the redirect
+ * goes to `127.0.0.1` on the same port, and {@link completeChatGptSignIn}
+ * sends the browser back to `localhost` to finish.
  */
 export async function startChatGptSignIn(
   options: StartChatGptSignInOptions,
 ): Promise<void> {
-  const redirectUri =
-    options.redirectUri ?? `${globalThis.location.origin}${CALLBACK_PATH}`
-  const redirect = new URL(redirectUri)
+  const redirect = new URL(
+    options.redirectUri ?? new URL(CALLBACK_PATH, globalThis.location.origin),
+  )
+  if (!options.redirectUri && redirect.hostname === 'localhost') {
+    redirect.hostname = '127.0.0.1'
+  }
+  const redirectUri = redirect.toString()
   if (
     redirect.hostname !== '127.0.0.1' ||
     redirect.pathname !== CALLBACK_PATH
   ) {
     throw new Error(
-      `Sign in with ChatGPT needs a http://127.0.0.1:<port>${CALLBACK_PATH} redirect. Open the app on 127.0.0.1, not localhost.`,
+      `Sign in with ChatGPT needs a http://127.0.0.1:<port>${CALLBACK_PATH} redirect. Run the app on localhost or 127.0.0.1.`,
     )
   }
   const host = readHost()
@@ -309,16 +321,26 @@ export async function startChatGptSignIn(
  * Finish the sign-in on your `/auth/callback` page: check the callback and
  * exchange the code. Pass the result to {@link saveChatGptSignIn}.
  *
- * Returns `null` when the URL is not a sign-in callback.
+ * Returns `null` when the URL is not a sign-in callback. Also returns `null`
+ * when the sign-in started on `localhost`: it then reopens this URL there.
  */
 export async function completeChatGptSignIn(
   options: CompleteChatGptSignInOptions = {},
 ): Promise<ChatGptSignIn | null> {
-  const params = new URL(options.url ?? globalThis.location.href).searchParams
+  const here = new URL(options.url ?? globalThis.location.href)
+  const params = here.searchParams
   const state = params.get('state')
   if (!state || (!params.has('code') && !params.has('error'))) return null
 
   const pending = readPending()
+  if (!pending && here.hostname === '127.0.0.1') {
+    // Started on localhost. Its sessionStorage holds the PKCE verifier.
+    here.hostname = 'localhost'
+    const navigate =
+      options.navigate ?? ((next: string) => globalThis.location.replace(next))
+    navigate(here.toString())
+    return null
+  }
   if (!pending || pending.state !== state) {
     throw new Error('ChatGPT sign-in expired or did not start here. Try again.')
   }

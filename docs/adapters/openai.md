@@ -114,7 +114,8 @@ The helpers in `@tanstack/ai-openai/siwc` put the access token into the `openai`
 Before you start, check these limits:
 
 - OpenAI allows this sign-in only for open-source and locally hosted apps. For a hosted app, fill in the [interest form](https://openai.com/form/sign-in-with-chatgpt-interest/).
-- Open the app on `http://127.0.0.1:<port>`. OpenAI rejects `localhost`.
+- OpenAI redirects only to `127.0.0.1`. Your dev server must answer on that address. Vite listens on `::1` by default, so set `server.host: "127.0.0.1"`.
+- Keep the app on `localhost`, because passkey storage does not work on an IP address. The callback lands on `127.0.0.1`, then `completeChatGptSignIn` sends the browser back to `localhost`.
 - The callback page must be at `/auth/callback`.
 
 ### 1. Add the sign-in button

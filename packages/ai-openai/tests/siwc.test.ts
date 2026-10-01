@@ -80,6 +80,23 @@ describe('startChatGptSignIn', () => {
     expect(again.searchParams.get('state')).not.toBe(p.get('state'))
   })
 
+  it('sends a 127.0.0.1 redirect from localhost', async () => {
+    expect(location.hostname).toBe('localhost')
+    let target = ''
+    await startChatGptSignIn({
+      agentName: 'Test App',
+      navigate: (url) => {
+        target = url
+      },
+    })
+    const redirect = new URL(
+      new URL(target).searchParams.get('redirect_uri') ?? '',
+    )
+    expect(redirect.hostname).toBe('127.0.0.1')
+    expect(redirect.port).toBe(location.port)
+    expect(redirect.pathname).toBe('/auth/callback')
+  })
+
   it('rejects a localhost redirect', async () => {
     await expect(
       startChatGptSignIn({
@@ -137,6 +154,22 @@ describe('completeChatGptSignIn', () => {
     const next = await start()
     expect(next.searchParams.get('client_id')).toBe('oaiapp_1')
     expect(next.searchParams.has('agent_name_hint')).toBe(false)
+  })
+
+  it('sends a 127.0.0.1 callback back to localhost', async () => {
+    const url = callback({ code: 'c1', state: 's1', client_id: 'oaiapp_1' })
+    let target = ''
+    const result = await completeChatGptSignIn({
+      url,
+      navigate: (next) => {
+        target = next
+      },
+    })
+    expect(result).toBeNull()
+    const back = new URL(target)
+    expect(back.hostname).toBe('localhost')
+    expect(back.port).toBe('3000')
+    expect(back.search).toBe(new URL(url).search)
   })
 
   it('rejects a state that does not match', async () => {

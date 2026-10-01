@@ -280,7 +280,6 @@ function ProviderRow({
           className="w-full rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm font-semibold text-white"
           onClick={() => {
             setRowError('')
-            // Needs the app on http://127.0.0.1:3000 — ChatGPT rejects localhost.
             void startChatGptSignIn({ agentName: 'TanStack AI Chat' }).catch(
               (error: unknown) =>
                 setRowError(
