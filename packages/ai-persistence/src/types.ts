@@ -781,6 +781,39 @@ export interface BlobStore {
   list: (options?: BlobListOptions) => Promise<BlobListPage>
 }
 
+/** The id of one attempt of a harness turn. */
+export interface TurnLeaseKey {
+  threadId: string
+  inputId: string
+  /** The operation that runs the attempt. Also the AG-UI run id. */
+  operationId: string
+  /** 1 for the first run of the input, then 1 more after each crash. */
+  attempt: number
+}
+
+/** A lease on one attempt of a harness turn. */
+export interface TurnLease extends TurnLeaseKey {
+  /** The host that runs the attempt. */
+  ownerId: string
+  /** Epoch milliseconds. */
+  expiresAt: number
+}
+
+/**
+ * Leases for harness turns, from a system that already has them (a job
+ * queue, a submission table). A durable harness host takes a lease when an
+ * attempt starts, renews it while the attempt runs, and releases it when the
+ * attempt ends. After a crash, a host asks `isAlive` to find the attempts
+ * that nobody runs any more.
+ */
+export interface LeaseStore {
+  acquire: (lease: TurnLease) => Promise<void>
+  renew: (lease: TurnLease) => Promise<void>
+  release: (lease: TurnLease) => Promise<void>
+  /** True while another host still runs the attempt. */
+  isAlive: (key: TurnLeaseKey) => Promise<boolean>
+}
+
 /**
  * Sparse bag of **state** store keys — composition / validation only.
  *
@@ -806,6 +839,8 @@ export interface AIPersistenceStores {
   credentials?: CredentialStore
   /** The harness session log. Optional: only durable harness hosts read it. */
   log?: LogStore
+  /** Turn leases. Optional: only durable harness hosts read it. */
+  leases?: LeaseStore
 }
 
 /**
@@ -984,6 +1019,7 @@ const storeKeys = [
   'inbox',
   'credentials',
   'log',
+  'leases',
 ] satisfies Array<StoreKey>
 
 const storeKeySet = new Set<string>(storeKeys)

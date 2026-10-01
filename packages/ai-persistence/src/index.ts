@@ -40,6 +40,10 @@ export type {
   LogEntry,
   LogRecord,
   LogStore,
+  // Harness turn leases
+  LeaseStore,
+  TurnLease,
+  TurnLeaseKey,
   // Named product shapes (prefer these over a sparse bag)
   ChatTranscriptStores,
   ChatPersistenceStores,
