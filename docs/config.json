@@ -712,7 +712,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-01"
         },
         {
           "label": "How Persistence Works",
@@ -901,22 +901,35 @@
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-01"
         },
         {
           "label": "Send inputs safely",
           "to": "harness/inputs",
-          "addedAt": "2026-09-30"
+          "addedAt": "2026-09-30",
+          "updatedAt": "2026-10-01"
         },
         {
           "label": "Run side effects once",
           "to": "harness/durable-tools",
-          "addedAt": "2026-09-30"
+          "addedAt": "2026-09-30",
+          "updatedAt": "2026-10-01"
         },
         {
           "label": "Build on the session log",
           "to": "harness/session-log",
-          "addedAt": "2026-09-30"
+          "addedAt": "2026-09-30",
+          "updatedAt": "2026-10-01"
+        },
+        {
+          "label": "Control how a turn ends",
+          "to": "harness/turn-control",
+          "addedAt": "2026-10-01"
+        },
+        {
+          "label": "Share one log between sessions",
+          "to": "harness/shared-logs",
+          "addedAt": "2026-10-01"
         },
         {
           "label": "Write a plugin",

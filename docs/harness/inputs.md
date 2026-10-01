@@ -107,6 +107,13 @@ console.log((await session.settled('req-44')).operationId === running.id) // tru
 
 A message that arrives while the model writes its final answer still gets an answer in the same turn.
 
+Waiting `steer` inputs join before each model call, in the order they arrived. They join as a prefix: the join stops at the first input that has an abort request, or that `turn.canJoin` refuses. The inputs after it wait.
+
+- To stop a waiting steer, call `session.cancel(operationId)` with its operation id. It does not join, and it settles `aborted` when the running turn ends.
+- A refused or late input runs as its own turn after the running one.
+
+To choose which inputs join, or to add records when they join, see [Choose which messages join a turn](./turn-control#choose-which-messages-join-a-turn).
+
 ## What you have now
 
 - Retries that never run a prompt twice.

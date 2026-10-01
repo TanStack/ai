@@ -38,6 +38,7 @@ await session.append([{ type: 'app.signal', text: 'The build failed.' }])
 
 - A record is JSON with a `type`. Types that start with `harness.` belong to the harness, so `append` refuses them.
 - `append` resolves when the records are in the log.
+- To share one log between a parent and its child sessions, see [Share one log between sessions](./shared-logs).
 - In a tool, use `append` from [`durableTool`](./durable-tools), so the records land with the tool batch.
 
 ## Fold records into the model context

@@ -57,6 +57,36 @@ Add it to `tools` in `defineHarness`, as any other tool. On a [durable host](./d
 
 `durableTool` sets `replay: 'safe'`, so the harness runs the tool again after a crash.
 
+## Never run a tool twice
+
+Some tools must not run again, for example a tool that sends an email. Pass `{ replay: 'never' }` as the third argument:
+
+```ts group=harness-durable-tools
+declare const mailer: {
+  send: (to: string, body: string) => Promise<{ id: string }>
+}
+
+export const notify = durableTool(
+  toolDefinition({
+    name: 'notify',
+    description: 'Email a customer',
+    inputSchema: z.object({ to: z.string(), body: z.string() }),
+  }),
+  async ({ to, body }, { step }) => {
+    const mail = await step.do(`send:${to}`, () => mailer.send(to, body))
+    return { mailId: mail.id }
+  },
+  { replay: 'never' },
+)
+```
+
+After a crash that cuts the call:
+
+- `'safe'` (the default): the call runs again. Finished steps return their stored values.
+- `'never'`: the model gets a tool error, because nobody knows if the tool finished. The call does not run again. `step` and `append` still work, so the steps and records of the first run stay in the log.
+
+The `replay` option of `durableTool` decides this. A `replay` on the tool definition is not read.
+
 ## Add records with the tool batch
 
 `append` adds your own records to the session log. They land when the tool phase completes, in the same append as the batch commit. If a crash cuts the batch, the records never happened.

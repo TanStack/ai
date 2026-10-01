@@ -16,7 +16,8 @@ there is no separate enable list.
 | `generationRuns` | Generation run status and result metadata, keyed by its own `runId`. | `withGenerationPersistence`, required |
 | `artifacts` | File metadata. Needs `blobs`. | `withGenerationPersistence`, portable snapshots |
 | `blobs` | File bytes. Needs `artifacts`. | `withGenerationPersistence`, portable snapshots |
-| `log` | Append-only session log per thread. | Durable harness hosts, with `runs` |
+| `log` | Append-only session log per thread. | Durable harness hosts, with `runs` or `leases` |
+| `leases` | Leases for harness turns, from a system that already has them. | Durable harness hosts, instead of `runs` |
 
 Named groupings of the chat stores (`ChatTranscriptStores`, `ChatPersistenceStores`,
 `ChatWithInterruptsStores`) are covered in [Controls](./controls).
@@ -602,6 +603,83 @@ Each record is JSON. Store it as text or as a JSON column. The harness writes th
 record types that start with `harness.`, and a host adds its own types. The store does
 not read them.
 
+## LeaseStore
+
+You may already have leases: a job queue, or a submission table that says which
+worker owns a job. `LeaseStore` lets the harness use them. A durable harness host
+(`stores.log`) needs `stores.runs` or `stores.leases`.
+
+With `leases`, the harness does four things:
+
+- It takes a lease when a turn attempt starts.
+- It renews the lease while the attempt runs. It renews every `lease.renewMs`,
+  and each renewal makes the lease last `lease.ttlMs`.
+- It releases the lease after the attempt settles.
+- After a crash, it calls `isAlive` to find attempts that nobody runs any more.
+
+```ts
+interface TurnLeaseKey {
+  threadId: string
+  inputId: string
+  operationId: string // the operation that runs the attempt, also the AG-UI run id
+  attempt: number // 1 for the first run of the input, then 1 more after each crash
+}
+
+interface TurnLease extends TurnLeaseKey {
+  ownerId: string // the host that runs the attempt
+  expiresAt: number // epoch ms
+}
+
+interface LeaseStore {
+  acquire(lease: TurnLease): Promise<void>
+  renew(lease: TurnLease): Promise<void>
+  release(lease: TurnLease): Promise<void>
+  isAlive(key: TurnLeaseKey): Promise<boolean>
+}
+```
+
+Rules for an implementation:
+
+- `isAlive` returns `true` while another host still runs the attempt. That means a
+  lease exists and has not expired.
+- `renew` and `release` for a lease you do not hold can do nothing.
+- The harness keys a lease by input id and attempt. Two attempts of one input are
+  two leases.
+
+This store keeps leases in a `Map`:
+
+```ts
+import type {
+  LeaseStore,
+  TurnLease,
+  TurnLeaseKey,
+} from '@tanstack/ai-persistence'
+
+function createMemoryLeases(): LeaseStore {
+  const leases = new Map<string, TurnLease>()
+  const keyOf = (key: TurnLeaseKey) => `${key.inputId}:${key.attempt}`
+
+  return {
+    acquire: async (lease) => {
+      leases.set(keyOf(lease), lease)
+    },
+    renew: async (lease) => {
+      leases.set(keyOf(lease), lease)
+    },
+    release: async (lease) => {
+      leases.delete(keyOf(lease))
+    },
+    isAlive: async (key) => {
+      const lease = leases.get(keyOf(key))
+      return lease !== undefined && lease.expiresAt >= Date.now()
+    },
+  }
+}
+```
+
+To wire `leases` into a host, and to set `lease.renewMs` and `lease.ttlMs`, see
+[Use your own leases](../harness/durable-sessions#use-your-own-leases).
+
 ## How the records relate
 
 The thread is not a table of its own: it exists as the `thread_id` the other records
@@ -664,7 +742,7 @@ Each store has a `define*Store` helper (`defineMessageStore`, `defineRunStore`,
 on `persistence.stores`, and reading one you did not pass is a compile error.
 
 The keys in the table at the top are the only ones `stores` accepts, together with the
-harness keys `inbox` and `credentials`. Anything else throws
+harness keys `inbox`, `credentials`, `log`, and `leases`. Anything else throws
 `Unknown AIPersistence store key` at construction.
 
 To annotate the value instead, use a named shape:
