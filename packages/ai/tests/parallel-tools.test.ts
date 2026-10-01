@@ -24,16 +24,13 @@ function within(promise: Promise<void>, ms: number) {
 }
 
 /** A tool that logs its start and end, and gives the event loop a turn between them. */
-function loggingTool(name: string, log: Array<string>, extra?: Partial<Tool>) {
-  return {
-    ...serverTool(name, async () => {
-      log.push(`${name} start`)
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      log.push(`${name} end`)
-      return `${name} done`
-    }),
-    ...extra,
-  }
+function loggingTool(name: string, log: Array<string>) {
+  return serverTool(name, async () => {
+    log.push(`${name} start`)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    log.push(`${name} end`)
+    return `${name} done`
+  })
 }
 
 /** A model turn that calls `slow` and then `fast`, then a turn that answers. */
@@ -114,17 +111,6 @@ describe('server tools of one batch', () => {
     await runBatch([loggingTool('slow', log), loggingTool('fast', log)], {
       toolExecution: 'sequential',
     })
-
-    expect(log).toEqual(['slow start', 'slow end', 'fast start', 'fast end'])
-  })
-
-  it('run one at a time when a tool of the batch is sequential', async () => {
-    const log: Array<string> = []
-
-    await runBatch([
-      loggingTool('slow', log),
-      loggingTool('fast', log, { sequential: true }),
-    ])
 
     expect(log).toEqual(['slow start', 'slow end', 'fast start', 'fast end'])
   })
@@ -217,6 +203,88 @@ describe('server tools of one batch', () => {
     expect(results).toEqual([
       ['a', 'ok'],
       ['b', { error: 'Operation aborted' }],
+    ])
+  })
+
+  it('let the other tools finish before a failed run rethrows', async () => {
+    const after: Array<string> = []
+    const slow = serverTool('slow', async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      return 'slow done'
+    })
+    const bad = serverTool('bad', () => {
+      throw new Error('tool failed')
+    })
+
+    const batch = drain(
+      executeToolCalls(
+        [call('a', 'slow'), call('b', 'bad')],
+        [slow, bad],
+        new Map(),
+        new Map(),
+        undefined,
+        {
+          onAfterToolCall: async (info) => {
+            after.push(info.toolName)
+            if (info.toolName === 'bad') throw new Error('hook failed')
+          },
+        },
+      ),
+    )
+
+    await expect(batch).rejects.toThrow('hook failed')
+    expect(after).toEqual(['bad', 'slow'])
+  })
+
+  it('run the calls prepared before a before-hook aborts', async () => {
+    const ran: Array<string> = []
+    const tool = (name: string) =>
+      serverTool(name, () => {
+        ran.push(name)
+        return 'ok'
+      })
+
+    const batch = drain(
+      executeToolCalls(
+        [call('a', 'first'), call('b', 'second')],
+        [tool('first'), tool('second')],
+        new Map(),
+        new Map(),
+        undefined,
+        {
+          onBeforeToolCall: async (toolCall) =>
+            toolCall.id === 'b' ? { type: 'abort' as const } : undefined,
+        },
+      ),
+    )
+
+    await expect(batch).rejects.toThrow('Aborted by middleware')
+    expect(ran).toEqual(['first'])
+  })
+
+  it('return input requests in call order', async () => {
+    const needsInput = (name: string, ms: number) =>
+      serverTool(name, async () => {
+        await new Promise((resolve) => setTimeout(resolve, ms))
+        throw Object.assign(new Error('input'), {
+          name: 'MCPInputRequiredError',
+          kind: 'form',
+          request: {},
+        })
+      })
+
+    const generator = executeToolCalls(
+      [call('a', 'late'), call('b', 'early')],
+      [needsInput('late', 20), needsInput('early', 0)],
+      new Map(),
+      new Map(),
+    )
+    let step = await generator.next()
+    while (!step.done) step = await generator.next()
+
+    expect(step.value.inputRequired.map((r) => r.toolCallId)).toEqual([
+      'a',
+      'b',
     ])
   })
 })

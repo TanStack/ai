@@ -223,7 +223,6 @@ export type ToolDefinitionConfig<
   inputSchema?: TInput
   outputSchema?: TOutput
   lazy?: boolean
-  sequential?: boolean
   metadata?: Record<string, unknown>
   execution?: 'task'
 } & ApprovalConfig<TNeedsApproval, TApprovalSchema>

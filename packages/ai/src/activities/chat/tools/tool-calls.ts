@@ -19,6 +19,7 @@ import type {
   ModelMessage,
   RunFinishedEvent,
   StreamChunk,
+  TextOptions,
   Tool,
   ToolCall,
   ToolCallArgsEvent,
@@ -889,9 +890,8 @@ async function buildClientToolResult(
  * @param clientResults - Map of client-side execution results (toolCallId -> result)
  * @param createCustomEventChunk - Factory to create CustomEvent chunks (optional)
  * @param toolExecution - `'parallel'` (default) prepares every call in call
- *   order, then starts the server tools together. `'sequential'`, or a tool
- *   with `sequential: true` in the batch, runs one call at a time. Results
- *   come back in call order either way.
+ *   order, then starts the server tools together. `'sequential'` runs one
+ *   call at a time. Results come back in call order either way.
  */
 export async function* executeToolCalls<TContext = unknown>(
   toolCalls: Array<ToolCall>,
@@ -907,13 +907,12 @@ export async function* executeToolCalls<TContext = unknown>(
   userContext?: TContext,
   abortSignal?: AbortSignal,
   resumeState?: ToolResumeExecutionState,
-  toolExecution: 'parallel' | 'sequential' = 'parallel',
+  toolExecution: NonNullable<TextOptions['toolExecution']> = 'parallel',
 ): AsyncGenerator<CustomEvent | StreamChunk, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
   const needsClientExecution: Array<ClientToolRequest> = []
   const inputRequired: Array<McpInputRequest> = []
-  const subagentInterrupts: Array<Interrupt> = []
 
   // Create tool lookup map
   const toolMap = new Map<string, AnyTool>()
@@ -921,11 +920,15 @@ export async function* executeToolCalls<TContext = unknown>(
     toolMap.set(tool.name, tool)
   }
 
-  const runsInOrder =
-    toolExecution === 'sequential' ||
-    toolCalls.some((tc) => toolMap.get(tc.function.name)?.sequential)
-  // Parallel batches start their server tools here after every call is prepared.
+  const runsInOrder = toolExecution === 'sequential'
+  // Parallel mode collects the server runs here. `mergeStreams` starts them
+  // together after the loop.
   const runs: Array<AsyncGenerator<CustomEvent | StreamChunk, void, void>> = []
+  // Errors thrown by a run or a before-hook. They are rethrown only after every
+  // started tool has finished, so no tool outlives the batch.
+  const failures: Array<unknown> = []
+  // Each call's subagent interrupts, so they come back in call order.
+  const interruptsByCall = new Map<string, Array<Interrupt>>()
 
   // A tool that has not started when the run aborts never starts. It gets an
   // error result, so every call of the batch still has a result.
@@ -937,38 +940,44 @@ export async function* executeToolCalls<TContext = unknown>(
     context: ToolExecutionContext<TContext>,
     pendingEvents: Array<CustomEvent | StreamChunk>,
   ): AsyncGenerator<CustomEvent | StreamChunk, void, void> {
-    if (abortSignal?.aborted) {
-      results.push({
-        toolCallId: toolCall.id,
-        toolName,
-        result: { error: 'Operation aborted' },
-        input,
-        state: 'output-error',
-        duration: 0,
-      })
-      await middlewareHooks?.onAfterToolCall?.({
+    try {
+      if (abortSignal?.aborted) {
+        results.push({
+          toolCallId: toolCall.id,
+          toolName,
+          result: { error: 'Operation aborted' },
+          input,
+          state: 'output-error',
+          duration: 0,
+        })
+        await middlewareHooks?.onAfterToolCall?.({
+          toolCall,
+          tool,
+          toolName,
+          toolCallId: toolCall.id,
+          ok: false,
+          duration: 0,
+          error: new Error('Operation aborted'),
+        })
+        return
+      }
+      const interrupts: Array<Interrupt> = []
+      interruptsByCall.set(toolCall.id, interrupts)
+      yield* executeServerTool(
         toolCall,
         tool,
         toolName,
-        toolCallId: toolCall.id,
-        ok: false,
-        duration: 0,
-        error: new Error('Operation aborted'),
-      })
-      return
+        input,
+        context,
+        pendingEvents,
+        results,
+        middlewareHooks,
+        inputRequired,
+        interrupts,
+      )
+    } catch (error) {
+      failures.push(error)
     }
-    yield* executeServerTool(
-      toolCall,
-      tool,
-      toolName,
-      input,
-      context,
-      pendingEvents,
-      results,
-      middlewareHooks,
-      inputRequired,
-      subagentInterrupts,
-    )
   }
 
   // Batch gating: when any tool in the batch still needs an approval decision,
@@ -1184,50 +1193,7 @@ export async function* executeToolCalls<TContext = unknown>(
       const approvalId = `approval_${toolCall.id}`
       const resolution = approvalResolution(approvals, toolCall.id)
 
-      // Check if approval decision exists
-      if (resolution !== undefined) {
-        const approved = isApproved(resolution)
-
-        if (approved) {
-          input = editedApprovalArgs(resolution) ?? input
-          // Apply middleware before-hook for approved tools
-          if (middlewareHooks) {
-            const decision = await applyBeforeToolCallDecision(
-              toolCall,
-              tool,
-              input,
-              toolName,
-              middlewareHooks,
-              results,
-            )
-            if (!decision.proceed) continue
-            input = decision.input
-          }
-
-          const run = runServerTool(
-            toolCall,
-            tool,
-            toolName,
-            input,
-            context,
-            pendingEvents,
-          )
-          if (runsInOrder) yield* run
-          else runs.push(run)
-        } else {
-          // User declined
-          results.push({
-            toolCallId: toolCall.id,
-            toolName,
-            result:
-              resumeState?.deniedToolResults?.get(toolCall.id) ??
-              deniedApprovalResult(resolution),
-            input,
-            state: 'output-error',
-            outcome: 'denied',
-          })
-        }
-      } else {
+      if (resolution === undefined) {
         // Need approval
         needsApproval.push({
           toolCallId: toolCall.id,
@@ -1235,20 +1201,43 @@ export async function* executeToolCalls<TContext = unknown>(
           input,
           approvalId,
         })
+        continue
       }
-      continue
+      if (!isApproved(resolution)) {
+        // User declined
+        results.push({
+          toolCallId: toolCall.id,
+          toolName,
+          result:
+            resumeState?.deniedToolResults?.get(toolCall.id) ??
+            deniedApprovalResult(resolution),
+          input,
+          state: 'output-error',
+          outcome: 'denied',
+        })
+        continue
+      }
+      // Approved: run it like any other server tool below.
+      input = editedApprovalArgs(resolution) ?? input
     }
 
-    // CASE 3: Normal server tool - execute immediately
+    // CASE 3: Server tool, approved or with no approval
     if (middlewareHooks) {
-      const decision = await applyBeforeToolCallDecision(
-        toolCall,
-        tool,
-        input,
-        toolName,
-        middlewareHooks,
-        results,
-      )
+      let decision: Awaited<ReturnType<typeof applyBeforeToolCallDecision>>
+      try {
+        decision = await applyBeforeToolCallDecision(
+          toolCall,
+          tool,
+          input,
+          toolName,
+          middlewareHooks,
+          results,
+        )
+      } catch (error) {
+        // The calls prepared so far still run, as they would one at a time.
+        failures.push(error)
+        break
+      }
       if (!decision.proceed) continue
       input = decision.input
     }
@@ -1261,25 +1250,32 @@ export async function* executeToolCalls<TContext = unknown>(
       context,
       pendingEvents,
     )
-    if (runsInOrder) yield* run
-    else runs.push(run)
+    if (!runsInOrder) {
+      runs.push(run)
+      continue
+    }
+    yield* run
+    if (failures.length > 0) break
   }
 
   yield* mergeStreams(runs)
+  if (failures.length > 0) throw failures[0]
 
-  // Parallel tools finish in any order. The model gets the results in the
-  // order it made the calls.
+  // Parallel tools finish in any order. The model gets the results, input
+  // requests, and interrupts in the order it made the calls.
   const callOrder = new Map(toolCalls.map((tc, index) => [tc.id, index]))
-  results.sort(
-    (a, b) =>
-      (callOrder.get(a.toolCallId) ?? 0) - (callOrder.get(b.toolCallId) ?? 0),
-  )
+  const byCallOrder = (a: { toolCallId: string }, b: { toolCallId: string }) =>
+    (callOrder.get(a.toolCallId) ?? 0) - (callOrder.get(b.toolCallId) ?? 0)
+  results.sort(byCallOrder)
+  inputRequired.sort(byCallOrder)
 
   return {
     results,
     needsApproval,
     needsClientExecution,
     inputRequired,
-    subagentInterrupts,
+    subagentInterrupts: toolCalls.flatMap(
+      (tc) => interruptsByCall.get(tc.id) ?? [],
+    ),
   }
 }

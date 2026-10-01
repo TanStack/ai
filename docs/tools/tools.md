@@ -399,11 +399,11 @@ function CartChat() {
 
 ## Run tools one at a time
 
-When the model calls several server tools in one turn, they start at the same time, and the model gets the results in the order of its calls. Some tools depend on each other, for example a tool that writes a file and a tool that runs the tests. They must not overlap.
+When the model calls several server tools in one turn, they start at the same time, and the model gets the results in the order of its calls. Some tools must not overlap, for example a tool that writes a file and a tool that runs the tests.
 
-Set `sequential: true` on such a tool. A turn that calls it runs all of its tools one at a time:
+Set `toolExecution: 'sequential'` on `chat()` to run the tools of each turn one at a time, in call order:
 
-```ts group=sequential-tools
+```ts
 import { chat, toolDefinition } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
@@ -418,20 +418,9 @@ const runTests = toolDefinition({
   name: 'run_tests',
   description: 'Run the test suite',
   inputSchema: z.object({}),
-  sequential: true,
 }).server(async () => ({ passed: true }))
 
 const stream = chat({
-  adapter: openaiText('gpt-6.1-sol'),
-  messages: [{ role: 'user', content: 'Fix the bug, then run the tests.' }],
-  tools: [writeFile, runTests],
-})
-```
-
-To run every tool of every turn one at a time, set `toolExecution` on `chat()`:
-
-```ts group=sequential-tools
-const orderedStream = chat({
   adapter: openaiText('gpt-6.1-sol'),
   messages: [{ role: 'user', content: 'Fix the bug, then run the tests.' }],
   tools: [writeFile, runTests],
