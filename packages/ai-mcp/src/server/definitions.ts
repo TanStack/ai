@@ -1,3 +1,9 @@
+import type {
+  ListResourcesResult,
+  Variables,
+} from '@modelcontextprotocol/server'
+import type { MCPResourceContext } from './create-server'
+
 type PromptMessage = {
   role: string
   content: string
@@ -12,9 +18,14 @@ type PromptArgsSchema<TArgs> = {
  *
  * `config` takes `name`, `mimeType`, and `uri` or `uriTemplate`.
  * If `uri` and `uriTemplate` are both missing, this function throws a TypeError.
+ * A template can also take `list(ctx)`. It returns the concrete resources
+ * for `resources/list`.
  * Call `.read` with a function that returns the resource contents.
+ * It gets the requested `uri`, the template `variables`, and `ctx`.
+ * `ctx.context` holds the values from `handle(request, { context })` and
+ * the verified `authInfo`, the same as a tool gets.
  *
- * @param config - The resource `name`, `mimeType`, and `uri` or `uriTemplate`.
+ * @param config - The resource `name`, `mimeType`, `uri` or `uriTemplate`, and `list`.
  * @throws {TypeError} When `uri` and `uriTemplate` are both missing.
  *
  * @example
@@ -24,6 +35,12 @@ type PromptArgsSchema<TArgs> = {
  *   name: 'readme',
  *   mimeType: 'text/markdown',
  * }).read(async () => ({ text: '# Hello' }))
+ *
+ * const summary = resourceDefinition({
+ *   uriTemplate: 'myapp://items/{itemId}/summary',
+ *   name: 'item-summary',
+ *   mimeType: 'text/plain',
+ * }).read(async (uri, { itemId }) => `Summary of ${String(itemId)}`)
  * ```
  */
 export function resourceDefinition<
@@ -32,6 +49,9 @@ export function resourceDefinition<
     mimeType: string
     uri?: string
     uriTemplate?: string
+    list?: (
+      ctx: MCPResourceContext,
+    ) => ListResourcesResult | Promise<ListResourcesResult>
   },
 >(config: TConfig) {
   const hasUri = config.uri !== undefined
@@ -44,7 +64,13 @@ export function resourceDefinition<
 
   return {
     ...config,
-    read<TContents>(readContents: () => TContents | Promise<TContents>) {
+    read<TContents>(
+      readContents: (
+        uri: URL,
+        variables: Variables,
+        ctx: MCPResourceContext,
+      ) => TContents | Promise<TContents>,
+    ) {
       return {
         ...config,
         read: readContents,

@@ -2,7 +2,8 @@ import { parseWithStandardSchema } from '@tanstack/ai'
 import type { InferToolInput, InferToolOutput } from '@tanstack/ai'
 import { createServerToolContext } from './server/context'
 import { optionsOfServer } from './server/registry'
-import type { MCPServer } from './server/create-server'
+import type { MCPResourceContext, MCPServer } from './server/create-server'
+import type { Variables } from '@modelcontextprotocol/server'
 
 type Named = { name: string }
 
@@ -32,7 +33,7 @@ type PromptByName<
 > = Extract<TPrompts[number], { name: TName }>
 
 type ResourceContents<TResource> = TResource extends {
-  read: () => infer TResult
+  read: (...args: never) => infer TResult
 }
   ? Awaited<TResult>
   : never
@@ -113,7 +114,7 @@ type ListedTool = {
 
 type ListedResource = {
   uri?: string
-  read: () => unknown
+  read: (uri: URL, variables: Variables, ctx: MCPResourceContext) => unknown
 }
 
 type ListedPrompt = {
@@ -179,10 +180,12 @@ export function directMCPClient<const TServer extends MCPServer>(
       if (resource === undefined) {
         throw new Error(`The MCP server has no resource ${uri}.`)
       }
-      const read = resource.read as () =>
+      const read = resource.read as (
+        ...args: Parameters<ListedResource['read']>
+      ) =>
         | ResourceContents<ResourceByUri<TServer['resources'], TUri>>
         | Promise<ResourceContents<ResourceByUri<TServer['resources'], TUri>>>
-      return read()
+      return read(new URL(uri), {}, { context: {} })
     },
 
     async getPrompt<const TName extends PromptNames<TServer['prompts']>>(

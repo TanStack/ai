@@ -1149,6 +1149,168 @@ describe('createMCPServer', () => {
     })
   })
 
+  it('gives a resource read the uri, variables, and request context, and lists a template', async () => {
+    const summary = resourceDefinition({
+      uriTemplate: 'myapp://items/{itemId}/summary',
+      name: 'item-summary',
+      mimeType: 'text/plain',
+      list: async (ctx) => ({
+        resources: [
+          {
+            uri: 'myapp://items/1/summary',
+            name: `item 1 for ${String(ctx.context.tenant)}`,
+          },
+        ],
+      }),
+    }).read(
+      async (uri, variables, ctx) =>
+        `${uri.href} ${String(variables.itemId)} ${String(ctx.context.tenant)}`,
+    )
+    const server = createMCPServer({
+      name: 'items',
+      version: '1.0.0',
+      resources: [summary],
+    })
+
+    for (const era of ['2026', '2025'] as const) {
+      await withClient(
+        server,
+        { era, handleOptions: { context: { tenant: 'acme' } } },
+        async (client) => {
+          const read = await client.readResource({
+            uri: 'myapp://items/7/summary',
+          })
+          expect(read.contents[0]).toMatchObject({
+            text: 'myapp://items/7/summary 7 acme',
+          })
+          const listed = await client.listResources()
+          expect(listed.resources).toContainEqual(
+            expect.objectContaining({
+              uri: 'myapp://items/1/summary',
+              name: 'item 1 for acme',
+            }),
+          )
+        },
+      )
+    }
+  })
+
+  it('sends a tool _meta from metadata to the host', async () => {
+    const server = createMCPServer({
+      name: 'apps',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'show_chart',
+          description: 'Show a chart',
+          inputSchema: z.object({}),
+          metadata: { _meta: { ui: { resourceUri: 'ui://chart' } } },
+        }).server(async () => 'ok'),
+      ],
+    })
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      const listed = await client.listTools()
+      expect(listed.tools[0]?._meta).toMatchObject({
+        ui: { resourceUri: 'ui://chart' },
+      })
+    })
+  })
+
+  it('serves a spec 2025 client without a session when sessions is stateless', async () => {
+    const server = createMCPServer({
+      name: 'stateless',
+      version: '1.0.0',
+      sessions: 'stateless',
+      tools: [
+        toolDefinition({
+          name: 'tenant',
+          description: 'Reports the tenant',
+          inputSchema: z.object({}),
+        }).server<MCPToolContext<{ tenant: string }>>(
+          async (_args, ctx) => ctx.context.tenant,
+        ),
+      ],
+    })
+
+    const opened = await server.fetch(initializeRequest('any'))
+    expect(opened.ok).toBe(true)
+    expect(opened.headers.get('mcp-session-id')).toBeNull()
+
+    await withClient(
+      server,
+      { era: '2025', handleOptions: { context: { tenant: 'acme' } } },
+      async (client) => {
+        const called = await client.callTool({ name: 'tenant', arguments: {} })
+        expect(called.content).toEqual([{ type: 'text', text: 'acme' }])
+      },
+    )
+  })
+
+  it('reports SDK errors to onerror', async () => {
+    const onerror = vi.fn()
+    const server = createMCPServer({
+      name: 'strict',
+      version: '1.0.0',
+      sessions: 'reject',
+      onerror,
+    })
+
+    const rejected = await server.fetch(initializeRequest('any'))
+    expect(rejected.ok).toBe(false)
+    expect(onerror).toHaveBeenCalled()
+  })
+
+  it('converts each tool schema once, not on every request', async () => {
+    const inputSchema = z.object({ text: z.string() })
+    const toJson = vi.spyOn(inputSchema['~standard'].jsonSchema, 'input')
+    const server = createMCPServer({
+      name: 'cached',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'echo',
+          description: 'Echo text',
+          inputSchema,
+        }).server(async (args) => args.text),
+      ],
+    })
+    const afterCreate = toJson.mock.calls.length
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      await client.listTools()
+      await client.listTools()
+    })
+    expect(toJson.mock.calls.length).toBe(afterCreate)
+  })
+
+  it('advertises the output view of an output schema', async () => {
+    const server = createMCPServer({
+      name: 'counter',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'count',
+          description: 'Counts',
+          inputSchema: z.object({}),
+          outputSchema: z.object({
+            n: z.string().transform(Number).pipe(z.number()),
+          }),
+        }).server(async () => ({ n: '3' })),
+      ],
+    })
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      const listed = await client.listTools()
+      expect(listed.tools[0]?.outputSchema).toMatchObject({
+        properties: { n: { type: 'number' } },
+      })
+      const called = await client.callTool({ name: 'count', arguments: {} })
+      expect(called.isError).not.toBe(true)
+      expect(called.structuredContent).toEqual({ n: 3 })
+    })
+  })
+
   it('keeps assistant prompt messages and drops invalid ones', async () => {
     const server = createMCPServer({
       name: 'prompts',
