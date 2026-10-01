@@ -461,6 +461,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           )) as PluginAgentActions['start'],
         group: (options, body) => this.agentGroup(options, body),
       },
+      commandsChanged: () =>
+        this.feed.publish(
+          'session',
+          customEvent(HARNESS_EVENTS.commandsChanged, {}),
+        ),
     }
     this.registry = this.agentRegistry
     for (const agent of this.harness.agents ?? []) {

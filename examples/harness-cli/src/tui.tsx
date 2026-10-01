@@ -49,6 +49,7 @@ import { useLineEditor } from './screen/editor'
 import { Footer } from './screen/footer'
 import { PROVIDER_KEYS, isOn, providerKeysIn } from './screen/keys'
 import { mediaDir, openExternal, play, useSavedMedia } from './screen/media'
+import { SCREEN_COMMANDS, TAKES_INPUT } from './screen/commands'
 import { Menu } from './screen/menu'
 import { pathSuggestions } from './screen/paths'
 import { showSplash } from './screen/splash'
@@ -72,29 +73,6 @@ import type {
 
 const playground = fileURLToPath(new URL('../playground', import.meta.url))
 
-/** The commands of the screen itself. The harness adds its own to the list. */
-const SCREEN_COMMANDS = [
-  {
-    name: 'connect',
-    description: 'Connect a model provider, Notion, or Linear',
-  },
-  { name: 'disconnect', description: 'Remove a key or a sign-in' },
-  { name: 'model', description: 'Pick the model' },
-  { name: 'effort', description: 'Pick how hard the model thinks' },
-  { name: 'resume', description: 'Continue a saved session' },
-  { name: 'mic', description: 'Pick the microphone' },
-  { name: 'open', description: 'Open a media file (default: the last one)' },
-  { name: 'play', description: 'Play an audio or video file' },
-  {
-    name: 'voice',
-    description: 'Send a recorded voice message: /voice note.m4a',
-  },
-  { name: 'help', description: 'Show the commands and the voice tips' },
-  { name: 'exit', description: 'Quit' },
-]
-// Commands that need text after the name: Enter in the list fills the name.
-const TAKES_INPUT = new Set(['voice'])
-
 const HELP = [
   'Type / to see the commands. ↑ and ↓ go through the lines you sent.',
   'Type @ to pick a file or a folder to send. Tab or Enter fills the path.',
@@ -117,9 +95,12 @@ function suggestionsFor(text: string, commands: ReadonlyArray<ViewCommand>) {
       takesInput: TAKES_INPUT.has(command.name),
     })),
     // `connect:openai` and the like are in the `/connect` picker instead.
+    // `skill:<name>` (a skill whose name was taken) shows here.
     ...commands
       .filter(
-        (command) => !command.name.includes(':') && !own.has(command.name),
+        (command) =>
+          (!command.name.includes(':') || command.name.startsWith('skill:')) &&
+          !own.has(command.name),
       )
       .map((command) => ({
         id: command.name,

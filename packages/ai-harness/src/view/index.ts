@@ -458,7 +458,10 @@ export function createSessionView(source: SessionViewSource) {
         event.name === HARNESS_EVENTS.operationFinished &&
         chatTurns.delete(operationId)
       if (isTurnEnd) emit('turnEnd', { operationId })
-      if (event.name === HARNESS_EVENTS.configChanged) refreshDescription()
+      const isDescriptionChange =
+        event.name === HARNESS_EVENTS.configChanged ||
+        event.name === HARNESS_EVENTS.commandsChanged
+      if (isDescriptionChange) refreshDescription()
     }
     for (const signIn of after.signIns)
       if (!before.signIns.includes(signIn)) emit('signIn', signIn)
