@@ -207,11 +207,13 @@ export function createHarnessHost(
                 log: {
                   store: logStore,
                   ...(options.project ? { project: options.project } : {}),
-                  open: async (sessionThread, onFailure) =>
-                    (await sharedLog(logStore, logId)).view(
-                      sessionThread,
-                      onFailure,
-                    ),
+                  open: async (sessionThread, onFailure) => {
+                    let log = await sharedLog(logStore, logId)
+                    // The log closed while this open waited, and the host
+                    // dropped it.
+                    while (!log.isOpen) log = await sharedLog(logStore, logId)
+                    return log.view(sessionThread, onFailure)
+                  },
                 },
               }
             : {}),

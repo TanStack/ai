@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import {
   LogConflictError,
@@ -20,7 +20,7 @@ import type {
   LogStore,
   MetadataStore,
 } from '@tanstack/ai-persistence'
-import type { ProjectOptions } from '../src/log'
+import type { ProjectOptions, ReduceOptions } from '../src/log'
 import type { SessionEvent } from '../src/types'
 
 const THREAD = 't1'
@@ -484,6 +484,77 @@ describe('fold checkpoints', () => {
       .poll(() => metadata.get(NAMESPACE, THREAD))
       .toMatchObject({ v: 2, seq: 50, version: 'v1' })
   })
+
+  /** Counts the host records of the log. */
+  const countRecords: ReduceOptions<number> = {
+    initial: 0,
+    record: ({ state }) => state + 1,
+  }
+
+  it.each([
+    ['no reduce fold', checkpoint({}), countRecords],
+    [
+      'another reduce version',
+      checkpoint({ reduceVersion: 'r0' }),
+      { ...countRecords, version: 'r1' },
+    ],
+  ])(
+    'ignores a checkpoint with %s for a load with reduce',
+    async (_name, value, reduce) => {
+      const store = memoryLogStore()
+      await store.append(THREAD, 1, [{ type: 'app.tick' }])
+      await store.append(THREAD, 2, [{ type: 'app.tick' }])
+      const { metadata } = memoryPersistence().stores
+      await metadata.set(NAMESPACE, THREAD, value)
+
+      const state = await loadLogState({
+        store,
+        logId: THREAD,
+        metadata,
+        project,
+        reduce,
+      })
+
+      // The count includes record 1: the fold did not start at the checkpoint.
+      expect(state.reduced).toBe(2)
+    },
+  )
+
+  it('starts a reduce fold from the checkpoint that a shared log wrote', async () => {
+    const store = memoryLogStore()
+    const { metadata } = memoryPersistence().stores
+    let calls = 0
+    const reduce: ReduceOptions<number> = {
+      initial: 0,
+      record: ({ state }) => {
+        calls += 1
+        return state + 1
+      },
+    }
+    const log = new SharedLog({
+      store,
+      logId: THREAD,
+      state: emptySharedLogState(reduce),
+      coalesceMs: 0,
+      reduce,
+      metadata,
+    })
+    const writer = log.view(THREAD, () => {})
+    for (let index = 0; index < 50; index += 1) {
+      await writer.append([{ type: 'app.tick', index }])
+    }
+    await expect
+      .poll(() => metadata.get(NAMESPACE, THREAD))
+      .toMatchObject({ seq: 50, reduceVersion: '' })
+    calls = 0
+
+    const state = await loadLogState({ store, logId: THREAD, metadata, reduce })
+
+    expect(state.reduced).toBe(50)
+    expect(state.reduced).toEqual(log.state.reduced)
+    // The fold started at the checkpoint: no record folded again.
+    expect(calls).toBe(0)
+  })
 })
 
 describe('engine message store', () => {
@@ -769,5 +840,82 @@ describe('a log shared by sessions', () => {
     const seen: Array<string> = []
     for await (const entry of child.read({})) seen.push(entry.operationId)
     expect(seen).toEqual(['op-child'])
+  })
+
+  it('closes after the last view closes, and opens no view after that', () => {
+    const { log, root, child } = sharedWriter(memoryLogStore())
+
+    root.close()
+    expect(log.isOpen).toBe(true)
+    child.close()
+
+    expect(log.isOpen).toBe(false)
+    expect(() => log.view('log-1', () => {})).toThrow(
+      'The log "log-1" is closed.',
+    )
+  })
+
+  it('stops every view and closes when another writer appends', async () => {
+    const store = memoryLogStore()
+    const onIdle = vi.fn()
+    const log = new SharedLog({
+      store,
+      logId: 'log-1',
+      state: emptySharedLogState(),
+      coalesceMs: 0,
+      onIdle,
+    })
+    const rootFailure = vi.fn()
+    const childFailure = vi.fn()
+    const root = log.view('log-1', rootFailure)
+    const child = log.view('child', childFailure)
+    await root.append([{ type: 'app.mine' }])
+
+    // Another writer takes the next position.
+    await store.append('log-1', 2, [{ type: 'app.other' }])
+    await expect(root.append([{ type: 'app.late' }])).rejects.toBeInstanceOf(
+      LogConflictError,
+    )
+
+    expect(rootFailure).toHaveBeenCalledTimes(1)
+    expect(childFailure).toHaveBeenCalledTimes(1)
+    expect(onIdle).toHaveBeenCalled()
+    expect(log.isOpen).toBe(false)
+    await expect(root.append([{ type: 'app.x' }])).rejects.toBeInstanceOf(
+      LogConflictError,
+    )
+    await expect(child.append([{ type: 'app.x' }])).rejects.toBeInstanceOf(
+      LogConflictError,
+    )
+  })
+
+  it('opens one view per thread at a time', async () => {
+    const store = memoryLogStore()
+    const { log, root } = sharedWriter(store)
+
+    expect(() => log.view('log-1', () => {})).toThrow(
+      'The thread "log-1" already has an open session on this log.',
+    )
+    root.close()
+
+    // The child view keeps the log open, so the thread opens again.
+    const again = log.view('log-1', () => {})
+    await again.append([{ type: 'app.note' }])
+    expect(await records(store, 'log-1')).toEqual([{ type: 'app.note' }])
+  })
+
+  it('drops the staged records of a closed view', async () => {
+    const store = memoryLogStore()
+    // The root view keeps the log open.
+    const { log, child } = sharedWriter(store)
+
+    child.stage([{ type: 'app.x' }])
+    child.close()
+    const next = log.view('child', () => {})
+    await next.commit({ messages: [user('c1', 'hi')] })
+
+    expect(
+      (await records(store, 'log-1')).map((record) => record.type),
+    ).toEqual(['harness.transcript'])
   })
 })

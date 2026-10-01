@@ -542,8 +542,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /**
    * A durable host gives the session its view of the log, and the session
    * writes through it: the log is the event feed and the transcript. Then
-   * both modes build the stores that
-   * `withPersistence` and the checkpoints get.
+   * both modes build the stores that `withPersistence` and the checkpoints
+   * get.
    */
   private async openLog(): Promise<void> {
     const { stores } = this.persistence

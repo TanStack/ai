@@ -434,8 +434,9 @@ const versionsOf = (
   project: ProjectOptions | undefined,
   reduce: { version?: string } | undefined,
 ): CheckpointVersions => ({
-  ...(project?.version !== undefined ? { version: project.version } : {}),
-  ...(reduce?.version !== undefined ? { reduceVersion: reduce.version } : {}),
+  ...(project ? { version: project.version ?? '' } : {}),
+  // A checkpoint with a reduce fold never loads without reduce, or the reverse.
+  ...(reduce ? { reduceVersion: reduce.version ?? '' } : {}),
 })
 
 /**
@@ -493,7 +494,10 @@ function deltaKey(thread: string, operationId: string, event: StreamChunk) {
 export interface LogWriter extends EventFeed {
   readonly threadId: string
   readonly logId: string
-  /** The fold of this session. */
+  /**
+   * The fold of this session. In a shared log, `seq` is this session's last
+   * folded record. `head()` is the log position.
+   */
   readonly state: LogState
   /** Append `records` after the pending events, in one batch. */
   append: (records: ReadonlyArray<LogRecord>) => Promise<void>
@@ -542,7 +546,9 @@ export class SharedLog<TState = unknown> {
   /** Every event after this position is in `tail`. */
   private tailFrom: number
   private readonly waiters = new Set<() => void>()
-  private views = 0
+  /** The threads with an open view. */
+  private readonly threads = new Set<string>()
+  private idle = false
   private writing = false
   private hasWritten = false
   private writesSinceCheckpoint = 0
@@ -579,9 +585,25 @@ export class SharedLog<TState = unknown> {
     })
   }
 
+  /**
+   * False after the last view closed or a write failed. The host then opens
+   * a new log.
+   */
+  get isOpen() {
+    return !this.idle
+  }
+
   /** The view of session `threadId`. Close it when the session closes. */
   view(threadId: string, onFailure: (error: unknown) => void): LogWriter {
-    this.views += 1
+    if (this.idle) {
+      throw new Error(`The log ${JSON.stringify(this.logId)} is closed.`)
+    }
+    if (this.threads.has(threadId)) {
+      throw new Error(
+        `The thread ${JSON.stringify(threadId)} already has an open session on this log. Two harnesses cannot open one thread on a durable host.`,
+      )
+    }
+    this.threads.add(threadId)
     // Its own function, so two views with the same `onFailure` both count.
     const listener = (error: unknown) => onFailure(error)
     this.failureListeners.add(listener)
@@ -605,18 +627,21 @@ export class SharedLog<TState = unknown> {
       close: () => {
         if (closed) return
         closed = true
-        this.release(listener)
+        this.release(threadId, listener)
       },
     }
   }
 
-  private release(listener: (error: unknown) => void) {
+  private release(threadId: string, listener: (error: unknown) => void) {
     this.failureListeners.delete(listener)
-    this.views -= 1
+    this.threads.delete(threadId)
+    // Like a crash: the records of a cut tool batch do not land later.
+    this.staged.delete(threadId)
     void this.flush().catch(() => {})
     // The readers of the closed view end. The others wait again.
     this.wake()
-    if (this.views > 0) return
+    if (this.threads.size > 0) return
+    this.idle = true
     this.unsubscribe()
     this.onIdle()
   }
@@ -771,6 +796,7 @@ export class SharedLog<TState = unknown> {
   /** Stop every session of the log. The host drops it, so the next open folds again. */
   private fail(error: unknown) {
     this.failure = error
+    this.idle = true
     for (const listener of [...this.failureListeners]) listener(error)
     this.onIdle()
   }
