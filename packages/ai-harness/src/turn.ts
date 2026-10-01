@@ -109,3 +109,68 @@ export interface HarnessTurnOptions {
     ctx: JoinContext,
   ) => TurnAdditions | undefined | Promise<TurnAdditions | undefined>
 }
+
+// ponytail: the patterns of Flue's isRetryableModelError. A qualified finish
+// reason (error_quota, content_filter) stays terminal. The status codes need
+// word boundaries, or the 500 in "250000 tokens" would match.
+const TRANSIENT_ERROR =
+  /overloaded|rate.?limit|too many requests|\b(?:429|500|502|503|504)\b|service.?unavailable|server.?error|network.?error|connection.?(?:reset|refused|lost|error)|socket hang up|fetch failed|timed? out|timeout|terminated|provider finish_reason:\s*error(?![-\w])/i
+
+/**
+ * True for a model error that can pass when you try again: overloaded, rate
+ * limits, 429 and 5xx, network and connection errors, timeouts, and a
+ * provider `finish_reason: error`.
+ */
+export function isTransientModelError(error: {
+  message: string
+  code?: string
+}): boolean {
+  return (
+    TRANSIENT_ERROR.test(error.message) ||
+    (error.code !== undefined && TRANSIENT_ERROR.test(error.code))
+  )
+}
+
+/** Resolve after `ms`, or at once when `signal` aborts. */
+function wait(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    if (signal.aborted) return resolve()
+    const done = () => {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', done)
+      resolve()
+    }
+    const timer = setTimeout(done, ms)
+    signal.addEventListener('abort', done, { once: true })
+  })
+}
+
+/**
+ * A `turn.onModelError` policy: retry a transient model error after a
+ * backoff of `baseDelayMs * 2^retries`, times a jitter from 0.75 to 1.0.
+ *
+ * @example
+ * ```ts
+ * defineHarness({ ..., turn: { onModelError: retryTransientErrors() } })
+ * ```
+ */
+export function retryTransientErrors(
+  options: {
+    /** Retries after the last finished tool phase. Default 3. */
+    maxRetries?: number
+    /** The first delay, in milliseconds. Default 2000. */
+    baseDelayMs?: number
+    /** Default {@link isTransientModelError}. */
+    isTransient?: (error: { message: string; code?: string }) => boolean
+  } = {},
+) {
+  const maxRetries = options.maxRetries ?? 3
+  const baseDelayMs = options.baseDelayMs ?? 2_000
+  const isTransient = options.isTransient ?? isTransientModelError
+  return async (ctx: ModelErrorContext): Promise<'retry' | undefined> => {
+    if (ctx.retries >= maxRetries || !isTransient(ctx.error)) return undefined
+    const jitter = 0.75 + Math.random() * 0.25
+    await wait(Math.round(baseDelayMs * 2 ** ctx.retries * jitter), ctx.signal)
+    return ctx.signal.aborted ? undefined : 'retry'
+  }
+}

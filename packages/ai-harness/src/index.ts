@@ -102,6 +102,7 @@ export type {
   RecoverHook,
   TurnAdditions,
 } from './turn'
+export { isTransientModelError, retryTransientErrors } from './turn'
 
 export { HARNESS_EVENTS, InputRejectedError } from './types'
 export type {
