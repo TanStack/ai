@@ -1246,7 +1246,7 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-10-01"
         },
         {
           "label": "LLM Gateway",
