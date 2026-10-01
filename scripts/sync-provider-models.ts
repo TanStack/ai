@@ -3,8 +3,8 @@
  *
  * For each synced provider, this script:
  * 1. Lists that provider's models from modelschemas (`@modelschemas/client`)
- * 2. Uses native limits, modalities, and capabilities. Fills empty fields
- *    (today: pricing) from the modelschemas OpenRouter catalog
+ * 2. Uses native limits, modalities, pricing, and capabilities. Fills any
+ *    field the native row left empty from the modelschemas OpenRouter catalog
  * 3. Identifies models missing from the provider's model-meta.ts
  * 4. Generates and inserts new model constants, array entries, and type map entries
  *
@@ -26,21 +26,18 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  ELEVENLABS_ID_ARRAYS,
   alreadySynced,
-  elevenLabsIdArray,
-  findOpenRouterEnrichment,
-  hasFullPricing,
-  hasImageOutput,
   outputsText,
   pricingLines,
-  skipNativeModelReason,
-  toSyncModel,
+  selectElevenLabsInserts,
+  selectNativeInserts,
 } from './model-sync/catalog'
-import type { SyncModel } from './model-sync/catalog'
+import type { CatalogModel, SyncModel } from './model-sync/catalog'
 import { toModelConstName } from './model-sync/ids'
 import {
   addToStringLiteralArray,
@@ -53,7 +50,8 @@ import {
   buildAnthropicProviderOptionsType,
   buildProviderSupportsBody,
 } from './model-sync/provider-supports'
-import type { SyncedProvider } from './model-sync/provider-supports'
+import type { ArrayRef } from './model-sync/native-insert'
+import type { ModelMetaProvider } from './model-sync/provider-supports'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
@@ -63,11 +61,10 @@ const MAX_MODEL_AGE_SECONDS = 30 * 24 * 60 * 60
 const LAST_RUN_FILE = resolve(ROOT, 'scripts/.sync-models-last-run')
 
 interface ProviderConfig {
-  /** npm package name for changeset */
   packageName: string
   metaFile: string
   /** How array entries reference the constant, e.g. '.name' or '.id' */
-  arrayRef: '.name' | '.id'
+  arrayRef: ArrayRef
   /** Which field name is used for context window size */
   contextField: 'context_window' | 'max_input_tokens'
   /** Name of the exported chat model array */
@@ -96,8 +93,6 @@ interface ProviderConfig {
    * `claude-opus-5-fast` as excluded.
    */
   combinedToolsAndSchemaSetName?: string
-  /** Provider key for conservative supports generation */
-  kind: SyncedProvider
   /** Valid input modality types for this provider's ModelMeta interface */
   validInputModalities: Array<InputModality>
   /** The satisfies type clause (after 'as const satisfies') */
@@ -108,25 +103,21 @@ interface ProviderConfig {
   hasBothNameAndId: boolean
   /** Whether the provider options type is a mapped type (skip insertion) */
   providerOptionsIsMappedType: boolean
-  /** Model ID patterns to always skip (matched against stripped ID) */
+  /** Raw-id prefixes to always skip */
   skipPatterns: Array<string>
   /** Activities to insert. `null` means the catalog left activity unset. */
   acceptedActivities: Array<string | null>
-  /**
-   * When true, skip a native id until the modelschemas OpenRouter catalog
-   * has a matching row and both prices are known. Native catalogs still
-   * leave pricing empty. Groq/Mistral insert without a price (the unknown
-   * side is left out of `pricing`, never written as 0). BytePlus
-   * and ElevenLabs do not write pricing.
-   */
+  /** See `NativeInsertRules.requireOpenRouterEnrich`. */
   requireOpenRouterEnrich: boolean
+  /**
+   * Write a `pricing` block. An unknown side is left out, never written as
+   * 0, so Groq/Mistral can insert with `pricing: {}`. BytePlus has none.
+   */
   includePricing: boolean
   outputTokenField: 'max_output_tokens' | 'max_completion_tokens'
-  /** ElevenLabs is id-literal arrays, not ModelMeta constants. */
-  insertKind: 'model-meta' | 'id-arrays'
 }
 
-const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
+const PROVIDER_MAP: Record<ModelMetaProvider, ProviderConfig> = {
   openai: {
     packageName: '@tanstack/ai-openai',
     metaFile: resolve(ROOT, 'packages/ai-openai/src/model-meta.ts'),
@@ -137,7 +128,6 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     inputModalitiesTypeName: 'OpenAIModelInputModalitiesByName',
     toolCapabilitiesTypeName: 'OpenAIChatModelToolCapabilitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video'],
-    kind: 'openai',
     referenceSatisfies:
       'ModelMeta<OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions>',
     referenceProviderOptionsEntry:
@@ -155,7 +145,6 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     requireOpenRouterEnrich: true,
     includePricing: true,
     outputTokenField: 'max_output_tokens',
-    insertKind: 'model-meta',
   },
   anthropic: {
     packageName: '@tanstack/ai-anthropic',
@@ -169,7 +158,6 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     maxOutputTokensMapName: 'ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS',
     combinedToolsAndSchemaSetName: 'ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
-    kind: 'anthropic',
     referenceSatisfies:
       'ModelMeta<AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions>',
     referenceProviderOptionsEntry:
@@ -181,7 +169,6 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     requireOpenRouterEnrich: true,
     includePricing: true,
     outputTokenField: 'max_output_tokens',
-    insertKind: 'model-meta',
   },
   gemini: {
     packageName: '@tanstack/ai-gemini',
@@ -193,7 +180,6 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     inputModalitiesTypeName: 'GeminiModelInputModalitiesByName',
     toolCapabilitiesTypeName: 'GeminiChatModelToolCapabilitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
-    kind: 'gemini',
     referenceSatisfies:
       'ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions>',
     referenceProviderOptionsEntry:
@@ -207,7 +193,6 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     requireOpenRouterEnrich: true,
     includePricing: true,
     outputTokenField: 'max_output_tokens',
-    insertKind: 'model-meta',
   },
   grok: {
     packageName: '@tanstack/ai-grok',
@@ -219,7 +204,6 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     inputModalitiesTypeName: 'GrokModelInputModalitiesByName',
     toolCapabilitiesTypeName: 'GrokChatModelToolCapabilitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
-    kind: 'grok',
     referenceSatisfies: 'ModelMeta',
     referenceProviderOptionsEntry: 'GrokProviderOptions',
     hasBothNameAndId: false,
@@ -229,7 +213,6 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     requireOpenRouterEnrich: true,
     includePricing: true,
     outputTokenField: 'max_output_tokens',
-    insertKind: 'model-meta',
   },
   groq: {
     packageName: '@tanstack/ai-groq',
@@ -241,7 +224,6 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     inputModalitiesTypeName: 'GroqModelInputModalitiesByName',
     toolCapabilitiesTypeName: 'GroqChatModelToolCapabilitiesByName',
     validInputModalities: ['text', 'image', 'audio'],
-    kind: 'groq',
     referenceSatisfies: 'ModelMeta<GroqTextProviderOptions>',
     referenceProviderOptionsEntry: 'GroqTextProviderOptions',
     hasBothNameAndId: false,
@@ -251,7 +233,6 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     requireOpenRouterEnrich: false,
     includePricing: true,
     outputTokenField: 'max_completion_tokens',
-    insertKind: 'model-meta',
   },
   mistral: {
     packageName: '@tanstack/ai-mistral',
@@ -262,7 +243,6 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     providerOptionsTypeName: 'MistralChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'MistralModelInputModalitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'document'],
-    kind: 'mistral',
     referenceSatisfies: 'ModelMeta<MistralTextProviderOptions>',
     referenceProviderOptionsEntry: 'MistralTextProviderOptions',
     hasBothNameAndId: false,
@@ -283,7 +263,6 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     requireOpenRouterEnrich: false,
     includePricing: true,
     outputTokenField: 'max_completion_tokens',
-    insertKind: 'model-meta',
   },
   byteplus: {
     packageName: '@tanstack/ai-byteplus',
@@ -294,7 +273,6 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     providerOptionsTypeName: 'BytePlusChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'BytePlusModelInputModalitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
-    kind: 'byteplus',
     referenceSatisfies: 'ModelMeta',
     referenceProviderOptionsEntry: 'BytePlusTextProviderOptions',
     hasBothNameAndId: false,
@@ -304,29 +282,13 @@ const PROVIDER_MAP: Record<SyncedProvider, ProviderConfig> = {
     requireOpenRouterEnrich: false,
     includePricing: false,
     outputTokenField: 'max_output_tokens',
-    insertKind: 'model-meta',
   },
-  elevenlabs: {
-    packageName: '@tanstack/ai-elevenlabs',
-    metaFile: resolve(ROOT, 'packages/ai-elevenlabs/src/model-meta.ts'),
-    arrayRef: '.name',
-    contextField: 'context_window',
-    chatArrayName: 'ELEVENLABS_TTS_MODELS',
-    providerOptionsTypeName: 'ElevenLabsUnused',
-    inputModalitiesTypeName: 'ElevenLabsUnused',
-    validInputModalities: ['text', 'audio'],
-    kind: 'elevenlabs',
-    referenceSatisfies: 'never',
-    referenceProviderOptionsEntry: 'never',
-    hasBothNameAndId: false,
-    providerOptionsIsMappedType: true,
-    skipPatterns: [],
-    acceptedActivities: ['audio'],
-    requireOpenRouterEnrich: false,
-    includePricing: false,
-    outputTokenField: 'max_output_tokens',
-    insertKind: 'id-arrays',
-  },
+}
+
+/** ElevenLabs model-meta is id-literal arrays, not ModelMeta constants. */
+const ELEVENLABS = {
+  packageName: '@tanstack/ai-elevenlabs',
+  metaFile: resolve(ROOT, 'packages/ai-elevenlabs/src/model-meta.ts'),
 }
 
 type InputModality = 'text' | 'image' | 'audio' | 'video' | 'document'
@@ -353,57 +315,66 @@ function mapInputModalities(modalities: Array<string>): Array<InputModality> {
 function anthropicOptionsType(model: SyncModel): string {
   return buildAnthropicProviderOptionsType({
     supportedParameters: model.supportedParameters,
-    reasoningMandatory: false,
+    reasoningMandatory: model.reasoningMandatory,
+    // modelschemas has no cache price, and every current Claude model
+    // supports prompt caching.
+    hasCachedPricing: true,
   })
 }
 
 function providerOptionsEntryFor(
   model: SyncModel,
+  provider: ModelMetaProvider,
   config: ProviderConfig,
 ): string {
-  if (config.kind === 'anthropic') return anthropicOptionsType(model)
+  if (provider === 'anthropic') return anthropicOptionsType(model)
   return config.referenceProviderOptionsEntry
 }
 
-function satisfiesClause(model: SyncModel, config: ProviderConfig): string {
-  if (config.kind === 'anthropic') {
+function satisfiesClause(
+  model: SyncModel,
+  provider: ModelMetaProvider,
+  config: ProviderConfig,
+): string {
+  if (provider === 'anthropic') {
     return `ModelMeta<${anthropicOptionsType(model)}>`
   }
   return config.referenceSatisfies
 }
 
 function extractExistingModelIds(content: string): Set<string> {
-  const ids = new Set<string>()
-  const nameRegex = /^\s+name:\s*'([^']+)'/gm
-  const idRegex = /^\s+id:\s*'([^']+)'/gm
-  let match
-  while ((match = nameRegex.exec(content)) !== null) {
-    ids.add(match[1]!.replaceAll('.', '-'))
-  }
-  while ((match = idRegex.exec(content)) !== null) {
-    ids.add(match[1]!.replaceAll('.', '-'))
-  }
-  return ids
+  return new Set(
+    Array.from(content.matchAll(/^\s+(?:name|id):\s*'([^']+)'/gm), (m) =>
+      m[1]!.replaceAll('.', '-'),
+    ),
+  )
 }
 
 function extractExistingConstNames(content: string): Set<string> {
-  const names = new Set<string>()
-  const regex = /^const\s+([A-Z][A-Z0-9_]+)\s*=/gm
-  let match
-  while ((match = regex.exec(content)) !== null) {
-    names.add(match[1]!)
-  }
-  return names
+  return new Set(
+    Array.from(
+      content.matchAll(/^const\s+([A-Z][A-Z0-9_]+)\s*=/gm),
+      (m) => m[1]!,
+    ),
+  )
 }
 
 async function readLastRunTimestamp(): Promise<number | null> {
+  let content: string
   try {
-    const content = await readFile(LAST_RUN_FILE, 'utf-8')
-    const ts = parseInt(content.trim(), 10)
-    return isNaN(ts) ? null : ts
-  } catch {
-    return null
+    content = await readFile(LAST_RUN_FILE, 'utf-8')
+  } catch (error) {
+    // First run. Any other read error must not silently reset the cutoff.
+    if (isNodeError(error) && error.code === 'ENOENT') return null
+    throw error
   }
+  const ts = parseInt(content.trim(), 10)
+  if (isNaN(ts)) throw new Error(`${LAST_RUN_FILE} is not a timestamp`)
+  return ts
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error
 }
 
 async function writeLastRunTimestamp(): Promise<void> {
@@ -413,6 +384,7 @@ async function writeLastRunTimestamp(): Promise<void> {
 
 function generateModelConstant(
   model: SyncModel,
+  provider: ModelMetaProvider,
   config: ProviderConfig,
 ): string {
   const constName = toModelConstName(model.nativeId)
@@ -427,12 +399,12 @@ function generateModelConstant(
   if (config.hasBothNameAndId) {
     lines.push(`  id: '${model.nativeId}',`)
   }
-  if (model.contextWindow != null && model.contextWindow > 0) {
+  if (isPositive(model.contextWindow)) {
     lines.push(
       `  ${config.contextField}: ${formatNumber(model.contextWindow)},`,
     )
   }
-  if (model.maxOutput != null && model.maxOutput > 0) {
+  if (isPositive(model.maxOutput)) {
     lines.push(
       `  ${config.outputTokenField}: ${formatNumber(model.maxOutput)},`,
     )
@@ -440,59 +412,138 @@ function generateModelConstant(
   lines.push(`  supports: {`)
   lines.push(
     buildProviderSupportsBody({
-      provider: config.kind,
+      provider,
       inputModalities,
       outputModalities: model.outputModalities,
       supportedParameters: model.supportedParameters,
+      reasoningMandatory: model.reasoningMandatory,
     }),
   )
   lines.push(`  },`)
   if (config.includePricing) {
     lines.push(...pricingLines(model.pricing))
   }
-  lines.push(`} as const satisfies ${satisfiesClause(model, config)}`)
+  lines.push(`} as const satisfies ${satisfiesClause(model, provider, config)}`)
   return lines.join('\n')
 }
 
-function formatNumber(n: number): string {
-  if (n < 1000) return String(n)
-  const str = String(n)
-  const parts: Array<string> = []
-  let remaining = str
-  while (remaining.length > 3) {
-    parts.unshift(remaining.slice(-3))
-    remaining = remaining.slice(0, -3)
-  }
-  parts.unshift(remaining)
-  return parts.join('_')
+function isPositive(n: number | null): n is number {
+  return n != null && n > 0
 }
 
-function detectChangedPackages(): Set<string> {
-  const changed = new Set<string>()
-  try {
-    const diff = execFileSync(
-      'git',
-      ['diff', 'HEAD', '--name-only', '--', 'packages/'],
-      { encoding: 'utf-8', cwd: ROOT },
-    ).trim()
-    if (!diff) return changed
+/** 1048576 → 1_048_576 */
+function formatNumber(n: number): string {
+  return n.toLocaleString('en-US').replaceAll(',', '_')
+}
 
-    for (const line of diff.split('\n')) {
-      const match = line.match(/^packages\/([\w-]+)\//)
-      if (match) {
-        changed.add(`@tanstack/${match[1]}`)
-      }
-    }
-  } catch {
-    // git not available (e.g. running outside a repo) — fall back to empty set
+/** Packages the fetch scripts changed, so the changeset covers them too. */
+function detectChangedPackages(): Set<string> {
+  const diff = execFileSync(
+    'git',
+    ['diff', 'HEAD', '--name-only', '--', 'packages/'],
+    { encoding: 'utf-8', cwd: ROOT },
+  )
+  const changed = new Set<string>()
+  for (const match of diff.matchAll(/^packages\/([\w-]+)\//gm)) {
+    changed.add(`@tanstack/${match[1]}`)
   }
   return changed
 }
 
-async function main() {
-  let totalAdded = 0
-  const changedPackages = new Set<string>()
+async function syncModelMeta(
+  provider: ModelMetaProvider,
+  config: ProviderConfig,
+  catalogs: {
+    native: Record<ModelMetaProvider, Array<CatalogModel>>
+    openrouter: Array<CatalogModel>
+  },
+  cutoffTimestamp: number,
+): Promise<{ added: number; heldBack: number }> {
+  console.log(`\nProcessing provider: ${provider}`)
+  const rows = catalogs.native[provider]
+  console.log(`  Found ${rows.length} modelschemas models for '${provider}'`)
 
+  let content = await readFile(config.metaFile, 'utf-8')
+  const existingIds = extractExistingModelIds(content)
+  const existingConstNames = extractExistingConstNames(content)
+  console.log(
+    `  Existing models in file: ${existingIds.size} IDs, ${existingConstNames.size} constants`,
+  )
+
+  const { inserts, heldBack, skipped } = selectNativeInserts(
+    rows,
+    { ...config, provider, cutoffTimestamp },
+    catalogs.openrouter,
+    (nativeId) => alreadySynced(nativeId, existingIds, existingConstNames),
+  )
+  const skipCounts = Object.entries(skipped)
+    .map(([reason, count]) => `${reason}=${count}`)
+    .join(', ')
+  if (skipCounts) console.log(`  Skipped: ${skipCounts}`)
+  for (const rawId of heldBack) {
+    console.log(`  Waiting for an OpenRouter price: ${rawId}`)
+  }
+
+  if (inserts.length === 0) {
+    console.log('  No new models to add.')
+    return { added: 0, heldBack: heldBack.length }
+  }
+
+  console.log(`  Adding ${inserts.length} new models:`)
+  for (const { model } of inserts) {
+    console.log(`    - ${model.nativeId} (${toModelConstName(model.nativeId)})`)
+  }
+
+  content = insertConstants(
+    content,
+    inserts.map(({ model }) => generateModelConstant(model, provider, config)),
+  )
+  content = applyChatModelCatalogInserts(
+    content,
+    config,
+    inserts
+      .filter(({ model, activity }) => outputsText(model, activity))
+      .map(({ model }) => ({
+        constName: toModelConstName(model.nativeId),
+        providerOptionsEntry: providerOptionsEntryFor(model, provider, config),
+        hasMaxOutputTokens: isPositive(model.maxOutput),
+        acceptsCombinedToolsAndSchema: !model.nativeId.endsWith('-fast'),
+      })),
+  )
+
+  await writeFile(config.metaFile, content, 'utf-8')
+  console.log(`  Wrote updated file: ${config.metaFile}`)
+  return { added: inserts.length, heldBack: heldBack.length }
+}
+
+async function syncElevenLabs(
+  rows: Array<CatalogModel>,
+  cutoffTimestamp: number,
+): Promise<number> {
+  console.log(`\nProcessing provider: elevenlabs`)
+  let content = await readFile(ELEVENLABS.metaFile, 'utf-8')
+  const existingIds = new Set(
+    ELEVENLABS_ID_ARRAYS.flatMap((name) => [
+      ...extractStringLiteralArrayValues(content, name),
+    ]),
+  )
+  const byArray = selectElevenLabsInserts(rows, cutoffTimestamp, existingIds)
+  const added = Object.values(byArray).flat()
+  if (added.length === 0) {
+    console.log('  No new models to add.')
+    return 0
+  }
+  console.log(`  Adding ${added.length} new models:`)
+  for (const id of added) console.log(`    - ${id}`)
+  for (const name of ELEVENLABS_ID_ARRAYS) {
+    content = addToStringLiteralArray(content, name, byArray[name])
+  }
+  await writeFile(ELEVENLABS.metaFile, content, 'utf-8')
+  console.log(`  Wrote updated file: ${ELEVENLABS.metaFile}`)
+  return added.length
+}
+
+async function main() {
   const lastRun = await readLastRunTimestamp()
   const now = Math.floor(Date.now() / 1000)
   const cutoffTimestamp = (lastRun ?? now) - MAX_MODEL_AGE_SECONDS
@@ -503,8 +554,7 @@ async function main() {
     `Model age cutoff: ${cutoffDate} (skipping models created before this date)`,
   )
 
-  const client = createSyncClient()
-  const catalogs = await fetchSyncCatalogs(client)
+  const catalogs = await fetchSyncCatalogs(createSyncClient())
   const counts = Object.entries(catalogs.native)
     .map(([id, rows]) => `${id}=${rows.length}`)
     .join(', ')
@@ -512,180 +562,39 @@ async function main() {
     `Fetched modelschemas catalogs: ${counts}, openrouter=${catalogs.openrouter.length}`,
   )
 
+  const changedPackages = new Set<string>()
+  let totalAdded = 0
+  let totalHeldBack = 0
   for (const [provider, config] of Object.entries(PROVIDER_MAP) as Array<
-    [SyncedProvider, ProviderConfig]
+    [ModelMetaProvider, ProviderConfig]
   >) {
-    console.log(`\nProcessing provider: ${provider}`)
-
-    const providerModels = catalogs.native[provider]
-    console.log(
-      `  Found ${providerModels.length} modelschemas models for '${provider}'`,
+    const { added, heldBack } = await syncModelMeta(
+      provider,
+      config,
+      catalogs,
+      cutoffTimestamp,
     )
-
-    let content: string
-    try {
-      content = await readFile(config.metaFile, 'utf-8')
-    } catch {
-      console.warn(`  Skipping: could not read ${config.metaFile}`)
-      continue
-    }
-
-    const existingIds = extractExistingModelIds(content)
-    const existingConstNames = extractExistingConstNames(content)
-    if (config.insertKind === 'id-arrays') {
-      for (const arrayName of [
-        'ELEVENLABS_TTS_MODELS',
-        'ELEVENLABS_AUDIO_MODELS',
-        'ELEVENLABS_TRANSCRIPTION_MODELS',
-      ]) {
-        for (const id of extractStringLiteralArrayValues(content, arrayName)) {
-          existingIds.add(id)
-        }
-      }
-    }
-
-    console.log(
-      `  Existing models in file: ${existingIds.size} IDs, ${existingConstNames.size} constants`,
-    )
-
-    if (config.insertKind === 'id-arrays') {
-      const byArray: Record<string, Array<string>> = {
-        ELEVENLABS_TTS_MODELS: [],
-        ELEVENLABS_AUDIO_MODELS: [],
-        ELEVENLABS_TRANSCRIPTION_MODELS: [],
-      }
-      for (const row of providerModels) {
-        const skip = skipNativeModelReason(
-          row,
-          config.kind,
-          config.skipPatterns,
-          cutoffTimestamp,
-          config.acceptedActivities,
-        )
-        if (skip) continue
-        const bucket = elevenLabsIdArray(row.rawId)
-        if (!bucket) continue
-        if (alreadySynced(row.rawId, existingIds, existingConstNames)) continue
-        const arrayName =
-          bucket === 'tts'
-            ? 'ELEVENLABS_TTS_MODELS'
-            : bucket === 'audio'
-              ? 'ELEVENLABS_AUDIO_MODELS'
-              : 'ELEVENLABS_TRANSCRIPTION_MODELS'
-        byArray[arrayName]!.push(row.rawId)
-        existingIds.add(row.rawId)
-      }
-      const added = Object.values(byArray).flat()
-      if (added.length === 0) {
-        console.log('  No new models to add.')
-        continue
-      }
-      console.log(`  Adding ${added.length} new models:`)
-      for (const id of added) console.log(`    - ${id}`)
-      for (const [arrayName, ids] of Object.entries(byArray)) {
-        content = addToStringLiteralArray(content, arrayName, ids)
-      }
-      await writeFile(config.metaFile, content, 'utf-8')
-      console.log(`  Wrote updated file: ${config.metaFile}`)
-      totalAdded += added.length
-      changedPackages.add(config.packageName)
-      continue
-    }
-
-    const newModels: Array<{
-      model: SyncModel
-      activity: string | null
-      constName: string
-    }> = []
-
-    for (const row of providerModels) {
-      const skip = skipNativeModelReason(
-        row,
-        config.kind,
-        config.skipPatterns,
-        cutoffTimestamp,
-        config.acceptedActivities,
-      )
-      if (skip) continue
-
-      const enrich = findOpenRouterEnrichment(
-        row,
-        config.kind,
-        catalogs.openrouter,
-      )
-      const model = toSyncModel(row, enrich, config.kind)
-      if (
-        config.requireOpenRouterEnrich &&
-        !(enrich && hasFullPricing(model.pricing))
-      ) {
-        continue
-      }
-      if (
-        config.acceptedActivities.includes('chat') &&
-        !config.acceptedActivities.includes('image') &&
-        hasImageOutput({
-          activity: row.activity,
-          outputModalities: model.outputModalities,
-        })
-      ) {
-        continue
-      }
-      if (alreadySynced(model.nativeId, existingIds, existingConstNames)) {
-        continue
-      }
-      newModels.push({
-        model,
-        activity: row.activity,
-        constName: toModelConstName(model.nativeId),
-      })
-    }
-
-    if (newModels.length === 0) {
-      console.log('  No new models to add.')
-      continue
-    }
-
-    console.log(`  Adding ${newModels.length} new models:`)
-    for (const { model, constName } of newModels) {
-      console.log(`    - ${model.nativeId} (${constName})`)
-    }
-
-    const constants = newModels.map(({ model }) =>
-      generateModelConstant(model, config),
-    )
-    content = insertConstants(content, constants)
-
-    const chatModels = newModels.filter(({ model, activity }) =>
-      outputsText(model, activity),
-    )
-    content = applyChatModelCatalogInserts(
-      content,
-      {
-        chatArrayName: config.chatArrayName,
-        arrayRef: config.arrayRef,
-        providerOptionsTypeName: config.providerOptionsTypeName,
-        inputModalitiesTypeName: config.inputModalitiesTypeName,
-        toolCapabilitiesTypeName: config.toolCapabilitiesTypeName,
-        maxOutputTokensMapName: config.maxOutputTokensMapName,
-        combinedToolsAndSchemaSetName: config.combinedToolsAndSchemaSetName,
-        providerOptionsIsMappedType: config.providerOptionsIsMappedType,
-      },
-      chatModels.map(({ model, constName }) => ({
-        constName,
-        providerOptionsEntry: providerOptionsEntryFor(model, config),
-        hasMaxOutputTokens: model.maxOutput != null && model.maxOutput > 0,
-        acceptsCombinedToolsAndSchema: !model.nativeId.endsWith('-fast'),
-      })),
-    )
-
-    await writeFile(config.metaFile, content, 'utf-8')
-    console.log(`  Wrote updated file: ${config.metaFile}`)
-    totalAdded += newModels.length
-    changedPackages.add(config.packageName)
+    totalAdded += added
+    totalHeldBack += heldBack
+    if (added > 0) changedPackages.add(config.packageName)
   }
+  const elevenLabsAdded = await syncElevenLabs(
+    catalogs.native.elevenlabs,
+    cutoffTimestamp,
+  )
+  totalAdded += elevenLabsAdded
+  if (elevenLabsAdded > 0) changedPackages.add(ELEVENLABS.packageName)
 
   console.log(`\nDone. Added ${totalAdded} new models total.`)
 
+  // Held-back ids still age out after 30 days. Freezing the timestamp
+  // instead would stall it for good on ids OpenRouter never prices (Live
+  // API models), so each run names them in its log.
+  if (totalHeldBack > 0) {
+    console.log(
+      `${totalHeldBack} models are waiting for an OpenRouter price (listed above).`,
+    )
+  }
   await writeLastRunTimestamp()
 
   const allChangedPackages = detectChangedPackages()
@@ -700,35 +609,26 @@ async function main() {
 
 async function createChangeset(changedPackages: Set<string>) {
   const changesetDir = resolve(ROOT, '.changeset')
-  const { readdir } = await import('node:fs/promises')
-  const files = await readdir(changesetDir)
-  const existing = files.find(
+  const existing = (await readdir(changesetDir)).find(
     (f) => f.startsWith('sync-models') && f.endsWith('.md'),
   )
-
+  const changesetPath = resolve(changesetDir, existing ?? 'sync-models.md')
   if (existing) {
-    const existingPath = resolve(changesetDir, existing)
-    const existingContent = await readFile(existingPath, 'utf-8')
-
-    const pkgRegex = /'([^']+)':\s*patch/g
-    let match
-    while ((match = pkgRegex.exec(existingContent)) !== null) {
+    const existingContent = await readFile(changesetPath, 'utf-8')
+    for (const match of existingContent.matchAll(/'([^']+)':\s*patch/g)) {
       changedPackages.add(match[1]!)
     }
-
-    const content = buildChangesetContent(changedPackages)
-    await writeFile(existingPath, content, 'utf-8')
-    console.log(`\nChangeset updated: ${existingPath}`)
-  } else {
-    const changesetFile = resolve(changesetDir, 'sync-models.md')
-    const content = buildChangesetContent(changedPackages)
-    await writeFile(changesetFile, content, 'utf-8')
-    console.log(`\nChangeset created: ${changesetFile}`)
   }
-
+  await writeFile(
+    changesetPath,
+    buildChangesetContent(changedPackages),
+    'utf-8',
+  )
+  console.log(
+    `\nChangeset ${existing ? 'updated' : 'created'}: ${changesetPath}`,
+  )
   console.log(`  Packages: ${Array.from(changedPackages).sort().join(', ')}`)
 }
-
 function buildChangesetContent(packages: Set<string>): string {
   const packageLines = Array.from(packages)
     .sort()

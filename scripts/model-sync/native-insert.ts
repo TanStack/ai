@@ -2,10 +2,10 @@
  * File-mutation helpers for `sync-provider-models.ts`.
  *
  * Kept here so the insert path (chat array + type maps) can be unit-tested
- * without running the full OpenRouter fetch.
+ * without running the full modelschemas fetch.
  */
 
-type ArrayRef = '.name' | '.id'
+export type ArrayRef = '.name' | '.id'
 
 export function insertConstants(
   content: string,
@@ -24,26 +24,18 @@ export function insertConstants(
   return content.slice(0, at) + block + content.slice(at)
 }
 
-/**
- * Insert entries immediately AFTER the opening bracket. Each inserted line
- * carries its own trailing comma so the existing body does not need a
- * comma-guess. See the grok-4.5 single-line array breakage.
- */
 export function addToStringLiteralArray(
   content: string,
   arrayName: string,
   values: Array<string>,
 ): string {
   if (values.length === 0) return content
-  const open = `export const ${arrayName} = [`
-  const openIndex = content.indexOf(open)
-  if (openIndex === -1) {
-    console.warn(`  Warning: Could not find array '${arrayName}' in file`)
-    return content
-  }
-  const newEntries = values.map((value) => `  '${value}',`).join('\n')
-  const insertAt = openIndex + open.length
-  return `${content.slice(0, insertAt)}\n${newEntries}${content.slice(insertAt)}`
+  return addToArray(
+    content,
+    arrayName,
+    values.map((value) => `'${value}'`),
+    '',
+  )
 }
 
 export function extractStringLiteralArrayValues(
@@ -54,7 +46,10 @@ export function extractStringLiteralArrayValues(
   const block = content.match(
     new RegExp(`export const ${arrayName} = \\[([\\s\\S]*?)\\] as const`),
   )
-  if (!block) return ids
+  if (!block) {
+    // An empty set here would make every existing id look new.
+    throw new Error(`Could not find array '${arrayName}' in file`)
+  }
   const quoted = block[1]!.matchAll(/'([^']+)'/g)
   for (const match of quoted) {
     ids.add(match[1]!)
@@ -62,6 +57,14 @@ export function extractStringLiteralArrayValues(
   return ids
 }
 
+/**
+ * Insert entries immediately AFTER the opening bracket. Each inserted line
+ * carries its own trailing comma so the existing body does not need a
+ * comma-guess. See the grok-4.5 single-line array breakage.
+ *
+ * Every insert helper throws when its anchor is missing: the constants are
+ * already in the file, and nothing would reference them.
+ */
 function addToArray(
   content: string,
   arrayName: string,
@@ -73,8 +76,7 @@ function addToArray(
   const afterDecl = declIndex === -1 ? -1 : declIndex + decl.length
   const bracket = afterDecl === -1 ? -1 : content.indexOf('[', afterDecl)
   if (declIndex === -1 || bracket === -1 || bracket - afterDecl > 40) {
-    console.warn(`  Warning: Could not find array '${arrayName}' in file`)
-    return content
+    throw new Error(`Could not find array '${arrayName}' in file`)
   }
 
   const newEntries = entries
@@ -94,8 +96,7 @@ function addToTypeMap(
   )
   const match = pattern.exec(content)
   if (!match) {
-    console.warn(`  Warning: Could not find type map '${typeName}' in file`)
-    return content
+    throw new Error(`Could not find type map '${typeName}' in file`)
   }
 
   const newEntries = entries.join('\n')
@@ -112,8 +113,7 @@ function addToObjectMap(
   )
   const match = pattern.exec(content)
   if (!match) {
-    console.warn(`  Warning: Could not find object map '${mapName}' in file`)
-    return content
+    throw new Error(`Could not find object map '${mapName}' in file`)
   }
 
   const newEntries = entries.join('\n')

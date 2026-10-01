@@ -9,6 +9,8 @@ import {
   outputsText,
   parseCatalogModels,
   pricingLines,
+  selectElevenLabsInserts,
+  selectNativeInserts,
   skipNativeModelReason,
   toSyncModel,
 } from './catalog'
@@ -30,6 +32,7 @@ function native(overrides: Partial<CatalogModel> = {}): CatalogModel {
       outputPerMillion: undefined,
     },
     capabilities: [],
+    reasoningMandatory: false,
     ...overrides,
   }
 }
@@ -74,6 +77,8 @@ describe('parseCatalogModels', () => {
         {
           rawId: 'deepseek-v4-pro-ga-260813',
           activity: 'chat',
+          firstSeenAt: 1_790_000_000,
+          deprecatedAt: null,
           capabilities: {
             tools: { function_calling: true },
             structured_outputs: { json_schema: false, json_object: false },
@@ -88,6 +93,39 @@ describe('parseCatalogModels', () => {
       'reasoning',
       'include_reasoning',
     ])
+  })
+})
+
+describe('parseCatalogModels drift', () => {
+  const row = { rawId: 'm', firstSeenAt: 1, deprecatedAt: null }
+
+  it('reads reasoning.mandatory', () => {
+    const [model] = parseCatalogModels({
+      models: [{ ...row, reasoning: { mode: 'adaptive', mandatory: true } }],
+    })
+    expect(model?.reasoningMandatory).toBe(true)
+  })
+
+  it('throws when no row has a rawId', () => {
+    expect(() => parseCatalogModels({ models: [{ id: 'm' }] })).toThrow(
+      'none of 1 rows has a rawId',
+    )
+  })
+
+  it('throws when firstSeenAt is gone, so the age check cannot pass everything', () => {
+    expect(() =>
+      parseCatalogModels({ models: [{ rawId: 'm', deprecatedAt: null }] }),
+    ).toThrow('no row has a firstSeenAt')
+  })
+
+  it('throws when deprecatedAt is gone, so deprecated rows cannot pass', () => {
+    expect(() =>
+      parseCatalogModels({ models: [{ rawId: 'm', firstSeenAt: 1 }] }),
+    ).toThrow('no row has a deprecatedAt key')
+  })
+
+  it('accepts an empty models array', () => {
+    expect(parseCatalogModels({ models: [] })).toEqual([])
   })
 })
 
@@ -167,6 +205,15 @@ describe('findOpenRouterEnrichment / toSyncModel', () => {
     expect(synced.supportedParameters).toEqual(['tools', 'temperature'])
     expect(synced.pricing.inputPerMillion).toBe(3)
   })
+
+  it('fills a missing price side from OpenRouter without replacing the known one', () => {
+    const synced = toSyncModel(
+      native({ pricing: { inputPerMillion: 2, outputPerMillion: undefined } }),
+      native({ pricing: { inputPerMillion: 3, outputPerMillion: 15 } }),
+      'anthropic',
+    )
+    expect(synced.pricing).toEqual({ inputPerMillion: 2, outputPerMillion: 15 })
+  })
 })
 
 describe('skipNativeModelReason', () => {
@@ -179,6 +226,7 @@ describe('skipNativeModelReason', () => {
         'anthropic',
         [],
         cutoff,
+        ['chat'],
       ),
     ).toBe('dated snapshot')
     expect(
@@ -187,6 +235,7 @@ describe('skipNativeModelReason', () => {
         'grok',
         [],
         cutoff,
+        ['chat'],
       ),
     ).toBe('activity image')
     expect(
@@ -195,12 +244,15 @@ describe('skipNativeModelReason', () => {
         'anthropic',
         [],
         cutoff,
+        ['chat'],
       ),
     ).toBe('too old')
   })
 
   it('keeps a current chat model', () => {
-    expect(skipNativeModelReason(native(), 'anthropic', [], cutoff)).toBeNull()
+    expect(
+      skipNativeModelReason(native(), 'anthropic', [], cutoff, ['chat']),
+    ).toBeNull()
   })
 
   it('treats transcribe ids as non-chat even when activity is chat', () => {
@@ -210,6 +262,7 @@ describe('skipNativeModelReason', () => {
         'gemini',
         [],
         cutoff,
+        ['chat'],
       ),
     ).toBe('non-chat family')
   })
@@ -252,10 +305,116 @@ describe('outputsText', () => {
 
 describe('elevenLabsIdArray', () => {
   it('routes TTS, skips STS, and classifies scribe / music', () => {
-    expect(elevenLabsIdArray('eleven_v3_conversational')).toBe('tts')
+    expect(elevenLabsIdArray('eleven_v3_conversational')).toBe(
+      'ELEVENLABS_TTS_MODELS',
+    )
     expect(elevenLabsIdArray('eleven_multilingual_sts_v2')).toBeNull()
-    expect(elevenLabsIdArray('scribe_v2')).toBe('transcription')
-    expect(elevenLabsIdArray('music_v1')).toBe('audio')
+    expect(elevenLabsIdArray('scribe_v2')).toBe(
+      'ELEVENLABS_TRANSCRIPTION_MODELS',
+    )
+    expect(elevenLabsIdArray('music_v2_5')).toBe('ELEVENLABS_AUDIO_MODELS')
+    expect(elevenLabsIdArray('eleven_ttv_v3')).toBe('ELEVENLABS_VOICE_MODELS')
+  })
+})
+
+describe('selectElevenLabsInserts', () => {
+  const audio = (rawId: string) =>
+    native({ provider: 'elevenlabs', rawId, activity: 'audio' })
+
+  it('skips ids already in the file and adds a repeated id once', () => {
+    const byArray = selectElevenLabsInserts(
+      [
+        audio('eleven_v3'),
+        audio('eleven_v4'),
+        audio('eleven_v4'),
+        audio('scribe_v3'),
+      ],
+      0,
+      new Set(['eleven_v3']),
+    )
+    expect(byArray).toEqual({
+      ELEVENLABS_TTS_MODELS: ['eleven_v4'],
+      ELEVENLABS_AUDIO_MODELS: [],
+      ELEVENLABS_TRANSCRIPTION_MODELS: ['scribe_v3'],
+      ELEVENLABS_VOICE_MODELS: [],
+    })
+  })
+})
+
+describe('selectNativeInserts', () => {
+  const priced = { inputPerMillion: 3, outputPerMillion: 15 }
+  const rules = {
+    provider: 'anthropic' as const,
+    skipPatterns: ['claude-legacy-'],
+    acceptedActivities: ['chat'],
+    requireOpenRouterEnrich: true,
+    cutoffTimestamp: 0,
+  }
+  const openrouter = [
+    native({ rawId: 'anthropic/claude-sonnet-6', pricing: priced }),
+    native({ rawId: 'anthropic/claude-art-1', pricing: priced }),
+  ]
+
+  it('inserts a priced model and holds back one OpenRouter has not priced', () => {
+    const selection = selectNativeInserts(
+      [native({ rawId: 'claude-sonnet-6' }), native({ rawId: 'claude-new-1' })],
+      rules,
+      openrouter,
+      () => false,
+    )
+    expect(selection.inserts.map(({ model }) => model.nativeId)).toEqual([
+      'claude-sonnet-6',
+    ])
+    expect(selection.inserts[0]?.model.pricing).toEqual(priced)
+    expect(selection.heldBack).toEqual(['claude-new-1'])
+  })
+
+  it('does not hold back a model that is already in the file', () => {
+    const selection = selectNativeInserts(
+      [native({ rawId: 'claude-new-1' })],
+      rules,
+      openrouter,
+      () => true,
+    )
+    expect(selection.heldBack).toEqual([])
+    expect(selection.skipped).toEqual({ 'already synced': 1 })
+  })
+
+  it('counts every other skip by reason', () => {
+    const selection = selectNativeInserts(
+      [
+        native({ rawId: 'claude-art-1', outputModalities: ['image'] }),
+        native({ rawId: 'claude-old-1', deprecatedAt: 1 }),
+        native({ rawId: 'claude-sonnet-6:thinking' }),
+        native({ rawId: 'claude-legacy-2' }),
+      ],
+      rules,
+      openrouter,
+      () => false,
+    )
+    expect(selection.inserts).toEqual([])
+    expect(selection.skipped).toEqual({
+      'image output': 1,
+      deprecated: 1,
+      'routing variant': 1,
+      'skip pattern': 1,
+    })
+  })
+
+  it('inserts a Groq model with no price when the price gate is off', () => {
+    const selection = selectNativeInserts(
+      [native({ provider: 'groq', rawId: 'qwen/qwen9', activity: null })],
+      {
+        ...rules,
+        provider: 'groq',
+        acceptedActivities: [null, 'chat'],
+        requireOpenRouterEnrich: false,
+      },
+      openrouter,
+      () => false,
+    )
+    expect(selection.inserts).toHaveLength(1)
+    expect(selection.heldBack).toEqual([])
   })
 })
 

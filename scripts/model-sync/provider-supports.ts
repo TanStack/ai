@@ -22,8 +22,11 @@ export const SYNCED_PROVIDERS = [
 
 export type SyncedProvider = (typeof SYNCED_PROVIDERS)[number]
 
+/** Providers synced as ModelMeta constants. ElevenLabs is id arrays only. */
+export type ModelMetaProvider = Exclude<SyncedProvider, 'elevenlabs'>
+
 export interface ProviderSupportsInput {
-  provider: SyncedProvider
+  provider: ModelMetaProvider
   inputModalities: Array<string>
   outputModalities?: Array<string>
   supportedParameters?: Array<string>
@@ -91,7 +94,8 @@ const ANTHROPIC_BASE_OPTIONS = [
 
 /**
  * Per-model Anthropic provider-options intersection, inferred from the
- * OpenRouter catalog. Does not copy another model's tool list.
+ * modelschemas capabilities (OpenRouter's when the native row has none).
+ * Does not copy another model's tool list.
  *
  * - `reasoning.mandatory` → adaptive-only thinking (Fable 5 / 5.1).
  * - reasoning params without sampling → adaptive-or-disabled (Sonnet 5,
@@ -230,22 +234,7 @@ export function buildProviderSupportsBody(
       lines.push(toolsLine(hasTools, GROK_SERVER_TOOLS))
       return lines.join('\n')
     }
-    case 'groq': {
-      const features = ['streaming']
-      if (hasTools) features.push('tools')
-      if (hasStructured) {
-        features.push('json_object', 'json_schema')
-      }
-      if (hasReasoning) features.push('reasoning')
-      if (input.inputModalities.includes('image')) features.push('vision')
-      return [
-        `    input: ${inputList},`,
-        `    output: ['text'],`,
-        `    endpoints: ['chat'],`,
-        `    features: ${quoteList(features)},`,
-        `    tools: [] as const,`,
-      ].join('\n')
-    }
+    case 'groq':
     case 'mistral': {
       const features = ['streaming']
       if (hasTools) features.push('tools')
@@ -254,22 +243,24 @@ export function buildProviderSupportsBody(
       }
       if (hasReasoning) features.push('reasoning')
       if (input.inputModalities.includes('image')) features.push('vision')
-      return [
+      const lines = [
         `    input: ${inputList},`,
         `    output: ['text'],`,
         `    endpoints: ['chat'],`,
         `    features: ${quoteList(features)},`,
-      ].join('\n')
+      ]
+      // Groq hosted tools (browser_search, …) are per-model; never guess them.
+      if (input.provider === 'groq') lines.push(`    tools: [] as const,`)
+      return lines.join('\n')
     }
     case 'byteplus': {
+      // No `structured_outputs`: the runtime gate is the live-probed
+      // BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS list, which a sync cannot update.
       const capabilities: Array<string> = []
       if (hasReasoning) capabilities.push('reasoning')
       if (hasTools) capabilities.push('tool_calling')
-      if (hasStructured) capabilities.push('structured_outputs')
       const output = quoteList(
-        (input.outputModalities ?? ['text']).length > 0
-          ? (input.outputModalities ?? ['text'])
-          : ['text'],
+        input.outputModalities?.length ? input.outputModalities : ['text'],
       )
       const lines = [`    input: ${inputList},`, `    output: ${output},`]
       if (capabilities.length > 0) {
@@ -278,7 +269,5 @@ export function buildProviderSupportsBody(
       lines.push(`    tools: [] as const,`)
       return lines.join('\n')
     }
-    case 'elevenlabs':
-      return `    input: ${inputList},`
   }
 }

@@ -80,12 +80,12 @@ describe('buildProviderSupportsBody', () => {
     expect(body).not.toContain('browser_search')
   })
 
-  it('writes BytePlus capabilities from catalog flags', () => {
+  it('writes BytePlus capabilities but leaves structured outputs to the probed list', () => {
     const body = buildProviderSupportsBody({
       provider: 'byteplus',
       inputModalities: ['text', 'image'],
       outputModalities: ['text'],
-      supportedParameters: ['tools', 'reasoning'],
+      supportedParameters: ['tools', 'reasoning', 'structured_outputs'],
     })
     expect(body).toContain('tool_calling')
     expect(body).toContain('reasoning')

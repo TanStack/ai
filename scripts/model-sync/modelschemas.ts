@@ -3,21 +3,18 @@
  */
 
 import { createModelschemasClient, listModels } from '@modelschemas/client'
-import { parseCatalogModels } from './catalog'
+import { isRecord, parseCatalogModels } from './catalog'
 import type { CatalogModel } from './catalog'
 import { SYNCED_PROVIDERS } from './provider-supports'
 import type { SyncedProvider } from './provider-supports'
 
-export const MODELSCHEMAS_BASE_URL = 'https://modelschemas.com'
-
 export function createSyncClient(options?: {
   apiKey?: string
   fetch?: typeof globalThis.fetch
-  baseUrl?: string
 }): ReturnType<typeof createModelschemasClient> {
   const apiKey = options?.apiKey ?? process.env.MODELSCHEMAS_API_KEY
   return createModelschemasClient({
-    baseUrl: options?.baseUrl ?? MODELSCHEMAS_BASE_URL,
+    baseUrl: 'https://modelschemas.com',
     ...(apiKey ? { apiKey } : {}),
     ...(options?.fetch ? { fetch: options.fetch } : {}),
   })
@@ -27,55 +24,50 @@ type SyncClient = ReturnType<typeof createSyncClient>
 
 function errorMessage(error: unknown): string {
   if (typeof error === 'string') return error
-  if (!error || typeof error !== 'object') return String(error)
-  const record = error as Record<string, unknown>
-  const nested = record.error
-  if (nested && typeof nested === 'object') {
-    const inner = nested as Record<string, unknown>
-    if (typeof inner.message === 'string') return inner.message
+  if (!isRecord(error)) return String(error)
+  if (isRecord(error.error) && typeof error.error.message === 'string') {
+    return error.error.message
   }
-  if (typeof record.message === 'string') return record.message
+  if (typeof error.message === 'string') return error.message
   return JSON.stringify(error)
 }
 
 export async function fetchCatalog(
   client: SyncClient,
-  query: {
-    provider: string
-    activity?:
-      | 'chat'
-      | 'image'
-      | 'video'
-      | 'audio'
-      | 'embeddings'
-      | 'moderation'
-  },
+  provider: string,
 ): Promise<Array<CatalogModel>> {
-  const result = await listModels({ client, query })
+  const result = await listModels({ client, query: { provider } })
   if (result.error !== undefined) {
     throw new Error(
-      `modelschemas listModels provider=${query.provider}: ${errorMessage(result.error)}`,
+      `modelschemas listModels provider=${provider}: ${errorMessage(result.error)}`,
     )
   }
   return parseCatalogModels(result.data)
 }
 
+/**
+ * Every synced provider's native catalog plus the OpenRouter catalog.
+ * An empty catalog throws: it would hide every insert for that provider
+ * (or every price, for OpenRouter) behind a "no new models" exit 0.
+ */
 export async function fetchSyncCatalogs(client: SyncClient): Promise<{
   native: Record<SyncedProvider, Array<CatalogModel>>
   openrouter: Array<CatalogModel>
 }> {
   const [openrouter, ...nativeLists] = await Promise.all([
-    fetchCatalog(client, { provider: 'openrouter' }),
-    ...SYNCED_PROVIDERS.map((provider) => fetchCatalog(client, { provider })),
+    fetchCatalog(client, 'openrouter'),
+    ...SYNCED_PROVIDERS.map((provider) => fetchCatalog(client, provider)),
   ])
-  // Without OpenRouter rows, every price is unknown. Stop instead of
-  // inserting price-less models.
   if (openrouter.length === 0) {
     throw new Error('modelschemas returned an empty openrouter catalog')
   }
   const native = {} as Record<SyncedProvider, Array<CatalogModel>>
   for (const [index, provider] of SYNCED_PROVIDERS.entries()) {
-    native[provider] = nativeLists[index] ?? []
+    const rows = nativeLists[index]
+    if (!rows?.length) {
+      throw new Error(`modelschemas returned an empty ${provider} catalog`)
+    }
+    native[provider] = rows
   }
   return { native, openrouter }
 }

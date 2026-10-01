@@ -134,6 +134,22 @@ export type OpenAIModelInputModalitiesByName = {
     expect(result).toContain('[GPT6.name]: typeof GPT6.supports.tools')
     expect(result).toContain('GPT6.name,')
   })
+
+  it('throws when a type map is missing, so no constant is left unreferenced', () => {
+    expect(() =>
+      applyChatModelCatalogInserts(
+        STUB.replace('AnthropicModelInputModalitiesByName', 'Renamed'),
+        ANTHROPIC_CONFIG,
+        [
+          {
+            constName: 'CLAUDE_NEW',
+            providerOptionsEntry: 'AnthropicSamplingOptions',
+            hasMaxOutputTokens: false,
+          },
+        ],
+      ),
+    ).toThrow("Could not find type map 'AnthropicModelInputModalitiesByName'")
+  })
 })
 
 describe('insertConstants', () => {
@@ -176,5 +192,14 @@ describe('string-literal arrays', () => {
     expect(
       extractStringLiteralArrayValues(result, 'ELEVENLABS_TTS_MODELS'),
     ).toEqual(new Set(['eleven_v3_conversational', 'eleven_v3']))
+  })
+
+  it('throws instead of reading a missing array as empty', () => {
+    expect(() =>
+      extractStringLiteralArrayValues(stub, 'ELEVENLABS_AUDIO_MODELS'),
+    ).toThrow("Could not find array 'ELEVENLABS_AUDIO_MODELS'")
+    expect(() =>
+      addToStringLiteralArray(stub, 'ELEVENLABS_AUDIO_MODELS', ['music_v2']),
+    ).toThrow("Could not find array 'ELEVENLABS_AUDIO_MODELS'")
   })
 })

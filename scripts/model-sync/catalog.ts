@@ -1,20 +1,19 @@
 /**
  * modelschemas catalog rows for native-provider model-meta inserts.
  *
- * Native catalogs supply ids, activity, limits, modalities, and
- * capabilities. OpenRouter rows on modelschemas fill a field only when
- * the native row left it empty (pricing is still empty on native rows).
+ * Native catalogs supply ids, activity, limits, modalities, pricing, and
+ * capabilities. OpenRouter rows on modelschemas fill a field only when the
+ * native row left it empty.
  */
 
 import { toModelConstName, toNativeProviderId } from './ids'
-import type { SyncedProvider } from './provider-supports'
+import type { ModelMetaProvider, SyncedProvider } from './provider-supports'
 
 export const OPENROUTER_PREFIX: Partial<Record<SyncedProvider, string>> = {
   openai: 'openai/',
   anthropic: 'anthropic/',
   gemini: 'google/',
   grok: 'x-ai/',
-  groq: 'groq/',
   mistral: 'mistralai/',
 }
 
@@ -26,6 +25,8 @@ const NON_CHAT_MODEL_PREFIXES = [
   'dall-e-',
   'tts-',
 ]
+
+const DATED_SNAPSHOT = /-\d{8}$/
 
 /** USD per million tokens, as modelschemas reports it. */
 export interface CatalogPricing {
@@ -45,20 +46,22 @@ export interface CatalogModel {
   outputModalities: Array<string>
   pricing: CatalogPricing
   capabilities: Array<string>
+  /** `reasoning.mandatory`: thinking cannot be turned off (Claude Fable). */
+  reasoningMandatory: boolean
 }
 
 export interface SyncModel {
   nativeId: string
-  firstSeenAt: number | null
   contextWindow: number | null
   maxOutput: number | null
   inputModalities: Array<string>
   outputModalities: Array<string>
   pricing: CatalogPricing
   supportedParameters: Array<string>
+  reasoningMandatory: boolean
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -71,10 +74,9 @@ function asFiniteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+/** Most providers list parameter names; BytePlus sends a feature object. */
 function asSupportedParameters(value: unknown): Array<string> {
-  if (Array.isArray(value)) {
-    return value.filter((item): item is string => typeof item === 'string')
-  }
+  if (Array.isArray(value)) return asStringArray(value)
   if (!isRecord(value)) return []
   const params: Array<string> = []
   const tools = isRecord(value.tools) ? value.tools : null
@@ -108,6 +110,7 @@ export function parseCatalogModel(value: unknown): CatalogModel | null {
   if (!isRecord(value)) return null
   if (typeof value.rawId !== 'string' || value.rawId.length === 0) return null
   const modalities = isRecord(value.modalities) ? value.modalities : null
+  const reasoning = isRecord(value.reasoning) ? value.reasoning : null
   return {
     provider: typeof value.provider === 'string' ? value.provider : '',
     rawId: value.rawId,
@@ -120,22 +123,34 @@ export function parseCatalogModel(value: unknown): CatalogModel | null {
     outputModalities: asStringArray(modalities?.output),
     pricing: asPricing(value.pricing),
     capabilities: asSupportedParameters(value.capabilities),
+    reasoningMandatory: reasoning?.mandatory === true,
   }
 }
 
+/**
+ * Parse a `listModels` payload. A changed payload shape must not look like
+ * "no new models", and a renamed `firstSeenAt` / `deprecatedAt` must not
+ * let the whole historical catalog through the age and deprecation checks.
+ */
 export function parseCatalogModels(data: unknown): Array<CatalogModel> {
-  const record = isRecord(data) ? data : null
-  const rows = Array.isArray(record?.models)
-    ? record.models
-    : Array.isArray(data)
-      ? data
-      : null
-  // Fail loud: a changed payload shape must not look like "no new models".
-  if (!rows) throw new Error('modelschemas listModels: no models array')
-  const models: Array<CatalogModel> = []
-  for (const row of rows) {
-    const parsed = parseCatalogModel(row)
-    if (parsed) models.push(parsed)
+  const rows = isRecord(data) ? data.models : undefined
+  if (!Array.isArray(rows)) {
+    throw new Error('modelschemas listModels: no models array')
+  }
+  const models = rows
+    .map((row) => parseCatalogModel(row))
+    .filter((model): model is CatalogModel => model !== null)
+  if (rows.length === 0) return models
+  if (models.length === 0) {
+    throw new Error(
+      `modelschemas listModels: none of ${rows.length} rows has a rawId`,
+    )
+  }
+  if (!models.some((model) => model.firstSeenAt != null)) {
+    throw new Error('modelschemas listModels: no row has a firstSeenAt')
+  }
+  if (!rows.some((row) => isRecord(row) && 'deprecatedAt' in row)) {
+    throw new Error('modelschemas listModels: no row has a deprecatedAt key')
   }
   return models
 }
@@ -153,7 +168,7 @@ export function openRouterRawIdCandidates(
   if (!prefix) return []
   const ids = new Set<string>([native.rawId])
   if (provider === 'anthropic') {
-    const undated = native.rawId.replace(/-\d{8}$/, '')
+    const undated = native.rawId.replace(DATED_SNAPSHOT, '')
     ids.add(undated)
     ids.add(anthropicOpenRouterId(native.rawId))
     ids.add(anthropicOpenRouterId(undated))
@@ -170,22 +185,11 @@ export function findOpenRouterEnrichment(
   return openrouter.find((model) => wanted.has(model.rawId))
 }
 
-function pickNumber(
-  preferred: number | null,
-  fallback: number | null,
-): number | null {
-  return preferred ?? fallback
-}
-
 function pickList(
   preferred: Array<string>,
-  fallback: Array<string>,
+  fallback: Array<string> = [],
 ): Array<string> {
   return preferred.length > 0 ? preferred : fallback
-}
-
-function hasPricing(pricing: CatalogPricing): boolean {
-  return pricing.inputPerMillion != null || pricing.outputPerMillion != null
 }
 
 /** Both prices known. OpenAI/Anthropic/Gemini/Grok ModelMeta require both. */
@@ -228,30 +232,25 @@ export function toSyncModel(
   enrich: CatalogModel | undefined,
   provider: SyncedProvider,
 ): SyncModel {
-  const fallback = enrich
   return {
     nativeId: toNativeProviderId(native.rawId, provider),
-    firstSeenAt: native.firstSeenAt,
-    contextWindow: pickNumber(
-      native.contextWindow,
-      fallback?.contextWindow ?? null,
-    ),
-    maxOutput: pickNumber(native.maxOutput, fallback?.maxOutput ?? null),
-    inputModalities: pickList(
-      native.inputModalities,
-      fallback?.inputModalities ?? [],
-    ),
+    contextWindow: native.contextWindow ?? enrich?.contextWindow ?? null,
+    maxOutput: native.maxOutput ?? enrich?.maxOutput ?? null,
+    inputModalities: pickList(native.inputModalities, enrich?.inputModalities),
     outputModalities: pickList(
       native.outputModalities,
-      fallback?.outputModalities ?? [],
+      enrich?.outputModalities,
     ),
-    pricing: hasPricing(native.pricing)
-      ? native.pricing
-      : (fallback?.pricing ?? native.pricing),
-    supportedParameters:
-      native.capabilities.length > 0
-        ? native.capabilities
-        : (fallback?.capabilities ?? []),
+    // Per side, so a native input price does not hide OpenRouter's output price.
+    pricing: {
+      inputPerMillion:
+        native.pricing.inputPerMillion ?? enrich?.pricing.inputPerMillion,
+      outputPerMillion:
+        native.pricing.outputPerMillion ?? enrich?.pricing.outputPerMillion,
+    },
+    supportedParameters: pickList(native.capabilities, enrich?.capabilities),
+    reasoningMandatory:
+      native.reasoningMandatory || enrich?.reasoningMandatory === true,
   }
 }
 
@@ -263,12 +262,14 @@ export function matchesSkipPattern(
 }
 
 export function isNonChatFamily(rawId: string): boolean {
-  if (rawId.includes('transcribe')) return true
-  return NON_CHAT_MODEL_PREFIXES.some((prefix) => rawId.startsWith(prefix))
+  return (
+    rawId.includes('transcribe') ||
+    matchesSkipPattern(rawId, NON_CHAT_MODEL_PREFIXES)
+  )
 }
 
 export function isDatedAnthropicSnapshot(rawId: string): boolean {
-  return /-\d{8}$/.test(rawId)
+  return DATED_SNAPSHOT.test(rawId)
 }
 
 export function hasImageOutput(model: {
@@ -303,7 +304,7 @@ export function skipNativeModelReason(
   provider: SyncedProvider,
   skipPatterns: Array<string>,
   cutoffTimestamp: number,
-  acceptedActivities: Array<string | null> = ['chat'],
+  acceptedActivities: Array<string | null>,
 ): string | null {
   if (model.deprecatedAt != null) return 'deprecated'
   if (!acceptedActivities.includes(model.activity)) {
@@ -321,15 +322,130 @@ export function skipNativeModelReason(
   return null
 }
 
-/** ElevenLabs STS / voice-conversion ids have no TanStack adapter. */
-export function elevenLabsIdArray(
-  rawId: string,
-): 'tts' | 'audio' | 'transcription' | null {
+export interface NativeInsertRules {
+  provider: ModelMetaProvider
+  skipPatterns: Array<string>
+  acceptedActivities: Array<string | null>
+  /**
+   * Hold a native id back until the modelschemas OpenRouter catalog has a
+   * matching row and both prices are known (from either row). The
+   * OpenAI/Anthropic/Gemini/Grok ModelMeta types require both prices.
+   */
+  requireOpenRouterEnrich: boolean
+  cutoffTimestamp: number
+}
+
+export interface NativeInsertSelection {
+  inserts: Array<{ model: SyncModel; activity: string | null }>
+  /** Raw ids skipped only because the price gate is not met yet. */
+  heldBack: Array<string>
+  /** Count of every other skip, by reason. */
+  skipped: Record<string, number>
+}
+
+/** Pick the catalog rows that become new model-meta constants. */
+export function selectNativeInserts(
+  rows: Array<CatalogModel>,
+  rules: NativeInsertRules,
+  openrouter: Array<CatalogModel>,
+  isSynced: (nativeId: string) => boolean,
+): NativeInsertSelection {
+  const selection: NativeInsertSelection = {
+    inserts: [],
+    heldBack: [],
+    skipped: {},
+  }
+  const skip = (reason: string) => {
+    selection.skipped[reason] = (selection.skipped[reason] ?? 0) + 1
+  }
+  for (const row of rows) {
+    const reason = skipNativeModelReason(
+      row,
+      rules.provider,
+      rules.skipPatterns,
+      rules.cutoffTimestamp,
+      rules.acceptedActivities,
+    )
+    if (reason) {
+      skip(reason)
+      continue
+    }
+    const enrich = findOpenRouterEnrichment(row, rules.provider, openrouter)
+    const model = toSyncModel(row, enrich, rules.provider)
+    if (isSynced(model.nativeId)) {
+      skip('already synced')
+      continue
+    }
+    if (
+      hasImageOutput({
+        activity: row.activity,
+        outputModalities: model.outputModalities,
+      })
+    ) {
+      skip('image output')
+      continue
+    }
+    if (
+      rules.requireOpenRouterEnrich &&
+      !(enrich && hasFullPricing(model.pricing))
+    ) {
+      selection.heldBack.push(row.rawId)
+      continue
+    }
+    selection.inserts.push({ model, activity: row.activity })
+  }
+  return selection
+}
+
+export const ELEVENLABS_ID_ARRAYS = [
+  'ELEVENLABS_TTS_MODELS',
+  'ELEVENLABS_AUDIO_MODELS',
+  'ELEVENLABS_TRANSCRIPTION_MODELS',
+  'ELEVENLABS_VOICE_MODELS',
+] as const
+
+type ElevenLabsIdArray = (typeof ELEVENLABS_ID_ARRAYS)[number]
+
+/**
+ * Which ElevenLabs id array a raw id belongs in. STS / voice-conversion ids
+ * have no TanStack adapter, so they get `null`.
+ */
+export function elevenLabsIdArray(rawId: string): ElevenLabsIdArray | null {
   if (rawId.includes('_sts_')) return null
-  if (rawId.startsWith('scribe')) return 'transcription'
-  if (rawId.includes('text_to_sound') || rawId === 'music_v1') return 'audio'
-  if (rawId.startsWith('eleven_')) return 'tts'
+  if (rawId.includes('_ttv_')) return 'ELEVENLABS_VOICE_MODELS'
+  if (rawId.startsWith('scribe')) return 'ELEVENLABS_TRANSCRIPTION_MODELS'
+  if (rawId.includes('text_to_sound') || rawId.startsWith('music_')) {
+    return 'ELEVENLABS_AUDIO_MODELS'
+  }
+  if (rawId.startsWith('eleven_')) return 'ELEVENLABS_TTS_MODELS'
   return null
+}
+
+/** New ElevenLabs ids per array. An id is added at most once. */
+export function selectElevenLabsInserts(
+  rows: Array<CatalogModel>,
+  cutoffTimestamp: number,
+  existingIds: Set<string>,
+): Record<ElevenLabsIdArray, Array<string>> {
+  const byArray: Record<ElevenLabsIdArray, Array<string>> = {
+    ELEVENLABS_TTS_MODELS: [],
+    ELEVENLABS_AUDIO_MODELS: [],
+    ELEVENLABS_TRANSCRIPTION_MODELS: [],
+    ELEVENLABS_VOICE_MODELS: [],
+  }
+  const seen = new Set(existingIds)
+  for (const row of rows) {
+    if (
+      skipNativeModelReason(row, 'elevenlabs', [], cutoffTimestamp, ['audio'])
+    ) {
+      continue
+    }
+    const arrayName = elevenLabsIdArray(row.rawId)
+    if (!arrayName || seen.has(row.rawId)) continue
+    byArray[arrayName].push(row.rawId)
+    seen.add(row.rawId)
+  }
+  return byArray
 }
 
 export function alreadySynced(
