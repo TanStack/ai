@@ -18,6 +18,7 @@ import {
   render,
   useApp,
   useBoxMetrics,
+  useCursor,
   useInput,
   usePaste,
   useStdout,
@@ -397,6 +398,7 @@ function InputBox({
   hidden: boolean
 }) {
   const shown = hidden ? '•'.repeat(line.text.length) : line.text
+  // The terminal cursor shows where you type (see `inputCursor`).
   return (
     <Box
       borderStyle="round"
@@ -411,7 +413,7 @@ function InputBox({
       {shown === '' ? (
         // The cursor goes before the hint, so the hint does not look typed.
         <Text>
-          <Text inverse> </Text>
+          {' '}
           <Text dimColor>
             {hidden
               ? ' Paste the key. It stays hidden.'
@@ -419,14 +421,27 @@ function InputBox({
           </Text>
         </Text>
       ) : (
-        <Text>
-          {shown.slice(0, line.cursor)}
-          <Text inverse>{shown[line.cursor] ?? ' '}</Text>
-          {shown.slice(line.cursor + 1)}
-        </Text>
+        // At any character, so `inputCursor` knows the row of each one.
+        <Text wrap="hard">{shown}</Text>
       )}
     </Box>
   )
+}
+
+/**
+ * Where the terminal cursor goes in the input box, which is `width` wide
+ * and starts at `top`: after the border, the padding, and the `❯ `, at the
+ * row and the column of the line's cursor.
+ * ponytail: one column for each character. A wide character (an emoji, CJK)
+ * puts the cursor a little to the left.
+ */
+function inputCursor(line: Line, width: number, top: number) {
+  const before = 4
+  const textWidth = Math.max(1, width - before - 2)
+  return {
+    x: before + (line.cursor % textWidth),
+    y: top + 1 + Math.floor(line.cursor / textWidth),
+  }
 }
 
 // A key held down repeats. Repeats closer than this are one press.
@@ -553,6 +568,17 @@ function App({ view }: { view: SessionView }) {
   const live = useRef<DOMElement>(null)
   const { height: liveHeight } = useBoxMetrics(live)
   const space = Math.max(0, screenRows - 1 - printedHeight - liveHeight)
+
+  // The terminal cursor sits in the input box, not under the screen. The
+  // box is in the live area, which starts after the empty space.
+  const inputBox = useRef<DOMElement>(null)
+  const input = useBoxMetrics(inputBox)
+  const { setCursorPosition } = useCursor()
+  setCursorPosition(
+    input.hasMeasured
+      ? inputCursor(editor.line, input.width, space + input.top)
+      : undefined,
+  )
 
   // The header shows which features are on, but printed rows never change.
   // So when a feature turns on or off (a /connect), clear the screen and
@@ -1014,13 +1040,15 @@ function App({ view }: { view: SessionView }) {
           />
         ))}
         <Status view={view} voice={voice} recording={recorder} />
-        <InputBox
-          line={editor.line}
-          voice={voice}
-          hidden={
-            secretAsked || (editor.line.hidden && editor.line.text !== '')
-          }
-        />
+        <Box ref={inputBox}>
+          <InputBox
+            line={editor.line}
+            voice={voice}
+            hidden={
+              secretAsked || (editor.line.hidden && editor.line.text !== '')
+            }
+          />
+        </Box>
         {picker ? (
           <Menu
             title={picker.title}

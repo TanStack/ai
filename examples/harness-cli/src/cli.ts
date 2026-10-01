@@ -1,3 +1,4 @@
+import './env'
 import { runCli } from '@tanstack/ai-harness-cli'
 import { assistant } from './harness'
 import { hasSession, listSessions, newSessionId } from './sessions'

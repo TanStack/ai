@@ -4,7 +4,7 @@
   "type": "module",
   "description": "A small coding agent in the terminal, built with @tanstack/ai-harness",
   "scripts": {
-    "start": "tsx --env-file-if-exists=.env src/cli.ts",
+    "start": "tsx src/cli.ts",
     "dashboard": "tanstack-ai-dashboard",
     "test:types": "tsc --noEmit"
   },
