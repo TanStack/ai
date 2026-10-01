@@ -50,9 +50,11 @@ An env var works when no key is saved. A new session starts on the first provide
 
 ## Talk to it
 
-Hold Ctrl+R while you talk, and let go to send. Or tap Ctrl+R, talk, and tap it again. The meter shows that the microphone hears you.
+Hold Ctrl+R while you talk, and let go. Or tap Ctrl+R, talk, and tap it again. The meter shows that the microphone hears you.
 
-- Name a file, and it is sent too: "describe fox dot png", "use cat.png as a reference".
+The words go into the input line. Fix them if needed, then press Enter to send. If you typed something before, the words go after it.
+
+- Name a file, and the line gets an `@path` for it, so the file is sent too: "describe fox dot png", "use cat.png as a reference".
 - Say "the last image" (or video, song) for the last file the agent made: "make a pencil sketch of the last image".
 - Say "Hey, run a Codex agent that adds a test": Codex runs in its own card, and the screen shows its output.
 
@@ -60,7 +62,7 @@ The first recording listens on every microphone, and keeps the one that heard yo
 
 - A silent recording (a muted microphone) is not sent.
 - Set `VOICE_LANGUAGE=en` (or your language) so the transcript is in that language.
-- `/voice note.m4a` sends a voice message that you recorded before.
+- `/voice note.m4a` puts the words of a voice message that you recorded before into the input line.
 
 Voice needs `ffmpeg` on the PATH, and an OpenAI or xAI key for the transcript (`/connect openai` or `/connect grok`).
 

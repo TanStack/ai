@@ -87,6 +87,7 @@ const TAKES_INPUT = new Set(['voice'])
 const HELP = [
   'Type / to see the commands. ↑ and ↓ go through the lines you sent.',
   'Voice: hold Ctrl+R and talk, then let go. Or tap Ctrl+R, talk, tap again.',
+  '  The words go into the input line. Fix them if needed, then press Enter.',
   '  Name a file ("use cat dot png") or say "the last image" to send it too.',
   '  The first recording listens on all microphones and keeps the loudest.',
 ]
@@ -569,7 +570,11 @@ function App({ view }: { view: SessionView }) {
       `Voice: ${error instanceof Error ? error.message : String(error)}`,
     )
 
-  /** A voice message: transcribe it, attach the files it names, and send it. */
+  /**
+   * A voice message: transcribe it, and put the words in the input line, with
+   * an `@path` for each file it names. The user fixes the line if needed,
+   * then presses Enter to send it.
+   */
   const hear = async (audio: Uint8Array, name: string, clip?: VoiceClip) => {
     setVoice('transcribing')
     try {
@@ -595,7 +600,12 @@ function App({ view }: { view: SessionView }) {
         [playground, mediaDir],
         recent,
       )
-      await view.send(message.text)
+      // A key question keeps its line for the key only.
+      if (asksSecret())
+        return view.notice('Voice: answer the key question first.')
+      // After what the user typed already, so nothing they typed is lost.
+      const typed = editor.line.text.trimEnd()
+      editor.set(typed === '' ? message.text : `${typed} ${message.text}`)
     } catch (error) {
       failVoice(error)
     } finally {
