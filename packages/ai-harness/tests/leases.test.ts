@@ -3,6 +3,7 @@ import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
+import { INTERRUPTED_TOOL_RESULT } from '../src/resume'
 import { after, gate, mockAdapter, text, toolCall } from './helpers'
 import type { AnyTool, StreamChunk } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
@@ -107,6 +108,8 @@ describe('a durable host with a lease store and no run store', () => {
     await vi.waitFor(() => expect(leases.calls).toContain('renew in-1:1'))
     hold.open()
     await turn
+    // A timer that the release did not stop would renew again in this time.
+    await new Promise((resolve) => setTimeout(resolve, 30))
 
     const release = leases.calls.indexOf('release in-1:1')
     expect(release).toBeGreaterThan(-1)
@@ -169,6 +172,98 @@ describe('a durable host with a lease store and no run store', () => {
       outcome: 'completed',
     })
     expect(next.calls).toHaveLength(1)
+    await first.host.close().catch(() => {})
+    await next.host.close()
+  })
+
+  it('repairs a cut batch from the log', async () => {
+    const leases = memoryLeases()
+    const persistence = leasedPersistence(leases.store)
+    const mailStarted = gate()
+    const charge = vi.fn(async () => 'charged')
+    const tools = [
+      toolDefinition({ name: 'charge', description: 'Charge' }).server(charge),
+      toolDefinition({ name: 'mail', description: 'Mail' }).server(
+        async (_args, context) => {
+          mailStarted.open()
+          // Wait like a host that stopped, until the call is aborted at close.
+          return new Promise<never>((_resolve, reject) => {
+            context?.abortSignal?.addEventListener(
+              'abort',
+              () => reject(new Error('stopped')),
+              { once: true },
+            )
+          })
+        },
+      ),
+    ]
+    const twoCalls: Reply = () => {
+      const now = Date.now()
+      return [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'r',
+          threadId: 't',
+          timestamp: now,
+        },
+        ...['charge', 'mail'].flatMap(
+          (name): Array<StreamChunk> => [
+            {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: `call-${name}`,
+              toolCallName: name,
+              timestamp: now,
+            },
+            {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: `call-${name}`,
+              delta: '{}',
+              timestamp: now,
+            },
+            {
+              type: EventType.TOOL_CALL_END,
+              toolCallId: `call-${name}`,
+              timestamp: now,
+            },
+          ],
+        ),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r',
+          threadId: 't',
+          timestamp: now,
+          metadata: { tanstack: { finishReason: 'tool_calls' } },
+        },
+      ]
+    }
+    const first = await openLeased(persistence, [twoCalls], tools)
+    first.session.prompt('charge and mail', { inputId: 'batch-1' })
+    await mailStarted.opened
+    await vi.waitFor(async () =>
+      expect(
+        (await persistence.stores.log.read(THREAD)).filter(
+          (entry) => entry.record.type === 'harness.tool.result',
+        ),
+      ).toHaveLength(1),
+    )
+    leases.expire()
+
+    const next = await openLeased(persistence, [() => text('done')], tools)
+    await next.session.settled('batch-1')
+
+    const results = (await next.session.transcript()).filter(
+      (message) => message.role === 'tool',
+    )
+    expect(results).toEqual([
+      { role: 'tool', toolCallId: 'call-charge', content: 'charged' },
+      {
+        role: 'tool',
+        toolCallId: 'call-mail',
+        content: JSON.stringify(INTERRUPTED_TOOL_RESULT),
+        error: INTERRUPTED_TOOL_RESULT.note,
+      },
+    ])
+    expect(charge).toHaveBeenCalledTimes(1)
     await first.host.close().catch(() => {})
     await next.host.close()
   })

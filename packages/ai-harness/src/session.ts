@@ -604,6 +604,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       // the batch does not lose it.
       ...(writer
         ? {
+            onToolStart: ({ toolCallId, name, replay }) =>
+              writer.append([
+                { type: 'harness.tool.started', toolCallId, name, replay },
+              ]),
             onToolResult: ({ toolCallId, message }) =>
               writer.append([
                 { type: 'harness.tool.result', toolCallId, message },
@@ -2722,14 +2726,15 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       } else if (hasFinalAnswer(writer.state.messages, input.appliedAt ?? 0)) {
         await ended({ outcome: 'completed' })
       } else {
-        if (run) {
-          await repairTranscript({
-            messages: this.messages,
-            threadId: this.threadId,
-            pending: run.checkpoint?.pendingTools ?? [],
-            finished: writer.state.toolResults,
-          })
-        }
+        const started = [...writer.state.started]
+          .filter(([toolCallId]) => !writer.state.toolResults.has(toolCallId))
+          .map(([toolCallId, tool]) => ({ toolCallId, ...tool }))
+        await repairTranscript({
+          messages: this.messages,
+          threadId: this.threadId,
+          pending: [...(run?.checkpoint?.pendingTools ?? []), ...started],
+          finished: writer.state.toolResults,
+        })
         const operation = this.createTurnOperation()
         this.bindTurn(input.inputId, operation)
         this.feed.publish(

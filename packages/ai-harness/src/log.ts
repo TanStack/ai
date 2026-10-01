@@ -47,6 +47,12 @@ export type HarnessRecord =
     }
   | { type: 'harness.tool.result'; toolCallId: string; message: ModelMessage }
   | {
+      type: 'harness.tool.started'
+      toolCallId: string
+      name: string
+      replay: 'safe' | 'never'
+    }
+  | {
       type: 'harness.tool.step'
       toolCallId: string
       name: string
@@ -63,6 +69,7 @@ const HARNESS_RECORD_TYPES = new Set<string>([
   'harness.input.abort',
   'harness.input.settled',
   'harness.tool.result',
+  'harness.tool.started',
   'harness.tool.step',
 ])
 
@@ -118,6 +125,8 @@ export interface LogState {
   /** In admission order. */
   inputs: Map<string, InputState>
   toolResults: Map<string, ModelMessage>
+  /** Tool calls that started, by toolCallId. Batch repair reads them. */
+  started: Map<string, { name: string; replay: 'safe' | 'never' }>
   /** By {@link stepKey}. */
   steps: Map<string, unknown>
 }
@@ -128,6 +137,7 @@ export function emptyLogState() {
     messages: [],
     inputs: new Map(),
     toolResults: new Map(),
+    started: new Map(),
     steps: new Map(),
   }
   return state
@@ -268,6 +278,12 @@ export function foldEntry(
     case 'harness.tool.result':
       state.toolResults.set(record.toolCallId, record.message)
       return
+    case 'harness.tool.started':
+      state.started.set(record.toolCallId, {
+        name: record.name,
+        replay: record.replay,
+      })
+      return
     case 'harness.tool.step':
       state.steps.set(stepKey(record.toolCallId, record.name), record.value)
       return
@@ -370,6 +386,7 @@ function serialize(state: SharedLogState, versions: CheckpointVersions) {
         messages: session.messages,
         inputs: [...session.inputs.values()],
         toolResults: [...session.toolResults.entries()],
+        started: [...session.started.entries()],
         steps: [...session.steps.entries()],
       },
     ]),
@@ -395,6 +412,14 @@ function parseSession(value: unknown, seq: number) {
       (inputs as Array<InputState>).map((input) => [input.inputId, input]),
     ),
     toolResults: new Map(toolResults as Array<[string, ModelMessage]>),
+    // A checkpoint from before `started` has none.
+    started: new Map(
+      Array.isArray(value.started)
+        ? (value.started as Array<
+            [string, { name: string; replay: 'safe' | 'never' }]
+          >)
+        : [],
+    ),
     steps: new Map(steps as Array<[string, unknown]>),
   }
   return session

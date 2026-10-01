@@ -46,6 +46,12 @@ export function checkpointMiddleware(options: {
   messages: MessageStore
   hostId: string
   lease?: LeaseOptions
+  /** Called before each tool call runs, after its checkpoint is saved. */
+  onToolStart?: (info: {
+    toolCallId: string
+    name: string
+    replay: 'safe' | 'never'
+  }) => void | Promise<void>
   /** Called after each tool call ends, with the tool message the model gets. */
   onToolResult?: (info: {
     toolCallId: string
@@ -99,6 +105,11 @@ export function checkpointMiddleware(options: {
         replay: hook.tool?.replay ?? 'never',
       })
       await saveCheckpoint(ctx.runId, entry.pending)
+      await options.onToolStart?.({
+        toolCallId: hook.toolCallId,
+        name: hook.toolName,
+        replay: hook.tool?.replay ?? 'never',
+      })
     },
     async onAfterToolCall(ctx, info) {
       const entry = state.get(ctx)
