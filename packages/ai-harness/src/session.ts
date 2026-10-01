@@ -1549,8 +1549,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /**
    * Middleware that runs before each model call. Queued steers join the
    * running turn in admission order, as far as `joinableCount` lets them.
-   * On a durable host, one append commits the engine's messages, the steer
-   * messages, and the join records, so a crash never splits a join. The
+   * `turn.onJoin` adds its messages after theirs. On a durable host, one
+   * append commits the engine's messages, the steer messages, the join
+   * records, and the `onJoin` records, so a crash never splits a join. The
    * model gets the folded log when a host record changed the context.
    */
   private steering(): AnyChatMiddleware {
@@ -1558,14 +1559,29 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       name: 'harness:steering',
       onConfig: async (ctx, config) => {
         if (ctx.phase !== 'beforeModel') return undefined
-        const steers = this.steerQueue.splice(0, await this.joinableCount())
-        const added = steers.map(
-          (steer): ModelMessage => ({
-            id: createMessageId(),
-            role: 'user',
-            content: steer.message,
-          }),
-        )
+        const count = await this.joinableCount()
+        const steers = this.steerQueue.slice(0, count)
+        const operation = this.operations.get(ctx.runId)
+        const onJoin = this.harness.turn?.onJoin
+        const added =
+          steers.length > 0 && onJoin && operation
+            ? await onJoin({
+                session: this,
+                operationId: ctx.runId,
+                inputs: steers.map((steer) => ({
+                  inputId: steer.inputId,
+                  message: steer.message,
+                })),
+                signal: operation.abortController.signal,
+              })
+            : undefined
+        const records = added?.records ?? []
+        checkHostRecords(records)
+        if (records.length > 0 && !this.engine) {
+          throw new Error(
+            'Records from a turn hook need a durable host (a host with stores.log).',
+          )
+        }
         const hostInput = this.operationInputs.get(ctx.runId)
         const joins = hostInput
           ? steers.map((steer) => ({
@@ -1574,15 +1590,33 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
               into: hostInput,
             }))
           : []
-        const list = [...config.messages, ...added]
-        const synced = await this.engine?.beforeModel(list, joins)
+        const list = [
+          ...config.messages,
+          ...steers.map(
+            (steer): ModelMessage => ({
+              id: createMessageId(),
+              role: 'user',
+              content: steer.message,
+            }),
+          ),
+          ...(added?.messages ?? []).map(
+            (message): ModelMessage =>
+              message.id ? message : { ...message, id: createMessageId() },
+          ),
+        ]
+        const synced = await this.engine?.beforeModel(list, [
+          ...joins,
+          ...records,
+        ])
         // A retried call loads the saved transcript, so a host without a log
         // saves it before each model call when the harness can retry.
         if (!this.engine && this.harness.turn?.onModelError) {
           await this.messages.saveThread(this.threadId, list)
         }
+        // Only now, so a hook or an append that fails leaves them waiting.
+        this.steerQueue.splice(0, count)
         for (const steer of steers) this.join(ctx.runId, steer)
-        if (steers.length === 0 && !synced) return undefined
+        if (list.length === config.messages.length && !synced) return undefined
         return { messages: synced ?? list }
       },
     }
@@ -2212,6 +2246,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           operation.fail('cancelled', new Error('Cancelled before it started.'))
           this.publishFinished(operation)
         })
+    }
+    if (this.closing) {
+      // close() ended the queued turns already. These end the same way.
+      for (const steer of rest) {
+        steer.operation?.fail('cancelled', new Error('Session closed.'))
+      }
+      return
     }
     this.queue.unshift(
       ...rest.map((steer) => {

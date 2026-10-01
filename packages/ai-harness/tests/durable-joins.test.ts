@@ -339,4 +339,86 @@ describe('the join rule', () => {
     expect((await session.settled('later')).operationId).not.toBe(turn.id)
     await host.close()
   })
+
+  it('lands the onJoin records in the append of the join', async () => {
+    const { persistence, batches } = durablePersistence()
+    const wait = waitTool()
+    const { adapter } = mockAdapter([
+      () => toolCall('wait', {}),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/joins',
+        adapter,
+        tools: [wait.tool],
+        turn: {
+          onJoin: ({ inputs }) => ({
+            records: inputs.map((input) => ({
+              type: 'app.start_hook',
+              inputId: input.inputId,
+            })),
+          }),
+        },
+      }),
+      { threadId: THREAD },
+    )
+
+    const turn = session.prompt('start', { inputId: 'host' })
+    await wait.started.opened
+    await session.prompt('more', { busy: 'steer', inputId: 'join-1' }).receipt
+    wait.done.open()
+    await turn
+
+    const joinBatch = batches.find((batch) =>
+      batch.includes('harness.input.joined'),
+    )
+    expect(joinBatch).toContain('app.start_hook')
+    await host.close()
+  })
+
+  it('leaves neither the join nor the onJoin records when that append fails', async () => {
+    const inner = memoryLogStore()
+    const log: LogStore = {
+      append: async (threadId, seq, records) => {
+        if (records.some((record) => record.type === 'harness.input.joined')) {
+          throw new Error('store down')
+        }
+        await inner.append(threadId, seq, records)
+      },
+      read: (threadId, options) => inner.read(threadId, options),
+      subscribe: (threadId, listener) => inner.subscribe(threadId, listener),
+    }
+    const { runs, metadata } = memoryPersistence().stores
+    const persistence = { stores: { log, runs, metadata } }
+    const wait = waitTool()
+    const { adapter } = mockAdapter([
+      () => toolCall('wait', {}),
+      () => text('never'),
+    ])
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/joins',
+        adapter,
+        tools: [wait.tool],
+        turn: {
+          onJoin: () => ({ records: [{ type: 'app.start_hook' }] }),
+        },
+      }),
+      { threadId: THREAD },
+    )
+
+    const turn = session.prompt('start', { inputId: 'host' })
+    await wait.started.opened
+    await session.prompt('more', { busy: 'steer', inputId: 'join-1' }).receipt
+    wait.done.open()
+    await expect(turn).rejects.toThrow()
+
+    const types = (await inner.read(THREAD)).map((entry) => entry.record.type)
+    expect(types).not.toContain('harness.input.joined')
+    expect(types).not.toContain('app.start_hook')
+    await host.close().catch(() => {})
+  })
 })
