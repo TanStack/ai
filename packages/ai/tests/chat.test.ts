@@ -5159,6 +5159,97 @@ describe('chat()', () => {
       })
     })
 
+    it.each([
+      ['with text', 'Plan'],
+      ['thinking only', ''],
+    ])(
+      'keeps thinking in the afterModel snapshot of a turn without tool calls (%s)',
+      async (_label, text) => {
+        const review = defineInterrupt({
+          id: 'after-model-thinking',
+          responseSchema: z.object({ approved: z.boolean() }),
+        })
+        const { adapter } = createMockAdapter({
+          iterations: [
+            [
+              ev.runStarted(),
+              ev.stepStarted('step-signed'),
+              {
+                type: EventType.REASONING_MESSAGE_CONTENT,
+                messageId: 'step-signed',
+                delta: 'I think.',
+                timestamp: Date.now(),
+              },
+              {
+                type: EventType.REASONING_ENCRYPTED_VALUE,
+                subtype: 'message',
+                entityId: 'step-signed',
+                encryptedValue: 'sig-1',
+                timestamp: Date.now(),
+              },
+              ev.stepStarted('redacted_thinking-1'),
+              {
+                type: EventType.REASONING_ENCRYPTED_VALUE,
+                subtype: 'message',
+                entityId: 'redacted_thinking-1',
+                encryptedValue: 'opaque-1',
+                timestamp: Date.now(),
+              },
+              ...(text
+                ? [ev.textStart(), ev.textContent(text), ev.textEnd()]
+                : []),
+              ev.runFinished('stop'),
+            ],
+          ],
+        })
+
+        const chunks = await collectChunks(
+          chat({
+            adapter,
+            interrupts: [review],
+            middleware: [
+              defineChatMiddleware({
+                onInterruptBoundary(ctx) {
+                  if (ctx.phase !== 'afterModel') return
+                  return {
+                    interrupts: [
+                      review.interrupt({
+                        key: 'after-model',
+                        reason: 'review',
+                        message: 'Review the answer',
+                      }),
+                    ],
+                  }
+                },
+              }),
+            ],
+            messages: [{ role: 'user', content: 'Plan it' }],
+          }) as AsyncIterable<StreamChunk>,
+        )
+
+        const snapshot = chunks.find(
+          (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT,
+        )
+        if (!snapshot || snapshot.type !== EventType.MESSAGES_SNAPSHOT) {
+          throw new Error('Expected messages snapshot')
+        }
+        const reasoning = snapshot.messages.filter(
+          (message) => message.role === 'reasoning',
+        )
+        expect(reasoning.map((message) => message.encryptedValue)).toEqual([
+          'sig-1',
+          'opaque-1',
+        ])
+        expect(reasoning[1]?.id).toMatch(/^redacted_thinking-/)
+        if (text) {
+          expect(snapshot.messages.at(-1)).toMatchObject({
+            role: 'assistant',
+            content: text,
+          })
+        }
+      },
+    )
+
     it('keeps tool approvals in the afterTools generic batch', async () => {
       const review = defineInterrupt({
         id: 'after-tools-with-approval',
