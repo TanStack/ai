@@ -65,6 +65,7 @@ import type {
 import type { AuthRequiredError, CredentialsAccess } from './auth'
 import type { EventFeed } from './feed'
 import type { ProjectOptions } from './log'
+import type { DurableBind } from './durable-tool'
 import type { LeaseOptions } from './resume'
 import type { MediaStore } from './media'
 import type { PluginSessionApi, Question } from './commands'
@@ -368,6 +369,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private closing: Promise<void> | undefined
   private readonly onClose: () => void
   private checkpoint: AnyChatMiddleware | undefined
+  /** Gives each durable tool call its steps in the log. One per session. */
+  private bindTool: DurableBind | undefined
   private readonly hostId: string
   private readonly lease: LeaseOptions | undefined
   private readonly listeners = new Map<string, Set<(value: unknown) => void>>()
@@ -588,6 +591,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           }
         : {}),
     })
+    if (writer) {
+      this.bindTool = (toolCallId) => this.durableBinding(writer, toolCallId)
+    }
   }
 
   /**
@@ -1463,6 +1469,27 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
+   * Middleware that binds the durable tools of each model call: a
+   * middleware can return new tools from `onConfig`, and the engine runs the
+   * tools of that list.
+   */
+  private durableTools(): AnyChatMiddleware | undefined {
+    const { bindTool } = this
+    if (!bindTool) return undefined
+    return {
+      name: 'harness:durable-tools',
+      onConfig: (ctx, config) => {
+        if (ctx.phase !== 'init' && ctx.phase !== 'beforeModel') return
+        const tools = config.tools.map((tool) => bindDurable(tool, bindTool))
+        const isSame = tools.every(
+          (tool, index) => tool === config.tools[index],
+        )
+        return isSame ? undefined : { tools }
+      },
+    }
+  }
+
+  /**
    * Middleware that runs before each model call. Queued steers join the
    * running turn in admission order. On a durable host, one append commits
    * the engine's messages, the steer messages, and the join records, so a
@@ -1744,14 +1771,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         [...staticTools, ...discovered],
         operation,
       )
-      // A durable host gives each durableTool call its steps in the log.
-      const { writer } = this
-      const tools = writer
-        ? prepared.map((tool) =>
-            bindDurable(tool, (toolCallId) =>
-              this.durableBinding(writer, toolCallId),
-            ),
-          )
+      // A durable host gives each durableTool call its steps in the log. The
+      // tools are bound here, so a middleware wrapper wraps the bound tool,
+      // and again at each model call, for tools that a middleware returns.
+      const { bindTool } = this
+      const tools = bindTool
+        ? prepared.map((tool) => bindDurable(tool, bindTool))
         : prepared
       // A keyed adapter is built for this turn with the user's key. A
       // missing key publishes `auth_required` and fails the turn.
@@ -1768,6 +1793,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       if (!chatPersistence || !checkpoint) {
         throw new Error('The session is not open yet.')
       }
+      const durableTools = this.durableTools()
       // One chat() run, and one more each time steers wait after a final
       // answer: a late join gets its answer in this turn.
       for (;;) {
@@ -1788,6 +1814,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             ...(this.harness.middleware ?? []),
             ...(session?.middleware ?? []),
             ...(runPlugins?.middleware ?? []),
+            ...(durableTools ? [durableTools] : []),
             this.steering(),
             // Last, because a later middleware that returns `messages` (as
             // steering does) resets what the model gets.

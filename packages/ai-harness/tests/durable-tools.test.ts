@@ -5,7 +5,7 @@ import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, durableTool } from '../src'
 import { INTERRUPTED_TOOL_RESULT } from '../src/resume'
 import { gate, mockAdapter, text, toolCall } from './helpers'
-import type { AnyTool, StreamChunk } from '@tanstack/ai'
+import type { AnyChatMiddleware, AnyTool, StreamChunk } from '@tanstack/ai'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
@@ -332,5 +332,127 @@ describe('a durable tool with replay: never', () => {
     expect(runs).toBe(1)
     await first.host.close().catch(() => {})
     await next.host.close()
+  })
+})
+
+describe('durable tools that middleware returns', () => {
+  it('binds a durable tool that onConfig swaps in during the turn', async () => {
+    const persistence = durablePersistence()
+    const charge = vi.fn(async () => 'c-1')
+    const charged = gate()
+    const hostStops = gate()
+    let isFirstRun = true
+    const pay = durableTool(
+      toolDefinition({ name: 'pay', description: 'Pay the order' }),
+      async (_args, { step, append }) => {
+        const payment = await step.do('charge', charge)
+        append([{ type: 'app.paid', payment }])
+        if (isFirstRun) {
+          isFirstRun = false
+          charged.open()
+          // The first host stops here.
+          await hostStops.opened
+        }
+        return payment
+      },
+    )
+    const look = toolDefinition({ name: 'look', description: 'Look' }).server(
+      async () => 'seen',
+    )
+    // After `look` answered, the model gets `pay` in place of `look`, like
+    // a framework that renders its tools from the state.
+    const swap: AnyChatMiddleware = {
+      name: 'swap',
+      onConfig: (ctx, config) => {
+        if (ctx.phase !== 'init' && ctx.phase !== 'beforeModel') return
+        const looked = config.messages.some(
+          (message) =>
+            message.role === 'tool' && message.toolCallId === 'call-look',
+        )
+        return looked ? { tools: [pay] } : undefined
+      },
+    }
+    const open = async (replies: Array<Reply>) => {
+      const { adapter, calls } = mockAdapter(replies)
+      const host = createHarnessHost({ persistence })
+      const session = await host.open(
+        defineHarness({
+          name: 'test/durable-tools',
+          adapter,
+          tools: [look],
+          middleware: [swap],
+        }),
+        { threadId: THREAD },
+      )
+      return { host, session, calls }
+    }
+    const first = await open([
+      () => toolCall('look', {}, 'call-look'),
+      () => toolCall('pay', {}, 'call-pay'),
+    ])
+    const turn = first.session.prompt('pay', { inputId: 'pay-1' })
+    await charged.opened
+    await vi.waitFor(async () =>
+      expect(await recordsOf(persistence, 'harness.tool.step')).toHaveLength(1),
+    )
+    await expireLease(persistence, turn.id)
+
+    const next = await open([() => text('paid')])
+    expect(await next.session.settled('pay-1')).toMatchObject({
+      outcome: 'completed',
+    })
+
+    expect(charge).toHaveBeenCalledTimes(1)
+    expect(await recordsOf(persistence, 'app.paid')).toEqual([
+      { type: 'app.paid', payment: 'c-1' },
+    ])
+    hostStops.open()
+    await Promise.resolve(turn).catch(() => {})
+    await first.host.close().catch(() => {})
+    await next.host.close()
+  })
+
+  it('keeps a middleware wrapper around a bound durable tool', async () => {
+    const persistence = durablePersistence()
+    const wrapped: Array<string> = []
+    const note = durableTool(
+      toolDefinition({ name: 'note', description: 'Write a note' }),
+      async (_args, { step }) => step.do('write', async () => 'noted'),
+    )
+    const wrap: AnyChatMiddleware = {
+      name: 'wrap',
+      onConfig: (ctx, config) => {
+        if (ctx.phase !== 'init') return
+        return {
+          tools: config.tools.map((tool) => ({
+            ...tool,
+            execute: async (args: unknown, context: any) => {
+              wrapped.push(tool.name)
+              return tool.execute?.(args, context)
+            },
+          })),
+        }
+      },
+    }
+    const { adapter } = mockAdapter([
+      () => toolCall('note', {}, 'call-note'),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/durable-tools',
+        adapter,
+        tools: [note],
+        middleware: [wrap],
+      }),
+      { threadId: THREAD },
+    )
+
+    await session.prompt('note it')
+
+    expect(wrapped).toEqual(['note'])
+    expect(await recordsOf(persistence, 'harness.tool.step')).toHaveLength(1)
+    await host.close()
   })
 })

@@ -156,21 +156,32 @@ function isDurableTool(
 }
 
 /**
+ * The binder that bound a durable tool. An own enumerable symbol key, so a
+ * spread copy (a middleware wrapper) stays bound.
+ */
+const DURABLE_BINDER: unique symbol = Symbol(
+  'tanstack.ai-harness.durable-binder',
+)
+
+/** @internal */
+export type DurableBind = (toolCallId: string) => {
+  step: ToolStep
+  append: DurableToolContext['append']
+}
+
+/**
  * Give a {@link durableTool} the `step` and `append` of a durable session.
- * `bind` gets the id of each call. Another tool comes back as it is.
+ * `bind` gets the id of each call. Another tool, and a tool that `bind`
+ * already bound, comes back as it is.
  *
  * @internal
  */
-export function bindDurable(
-  tool: AnyTool,
-  bind: (toolCallId: string) => {
-    step: ToolStep
-    append: DurableToolContext['append']
-  },
-) {
-  if (!isDurableTool(tool)) return tool
+export function bindDurable(tool: AnyTool, bind: DurableBind) {
+  if (!isDurableTool(tool) || Reflect.get(tool, DURABLE_BINDER) === bind) {
+    return tool
+  }
   const execute = tool[DURABLE_EXECUTE]
-  return {
+  const bound = {
     ...tool,
     execute: (args: unknown, context?: ToolExecutionContext) => {
       const base = context ?? emptyContext
@@ -180,4 +191,9 @@ export function bindDurable(
       return execute(args, { ...base, ...bind(base.toolCallId) })
     },
   }
+  Object.defineProperty(bound, DURABLE_BINDER, {
+    value: bind,
+    enumerable: true,
+  })
+  return bound
 }
