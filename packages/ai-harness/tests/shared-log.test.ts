@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, logMessageStore } from '../src'
 import { gate, messageTexts, mockAdapter, text, untilAborted } from './helpers'
 import type { LogRecord, LogStore } from '@tanstack/ai-persistence'
-import type { ReduceOptions } from '../src'
+import type { HarnessHost, ReduceOptions } from '../src'
 import type { Reply } from './helpers'
 
 const LOG = 'agent-1'
@@ -96,15 +96,8 @@ describe('sessions that share one log', () => {
 
   it('lands a child record and a parent record in one append, or neither', async () => {
     const inner = memoryLogStore()
-    let failNext = false
     const log: LogStore = {
-      append: async (logId, seq, records) => {
-        if (failNext) {
-          failNext = false
-          throw new Error('store down')
-        }
-        await inner.append(logId, seq, records)
-      },
+      append: (logId, seq, records) => inner.append(logId, seq, records),
       read: (logId, options) => inner.read(logId, options),
       subscribe: (logId, listener) => inner.subscribe(logId, listener),
     }
@@ -121,7 +114,6 @@ describe('sessions that share one log', () => {
       (await inner.read(LOG)).map((entry) => entry.record.type)
     expect(await types()).toEqual(['app.child_created', 'app.child_linked'])
 
-    failNext = true
     // The writer tries twice, so both tries fail.
     const original = log.append
     log.append = async () => {
@@ -147,6 +139,10 @@ describe('sessions that share one log', () => {
     await root.append([{ type: 'app.state_write', name: 'done', value: true }])
 
     expect(host.logState(LOG)).toEqual({ plan: 'b', done: true })
+    expectTypeOf(host).toExtend<HarnessHost>()
+    expectTypeOf(
+      createHarnessHost({ persistence: durablePersistence() }).logState('x'),
+    ).toEqualTypeOf<undefined>()
     await host.close()
     const next = hostFor(persistence)
     await next.open(harnessWith([]).harness, { threadId: 'task-1', logId: LOG })
@@ -156,27 +152,31 @@ describe('sessions that share one log', () => {
   })
 
   it('gives project only the records of its own session', async () => {
-    const persistence = durablePersistence()
-    const seen: Array<string> = []
     const host = createHarnessHost({
-      persistence,
+      persistence: durablePersistence(),
       project: {
-        record: ({ record }) => {
-          seen.push(`${record.type}:${String(record.thread ?? LOG)}`)
-          return undefined
-        },
+        record: ({ messages, record }) =>
+          record.type === 'app.signal' && typeof record.text === 'string'
+            ? [...messages, { role: 'user', content: record.text }]
+            : undefined,
       },
     })
     const root = await host.open(harnessWith([]).harness, { threadId: LOG })
+    const child = await host.open(harnessWith([]).harness, {
+      threadId: 'task-1',
+      logId: LOG,
+    })
     await root.append([
-      { type: 'app.signal', thread: 'task-1' },
-      { type: 'app.signal' },
+      { type: 'app.signal', thread: 'task-1', text: 'for the child' },
+      { type: 'app.signal', text: 'for the root' },
     ])
 
-    // One fold for the whole log: each record reaches project once.
-    expect(seen).toEqual([`app.signal:task-1`, `app.signal:${LOG}`])
-    // The task-1 record does not change the transcript of the root session.
-    expect(await root.transcript()).toEqual([])
+    expect((await root.transcript()).map((m) => m.content)).toEqual([
+      'for the root',
+    ])
+    expect((await child.transcript()).map((m) => m.content)).toEqual([
+      'for the child',
+    ])
     await host.close()
   })
 
@@ -201,6 +201,21 @@ describe('sessions that share one log', () => {
     )
     await expect(child.append([{ type: 'app.signal' }])).rejects.toThrow(
       'Log conflict',
+    )
+
+    // The host replaces a stopped session on the next open.
+    await vi.waitFor(async () =>
+      expect(
+        await host.open(harnessWith([]).harness, { threadId: LOG }),
+      ).not.toBe(root),
+    )
+    await vi.waitFor(async () =>
+      expect(
+        await host.open(harnessWith([]).harness, {
+          threadId: 'task-1',
+          logId: LOG,
+        }),
+      ).not.toBe(child),
     )
     await host.close().catch(() => {})
   })

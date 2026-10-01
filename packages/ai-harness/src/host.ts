@@ -91,7 +91,7 @@ export interface OpenSessionOptions {
 }
 
 /** Runs sessions for one or more harnesses in this process. */
-export interface HarnessHost<TLogState = undefined> {
+export interface HarnessHost<TLogState = unknown> {
   /**
    * Open a session, or return the live one for this harness and thread.
    * Session plugins are set up here, so a plugin error rejects the promise.
