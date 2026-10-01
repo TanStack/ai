@@ -22,6 +22,7 @@
     "@tanstack/ai-harness-cli": "workspace:*",
     "@tanstack/ai-isolate-quickjs": "workspace:*",
     "@tanstack/ai-mcp": "workspace:*",
+    "@tanstack/ai-models": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-openrouter": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",

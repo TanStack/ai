@@ -46,10 +46,12 @@ export function Menu({
         const isSelected = start + index === selected
         return (
           <Box key={item.id}>
-            <Text color={isSelected ? ACCENT : undefined} bold={isSelected}>
-              {`${isSelected ? '❯' : ' '} ${item.label.padEnd(width)}`}
-            </Text>
-            <Text color={item.current ? 'green' : 'gray'}>
+            <Box flexShrink={0}>
+              <Text color={isSelected ? ACCENT : undefined} bold={isSelected}>
+                {`${isSelected ? '❯' : ' '} ${item.label.padEnd(width)}`}
+              </Text>
+            </Box>
+            <Text color={item.current ? 'green' : 'gray'} wrap="truncate-end">
               {`  ${item.current ? '● ' : ''}${item.detail ?? ''}`}
             </Text>
           </Box>

@@ -15,20 +15,26 @@ import {
   usage,
   workspaceTools,
 } from '@tanstack/ai-harness/plugins'
-import { createAnthropicChat } from '@tanstack/ai-anthropic'
+import { ANTHROPIC_MODELS, createAnthropicChat } from '@tanstack/ai-anthropic'
 import { anthropicByok } from '@tanstack/ai-anthropic/byok'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { codeMode } from '@tanstack/ai-code-mode/harness'
 import { codexText } from '@tanstack/ai-codex'
 import { falByok } from '@tanstack/ai-fal/byok'
 import { mcpConnector } from '@tanstack/ai-mcp/connector'
-import { createGrokText } from '@tanstack/ai-grok'
+import { GROK_CHAT_MODELS, createGrokText } from '@tanstack/ai-grok'
 import { grokByok } from '@tanstack/ai-grok/byok'
 import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
-import { createOpenaiChat, openaiTranscription } from '@tanstack/ai-openai'
+import { getModel, supportedReasoningLevels } from '@tanstack/ai-models'
+import {
+  OPENAI_CHAT_MODELS,
+  createOpenaiChat,
+  openaiTranscription,
+} from '@tanstack/ai-openai'
 import { openaiByok } from '@tanstack/ai-openai/byok'
 import { createOpenRouterText } from '@tanstack/ai-openrouter'
 import { openrouterByok } from '@tanstack/ai-openrouter/byok'
+import { OPENROUTER_CHAT_MODELS } from '@tanstack/ai-openrouter/model-meta'
 import { openrouterSignIn } from '@tanstack/ai-openrouter/pkce'
 import {
   defineSandbox,
@@ -47,9 +53,10 @@ import {
   videoAgent,
 } from './media'
 import { effortPicker } from './effort'
-import { envKey } from './store'
+import { envKey, providerKey } from './store'
 import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
-import type { ByokProvider, ProviderId } from '@tanstack/ai/byok'
+import type { ModelRecord } from '@tanstack/ai-models'
+import type { ByokProvider } from '@tanstack/ai/byok'
 
 // The agent works in ./playground, so it cannot touch the rest of your disk.
 const root = fileURLToPath(new URL('../playground', import.meta.url))
@@ -141,108 +148,127 @@ function demoModel(): AnyTextAdapter {
 }
 
 /** Is a key for `provider` in the environment (the `.env` shortcut)? */
-function hasEnvKey(provider: ByokProvider | ProviderId) {
-  return typeof provider !== 'string' && envKey(provider) !== null
+function hasEnvKey(provider: ByokProvider) {
+  return envKey(provider) !== null
 }
 
-const openai = (model: Parameters<typeof createOpenaiChat>[0]) =>
+const openai = (model: (typeof OPENAI_CHAT_MODELS)[number]) =>
   keyedAdapter(openaiByok, (key) => createOpenaiChat(model, key))
-const anthropic = (model: Parameters<typeof createAnthropicChat>[0]) =>
+const anthropic = (model: (typeof ANTHROPIC_MODELS)[number]) =>
   keyedAdapter(anthropicByok, (key) => createAnthropicChat(model, key))
-const grok = (model: Parameters<typeof createGrokText>[0]) =>
+const grok = (model: (typeof GROK_CHAT_MODELS)[number]) =>
   keyedAdapter(grokByok, (key) => createGrokText(model, key))
-const openrouter = (model: Parameters<typeof createOpenRouterText>[0]) =>
+const openrouter = (model: (typeof OPENROUTER_CHAT_MODELS)[number]) =>
   keyedAdapter(openrouterByok, (key) => createOpenRouterText(model, key))
 
-/**
- * The models `/model <name>` can switch to, by their real model id. Each one
- * is built for each turn with the user's own key: the key saved with
- * `/connect <provider>`, else the env var. A model without a key asks the
- * user to connect.
- */
-const models = {
-  'gpt-6-astra': openai('gpt-6-astra'),
-  'gpt-6-sol': openai('gpt-6-sol'),
-  'gpt-6-luna': openai('gpt-6-luna'),
-  'claude-opus-5-5': anthropic('claude-opus-5-5'),
-  'claude-fable-5-1': anthropic('claude-fable-5-1'),
-  'claude-sonnet-5': anthropic('claude-sonnet-5'),
-  'claude-haiku-4-5': anthropic('claude-haiku-4-5'),
-  'grok-4.7': grok('grok-4.7'),
-  'grok-4.6': grok('grok-4.6'),
-  'openai/gpt-6-astra': openrouter('openai/gpt-6-astra'),
-  'anthropic/claude-opus-5.5': openrouter('anthropic/claude-opus-5.5'),
-  'google/gemini-3.1-pro-preview': openrouter('google/gemini-3.1-pro-preview'),
-  'x-ai/grok-4.7': openrouter('x-ai/grok-4.7'),
+/** A model `/model` can pick. */
+export interface ModelEntry {
+  id: string
+  /** The key provider to connect, for example `openai` or `grok`. */
+  provider: string
+  record: ModelRecord
+  adapter: KeyedAdapter<AnyTextAdapter>
 }
 
-// The first model with an env key starts, so a `.env` works as before. The
-// saved keys belong to a session, so without an env key `gpt-6-astra`
-// starts, and the first message asks the user to run /connect.
-const envModel = Object.entries(models).find(([, model]) =>
-  hasEnvKey(model.provider),
-)
-const startModel = envModel?.[0] ?? 'gpt-6-astra'
-// Any of the models: the harness, /compact, and /goal take this common type.
-const main: KeyedAdapter<AnyTextAdapter> =
-  envModel?.[1] ?? models['gpt-6-astra']
-// With no env key at all, `/model demo` answers without a key.
-const choices = { ...models, ...(envModel ? {} : { demo: demoModel() }) }
+/**
+ * The models of one provider: each chat model its adapter knows that the
+ * `@tanstack/ai-models` catalog has too. The catalog gives the context size,
+ * the reasoning levels, and the price. Sorted by id, the newest version of
+ * each family first (`claude-opus-5-5` before `claude-opus-4-8`).
+ */
+function providerModels<TModel extends string>(
+  catalogId: string,
+  byok: ByokProvider,
+  ids: ReadonlyArray<TModel>,
+  adapter: (model: TModel) => KeyedAdapter<AnyTextAdapter>,
+  start: TModel,
+) {
+  const models = ids.flatMap((id): Array<ModelEntry> => {
+    const record = getModel(catalogId, id)
+    return record
+      ? [{ id, provider: byok.id, record, adapter: adapter(id) }]
+      : []
+  })
+  return {
+    id: byok.id,
+    label: byok.label,
+    byok,
+    start,
+    models: models.sort((a, b) =>
+      b.id.localeCompare(a.id, 'en', { numeric: true }),
+    ),
+  }
+}
 
 /**
- * What the screen shows for each model: the provider that must be connected,
- * the size of its context window (from each provider's model-meta), and
- * whether `/effort` can set how hard it thinks.
+ * The models `/model` can switch to, by provider and by their real model id.
+ * Each one is built for each turn with the user's own key: the key saved
+ * with `/connect <provider>`, else the env var. A model without a key asks
+ * the user to connect.
  */
-export const modelInfo: Record<
-  string,
-  { provider: string; contextWindow: number; effort: boolean }
-> = {
-  'gpt-6-astra': { provider: 'openai', contextWindow: 1_050_000, effort: true },
-  'gpt-6-sol': { provider: 'openai', contextWindow: 1_050_000, effort: true },
-  'gpt-6-luna': { provider: 'openai', contextWindow: 1_050_000, effort: true },
-  'claude-opus-5-5': {
-    provider: 'anthropic',
-    contextWindow: 1_000_000,
-    effort: true,
-  },
-  'claude-fable-5-1': {
-    provider: 'anthropic',
-    contextWindow: 1_000_000,
-    effort: true,
-  },
-  'claude-sonnet-5': {
-    provider: 'anthropic',
-    contextWindow: 1_000_000,
-    effort: true,
-  },
-  'claude-haiku-4-5': {
-    provider: 'anthropic',
-    contextWindow: 200_000,
-    effort: true,
-  },
-  'grok-4.7': { provider: 'grok', contextWindow: 500_000, effort: true },
-  'grok-4.6': { provider: 'grok', contextWindow: 500_000, effort: true },
-  'openai/gpt-6-astra': {
-    provider: 'openrouter',
-    contextWindow: 1_050_000,
-    effort: true,
-  },
-  'anthropic/claude-opus-5.5': {
-    provider: 'openrouter',
-    contextWindow: 1_000_000,
-    effort: true,
-  },
-  'google/gemini-3.1-pro-preview': {
-    provider: 'openrouter',
-    contextWindow: 1_048_576,
-    effort: true,
-  },
-  'x-ai/grok-4.7': {
-    provider: 'openrouter',
-    contextWindow: 500_000,
-    effort: true,
-  },
+export const modelProviders = [
+  providerModels(
+    'openai',
+    openaiByok,
+    OPENAI_CHAT_MODELS,
+    openai,
+    'gpt-6-astra',
+  ),
+  providerModels(
+    'anthropic',
+    anthropicByok,
+    ANTHROPIC_MODELS,
+    anthropic,
+    'claude-opus-5-5',
+  ),
+  providerModels('xai', grokByok, GROK_CHAT_MODELS, grok, 'grok-4.7'),
+  providerModels(
+    'openrouter',
+    openrouterByok,
+    OPENROUTER_CHAT_MODELS,
+    openrouter,
+    'openai/gpt-6-astra',
+  ),
+]
+
+/**
+ * Each model by its id: the provider that must be connected, its catalog
+ * record (context size, reasoning levels, price), and its adapter. The ids
+ * of the providers do not overlap: OpenRouter ids start with the vendor.
+ */
+export const modelInfo: Record<string, ModelEntry> = Object.fromEntries(
+  modelProviders.flatMap((provider) =>
+    provider.models.map((model) => [model.id, model]),
+  ),
+)
+
+// A new session starts on the first provider with a key: one saved with
+// /connect, or one in the env (a `.env` file). Without any key, `gpt-6-astra`
+// starts, and the first message asks the user to run /connect. A resumed
+// session keeps the model it had.
+const keyed = await Promise.all(
+  modelProviders.map(async (provider) =>
+    (await providerKey(provider.byok, 'startup')) === null ? [] : [provider],
+  ),
+)
+const startProvider = keyed.flat()[0]
+const startModel = startProvider?.start ?? 'gpt-6-astra'
+// The start model: the harness, /compact, /goal, and /agent haiku use it.
+const main: KeyedAdapter<AnyTextAdapter> = modelInfo[startModel].adapter
+// With no key at all, `/model demo` answers without a key.
+const choices = {
+  ...Object.fromEntries(
+    Object.values(modelInfo).map((model) => [model.id, model.adapter]),
+  ),
+  ...(startProvider ? {} : { demo: demoModel() }),
+}
+
+/** Does the model think, so `/effort` changes it? */
+export function reasons(model: string) {
+  const record = modelInfo[model]?.record
+  return record
+    ? supportedReasoningLevels(record).some((level) => level !== 'off')
+    : false
 }
 
 // `/connect openrouter` signs in with the browser: no key to paste, and one
@@ -476,7 +502,7 @@ export const assistant = defineHarness({
     todos(),
     providerKeys({ providers: keyProviders }),
     modelPicker({ choices, default: startModel }),
-    effortPicker({ reasons: (model) => modelInfo[model]?.effort === true }),
+    effortPicker({ reasons }),
     projectInstructions({ root }),
     compact({ adapter: main }),
     usage(),

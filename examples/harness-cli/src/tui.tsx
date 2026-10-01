@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import {
   Box,
+  Spacer,
   Static,
   Text,
   measureElement,
@@ -12,10 +13,20 @@ import {
   useBoxMetrics,
   useInput,
   usePaste,
+  useStdout,
   useWindowSize,
 } from 'ink'
 import { useSelector } from '@tanstack/react-store'
-import { assistant, features, keyProviders, modelInfo } from './harness'
+import { supportedReasoningLevels } from '@tanstack/ai-models'
+import {
+  assistant,
+  features,
+  keyProviders,
+  modelInfo,
+  modelProviders,
+  reasons,
+} from './harness'
+import { hasSession, listSessions } from './sessions'
 import {
   canTranscribe,
   chooseMicrophone,
@@ -36,6 +47,7 @@ import { Status } from './screen/status'
 import { ACCENT, compact } from './screen/theme'
 import type { ReactNode } from 'react'
 import type { DOMElement, RenderOptions } from 'ink'
+import type { ModelEntry } from './harness'
 import type { Recording, VoiceClip } from './voice'
 import type { Line } from './screen/editor'
 import type { MenuItem } from './screen/menu'
@@ -58,6 +70,7 @@ const SCREEN_COMMANDS = [
   { name: 'disconnect', description: 'Remove a key or a sign-in' },
   { name: 'model', description: 'Pick the model' },
   { name: 'effort', description: 'Pick how hard the model thinks' },
+  { name: 'resume', description: 'Continue a saved session' },
   { name: 'mic', description: 'Pick the microphone' },
   { name: 'open', description: 'Open a media file (default: the last one)' },
   { name: 'play', description: 'Play an audio or video file' },
@@ -142,49 +155,144 @@ function connectItems(state: SessionViewState): Array<MenuItem> {
   return [...providers, ...apps]
 }
 
-/** The rows of the `/model` picker, with the provider and the context size. */
-function modelItems(state: SessionViewState): Array<MenuItem> {
-  const entry = state.config.find((item) => item.key === 'model')
-  if (entry?.option.type !== 'select') return []
+const modelCount = (count: number) => `${count} model${count === 1 ? '' : 's'}`
+
+const currentModel = (state: SessionViewState) =>
+  String(state.config.find((item) => item.key === 'model')?.value ?? '')
+
+/** The context size, the effort levels, and the price of a model. */
+function modelDetail(model: ModelEntry) {
+  const { contextWindow, cost } = model.record
+  const levels = supportedReasoningLevels(model.record).filter(
+    (level) => level !== 'off',
+  )
+  return [
+    `${compact(contextWindow)} context`,
+    levels.length === 0
+      ? 'no effort setting'
+      : levels.length === 1
+        ? `effort ${levels[0]}`
+        : `effort ${levels[0]} to ${levels.at(-1)}`,
+    ...(cost.input > 0 ? [`$${cost.input}/$${cost.output} per 1M tokens`] : []),
+  ].join(', ')
+}
+
+/** The rows of a `/model` picker for these models. */
+function modelRows(
+  models: ReadonlyArray<ModelEntry>,
+  state: SessionViewState,
+): Array<MenuItem> {
+  const current = currentModel(state)
+  return models.map((model) => ({
+    id: model.id,
+    label: model.id,
+    current: model.id === current,
+    detail: modelDetail(model),
+  }))
+}
+
+/** The first `/model` step: the providers, then the demo model if it is on. */
+function providerItems(state: SessionViewState): Array<MenuItem> {
+  const current = currentModel(state)
   const keys = providerKeysIn(state.plugins[PROVIDER_KEYS])
-  return entry.option.options.map((name) => {
-    const info = modelInfo[name]
-    const missing = keys.some(
-      (key) => key.id === info?.provider && key.state === 'missing',
-    )
+  const rows = modelProviders.map((provider) => {
+    const missing =
+      keys.find((key) => key.id === provider.id)?.state === 'missing'
     return {
-      id: name,
-      label: name,
-      current: name === entry.value,
-      detail: info
-        ? `${info.provider}, ${compact(info.contextWindow)} context${missing ? `, needs /connect ${info.provider}` : ''}`
-        : 'no key needed',
+      id: provider.id,
+      label: provider.label,
+      current: modelInfo[current]?.provider === provider.id,
+      detail: `${modelCount(provider.models.length)}${missing ? `, needs /connect ${provider.id}` : ''}`,
     }
   })
+  const entry = state.config.find((item) => item.key === 'model')
+  const demo =
+    entry?.option.type === 'select' && entry.option.options.includes('demo')
+  return demo
+    ? [
+        ...rows,
+        {
+          id: 'demo',
+          label: 'Demo',
+          current: current === 'demo',
+          detail: 'answers without a key',
+        },
+      ]
+    : rows
+}
+
+/**
+ * The OpenRouter step between the provider and the model: the vendors. An
+ * alias vendor (`~anthropic`, its `latest` models) sorts after its vendor.
+ */
+function vendorItems(
+  models: ReadonlyArray<ModelEntry>,
+  state: SessionViewState,
+): Array<MenuItem> {
+  const current = currentModel(state)
+  const counts = new Map<string, number>()
+  for (const model of models) {
+    const [vendor = ''] = model.id.split('/')
+    counts.set(vendor, (counts.get(vendor) ?? 0) + 1)
+  }
+  return [...counts]
+    .sort(
+      ([a], [b]) =>
+        a.replace(/^~/, '').localeCompare(b.replace(/^~/, '')) ||
+        a.localeCompare(b),
+    )
+    .map(([vendor, count]) => ({
+      id: vendor,
+      label: vendor,
+      current: current.startsWith(`${vendor}/`),
+      detail: modelCount(count),
+    }))
 }
 
 const EFFORT_DETAIL: Record<string, string> = {
   default: 'the model decides',
-  low: 'fastest, fewest tokens',
+  off: 'no thinking',
+  minimal: 'the least thinking',
+  low: 'fast, few tokens',
   medium: 'balanced',
   high: 'thinks longer',
+  xhigh: 'thinks very long',
   max: 'the most the model can think',
 }
 
-/** The rows of the `/effort` picker, for the current model. */
+/** The rows of the `/effort` picker: the levels the current model has. */
 function effortItems(state: SessionViewState): Array<MenuItem> {
-  const entry = state.config.find((item) => item.key === 'effort')
-  if (entry?.option.type !== 'select') return []
-  const model = String(
-    state.config.find((item) => item.key === 'model')?.value ?? '',
-  )
-  const used = modelInfo[model]?.effort === true
-  return entry.option.options.map((name) => ({
+  const effort = state.config.find((item) => item.key === 'effort')?.value
+  const record = modelInfo[currentModel(state)]?.record
+  const levels = record ? supportedReasoningLevels(record) : []
+  return ['default', ...levels].map((name) => ({
     id: name,
     label: name,
-    current: name === entry.value,
-    detail: `${EFFORT_DETAIL[name] ?? ''}${used || name === 'default' ? '' : `, ${model} has no effort setting`}`,
+    current: name === effort,
+    detail: EFFORT_DETAIL[name] ?? '',
   }))
+}
+
+/** The rows of the `/resume` picker: the saved sessions, newest first. */
+async function sessionItems(state: SessionViewState): Promise<Array<MenuItem>> {
+  const sessions = await listSessions()
+  return sessions.map((session) => ({
+    id: session.id,
+    label: session.id,
+    current: session.id === state.threadId,
+    detail: `${new Date(session.updatedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}  ${session.title.slice(0, 60)}`,
+  }))
+}
+
+// The session the user picked with /resume. The CLI opens it after the
+// screen closes.
+let nextSession: string | undefined
+
+/** The session `/resume` picked, once. `undefined` when the user quit. */
+export function takeNextSession() {
+  const next = nextSession
+  nextSession = undefined
+  return next
 }
 
 /** A list open over the input line, for example the `/connect` picker. */
@@ -194,22 +302,74 @@ interface Picker {
   pick: (item: MenuItem) => unknown
 }
 
-function Header() {
+const HEADER_KEYS = 'Ctrl+R talk  / commands  ↑↓ history  Esc cancel'
+
+/**
+ * The header, as wide as the screen: the harness, the folder, which features
+ * are on, and the keys. It prints once, so the App prints the screen again
+ * when a feature turns on or off.
+ */
+function Header({ view, width }: { view: SessionView; width: number }) {
+  const keys = providerKeysIn(
+    useSelector(view.store, (state) => state.plugins[PROVIDER_KEYS]),
+  )
+  const threadId = useSelector(view.store, (state) => state.threadId)
+  const marks = features.map((feature) => {
+    const on = isOn(feature, keys)
+    return {
+      name: feature.name,
+      on,
+      text: `${on ? '●' : '○'} ${feature.name}  `,
+    }
+  })
+  // The border and the padding take 4 columns. The keys go next to the
+  // features when both fit, else on their own row.
+  const inner = width - 4
+  const marksWidth = marks.reduce((sum, mark) => sum + mark.text.length, 0)
+  const keysFit = marksWidth + HEADER_KEYS.length <= inner
   return (
     <Box
+      width={width}
       flexDirection="column"
       borderStyle="round"
       borderColor={ACCENT}
       paddingX={1}
     >
       <Box>
-        <Text color={ACCENT} bold>
-          ◆ TanStack AI
-        </Text>
-        <Text bold> harness</Text>
-        <Text dimColor>{`  ${assistant.name}`}</Text>
+        <Box flexShrink={0}>
+          <Text color={ACCENT} bold>
+            ◆ TanStack AI
+          </Text>
+          <Text bold> harness</Text>
+          <Text dimColor>{`  ${assistant.name}  session ${threadId}  `}</Text>
+        </Box>
+        <Spacer />
+        <Box flexShrink={1} minWidth={0}>
+          <Text dimColor wrap="truncate-start">
+            {process.cwd()}
+          </Text>
+        </Box>
       </Box>
-      <Text dimColor>{process.cwd()}</Text>
+      <Box>
+        <Box flexWrap="wrap" flexShrink={1}>
+          {marks.map((mark) => (
+            <Text key={mark.name} color={mark.on ? 'green' : 'gray'}>
+              {mark.text}
+            </Text>
+          ))}
+        </Box>
+        {keysFit && (
+          <>
+            <Spacer />
+            <Text dimColor>{HEADER_KEYS}</Text>
+          </>
+        )}
+      </Box>
+      {!keysFit && (
+        <Box justifyContent="flex-end">
+          <Text dimColor>{HEADER_KEYS}</Text>
+        </Box>
+      )}
     </Box>
   )
 }
@@ -288,10 +448,12 @@ function Measured({
 
 /** One printed row: the header, or a message that no longer changes. */
 function PrintedRow({
+  view,
   row,
   saved,
   width,
 }: {
+  view: SessionView
   row: Row
   saved: ReturnType<typeof useSavedMedia>['saved']
   width: number
@@ -299,7 +461,7 @@ function PrintedRow({
   return 'role' in row ? (
     <Message message={row} saved={saved} width={width} />
   ) : (
-    <Header />
+    <Header view={view} width={width} />
   )
 }
 
@@ -364,6 +526,23 @@ function App({ view }: { view: SessionView }) {
   const live = useRef<DOMElement>(null)
   const { height: liveHeight } = useBoxMetrics(live)
   const space = Math.max(0, screenRows - 1 - printedHeight - liveHeight)
+
+  // The header shows which features are on, but printed rows never change.
+  // So when a feature turns on or off (a /connect), clear the screen and
+  // print the header and the conversation again.
+  const { stdout } = useStdout()
+  const featureMarks = useSelector(view.store, (state) => {
+    const keys = providerKeysIn(state.plugins[PROVIDER_KEYS])
+    return features.map((feature) => (isOn(feature, keys) ? 1 : 0)).join('')
+  })
+  const shownMarks = useRef(featureMarks)
+  const [printRound, setPrintRound] = useState(0)
+  useEffect(() => {
+    if (featureMarks === shownMarks.current) return
+    shownMarks.current = featureMarks
+    if (stdout.isTTY) stdout.write('\x1b[2J\x1b[3J\x1b[H')
+    setPrintRound((round) => round + 1)
+  }, [featureMarks])
 
   const [voice, setVoiceState] = useState<VoiceState>('idle')
   // The phase in a ref too: key events come faster than React renders, and a
@@ -537,6 +716,43 @@ function App({ view }: { view: SessionView }) {
     })
   }
 
+  /** Pick a model of the provider `id`. OpenRouter asks for the vendor first. */
+  const pickModelOf = (id: string) => {
+    if (id === 'demo') return view.command('model', 'demo')
+    const provider = modelProviders.find((entry) => entry.id === id)
+    if (!provider) return
+    const state = view.store.get()
+    const pickModel = (title: string, models: ReadonlyArray<ModelEntry>) =>
+      openPicker({
+        title,
+        items: modelRows(models, state),
+        pick: (item) => view.command('model', item.id),
+      })
+    if (provider.id !== 'openrouter')
+      return pickModel(`${provider.label}: pick the model`, provider.models)
+    openPicker({
+      title: 'OpenRouter: pick the vendor',
+      items: vendorItems(provider.models, state),
+      pick: (vendor) =>
+        pickModel(
+          `OpenRouter: pick the ${vendor.id} model`,
+          provider.models.filter((model) =>
+            model.id.startsWith(`${vendor.id}/`),
+          ),
+        ),
+    })
+  }
+
+  /** Close the screen, and the CLI opens the saved session `id`. */
+  const resume = async (id: string) => {
+    if (id === view.store.get().threadId)
+      return view.notice('You are in this session.')
+    if (!(await hasSession(id)))
+      return view.notice(`No saved session ${id}. /resume lists them.`)
+    nextSession = id
+    exit()
+  }
+
   /** Enter: answer an approval or a question, run a screen command, or send. */
   const submit = async (line: Line) => {
     const text = line.text.trim()
@@ -608,16 +824,27 @@ function App({ view }: { view: SessionView }) {
       case '/model':
         if (arg) break
         return openPicker({
-          title: 'Pick the model',
-          items: modelItems(state),
-          pick: (item) => view.command('model', item.id),
+          title: 'Pick the provider',
+          items: providerItems(state),
+          pick: (item) => pickModelOf(item.id),
         })
       case '/effort':
         if (arg) break
+        if (!reasons(currentModel(state)))
+          return view.notice(
+            `${currentModel(state)} has no effort setting. Pick another model with /model.`,
+          )
         return openPicker({
           title: 'How hard should the model think?',
           items: effortItems(state),
           pick: (item) => view.command('effort', item.id),
+        })
+      case '/resume':
+        if (arg) return resume(arg)
+        return openPicker({
+          title: 'Continue which session?',
+          items: await sessionItems(state),
+          pick: (item) => resume(item.id),
         })
       case '/mic': {
         if (!arg) return pickMicrophone().catch(failVoice)
@@ -724,10 +951,10 @@ function App({ view }: { view: SessionView }) {
 
   return (
     <Box flexDirection="column">
-      <Static items={rows}>
+      <Static key={printRound} items={rows}>
         {(row) => (
           <Measured key={row.id} id={row.id} onHeight={onHeight}>
-            <PrintedRow row={row} saved={saved} width={columns} />
+            <PrintedRow view={view} row={row} saved={saved} width={columns} />
           </Measured>
         )}
       </Static>

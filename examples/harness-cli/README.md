@@ -10,7 +10,7 @@ From the repo root:
 2. `pnpm build:all` (the example uses the local packages)
 3. `pnpm --filter harness-cli-example start`
 4. Type `/connect` and pick OpenRouter. It signs you in with the browser, with no key to paste.
-5. Type `/model` and pick `openai/gpt-6-astra`.
+5. Type `/model`, pick OpenRouter, then `openai`, then `openai/gpt-6-astra`.
 
 Now send a message.
 
@@ -23,24 +23,26 @@ You do not need a `.env` file. Type `/connect` and pick a provider from the list
 - `/connect openai` skips the list. `/keys` shows where each key comes from (saved, an env var, or missing).
 - `/disconnect` removes a saved key.
 
-The app saves the key in `~/.tanstack-harness-example/credentials.json`. It shows only the last 4 characters of a key. The footer shows which features are on, and it changes when you connect a provider.
+The app saves the key in `~/.tanstack-harness-example/credentials.json`, so you connect once. It shows only the last 4 characters of a key. The header shows which features are on, and it changes when you connect a provider.
 
-| Provider id  | Adds                                                                                                |
-| ------------ | --------------------------------------------------------------------------------------------------- |
-| `openai`     | `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, images, speech, Sora video, and voice input               |
-| `anthropic`  | `claude-opus-5-5`, `claude-fable-5-1`, `claude-sonnet-5`, `claude-haiku-4-5`                        |
-| `grok`       | `grok-4.7`, `grok-4.6`, video with Grok Imagine, and voice input                                    |
-| `fal`        | songs and sound effects                                                                             |
-| `openrouter` | `openai/gpt-6-astra`, `anthropic/claude-opus-5.5`, `google/gemini-3.1-pro-preview`, `x-ai/grok-4.7` |
+| Provider id  | Adds                                                                        |
+| ------------ | --------------------------------------------------------------------------- |
+| `openai`     | the OpenAI chat models, images, speech, Sora video, and voice input         |
+| `anthropic`  | the Claude models                                                           |
+| `grok`       | the xAI Grok models, video with Grok Imagine, and voice input               |
+| `fal`        | songs and sound effects                                                     |
+| `openrouter` | the OpenRouter models of every vendor (OpenAI, Anthropic, Google, and more) |
 
-If a provider has no key, its models and tools stop and tell you which `/connect` to run. If no key is set in the env, `/model demo` answers without a key.
+The model lists come from `@tanstack/ai-models`: each chat model that the provider's adapter knows and that the catalog has.
+
+If a provider has no key, its models and tools stop and tell you which `/connect` to run. With no key at all, `/model` lists a Demo model that answers without a key.
 
 ### Developer shortcut: a `.env` file
 
 1. Copy `.env.example` to `.env`.
 2. Set the keys that you have.
 
-An env var works when no key is saved. The first model with an env key starts. Audio files that you attach with `@file` become text only when `OPENAI_API_KEY` is set. Voice messages use the saved key.
+An env var works when no key is saved. A new session starts on the first provider that has a key, saved or from the env. Audio files that you attach with `@file` become text only when `OPENAI_API_KEY` is set. Voice messages use the saved key.
 
 ### Ship it to your users
 
@@ -96,9 +98,19 @@ When `claude` and `codex` are on the PATH, the agent can call them. They work in
 
 ## Pick the model and the effort
 
-- `/model` opens a list of the models, with the provider and the context size of each. `/model gpt-6-luna` switches at once. The change applies at the next turn.
-- `/effort` sets how hard the model thinks: `default` (the model decides), `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. It sets `chat({ reasoning })`, so a level the model does not have moves to the nearest one it has.
+- `/model` asks for the provider, then the model. OpenRouter asks for the vendor between them. Each model shows its context size, its effort levels, and its price, from `@tanstack/ai-models`. `/model gpt-6-luna` switches at once. The change applies at the next turn.
+- `/effort` lists the levels the current model has, and `default` (the model decides). It sets `chat({ reasoning })`. When you switch to a model that does not have the level, the nearest level it has is used, and the footer shows it.
 - The footer shows the model, the effort, how full the context is, the tokens in and out, and the model calls.
+
+## Continue a session
+
+Each start is a new session. The header shows its id, and when you quit, the screen prints the command to continue it.
+
+- `pnpm --filter harness-cli-example start --resume 3f2a9c1d` continues session `3f2a9c1d`.
+- `--resume` with no id continues the newest session.
+- `/resume` lists the saved sessions with what you said first. Pick one, and the screen opens it.
+
+A session keeps its messages, its model and effort, and its todos and usage. The sessions are in `~/.tanstack-harness-example/sessions/`, and their settings in `metadata.json` in the same folder. The media of a session is in memory only, and the files the screen saved stay in `example-coder-media`.
 
 ## The screen
 
@@ -128,4 +140,4 @@ The screen is `src/tui.tsx` and its parts in `src/screen/`, plain example code o
 
 1. In one terminal: `pnpm --filter harness-cli-example dashboard`. It prints a sign-in link.
 2. In another: `pnpm --filter harness-cli-example start --dashboard http://127.0.0.1:8790`. It prints a pairing code.
-3. Open the sign-in link, approve the code, and open the `main` session. Messages you send there reach the agent.
+3. Open the sign-in link, approve the code, and open the session with the id that the header shows. Messages you send there reach the agent.

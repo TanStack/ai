@@ -1,7 +1,9 @@
-import { Box, Spacer, Text } from 'ink'
+import { Box, Text } from 'ink'
+import { REASONING_LEVELS } from '@tanstack/ai'
+import { clampReasoningLevel } from '@tanstack/ai-models'
 import { useSelector } from '@tanstack/react-store'
-import { features, modelInfo } from '../harness'
-import { PROVIDER_KEYS, USAGE, isOn, providerKeysIn, usageIn } from './keys'
+import { modelInfo, reasons } from '../harness'
+import { PROVIDER_KEYS, USAGE, providerKeysIn, usageIn } from './keys'
 import { ACCENT, compact } from './theme'
 import type { SessionView } from '@tanstack/ai-harness/view'
 
@@ -9,8 +11,8 @@ const BAR = 10
 
 /**
  * The status bar at the bottom: the model, how much of its context the
- * conversation fills, the tokens and model calls so far, and which features
- * are on. It follows the session live, so a `/connect` turns features on.
+ * conversation fills, and the tokens and model calls so far. It follows the
+ * session live. The features and the key hints are in the header.
  */
 export function Footer({ view }: { view: SessionView }) {
   const model = useSelector(view.store, (state) =>
@@ -29,24 +31,33 @@ export function Footer({ view }: { view: SessionView }) {
   const usage = usageIn(usageState)
   const keys = providerKeysIn(keysState)
   const info = modelInfo[model]
-  const window = info?.contextWindow
+  const window = info?.record.contextWindow
+  // The level the model gets: the adapter moves an effort the model does not
+  // have to the nearest one it has.
+  const level = REASONING_LEVELS.find((name) => name === effort)
+  const shownEffort =
+    info && level && reasons(model)
+      ? clampReasoningLevel(info.record, level)
+      : undefined
   const share = window ? Math.min(1, usage.contextTokens / window) : 0
   const filled = Math.round(share * BAR)
   const barColor = share > 0.8 ? 'red' : share > 0.5 ? 'yellow' : 'green'
   const needsKey =
     info !== undefined &&
     keys.find((key) => key.id === info.provider)?.state === 'missing'
+  // Each group keeps its width, and a group that does not fit goes to the
+  // next line.
   return (
-    <Box flexDirection="column">
-      <Box>
+    <Box flexWrap="wrap" columnGap={3}>
+      <Box flexShrink={0}>
         <Text color={needsKey ? 'red' : ACCENT} bold>{`◆ ${model}`}</Text>
         {needsKey ? (
           <Text color="red">{`  (run /connect ${info.provider})`}</Text>
         ) : null}
-        {typeof effort === 'string' && effort !== 'default' ? (
-          <Text dimColor>{`  effort ${effort}`}</Text>
-        ) : null}
-        <Text dimColor>{'   context '}</Text>
+        {shownEffort ? <Text dimColor>{`  effort ${shownEffort}`}</Text> : null}
+      </Box>
+      <Box flexShrink={0}>
+        <Text dimColor>{'context '}</Text>
         <Text>
           {compact(usage.contextTokens)}
           {window ? `/${compact(window)}` : ''}
@@ -59,26 +70,14 @@ export function Footer({ view }: { view: SessionView }) {
             <Text dimColor>{` ${Math.round(share * 100)}%`}</Text>
           </>
         ) : null}
-        <Text dimColor>{'   tokens in '}</Text>
+      </Box>
+      <Box flexShrink={0}>
+        <Text dimColor>{'tokens in '}</Text>
         <Text>{compact(usage.promptTokens)}</Text>
         <Text dimColor>{' out '}</Text>
         <Text>{compact(usage.completionTokens)}</Text>
-        <Text dimColor>{`   ${usage.turns} model calls`}</Text>
       </Box>
-      <Box flexWrap="wrap">
-        {features.map((feature) => {
-          const on = isOn(feature, keys)
-          return (
-            <Text key={feature.name} color={on ? 'green' : 'gray'}>
-              {`${on ? '●' : '○'} ${feature.name}  `}
-            </Text>
-          )
-        })}
-        <Spacer />
-        <Text dimColor>
-          {'Ctrl+R talk   / commands   ↑↓ history   Esc cancel'}
-        </Text>
-      </Box>
+      <Text dimColor>{`${usage.turns} model calls`}</Text>
     </Box>
   )
 }

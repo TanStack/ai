@@ -215,6 +215,9 @@ importers:
       '@tanstack/ai-mcp':
         specifier: workspace:*
         version: link:../../packages/ai-mcp
+      '@tanstack/ai-models':
+        specifier: workspace:*
+        version: link:../../packages/ai-models
       '@tanstack/ai-openai':
         specifier: workspace:*
         version: link:../../packages/ai-openai
