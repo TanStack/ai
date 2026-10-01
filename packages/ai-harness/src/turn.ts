@@ -97,7 +97,11 @@ export interface HarnessTurnOptions {
   beforeFinish?: (
     ctx: FinishContext,
   ) => TurnAdditions | undefined | Promise<TurnAdditions | undefined>
-  /** How many times `beforeFinish` can continue one turn. Default 32. */
+  /**
+   * How many times `beforeFinish` can continue one turn. Default 32. At the
+   * limit, a hook that still returns messages or records fails the turn
+   * (records alone count too).
+   */
   maxFinishCycles?: number
   /**
    * Whether a waiting input joins the running turn now. A refused input

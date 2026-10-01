@@ -95,10 +95,11 @@ async function open(options: {
   const { adapter, calls } = mockAdapter(options.replies)
   const persistence = memoryPersistence()
   const { runs, metadata, interrupts } = persistence.stores
+  const log = memoryLogStore()
   const host = options.durable
     ? createHarnessHost({
         persistence: {
-          stores: { log: memoryLogStore(), runs, metadata, interrupts },
+          stores: { log, runs, metadata, interrupts },
         },
         project,
       })
@@ -112,7 +113,7 @@ async function open(options: {
     }),
     { threadId: THREAD },
   )
-  return { host, session, calls, runs }
+  return { host, session, calls, runs, log }
 }
 
 /** The events of one operation, as `type` or `type:name`. */
@@ -426,7 +427,7 @@ describe('turn.beforeFinish', () => {
   })
 
   it('completes for a record that changes no message', async () => {
-    const { host, session, calls } = await open({
+    const { host, session, calls, log } = await open({
       durable: true,
       replies: [() => text('done'), () => text('never')],
       turn: {
@@ -439,8 +440,45 @@ describe('turn.beforeFinish', () => {
 
     expect(await session.prompt('go')).toEqual({ text: 'done' })
     expect(calls).toHaveLength(1)
+    expect(
+      (await log.read(THREAD)).map((entry) => entry.record.type),
+    ).toContain('app.state_write')
     await host.close()
   })
+
+  it.each([false, true])(
+    'adds nothing when the turn is cancelled during the hook (durable: %s)',
+    async (durable) => {
+      const waiting = gate()
+      const { host, session, calls } = await open({
+        durable,
+        replies: [() => text('done'), () => text('never')],
+        turn: {
+          beforeFinish: async ({ signal }) => {
+            waiting.open()
+            await new Promise((resolve) =>
+              signal.addEventListener('abort', resolve, { once: true }),
+            )
+            return { messages: [{ role: 'user', content: REMINDER }] }
+          },
+        },
+      })
+
+      const turn = session.prompt('go')
+      await waiting.opened
+      await turn.cancel()
+
+      await expect(turn).rejects.toThrow('Cancelled.')
+      expect(turn.status()).toBe('cancelled')
+      expect(calls).toHaveLength(1)
+      expect(
+        (await session.transcript()).some(
+          (message) => message.content === REMINDER,
+        ),
+      ).toBe(false)
+      await host.close()
+    },
+  )
 
   it('fails the turn at the cycle limit', async () => {
     const { host, session, calls } = await open({

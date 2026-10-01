@@ -2216,6 +2216,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       messages: await this.messages.loadThread(this.threadId),
       signal: operation.abortController.signal,
     })
+    // A cancelled turn adds nothing.
+    if (operation.abortController.signal.aborted) return false
     const isEmpty =
       !added ||
       ((added.messages?.length ?? 0) === 0 &&
