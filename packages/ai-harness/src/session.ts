@@ -1757,6 +1757,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     } catch (error) {
       operation.fail('failed', error)
       this.publishFinished(operation)
+      this.requeueWaitingSteers()
       return
     }
     const stopTimer = this.startTimeout(turn.inputId, operation)
@@ -1984,19 +1985,25 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       ...this.joinedInputs(operation.id, inputId),
     ]
     this.turnJoins.delete(operation.id)
-    const settleTurn = (
+    const settleTurn = async (
       settlement: Omit<InputSettlement, 'inputId' | 'operationId'>,
-    ) =>
-      settled.length === 0 || this.logFailure
-        ? Promise.resolve()
-        : this.settle(
-            ...settled.map((id) => ({
-              inputId: id,
-              operationId: operation.id,
-              ...settlement,
-            })),
-          ).catch(() => {})
+    ) => {
+      if (settled.length > 0 && !this.logFailure) {
+        await this.settle(
+          ...settled.map((id) => ({
+            inputId: id,
+            operationId: operation.id,
+            ...settlement,
+          })),
+        ).catch(() => {})
+      }
+      // Release after the settlement, so a crash in between leaves a settled
+      // input. Release before the operation ends, so the caller can act at
+      // once.
+      if (releaseLease) await releaseLease()
+    }
     if (this.logFailure) {
+      if (releaseLease) await releaseLease()
       operation.fail('failed', this.logFailure)
     } else if (timedOut) {
       const message = 'The input passed its time limit.'
@@ -2020,10 +2027,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       operation.finish('completed', { text })
     }
     this.publishFinished(operation)
-    // Release after the settlement: a crash in between leaves a settled input.
-    // No await without a lease: an extra tick would delay the status change.
-    if (releaseLease) await releaseLease()
-    // Steers the turn never reached run next, before other queued turns.
+    this.requeueWaitingSteers()
+  }
+
+  /** Steers a turn never reached run next, before other queued turns. */
+  private requeueWaitingSteers(): void {
     this.queue.unshift(
       ...this.steerQueue.splice(0).map((steer) => {
         const next = steer.operation ?? this.createTurnOperation()

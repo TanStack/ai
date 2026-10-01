@@ -38,9 +38,9 @@ type DurableLeases =
  * - A message store, plus any of runs, interrupts, metadata, and inbox.
  *   Without an inbox, inputs are kept in memory and a restart loses the ones
  *   not yet applied.
- * - Durable mode: a `log`, and `runs` or `leases`. The log holds the events, transcript,
- *   inputs, and tool steps of each thread, so this shape has no `messages`
- *   and no `inbox`.
+ * - Durable mode: a `log`, and `runs` or `leases`. The log holds the events,
+ *   transcript, inputs, and tool steps of each thread, so this shape has no
+ *   `messages` and no `inbox`.
  *
  * Without `artifacts`, `blobs`, and `generationRuns`, media is kept in memory.
  */

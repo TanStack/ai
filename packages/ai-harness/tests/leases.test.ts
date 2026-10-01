@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
-import { mockAdapter, text } from './helpers'
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+import { after, gate, mockAdapter, text, toolCall } from './helpers'
 import type { AnyTool, StreamChunk } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
 import type {
@@ -24,6 +26,7 @@ function memoryLeases() {
       leases.set(keyOf(lease), lease)
     },
     renew: async (lease) => {
+      calls.push(`renew ${keyOf(lease)}`)
       leases.set(keyOf(lease), lease)
     },
     release: async (lease) => {
@@ -49,9 +52,10 @@ async function openLeased(
   persistence: ReturnType<typeof leasedPersistence>,
   replies: Array<Reply>,
   tools: Array<AnyTool> = [],
+  lease?: { renewMs?: number; ttlMs?: number },
 ) {
   const { adapter, calls } = mockAdapter(replies)
-  const host = createHarnessHost({ persistence })
+  const host = createHarnessHost({ persistence, lease })
   const session = await host.open(
     defineHarness({ name: 'test/leases', adapter, tools }),
     { threadId: THREAD },
@@ -89,6 +93,63 @@ describe('a durable host with a lease store and no run store', () => {
     await host.close()
   })
 
+  it('renews the lease while a turn runs, and stops at the release', async () => {
+    const leases = memoryLeases()
+    const hold = gate()
+    const { host, session } = await openLeased(
+      leasedPersistence(leases.store),
+      [after(hold.opened, 'done')],
+      [],
+      { renewMs: 5, ttlMs: 50 },
+    )
+
+    const turn = session.prompt('go', { inputId: 'in-1' })
+    await vi.waitFor(() => expect(leases.calls).toContain('renew in-1:1'))
+    hold.open()
+    await turn
+
+    const release = leases.calls.indexOf('release in-1:1')
+    expect(release).toBeGreaterThan(-1)
+    expect(leases.calls.slice(release)).not.toContain('renew in-1:1')
+    await host.close()
+  })
+
+  it('lets the caller answer an interrupted turn as soon as it ends', async () => {
+    const leases = memoryLeases()
+    // A store that releases after a timer, like one over the network.
+    const slow: LeaseStore = {
+      ...leases.store,
+      release: async (lease) => {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        await leases.store.release(lease)
+      },
+    }
+    const remove = toolDefinition({
+      name: 'remove',
+      description: 'Remove a file',
+      needsApproval: true,
+      inputSchema: z.object({ path: z.string() }),
+    }).server(async () => ({ ok: true }))
+    const { host, session } = await openLeased(
+      leasedPersistence(slow),
+      [
+        () => toolCall('remove', { path: 'a.txt' }, 'call_1'),
+        () => text('removed'),
+      ],
+      [remove],
+    )
+
+    const turn = await session.prompt('remove a.txt')
+    const interrupt = turn.interrupts?.[0]
+    if (!interrupt) throw new Error('The turn did not stop for approval.')
+    expect(session.snapshot().status).toBe('requires_action')
+    const receipt = await session.resolve([
+      { interruptId: interrupt.id, status: 'resolved', payload: true },
+    ])
+    expect(receipt.status).toBe('accepted')
+    await host.close()
+  })
+
   it('keeps a turn with a live lease, and runs one with an expired lease again', async () => {
     const leases = memoryLeases()
     const persistence = leasedPersistence(leases.store)
@@ -99,6 +160,7 @@ describe('a durable host with a lease store and no run store', () => {
     // A second host while the lease is alive: it leaves the turn alone.
     const watcher = await openLeased(persistence, [() => text('never')])
     expect(watcher.calls).toHaveLength(0)
+    expect(watcher.session.snapshot().status).toBe('idle')
     await watcher.host.close()
 
     leases.expire()
