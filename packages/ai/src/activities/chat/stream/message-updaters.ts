@@ -5,6 +5,7 @@
  * These are used by StreamProcessor to manage the message array.
  */
 
+import { isRedactedThinkingId } from '../../../utilities/reasoning-encrypted-value'
 import { parsePartialJSON } from './json-parser'
 import type {
   ContentPart,
@@ -451,7 +452,6 @@ export function updateThinkingPart(
   stepId: string,
   content: string,
   signature?: string,
-  redacted?: boolean,
 ): Array<UIMessage> {
   return messages.map((msg) => {
     if (msg.id !== messageId) {
@@ -484,14 +484,16 @@ export function updateThinkingPart(
     // not carry one; losing it would strip the provider's encrypted reasoning
     // from a message that is about to be sent back.
     const nextSignature = signature ?? adopted?.signature
-    const nextRedacted = redacted === true || adopted?.redacted === true
+    // A hydrated part has no stepId to carry the redacted marker, so it keeps
+    // its own flag.
+    const redacted = isRedactedThinkingId(stepId) || adopted?.redacted === true
 
     const thinkingPart: ThinkingPart = {
       type: 'thinking',
       content,
       stepId,
       ...(nextSignature && { signature: nextSignature }),
-      ...(nextRedacted && { redacted: true }),
+      ...(redacted && { redacted: true }),
     }
 
     if (thinkingPartIndex >= 0) {

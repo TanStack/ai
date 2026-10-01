@@ -480,7 +480,8 @@ export interface ThinkingPart {
   /**
    * The provider encrypted this thinking block (Anthropic `redacted_thinking`).
    * `content` is empty, and `signature` holds the opaque data that goes back
-   * to the provider unchanged.
+   * to the provider unchanged. On the AG-UI wire, the reasoning message id
+   * starts with `redacted_thinking-` instead.
    */
   redacted?: boolean
 }
@@ -601,8 +602,6 @@ export interface TanStackMessageMetadata {
   subagent?: SubagentWireInfo
   /** Thinking signature for a `role: 'reasoning'` fan-out message. */
   signature?: string
-  /** Set with `signature` when the provider redacted the thinking block. */
-  redacted?: boolean
   /** Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignature). */
   toolCallMetadata?: Record<string, unknown>
   toolResult?: {

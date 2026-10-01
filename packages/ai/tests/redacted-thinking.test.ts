@@ -53,6 +53,35 @@ describe('redacted thinking', () => {
     )
   })
 
+  it('reads the kind from the reasoning message id, without metadata', async () => {
+    // What any AG-UI client sends back: the spec fields only. The second
+    // message is a signed block with omitted text, so `content` is empty too.
+    const params = await chatParamsFromRequestBody({
+      threadId: 'thread-1',
+      runId: 'run-1',
+      messages: [
+        { id: 'user-1', role: 'user', content: 'Hi' },
+        {
+          id: 'redacted_thinking-r1',
+          role: 'reasoning',
+          content: '',
+          encryptedValue: 'opaque-1',
+        },
+        { id: 'r2', role: 'reasoning', content: '', encryptedValue: 'sig-2' },
+        { id: 'assistant-1', role: 'assistant', content: 'Hello.' },
+      ],
+      tools: [],
+      context: [],
+    })
+
+    expect(thinkingOf(convertMessagesToModelMessages(params.messages))).toEqual(
+      [
+        { content: '', signature: 'opaque-1', redacted: true },
+        { content: '', signature: 'sig-2' },
+      ],
+    )
+  })
+
   it('survives an interrupt snapshot that the client loads', () => {
     const wire = uiMessagesToWire(modelMessagesToUIMessages(stored))
 

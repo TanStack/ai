@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat, StreamProcessor } from '@tanstack/ai'
 import { z } from 'zod'
 import { AnthropicTextAdapter } from '../src/adapters/text'
-import type { ModelMessage, Tool } from '@tanstack/ai'
+import type { ModelMessage, StreamChunk, Tool } from '@tanstack/ai'
 
 const mocks = vi.hoisted(() => {
   const betaMessagesCreate = vi.fn()
@@ -186,6 +186,52 @@ describe('Anthropic replay', () => {
       type: 'redacted_thinking',
       data: 'opaque-1',
     })
+  })
+
+  it('ties each encrypted value to its reasoning message by id', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      stream([
+        // A signed block with omitted text, the default on newer models.
+        {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'thinking', thinking: '' },
+        },
+        {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'signature_delta', signature: 'sig-1' },
+        },
+        { type: 'content_block_stop', index: 0 },
+        {
+          type: 'content_block_start',
+          index: 1,
+          content_block: { type: 'redacted_thinking', data: 'opaque-1' },
+        },
+        { type: 'content_block_stop', index: 1 },
+        ...textEvents(2, 'Hello.'),
+        ...end('end_turn'),
+      ]),
+    )
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of chat({
+      adapter: adapter(),
+      messages: [{ role: 'user', content: 'Hi' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const reasoningIds = chunks.flatMap((c) =>
+      c.type === 'REASONING_MESSAGE_START' ? [c.messageId] : [],
+    )
+    const values = chunks.flatMap((c) =>
+      c.type === 'REASONING_ENCRYPTED_VALUE' ? [c] : [],
+    )
+    expect(values.map((v) => v.encryptedValue)).toEqual(['sig-1', 'opaque-1'])
+    // An AG-UI client attaches each value to the message with this id.
+    expect(values.map((v) => v.entityId)).toEqual(reasoningIds)
+    expect(reasoningIds[0]).not.toMatch(/^redacted_thinking-/)
+    expect(reasoningIds[1]).toMatch(/^redacted_thinking-/)
   })
 
   it('sends a redacted thinking block back on the next turn', async () => {

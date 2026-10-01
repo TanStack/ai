@@ -41,6 +41,7 @@ import {
 import { subagentHostMessageId } from '../../utilities/subagent-wire'
 import { withDurabilityBatchHint } from '../../utilities/durability-batch'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
+import { isRedactedThinkingId } from '../../utilities/reasoning-encrypted-value'
 import { restorePublicUsage } from '../../utilities/restore-inbound-chunk'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
 import {
@@ -2039,7 +2040,7 @@ class TextEngine<
     if (typeof chunk.signature === 'string' && chunk.signature !== '') {
       this.noteThinkingStepPosition()
       this.currentThinkingSignature = chunk.signature
-      this.currentThinkingRedacted = chunk.redacted === true
+      this.currentThinkingRedacted = isRedactedThinkingId(chunk.stepId)
     }
   }
 
@@ -2069,7 +2070,7 @@ class TextEngine<
     }
     this.noteThinkingStepPosition()
     this.currentThinkingSignature = chunk.encryptedValue
-    this.currentThinkingRedacted = tanstackMetadata(chunk)?.redacted === true
+    this.currentThinkingRedacted = isRedactedThinkingId(chunk.entityId)
   }
 
   /**

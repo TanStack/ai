@@ -11,6 +11,7 @@ import {
   tanstackMetadata,
   withTanstackMetadata,
 } from '../../utilities/merge-metadata'
+import { isRedactedThinkingId } from '../../utilities/reasoning-encrypted-value'
 import {
   splitSubagentWire,
   subagentWireText,
@@ -72,9 +73,11 @@ function encryptedValueFrom(value: object): string | undefined {
   return nonEmptyString(tanstackMetadata(value)?.signature)
 }
 
-/** `{ redacted: true }` when a reasoning message carries a redacted block. */
+/** `{ redacted: true }` when a reasoning message's id marks a redacted block. */
 function redactedFrom(value: object) {
-  return tanstackMetadata(value)?.redacted === true ? { redacted: true } : {}
+  return 'id' in value && isRedactedThinkingId(value.id)
+    ? { redacted: true }
+    : {}
 }
 
 function toolCallFromWire(toolCall: ToolCall, bag: unknown): ToolCall {
