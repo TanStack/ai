@@ -268,6 +268,94 @@ importers:
         specifier: ^4.23.12
         version: 4.23.12
 
+  examples/harness-cli-cloudflare:
+    dependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@tanstack/ai-acp':
+        specifier: workspace:*
+        version: link:../../packages/ai-acp
+      '@tanstack/ai-claude-code':
+        specifier: workspace:*
+        version: link:../../packages/ai-claude-code
+      '@tanstack/ai-cloudflare':
+        specifier: workspace:*
+        version: link:../../packages/ai-cloudflare
+      '@tanstack/ai-code-mode':
+        specifier: workspace:*
+        version: link:../../packages/ai-code-mode
+      '@tanstack/ai-codex':
+        specifier: workspace:*
+        version: link:../../packages/ai-codex
+      '@tanstack/ai-dashboard':
+        specifier: workspace:*
+        version: link:../../packages/ai-dashboard
+      '@tanstack/ai-harness':
+        specifier: workspace:*
+        version: link:../../packages/ai-harness
+      '@tanstack/ai-harness-cli':
+        specifier: workspace:*
+        version: link:../../packages/ai-harness-cli
+      '@tanstack/ai-isolate-cloudflare':
+        specifier: workspace:*
+        version: link:../../packages/ai-isolate-cloudflare
+      '@tanstack/ai-mcp':
+        specifier: workspace:*
+        version: link:../../packages/ai-mcp
+      '@tanstack/ai-models':
+        specifier: workspace:*
+        version: link:../../packages/ai-models
+      '@tanstack/ai-persistence':
+        specifier: workspace:*
+        version: link:../../packages/ai-persistence
+      '@tanstack/ai-sandbox':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox
+      '@tanstack/ai-sandbox-local-process':
+        specifier: workspace:*
+        version: link:../../packages/ai-sandbox-local-process
+      '@tanstack/ai-skills':
+        specifier: workspace:*
+        version: link:../../packages/ai-skills
+      '@tanstack/react-store':
+        specifier: ^0.11.1
+        version: 0.11.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      beautiful-mermaid:
+        specifier: ^1.1.3
+        version: 1.1.3
+      ink:
+        specifier: ^7.1.1
+        version: 7.1.1(@types/react@19.3.0)(react-devtools-core@6.1.5)(react@19.2.3)
+      marked:
+        specifier: ^15.0.6
+        version: 15.0.12
+      marked-terminal:
+        specifier: ^7.3.0
+        version: 7.3.0(marked@15.0.12)
+      react:
+        specifier: ^19.2.3
+        version: 19.2.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20260317.1
+        version: 4.20260317.1
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.13.6
+      '@types/react':
+        specifier: ^19.2.7
+        version: 19.3.0
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.12
+      wrangler:
+        specifier: ^4.103.0
+        version: 4.103.0(@cloudflare/workers-types@4.20260317.1)
+
   examples/react/basic-chat:
     dependencies:
       '@tailwindcss/vite':
@@ -30872,7 +30960,7 @@ snapshots:
       parse5: 7.3.0
       parse5-htmlparser2-tree-adapter: 7.1.0
       parse5-parser-stream: 7.1.2
-      undici: 7.29.0
+      undici: 7.29.1
       whatwg-mimetype: 4.0.0
 
   chokidar@3.6.0:

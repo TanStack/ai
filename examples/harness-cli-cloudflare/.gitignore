@@ -1,0 +1,6 @@
+.env
+# Media the CLI saves (the default --media-dir).
+example-coder-media/
+# Local Worker state of wrangler dev and the tests, and its local secrets.
+worker/.wrangler/
+worker/.dev.vars
