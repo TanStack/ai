@@ -17,13 +17,7 @@ import { AgentRegistry } from './agents'
 import { SessionFeed } from './feed'
 import { isRecord } from './utils'
 import { bindDurable, createToolStep } from './durable-tool'
-import {
-  LogWriter,
-  engineMessageStore,
-  loadLogState,
-  sessionMessageStore,
-  stepKey,
-} from './log'
+import { engineMessageStore, sessionMessageStore, stepKey } from './log'
 import { createMediaStore, mediaCapture, mediaMiddleware } from './media'
 import { mediaIdOf, mediaOfMessage } from './media-ref'
 import { OperationImpl } from './operation'
@@ -64,7 +58,7 @@ import type {
 } from '@tanstack/ai-persistence'
 import type { AuthRequiredError, CredentialsAccess } from './auth'
 import type { EventFeed } from './feed'
-import type { ProjectOptions } from './log'
+import type { LogWriter, ProjectOptions } from './log'
 import type { DurableBind } from './durable-tool'
 import type { LeaseOptions } from './resume'
 import type { MediaStore } from './media'
@@ -214,7 +208,17 @@ export interface SessionDependencies {
   /** Identifies this host on run leases. */
   hostId: string
   /** The session log of a durable host. */
-  log?: { store: LogStore; coalesceMs: number; project?: ProjectOptions }
+  log?: {
+    store: LogStore
+    project?: ProjectOptions
+    /** The view of this session in its shared log. */
+    open: (
+      threadId: string,
+      onFailure: (error: unknown) => void,
+    ) => Promise<LogWriter>
+  }
+  /** The log of the session. Default: the thread id. */
+  logId: string
   lease?: LeaseOptions
   onClose: () => void
 }
@@ -312,6 +316,8 @@ const notOpenMessages: MessageStore = {
  */
 export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   readonly threadId: string
+  /** The log of this session. Sessions with the same log id share one log. */
+  readonly logId: string
   readonly agents: AgentHandles<THarness>
   /** The agents this session can run, for discovery. */
   readonly registry: AgentRegistryView
@@ -399,6 +405,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   constructor(deps: SessionDependencies) {
     this.harness = deps.harness as THarness
     this.threadId = deps.threadId
+    this.logId = deps.logId
     this.persistence = deps.persistence
     this.inbox = deps.inbox
     this.media = deps.media
@@ -533,29 +540,18 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * A durable host folds the thread's log and writes through it: the log is
-   * the event feed and the transcript. Then both modes build the stores that
+   * A durable host gives the session its view of the log, and the session
+   * writes through it: the log is the event feed and the transcript. Then
+   * both modes build the stores that
    * `withPersistence` and the checkpoints get.
    */
   private async openLog(): Promise<void> {
     const { stores } = this.persistence
     if (this.log) {
-      const { store, project, coalesceMs } = this.log
-      const state = await loadLogState({
-        store,
-        threadId: this.threadId,
-        ...(stores.metadata ? { metadata: stores.metadata } : {}),
-        ...(project ? { project } : {}),
-      })
-      this.writer = new LogWriter({
-        store,
-        threadId: this.threadId,
-        state,
-        coalesceMs,
-        ...(project ? { project } : {}),
-        ...(stores.metadata ? { metadata: stores.metadata } : {}),
-        onFailure: (error) => this.stopOnLogFailure(error),
-      })
+      const { store, project } = this.log
+      this.writer = await this.log.open(this.threadId, (error) =>
+        this.stopOnLogFailure(error),
+      )
       this.feed = this.writer
       const view = {
         writer: this.writer,

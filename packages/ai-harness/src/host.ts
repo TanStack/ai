@@ -1,4 +1,5 @@
 import { memoryPersistence } from '@tanstack/ai-persistence'
+import { SharedLog, loadLogState } from './log'
 import { HarnessSession } from './session'
 import type { RunStore } from '@tanstack/ai'
 import type {
@@ -150,13 +151,38 @@ export function createHarnessHost(
         persistence.stores.generationRuns ?? memory.generationRuns,
     },
   }
-  const log = persistence.stores.log
-    ? {
-        store: persistence.stores.log,
-        coalesceMs: options.coalesceMs ?? 100,
-        ...(options.project ? { project: options.project } : {}),
-      }
-    : undefined
+  const logStore = persistence.stores.log
+  const { metadata } = persistence.stores
+  const coalesceMs = options.coalesceMs ?? 100
+  /** The shared log of each log id with an open session, by log id. */
+  const logs = new Map<string, Promise<SharedLog>>()
+  const sharedLog = (store: LogStore, logId: string) => {
+    const open = logs.get(logId)
+    if (open) return open
+    const loaded = loadLogState({
+      store,
+      logId,
+      ...(metadata ? { metadata } : {}),
+      ...(options.project ? { project: options.project } : {}),
+    }).then(
+      (state) =>
+        new SharedLog({
+          store,
+          logId,
+          state,
+          coalesceMs,
+          ...(options.project ? { project: options.project } : {}),
+          ...(metadata ? { metadata } : {}),
+          // The next open folds the log again.
+          onIdle: () => {
+            if (logs.get(logId) === loaded) logs.delete(logId)
+          },
+        }),
+    )
+    loaded.catch(() => logs.delete(logId))
+    logs.set(logId, loaded)
+    return loaded
+  }
   const sessions = new Map<string, Promise<HarnessSession>>()
   const hostId = `host-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 
@@ -165,15 +191,30 @@ export function createHarnessHost(
       const key = `${harness.name}\u0000${threadId}`
       let session = sessions.get(key)
       if (!session) {
+        // ponytail: each thread is its own log until `open` takes a `logId`.
+        const logId = threadId
         const created = new HarnessSession({
           harness,
           threadId,
+          logId,
           persistence,
           inbox,
           credentials,
           media,
           hostId,
-          ...(log ? { log } : {}),
+          ...(logStore
+            ? {
+                log: {
+                  store: logStore,
+                  ...(options.project ? { project: options.project } : {}),
+                  open: async (sessionThread, onFailure) =>
+                    (await sharedLog(logStore, logId)).view(
+                      sessionThread,
+                      onFailure,
+                    ),
+                },
+              }
+            : {}),
           ...(options.lease ? { lease: options.lease } : {}),
           ...(principal ? { principal } : {}),
           onClose: () => sessions.delete(key),

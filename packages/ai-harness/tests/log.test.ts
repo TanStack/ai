@@ -6,12 +6,13 @@ import {
   memoryPersistence,
 } from '@tanstack/ai-persistence'
 import {
-  LogWriter,
-  emptyLogState,
+  SharedLog,
+  emptySharedLogState,
   engineMessageStore,
   loadLogState,
   logMessageStore,
   sessionMessageStore,
+  sessionOf,
 } from '../src/log'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type {
@@ -31,19 +32,24 @@ function newWriter(
     project?: ProjectOptions
     metadata?: MetadataStore
     onFailure?: (error: unknown) => void
-    state?: ReturnType<typeof emptyLogState>
+    state?: ReturnType<typeof emptySharedLogState>
   } = {},
 ) {
-  return new LogWriter({
+  const log = new SharedLog({
     store,
-    threadId: THREAD,
-    state: options.state ?? emptyLogState(),
+    logId: THREAD,
+    state: options.state ?? emptySharedLogState(),
     coalesceMs: options.coalesceMs ?? 0,
-    onFailure: options.onFailure ?? (() => {}),
     ...(options.project ? { project: options.project } : {}),
     ...(options.metadata ? { metadata: options.metadata } : {}),
   })
+  return log.view(THREAD, options.onFailure ?? (() => {}))
 }
+
+/** The fold of the session `THREAD`. */
+const loadSession = async (
+  options: Omit<Parameters<typeof loadLogState>[0], 'logId'>,
+) => sessionOf(await loadLogState({ ...options, logId: THREAD }), THREAD)
 
 /** A store that records the record types of each append batch. */
 function recordingStore(inner: LogStore = memoryLogStore()) {
@@ -142,9 +148,7 @@ describe('transcript fold', () => {
       { type: 'harness.transcript', keep: 1, add: [] },
     ])
     expect(writer.state.messages).toEqual([u1])
-    expect((await loadLogState({ store, threadId: THREAD })).messages).toEqual([
-      u1,
-    ])
+    expect((await loadSession({ store })).messages).toEqual([u1])
   })
 
   it('folds host records through the projection, live and after a reload', async () => {
@@ -180,7 +184,7 @@ describe('transcript fold', () => {
       add: [a2],
     })
 
-    const reloaded = await loadLogState({ store, threadId: THREAD, project })
+    const reloaded = await loadSession({ store, project })
     expect(reloaded.messages).toEqual([...compacted, a2])
   })
 
@@ -205,9 +209,7 @@ describe('transcript fold', () => {
       { id: 'u1', role: 'user', content: 'hi', createdAt, metadata: {} },
     ]
     expect(writer.state.messages).toEqual(expected)
-    expect((await loadLogState({ store, threadId: THREAD })).messages).toEqual(
-      expected,
-    )
+    expect((await loadSession({ store })).messages).toEqual(expected)
   })
 })
 
@@ -278,7 +280,7 @@ describe('events and batches', () => {
     first.close()
 
     // A new session: the first events are only in the store.
-    const state = await loadLogState({ store, threadId: THREAD })
+    const state = await loadLogState({ store, logId: THREAD })
     const writer = newWriter(store, { state })
     let done = false
     const seen: Array<SessionEvent> = []
@@ -325,7 +327,7 @@ describe('write failures', () => {
     const failures: Array<unknown> = []
     const first = newWriter(store, { onFailure: (e) => failures.push(e) })
     await first.append([{ type: 'app.mine' }])
-    const state = await loadLogState({ store, threadId: THREAD })
+    const state = await loadLogState({ store, logId: THREAD })
     const next = newWriter(store, { state })
 
     // The newer host writes. The first host is notified and stops.
@@ -419,15 +421,21 @@ describe('fold checkpoints', () => {
   }
 
   const checkpoint = (overrides: Record<string, unknown>) => ({
-    v: 1,
+    v: 2,
     seq: 1,
     version: 'v1',
-    state: {
-      messages: [user('marker', 'from the checkpoint')],
-      inputs: [],
-      toolResults: [],
-      steps: [],
-    },
+    sessions: [
+      [
+        THREAD,
+        {
+          messages: [user('marker', 'from the checkpoint')],
+          inputs: [],
+          toolResults: [],
+          steps: [],
+        },
+      ],
+    ],
+    reduced: null,
     ...overrides,
   })
 
@@ -437,12 +445,7 @@ describe('fold checkpoints', () => {
     const { metadata } = memoryPersistence().stores
     await metadata.set(NAMESPACE, THREAD, checkpoint({}))
 
-    const state = await loadLogState({
-      store,
-      threadId: THREAD,
-      metadata,
-      project,
-    })
+    const state = await loadSession({ store, metadata, project })
 
     // Record 2 folds on top of the checkpoint (keep 1, add u2).
     expect(state.messages).toEqual([
@@ -453,22 +456,17 @@ describe('fold checkpoints', () => {
 
   it.each([
     ['not an object', 'garbage'],
-    ['another format', checkpoint({ v: 2 })],
+    ['another format', checkpoint({ v: 1 })],
     ['another projection version', checkpoint({ version: 'v0' })],
     ['a position past the end of the log', checkpoint({ seq: 99 })],
-    ['a state that is not shaped', checkpoint({ state: { messages: 'x' } })],
+    ['a state that is not shaped', checkpoint({ sessions: 'x' })],
   ])('ignores a checkpoint with %s', async (_name, value) => {
     const store = memoryLogStore()
     await seedLog(store)
     const { metadata } = memoryPersistence().stores
     await metadata.set(NAMESPACE, THREAD, value)
 
-    const state = await loadLogState({
-      store,
-      threadId: THREAD,
-      metadata,
-      project,
-    })
+    const state = await loadSession({ store, metadata, project })
 
     expect(state.messages).toEqual([user('u1', 'one'), user('u2', 'two')])
   })
@@ -484,7 +482,7 @@ describe('fold checkpoints', () => {
 
     await expect
       .poll(() => metadata.get(NAMESPACE, THREAD))
-      .toMatchObject({ v: 1, seq: 50, version: 'v1' })
+      .toMatchObject({ v: 2, seq: 50, version: 'v1' })
   })
 })
 
@@ -656,5 +654,120 @@ describe('message stores', () => {
     ])
     const child: Array<LogRecord> = await records(store, 'subagent:1')
     expect(child).toHaveLength(1)
+  })
+})
+
+describe('a log shared by sessions', () => {
+  const sharedWriter = (store: LogStore) => {
+    const log = new SharedLog({
+      store,
+      logId: 'log-1',
+      state: emptySharedLogState(),
+      coalesceMs: 0,
+    })
+    return {
+      log,
+      root: log.view('log-1', () => {}),
+      child: log.view('child', () => {}),
+    }
+  }
+
+  it('writes no thread field for the log own session', async () => {
+    const store = memoryLogStore()
+    const { root } = sharedWriter(store)
+
+    await root.append([{ type: 'app.note', text: 'one' }])
+
+    expect((await store.read('log-1')).map((entry) => entry.record)).toEqual([
+      { type: 'app.note', text: 'one' },
+    ])
+  })
+
+  it('stamps the records of another session, and keeps a named thread', async () => {
+    const store = memoryLogStore()
+    const { root, child } = sharedWriter(store)
+
+    await child.append([{ type: 'app.note', text: 'from the child' }])
+    await root.append([
+      { type: 'app.child_created', thread: 'child' },
+      { type: 'app.child_linked', child: 'child' },
+    ])
+
+    expect((await store.read('log-1')).map((entry) => entry.record)).toEqual([
+      { type: 'app.note', text: 'from the child', thread: 'child' },
+      { type: 'app.child_created', thread: 'child' },
+      { type: 'app.child_linked', child: 'child' },
+    ])
+  })
+
+  it('folds each session on its own', async () => {
+    const store = memoryLogStore()
+    const { root, child } = sharedWriter(store)
+
+    await root.commit({ messages: [user('r1', 'root message')] })
+    await child.commit({ messages: [user('c1', 'child message')] })
+
+    expect(root.state.messages).toEqual([user('r1', 'root message')])
+    expect(child.state.messages).toEqual([user('c1', 'child message')])
+    const state = await loadLogState({ store, logId: 'log-1' })
+    expect(sessionOf(state, 'child').messages).toEqual([
+      user('c1', 'child message'),
+    ])
+  })
+
+  it('folds every host record of the log with reduce, in log order', async () => {
+    const store = memoryLogStore()
+    const reduce = {
+      initial: {} as Record<string, unknown>,
+      record: ({
+        state,
+        record,
+      }: {
+        state: Record<string, unknown>
+        record: LogRecord
+      }) =>
+        record.type === 'app.state_write' && typeof record.name === 'string'
+          ? { ...state, [record.name]: record.value }
+          : state,
+    }
+    const log = new SharedLog({
+      store,
+      logId: 'log-1',
+      state: emptySharedLogState(reduce),
+      coalesceMs: 0,
+      reduce,
+    })
+    const root = log.view('log-1', () => {})
+    const child = log.view('child', () => {})
+
+    await root.append([{ type: 'app.state_write', name: 'x', value: 1 }])
+    await child.append([{ type: 'app.state_write', name: 'x', value: 2 }])
+
+    expect(log.state.reduced).toEqual({ x: 2 })
+    expect(
+      (await loadLogState({ store, logId: 'log-1', reduce })).reduced,
+    ).toEqual({
+      x: 2,
+    })
+  })
+
+  it('reads only the events of its own session', async () => {
+    const store = memoryLogStore()
+    const { root, child } = sharedWriter(store)
+    const chunk = (delta: string): StreamChunk => ({
+      type: EventType.CUSTOM,
+      name: 'app.ping',
+      value: { delta },
+      timestamp: 1,
+    })
+
+    root.publish('op-root', chunk('root'))
+    child.publish('op-child', chunk('child'))
+    await root.flush()
+    child.close()
+
+    const seen: Array<string> = []
+    for await (const entry of child.read({})) seen.push(entry.operationId)
+    expect(seen).toEqual(['op-child'])
   })
 })

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
-import { loadLogState } from '../src/log'
+import { loadLogState, sessionOf } from '../src/log'
 import { gate, messageTexts, mockAdapter, text, toolCall } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
@@ -274,11 +274,14 @@ describe('durable session log', () => {
       'checked',
       '[signal] tests failed',
     ])
-    const rebuilt = await loadLogState({
-      store: persistence.stores.log,
-      threadId: THREAD,
-      project,
-    })
+    const rebuilt = sessionOf(
+      await loadLogState({
+        store: persistence.stores.log,
+        logId: THREAD,
+        project,
+      }),
+      THREAD,
+    )
     expect(await session.transcript()).toEqual(rebuilt.messages)
     expect(rebuilt.messages.map((message) => message.content).at(-1)).toBe(
       'second answer',
@@ -312,11 +315,14 @@ describe('durable session log', () => {
       'a2',
       'q3',
     ])
-    const rebuilt = await loadLogState({
-      store: persistence.stores.log,
-      threadId: THREAD,
-      project,
-    })
+    const rebuilt = sessionOf(
+      await loadLogState({
+        store: persistence.stores.log,
+        logId: THREAD,
+        project,
+      }),
+      THREAD,
+    )
     expect(rebuilt.messages.map((message) => message.content)).toEqual([
       'Earlier: q1 and a1.',
       'q2',

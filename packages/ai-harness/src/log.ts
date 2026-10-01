@@ -274,6 +274,78 @@ export function foldEntry(
   }
 }
 
+/** A fold of every host record of a log, across its sessions, in log order. */
+export interface ReduceOptions<TState> {
+  /** The state of an empty log. JSON. */
+  initial: TState
+  /** Pure. Return the next state, or the same state for no change. */
+  record: (args: { state: TState; record: LogRecord }) => TState
+  /** A fold checkpoint with another version is ignored. */
+  version?: string
+}
+
+/** The fold of a whole log: one state per session, and the reduce state. */
+export interface SharedLogState<TState = unknown> {
+  /** The position of the last folded record. */
+  seq: number
+  /** By thread id. */
+  sessions: Map<string, LogState>
+  reduced: TState | undefined
+}
+
+export function emptySharedLogState<TState = unknown>(
+  reduce?: ReduceOptions<TState>,
+) {
+  const state: SharedLogState<TState> = {
+    seq: 0,
+    sessions: new Map(),
+    reduced: reduce ? normalize(reduce.initial) : undefined,
+  }
+  return state
+}
+
+/** The fold of session `thread`. A session with no records yet gets an empty one. */
+export function sessionOf(state: SharedLogState<unknown>, thread: string) {
+  let session = state.sessions.get(thread)
+  if (!session) {
+    session = emptyLogState()
+    state.sessions.set(thread, session)
+  }
+  return session
+}
+
+/** The session of a record: its `thread`, or the session whose thread id is the log id. */
+export const threadOf = (record: LogRecord, logId: string) =>
+  typeof record.thread === 'string' ? record.thread : logId
+
+interface FoldOptions<TState> {
+  logId: string
+  project?: ProjectRecord
+  reduce?: ReduceOptions<TState>
+}
+
+/** Fold one entry of a shared log. */
+export function foldLogEntry<TState>(
+  state: SharedLogState<TState>,
+  entry: LogEntry,
+  options: FoldOptions<TState>,
+) {
+  state.seq = entry.seq
+  const { record } = entry
+  const { reduce } = options
+  if (reduce && !record.type.startsWith('harness.')) {
+    state.reduced = reduce.record({
+      state: state.reduced ?? reduce.initial,
+      record,
+    })
+  }
+  foldEntry(
+    sessionOf(state, threadOf(record, options.logId)),
+    entry,
+    options.project,
+  )
+}
+
 const CHECKPOINT_NAMESPACE = 'harness:log-checkpoint'
 // ponytail: a checkpoint every 50 appends. Tune it when a cold fold is slow.
 const CHECKPOINT_EVERY = 50
@@ -282,28 +354,33 @@ const READ_PAGE = 500
 // from the store.
 const MAX_TAIL = 10_000
 
-function serialize(state: LogState, version: string | undefined) {
+interface CheckpointVersions {
+  version?: string
+  reduceVersion?: string
+}
+
+function serialize(state: SharedLogState, versions: CheckpointVersions) {
   return {
-    v: 1,
+    v: 2,
     seq: state.seq,
-    ...(version !== undefined ? { version } : {}),
-    state: {
-      messages: state.messages,
-      inputs: [...state.inputs.values()],
-      toolResults: [...state.toolResults.entries()],
-      steps: [...state.steps.entries()],
-    },
+    ...versions,
+    sessions: [...state.sessions].map(([thread, session]) => [
+      thread,
+      {
+        messages: session.messages,
+        inputs: [...session.inputs.values()],
+        toolResults: [...session.toolResults.entries()],
+        steps: [...session.steps.entries()],
+      },
+    ]),
+    reduced: state.reduced ?? null,
   }
 }
 
-/** A checkpoint that the harness wrote with `version`, or `undefined`. */
-function parseCheckpoint(value: unknown, version: string | undefined) {
-  if (!isRecord(value) || value.v !== 1) return undefined
-  if (typeof value.seq !== 'number' || value.version !== version)
-    return undefined
-  const saved = value.state
-  if (!isRecord(saved)) return undefined
-  const { messages, inputs, toolResults, steps } = saved
+/** One session of a checkpoint at `seq`, or `undefined` when it is not shaped. */
+function parseSession(value: unknown, seq: number) {
+  if (!isRecord(value)) return undefined
+  const { messages, inputs, toolResults, steps } = value
   const isShaped =
     Array.isArray(messages) &&
     Array.isArray(inputs) &&
@@ -311,8 +388,8 @@ function parseCheckpoint(value: unknown, version: string | undefined) {
     Array.isArray(steps)
   if (!isShaped) return undefined
   // The harness wrote these arrays with `serialize`.
-  const state: LogState = {
-    seq: value.seq,
+  const session: LogState = {
+    seq,
     messages: (messages as Array<ModelMessage>).map(revive),
     inputs: new Map(
       (inputs as Array<InputState>).map((input) => [input.inputId, input]),
@@ -320,38 +397,81 @@ function parseCheckpoint(value: unknown, version: string | undefined) {
     toolResults: new Map(toolResults as Array<[string, ModelMessage]>),
     steps: new Map(steps as Array<[string, unknown]>),
   }
-  return state
+  return session
 }
 
+/** A checkpoint that the harness wrote with `versions`, or `undefined`. */
+function parseCheckpoint<TState>(
+  value: unknown,
+  versions: CheckpointVersions,
+): SharedLogState<TState> | undefined {
+  if (!isRecord(value) || value.v !== 2 || typeof value.seq !== 'number') {
+    return undefined
+  }
+  if (
+    value.version !== versions.version ||
+    value.reduceVersion !== versions.reduceVersion ||
+    !Array.isArray(value.sessions)
+  ) {
+    return undefined
+  }
+  const sessions = new Map<string, LogState>()
+  for (const item of value.sessions) {
+    if (!Array.isArray(item) || typeof item[0] !== 'string') return undefined
+    const session = parseSession(item[1], value.seq)
+    if (!session) return undefined
+    sessions.set(item[0], session)
+  }
+  return {
+    seq: value.seq,
+    sessions,
+    // The harness wrote this value with `serialize`, from `reduce`.
+    reduced: (value.reduced ?? undefined) as TState | undefined,
+  }
+}
+
+const versionsOf = (
+  project: ProjectOptions | undefined,
+  reduce: { version?: string } | undefined,
+): CheckpointVersions => ({
+  ...(project?.version !== undefined ? { version: project.version } : {}),
+  ...(reduce?.version !== undefined ? { reduceVersion: reduce.version } : {}),
+})
+
 /**
- * Fold the log of `threadId`. With `metadata`, start from the newest fold
- * checkpoint when it is valid for this log and this `project.version`.
+ * Fold the log `logId`. With `metadata`, start from the newest fold
+ * checkpoint when it is valid for this log and these versions.
  */
-export async function loadLogState(options: {
+export async function loadLogState<TState = unknown>(options: {
   store: LogStore
-  threadId: string
+  logId: string
   metadata?: MetadataStore
   project?: ProjectOptions
+  reduce?: ReduceOptions<TState>
 }) {
-  const { store, threadId, metadata, project } = options
+  const { store, logId, metadata, project, reduce } = options
   const saved = metadata
-    ? await metadata.get(CHECKPOINT_NAMESPACE, threadId).catch(() => null)
+    ? await metadata.get(CHECKPOINT_NAMESPACE, logId).catch(() => null)
     : null
-  let state = parseCheckpoint(saved, project?.version) ?? emptyLogState()
+  let state =
+    parseCheckpoint<TState>(saved, versionsOf(project, reduce)) ??
+    emptySharedLogState(reduce)
   if (state.seq > 0) {
     // A checkpoint past the end of the log belongs to another log.
-    const [atCheckpoint] = await store.read(threadId, {
+    const [atCheckpoint] = await store.read(logId, {
       after: state.seq - 1,
       limit: 1,
     })
-    if (!atCheckpoint) state = emptyLogState()
+    if (!atCheckpoint) state = emptySharedLogState(reduce)
+  }
+  const fold: FoldOptions<TState> = {
+    logId,
+    ...(project ? { project: project.record } : {}),
+    ...(reduce ? { reduce } : {}),
   }
   for (;;) {
-    const page = await store.read(threadId, {
-      after: state.seq,
-      limit: READ_PAGE,
-    })
-    for (const entry of page) foldEntry(state, entry, project?.record)
+    const page = await store.read(logId, { after: state.seq, limit: READ_PAGE })
+    for (const entry of page) foldLogEntry(state, entry, fold)
     if (page.length < READ_PAGE) return state
   }
 }
@@ -363,43 +483,66 @@ const DELTA_TYPES = new Set<string>([
 ])
 
 /** The fields of a delta event that must match for a merge. */
-function deltaKey(operationId: string, event: StreamChunk) {
+function deltaKey(thread: string, operationId: string, event: StreamChunk) {
   if (!DELTA_TYPES.has(event.type) || !('delta' in event)) return undefined
   const { delta: _delta, timestamp: _timestamp, ...rest } = event
-  return JSON.stringify([operationId, rest])
+  return JSON.stringify([thread, operationId, rest])
+}
+
+/** A session's view of its log. It is also the session's {@link EventFeed}. */
+export interface LogWriter extends EventFeed {
+  readonly threadId: string
+  readonly logId: string
+  /** The fold of this session. */
+  readonly state: LogState
+  /** Append `records` after the pending events, in one batch. */
+  append: (records: ReadonlyArray<LogRecord>) => Promise<void>
+  /** Hold `records` until the next transcript commit of this session. */
+  stage: (records: ReadonlyArray<LogRecord>) => void
+  /**
+   * One batch: the pending events, the transcript change to `messages` (if
+   * any), the staged records of this session, then `records`.
+   */
+  commit: (options: {
+    messages: ReadonlyArray<ModelMessage>
+    records?: ReadonlyArray<LogRecord>
+  }) => Promise<void>
+  /** Append the pending events now. */
+  flush: () => Promise<void>
 }
 
 /**
- * Writes a session log and keeps its fold. It is also the session's
- * {@link EventFeed}: every reader reads the log.
- *
+ * Writes one log for every session that shares it, and keeps its fold.
  * All writes run one after another. Each batch goes at the next position.
  * When a write fails (another writer took the position, or the store failed
- * twice), the writer calls `onFailure`, and every later write rejects.
+ * twice), every session of the log gets `onFailure`, and every later write
+ * rejects.
  */
-export class LogWriter implements EventFeed {
-  readonly threadId: string
-  readonly state: LogState
+export class SharedLog<TState = unknown> {
+  readonly logId: string
+  readonly state: SharedLogState<TState>
   private readonly store: LogStore
-  private readonly project: ProjectOptions | undefined
+  private readonly fold: FoldOptions<TState>
+  private readonly versions: CheckpointVersions
   private readonly metadata: MetadataStore | undefined
   private readonly coalesceMs: number
-  private readonly onFailure: (error: unknown) => void
+  private readonly onIdle: () => void
+  private readonly failureListeners = new Set<(error: unknown) => void>()
   /** Events and host records that wait for the next append. */
   private readonly pending: Array<LogRecord> = []
   /** The merge key of the last pending record, when it is a delta event. */
   private pendingKey: string | undefined
-  /** Host records that wait for the next transcript commit. */
-  private readonly staged: Array<LogRecord> = []
+  /** Host records that wait for the next transcript commit, by thread. */
+  private readonly staged = new Map<string, Array<LogRecord>>()
   private timer: ReturnType<typeof setTimeout> | undefined
   private scheduled = false
   private chain: Promise<void> = Promise.resolve()
   private failure: unknown
-  private readonly tail: Array<SessionEvent> = []
+  private readonly tail: Array<{ thread: string; entry: SessionEvent }> = []
   /** Every event after this position is in `tail`. */
   private tailFrom: number
   private readonly waiters = new Set<() => void>()
-  private closed = false
+  private views = 0
   private writing = false
   private hasWritten = false
   private writesSinceCheckpoint = 0
@@ -407,39 +550,92 @@ export class LogWriter implements EventFeed {
 
   constructor(options: {
     store: LogStore
-    threadId: string
-    state: LogState
-    project?: ProjectOptions
-    metadata?: MetadataStore
+    logId: string
+    state: SharedLogState<TState>
     coalesceMs: number
-    onFailure: (error: unknown) => void
+    project?: ProjectOptions
+    reduce?: ReduceOptions<TState>
+    metadata?: MetadataStore
+    /** Called when the last session closes, or when a write fails. */
+    onIdle?: () => void
   }) {
     this.store = options.store
-    this.threadId = options.threadId
+    this.logId = options.logId
     this.state = options.state
-    this.project = options.project
     this.metadata = options.metadata
     this.coalesceMs = options.coalesceMs
-    this.onFailure = options.onFailure
+    this.onIdle = options.onIdle ?? (() => {})
+    this.fold = {
+      logId: options.logId,
+      ...(options.project ? { project: options.project.record } : {}),
+      ...(options.reduce ? { reduce: options.reduce } : {}),
+    }
+    this.versions = versionsOf(options.project, options.reduce)
     this.tailFrom = options.state.seq
     // Records from another writer (this host only reads) join the fold. A
     // call during this writer's own append is its own records.
-    this.unsubscribe = options.store.subscribe(options.threadId, () => {
+    this.unsubscribe = options.store.subscribe(options.logId, () => {
       if (!this.writing) void this.enqueue(() => this.catchUp())
     })
+  }
+
+  /** The view of session `threadId`. Close it when the session closes. */
+  view(threadId: string, onFailure: (error: unknown) => void): LogWriter {
+    this.views += 1
+    // Its own function, so two views with the same `onFailure` both count.
+    const listener = (error: unknown) => onFailure(error)
+    this.failureListeners.add(listener)
+    const shared = this.state
+    let closed = false
+    return {
+      threadId,
+      logId: this.logId,
+      get state() {
+        return sessionOf(shared, threadId)
+      },
+      publish: (operationId, event) =>
+        this.publish(threadId, operationId, event),
+      append: (records) => this.append(threadId, records),
+      stage: (records) => this.stage(threadId, records),
+      commit: (options) => this.commit(threadId, options),
+      flush: () => this.flush(),
+      head: () => this.head(),
+      read: (options) =>
+        this.read(threadId, { ...options, isClosed: () => closed }),
+      close: () => {
+        if (closed) return
+        closed = true
+        this.release(listener)
+      },
+    }
+  }
+
+  private release(listener: (error: unknown) => void) {
+    this.failureListeners.delete(listener)
+    this.views -= 1
+    void this.flush().catch(() => {})
+    // The readers of the closed view end. The others wait again.
+    this.wake()
+    if (this.views > 0) return
+    this.unsubscribe()
+    this.onIdle()
+  }
+
+  /** Stamp a record with its session, unless it names one or the session is the log's own. */
+  private stamp(record: LogRecord, thread: string): LogRecord {
+    if (typeof record.thread === 'string' || thread === this.logId) {
+      return record
+    }
+    return { ...record, thread }
   }
 
   // ===========================
   // Writes
   // ===========================
 
-  publish(operationId: string, event: StreamChunk): void {
-    const record: HarnessRecord = {
-      type: 'harness.event',
-      operationId,
-      event: normalize(event),
-    }
-    const key = deltaKey(operationId, record.event)
+  private publish(thread: string, operationId: string, event: StreamChunk) {
+    const normalized = normalize(event)
+    const key = deltaKey(thread, operationId, normalized)
     const last = this.pending.at(-1)
     const isSameDelta =
       key !== undefined &&
@@ -447,8 +643,15 @@ export class LogWriter implements EventFeed {
       last !== undefined &&
       isHarnessRecord(last) &&
       last.type === 'harness.event'
-    if (isSameDelta) last.event = mergeDelta(last.event, record.event)
-    else this.pending.push(record)
+    if (isSameDelta) last.event = mergeDelta(last.event, normalized)
+    else {
+      this.pending.push(
+        this.stamp(
+          { type: 'harness.event', operationId, event: normalized },
+          thread,
+        ),
+      )
+    }
     this.pendingKey = key
     if (key === undefined) {
       void this.flush().catch(() => {})
@@ -457,33 +660,41 @@ export class LogWriter implements EventFeed {
     this.schedule()
   }
 
-  /** Append `records` after the pending events, in one batch. */
-  append(records: ReadonlyArray<LogRecord>): Promise<void> {
-    this.pending.push(...records.map(normalize))
+  private append(thread: string, records: ReadonlyArray<LogRecord>) {
+    this.pending.push(
+      ...records.map((record) => normalize(this.stamp(record, thread))),
+    )
     this.pendingKey = undefined
     return this.flush()
   }
 
-  /** Hold `records` until the next transcript commit. */
-  stage(records: ReadonlyArray<LogRecord>): void {
-    this.staged.push(...records.map(normalize))
+  private stage(thread: string, records: ReadonlyArray<LogRecord>) {
+    const staged = this.staged.get(thread) ?? []
+    staged.push(
+      ...records.map((record) => normalize(this.stamp(record, thread))),
+    )
+    this.staged.set(thread, staged)
   }
 
-  /**
-   * One batch: the pending events, the transcript change to `messages` (if
-   * any), the staged records, then `records`.
-   */
-  commit(options: {
-    messages: ReadonlyArray<ModelMessage>
-    records?: ReadonlyArray<LogRecord>
-  }): Promise<void> {
+  private commit(
+    thread: string,
+    options: {
+      messages: ReadonlyArray<ModelMessage>
+      records?: ReadonlyArray<LogRecord>
+    },
+  ) {
     const events = this.takePending()
-    const staged = this.staged.splice(0)
-    const records = (options.records ?? []).map(normalize)
+    const staged = this.staged.get(thread)?.splice(0) ?? []
+    const records = (options.records ?? []).map((record) =>
+      normalize(this.stamp(record, thread)),
+    )
     return this.enqueue(() =>
       this.write([
         ...events,
-        ...transcriptRecord(this.state.messages, options.messages),
+        ...transcriptRecord(
+          sessionOf(this.state, thread).messages,
+          options.messages,
+        ).map((record) => this.stamp(record, thread)),
         ...staged,
         ...records,
       ]),
@@ -535,8 +746,7 @@ export class LogWriter implements EventFeed {
     try {
       await this.appendOnce(seq, batch)
     } catch (error) {
-      this.failure = error
-      this.onFailure(error)
+      this.fail(error)
       throw error
     } finally {
       this.writing = false
@@ -550,12 +760,19 @@ export class LogWriter implements EventFeed {
       void this.metadata
         ?.set(
           CHECKPOINT_NAMESPACE,
-          this.threadId,
-          normalize(serialize(this.state, this.project?.version)),
+          this.logId,
+          normalize(serialize(this.state, this.versions)),
         )
         .catch(() => {})
     }
     this.wake()
+  }
+
+  /** Stop every session of the log. The host drops it, so the next open folds again. */
+  private fail(error: unknown) {
+    this.failure = error
+    for (const listener of [...this.failureListeners]) listener(error)
+    this.onIdle()
   }
 
   /**
@@ -565,14 +782,14 @@ export class LogWriter implements EventFeed {
    */
   private async appendOnce(seq: number, batch: ReadonlyArray<LogRecord>) {
     try {
-      await this.store.append(this.threadId, seq, batch)
+      await this.store.append(this.logId, seq, batch)
       return
     } catch (error) {
       if (await this.landed(seq, batch)) return
       if (error instanceof LogConflictError) throw error
     }
     try {
-      await this.store.append(this.threadId, seq, batch)
+      await this.store.append(this.logId, seq, batch)
     } catch (error) {
       if (await this.landed(seq, batch)) return
       throw error
@@ -581,7 +798,7 @@ export class LogWriter implements EventFeed {
 
   private async landed(seq: number, batch: ReadonlyArray<LogRecord>) {
     try {
-      const entries = await this.store.read(this.threadId, {
+      const entries = await this.store.read(this.logId, {
         after: seq - 1,
         limit: batch.length,
       })
@@ -601,13 +818,12 @@ export class LogWriter implements EventFeed {
    */
   private async catchUp() {
     if (this.failure !== undefined) return
-    const entries = await this.store.read(this.threadId, {
+    const entries = await this.store.read(this.logId, {
       after: this.state.seq,
     })
     const [first] = entries
     if (first && this.hasWritten) {
-      this.failure = new LogConflictError(this.threadId, first.seq)
-      this.onFailure(this.failure)
+      this.fail(new LogConflictError(this.logId, first.seq))
       return
     }
     for (const entry of entries) this.apply(entry)
@@ -615,17 +831,13 @@ export class LogWriter implements EventFeed {
   }
 
   private apply(entry: LogEntry) {
-    foldEntry(this.state, entry, this.project?.record)
-    const { record } = entry
-    if (!isHarnessRecord(record) || record.type !== 'harness.event') return
-    this.tail.push({
-      cursor: String(entry.seq),
-      operationId: record.operationId,
-      event: record.event,
-    })
+    foldLogEntry(this.state, entry, this.fold)
+    const event = sessionEventOf(entry)
+    if (!event) return
+    this.tail.push({ thread: threadOf(entry.record, this.logId), entry: event })
     if (this.tail.length > MAX_TAIL) {
       const dropped = this.tail.shift()
-      if (dropped) this.tailFrom = Number(dropped.cursor)
+      if (dropped) this.tailFrom = Number(dropped.entry.cursor)
     }
   }
 
@@ -637,14 +849,25 @@ export class LogWriter implements EventFeed {
     return String(this.state.seq)
   }
 
-  async *read(options: {
-    from?: Cursor
-    signal?: AbortSignal
-    filter?: (entry: SessionEvent) => boolean
-    until?: () => boolean
-  }): AsyncIterable<SessionEvent> {
-    const { signal, filter, until } = options
+  /** The events of session `thread`. A cursor is a position in the log. */
+  private async *read(
+    thread: string,
+    options: {
+      from?: Cursor
+      signal?: AbortSignal
+      filter?: (entry: SessionEvent) => boolean
+      until?: () => boolean
+      isClosed: () => boolean
+    },
+  ): AsyncIterable<SessionEvent> {
+    const { signal, filter, until, isClosed } = options
     const accepts = (entry: SessionEvent) => (filter ? filter(entry) : true)
+    /** The events of this session in the tail after `after`. */
+    const ownAfter = (after: number) =>
+      this.tail
+        .filter((item) => item.thread === thread)
+        .map((item) => item.entry)
+        .filter((entry) => Number(entry.cursor) > after && accepts(entry))
     let after = Number(options.from ?? '0')
     if (!Number.isFinite(after)) after = 0
     for (;;) {
@@ -652,7 +875,7 @@ export class LogWriter implements EventFeed {
       if (after < this.tailFrom) {
         // Older than the in-memory tail: page it from the store.
         const upTo = this.tailFrom
-        const page = await this.store.read(this.threadId, {
+        const page = await this.store.read(this.logId, {
           after,
           limit: READ_PAGE,
         })
@@ -660,38 +883,29 @@ export class LogWriter implements EventFeed {
           if (entry.seq > upTo || signal?.aborted) break
           after = entry.seq
           const event = sessionEventOf(entry)
-          if (event && accepts(event)) yield event
+          const isOwn = threadOf(entry.record, this.logId) === thread
+          if (event && isOwn && accepts(event)) yield event
         }
         if (page.length === 0) after = upTo
         continue
       }
-      const next = this.tail.filter(
-        (entry) => Number(entry.cursor) > after && accepts(entry),
-      )
+      const next = ownAfter(after)
       for (const entry of next) {
         if (signal?.aborted) return
         after = Number(entry.cursor)
         yield entry
       }
-      // Skip past records that are not events or that the filter rejected.
+      // Skip past records that are not this session's events, or that the
+      // filter rejected.
       if (next.length === 0) after = Math.max(after, this.state.seq)
-      if (this.closed || until?.()) {
-        for (const entry of this.tail) {
-          if (Number(entry.cursor) > after && accepts(entry)) yield entry
-        }
+      if (isClosed() || until?.()) {
+        yield* ownAfter(after)
         return
       }
       // A write while the reader handled `next` woke nobody: scan again.
       if (next.length > 0) continue
       await this.waitForNext(signal)
     }
-  }
-
-  close(): void {
-    void this.flush().catch(() => {})
-    this.closed = true
-    this.unsubscribe()
-    this.wake()
   }
 
   private wake() {
@@ -864,21 +1078,36 @@ export function engineMessageStore(options: {
 export function logMessageStore(options: {
   store: LogStore
   project?: ProjectOptions
+  /** Read the threads of this log. Default: each thread is its own log. */
+  logId?: string
 }) {
   const { store, project } = options
+  const logOf = (threadId: string) => options.logId ?? threadId
   const load = (threadId: string) =>
-    loadLogState({ store, threadId, ...(project ? { project } : {}) })
+    loadLogState({
+      store,
+      logId: logOf(threadId),
+      ...(project ? { project } : {}),
+    })
   const messages: MessageStore = {
-    loadThread: async (threadId: string) => (await load(threadId)).messages,
+    loadThread: async (threadId: string) =>
+      sessionOf(await load(threadId), threadId).messages,
     saveThread: async (threadId, list) => {
       // ponytail: one retry after a conflict. The loser of a real race
       // reloads, so a second conflict is an error.
       for (let attempt = 1; ; attempt += 1) {
         const state = await load(threadId)
-        const records = transcriptRecord(state.messages, list)
+        const records = transcriptRecord(
+          sessionOf(state, threadId).messages,
+          list,
+        ).map((record) =>
+          logOf(threadId) === threadId
+            ? record
+            : { ...record, thread: threadId },
+        )
         if (records.length === 0) return
         try {
-          await store.append(threadId, state.seq + 1, records)
+          await store.append(logOf(threadId), state.seq + 1, records)
           return
         } catch (error) {
           if (!(error instanceof LogConflictError) || attempt === 2) throw error
