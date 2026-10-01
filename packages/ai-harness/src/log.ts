@@ -435,7 +435,7 @@ const versionsOf = (
   reduce: { version?: string } | undefined,
 ): CheckpointVersions => ({
   ...(project ? { version: project.version ?? '' } : {}),
-  // A checkpoint with a reduce fold never loads without reduce, or the reverse.
+  // A checkpoint folded with reduce or project never loads without it, or the reverse.
   ...(reduce ? { reduceVersion: reduce.version ?? '' } : {}),
 })
 

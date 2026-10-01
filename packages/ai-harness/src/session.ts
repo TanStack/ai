@@ -514,29 +514,36 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   async open(): Promise<void> {
     // First: plugins publish events while they mount.
     await this.openLog()
-    this.plugins = this.harness.plugins?.() ?? []
-    this.sessionPlugins = await mountPlugins(
-      this.plugins.filter(
-        (plugin) => (plugin.lifetime ?? 'session') === 'session',
-      ),
-      {
-        threadId: this.threadId,
-        registry: this.agentRegistry,
-        harnessTools: this.harness.tools ?? [],
-        harnessProvides: (this.harness.middleware ?? []).flatMap(
-          (middleware) => middleware.provides ?? [],
+    try {
+      this.plugins = this.harness.plugins?.() ?? []
+      this.sessionPlugins = await mountPlugins(
+        this.plugins.filter(
+          (plugin) => (plugin.lifetime ?? 'session') === 'session',
         ),
-        services: this.services,
-      },
-    )
-    await this.loadConfig()
-    await this.loadPluginState()
-    if (this.writer) {
-      await this.recoverFromLog(this.writer)
-      return
+        {
+          threadId: this.threadId,
+          registry: this.agentRegistry,
+          harnessTools: this.harness.tools ?? [],
+          harnessProvides: (this.harness.middleware ?? []).flatMap(
+            (middleware) => middleware.provides ?? [],
+          ),
+          services: this.services,
+        },
+      )
+      await this.loadConfig()
+      await this.loadPluginState()
+      if (this.writer) {
+        await this.recoverFromLog(this.writer)
+        return
+      }
+      await this.recoverCrashedTurn()
+      await this.recoverInbox()
+    } catch (error) {
+      // A session that fails to open gives its log view back, so the thread
+      // can open again.
+      this.feed.close()
+      throw error
     }
-    await this.recoverCrashedTurn()
-    await this.recoverInbox()
   }
 
   /**

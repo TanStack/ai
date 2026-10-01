@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { loadLogState, sessionOf } from '../src/log'
 import { gate, messageTexts, mockAdapter, text, toolCall } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
@@ -144,6 +144,31 @@ describe('durable host stores', () => {
 })
 
 describe('durable session log', () => {
+  it('opens the thread again after a session fails to open', async () => {
+    let fail = true
+    const { adapter } = mockAdapter([])
+    const harness = defineHarness({
+      name: 'test/flaky-open',
+      adapter,
+      plugins: () => [
+        definePlugin({
+          name: 'test/flaky',
+          setup: () => {
+            if (fail) throw new Error('setup failed')
+          },
+        }),
+      ],
+    })
+    const host = createHarnessHost({ persistence: durablePersistence() })
+
+    await expect(host.open(harness, { threadId: THREAD })).rejects.toThrow(
+      'setup failed',
+    )
+    fail = false
+    await expect(host.open(harness, { threadId: THREAD })).resolves.toBeTruthy()
+    await host.close()
+  })
+
   it('keeps a streamed text block when the host stops in the middle', async () => {
     const persistence = durablePersistence()
     const release = gate()
