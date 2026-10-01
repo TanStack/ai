@@ -189,6 +189,89 @@ describe('recovery of a durable input', () => {
     expect(calls).toHaveLength(0)
     await host.close()
   })
+
+  it('settles an input with the recover hook that the default would run again', async () => {
+    const persistence = durablePersistence()
+    await seedStoppedTurn(persistence, { attempt: 1 })
+    const seen: Array<unknown> = []
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('never')],
+      durability: {
+        recover: ({ input, decision }) => {
+          seen.push({
+            inputId: input.inputId,
+            attempt: input.attempt,
+            decision,
+          })
+          return {
+            action: 'settle',
+            outcome: 'failed',
+            error: { message: 'The host gave up.', code: 'host_rule' },
+          }
+        },
+      },
+    })
+
+    expect(await session.settled('in-1')).toEqual({
+      inputId: 'in-1',
+      outcome: 'failed',
+      operationId: 'op-stopped',
+      error: { message: 'The host gave up.', code: 'host_rule' },
+    })
+    expect(seen).toEqual([
+      { inputId: 'in-1', attempt: 1, decision: { action: 'run' } },
+    ])
+    expect(calls).toHaveLength(0)
+    await host.close()
+  })
+
+  it('runs an input with the recover hook that the default would settle', async () => {
+    const persistence = durablePersistence()
+    await seedStoppedTurn(persistence, { attempt: 1, answer: 'old answer' })
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('new answer')],
+      durability: {
+        recover: ({ decision }) =>
+          decision.action === 'settle' && decision.outcome === 'completed'
+            ? { action: 'run' }
+            : undefined,
+      },
+    })
+
+    expect(await session.settled('in-1')).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(calls).toHaveLength(1)
+    await host.close()
+  })
+
+  it('asks the recover hook about an input that never ran', async () => {
+    const persistence = durablePersistence()
+    await persistence.stores.log.append(THREAD, 1, [
+      {
+        type: 'harness.input',
+        inputId: 'in-new',
+        input: { op: 'prompt', message: 'later', busy: 'queue' },
+        at: 1,
+      },
+    ])
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('never')],
+      durability: { recover: () => ({ action: 'settle', outcome: 'aborted' }) },
+    })
+
+    expect(await session.settled('in-new')).toMatchObject({
+      outcome: 'aborted',
+    })
+    expect(calls).toHaveLength(0)
+    await host.close()
+  })
 })
 
 describe('durable input limits while a turn runs', () => {

@@ -11,7 +11,7 @@ import type {
 import type { AnyAgent } from './agents'
 import type { MediaOptions } from './media'
 import type { HarnessPlugin } from './plugins'
-import type { HarnessTurnOptions } from './turn'
+import type { HarnessTurnOptions, RecoverHook } from './turn'
 import type { BusyPolicy } from './types'
 
 /** The `subagents` option: the same as `chat({ subagents })`. */
@@ -37,6 +37,12 @@ export interface HarnessDurability {
    * timeout.
    */
   timeoutMs?: number
+  /**
+   * Decide how an input that a crashed host left recovers: an input that
+   * never ran, and a turn whose lease expired. The context has the decision
+   * the harness takes by default. Return `undefined` to keep it.
+   */
+  recover?: RecoverHook
 }
 
 /**

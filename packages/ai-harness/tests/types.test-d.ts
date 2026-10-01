@@ -9,6 +9,7 @@ import type {
   HarnessSession,
   Operation,
   Receipt,
+  RecoverHook,
 } from '../src'
 import type { InputSettlement } from '../src/types'
 
@@ -76,6 +77,7 @@ it('describes how an input ended', () => {
 
 it('takes attempt and time limits on the harness', () => {
   expectTypeOf<HarnessConfig['durability']>().toEqualTypeOf<
-    { maxAttempts?: number; timeoutMs?: number } | undefined
+    | { maxAttempts?: number; timeoutMs?: number; recover?: RecoverHook }
+    | undefined
   >()
 })

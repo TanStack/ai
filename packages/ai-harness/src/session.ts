@@ -59,7 +59,7 @@ import type {
 } from '@tanstack/ai-persistence'
 import type { AuthRequiredError, CredentialsAccess } from './auth'
 import type { EventFeed } from './feed'
-import type { LogWriter, ProjectOptions } from './log'
+import type { InputState, LogWriter, ProjectOptions } from './log'
 import type { DurableBind } from './durable-tool'
 import type { LeaseOptions } from './resume'
 import type { MediaStore } from './media'
@@ -72,6 +72,7 @@ import type {
   AnyAgent,
 } from './agents'
 import type { AnyHarness, HarnessAgentsOf } from './define'
+import type { RecoverDecision } from './turn'
 import type { HarnessPersistence } from './host'
 import type {
   AgentGroup,
@@ -2641,6 +2642,32 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }
   }
 
+  /** The recovery decision for `input`: the hook's, or `decision`. */
+  private async recoverDecision(
+    writer: LogWriter,
+    input: InputState,
+    decision: RecoverDecision,
+  ): Promise<RecoverDecision> {
+    const recover = this.harness.durability?.recover
+    if (!recover) return decision
+    const answer = await recover({
+      session: this,
+      input: {
+        inputId: input.inputId,
+        input: input.input,
+        attempt: input.attempt,
+        ...(input.timeoutAt !== undefined
+          ? { timeoutAt: input.timeoutAt }
+          : {}),
+        abortRequested: input.abortRequested,
+        ...(input.operationId ? { operationId: input.operationId } : {}),
+      },
+      messages: [...writer.state.messages],
+      decision,
+    })
+    return answer ?? decision
+  }
+
   /**
    * Recover a durable session from its log, input by input, in admission
    * order. A chat turn whose host stopped (its run lease expired) settles
@@ -2656,17 +2683,28 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     for (const input of inputs) {
       const isChat = CHAT_OPS.has(input.input.op)
       if (input.status === 'pending') {
-        if (isChat && 'message' in input.input) {
-          const operation = this.createTurnOperation()
-          this.bindTurn(input.inputId, operation)
-          this.enqueueTurn({
-            operation,
-            message: input.input.message,
-            inputId: input.inputId,
-          })
-        } else {
+        if (!(isChat && 'message' in input.input)) {
           this.reject(input.inputId, 'expired_on_restart')
+          continue
         }
+        const decision = await this.recoverDecision(writer, input, {
+          action: 'run',
+        })
+        if (decision.action === 'settle') {
+          await this.settle({
+            inputId: input.inputId,
+            outcome: decision.outcome,
+            ...(decision.error ? { error: decision.error } : {}),
+          })
+          continue
+        }
+        const operation = this.createTurnOperation()
+        this.bindTurn(input.inputId, operation)
+        this.enqueueTurn({
+          operation,
+          message: input.input.message,
+          inputId: input.inputId,
+        })
         continue
       }
       if (input.status !== 'applied' || !isChat) continue
@@ -2705,47 +2743,56 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             ...settlement,
           })),
         )
-      if (input.abortRequested) {
-        await ended({ outcome: 'aborted' })
-      } else if (input.attempt >= maxAttempts) {
+      const fallback: RecoverDecision = input.abortRequested
+        ? { action: 'settle', outcome: 'aborted' }
+        : input.attempt >= maxAttempts
+          ? {
+              action: 'settle',
+              outcome: 'failed',
+              error: {
+                message: `The input stopped the host ${input.attempt} times.`,
+                code: 'attempts_exhausted',
+              },
+            }
+          : input.timeoutAt !== undefined && now >= input.timeoutAt
+            ? {
+                action: 'settle',
+                outcome: 'failed',
+                error: {
+                  message: 'The input passed its time limit.',
+                  code: 'timeout',
+                },
+              }
+            : hasFinalAnswer(writer.state.messages, input.appliedAt ?? 0)
+              ? { action: 'settle', outcome: 'completed' }
+              : { action: 'run' }
+      const decision = await this.recoverDecision(writer, input, fallback)
+      if (decision.action === 'settle') {
         await ended({
-          outcome: 'failed',
-          error: {
-            message: `The input stopped the host ${input.attempt} times.`,
-            code: 'attempts_exhausted',
-          },
+          outcome: decision.outcome,
+          ...(decision.error ? { error: decision.error } : {}),
         })
-      } else if (input.timeoutAt !== undefined && now >= input.timeoutAt) {
-        await ended({
-          outcome: 'failed',
-          error: {
-            message: 'The input passed its time limit.',
-            code: 'timeout',
-          },
-        })
-      } else if (hasFinalAnswer(writer.state.messages, input.appliedAt ?? 0)) {
-        await ended({ outcome: 'completed' })
-      } else {
-        const started = [...writer.state.started]
-          .filter(([toolCallId]) => !writer.state.toolResults.has(toolCallId))
-          .map(([toolCallId, tool]) => ({ toolCallId, ...tool }))
-        await repairTranscript({
-          messages: this.messages,
-          threadId: this.threadId,
-          pending: [...(run?.checkpoint?.pendingTools ?? []), ...started],
-          finished: writer.state.toolResults,
-        })
-        const operation = this.createTurnOperation()
-        this.bindTurn(input.inputId, operation)
-        this.feed.publish(
-          operation.id,
-          customEvent(HARNESS_EVENTS.operationResumed, {
-            operationId: operation.id,
-            ...(operationId ? { resumedFrom: operationId } : {}),
-          }),
-        )
-        this.enqueueTurn({ operation, inputId: input.inputId })
+        continue
       }
+      const started = [...writer.state.started]
+        .filter(([toolCallId]) => !writer.state.toolResults.has(toolCallId))
+        .map(([toolCallId, tool]) => ({ toolCallId, ...tool }))
+      await repairTranscript({
+        messages: this.messages,
+        threadId: this.threadId,
+        pending: [...(run?.checkpoint?.pendingTools ?? []), ...started],
+        finished: writer.state.toolResults,
+      })
+      const operation = this.createTurnOperation()
+      this.bindTurn(input.inputId, operation)
+      this.feed.publish(
+        operation.id,
+        customEvent(HARNESS_EVENTS.operationResumed, {
+          operationId: operation.id,
+          ...(operationId ? { resumedFrom: operationId } : {}),
+        }),
+      )
+      this.enqueueTurn({ operation, inputId: input.inputId })
     }
   }
 }
