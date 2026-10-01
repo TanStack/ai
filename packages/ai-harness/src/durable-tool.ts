@@ -80,11 +80,23 @@ const noLog = () => {
 
 const emptyContext: ToolExecutionContext = { emitCustomEvent: () => {} }
 
+/** Options for {@link durableTool}. */
+export interface DurableToolOptions {
+  /**
+   * What the harness does with a call that a crash cut:
+   * - `'safe'` (default): run it again. Finished steps return their stored
+   *   values.
+   * - `'never'`: give the model a tool error. The call does not run again.
+   */
+  replay?: 'safe' | 'never'
+}
+
 /**
  * Make a server tool whose side effects survive a crash. `execute` gets
  * `step` and `append` next to the normal tool context. Put each side effect
  * in `step.do(name, fn)`: when a crash makes the harness run the call again,
- * finished steps return their stored values. The tool has `replay: 'safe'`.
+ * finished steps return their stored values. The tool has `replay: 'safe'`
+ * unless `options.replay` says `'never'`.
  *
  * Outside a durable harness session (plain `chat()`, or a host without
  * `stores.log`), `step.do` runs `fn` each time and `append` throws.
@@ -118,6 +130,7 @@ export function durableTool<
     args: InferSchemaType<TInput>,
     context: DurableToolContext,
   ) => Promise<InferSchemaType<TOutput>> | InferSchemaType<TOutput>,
+  options: DurableToolOptions = {},
 ) {
   const tool = definition.server((args, context) =>
     execute(args, {
@@ -133,7 +146,7 @@ export function durableTool<
     value: execute,
     enumerable: true,
   })
-  return Object.assign(tool, { replay: 'safe' as const })
+  return Object.assign(tool, { replay: options.replay ?? 'safe' })
 }
 
 function isDurableTool(

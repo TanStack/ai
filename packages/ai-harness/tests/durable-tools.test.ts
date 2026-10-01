@@ -266,3 +266,71 @@ describe('host records of a tool batch', () => {
     await next.host.close().catch(() => {})
   })
 })
+
+describe('a durable tool with replay: never', () => {
+  it('lands its staged records with the batch', async () => {
+    const persistence = durablePersistence()
+    const note = durableTool(
+      toolDefinition({ name: 'note', description: 'Write a note' }),
+      async (_args, { append }) => {
+        append([{ type: 'app.state_write', name: 'x', value: 1 }])
+        return 'noted'
+      },
+      { replay: 'never' },
+    )
+    const { host, session } = await openDurable(
+      persistence,
+      [() => toolCall('note', {}, 'call-note'), () => text('done')],
+      [note],
+    )
+
+    await session.prompt('note it')
+
+    expect(note.replay).toBe('never')
+    expect(await recordsOf(persistence, 'app.state_write')).toEqual([
+      { type: 'app.state_write', name: 'x', value: 1 },
+    ])
+    await host.close()
+  })
+
+  it('gives the model the tool error after a crash, and does not run again', async () => {
+    const persistence = durablePersistence()
+    const send = vi.fn(async () => 'sent')
+    const started = gate()
+    let runs = 0
+    const mail = durableTool(
+      toolDefinition({ name: 'mail', description: 'Send a mail' }),
+      async (_args, { step, abortSignal }) => {
+        runs += 1
+        await step.do('send', send)
+        started.open()
+        // The first host stops here.
+        return untilAborted(abortSignal)
+      },
+      { replay: 'never' },
+    )
+    const first = await openDurable(
+      persistence,
+      [() => toolCall('mail', {}, 'call-mail')],
+      [mail],
+    )
+    const turn = first.session.prompt('mail it', { inputId: 'mail-1' })
+    await started.opened
+    await expireLease(persistence, turn.id)
+
+    const next = await openDurable(persistence, [() => text('checked')], [mail])
+    expect(await next.session.settled('mail-1')).toMatchObject({
+      outcome: 'completed',
+    })
+
+    const result = (await next.session.transcript()).find(
+      (message) =>
+        message.role === 'tool' && message.toolCallId === 'call-mail',
+    )
+    expect(result?.error).toBe(INTERRUPTED_TOOL_RESULT.note)
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(runs).toBe(1)
+    await first.host.close().catch(() => {})
+    await next.host.close()
+  })
+})

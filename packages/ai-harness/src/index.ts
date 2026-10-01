@@ -9,7 +9,11 @@ export type {
 } from './define'
 
 export { durableTool } from './durable-tool'
-export type { DurableToolContext, ToolStep } from './durable-tool'
+export type {
+  DurableToolContext,
+  DurableToolOptions,
+  ToolStep,
+} from './durable-tool'
 
 export { logMessageStore } from './log'
 export type { ProjectOptions, ProjectRecord } from './log'
