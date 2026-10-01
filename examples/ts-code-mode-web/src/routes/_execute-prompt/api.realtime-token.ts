@@ -3,7 +3,7 @@ import { realtimeToken } from '@tanstack/ai'
 import { openaiRealtimeToken } from '@tanstack/ai-openai'
 
 export const Route = createFileRoute(
-  '/_execute-prompt/api/realtime-token' as any,
+  '/_execute-prompt/api/realtime-token',
 )({
   server: {
     handlers: {
