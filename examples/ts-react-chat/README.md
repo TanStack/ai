@@ -39,7 +39,7 @@ An example chat application built with TanStack Start, TanStack Store, and **Tan
 OPENAI_API_KEY=your_openai_api_key
 ```
 
-No key? Open the key dialog and click **Continue with ChatGPT**.
+No key? Open the key dialog and click **Continue with ChatGPT**. Start the app with `pnpm dev`, not `pnpm dev:vite`. `pnpm dev` also runs `scripts/serve-chatgpt-callback.mjs`, which sends the ChatGPT callback from `127.0.0.1` to `localhost`.
 
 ## Trying Out Lazy Tool Discovery
 

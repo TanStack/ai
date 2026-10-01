@@ -75,23 +75,6 @@ const nitroServeApiToSubresources = {
   },
 } as const satisfies import('vite').PluginOption
 
-// The server listens on 127.0.0.1 (see `server.host`), but the app runs on
-// localhost: passkeys reject IP hosts. Print the URL to open.
-const printLocalhostUrl = {
-  name: 'print-localhost-url',
-  configureServer(server) {
-    const print = server.printUrls
-    server.printUrls = () => {
-      if (server.resolvedUrls) {
-        server.resolvedUrls.local = server.resolvedUrls.local.map((url) =>
-          url.replace('//127.0.0.1:', '//localhost:'),
-        )
-      }
-      print()
-    }
-  },
-} as const satisfies import('vite').PluginOption
-
 const config = defineConfig({
   optimizeDeps: { exclude: SERVER_ONLY_NATIVE },
   // Server-side only fix. @elevenlabs/elevenlabs-js ships a top-level
@@ -111,12 +94,8 @@ const config = defineConfig({
   // this is a no-op there.
   build: { rollupOptions: { external: SERVER_ONLY_NATIVE } },
   resolve: { tsconfigPaths: true },
-  // Listen on IPv4 loopback so both localhost and 127.0.0.1 reach the app.
-  // Sign in with ChatGPT redirects to 127.0.0.1. Vite's default is ::1 only.
-  server: { host: '127.0.0.1' },
   plugins: [
     nitroServeApiToSubresources,
-    printLocalhostUrl,
     devtools(),
     webSocketChatPlugin(),
     nitro(),
