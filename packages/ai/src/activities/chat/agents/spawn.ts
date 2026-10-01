@@ -9,7 +9,6 @@ import {
   tanstackMetadata,
   withTanstackMetadata,
 } from '../../../utilities/merge-metadata'
-import { mergeStreams } from '../../../utilities/merge-streams'
 import { INTERRUPT_BINDING_METADATA_KEY } from '../../../interrupt-resume'
 import { EMIT_STREAM_CHUNK, SUBAGENT_TOOL } from '../tools/tool-calls'
 import type { SubagentToolOutcome } from '../tools/tool-calls'
@@ -640,6 +639,36 @@ export async function* spawnAgentStream(
   }
 }
 
+async function* mergeAgentStreams(streams: Array<AsyncIterable<StreamChunk>>) {
+  const readers = streams.map((stream) => {
+    const iterator = stream[Symbol.asyncIterator]()
+    return {
+      iterator,
+      next: iterator.next(),
+    }
+  })
+
+  try {
+    while (readers.length > 0) {
+      const indexed = readers.map((reader, index) =>
+        reader.next.then((result) => ({ index, result, reader })),
+      )
+      const winner = await Promise.race(indexed)
+      if (winner.result.done) {
+        readers.splice(winner.index, 1)
+        continue
+      }
+      yield winner.result.value
+      winner.reader.next = winner.reader.iterator.next()
+    }
+  } finally {
+    // The reader stopped early. Close every child so its finally runs.
+    for (const reader of readers) {
+      void reader.iterator.return?.().catch(() => {})
+    }
+  }
+}
+
 /** True when a child in these chunks failed or stopped for outside input. */
 function stopsSequence(chunks: ReadonlyArray<StreamChunk>, id: string) {
   return chunks.some(
@@ -705,7 +734,7 @@ export async function* spawnNamedAgents(
       yield* onlyStream
       return
     }
-    yield* mergeStreams(streams)
+    yield* mergeAgentStreams(streams)
   } finally {
     group.controller.abort()
     group.dispose()

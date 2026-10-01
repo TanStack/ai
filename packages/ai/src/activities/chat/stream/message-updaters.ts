@@ -451,7 +451,6 @@ export function updateThinkingPart(
   stepId: string,
   content: string,
   signature?: string,
-  redacted?: boolean,
 ): Array<UIMessage> {
   return messages.map((msg) => {
     if (msg.id !== messageId) {
@@ -484,14 +483,12 @@ export function updateThinkingPart(
     // not carry one; losing it would strip the provider's encrypted reasoning
     // from a message that is about to be sent back.
     const nextSignature = signature ?? adopted?.signature
-    const nextRedacted = redacted === true || adopted?.redacted === true
 
     const thinkingPart: ThinkingPart = {
       type: 'thinking',
       content,
       stepId,
       ...(nextSignature && { signature: nextSignature }),
-      ...(nextRedacted && { redacted: true }),
     }
 
     if (thinkingPartIndex >= 0) {

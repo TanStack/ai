@@ -786,7 +786,6 @@ export class StreamProcessor {
       hasSeenReasoningEvents: false,
       thinkingSteps: new Map(),
       thinkingStepSignatures: new Map(),
-      thinkingStepRedacted: new Set(),
       thinkingStepOrder: [],
       currentThinkingStepId: null,
       toolCalls: new Map(),
@@ -2357,14 +2356,12 @@ export class StreamProcessor {
     if (thinking === undefined) return
 
     state.thinkingStepSignatures.set(stepId, signature)
-    if (extra.redacted === true) state.thinkingStepRedacted.add(stepId)
     this.messages = updateThinkingPart(
       this.messages,
       messageId,
       stepId,
       thinking,
       signature,
-      state.thinkingStepRedacted.has(stepId),
     )
     this.emitMessagesChange()
   }
@@ -2403,7 +2400,6 @@ export class StreamProcessor {
       stepId,
       nextThinking,
       state.thinkingStepSignatures.get(stepId),
-      state.thinkingStepRedacted.has(stepId),
     )
     this.emitMessagesChange()
 
@@ -2431,9 +2427,6 @@ export class StreamProcessor {
     )
     const stepId = state.currentThinkingStepId ?? chunk.entityId
     state.thinkingStepSignatures.set(stepId, encryptedValue)
-    if (tanstackMetadata(chunk)?.redacted === true) {
-      state.thinkingStepRedacted.add(stepId)
-    }
     const content = state.thinkingSteps.get(stepId) ?? ''
     if (!state.thinkingSteps.has(stepId)) {
       state.thinkingSteps.set(stepId, content)
@@ -2445,7 +2438,6 @@ export class StreamProcessor {
       stepId,
       content,
       encryptedValue,
-      state.thinkingStepRedacted.has(stepId),
     )
     this.emitMessagesChange()
   }

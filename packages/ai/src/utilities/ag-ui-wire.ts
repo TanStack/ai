@@ -225,9 +225,6 @@ export function uiMessagesToWire(
         if (part.signature) {
           reasoning.encryptedValue = part.signature
         }
-        if (part.redacted) {
-          reasoning.metadata = { tanstack: { redacted: true } }
-        }
         wire.push(reasoning)
       }
 

@@ -596,16 +596,6 @@ The `info` object provides:
 | `result` | `unknown` | Result (when `ok` is true) |
 | `error` | `unknown` | Error (when `ok` is false) |
 
-### Tool hook order in one turn
-
-When the model calls several server tools in one turn, the tools run at the same time:
-
-- `onBeforeToolCall` runs for each call in call order, before any tool starts.
-- `onAfterToolCall` runs for each tool when it finishes, so in finish order.
-- A tool that has not started when the run aborts does not run. `onAfterToolCall` gets `ok: false` with the error "Operation aborted".
-
-With `toolExecution: 'sequential'`, or a tool with `sequential: true` in the turn, each call finishes its `onBeforeToolCall`, its run, and its `onAfterToolCall` before the next call starts. See [Run tools one at a time](../tools/tools#run-tools-one-at-a-time).
-
 ### onUsage
 
 Called once per model iteration when the `RUN_FINISHED` chunk includes usage data. Receives the usage object directly.

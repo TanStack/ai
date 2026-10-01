@@ -24,8 +24,6 @@ type AdapterExtras = {
   stepType?: string
   delta?: string | ReadonlyArray<unknown>
   signature?: string
-  /** With `signature`: the provider redacted this thinking block. */
-  redacted?: boolean
   error?: { message: string; code?: string }
   'tanstack:interruptErrors'?: ReadonlyArray<InterruptSubmissionError>
   threadId?: string

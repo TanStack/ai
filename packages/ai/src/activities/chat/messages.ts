@@ -72,11 +72,6 @@ function encryptedValueFrom(value: object): string | undefined {
   return nonEmptyString(tanstackMetadata(value)?.signature)
 }
 
-/** `{ redacted: true }` when a reasoning message carries a redacted block. */
-function redactedFrom(value: object) {
-  return tanstackMetadata(value)?.redacted === true ? { redacted: true } : {}
-}
-
 function toolCallFromWire(toolCall: ToolCall, bag: unknown): ToolCall {
   const fromBag =
     bag != null && typeof bag === 'object' && !Array.isArray(bag)
@@ -251,7 +246,7 @@ function convertOwnMessages(
   }
 
   const modelMessages: Array<ModelMessage> = []
-  let pendingThinking: NonNullable<ModelMessage['thinking']> = []
+  let pendingThinking: Array<{ content: string; signature?: string }> = []
   for (const msg of messages) {
     if ('parts' in msg) {
       modelMessages.push(...uiMessageToModelMessages(msg))
@@ -278,7 +273,6 @@ function convertOwnMessages(
         pendingThinking.push({
           content: typeof content === 'string' ? content : '',
           ...(signature !== undefined ? { signature } : {}),
-          ...redactedFrom(msg),
         })
       }
       continue
@@ -669,7 +663,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   // shared UI id on each one so persistence can retain the original identity.
   const messageList: Array<ModelMessage> = []
   let current = createSegment()
-  let pendingThinking: NonNullable<ModelMessage['thinking']> = []
+  let pendingThinking: Array<{ content: string; signature?: string }> = []
 
   // Track emitted tool result IDs to avoid duplicates.
   // A tool call can have BOTH an explicit tool-result part AND an output
@@ -770,7 +764,6 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
           pendingThinking.push({
             content: part.content,
             ...(part.signature && { signature: part.signature }),
-            ...(part.redacted && { redacted: true }),
           })
         }
         break
@@ -905,7 +898,6 @@ export function modelMessageToUIMessage(
         type: 'thinking',
         content: thinking.content,
         ...(thinking.signature && { signature: thinking.signature }),
-        ...(thinking.redacted && { redacted: true }),
       })
     }
   }
@@ -1129,7 +1121,6 @@ export function aguiSnapshotMessageToUIMessage(
                   type: 'thinking' as const,
                   content,
                   ...(signature !== undefined ? { signature } : {}),
-                  ...redactedFrom(message),
                 },
               ]
             : [],
