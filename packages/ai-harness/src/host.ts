@@ -11,6 +11,7 @@ import type {
   GenerationRunStore,
   InboxStore,
   InterruptStore,
+  LeaseStore,
   LogStore,
   MetadataStore,
 } from '@tanstack/ai-persistence'
@@ -26,13 +27,18 @@ type SharedStores = {
   generationRuns?: GenerationRunStore
 }
 
+/** A durable host needs run leases, host leases, or both. */
+type DurableLeases =
+  | { runs: RunStore; leases?: LeaseStore }
+  | { runs?: RunStore; leases: LeaseStore }
+
 /**
  * The stores a host needs. Two shapes:
  *
  * - A message store, plus any of runs, interrupts, metadata, and inbox.
  *   Without an inbox, inputs are kept in memory and a restart loses the ones
  *   not yet applied.
- * - Durable mode: a `log` and `runs`. The log holds the events, transcript,
+ * - Durable mode: a `log`, and `runs` or `leases`. The log holds the events, transcript,
  *   inputs, and tool steps of each thread, so this shape has no `messages`
  *   and no `inbox`.
  *
@@ -40,17 +46,21 @@ type SharedStores = {
  */
 export type HarnessPersistence =
   | AIPersistence<
-      ChatTranscriptStores & { inbox?: InboxStore; log?: never } & SharedStores
+      ChatTranscriptStores & {
+        inbox?: InboxStore
+        log?: never
+        leases?: never
+      } & SharedStores
     >
   | AIPersistence<
       {
         log: LogStore
-        runs: RunStore
         interrupts?: InterruptStore
         metadata?: MetadataStore
         messages?: never
         inbox?: never
-      } & SharedStores
+      } & DurableLeases &
+        SharedStores
     >
 
 export interface HarnessHostOptions<TLogState = undefined> {
@@ -115,9 +125,9 @@ let warned = false
 function checkDurableStores(persistence: HarnessPersistence) {
   const { stores } = persistence
   if (stores.log === undefined) return
-  if (stores.runs === undefined) {
+  if (stores.runs === undefined && stores.leases === undefined) {
     throw new Error(
-      'A durable host (stores.log) needs stores.runs: run leases find a crashed host.',
+      'A durable host (stores.log) needs stores.runs or stores.leases: a lease finds a crashed host.',
     )
   }
   if (stores.messages !== undefined || stores.inbox !== undefined) {

@@ -18,6 +18,11 @@ export type {
 export { logMessageStore } from './log'
 export type { ProjectOptions, ProjectRecord, ReduceOptions } from './log'
 export type { LeaseOptions } from './resume'
+export type {
+  LeaseStore,
+  TurnLease,
+  TurnLeaseKey,
+} from '@tanstack/ai-persistence'
 
 export { definePlugin } from './plugins'
 export type {

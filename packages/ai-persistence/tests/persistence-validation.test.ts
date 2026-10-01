@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { withGenerationPersistence, withPersistence } from '../src/middleware'
 import { reconstructChat } from '../src/reconstruct'
 import { defineAIPersistence } from '../src/types'
-import type { ChatTranscriptPersistence } from '../src/types'
+import type { ChatTranscriptPersistence, LeaseStore } from '../src/types'
 import {
   createGenerationRunStore,
   createInterruptStore,
@@ -95,5 +95,16 @@ describe('persistence store dependency validation', () => {
         new Request('http://example.test/api/chat?threadId=t1'),
       ),
     ).rejects.toThrow(/requires stores\.messages/i)
+  })
+
+  it('accepts a lease store', () => {
+    const leases: LeaseStore = {
+      acquire: async () => {},
+      renew: async () => {},
+      release: async () => {},
+      isAlive: async () => false,
+    }
+
+    expect(() => defineAIPersistence({ stores: { leases } })).not.toThrow()
   })
 })

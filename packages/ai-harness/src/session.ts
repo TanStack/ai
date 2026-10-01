@@ -23,6 +23,7 @@ import { mediaIdOf, mediaOfMessage } from './media-ref'
 import { OperationImpl } from './operation'
 import { mountPlugins } from './plugins'
 import {
+  LEASE,
   checkpointMiddleware,
   findCrashedRuns,
   repairTranscript,
@@ -1696,6 +1697,47 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     return () => clearTimeout(timer)
   }
 
+  /**
+   * Hold the lease of a turn attempt in `stores.leases` while it runs.
+   * Returns the function that releases it. Without a lease store (or
+   * without a log), it returns nothing: the run lease of the checkpoint
+   * middleware decides.
+   */
+  private async holdLease(
+    inputId: string | undefined,
+    operation: OperationImpl<ChatTurnResult>,
+  ): Promise<(() => Promise<void>) | undefined> {
+    const leases = this.persistence.stores.leases
+    const attempt =
+      inputId === undefined
+        ? undefined
+        : this.writer?.state.inputs.get(inputId)?.attempt
+    if (!leases || inputId === undefined || attempt === undefined) {
+      return undefined
+    }
+    const ttlMs = this.lease?.ttlMs ?? LEASE.ttlMs
+    const renewMs = this.lease?.renewMs ?? LEASE.renewMs
+    const lease = () => ({
+      threadId: this.threadId,
+      inputId,
+      operationId: operation.id,
+      attempt,
+      ownerId: this.hostId,
+      expiresAt: Date.now() + ttlMs,
+    })
+    await leases.acquire(lease())
+    const timer = setInterval(
+      () => void leases.renew(lease()).catch(() => {}),
+      renewMs,
+    )
+    // A lease timer must not keep a CLI or a test process alive.
+    if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+    return async () => {
+      clearInterval(timer)
+      await leases.release(lease()).catch(() => {})
+    }
+  }
+
   private async runTurn(turn: QueuedTurn): Promise<void> {
     const { operation } = turn
     operation.setStatus('running')
@@ -1708,6 +1750,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         this.publishFinished(operation)
         return
       }
+    }
+    let releaseLease: (() => Promise<void>) | undefined
+    try {
+      releaseLease = await this.holdLease(turn.inputId, operation)
+    } catch (error) {
+      operation.fail('failed', error)
+      this.publishFinished(operation)
+      return
     }
     const stopTimer = this.startTimeout(turn.inputId, operation)
     this.publishStarted(operation)
@@ -1970,6 +2020,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       operation.finish('completed', { text })
     }
     this.publishFinished(operation)
+    // Release after the settlement: a crash in between leaves a settled input.
+    // No await without a lease: an extra tick would delay the status change.
+    if (releaseLease) await releaseLease()
     // Steers the turn never reached run next, before other queued turns.
     this.queue.unshift(
       ...this.steerQueue.splice(0).map((steer) => {
@@ -2605,12 +2658,21 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         continue
       }
       if (input.status !== 'applied' || !isChat) continue
+      const leases = this.persistence.stores.leases
       const run = input.operationId ? await runs?.get(input.operationId) : null
       const now = Date.now()
+      // A host lease store decides when there is one. Else the run lease does.
       const isAlive =
-        run?.status === 'running' &&
-        run.leaseExpiresAt !== undefined &&
-        run.leaseExpiresAt >= now
+        leases && input.operationId
+          ? await leases.isAlive({
+              threadId: this.threadId,
+              inputId: input.inputId,
+              operationId: input.operationId,
+              attempt: input.attempt,
+            })
+          : run?.status === 'running' &&
+            run.leaseExpiresAt !== undefined &&
+            run.leaseExpiresAt >= now
       // Another host still drives this turn.
       if (isAlive) continue
       if (run?.status === 'running') {
