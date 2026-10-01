@@ -10,6 +10,7 @@ import {
   runAgentStream,
   validateWithStandardSchema,
 } from '@tanstack/ai'
+import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { credentialsFor, providerKeysFor } from './auth'
 import { checkConfigValue } from './config'
 import { LogConflictError, withPersistence } from '@tanstack/ai-persistence'
@@ -1535,6 +1536,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           : []
         const list = [...config.messages, ...added]
         const synced = await this.engine?.beforeModel(list, joins)
+        // A retried call loads the saved transcript, so a host without a log
+        // saves it before each model call when the harness can retry.
+        if (!this.engine && this.harness.turn?.onModelError) {
+          await this.messages.saveThread(this.threadId, list)
+        }
         for (const steer of steers) this.join(ctx.runId, steer)
         if (steers.length === 0 && !synced) return undefined
         return { messages: synced ?? list }
@@ -1868,7 +1874,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       // answer: a late join gets its answer in this turn. A run that failed
       // runs again when `turn.onModelError` answers 'retry'.
       for (;;) {
-        const textBefore = text
+        let textBefore = text
         let runError: { message: string; code?: string } | undefined
         let heldError: StreamChunk | undefined
         try {
@@ -1961,9 +1967,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
               interrupts = chunk.outcome.interrupts
             }
             if (chunk.type === EventType.RUN_ERROR) failure = chunk.message
-            // A finished tool phase resets the retries. Streamed text does
-            // not, so a call that fails after some text still counts.
-            if (chunk.type === EventType.TOOL_CALL_RESULT) retries = 0
+            // A finished tool phase resets the retries, and its text stays in
+            // the result. Streamed text does not reset them, so a call that
+            // fails after some text still counts.
+            if (chunk.type === EventType.TOOL_CALL_RESULT) {
+              retries = 0
+              textBefore = text
+            }
           }
         } catch (error) {
           // The outer catch handles a cancelled turn, a log failure, and a
@@ -1971,7 +1981,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           if (signal.aborted || this.logFailure || !turnHooks?.onModelError) {
             throw error
           }
-          runError = { message: errorText(error) }
+          const { code } = toRunErrorPayload(error)
+          runError = {
+            message: errorText(error),
+            ...(code !== undefined ? { code } : {}),
+          }
         }
         if (runError && turnHooks?.onModelError) {
           const answer =
@@ -1996,15 +2010,19 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
                 error: runError,
               }),
             )
+            // The resume stays: withPersistence commits it only when a call
+            // succeeds, so its interrupts are still open.
             message = undefined
-            resume = undefined
-            parentRunId = undefined
             // withPersistence failed the run. It runs again, for the retry.
             await this.persistence.stores.runs?.update(operation.id, {
               status: 'running',
+              finishedAt: undefined,
+              error: undefined,
             })
             continue
           }
+          // A cancel or a log failure ends the turn without the held error.
+          if (signal.aborted) break
           // Here, and not in the outer catch, for an error the run threw.
           operation.publish(
             heldError ?? {
