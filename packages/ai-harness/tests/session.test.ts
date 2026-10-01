@@ -502,3 +502,44 @@ describe('plugins', () => {
     )
   })
 })
+
+describe('a waiting steer with an abort request, without a log', () => {
+  it('does not join, and settles aborted', async () => {
+    const started = gate()
+    const done = gate()
+    const wait = toolDefinition({ name: 'wait', description: 'Wait' }).server(
+      async () => {
+        started.open()
+        await done.opened
+        return 'waited'
+      },
+    )
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('wait', {}),
+      () => text('host answer'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({ name: 'test/steer-abort', adapter, tools: [wait] }),
+      { threadId: 't-abort' },
+    )
+
+    const turn = session.prompt('start')
+    await started.opened
+    const steer = session.prompt('stop me', {
+      busy: 'steer',
+      inputId: 'steer-1',
+    })
+    await steer.receipt
+    await session.cancel(steer.id)
+    done.open()
+
+    expect(await turn).toEqual({ text: 'host answer' })
+    expect(messageTexts(calls[1])).not.toContain('stop me')
+    expect(await session.settled('steer-1')).toMatchObject({
+      outcome: 'aborted',
+    })
+    expect(calls).toHaveLength(2)
+    await host.close()
+  })
+})

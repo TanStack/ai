@@ -252,3 +252,91 @@ describe('recovery of durable joins', () => {
     await host.close()
   })
 })
+
+describe('the join rule', () => {
+  const waitTool = () => {
+    const started = gate()
+    const done = gate()
+    const tool = toolDefinition({ name: 'wait', description: 'Wait' }).server(
+      async () => {
+        started.open()
+        await done.opened
+        return 'waited'
+      },
+    )
+    return { tool, started, done }
+  }
+
+  it('joins A, stops at B with an abort request, and runs C as its own turn', async () => {
+    const { persistence } = durablePersistence()
+    const wait = waitTool()
+    const { host, session, calls } = await openDurable(
+      persistence,
+      [
+        () => toolCall('wait', {}),
+        () => text('answer a'),
+        () => text('answer c'),
+      ],
+      [wait.tool],
+    )
+
+    const turn = session.prompt('start', { inputId: 'host' })
+    await wait.started.opened
+    const steer = (name: string) =>
+      session.prompt(name, { busy: 'steer', inputId: `join-${name}` })
+    const a = steer('a')
+    const b = steer('b')
+    const c = steer('c')
+    await Promise.all([a, b, c].map((join) => join.receipt))
+    await session.cancel(b.id)
+    wait.done.open()
+
+    await turn
+    expect(messageTexts(calls[1]).at(-1)).toBe('a')
+    expect(await session.settled('join-a')).toMatchObject({
+      outcome: 'completed',
+      operationId: turn.id,
+    })
+    expect(await session.settled('join-b')).toMatchObject({
+      outcome: 'aborted',
+    })
+    await expect(b).rejects.toThrow()
+    const ownTurn = await session.settled('join-c')
+    expect(ownTurn).toMatchObject({ outcome: 'completed' })
+    expect(ownTurn.operationId).not.toBe(turn.id)
+    expect(messageTexts(calls[2]).at(-1)).toBe('c')
+    await host.close()
+  })
+
+  it('runs an input that canJoin refuses as its own turn later', async () => {
+    const { persistence } = durablePersistence()
+    const wait = waitTool()
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('wait', {}),
+      () => text('host answer'),
+      () => text('later answer'),
+    ])
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/joins',
+        adapter,
+        tools: [wait.tool],
+        turn: { canJoin: ({ message }) => message !== 'later' },
+      }),
+      { threadId: THREAD },
+    )
+
+    const turn = session.prompt('start', { inputId: 'host' })
+    await wait.started.opened
+    const later = session.prompt('later', { busy: 'steer', inputId: 'later' })
+    await later.receipt
+    wait.done.open()
+
+    await turn
+    expect(messageTexts(calls[1])).not.toContain('later')
+    expect(await later).toEqual({ text: 'later answer' })
+    expect((await session.settled('later')).operationId).not.toBe(turn.id)
+    await host.close()
+  })
+})

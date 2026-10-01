@@ -392,6 +392,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     message: UserInput
     operation?: OperationImpl<ChatTurnResult>
   }> = []
+  /** Waiting steers with an abort request, on a host without a log. */
+  private readonly abortedSteers = new Set<string>()
   private readonly pendingNotes: Array<string> = []
   private activeTurn: OperationImpl<ChatTurnResult> | undefined
   private interrupted:
@@ -852,6 +854,16 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       await this.writer.append([
         { type: 'harness.input.abort', inputId: targetInput },
       ])
+    }
+    const waitingSteer = this.steerQueue.find(
+      (steer) => steer.operation === target,
+    )
+    if (waitingSteer) {
+      // It never joins now, and settles when the running turn ends. A
+      // durable host has the abort request in the log already.
+      if (!this.writer) this.abortedSteers.add(waitingSteer.inputId)
+      await this.markApplied(inputId, target.id)
+      return { inputId, status: 'accepted', operationId: target.id }
     }
     const queued = this.queue.findIndex((turn) => turn.operation === target)
     if (queued >= 0) {
@@ -1511,19 +1523,42 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }
   }
 
+  private isAbortRequested(inputId: string) {
+    return (
+      this.writer?.state.inputs.get(inputId)?.abortRequested === true ||
+      this.abortedSteers.has(inputId)
+    )
+  }
+
+  /**
+   * How many waiting steers join now: the prefix up to the first one that
+   * has an abort request, or that `turn.canJoin` refuses.
+   */
+  private async joinableCount() {
+    const canJoin = this.harness.turn?.canJoin
+    let count = 0
+    for (const steer of this.steerQueue) {
+      if (this.isAbortRequested(steer.inputId)) break
+      const candidate = { inputId: steer.inputId, message: steer.message }
+      if (canJoin && !(await canJoin(candidate))) break
+      count += 1
+    }
+    return count
+  }
+
   /**
    * Middleware that runs before each model call. Queued steers join the
-   * running turn in admission order. On a durable host, one append commits
-   * the engine's messages, the steer messages, and the join records, so a
-   * crash never splits a join. The model gets the folded log when a host
-   * record changed the context.
+   * running turn in admission order, as far as `joinableCount` lets them.
+   * On a durable host, one append commits the engine's messages, the steer
+   * messages, and the join records, so a crash never splits a join. The
+   * model gets the folded log when a host record changed the context.
    */
   private steering(): AnyChatMiddleware {
     return {
       name: 'harness:steering',
       onConfig: async (ctx, config) => {
         if (ctx.phase !== 'beforeModel') return undefined
-        const steers = this.steerQueue.splice(0)
+        const steers = this.steerQueue.splice(0, await this.joinableCount())
         const added = steers.map(
           (steer): ModelMessage => ({
             id: createMessageId(),
@@ -2047,7 +2082,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           (interrupts?.length ?? 0) > 0 ||
           signal.aborted
         if (isFinished) break
-        const hasLateJoin = this.steerQueue.length > 0
+        const hasLateJoin = (await this.joinableCount()) > 0
         if (!hasLateJoin) {
           if (
             !(await this.continueBeforeFinish(operation, turn.inputId, cycle))
@@ -2151,10 +2186,35 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     this.requeueWaitingSteers()
   }
 
-  /** Steers a turn never reached run next, before other queued turns. */
+  /**
+   * Steers a turn never reached run next, before other queued turns. A
+   * steer with an abort request settles `aborted` instead.
+   */
   private requeueWaitingSteers(): void {
+    const waiting = this.steerQueue.splice(0)
+    const aborted = waiting.filter((steer) =>
+      this.isAbortRequested(steer.inputId),
+    )
+    const rest = waiting.filter((steer) => !aborted.includes(steer))
+    for (const steer of aborted) {
+      this.abortedSteers.delete(steer.inputId)
+      const { operation } = steer
+      // Not awaited: the session goes on to the next turn at once. The
+      // settlement lands before the operation ends.
+      void this.settle({
+        inputId: steer.inputId,
+        outcome: 'aborted',
+        ...(operation ? { operationId: operation.id } : {}),
+      })
+        .catch(() => {})
+        .then(() => {
+          if (!operation) return
+          operation.fail('cancelled', new Error('Cancelled before it started.'))
+          this.publishFinished(operation)
+        })
+    }
     this.queue.unshift(
-      ...this.steerQueue.splice(0).map((steer) => {
+      ...rest.map((steer) => {
         const next = steer.operation ?? this.createTurnOperation()
         this.bindTurn(steer.inputId, next)
         return {
