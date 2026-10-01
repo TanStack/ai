@@ -13,6 +13,7 @@ export type {
   PermissionRule,
 } from './permissions'
 export { globToRegExp, workspaceTools } from './workspace'
+export type { WorkspaceToolsOptions } from './workspace'
 export { formatTodos, todos } from './todos'
 export type { Todo } from './todos'
 export { fileCommands, projectInstructions } from './files'

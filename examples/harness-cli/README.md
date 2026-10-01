@@ -1,6 +1,6 @@
 # Harness CLI example
 
-A coding agent in your terminal, built with `@tanstack/ai-harness`. Talk to it or type. It edits files in `./playground`, makes images, video, speech, songs, and sound effects, reads Notion and Linear, and hands coding work to your local Claude Code and Codex.
+A coding agent in your terminal, built with `@tanstack/ai-harness`. Talk to it or type. It works in the folder where you start it, makes images, video, speech, songs, and sound effects, reads Notion and Linear, and hands coding work to your local Claude Code and Codex.
 
 ## Run it
 
@@ -13,6 +13,18 @@ From the repo root:
 5. Type `/model`, pick OpenRouter, then `openai`, then `openai/gpt-6-astra`.
 
 Now send a message.
+
+## Your files
+
+The agent works in the folder where you run the command: that folder is the workspace. To work on another project, run the app from that project's folder:
+
+```sh
+pnpm -C <path to examples/harness-cli> start
+```
+
+- The agent reads files in the workspace without asking. A change to a file asks you first.
+- A path outside the workspace asks you first. A yes allows that folder, and the folders in it, until the session ends. `/mode bypass` allows every path without a question.
+- `bash` asks you before each command. A command can reach any file your user can, so read it before you say yes.
 
 ## Connect your models
 
@@ -71,7 +83,7 @@ Voice needs `ffmpeg` on the PATH, and an OpenAI or xAI key for the transcript (`
 Ask in words. The agent picks the tool:
 
 - `make an image of a red fox in the snow`
-- `make a watercolor version of @./playground/fox.png`: the image tool uses the images you send as references.
+- `make a watercolor version of @./fox.png`: the image tool uses the images you send as references.
 - `read this aloud with the nova voice: hello`
 - `compose a 30 second synth-pop song about foxes, with the lyrics "fox in the snow"`
 - `make a 5 second sound effect of rain on a window`
@@ -83,7 +95,7 @@ The harness keeps each file, and the screen saves it in `example-coder-media` wi
 
 ## Hand work to Claude Code and Codex
 
-When `claude` and `codex` are on the PATH, the agent can call them. They work in `./playground` with your own `claude login` and `codex login`, and the API keys are removed from their processes.
+When `claude` and `codex` are on the PATH, the agent can call them. They work in the folder where you started the app, with your own `claude login` and `codex login`, and the API keys are removed from their processes.
 
 - Ask: `have codex create notes.md with one line, then have claude code add a second line`.
 - The screen shows each agent with its status, its tool calls, and its output. When it ends, the last lines of its answer stay.

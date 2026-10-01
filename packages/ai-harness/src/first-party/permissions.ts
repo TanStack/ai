@@ -26,6 +26,11 @@ export const PERMISSION_MODES = [
 ] as const
 export type PermissionMode = (typeof PERMISSION_MODES)[number]
 
+/** Is the user's answer a yes: `true`, `y`, or `yes`? */
+export function isYes(answer: unknown) {
+  return answer === true || /^y(es)?$/i.test(String(answer).trim())
+}
+
 function matches(rule: PermissionRule, tool: string): boolean {
   return rule.tool.endsWith('*')
     ? tool.startsWith(rule.tool.slice(0, -1))
@@ -127,9 +132,7 @@ export function permissions(
                 const answer: unknown = await ctx.session.ask({
                   message: `Allow ${hook.toolName} ${preview}? (y/n)`,
                 })
-                const allowed =
-                  answer === true || /^y(es)?$/i.test(String(answer).trim())
-                if (allowed) return undefined
+                if (isYes(answer)) return undefined
               }
               return {
                 type: 'skip',

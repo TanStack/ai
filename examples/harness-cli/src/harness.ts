@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { EventType, defineAgent, keyedAdapter } from '@tanstack/ai'
 import { defineHarness } from '@tanstack/ai-harness'
 import {
@@ -61,8 +60,9 @@ import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
 import type { ModelRecord } from '@tanstack/ai-models'
 import type { ByokProvider } from '@tanstack/ai/byok'
 
-// The agent works in ./playground, so it cannot touch the rest of your disk.
-const root = fileURLToPath(new URL('../playground', import.meta.url))
+// The agent works in the folder where you started the app (src/workdir.ts).
+// A path outside it asks you first.
+const root = process.cwd()
 
 /**
  * The demo model's answer, in markdown, so the screen shows how it renders
@@ -371,7 +371,7 @@ const linear = mcpConnector({
 
 // The lead model can hand coding work to your local Claude Code and Codex.
 // Each one turns on when its CLI is on the PATH (CODING_AGENTS=0 turns both
-// off). They work in ./playground with your own `claude login` and
+// off). They work in your folder with your own `claude login` and
 // `codex login`, so the API keys are removed from their processes.
 const useCodingAgents = process.env.CODING_AGENTS !== '0'
 const codingAgentList: Record<string, CodingAgentConfig> = {}
@@ -382,7 +382,7 @@ if (useCodingAgents && onPath('claude')) {
       permissionMode: 'acceptEdits',
     }),
     description:
-      'Claude Code, the local coding agent. Larger changes, refactors, and reviews in ./playground.',
+      'Claude Code, the local coding agent. Larger changes, refactors, and reviews in the workspace.',
   }
 }
 if (useCodingAgents && onPath('codex')) {
@@ -399,7 +399,7 @@ if (useCodingAgents && onPath('codex')) {
       },
     ),
     description:
-      'Codex, the local coding agent. Quick fixes, scripts, and tests in ./playground.',
+      'Codex, the local coding agent. Quick fixes, scripts, and tests in the workspace.',
   }
 }
 const coding =
@@ -407,7 +407,7 @@ const coding =
     ? [
         codingAgents({
           sandbox: defineSandbox({
-            id: 'playground',
+            id: 'workspace',
             provider: localProcessSandbox({
               dir: root,
               scrubEnv: ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY'],
@@ -482,7 +482,7 @@ export const assistant = defineHarness({
     'A coding agent in the terminal: files, voice, media, Notion, Linear, and local coding agents',
   adapter: main,
   systemPrompts: [
-    'You are a careful coding agent that works in ./playground. Read files before you edit them. Keep answers short.',
+    'You are a careful coding agent that works in the workspace, the folder where the user started you. Read files before you edit them. Keep answers short.',
     `Your agent tools: ${tools.join(', ') || 'none'}. The user gets each file a media tool makes, so do not paste file contents or links.`,
     'When the user asks to run Codex or Claude Code (by voice too: "run a Codex agent"), call that tool with a clear task, then give its answer back in a few lines.',
     'The user can send files and voice messages. When they send an image and ask for a new version, a style, or an edit of it, call the image tool with useAttachedImages.',
@@ -501,7 +501,7 @@ export const assistant = defineHarness({
     notion,
     linear,
     permissions(),
-    workspaceTools({ root }),
+    workspaceTools({ root, outside: 'ask' }),
     todos(),
     providerKeys({ providers: keyProviders }),
     modelPicker({ choices, default: startModel }),

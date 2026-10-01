@@ -1,6 +1,5 @@
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import {
   useEffect,
   useLayoutEffect,
@@ -70,8 +69,6 @@ import type {
   ViewCommand,
   ViewMessage,
 } from '@tanstack/ai-harness/view'
-
-const playground = fileURLToPath(new URL('../playground', import.meta.url))
 
 const HELP = [
   'Type / to see the commands. ↑ and ↓ go through the lines you sent.',
@@ -630,7 +627,7 @@ function App({ view }: { view: SessionView }) {
       )
       const message = await withSpokenFiles(
         text,
-        [playground, mediaDir],
+        [process.cwd(), mediaDir],
         recent,
       )
       // A key question keeps its line for the key only.
