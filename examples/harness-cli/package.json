@@ -28,6 +28,7 @@
     "@tanstack/ai-persistence": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
+    "@tanstack/ai-skills": "workspace:*",
     "@tanstack/react-store": "^0.11.1",
     "beautiful-mermaid": "^1.1.3",
     "ink": "^7.1.1",

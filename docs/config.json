@@ -584,7 +584,7 @@
           "label": "Portable Agent Skills",
           "to": "skills/agent-skills",
           "addedAt": "2026-08-22",
-          "updatedAt": "2026-08-23"
+          "updatedAt": "2026-10-01"
         },
         {
           "label": "Skill Sources",
@@ -922,7 +922,7 @@
           "label": "Write a plugin",
           "to": "harness/plugins",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-09-28"
+          "updatedAt": "2026-10-01"
         },
         {
           "label": "Build a coding agent",
@@ -956,7 +956,13 @@
         {
           "label": "Code mode in a harness",
           "to": "harness/code-mode",
-          "addedAt": "2026-09-26"
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-10-01"
+        },
+        {
+          "label": "Add skills",
+          "to": "harness/skills",
+          "addedAt": "2026-10-01"
         },
         {
           "label": "Delegate to coding agents",

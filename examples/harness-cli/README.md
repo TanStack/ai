@@ -97,6 +97,18 @@ When `claude` and `codex` are on the PATH, the agent can call them. They work in
 
 - Sign-ins are kept in `~/.tanstack-harness-example/credentials.json`, so you sign in once. `/disconnect notion` deletes one.
 - Code mode is on: read-only tools (file reads, read-only Notion and Linear tools) are functions in one `execute_typescript` program, which runs in a QuickJS isolate.
+- The code-mode tools are lazy: the model gets only their names, and asks `discover_tools` for the signatures it needs.
+
+## Use skills
+
+1. Make a folder with a `SKILL.md` in one of the skill folders, for example `./.agents/skills/release-notes/SKILL.md`.
+2. Type `/release-notes write them for v2`. The model loads the skill and does the task.
+
+- The skill folders, in order: `./.agents/skills` and `./.claude/skills` in the folder where you run the app, then `~/.tanstack-harness-example/skills` for skills in every project. When two folders have a skill with the same name, the first folder wins.
+- A skill you add while the app runs shows in the `/` list at once. No restart.
+- A skill with the name of a command, for example `help`, is `/skill:help`.
+- `/skills` lists every skill, its folder, and its command.
+- The model also sees the list of skills, with the first sentence of each description, and can load one on its own.
 
 ## Pick the model and the effort
 

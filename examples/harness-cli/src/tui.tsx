@@ -1021,7 +1021,8 @@ function App({ view }: { view: SessionView }) {
           />
         ))}
         <Status view={view} voice={voice} recording={recorder} />
-        <Box ref={inputBox}>
+        {/* A column, so the input box keeps the full width. */}
+        <Box ref={inputBox} flexDirection="column">
           <InputBox
             line={editor.line}
             voice={voice}

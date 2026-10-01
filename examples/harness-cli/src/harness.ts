@@ -44,6 +44,7 @@ import {
 import { codingAgents } from '@tanstack/ai-sandbox/harness'
 import type { CodingAgentConfig } from '@tanstack/ai-sandbox/harness'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
+import { skills } from '@tanstack/ai-skills/harness'
 import { z } from 'zod'
 import {
   imageAgent,
@@ -53,6 +54,8 @@ import {
   videoAgent,
 } from './media'
 import { effortPicker } from './effort'
+import { SAVE_DIR } from './credentials'
+import { SCREEN_COMMANDS } from './screen/commands'
 import { envKey, providerKey } from './store'
 import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
 import type { ModelRecord } from '@tanstack/ai-models'
@@ -508,11 +511,25 @@ export const assistant = defineHarness({
     usage(),
     // /goal keeps the agent working until the main model says the goal is met.
     goal({ judge: main }),
+    // Skills: each folder holds skill folders with a SKILL.md. Each skill is a
+    // /<name> command, and the model sees the list. A skill you add while the
+    // app runs shows at once. The repo folders (where you run the app) win
+    // over the global one. A skill named like a screen command is
+    // /skill:<name>.
+    skills({
+      dirs: ['./.agents/skills', './.claude/skills', join(SAVE_DIR, 'skills')],
+      reserved: SCREEN_COMMANDS.map((command) => command.name),
+    }),
     // Read-only tools (file reads, read-only Notion and Linear tools) move
     // behind execute_typescript, so the model can call several in one program.
-    // The program runs in a QuickJS isolate. Any @tanstack/ai-isolate-* driver
-    // works here.
-    codeMode({ driver: createQuickJSIsolateDriver() }),
+    // The tools are lazy: the model gets their names, asks discover_tools for
+    // the signatures it needs, then calls them in the program. The program
+    // runs in a QuickJS isolate. Any @tanstack/ai-isolate-* driver works here.
+    codeMode({
+      driver: createQuickJSIsolateDriver(),
+      lazy: true,
+      lazyToolsConfig: { includeDescription: 'first-sentence' },
+    }),
     ...coding,
   ],
 })

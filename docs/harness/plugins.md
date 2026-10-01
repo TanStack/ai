@@ -76,6 +76,57 @@ export const greeter = definePlugin({
 - `session.setConfig('tone', 'warm')` changes the setting. A value the option does not accept is rejected.
 - `ask` waits for `session.answer(questionId, value)`. The question shows up in `session.snapshot().pendingQuestions`, and the CLI prompts for it.
 
+## Change commands while the session runs
+
+Some commands come from data that changes: a folder of skills, saved shortcuts, a list from a server. `ctx.commands` adds and removes them while the session runs. Here `/macro` saves a new command that sends a message:
+
+```ts group=harness-plugins
+export const macros = definePlugin({
+  name: 'acme/macros',
+  setup: (ctx) => ({
+    commands: {
+      macro: defineCommand({
+        description: 'Save a command that sends a message: /macro <name> <message>',
+        run: (input: unknown) => {
+          const [name = '', ...words] = String(input ?? '').trim().split(' ')
+          if (ctx.commands.has(name)) return `/${name} is taken.`
+          ctx.commands.set(
+            name,
+            defineCommand({
+              description: `Send: ${words.join(' ')}`,
+              run: () => {
+                void ctx.session.prompt(words.join(' '))
+              },
+            }),
+          )
+          return `Saved /${name}.`
+        },
+      }),
+    },
+  }),
+})
+```
+
+- `ctx.commands.set(name, command)` adds a command of this plugin, or replaces it. A name that another plugin owns throws.
+- `ctx.commands.delete(name)` removes a command of this plugin. Another plugin's name does nothing.
+- Session views (`createSessionView`) get the new list at once, so the command shows in the `/` list of a CLI.
+- During `setup`, wait for `ctx.commands.ready` before you call `has` or `set`. The plugins after this one add their commands later, so a name can look free and still be taken.
+
+```ts group=harness-plugins
+export const greetings = definePlugin({
+  name: 'acme/greetings',
+  setup: (ctx) => {
+    void ctx.commands.ready.then(() => {
+      if (!ctx.commands.has('hi')) {
+        ctx.commands.set('hi', defineCommand({ description: 'Say hi', run: () => 'Hi!' }))
+      }
+    })
+  },
+})
+```
+
+The [skills plugin](./skills) works this way: one command for each skill in a folder.
+
 ## Keep state
 
 `ctx.state(initial)` gives a plugin its own state, saved in the metadata store. Clients see each change as an AG-UI `STATE_SNAPSHOT` event.
