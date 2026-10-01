@@ -174,6 +174,28 @@ describe('recovery of a durable input', () => {
     await host.close()
   })
 
+  it('settles aborted a pending input that was cancelled before it ran', async () => {
+    const persistence = durablePersistence()
+    await persistence.stores.log.append(THREAD, 1, [
+      {
+        type: 'harness.input',
+        inputId: 'in-1',
+        input: { op: 'prompt', message: 'go', busy: 'queue' },
+        at: 1,
+      },
+      { type: 'harness.input.abort', inputId: 'in-1' },
+    ])
+
+    const { host, session, calls } = await openDurable({
+      persistence,
+      replies: [() => text('never')],
+    })
+
+    expect(await session.settled('in-1')).toMatchObject({ outcome: 'aborted' })
+    expect(calls).toHaveLength(0)
+    await host.close()
+  })
+
   it('settles completed when the log already has the final answer', async () => {
     const persistence = durablePersistence()
     await seedStoppedTurn(persistence, { attempt: 1, answer: 'done before' })

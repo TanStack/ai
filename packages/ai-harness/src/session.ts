@@ -2970,9 +2970,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           this.reject(input.inputId, 'expired_on_restart')
           continue
         }
-        const decision = await this.recoverDecision(writer, input, {
-          action: 'run',
-        })
+        // An input that was cancelled before it ran settles aborted.
+        const decision = await this.recoverDecision(
+          writer,
+          input,
+          input.abortRequested
+            ? { action: 'settle', outcome: 'aborted' }
+            : { action: 'run' },
+        )
         if (decision.action === 'settle') {
           await this.settle({
             inputId: input.inputId,
