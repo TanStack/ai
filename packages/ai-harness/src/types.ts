@@ -182,4 +182,6 @@ export const HARNESS_EVENTS = {
   inputSettled: 'harness.input.settled',
   /** A media file was stored. The value is a `MediaRecord`. */
   media: 'harness.media',
+  /** A turn runs the model again after an error. The value has `retries` and `error`. */
+  turnRetry: 'harness.turn.retry',
 } as const

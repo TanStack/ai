@@ -255,6 +255,9 @@ function customEvent(
   return { type: EventType.CUSTOM, name, value, timestamp: Date.now() }
 }
 
+const errorText = (error: unknown) =>
+  error instanceof Error ? error.message : String(error)
+
 /** A short transcript note about an agent result, for the next turn. */
 function referenceNote(agent: string, result: unknown): string {
   const body =
@@ -1857,85 +1860,161 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         throw new Error('The session is not open yet.')
       }
       const durableTools = this.durableTools()
+      const turnHooks = this.harness.turn
+      const signal = operation.abortController.signal
+      /** Retries since the last finished tool phase. */
+      let retries = 0
       // One chat() run, and one more each time steers wait after a final
-      // answer: a late join gets its answer in this turn.
+      // answer: a late join gets its answer in this turn. A run that failed
+      // runs again when `turn.onModelError` answers 'retry'.
       for (;;) {
-        const stream = chat({
-          adapter,
-          messages: message ? [message] : [],
-          systemPrompts: [
-            ...(this.harness.systemPrompts ?? []),
-            ...[...(session?.prompts ?? []), ...(runPlugins?.prompts ?? [])]
-              .map(resolvePrompt)
-              .filter((prompt) => prompt !== ''),
-          ],
-          tools,
-          middleware: [
-            ...bridges,
-            withPersistence(chatPersistence),
-            checkpoint,
-            ...(this.harness.middleware ?? []),
-            ...(session?.middleware ?? []),
-            ...(runPlugins?.middleware ?? []),
-            ...(durableTools ? [durableTools] : []),
-            this.steering(),
-            // Last, because a later middleware that returns `messages` (as
-            // steering does) resets what the model gets.
-            mediaMiddleware({
-              store: this.mediaStore,
-              accepted: acceptedKinds(
-                adapter.inputModalities,
-                this.harness.media?.accepts,
-              ),
-              transcribe: this.harness.media?.transcribe,
-            }),
-          ],
-          ...(subagentList.length > 0
-            ? {
-                subagents: {
-                  ...this.harness.subagents,
-                  agents: subagentList,
-                  limits: this.limits(),
-                  binding: this.binding(operation, captured, runPlugins),
-                },
-              }
-            : {}),
-          // chat() stops after 5 model calls by default. An agent that reads,
-          // searches, and calls tools needs more before it can answer.
-          agentLoopStrategy:
-            this.harness.agentLoopStrategy ?? maxIterations(50),
-          ...(this.harness.modelOptions !== undefined
-            ? { modelOptions: this.harness.modelOptions }
-            : {}),
-          ...(this.harness.interrupts
-            ? { interrupts: this.harness.interrupts }
-            : {}),
-          ...(this.harness.context !== undefined
-            ? { context: this.harness.context }
-            : {}),
-          threadId: this.threadId,
-          runId: operation.id,
-          ...(parentRunId ? { parentRunId } : {}),
-          ...(resume ? { resume } : {}),
-          abortController: operation.abortController,
-          stream: true,
-        } as never) as AsyncIterable<StreamChunk>
+        const textBefore = text
+        let runError: { message: string; code?: string } | undefined
+        let heldError: StreamChunk | undefined
+        try {
+          const stream = chat({
+            adapter,
+            messages: message ? [message] : [],
+            systemPrompts: [
+              ...(this.harness.systemPrompts ?? []),
+              ...[...(session?.prompts ?? []), ...(runPlugins?.prompts ?? [])]
+                .map(resolvePrompt)
+                .filter((prompt) => prompt !== ''),
+            ],
+            tools,
+            middleware: [
+              ...bridges,
+              withPersistence(chatPersistence),
+              checkpoint,
+              ...(this.harness.middleware ?? []),
+              ...(session?.middleware ?? []),
+              ...(runPlugins?.middleware ?? []),
+              ...(durableTools ? [durableTools] : []),
+              this.steering(),
+              // Last, because a later middleware that returns `messages` (as
+              // steering does) resets what the model gets.
+              mediaMiddleware({
+                store: this.mediaStore,
+                accepted: acceptedKinds(
+                  adapter.inputModalities,
+                  this.harness.media?.accepts,
+                ),
+                transcribe: this.harness.media?.transcribe,
+              }),
+            ],
+            ...(subagentList.length > 0
+              ? {
+                  subagents: {
+                    ...this.harness.subagents,
+                    agents: subagentList,
+                    limits: this.limits(),
+                    binding: this.binding(operation, captured, runPlugins),
+                  },
+                }
+              : {}),
+            // chat() stops after 5 model calls by default. An agent that
+            // reads, searches, and calls tools needs more before it can answer.
+            agentLoopStrategy:
+              this.harness.agentLoopStrategy ?? maxIterations(50),
+            ...(this.harness.modelOptions !== undefined
+              ? { modelOptions: this.harness.modelOptions }
+              : {}),
+            ...(this.harness.interrupts
+              ? { interrupts: this.harness.interrupts }
+              : {}),
+            ...(this.harness.context !== undefined
+              ? { context: this.harness.context }
+              : {}),
+            threadId: this.threadId,
+            runId: operation.id,
+            ...(parentRunId ? { parentRunId } : {}),
+            ...(resume ? { resume } : {}),
+            abortController: operation.abortController,
+            stream: true,
+          } as never) as AsyncIterable<StreamChunk>
 
-        for await (const chunk of stream) {
-          operation.publish(chunk)
-          if (
-            chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
-            !('subagentRunId' in chunk && chunk.subagentRunId)
-          ) {
-            text += chunk.delta
+          for await (const chunk of stream) {
+            if (
+              chunk.type === EventType.RUN_ERROR &&
+              turnHooks?.onModelError &&
+              runError === undefined
+            ) {
+              // Held until the hook answers: a retried call shows no error.
+              runError = {
+                message: chunk.message,
+                ...(chunk.code !== undefined ? { code: chunk.code } : {}),
+              }
+              heldError = chunk
+              continue
+            }
+            operation.publish(chunk)
+            if (
+              chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
+              !('subagentRunId' in chunk && chunk.subagentRunId)
+            ) {
+              text += chunk.delta
+            }
+            if (
+              chunk.type === EventType.RUN_FINISHED &&
+              chunk.outcome?.type === 'interrupt'
+            ) {
+              interrupts = chunk.outcome.interrupts
+            }
+            if (chunk.type === EventType.RUN_ERROR) failure = chunk.message
+            // A finished tool phase resets the retries. Streamed text does
+            // not, so a call that fails after some text still counts.
+            if (chunk.type === EventType.TOOL_CALL_RESULT) retries = 0
           }
-          if (
-            chunk.type === EventType.RUN_FINISHED &&
-            chunk.outcome?.type === 'interrupt'
-          ) {
-            interrupts = chunk.outcome.interrupts
+        } catch (error) {
+          // The outer catch handles a cancelled turn, a log failure, and a
+          // harness without the hook, as before.
+          if (signal.aborted || this.logFailure || !turnHooks?.onModelError) {
+            throw error
           }
-          if (chunk.type === EventType.RUN_ERROR) failure = chunk.message
+          runError = { message: errorText(error) }
+        }
+        if (runError && turnHooks?.onModelError) {
+          const answer =
+            signal.aborted || this.logFailure
+              ? undefined
+              : await turnHooks.onModelError({
+                  session: this,
+                  operationId: operation.id,
+                  ...(turn.inputId ? { inputId: turn.inputId } : {}),
+                  error: runError,
+                  retries,
+                  signal,
+                })
+          if (answer === 'retry' && !signal.aborted) {
+            retries += 1
+            // The turn result has only the text of the calls that counted.
+            text = textBefore
+            operation.publish(
+              customEvent(HARNESS_EVENTS.turnRetry, {
+                operationId: operation.id,
+                retries,
+                error: runError,
+              }),
+            )
+            message = undefined
+            resume = undefined
+            parentRunId = undefined
+            // withPersistence failed the run. It runs again, for the retry.
+            await this.persistence.stores.runs?.update(operation.id, {
+              status: 'running',
+            })
+            continue
+          }
+          // Here, and not in the outer catch, for an error the run threw.
+          operation.publish(
+            heldError ?? {
+              type: EventType.RUN_ERROR,
+              message: runError.message,
+              timestamp: Date.now(),
+            },
+          )
+          failure = runError.message
+          break
         }
         const hasLateJoin =
           this.steerQueue.length > 0 &&
@@ -1952,7 +2031,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         })
       }
     } catch (error) {
-      failure = error instanceof Error ? error.message : String(error)
+      failure = errorText(error)
       if (!operation.abortController.signal.aborted) {
         operation.publish({
           type: EventType.RUN_ERROR,
