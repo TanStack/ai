@@ -65,7 +65,7 @@ export interface MessageStreamState {
   thinkingSteps: Map<string, string>
   thinkingStepSignatures: Map<string, string>
   /** Thinking steps whose signature is a redacted block's data. */
-  thinkingStepRedacted: Set<string>
+  redactedThinkingStepIds: Set<string>
   thinkingStepOrder: Array<string>
   currentThinkingStepId: string | null
   toolCalls: Map<string, InternalToolCallState>
