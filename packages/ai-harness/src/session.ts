@@ -392,8 +392,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     message: UserInput
     operation?: OperationImpl<ChatTurnResult>
   }> = []
-  /** Waiting steers with an abort request, on a host without a log. */
+  /**
+   * Waiting steers with an abort request. An id lands here before the abort
+   * append, so a join that runs during that append skips the steer.
+   */
   private readonly abortedSteers = new Set<string>()
+  /** The ids of the waiting steers that a join took. A cancel of one is refused. */
+  private readonly joining = new Set<string>()
   private readonly pendingNotes: Array<string> = []
   private activeTurn: OperationImpl<ChatTurnResult> | undefined
   private interrupted:
@@ -849,19 +854,23 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       this.reject(inputId, 'not_running')
       return { inputId, status: 'rejected', reason: 'not_running' }
     }
+    const waitingSteer = this.steerQueue.find(
+      (steer) => steer.operation === target,
+    )
+    // A join took it, so it ends with the running turn, as a joined steer.
+    if (waitingSteer && this.joining.has(waitingSteer.inputId)) {
+      this.reject(inputId, 'not_running')
+      return { inputId, status: 'rejected', reason: 'not_running' }
+    }
+    // It never joins now, and settles when the running turn ends.
+    if (waitingSteer) this.abortedSteers.add(waitingSteer.inputId)
     const targetInput = this.operationInputs.get(target.id)
     if (this.writer && targetInput) {
       await this.writer.append([
         { type: 'harness.input.abort', inputId: targetInput },
       ])
     }
-    const waitingSteer = this.steerQueue.find(
-      (steer) => steer.operation === target,
-    )
     if (waitingSteer) {
-      // It never joins now, and settles when the running turn ends. A
-      // durable host has the abort request in the log already.
-      if (!this.writer) this.abortedSteers.add(waitingSteer.inputId)
       await this.markApplied(inputId, target.id)
       return { inputId, status: 'accepted', operationId: target.id }
     }
@@ -1531,24 +1540,36 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * How many waiting steers join now: the prefix up to the first one that
-   * has an abort request, or that `turn.canJoin` refuses.
+   * Take the waiting steers that join now: the prefix up to the first one
+   * that has an abort request, or that `turn.canJoin` refuses. A steer that
+   * a join took already stays in, with no new check. Returns how many.
    */
-  private async joinableCount() {
+  private async claimJoins() {
     const canJoin = this.harness.turn?.canJoin
     let count = 0
     for (const steer of this.steerQueue) {
-      if (this.isAbortRequested(steer.inputId)) break
-      const candidate = { inputId: steer.inputId, message: steer.message }
-      if (canJoin && !(await canJoin(candidate))) break
+      if (!this.joining.has(steer.inputId)) {
+        if (this.isAbortRequested(steer.inputId)) break
+        const candidate = { inputId: steer.inputId, message: steer.message }
+        if (canJoin && !(await canJoin(candidate))) break
+      }
       count += 1
     }
-    return count
+    // A cancel can land while canJoin runs. No await from here to the claim.
+    const steers = this.steerQueue.slice(0, count)
+    const late = steers.findIndex(
+      (steer) =>
+        !this.joining.has(steer.inputId) &&
+        this.isAbortRequested(steer.inputId),
+    )
+    const taken = late >= 0 ? steers.slice(0, late) : steers
+    for (const steer of taken) this.joining.add(steer.inputId)
+    return taken.length
   }
 
   /**
    * Middleware that runs before each model call. Queued steers join the
-   * running turn in admission order, as far as `joinableCount` lets them.
+   * running turn in admission order, as far as `claimJoins` lets them.
    * `turn.onJoin` adds its messages after theirs. On a durable host, one
    * append commits the engine's messages, the steer messages, the join
    * records, and the `onJoin` records, so a crash never splits a join. The
@@ -1559,65 +1580,75 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       name: 'harness:steering',
       onConfig: async (ctx, config) => {
         if (ctx.phase !== 'beforeModel') return undefined
-        const count = await this.joinableCount()
+        const count = await this.claimJoins()
         const steers = this.steerQueue.slice(0, count)
-        const operation = this.operations.get(ctx.runId)
-        const onJoin = this.harness.turn?.onJoin
-        const added =
-          steers.length > 0 && onJoin && operation
-            ? await onJoin({
-                session: this,
-                operationId: ctx.runId,
-                inputs: steers.map((steer) => ({
-                  inputId: steer.inputId,
-                  message: steer.message,
-                })),
-                signal: operation.abortController.signal,
-              })
-            : undefined
-        const records = added?.records ?? []
-        checkHostRecords(records)
-        if (records.length > 0 && !this.engine) {
-          throw new Error(
-            'Records from a turn hook need a durable host (a host with stores.log).',
-          )
+        try {
+          const running =
+            this.activeTurn?.id === ctx.runId ? this.activeTurn : undefined
+          const onJoin = this.harness.turn?.onJoin
+          let added: TurnAdditions | undefined
+          if (steers.length > 0 && onJoin && running) {
+            added = await onJoin({
+              session: this,
+              operationId: ctx.runId,
+              inputs: steers.map((steer) => ({
+                inputId: steer.inputId,
+                message: steer.message,
+              })),
+              signal: running.abortController.signal,
+            })
+            // A cancelled turn gets nothing from the hook. Its steers run as
+            // their own turns.
+            if (running.abortController.signal.aborted) return undefined
+          }
+          const records = added?.records ?? []
+          checkHostRecords(records)
+          if (records.length > 0 && !this.engine) {
+            throw new Error(
+              'Records from a turn hook need a durable host (a host with stores.log).',
+            )
+          }
+          const hostInput = this.operationInputs.get(ctx.runId)
+          const joins = hostInput
+            ? steers.map((steer) => ({
+                type: 'harness.input.joined',
+                inputId: steer.inputId,
+                into: hostInput,
+              }))
+            : []
+          const list = [
+            ...config.messages,
+            ...steers.map(
+              (steer): ModelMessage => ({
+                id: createMessageId(),
+                role: 'user',
+                content: steer.message,
+              }),
+            ),
+            ...(added?.messages ?? []).map(
+              (message): ModelMessage =>
+                message.id ? message : { ...message, id: createMessageId() },
+            ),
+          ]
+          const synced = await this.engine?.beforeModel(list, [
+            ...joins,
+            ...records,
+          ])
+          // A retried call loads the saved transcript, so a host without a
+          // log saves it before each model call when the harness can retry.
+          if (!this.engine && this.harness.turn?.onModelError) {
+            await this.messages.saveThread(this.threadId, list)
+          }
+          // Only now, so a hook or an append that fails leaves them waiting.
+          this.steerQueue.splice(0, count)
+          for (const steer of steers) this.join(ctx.runId, steer)
+          if (list.length === config.messages.length && !synced) {
+            return undefined
+          }
+          return { messages: synced ?? list }
+        } finally {
+          for (const steer of steers) this.joining.delete(steer.inputId)
         }
-        const hostInput = this.operationInputs.get(ctx.runId)
-        const joins = hostInput
-          ? steers.map((steer) => ({
-              type: 'harness.input.joined',
-              inputId: steer.inputId,
-              into: hostInput,
-            }))
-          : []
-        const list = [
-          ...config.messages,
-          ...steers.map(
-            (steer): ModelMessage => ({
-              id: createMessageId(),
-              role: 'user',
-              content: steer.message,
-            }),
-          ),
-          ...(added?.messages ?? []).map(
-            (message): ModelMessage =>
-              message.id ? message : { ...message, id: createMessageId() },
-          ),
-        ]
-        const synced = await this.engine?.beforeModel(list, [
-          ...joins,
-          ...records,
-        ])
-        // A retried call loads the saved transcript, so a host without a log
-        // saves it before each model call when the harness can retry.
-        if (!this.engine && this.harness.turn?.onModelError) {
-          await this.messages.saveThread(this.threadId, list)
-        }
-        // Only now, so a hook or an append that fails leaves them waiting.
-        this.steerQueue.splice(0, count)
-        for (const steer of steers) this.join(ctx.runId, steer)
-        if (list.length === config.messages.length && !synced) return undefined
-        return { messages: synced ?? list }
       },
     }
   }
@@ -1836,6 +1867,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         // The log refused the write, so the session stops.
         operation.fail('failed', this.logFailure ?? error)
         this.publishFinished(operation)
+        this.requeueWaitingSteers()
         return
       }
     }
@@ -2116,7 +2148,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           (interrupts?.length ?? 0) > 0 ||
           signal.aborted
         if (isFinished) break
-        const hasLateJoin = (await this.joinableCount()) > 0
+        // Claimed, so a cancel after this check cannot leave a run with no
+        // new input.
+        const hasLateJoin = (await this.claimJoins()) > 0
         if (!hasLateJoin) {
           if (
             !(await this.continueBeforeFinish(operation, turn.inputId, cycle))
@@ -2225,6 +2259,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * steer with an abort request settles `aborted` instead.
    */
   private requeueWaitingSteers(): void {
+    this.joining.clear()
     const waiting = this.steerQueue.splice(0)
     const aborted = waiting.filter((steer) =>
       this.isAbortRequested(steer.inputId),

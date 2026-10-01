@@ -12,16 +12,23 @@ import {
 } from './helpers'
 import type { AnyTool, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { LogRecord, LogStore } from '@tanstack/ai-persistence'
+import type { HarnessTurnOptions } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
 
-/** A durable store set. `batches` has the record types of each append. */
-function durablePersistence() {
+/**
+ * A durable store set. `batches` has the record types of each append.
+ * `before` runs before each append, so it can hold or refuse the append.
+ */
+function durablePersistence(
+  before?: (records: ReadonlyArray<LogRecord>) => void | Promise<void>,
+) {
   const inner = memoryLogStore()
   const batches: Array<Array<string>> = []
   const log: LogStore = {
     append: async (threadId, seq, records) => {
+      await before?.(records)
       await inner.append(threadId, seq, records)
       batches.push(records.map((record) => record.type))
     },
@@ -29,7 +36,7 @@ function durablePersistence() {
     subscribe: (threadId, listener) => inner.subscribe(threadId, listener),
   }
   const { runs, metadata } = memoryPersistence().stores
-  return { persistence: { stores: { log, runs, metadata } }, batches }
+  return { persistence: { stores: { log, runs, metadata } }, batches, inner }
 }
 
 type Durable = ReturnType<typeof durablePersistence>['persistence']
@@ -38,11 +45,17 @@ async function openDurable(
   persistence: Durable,
   replies: Array<Reply>,
   tools: Array<AnyTool> = [],
+  turn?: HarnessTurnOptions,
 ) {
   const { adapter, calls } = mockAdapter(replies)
   const host = createHarnessHost({ persistence })
   const session = await host.open(
-    defineHarness({ name: 'test/joins', adapter, tools }),
+    defineHarness({
+      name: 'test/joins',
+      adapter,
+      tools,
+      ...(turn ? { turn } : {}),
+    }),
     { threadId: THREAD },
   )
   return { host, session, calls }
@@ -379,46 +392,200 @@ describe('the join rule', () => {
   })
 
   it('leaves neither the join nor the onJoin records when that append fails', async () => {
-    const inner = memoryLogStore()
-    const log: LogStore = {
-      append: async (threadId, seq, records) => {
-        if (records.some((record) => record.type === 'harness.input.joined')) {
-          throw new Error('store down')
-        }
-        await inner.append(threadId, seq, records)
-      },
-      read: (threadId, options) => inner.read(threadId, options),
-      subscribe: (threadId, listener) => inner.subscribe(threadId, listener),
-    }
-    const { runs, metadata } = memoryPersistence().stores
-    const persistence = { stores: { log, runs, metadata } }
+    const { persistence, inner } = durablePersistence((records) => {
+      if (records.some((record) => record.type === 'harness.input.joined')) {
+        throw new Error('store down')
+      }
+    })
     const wait = waitTool()
-    const { adapter } = mockAdapter([
-      () => toolCall('wait', {}),
-      () => text('never'),
-    ])
-    const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({
-        name: 'test/joins',
-        adapter,
-        tools: [wait.tool],
-        turn: {
-          onJoin: () => ({ records: [{ type: 'app.start_hook' }] }),
-        },
-      }),
-      { threadId: THREAD },
+    const { host, session } = await openDurable(
+      persistence,
+      [() => toolCall('wait', {}), () => text('never')],
+      [wait.tool],
+      { onJoin: () => ({ records: [{ type: 'app.start_hook' }] }) },
+    )
+
+    const turn = session.prompt('start', { inputId: 'host' })
+    await wait.started.opened
+    const join = session.prompt('more', { busy: 'steer', inputId: 'join-1' })
+    await join.receipt
+    wait.done.open()
+    await expect(turn).rejects.toThrow()
+    // It did not join, so it ends with the session that stopped.
+    await expect(join).rejects.toThrow('Session closed.')
+
+    const types = (await inner.read(THREAD)).map((entry) => entry.record.type)
+    expect(types).not.toContain('harness.input.joined')
+    expect(types).not.toContain('app.start_hook')
+    await host.close().catch(() => {})
+
+    // The next host runs it as its own turn.
+    const next = await openDurable(
+      { stores: { ...persistence.stores, log: inner } },
+      [() => text('host answer'), () => text('join answer')],
+    )
+    const settled = await next.session.settled('join-1')
+    expect(settled.outcome).toBe('completed')
+    expect(settled.operationId).not.toBe(turn.id)
+    await next.host.close()
+  })
+
+  it('stops the join at a refused input, so the inputs after it wait too', async () => {
+    const { persistence } = durablePersistence()
+    const wait = waitTool()
+    const { host, session, calls } = await openDurable(
+      persistence,
+      [
+        () => toolCall('wait', {}),
+        () => text('host answer'),
+        () => text('answer x'),
+        () => text('answer y'),
+      ],
+      [wait.tool],
+      { canJoin: ({ message }) => message !== 'x' },
+    )
+
+    const turn = session.prompt('start', { inputId: 'host' })
+    await wait.started.opened
+    const x = session.prompt('x', { busy: 'steer', inputId: 'x' })
+    const y = session.prompt('y', { busy: 'steer', inputId: 'y' })
+    await Promise.all([x.receipt, y.receipt])
+    wait.done.open()
+
+    await turn
+    expect(messageTexts(calls[1])).not.toContain('y')
+    expect(await x).toEqual({ text: 'answer x' })
+    expect(await y).toEqual({ text: 'answer y' })
+    expect(messageTexts(calls[2]).at(-1)).toBe('x')
+    expect(messageTexts(calls[3]).at(-1)).toBe('y')
+    await host.close()
+  })
+
+  it('adds the onJoin messages after the joined ones', async () => {
+    const { persistence } = durablePersistence()
+    const wait = waitTool()
+    const { host, session, calls } = await openDurable(
+      persistence,
+      [() => toolCall('wait', {}), () => text('done')],
+      [wait.tool],
+      { onJoin: () => ({ messages: [{ role: 'user', content: 'hook' }] }) },
     )
 
     const turn = session.prompt('start', { inputId: 'host' })
     await wait.started.opened
     await session.prompt('more', { busy: 'steer', inputId: 'join-1' }).receipt
     wait.done.open()
-    await expect(turn).rejects.toThrow()
 
-    const types = (await inner.read(THREAD)).map((entry) => entry.record.type)
-    expect(types).not.toContain('harness.input.joined')
-    expect(types).not.toContain('app.start_hook')
-    await host.close().catch(() => {})
+    await turn
+    expect(messageTexts(calls[1]).slice(-2)).toEqual(['more', 'hook'])
+    await host.close()
+  })
+
+  it('refuses a cancel that lands while onJoin runs, and logs no abort for it', async () => {
+    const { persistence, inner } = durablePersistence()
+    const wait = waitTool()
+    const inJoin = gate()
+    const releaseJoin = gate()
+    const { host, session, calls } = await openDurable(
+      persistence,
+      [() => toolCall('wait', {}), () => text('host answer')],
+      [wait.tool],
+      {
+        onJoin: async () => {
+          inJoin.open()
+          await releaseJoin.opened
+          return undefined
+        },
+      },
+    )
+
+    const turn = session.prompt('start', { inputId: 'host' })
+    await wait.started.opened
+    const steer = session.prompt('stop me', { busy: 'steer', inputId: 's1' })
+    await steer.receipt
+    wait.done.open()
+    await inJoin.opened
+    const receipt = await session.cancel(steer.id)
+    releaseJoin.open()
+
+    expect(receipt).toMatchObject({ status: 'rejected', reason: 'not_running' })
+    expect(await steer).toEqual(await turn)
+    expect(messageTexts(calls[1]).at(-1)).toBe('stop me')
+    expect(await session.settled('s1')).toMatchObject({
+      outcome: 'completed',
+      operationId: turn.id,
+    })
+    const types = (await inner.read(THREAD))
+      .map((entry) => entry.record)
+      .filter((record) => record.inputId === 's1')
+      .map((record) => record.type)
+    expect(types).not.toContain('harness.input.abort')
+    await host.close()
+  })
+
+  it('does not join a steer while its abort append is in flight', async () => {
+    const inAbort = gate()
+    const releaseAbort = gate()
+    const { persistence } = durablePersistence(async (records) => {
+      if (records.some((record) => record.type === 'harness.input.abort')) {
+        inAbort.open()
+        await releaseAbort.opened
+      }
+    })
+    const wait = waitTool()
+    let cancelled: Promise<unknown> | undefined
+    const { host, session, calls } = await openDurable(
+      persistence,
+      [() => toolCall('wait', {}), () => text('answer a')],
+      [wait.tool],
+      {
+        // The cancel of s1 lands while the join runs, and its append waits.
+        canJoin: async ({ inputId }) => {
+          if (inputId === 'join-a') {
+            cancelled = session.cancel(steer.id)
+            await inAbort.opened
+          }
+          return true
+        },
+      },
+    )
+
+    const turn = session.prompt('start', { inputId: 'host' })
+    await wait.started.opened
+    const a = session.prompt('a', { busy: 'steer', inputId: 'join-a' })
+    const steer = session.prompt('stop me', { busy: 'steer', inputId: 's1' })
+    await Promise.all([a.receipt, steer.receipt])
+    wait.done.open()
+    await vi.waitFor(() => expect(cancelled).toBeDefined())
+    releaseAbort.open()
+
+    expect(await cancelled).toMatchObject({ status: 'accepted' })
+    await turn
+    expect(messageTexts(calls[1])).not.toContain('stop me')
+    expect(messageTexts(calls[1]).at(-1)).toBe('a')
+    expect(await session.settled('s1')).toMatchObject({ outcome: 'aborted' })
+    await expect(steer).rejects.toThrow()
+    expect(calls).toHaveLength(2)
+    await host.close()
+  })
+
+  it('ends a waiting steer when the apply of the turn fails, so close resolves', async () => {
+    const { persistence } = durablePersistence((records) => {
+      const isHostApply = records.some(
+        (record) =>
+          record.type === 'harness.input.applied' && record.inputId === 'host',
+      )
+      if (isHostApply) throw new Error('store down')
+    })
+    const { host, session } = await openDurable(persistence, [
+      () => text('never'),
+    ])
+
+    const turn = session.prompt('start', { inputId: 'host' })
+    const steer = session.prompt('more', { busy: 'steer', inputId: 's1' })
+    await expect(turn).rejects.toThrow('store down')
+    await expect(steer).rejects.toThrow('Session closed.')
+    await session.close()
+    await host.close()
   })
 })

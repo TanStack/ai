@@ -132,9 +132,12 @@ The join stops at the first message that:
 - has an abort request (`session.cancel(operationId)` on it), or
 - `turn.canJoin` refuses.
 
-That message and the ones after it run as their own turns later. A cancelled one settles `aborted`.
+That message and the ones after it wait. `canJoin` runs again before each model call and at each final answer, so it can run more than once for one message. Keep it a quick check with no side effects. What still waits when the turn ends runs as its own turn, before other queued turns. A cancelled one settles `aborted` and does not run.
 
 `onJoin` runs before the model call that the joined messages reach. It can return messages, which come after the joined ones, and records, which land in the same append as the join. Records need a durable host.
+
+- If `onJoin` throws, the turn fails, and those messages run as their own turns.
+- If you cancel the turn while `onJoin` runs, the hook adds nothing to it, and those messages run as their own turns.
 
 ```ts group=harness-turn-control
 const selective = defineHarness({

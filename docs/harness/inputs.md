@@ -109,7 +109,9 @@ A message that arrives while the model writes its final answer still gets an ans
 
 Waiting `steer` inputs join before each model call, in the order they arrived. They join as a prefix: the join stops at the first input that has an abort request, or that `turn.canJoin` refuses. The inputs after it wait.
 
-- To stop a waiting steer, call `session.cancel(operationId)` with its operation id. It does not join, and it settles `aborted` when the running turn ends.
+- A `busy: 'steer'` prompt has its own operation. To stop it before it joins, call `joined.cancel()` or `session.cancel(joined.id)`. It does not join, and it settles `aborted` when the running turn ends.
+- A `session.steer` input has no operation of its own. The `operationId` of its receipt is the running turn, so a cancel with that id cancels the turn.
+- The session rejects a cancel that comes after the join started, with `reason: 'not_running'`.
 - A refused or late input runs as its own turn after the running one.
 
 To choose which inputs join, or to add records when they join, see [Choose which messages join a turn](./turn-control#choose-which-messages-join-a-turn).
