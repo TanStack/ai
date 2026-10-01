@@ -211,6 +211,40 @@ test.describe('Server-Client Sequence E2E Tests', () => {
     expect(toolNames).toContain('get_time')
   })
 
+  test('parallel server tools run at the same time, results in call order', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'parallel-server-timing', testId, aimockPort)
+    await runTest(page)
+    await waitForTestComplete(page, 15000, 2)
+
+    const messages = await getMessages(page)
+    const results: Array<{ toolCallId: string; content: string }> = messages
+      .flatMap((message) => message.parts ?? [])
+      .filter((part) => part.type === 'tool-result')
+    const calls: Array<{ id: string; name: string }> = messages
+      .flatMap((message) => message.parts ?? [])
+      .filter((part) => part.type === 'tool-call')
+    const nameOf = (toolCallId: string) =>
+      calls.find((call) => call.id === toolCallId)?.name
+    const timing = (name: string) => {
+      const result = results.find((r) => nameOf(r.toolCallId) === name)
+      return JSON.parse(result?.content ?? '{}')
+    }
+
+    // Each tool waits 300 ms. Run one after another, they cannot overlap.
+    const weather = timing('get_weather')
+    const time = timing('get_time')
+    expect(weather.startedAt).toBeLessThan(time.endedAt)
+    expect(time.startedAt).toBeLessThan(weather.endedAt)
+    expect(results.map((result) => nameOf(result.toolCallId))).toEqual([
+      'get_weather',
+      'get_time',
+    ])
+  })
+
   test('single server tool completes', async ({ page, testId, aimockPort }) => {
     await selectScenario(page, 'server-tool-single', testId, aimockPort)
     await runTest(page)

@@ -172,7 +172,7 @@
           "label": "Agentic Cycle",
           "to": "chat/agentic-cycle",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Thinking & Reasoning",
@@ -242,7 +242,7 @@
           "label": "Tools",
           "to": "tools/tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Server Tools",
@@ -295,7 +295,7 @@
           "label": "Tool Architecture",
           "to": "tools/tool-architecture",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-17"
+          "updatedAt": "2026-09-30"
         }
       ],
       "tab": "guides"
@@ -307,7 +307,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Built-in Middleware",
@@ -330,7 +330,7 @@
           "label": "Compaction",
           "to": "advanced/compaction",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-08-27"
+          "updatedAt": "2026-09-30"
         }
       ],
       "tab": "guides"
@@ -1253,6 +1253,11 @@
           "to": "advanced/typed-options",
           "addedAt": "2026-05-25",
           "updatedAt": "2026-09-30"
+        },
+        {
+          "label": "Test with a Fake Model",
+          "to": "advanced/testing",
+          "addedAt": "2026-09-30"
         },
         {
           "label": "Approval Flow Processing",
