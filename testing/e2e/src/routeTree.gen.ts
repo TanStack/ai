@@ -82,6 +82,7 @@ import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.mu
 import { Route as ApiMoonshotUsageDetailsRouteImport } from './routes/api.moonshot-usage-details'
 import { Route as ApiMistralStrictToolNullWireRouteImport } from './routes/api.mistral-strict-tool-null-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
+import { Route as ApiMidConversationChangesWireRouteImport } from './routes/api.mid-conversation-changes-wire'
 import { Route as ApiMessageIdsRouteImport } from './routes/api.message-ids'
 import { Route as ApiMessageHistoryPagingRouteImport } from './routes/api.message-history-paging'
 import { Route as ApiMcpTypedTestRouteImport } from './routes/api.mcp-typed-test'
@@ -521,6 +522,12 @@ const ApiMiddlewareTestRoute = ApiMiddlewareTestRouteImport.update({
   path: '/api/middleware-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMidConversationChangesWireRoute =
+  ApiMidConversationChangesWireRouteImport.update({
+    id: '/api/mid-conversation-changes-wire',
+    path: '/api/mid-conversation-changes-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiMessageIdsRoute = ApiMessageIdsRouteImport.update({
   id: '/api/message-ids',
   path: '/api/message-ids',
@@ -888,6 +895,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-typed-test': typeof ApiMcpTypedTestRoute
   '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
+  '/api/mid-conversation-changes-wire': typeof ApiMidConversationChangesWireRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
@@ -1018,6 +1026,7 @@ export interface FileRoutesByTo {
   '/api/mcp-typed-test': typeof ApiMcpTypedTestRoute
   '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
+  '/api/mid-conversation-changes-wire': typeof ApiMidConversationChangesWireRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
@@ -1149,6 +1158,7 @@ export interface FileRoutesById {
   '/api/mcp-typed-test': typeof ApiMcpTypedTestRoute
   '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
+  '/api/mid-conversation-changes-wire': typeof ApiMidConversationChangesWireRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
@@ -1281,6 +1291,7 @@ export interface FileRouteTypes {
     | '/api/mcp-typed-test'
     | '/api/message-history-paging'
     | '/api/message-ids'
+    | '/api/mid-conversation-changes-wire'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
     | '/api/moonshot-usage-details'
@@ -1411,6 +1422,7 @@ export interface FileRouteTypes {
     | '/api/mcp-typed-test'
     | '/api/message-history-paging'
     | '/api/message-ids'
+    | '/api/mid-conversation-changes-wire'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
     | '/api/moonshot-usage-details'
@@ -1541,6 +1553,7 @@ export interface FileRouteTypes {
     | '/api/mcp-typed-test'
     | '/api/message-history-paging'
     | '/api/message-ids'
+    | '/api/mid-conversation-changes-wire'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
     | '/api/moonshot-usage-details'
@@ -1672,6 +1685,7 @@ export interface RootRouteChildren {
   ApiMcpTypedTestRoute: typeof ApiMcpTypedTestRoute
   ApiMessageHistoryPagingRoute: typeof ApiMessageHistoryPagingRoute
   ApiMessageIdsRoute: typeof ApiMessageIdsRoute
+  ApiMidConversationChangesWireRoute: typeof ApiMidConversationChangesWireRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiMistralStrictToolNullWireRoute: typeof ApiMistralStrictToolNullWireRoute
   ApiMoonshotUsageDetailsRoute: typeof ApiMoonshotUsageDetailsRoute
@@ -2230,6 +2244,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMiddlewareTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mid-conversation-changes-wire': {
+      id: '/api/mid-conversation-changes-wire'
+      path: '/api/mid-conversation-changes-wire'
+      fullPath: '/api/mid-conversation-changes-wire'
+      preLoaderRoute: typeof ApiMidConversationChangesWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/message-ids': {
       id: '/api/message-ids'
       path: '/api/message-ids'
@@ -2758,6 +2779,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpTypedTestRoute: ApiMcpTypedTestRoute,
   ApiMessageHistoryPagingRoute: ApiMessageHistoryPagingRoute,
   ApiMessageIdsRoute: ApiMessageIdsRoute,
+  ApiMidConversationChangesWireRoute: ApiMidConversationChangesWireRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiMistralStrictToolNullWireRoute: ApiMistralStrictToolNullWireRoute,
   ApiMoonshotUsageDetailsRoute: ApiMoonshotUsageDetailsRoute,
