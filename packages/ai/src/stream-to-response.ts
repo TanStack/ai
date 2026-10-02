@@ -147,6 +147,12 @@ function toEncodedStream(
   let pumpPromise: Promise<void> = Promise.resolve()
   let pumpFailure: RecordedFailure | undefined
   let cancelled = false
+  let resumePump: (() => void) | undefined
+
+  const wakePump = (): void => {
+    resumePump?.()
+    resumePump = undefined
+  }
 
   const recordPumpFailure = (error: unknown, phase: string): void => {
     pumpFailure = {
@@ -167,12 +173,25 @@ function toEncodedStream(
   return new ReadableStream({
     start(controller) {
       iterator = stream[Symbol.asyncIterator]()
+      cancellation.signal.addEventListener('abort', wakePump)
       pumpPromise = (async () => {
         let index = 0
         let iteratorDone = false
 
         try {
           while (!isAborted(cancellation.signal)) {
+            // Keep at most the stream's high-water mark queued for a slow
+            // reader. A detached durable run still drains into its log.
+            while (
+              !cancelled &&
+              !isAborted(cancellation.signal) &&
+              (controller.desiredSize ?? 0) <= 0
+            ) {
+              await new Promise<void>((resolve) => {
+                resumePump = resolve
+              })
+            }
+            if (isAborted(cancellation.signal)) break
             const result = await iterator.next()
             if (result.done) {
               iteratorDone = true
@@ -188,6 +207,7 @@ function toEncodedStream(
         } catch (error) {
           recordPumpFailure(error, 'stream iteration failed')
         } finally {
+          cancellation.signal.removeEventListener('abort', wakePump)
           if (!iteratorDone) {
             try {
               await closeIterator()
@@ -209,8 +229,12 @@ function toEncodedStream(
         recordPumpFailure(error, 'stream pump failed')
       })
     },
+    pull() {
+      wakePump()
+    },
     async cancel(reason) {
       cancelled = true
+      wakePump()
       // Detached durable delivery: the client is gone (e.g. a page reload), but
       // the run must finish into the durable log so a rejoining client can tail
       // it to the real terminal. Do NOT abort the producer (that would kill the
