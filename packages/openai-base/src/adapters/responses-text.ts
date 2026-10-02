@@ -8,6 +8,7 @@ import {
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   resolveReasoning,
+  splitMidConversationChanges,
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
@@ -23,6 +24,7 @@ import type {
   StructuredOutputCompatibility,
 } from '../utils/schema-converter'
 import { buildResponsesUsage } from '../usage'
+import { getOpenAIProviderToolKind } from '../tools/openai-provider-tool'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
 import {
   hostedShellCallIds,
@@ -46,6 +48,7 @@ import type {
   ResponseOutputMessage,
   ResponseOutputText,
   ResponseStreamEvent,
+  Tool as ResponsesTool,
 } from 'openai/resources/responses/responses'
 import type {
   ContentPart,
@@ -58,6 +61,8 @@ import type {
   ProviderExecutedToolSource,
   ReasoningCapability,
   TextOptions,
+  AnyTool,
+  NormalizedSystemPrompt,
 } from '@tanstack/ai'
 
 // Base64 encoding of the '%PDF' file header — every PDF payload starts with
@@ -2169,16 +2174,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   protected mapOptionsToRequest(
     options: TextOptions<TProviderOptions>,
   ): Omit<ResponseCreateParams, 'stream'> {
-    const input = this.convertMessagesToInput(options.messages)
+    const mid = this.midConversationRequest(options)
+    const input = this.convertMessagesToInput(options.messages, mid?.items)
 
     if (this.strictFallbackWarning) {
       warnStrictFallback(options.tools, options.logger)
     }
     const tools = options.tools
-      ? convertToolsToResponsesFormat(
-          options.tools,
-          this.makeStructuredOutputCompatible.bind(this),
-        )
+      ? this.convertTools(mid?.tools ?? options.tools)
       : undefined
 
     const modelOptions = options.modelOptions
@@ -2221,7 +2224,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       model: options.model,
       ...(options.metadata !== undefined && { metadata: options.metadata }),
       ...(() => {
-        const prompts = normalizeSystemPrompts(options.systemPrompts)
+        const prompts =
+          mid?.systemPrompts ?? normalizeSystemPrompts(options.systemPrompts)
         if (prompts.length === 0) return {}
         return { instructions: prompts.map((p) => p.content).join('\n') }
       })(),
@@ -2252,6 +2256,73 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   /**
+   * Converts the tools for the request. A subclass with its own tool
+   * converter overrides this, so the start set and the `additional_tools`
+   * items of a mid-conversation change use that converter too.
+   */
+  protected convertTools(tools: Array<AnyTool>): Array<ResponsesTool> {
+    return convertToolsToResponsesFormat(
+      tools,
+      this.makeStructuredOutputCompatible.bind(this),
+    )
+  }
+
+  /**
+   * Mid-conversation changes: the start tools for `tools`, the start prompts
+   * for `instructions`, and the input items of each change by message index.
+   * Undefined when the request stays as today: the adapter has no channels,
+   * the engine passed no changes, or the changes do not fit the current lists.
+   */
+  private midConversationRequest(options: TextOptions<TProviderOptions>):
+    | {
+        tools?: Array<AnyTool>
+        systemPrompts?: Array<NormalizedSystemPrompt>
+        items: Map<number, ResponseInput>
+      }
+    | undefined {
+    const channels = this.midConversationChannels
+    if (!channels || !options.midConversationChanges) return undefined
+    const split = splitMidConversationChanges({
+      changes: options.midConversationChanges,
+      tools: options.tools ?? [],
+      systemPrompts: normalizeSystemPrompts(options.systemPrompts),
+    })
+    if (!split) return undefined
+    // A provider tool (web search, MCP, ...) cannot go in `additional_tools`,
+    // so its request keeps the full `tools` list.
+    const toolChannel =
+      channels.tools &&
+      ![...split.startTools, ...split.addedTools].some(
+        (tool) => getOpenAIProviderToolKind(tool) !== undefined,
+      )
+    const items = new Map<number, ResponseInput>()
+    for (const [before, change] of split.at) {
+      const changeItems: ResponseInput = []
+      if (toolChannel && change.tools.length > 0) {
+        changeItems.push({
+          type: 'additional_tools',
+          role: 'developer',
+          tools: this.convertTools(change.tools),
+        })
+      }
+      if (channels.systemPrompts && change.systemPrompts.length > 0) {
+        changeItems.push({
+          role: 'developer',
+          content: change.systemPrompts.map((p) => p.content).join('\n'),
+        })
+      }
+      if (changeItems.length > 0) items.set(before, changeItems)
+    }
+    return {
+      ...(toolChannel && { tools: split.startTools }),
+      ...(channels.systemPrompts && {
+        systemPrompts: split.startSystemPrompts,
+      }),
+      items,
+    }
+  }
+
+  /**
    * The OpenAI Responses API supports `tools` and `text.format: json_schema`
    * together in a single streaming request (per issue #605). Subclasses
    * that route to providers without this capability should override.
@@ -2272,6 +2343,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    */
   protected convertMessagesToInput(
     messages: Array<ModelMessage>,
+    /** Items to send directly before `messages[index]`, or at the end. */
+    insertBefore?: ReadonlyMap<number, ResponseInput>,
   ): ResponseInput {
     const result: ResponseInput = []
     // A reasoning item id may only appear once in `input`; replaying the same
@@ -2288,7 +2361,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }
     >()
 
-    for (const message of messages) {
+    for (const [index, message] of messages.entries()) {
+      result.push(...(insertBefore?.get(index) ?? []))
       // Handle tool messages - convert to FunctionToolCallOutput
       if (message.role === 'tool') {
         const owner = message.toolCallId
@@ -2463,6 +2537,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       })
     }
 
+    result.push(...(insertBefore?.get(messages.length) ?? []))
     return result
   }
 
