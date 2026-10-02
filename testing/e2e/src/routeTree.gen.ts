@@ -105,6 +105,7 @@ import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wi
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
+import { Route as ApiHarnessTurnOverridesRouteImport } from './routes/api.harness-turn-overrides'
 import { Route as ApiHarnessTestRouteImport } from './routes/api.harness-test'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
 import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
@@ -638,6 +639,11 @@ const ApiImageRoute = ApiImageRouteImport.update({
   path: '/api/image',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHarnessTurnOverridesRoute = ApiHarnessTurnOverridesRouteImport.update({
+  id: '/api/harness-turn-overrides',
+  path: '/api/harness-turn-overrides',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHarnessTestRoute = ApiHarnessTestRouteImport.update({
   id: '/api/harness-test',
   path: '/api/harness-test',
@@ -873,6 +879,7 @@ export interface FileRoutesByFullPath {
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-test': typeof ApiHarnessTestRoute
+  '/api/harness-turn-overrides': typeof ApiHarnessTurnOverridesRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1004,6 +1011,7 @@ export interface FileRoutesByTo {
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-test': typeof ApiHarnessTestRoute
+  '/api/harness-turn-overrides': typeof ApiHarnessTurnOverridesRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1136,6 +1144,7 @@ export interface FileRoutesById {
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-test': typeof ApiHarnessTestRoute
+  '/api/harness-turn-overrides': typeof ApiHarnessTurnOverridesRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1269,6 +1278,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-test'
+    | '/api/harness-turn-overrides'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -1400,6 +1410,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-test'
+    | '/api/harness-turn-overrides'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -1531,6 +1542,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-test'
+    | '/api/harness-turn-overrides'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -1663,6 +1675,7 @@ export interface RootRouteChildren {
   ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
   ApiHarnessTestRoute: typeof ApiHarnessTestRoute
+  ApiHarnessTurnOverridesRoute: typeof ApiHarnessTurnOverridesRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
@@ -2405,6 +2418,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/harness-turn-overrides': {
+      id: '/api/harness-turn-overrides'
+      path: '/api/harness-turn-overrides'
+      fullPath: '/api/harness-turn-overrides'
+      preLoaderRoute: typeof ApiHarnessTurnOverridesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/harness-test': {
       id: '/api/harness-test'
       path: '/api/harness-test'
@@ -2757,6 +2777,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
   ApiHarnessTestRoute: ApiHarnessTestRoute,
+  ApiHarnessTurnOverridesRoute: ApiHarnessTurnOverridesRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
