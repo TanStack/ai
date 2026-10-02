@@ -13,7 +13,7 @@ import { rerank } from '../../rerank/index'
 import { decide } from '../../evaluate/index'
 import type { GenerationMiddleware } from '../../middleware/types'
 import type { AnyChatMiddleware } from '../middleware/types'
-import type { RunAgentResumeItem } from '../../../types'
+import type { PromptCacheRetention, RunAgentResumeItem } from '../../../types'
 import type { SubagentRunInput } from './define-agent'
 import type { SubagentBudget } from './limits'
 import type { ProviderKeys } from '../../../byok/keyed'
@@ -30,6 +30,8 @@ export interface SubagentForward {
   resume?: Array<RunAgentResumeItem>
   /** Aborts when the parent run or the subagent group stops. */
   abortController: AbortController
+  /** The prompt cache retention of the parent call, when it has one. */
+  promptCache?: PromptCacheRetention
 }
 
 /**
@@ -59,6 +61,11 @@ export interface SubagentBinding {
    * them, `ctx.keys` reads each provider's `env` names.
    */
   keys?: ProviderKeys
+  /**
+   * The prompt cache retention of the parent call. A child's `ctx.chat()`
+   * uses it when the call gives no `promptCache`.
+   */
+  promptCache?: PromptCacheRetention
 }
 
 /**
@@ -129,6 +136,7 @@ export function createBoundActivities(
         subagentName: agentName,
         parentSubagentRunId: input.parentSubagentRunId,
         ...(input.resume ? { resume: input.resume } : {}),
+        ...(binding?.promptCache ? { promptCache: binding.promptCache } : {}),
         abortController,
         ...options,
         // Nested children get the host middleware before their own, share

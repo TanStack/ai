@@ -499,6 +499,7 @@ function runContext(
       subagentRunId: input.subagentRunId,
       ...(input.resume ? { resume: input.resume } : {}),
       abortController,
+      ...(binding?.promptCache ? { promptCache: binding.promptCache } : {}),
     },
     keys: binding?.keys ?? envProviderKeys,
     ...createBoundActivities(agentName, input, abortController, binding),
