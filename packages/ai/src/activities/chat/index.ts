@@ -51,6 +51,8 @@ import {
   toolResultErrorText,
 } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
+import { buildBlockOrder } from '../../utilities/block-order'
+import type { BlockOrderEntry } from '../../utilities/block-order'
 import { assertMessagesFileSourceSupport } from '../../utilities/content-source'
 import { sanitizeProviderRequest } from '../../utilities/sanitize-unicode'
 import { LazyToolManager } from './tools/lazy-tool-manager'
@@ -144,6 +146,7 @@ import type {
   JSONSchema,
   LazyToolsConfig,
   ModelMessage,
+  ModelMessageBlock,
   ProviderTool,
   RunFinishedEvent,
   SchemaInput,
@@ -193,6 +196,25 @@ type TurnPart =
   | { type: 'thinking'; index: number }
   | { type: 'text'; content: string }
   | { type: 'call'; id: string; providerExecuted: boolean }
+
+/**
+ * The order map for one assistant message built from `parts`. Calls that are
+ * not in `toolCalls` are left out, because the message does not carry them.
+ * Calls that the stream did not report go last, their default place.
+ */
+function turnBlockOrder(
+  parts: ReadonlyArray<TurnPart>,
+  toolCalls: ReadonlyArray<ToolCall>,
+): Array<ModelMessageBlock> | undefined {
+  const unplaced = new Set(toolCalls.map((toolCall) => toolCall.id))
+  const entries = parts.flatMap((part): Array<BlockOrderEntry> => {
+    if (part.type === 'thinking') return [{ type: 'thinking' }]
+    if (part.type === 'text') return [{ type: 'text', text: part.content }]
+    return unplaced.delete(part.id) ? [{ type: 'tool-call', id: part.id }] : []
+  })
+  for (const id of unplaced) entries.push({ type: 'tool-call', id })
+  return buildBlockOrder(entries)
+}
 
 // ===========================
 // Activity Kind
@@ -2627,7 +2649,8 @@ class TextEngine<
    * Split this iteration into assistant ModelMessages that keep the provider's
    * block order: a new segment starts at every thinking step that follows a
    * provider-executed tool call (the rule buildAssistantMessages applies to
-   * UIMessages). Segments after the first get `${id}-segment-${n}` ids.
+   * UIMessages). Segments after the first get `${id}-segment-${n}` ids. A
+   * segment whose own blocks leave the default order gets a `blockOrder` map.
    * Returns null when no split is needed or the order could not be tracked,
    * so callers fall back to the single-message shape.
    */
@@ -2647,8 +2670,9 @@ class TextEngine<
       thinking: NonNullable<ModelMessage['thinking']>
       text: string
       callIds: Array<string>
+      parts: Array<TurnPart>
     }
-    let current: Segment = { thinking: [], text: '', callIds: [] }
+    let current: Segment = { thinking: [], text: '', callIds: [], parts: [] }
     const segments: Array<Segment> = [current]
     let split = false
     for (const part of parts) {
@@ -2656,7 +2680,7 @@ class TextEngine<
         const thinking = this.accumulatedThinking[part.index]
         if (!thinking) return null
         if (current.callIds.some((callId) => providerCallIds.has(callId))) {
-          current = { thinking: [thinking], text: '', callIds: [] }
+          current = { thinking: [thinking], text: '', callIds: [], parts: [] }
           segments.push(current)
           split = true
         } else {
@@ -2667,6 +2691,7 @@ class TextEngine<
       } else {
         current.callIds.push(part.id)
       }
+      current.parts.push(part)
     }
     if (!split) return null
     if (
@@ -2689,6 +2714,7 @@ class TextEngine<
       const segmentCalls = toolCalls.filter((toolCall) =>
         segment.callIds.includes(toolCall.id),
       )
+      const blockOrder = turnBlockOrder(segment.parts, segmentCalls)
       return {
         role: 'assistant',
         content: segment.text || null,
@@ -2701,8 +2727,38 @@ class TextEngine<
               : `${id}-segment-${index}`,
         createdAt,
         ...(segment.thinking.length > 0 && { thinking: segment.thinking }),
+        ...(blockOrder && { blockOrder }),
       }
     })
+  }
+
+  /**
+   * `{ blockOrder }` for this iteration kept as one assistant message that
+   * carries `toolCalls`, or `{}` when the order is the default one or was not
+   * tracked. This is the fallback when `buildOrderedAssistantSegments` does
+   * not split, so it is the common client-tool case.
+   */
+  private singleMessageBlockOrder(toolCalls: ReadonlyArray<ToolCall>): {
+    blockOrder?: Array<ModelMessageBlock>
+  } {
+    const parts = this.turnParts
+    if (!parts) return {}
+    const thinking = parts.filter(
+      (part): part is Extract<TurnPart, { type: 'thinking' }> =>
+        part.type === 'thinking',
+    )
+    const text = parts
+      .map((part) => (part.type === 'text' ? part.content : ''))
+      .join('')
+    if (
+      text !== this.accumulatedContent ||
+      thinking.length !== this.accumulatedThinking.length ||
+      thinking.some((part, index) => part.index !== index)
+    ) {
+      return {}
+    }
+    const blockOrder = turnBlockOrder(parts, toolCalls)
+    return blockOrder ? { blockOrder } : {}
   }
 
   private addAssistantToolCallMessage(toolCalls: Array<ToolCall>): void {
@@ -2725,6 +2781,7 @@ class TextEngine<
           ...(this.accumulatedThinking.length > 0 && {
             thinking: this.accumulatedThinking,
           }),
+          ...this.singleMessageBlockOrder(toolCalls),
         },
       ]),
     ]
@@ -2819,6 +2876,8 @@ class TextEngine<
               id,
               createdAt,
               ...(thinking ? { thinking } : {}),
+              // This message carries no tool calls, so its map has none.
+              ...this.singleMessageBlockOrder([]),
             },
           ]),
         )
