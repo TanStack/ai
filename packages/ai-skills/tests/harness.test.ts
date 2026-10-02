@@ -2,6 +2,7 @@ import { watch } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeText } from '@tanstack/ai/testing'
 import {
@@ -59,6 +60,8 @@ vi.mock('../src/node', async (importOriginal) => {
   }
 })
 
+const fixtures = fileURLToPath(new URL('./fixtures/skills', import.meta.url))
+
 const temps: Array<string> = []
 const hosts: Array<HarnessHost> = []
 afterEach(async () => {
@@ -101,26 +104,29 @@ function watchersOf(path: string) {
   )
 }
 
+/** An answer of the fake model, or a function that makes it. */
+type Answer = FakeResponse | (() => Promise<FakeResponse>)
+
 /**
  * A session with the skills plugin and `others` after it. The model gives
- * `answers` in order, then "ok", and keeps each request.
+ * `answers` first and then answers "ok". It keeps each request.
  */
 async function open(
   options: SkillsPluginOptions,
-  others: Array<HarnessPlugin> = [],
-  answers: Array<FakeResponse> = [],
+  {
+    others = [],
+    answers = [],
+  }: { others?: Array<HarnessPlugin>; answers?: Array<Answer> } = {},
 ) {
   const requests: Array<TextOptions> = []
   const fake = fakeText()
+  const ok: Answer = { text: 'ok' }
+  const steps = [...answers, ...Array.from({ length: 10 }, () => ok)]
   fake.setResponses(
-    Array.from(
-      { length: 10 },
-      (_, index) =>
-        ({ request }: { request: TextOptions }) => {
-          requests.push(request)
-          return answers[index] ?? { text: 'ok' }
-        },
-    ),
+    steps.map((answer) => async ({ request }: { request: TextOptions }) => {
+      requests.push(request)
+      return typeof answer === 'function' ? answer() : answer
+    }),
   )
   const host = createHarnessHost()
   hosts.push(host)
@@ -142,6 +148,15 @@ async function open(
 /** The system prompt text of a model request. */
 const promptOf = (request: TextOptions | undefined) =>
   JSON.stringify(request?.systemPrompts ?? [])
+
+/** The tool result text that a model request gives back to the model. */
+const toolResultOf = (request: TextOptions | undefined) =>
+  String(request?.messages.find((message) => message.role === 'tool')?.content)
+
+/** The model's call of the `load_skill` tool for `name`. */
+const loadSkill = (name: string): FakeResponse => ({
+  toolCalls: [{ name: 'load_skill', input: { name } }],
+})
 
 describe('skills()', () => {
   it('makes a command for each skill, from the first folder that has it', async () => {
@@ -182,7 +197,7 @@ describe('skills()', () => {
     })
     const { session, names, list } = await open(
       { dirs: [dir], reserved: ['help'] },
-      [picker],
+      { others: [picker] },
     )
 
     const listed = await list()
@@ -241,6 +256,24 @@ describe('skills()', () => {
     })
   })
 
+  it('watches a folder again after its watcher fails', async () => {
+    const dir = await tempDir()
+    await addSkill(dir, 'alpha')
+    const { names, list } = await open({ dirs: [dir] })
+    await list()
+    const { calls, results } = vi.mocked(watch).mock
+    const watched = results[calls.findIndex(([path]) => path === dir)]
+    if (watched?.type !== 'return') throw new Error(`No watcher for ${dir}`)
+    // For example, Windows fails the watcher of a folder that you delete.
+    watched.value.emit('error', new Error('EPERM'))
+
+    await list()
+    await addSkill(dir, 'gamma')
+    await vi.waitFor(() => expect(names()).toContain('gamma'), {
+      timeout: 5000,
+    })
+  })
+
   it('uses a folder made after the start, from the next turn', async () => {
     const root = await tempDir()
     const later = join(root, 'later')
@@ -287,6 +320,44 @@ describe('skills()', () => {
     expect(promptOf(requests[1])).toContain('zeta')
   })
 
+  it('loads a skill, with its files, from the folder that has it', async () => {
+    const first = await tempDir()
+    await addSkill(first, 'beta')
+    const { session, requests } = await open(
+      { dirs: [first, fixtures] },
+      { answers: [loadSkill('alpha')] },
+    )
+
+    await session.prompt('use alpha')
+    expect(JSON.parse(toolResultOf(requests[1]))).toEqual({
+      skill: 'alpha',
+      content: '# Alpha\n\nDo the alpha thing.',
+      resources: ['references/note.md'],
+      scripts: [
+        { path: 'scripts/run.py', executable: false, reason: 'no-runtime' },
+      ],
+      compatibility: 'any runtime',
+    })
+  })
+
+  it('tells the model when a skill is gone before it loads', async () => {
+    const dir = await tempDir()
+    await addSkill(dir, 'alpha')
+    const removeThenLoad = async () => {
+      await rm(join(dir, 'alpha'), { recursive: true, force: true })
+      return loadSkill('alpha')
+    }
+    const { session, requests } = await open(
+      { dirs: [dir] },
+      { answers: [removeThenLoad] },
+    )
+
+    await session.prompt('use alpha')
+    expect(JSON.parse(toolResultOf(requests[1]))).toEqual({
+      error: `No skill named "alpha" in ${dir}.`,
+    })
+  })
+
   it('stops following the folders when the session closes', async () => {
     const dir = await tempDir()
     await addSkill(dir, 'alpha')
@@ -307,8 +378,11 @@ describe('skills()', () => {
     await writeFile(join(dir, 'alpha', 'scripts', 'run.sh'), 'echo hi')
     const { session, requests } = await open(
       { dirs: [dir] },
-      [],
-      [{ toolCalls: [{ name: 'load_skill', input: { name: 'alpha' } }] }],
+      {
+        answers: [
+          { toolCalls: [{ name: 'load_skill', input: { name: 'alpha' } }] },
+        ],
+      },
     )
 
     await session.prompt('use alpha')
