@@ -1518,6 +1518,8 @@ export class StreamProcessor {
    * message. Fold leading thinking-only messages into the next real
    * assistant. Do not fold into a tool-result-only message (`role: 'tool'`
    * on the wire). `reconcileSnapshotToolCalls` anchors those results.
+   * A `<id>-segment-<n>` row folds into its message, together with the
+   * tool-result rows between them (a tool result ends a wire segment).
    */
   private mergeReasoningFanOut(messages: Array<UIMessage>): Array<UIMessage> {
     const out: Array<UIMessage> = []
@@ -1557,13 +1559,27 @@ export class StreamProcessor {
       } else {
         flushPending()
       }
-      const prev = out.at(-1)
+      // Look back past tool-result rows to the message this segment is of.
+      let parentIndex = out.length - 1
+      while (parentIndex >= 0) {
+        const candidate = out[parentIndex]
+        if (!candidate || !isToolResultOnly(candidate)) break
+        parentIndex--
+      }
+      const parent = out[parentIndex]
       if (
-        prev?.role === 'assistant' &&
+        parent?.role === 'assistant' &&
         next.role === 'assistant' &&
-        isAssistantSegmentOf(next.id, prev.id)
+        isAssistantSegmentOf(next.id, parent.id)
       ) {
-        out[out.length - 1] = { ...prev, parts: [...prev.parts, ...next.parts] }
+        // The parent, the tool results after it, then the segment: row order.
+        const folded = out
+          .slice(parentIndex)
+          .flatMap((message) => message.parts)
+        out.splice(parentIndex, out.length - parentIndex, {
+          ...parent,
+          parts: [...folded, ...next.parts],
+        })
         continue
       }
       out.push(next)

@@ -206,9 +206,14 @@ export function convertMessagesToModelMessages(
     if (group.info.parentToolCallId !== undefined) continue
     const text = subagentWireText(group.messages)
     if (text === '') continue
+    // A `continues` row was joined into the row before it, so it is no host.
     const host = top
       .slice(0, group.hostIndex + 1)
-      .findLast((message) => message.role === 'assistant')
+      .findLast(
+        (message) =>
+          message.role === 'assistant' &&
+          tanstackMetadata(message)?.continues === undefined,
+      )
     const hostId = host && 'id' in host ? host.id : undefined
     blocks.set(hostId, [
       ...(blocks.get(hostId) ?? []),
@@ -229,6 +234,8 @@ export function convertMessagesToModelMessages(
       converted.push({ role: 'assistant', content: block })
       continue
     }
+    // ponytail: the added text makes a `blockOrder` map on the host invalid,
+    // so readers use the default order for that one message.
     converted[index] = {
       ...host,
       content:
@@ -261,6 +268,10 @@ function convertOwnMessages(
 
   const modelMessages: Array<ModelMessage> = []
   let pendingThinking: NonNullable<ModelMessage['thinking']> = []
+  // The last assistant row and the message it went into, for `continues`.
+  let lastAssistantRow:
+    | { id: string | undefined; message: ModelMessage }
+    | undefined
   for (const msg of messages) {
     if ('parts' in msg) {
       modelMessages.push(...uiMessageToModelMessages(msg))
@@ -351,7 +362,7 @@ function convertOwnMessages(
       const toolCalls = source.toolCalls?.map((toolCall) =>
         toolCallFromWire(toolCall, toolCallMetadata?.[toolCall.id]),
       )
-      modelMessages.push({
+      const row: ModelMessage = {
         ...source,
         ...(toolCalls !== undefined ? { toolCalls } : {}),
         ...(pendingThinking.length > 0
@@ -359,14 +370,93 @@ function convertOwnMessages(
               thinking: [...(source.thinking ?? []), ...pendingThinking],
             }
           : {}),
-      })
+      }
       pendingThinking = []
+      // A row that exists only for the block order joins the row before it.
+      const continues = tanstackMetadata(msg)?.continues
+      if (
+        lastAssistantRow !== undefined &&
+        modelMessages.at(-1) === lastAssistantRow.message &&
+        continues !== undefined &&
+        continues === lastAssistantRow.id
+      ) {
+        const joined = joinAssistantRows(lastAssistantRow.message, row)
+        modelMessages[modelMessages.length - 1] = joined
+        lastAssistantRow = { id: source.id, message: joined }
+      } else {
+        modelMessages.push(row)
+        lastAssistantRow = { id: source.id, message: row }
+      }
       continue
     }
 
     modelMessages.push(modelMessage)
   }
   return modelMessages
+}
+
+/**
+ * The blocks of an assistant message as order entries: in map order when
+ * the map is valid, else in the default order.
+ */
+function blockOrderEntries(message: ModelMessage): Array<BlockOrderEntry> {
+  const blocks = orderedAssistantBlocks(message)
+  if (blocks) {
+    return blocks.map((block): BlockOrderEntry => {
+      if (block.type === 'thinking') return { type: 'thinking' }
+      if (block.type === 'text') return { type: 'text', text: block.text }
+      return { type: 'tool-call', id: block.toolCall.id }
+    })
+  }
+  return [
+    ...(message.thinking ?? []).map(
+      (): BlockOrderEntry => ({ type: 'thinking' }),
+    ),
+    ...(typeof message.content === 'string'
+      ? [{ type: 'text' as const, text: message.content }]
+      : []),
+    ...(message.toolCalls ?? []).map(
+      (toolCall): BlockOrderEntry => ({ type: 'tool-call', id: toolCall.id }),
+    ),
+  ]
+}
+
+/**
+ * Join an assistant wire row marked `continues` into the message of the
+ * assistant row before it, and extend that message's order map. The message
+ * keeps the first row's id and metadata.
+ */
+function joinAssistantRows(
+  previous: ModelMessage,
+  row: ModelMessage,
+): ModelMessage {
+  const text = [previous.content, row.content]
+    .filter((content) => typeof content === 'string')
+    .join('')
+  const thinking = [...(previous.thinking ?? []), ...(row.thinking ?? [])]
+  const toolCalls = [...(previous.toolCalls ?? []), ...(row.toolCalls ?? [])]
+  const blockOrder = buildBlockOrder([
+    ...blockOrderEntries(previous),
+    ...blockOrderEntries(row),
+  ])
+  // Each row lists only its own ui resources. Keep them all.
+  const rowResources = tanstackMetadata(row)?.uiResources ?? []
+  const base =
+    rowResources.length > 0
+      ? withTanstackMetadata(previous, {
+          uiResources: [
+            ...(tanstackMetadata(previous)?.uiResources ?? []),
+            ...rowResources,
+          ],
+        })
+      : previous
+  return {
+    ...base,
+    ...(text !== '' && { content: text }),
+    ...(toolCalls.length > 0 && { toolCalls }),
+    ...(thinking.length > 0 && { thinking }),
+    ...(blockOrder && { blockOrder }),
+  }
 }
 
 function restoreModelMessageCreatedAt(message: ModelMessage): ModelMessage {
