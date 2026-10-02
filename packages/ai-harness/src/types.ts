@@ -111,7 +111,11 @@ export interface Principal {
 
 /** What a chat turn operation resolves to. */
 export interface ChatTurnResult {
-  /** The main model's text for this turn (child agent text excluded). */
+  /**
+   * The main model's text for this turn, without the text of agents it
+   * called. When a router sends the turn to agents, it is their text, as the
+   * transcript keeps it.
+   */
   text: string
   /** Set when the turn stopped for outside input. */
   interrupts?: Array<Interrupt>

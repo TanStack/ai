@@ -8,6 +8,11 @@ import {
   replayReasoning,
   sessionHeaders,
 } from './quirks'
+import {
+  chatPromptCacheFields,
+  responsesPromptCacheFields,
+} from '../prompt-cache'
+import { openAIModelUsesExplicitPromptCache } from '../model-meta'
 import type OpenAI from 'openai'
 import type {
   ChatCompletionCreateParamsStreaming,
@@ -80,14 +85,23 @@ export class OpenAICompatibleChatAdapter<
   }
 
   /**
-   * The request, then the provider's quirks: the thinking fields for
+   * The request with the `chat({ promptCache })` fields, then the provider's
+   * quirks: the thinking fields for
    * `reasoning`, and (with `compat`) the instruction role, the token field,
    * `store`, strict tools, `tool_stream`, and cache markers.
    */
   protected override mapOptionsToRequest(
     options: TextOptions,
   ): ChatCompletionCreateParamsStreaming {
-    const params = super.mapOptionsToRequest(options)
+    // The cache fields go first, so a value the caller set in `modelOptions`
+    // (already on the base request) wins.
+    const params = {
+      ...chatPromptCacheFields(options.promptCache, {
+        baseURL: this.client.baseURL ?? '',
+        longRetention: this.compat?.supportsLongCacheRetention !== false,
+      }),
+      ...super.mapOptionsToRequest(options),
+    }
     if (!options.reasoning && !this.compat) return params
     // The quirks edit loose JSON. The OpenAI SDK type has no field for
     // `thinking` or `enable_thinking`, so the result goes back on `params`.
@@ -99,6 +113,7 @@ export class OpenAICompatibleChatAdapter<
         body,
         this.compat,
         this.reasoning !== undefined && this.reasoning !== false,
+        options.promptCache,
       )
     for (const key of Object.keys(params))
       if (!(key in body)) Reflect.deleteProperty(params, key)
@@ -131,7 +146,12 @@ export class OpenAICompatibleChatAdapter<
     options: TextOptions,
   ): Record<string, string> | undefined {
     return this.compat
-      ? sessionHeaders(this.compat, options.conversationId ?? options.threadId)
+      ? sessionHeaders(
+          this.compat,
+          options.promptCache?.key ??
+            options.conversationId ??
+            options.threadId,
+        )
       : undefined
   }
 
@@ -177,13 +197,33 @@ export class OpenAICompatibleResponsesAdapter<
 > {
   override readonly kind = 'text' as const
   readonly maxTokensKey = 'max_output_tokens'
+  private readonly compat: OpenAICompatibleCompat | undefined
 
   constructor(
     client: OpenAI,
     model: TModel,
     name: string,
     options?: OpenAIBaseTextAdapterOptions,
+    config: CompatibleModelConfig = {},
   ) {
     super(model, name, client, options)
+    this.compat = config.compat
+  }
+
+  /** The request, plus the prompt cache fields for `chat({ promptCache })`. */
+  protected override mapOptionsToRequest(
+    options: TextOptions<TProviderOptions>,
+  ) {
+    // The cache fields go first, so a value the caller set in `modelOptions`
+    // (already on the base request) wins.
+    return {
+      ...responsesPromptCacheFields(options.promptCache, {
+        explicitMode:
+          this.compat?.supportsExplicitPromptCacheMode ??
+          openAIModelUsesExplicitPromptCache(options.model),
+        longRetention: this.compat?.supportsLongCacheRetention !== false,
+      }),
+      ...super.mapOptionsToRequest(options),
+    }
   }
 }

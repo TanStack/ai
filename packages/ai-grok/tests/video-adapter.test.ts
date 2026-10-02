@@ -1379,6 +1379,7 @@ describe('Grok Video Adapter', () => {
       expect(adapter.snapDuration(0)).toBe(1)
       expect(adapter.snapDuration(16)).toBe(15)
       expect(adapter.snapDuration(2.5)).toBe(3)
+      expect(adapter.snapDuration('2.5s')).toBe(3)
       expect(adapter.snapDuration(7)).toBe(7)
     })
   })

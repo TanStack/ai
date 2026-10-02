@@ -60,6 +60,7 @@ import { Route as ApiSandboxFilePersistenceRouteImport } from './routes/api.sand
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
 import { Route as ApiProviderToolDispatchWireRouteImport } from './routes/api.provider-tool-dispatch-wire'
 import { Route as ApiProviderSearchMetadataWireRouteImport } from './routes/api.provider-search-metadata-wire'
+import { Route as ApiPromptCacheWireRouteImport } from './routes/api.prompt-cache-wire'
 import { Route as ApiPortableSkillsWireRouteImport } from './routes/api.portable-skills-wire'
 import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persistence-durability'
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
@@ -400,6 +401,11 @@ const ApiProviderSearchMetadataWireRoute =
     path: '/api/provider-search-metadata-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPromptCacheWireRoute = ApiPromptCacheWireRouteImport.update({
+  id: '/api/prompt-cache-wire',
+  path: '/api/prompt-cache-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPortableSkillsWireRoute = ApiPortableSkillsWireRouteImport.update({
   id: '/api/portable-skills-wire',
   path: '/api/portable-skills-wire',
@@ -903,6 +909,7 @@ export interface FileRoutesByFullPath {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
+  '/api/prompt-cache-wire': typeof ApiPromptCacheWireRoute
   '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
@@ -1032,6 +1039,7 @@ export interface FileRoutesByTo {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
+  '/api/prompt-cache-wire': typeof ApiPromptCacheWireRoute
   '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
@@ -1162,6 +1170,7 @@ export interface FileRoutesById {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
+  '/api/prompt-cache-wire': typeof ApiPromptCacheWireRoute
   '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
@@ -1293,6 +1302,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
+    | '/api/prompt-cache-wire'
     | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
@@ -1422,6 +1432,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
+    | '/api/prompt-cache-wire'
     | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
@@ -1551,6 +1562,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
+    | '/api/prompt-cache-wire'
     | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
@@ -1681,6 +1693,7 @@ export interface RootRouteChildren {
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiPersistenceDurabilityRoute: typeof ApiPersistenceDurabilityRoute
   ApiPortableSkillsWireRoute: typeof ApiPortableSkillsWireRoute
+  ApiPromptCacheWireRoute: typeof ApiPromptCacheWireRoute
   ApiProviderSearchMetadataWireRoute: typeof ApiProviderSearchMetadataWireRoute
   ApiProviderToolDispatchWireRoute: typeof ApiProviderToolDispatchWireRoute
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
@@ -2061,6 +2074,13 @@ declare module '@tanstack/react-router' {
       path: '/api/provider-search-metadata-wire'
       fullPath: '/api/provider-search-metadata-wire'
       preLoaderRoute: typeof ApiProviderSearchMetadataWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/prompt-cache-wire': {
+      id: '/api/prompt-cache-wire'
+      path: '/api/prompt-cache-wire'
+      fullPath: '/api/prompt-cache-wire'
+      preLoaderRoute: typeof ApiPromptCacheWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/portable-skills-wire': {
@@ -2759,6 +2779,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiPersistenceDurabilityRoute: ApiPersistenceDurabilityRoute,
   ApiPortableSkillsWireRoute: ApiPortableSkillsWireRoute,
+  ApiPromptCacheWireRoute: ApiPromptCacheWireRoute,
   ApiProviderSearchMetadataWireRoute: ApiProviderSearchMetadataWireRoute,
   ApiProviderToolDispatchWireRoute: ApiProviderToolDispatchWireRoute,
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,

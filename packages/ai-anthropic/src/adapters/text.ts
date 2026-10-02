@@ -16,6 +16,7 @@ import {
   readCodeExecutionSkills,
 } from '../tools/code-execution-tool'
 import { validateTextProviderOptions } from '../text/text-provider-options'
+import { applyAnthropicPromptCache } from '../prompt-cache'
 import { anthropicThinking } from '../text/reasoning'
 import { ANTHROPIC_MODEL_REASONING } from '../model-reasoning'
 import type { AnthropicModelReasoningByName } from '../model-reasoning'
@@ -715,7 +716,8 @@ export class AnthropicTextAdapter<
       ...(outputConfig ?? {}),
     }
     validateTextProviderOptions(requestParams)
-    return requestParams
+    // Last step: the merged messages decide which message is last.
+    return applyAnthropicPromptCache(requestParams, options.promptCache)
   }
 
   /**

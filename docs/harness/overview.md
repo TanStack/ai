@@ -173,6 +173,29 @@ The host takes the same stores as `withPersistence`. Add an `inbox` store and th
 
 `memoryPersistence()` has every store, but it keeps them in memory only. Write your own stores to keep data in your database. See [Build your own adapter](../persistence/build-your-own-adapter).
 
+## Prompt caching
+
+Every session caches the stable start of its requests by default, with its `threadId` as the cache key. To change the default for every session, set `promptCache` on the harness:
+
+```ts group=harness-first
+export const longCache = defineHarness({
+  name: 'acme/long-cache',
+  adapter: openaiText('gpt-6.1-sol'),
+  promptCache: 'long',
+})
+```
+
+To change it for one session, pass `promptCache` to `host.open`. The session value wins over the harness value:
+
+```ts group=harness-first
+const support = await host.open(assistant, {
+  threadId: 'thread-2',
+  promptCache: { key: 'acme-support' },
+})
+```
+
+If the `threadId` already has a live session, `host.open` returns that session with its first `promptCache` value. Agents in the session use the same retention. The `/usage` command of the [`usage()` plugin](./coding-agent#what-each-plugin-adds) shows cache reads and writes. For the options and the cost, see [Prompt Caching](../advanced/prompt-caching).
+
 ## What you have now
 
 - A harness defined once, with the same options as `chat()`.

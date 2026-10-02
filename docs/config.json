@@ -160,13 +160,13 @@
           "label": "Stream Events",
           "to": "chat/stream-events",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Subagents",
           "to": "chat/subagents",
           "addedAt": "2026-09-21",
-          "updatedAt": "2026-09-28"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Agentic Cycle",
@@ -318,7 +318,8 @@
         {
           "label": "Locks",
           "to": "advanced/locks",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "OpenTelemetry",
@@ -331,6 +332,11 @@
           "to": "advanced/compaction",
           "addedAt": "2026-08-24",
           "updatedAt": "2026-09-30"
+        },
+        {
+          "label": "Prompt Caching",
+          "to": "advanced/prompt-caching",
+          "addedAt": "2026-10-02"
         }
       ],
       "tab": "guides"
@@ -531,19 +537,19 @@
           "label": "Serve Tools over HTTP",
           "to": "mcp/server",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Serve Resources and Prompts",
           "to": "mcp/server-content",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-29"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Ask for Input",
           "to": "mcp/server-input",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Draft Text from a Tool",
@@ -567,7 +573,7 @@
           "label": "MCP Server Sessions",
           "to": "mcp/server-sessions",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-27"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "MCP Server on stdio",
@@ -607,7 +613,7 @@
           "label": "Overview",
           "to": "resumable-streams/overview",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Advanced",
@@ -623,7 +629,8 @@
         {
           "label": "Custom Durability Adapter",
           "to": "resumable-streams/custom-adapter",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-09-29"
         }
       ]
     },
@@ -635,7 +642,7 @@
           "label": "Overview",
           "to": "persistence/overview",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Chat Persistence",
@@ -753,7 +760,7 @@
           "label": "Voice Creation",
           "to": "media/voice-creation",
           "addedAt": "2026-09-16",
-          "updatedAt": "2026-09-16"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Audio Recording",
@@ -777,7 +784,7 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-04"
+          "updatedAt": "2026-09-28"
         },
         {
           "label": "Live Generation",
@@ -935,7 +942,7 @@
           "label": "Write a plugin",
           "to": "harness/plugins",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-01"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Build a coding agent",
@@ -1192,7 +1199,8 @@
         {
           "label": "Adapters",
           "to": "memory/adapters",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Custom Adapter",
@@ -1220,7 +1228,7 @@
           "label": "Bring Your Own Key",
           "to": "advanced/byok",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-09-29"
+          "updatedAt": "2026-09-30"
         },
         {
           "label": "Debug Logging",
@@ -1294,13 +1302,13 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Google Gemini",
@@ -1358,7 +1366,7 @@
           "label": "ElevenLabs",
           "to": "adapters/elevenlabs",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-16"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "fal.ai",
@@ -1399,7 +1407,7 @@
           "label": "Lovable AI Gateway",
           "to": "adapters/lovable",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-08-25"
+          "updatedAt": "2026-09-28"
         },
         {
           "label": "OpenAI-Compatible",
@@ -1453,7 +1461,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "BytePlus",
@@ -1499,6 +1507,11 @@
           "label": "Mynth",
           "to": "community-adapters/mynth",
           "addedAt": "2026-04-15"
+        },
+        {
+          "label": "Upstash",
+          "to": "community-adapters/upstash",
+          "addedAt": "2026-09-29"
         }
       ]
     },

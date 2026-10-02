@@ -1,7 +1,7 @@
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { SharedLog, loadLogState } from './log'
 import { HarnessSession } from './session'
-import type { RunStore } from '@tanstack/ai'
+import type { PromptCacheOptions, RunStore } from '@tanstack/ai'
 import type {
   AIPersistence,
   ArtifactStore,
@@ -98,6 +98,12 @@ export interface OpenSessionOptions {
    * them. Default: `threadId`.
    */
   logId?: string
+  /**
+   * Prompt caching for this session. It overrides the harness `promptCache`,
+   * for example with a stable affinity key. Opening the same `threadId` again
+   * returns the live session, which keeps the value of the first open.
+   */
+  promptCache?: PromptCacheOptions
 }
 
 /** Runs sessions for one or more harnesses in this process. */
@@ -220,7 +226,7 @@ export function createHarnessHost<TLogState = undefined>(
   const hostId = `host-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 
   return {
-    open(harness, { threadId, principal, logId: openLogId }) {
+    open(harness, { threadId, principal, logId: openLogId, promptCache }) {
       const key = `${harness.name}\u0000${threadId}`
       let session = sessions.get(key)
       if (!session) {
@@ -251,6 +257,7 @@ export function createHarnessHost<TLogState = undefined>(
             : {}),
           ...(options.lease ? { lease: options.lease } : {}),
           ...(principal ? { principal } : {}),
+          ...(promptCache ? { promptCache } : {}),
           onClose: () => sessions.delete(key),
         })
         session = created.open().then(

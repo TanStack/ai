@@ -257,14 +257,16 @@ The thinking text streams back as thinking parts. Pass `summary: false` to keep 
 
 ### Prompt Caching
 
-Cache prompts for better performance and reduced costs:
+`chat()` caches Claude prompts by default. It adds `cache_control` markers to the system prompt, the last tool, and the last user message. To send no markers, pass `promptCache: 'none'`. For the retention, the cache key, and the cost, see [Prompt Caching](../advanced/prompt-caching).
+
+To place a marker yourself, set `cache_control` in the `metadata` of a message part, a system prompt, or a tool. A marker of your own turns the automatic markers off for that request:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-6"),
+  adapter: anthropicText("claude-sonnet-5-5"),
   messages: [
     {
       role: "user",
@@ -283,6 +285,8 @@ const stream = chat({
   ],
 });
 ```
+
+`modelOptions.cache_control` asks Anthropic to place one marker for the whole request. It also turns the automatic markers off.
 
 ## Summarization
 

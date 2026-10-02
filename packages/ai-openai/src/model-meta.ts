@@ -2814,6 +2814,21 @@ export function openAIModelRejectsSamplingParams(model: string): boolean {
   return false
 }
 
+/**
+ * Whether a model takes OpenAI's explicit prompt cache controls
+ * (`prompt_cache_options`) in place of `prompt_cache_retention`.
+ * This is true for gpt-5.6 and later, and for gpt-6 and later.
+ */
+export function openAIModelUsesExplicitPromptCache(model: string) {
+  // ponytail: name match on the version number. If OpenAI ships a model that
+  // breaks this pattern, add a per-model flag to the model meta.
+  const match = /^gpt-(\d+)(?:\.(\d+))?/.exec(model)
+  if (!match) return false
+  const major = Number(match[1])
+  const minor = Number(match[2] ?? 0)
+  return major > 5 || (major === 5 && minor >= 6)
+}
+
 // Image generation models (based on endpoints: "image-generation" or "image-edit")
 export const OPENAI_IMAGE_MODELS = [
   GPT_IMAGE_2_5_FLARE.name,

@@ -42,6 +42,54 @@
     },
     {
       "match": {
+        "userMessage": "[harness-routing:writer] [harness-routing] write"
+      },
+      "response": {
+        "content": "Here is a short draft."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing] hello"
+      },
+      "response": {
+        "content": "Hello from the main model."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing:researcher] [harness-routing] article"
+      },
+      "response": {
+        "content": "Bees make honey."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing:seo] [harness-routing] article"
+      },
+      "response": {
+        "content": "Use the keyword honey."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing:writer] Bees make honey.\n\nUse the keyword honey."
+      },
+      "response": {
+        "content": "Bees make honey, so buy honey."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing:pricer] acme"
+      },
+      "response": {
+        "content": "Acme costs 30 dollars."
+      }
+    },
+    {
+      "match": {
         "userMessage": "[harness-protocol] hello"
       },
       "response": {

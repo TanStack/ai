@@ -1100,6 +1100,26 @@ export interface AgentLoopState {
 export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 
 /**
+ * How long the provider keeps the cached start of a request.
+ * `'none'` turns automatic prompt caching off.
+ */
+export type PromptCacheRetention = 'none' | 'short' | 'long'
+
+/**
+ * The `promptCache` option of `chat()`: a retention, or an object with a
+ * retention and a cache key.
+ */
+export type PromptCacheOptions =
+  | PromptCacheRetention
+  | { retention?: PromptCacheRetention; key?: string }
+
+/** What chat() gives the adapter. */
+export interface ResolvedPromptCache {
+  retention: PromptCacheRetention
+  key?: string
+}
+
+/**
  * Options passed into the SDK and further piped to the AI provider.
  */
 export interface TextOptions<
@@ -1228,6 +1248,11 @@ export interface TextOptions<
    * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
    */
   threadId?: string
+  /**
+   * Automatic prompt caching for this request. `chat()` sets it. When it is
+   * absent, the adapter adds no automatic cache fields.
+   */
+  promptCache?: ResolvedPromptCache
   /**
    * Run ID for AG-UI protocol run correlation.
    * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
@@ -2342,9 +2367,10 @@ export interface VideoGenerationOptions<
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: TSize
   /**
-   * Video duration in seconds. Adapters that declare a per-model duration
-   * map narrow this to the model's valid union; use
-   * `adapter.snapDuration(seconds)` to coerce raw seconds to a valid value.
+   * Video duration. Adapters that declare a per-model duration map narrow
+   * this to that model's union (a number, `"8"`, or `"8s"`). Use
+   * `adapter.snapDuration(input)` to coerce a raw value. `input` may be
+   * seconds, a `"6s"` template, or `"auto"` when the model lists it.
    */
   duration?: TDuration
   /** Model-specific options for video generation */

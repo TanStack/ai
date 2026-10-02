@@ -5,6 +5,7 @@ import type {
   ReasoningLevel,
   ReasoningMap,
   ReasoningRequest,
+  ResolvedPromptCache,
 } from '@tanstack/ai'
 
 /** How a Chat Completions request asks for thinking. */
@@ -51,7 +52,10 @@ export interface OpenAICompatibleCompat {
   sessionAffinityFormat?: 'openai' | 'openrouter' | 'openai-nosession'
   /** `'anthropic'`: add Anthropic cache markers (Claude through OpenRouter). */
   cacheControlFormat?: 'anthropic'
+  /** `false`: the provider has no long cache, so a `'long'` retention acts as `'short'`. */
   supportsLongCacheRetention?: boolean
+  /** `true`: the model takes `prompt_cache_options` (OpenAI gpt-5.6 and later); older models reject it. */
+  supportsExplicitPromptCacheMode?: boolean
   /** A top-level field for the thinking token budget, for example `thinking_token_budget`. */
   thinkingTokenBudgetField?: string
   /** Values for `chat_template_kwargs` (the `chat-template` format). */
@@ -220,23 +224,25 @@ export function applyThinking(
     params[compat.thinkingTokenBudgetField] = budget
 }
 
-const EPHEMERAL = { type: 'ephemeral' } as const
+/** An Anthropic cache marker. `ttl: '1h'` keeps the cache for one hour. */
+type CacheMarker = { type: 'ephemeral'; ttl?: '1h' }
 
 /** Put an Anthropic cache marker on the last text part of a message. */
-function markMessage(message: Record<string, unknown>): boolean {
+function markMessage(
+  message: Record<string, unknown>,
+  marker: CacheMarker,
+): boolean {
   const content = message.content
   if (typeof content === 'string') {
     if (content.length === 0) return false
-    message.content = [
-      { type: 'text', text: content, cache_control: EPHEMERAL },
-    ]
+    message.content = [{ type: 'text', text: content, cache_control: marker }]
     return true
   }
   if (!Array.isArray(content)) return false
   for (let index = content.length - 1; index >= 0; index--) {
     const part: unknown = content[index]
     if (isRecord(part) && part.type === 'text') {
-      content[index] = { ...part, cache_control: EPHEMERAL }
+      content[index] = { ...part, cache_control: marker }
       return true
     }
   }
@@ -246,11 +252,14 @@ function markMessage(message: Record<string, unknown>): boolean {
 /**
  * The quirks that are not about thinking: the instruction role, the token
  * field name, `store`, strict tools, `tool_stream`, and cache markers.
+ * `promptCache` sets the cache markers. When it is absent, the markers stay
+ * as today.
  */
 export function applyRequestQuirks(
   params: Params,
   compat: OpenAICompatibleCompat,
   reasons: boolean,
+  promptCache: ResolvedPromptCache | undefined,
 ): void {
   const messages = records(params.messages)
   const instructions = messages.find((message) => message.role === 'system')
@@ -279,19 +288,28 @@ export function applyRequestQuirks(
     if (compat.zaiToolStream) params.tool_stream = true
   }
 
-  if (compat.cacheControlFormat === 'anthropic') {
+  const addsMarkers =
+    compat.cacheControlFormat === 'anthropic' &&
+    promptCache?.retention !== 'none'
+  if (addsMarkers) {
+    const isLong =
+      promptCache?.retention === 'long' &&
+      compat.supportsLongCacheRetention !== false
+    const marker: CacheMarker = isLong
+      ? { type: 'ephemeral', ttl: '1h' }
+      : { type: 'ephemeral' }
     const system = messages.find(
       (message) => message.role === 'system' || message.role === 'developer',
     )
-    if (system) markMessage(system)
+    if (system) markMessage(system, marker)
     const lastTool = tools.at(-1)
-    if (lastTool) lastTool.cache_control = EPHEMERAL
+    if (lastTool) lastTool.cache_control = marker
     for (let index = messages.length - 1; index >= 0; index--) {
       const message = messages[index]
       if (
         message &&
         ['user', 'assistant', 'tool'].includes(String(message.role)) &&
-        markMessage(message)
+        markMessage(message, marker)
       )
         break
     }

@@ -1,3 +1,4 @@
+import { snapToDurationOption } from './snap'
 import type {
   ModelInputModalitiesByName,
   VideoGenerationOptions,
@@ -24,6 +25,12 @@ export type DurationOptions<T extends string | number | undefined> =
       range?: { min: number; max: number; step?: number }
     }
   | { kind: 'none' }
+
+/**
+ * Spellings of one clip length: the number `6`, the string `"6"`, or the
+ * template `"6s"`.
+ */
+export type VideoDurationSpell<N extends number> = N | `${N}` | `${N}s`
 
 /**
  * Configuration for video adapter instances
@@ -126,10 +133,15 @@ export interface VideoAdapter<
   availableDurations: () => DurationOptions<TModelDurationByName[TModel]>
 
   /**
-   * Coerce a raw seconds value to the closest valid duration for this model.
-   * Returns `undefined` for models with no duration field.
+   * Coerce `input` to the closest duration this model accepts.
+   * `input` may be seconds (`7`), a numeric string (`"7"`), a template
+   * (`"6s"`), or a keyword the model lists (`"auto"`).
+   * Returns `undefined` when the model has no duration field, or when
+   * `input` is a keyword that model does not list.
    */
-  snapDuration: (seconds: number) => TModelDurationByName[TModel] | undefined
+  snapDuration: (
+    input: number | string,
+  ) => TModelDurationByName[TModel] | undefined
 }
 
 /**
@@ -208,11 +220,13 @@ export abstract class BaseVideoAdapter<
   }
 
   /**
-   * Default implementation returns `undefined`. Adapters that have declared
-   * their per-model duration map should override.
+   * Uses `availableDurations()`. Adapters that declare a duration map only
+   * need to override that method.
    */
-  snapDuration(_seconds: number): TModelDurationByName[TModel] | undefined {
-    return undefined
+  snapDuration(
+    input: number | string,
+  ): TModelDurationByName[TModel] | undefined {
+    return snapToDurationOption(input, this.availableDurations())
   }
 
   protected generateId(): string {

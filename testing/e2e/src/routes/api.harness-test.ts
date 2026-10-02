@@ -8,7 +8,93 @@ import {
 } from '@tanstack/ai-harness'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
+import type { ModelMessage, UIMessage } from '@tanstack/ai'
+import type { HarnessHost } from '@tanstack/ai-harness'
 import { createTextAdapter } from '@/lib/providers'
+
+/** The plain text of the last message, or '' when it has no plain text. */
+function lastText(messages: ReadonlyArray<UIMessage | ModelMessage>) {
+  const last = messages.at(-1)
+  if (last === undefined || !('content' in last)) return ''
+  return typeof last.content === 'string' ? last.content : ''
+}
+
+/**
+ * A harness with `routing`. The router reads the last user message and picks
+ * one root agent, the main model, a plan of two steps, or an agent with typed
+ * input. The four prompts run in order on one session. Returns the text of
+ * each turn.
+ */
+async function routingTurns(
+  host: HarnessHost,
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  // The agent asks the model with its name and the text of the last message.
+  // In the second step of a plan, that message is the text of the first step.
+  const asker = (name: string) =>
+    defineAgent({
+      name,
+      description: `Answers as the ${name}`,
+      run: (ctx) =>
+        ctx.chat({
+          adapter: openai(),
+          messages: [
+            {
+              role: 'user',
+              content: `[harness-routing:${name}] ${lastText(ctx.messages)}`,
+            },
+          ],
+          stream: false,
+        }),
+    })
+  const pricer = defineAgent({
+    name: 'pricer',
+    description: 'Prices one vendor',
+    inputSchema: z.object({ vendor: z.string() }),
+    run: (ctx) =>
+      ctx.chat({
+        adapter: openai(),
+        messages: [
+          {
+            role: 'user',
+            content: `[harness-routing:pricer] ${ctx.input.vendor}`,
+          },
+        ],
+        stream: false,
+      }),
+  })
+  const harness = defineHarness({
+    name: 'e2e/harness-routing',
+    adapter: openai(),
+    agents: [asker('writer'), asker('researcher'), asker('seo'), pricer],
+    routing: {
+      router: ({ messages }) => {
+        switch (lastText(messages)) {
+          case '[harness-routing] write':
+            return 'writer'
+          case '[harness-routing] article':
+            return {
+              steps: [
+                { names: ['researcher', 'seo'], order: 'parallel' },
+                { names: ['writer'] },
+              ],
+            }
+          case '[harness-routing] price':
+            return { name: 'pricer', input: { vendor: 'acme' } }
+          default:
+            return 'main'
+        }
+      },
+    },
+  })
+  const session = await host.open(harness, { threadId: 'e2e-routing' })
+  const prompts = ['write', 'hello', 'article', 'price']
+  const texts: Array<string> = []
+  for (const prompt of prompts) {
+    texts.push((await session.prompt(`[harness-routing] ${prompt}`)).text)
+  }
+  return { texts }
+}
 
 /**
  * Start a background agent on a durable host, and let that host stop: its
@@ -73,6 +159,8 @@ async function agentRestart(
  *   the transcript, then a prompt runs.
  * - `agent-restart`: a background agent runs on a durable host that stops.
  *   The next host fails the run and wakes the thread.
+ * - `routing`: `routing.router` sends each of four turns to root agents or
+ *   to the main model.
  */
 export const Route = createFileRoute('/api/harness-test')({
   server: {
@@ -151,6 +239,9 @@ export const Route = createFileRoute('/api/harness-test')({
           }
           if (body.scenario === 'agent-restart') {
             return Response.json(await agentRestart(openai))
+          }
+          if (body.scenario === 'routing') {
+            return Response.json(await routingTurns(host, openai))
           }
           if (body.scenario === 'agent') {
             const result = await session.agents.pricer.run({

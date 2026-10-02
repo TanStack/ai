@@ -193,7 +193,15 @@ describe('compact and usage', () => {
         chunk.type === 'RUN_FINISHED'
           ? {
               ...chunk,
-              usage: [{ inputTokens: 10, outputTokens: 5, totalTokens: 15 }],
+              usage: [
+                {
+                  inputTokens: 10,
+                  outputTokens: 5,
+                  totalTokens: 15,
+                  cachedInputTokens: 6,
+                  cacheWriteInputTokens: 2,
+                },
+              ],
             }
           : chunk,
       )
@@ -211,7 +219,7 @@ describe('compact and usage', () => {
     expect(transcript).toHaveLength(2)
     expect(transcript[0]?.content).toContain('We planned a trip.')
     expect(await session.command('usage')).toBe(
-      '2 model calls, 20 input tokens, 10 output tokens, 30 total.',
+      '2 model calls, 20 input tokens (12 cache read, 4 cache write), 10 output tokens, 30 total.',
     )
     await host.close()
   })

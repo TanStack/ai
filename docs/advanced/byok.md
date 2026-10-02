@@ -211,11 +211,12 @@ export const writer = defineAgent({
 - A host can give its own keys in `subagents.binding.keys`. A child agent gives them to its own children.
 - In a harness, `ctx.keys` reads the key that each user saved with `/connect`. See [Connect model providers](../harness/provider-keys).
 
-## Image, audio, and OpenRouter
+## Image, audio, and other providers
 
 For other cases:
 
 - Image and audio POSTs use the same store. See [Generation Hooks](../media/generation-hooks#usegenerateaudio).
+- OpenAI users can sign in with ChatGPT and skip the key. See [Sign in with ChatGPT](../adapters/openai#sign-in-with-chatgpt-byok).
 - OpenRouter can mint a key with OAuth. See [Sign in with OpenRouter](../adapters/openrouter#sign-in-with-openrouter-byok).
 - Lovable uses `lovableByok` from `@tanstack/ai-lovable/byok`. See [Lovable AI Gateway](../adapters/lovable#bring-your-own-key).
 - Cloudflare needs a token plus an account id. `cloudflareByok` from `@tanstack/ai-cloudflare/byok` declares `cloudflareAccountByok` as a companion. Pass both to `defineByok({ providers })` and a send for `cloudflare` carries both headers. See [Cloudflare](../adapters/cloudflare#bring-your-own-key).

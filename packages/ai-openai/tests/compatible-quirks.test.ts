@@ -1,13 +1,38 @@
 import { describe, expect, it, vi } from 'vitest'
 import OpenAI from 'openai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
-import { OpenAICompatibleChatAdapter } from '../src/compatible/adapter'
-import type { ModelMessage, ReasoningMap, ReasoningRequest } from '@tanstack/ai'
+import {
+  OpenAICompatibleChatAdapter,
+  OpenAICompatibleResponsesAdapter,
+} from '../src/compatible/adapter'
+import { openaiCompatible, openaiCompatibleText } from '../src/compatible'
+import type {
+  ModelMessage,
+  ReasoningMap,
+  ReasoningRequest,
+  ResolvedPromptCache,
+} from '@tanstack/ai'
 import type { CompatibleModelConfig } from '../src/compatible/adapter'
+import type { OpenAICompatibleCompat } from '../src/compatible/quirks'
 
 const logger = resolveDebugOption(false)
+const OPENAI_URL = 'https://api.openai.com/v1'
+const CUSTOM_URL = 'https://llm.example.com/v1'
 
 async function* noChunks() {}
+
+async function drain(stream: AsyncIterable<unknown>) {
+  for await (const _chunk of stream) {
+    // Drain the stream.
+  }
+}
+
+/** Only the `prompt_cache*` fields of a request body. */
+function promptCacheFieldsOf(body: object) {
+  return Object.fromEntries(
+    Object.entries(body).filter(([key]) => key.startsWith('prompt_cache')),
+  )
+}
 
 /** Run one call and return the request body and request options it sent. */
 async function send(
@@ -19,9 +44,16 @@ async function send(
     modelOptions?: Record<string, unknown>
     tools?: boolean
     conversationId?: string
+    promptCache?: ResolvedPromptCache
+    baseURL?: string
   } = {},
 ) {
-  const client = new OpenAI({ apiKey: 'test' })
+  // The base URL is always set, so an OPENAI_BASE_URL env value cannot
+  // change the result.
+  const client = new OpenAI({
+    apiKey: 'test',
+    baseURL: options.baseURL ?? OPENAI_URL,
+  })
   const create = vi.fn().mockResolvedValue(noChunks())
   client.chat.completions.create =
     create as typeof client.chat.completions.create
@@ -32,39 +64,87 @@ async function send(
     {},
     config,
   )
-  for await (const _chunk of adapter.chatStream({
-    logger,
-    model: 'm',
-    messages: options.messages ?? [{ role: 'user', content: 'hi' }],
-    ...(options.systemPrompts ? { systemPrompts: options.systemPrompts } : {}),
-    ...(options.reasoning ? { reasoning: options.reasoning } : {}),
-    ...(options.modelOptions ? { modelOptions: options.modelOptions } : {}),
-    ...(options.conversationId
-      ? { conversationId: options.conversationId }
-      : {}),
-    ...(options.tools
-      ? {
-          tools: [
-            {
-              name: 'lookup',
-              description: 'Look up a word',
-              inputSchema: {
-                type: 'object',
-                properties: { word: { type: 'string' } },
-                required: ['word'],
+  await drain(
+    adapter.chatStream({
+      logger,
+      model: 'm',
+      messages: options.messages ?? [{ role: 'user', content: 'hi' }],
+      ...(options.systemPrompts
+        ? { systemPrompts: options.systemPrompts }
+        : {}),
+      ...(options.reasoning ? { reasoning: options.reasoning } : {}),
+      ...(options.modelOptions ? { modelOptions: options.modelOptions } : {}),
+      ...(options.conversationId
+        ? { conversationId: options.conversationId }
+        : {}),
+      ...(options.promptCache ? { promptCache: options.promptCache } : {}),
+      ...(options.tools
+        ? {
+            tools: [
+              {
+                name: 'lookup',
+                description: 'Look up a word',
+                inputSchema: {
+                  type: 'object',
+                  properties: { word: { type: 'string' } },
+                  required: ['word'],
+                },
               },
-            },
-          ],
-        }
-      : {}),
-  })) {
-    // Drain the stream.
-  }
+            ],
+          }
+        : {}),
+    }),
+  )
   const [body, requestOptions] = create.mock.calls[0] ?? []
   return {
     body: body as Record<string, any>,
     requestOptions: requestOptions as Record<string, any>,
   }
+}
+
+/** Run one compatible Responses call and return the cache fields it sent. */
+async function sendResponses(
+  model: string,
+  config: CompatibleModelConfig,
+  promptCache: ResolvedPromptCache,
+  modelOptions?: Record<string, unknown>,
+) {
+  const client = new OpenAI({ apiKey: 'test', baseURL: CUSTOM_URL })
+  // The SDK `create` returns an APIPromise, which a mock cannot build.
+  const create = vi.fn().mockResolvedValue(noChunks())
+  client.responses.create = create as typeof client.responses.create
+  const adapter = new OpenAICompatibleResponsesAdapter(
+    client,
+    model,
+    'test',
+    {},
+    config,
+  )
+  await drain(
+    adapter.chatStream({
+      logger,
+      model,
+      messages: [{ role: 'user', content: 'hi' }],
+      promptCache,
+      ...(modelOptions ? { modelOptions } : {}),
+    }),
+  )
+  return promptCacheFieldsOf(create.mock.calls[0]?.[0])
+}
+
+/**
+ * A `fetch` for the OpenAI SDK that answers with an empty event stream and
+ * keeps each JSON request body.
+ */
+function recordingFetch() {
+  const bodies: Array<object> = []
+  const fetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+    bodies.push(JSON.parse(String(init?.body)))
+    return new Response('', {
+      headers: { 'content-type': 'text/event-stream' },
+    })
+  })
+  return { fetch, bodies }
 }
 
 const on = (level: ReasoningRequest['level']): ReasoningRequest => ({
@@ -329,19 +409,100 @@ describe('openaiCompatible request quirks', () => {
     expect(body.tool_stream).toBe(true)
   })
 
-  it('adds Anthropic cache markers for Claude through OpenRouter', async () => {
+  const markerCases: Array<{
+    name: string
+    promptCache?: ResolvedPromptCache
+    compat?: OpenAICompatibleCompat
+    marker: { type: 'ephemeral'; ttl?: '1h' }
+  }> = [
+    { name: 'no promptCache', marker: { type: 'ephemeral' } },
+    {
+      name: 'short',
+      promptCache: { retention: 'short' },
+      marker: { type: 'ephemeral' },
+    },
+    {
+      name: 'long',
+      promptCache: { retention: 'long' },
+      marker: { type: 'ephemeral', ttl: '1h' },
+    },
+    {
+      name: 'long, provider without long retention',
+      promptCache: { retention: 'long' },
+      compat: { supportsLongCacheRetention: false },
+      marker: { type: 'ephemeral' },
+    },
+  ]
+
+  it.each(markerCases)(
+    'adds Anthropic cache markers for Claude through OpenRouter: $name',
+    async ({ promptCache, compat, marker }) => {
+      const { body } = await send(
+        { compat: { cacheControlFormat: 'anthropic', ...compat } },
+        {
+          systemPrompts: ['Be brief.'],
+          tools: true,
+          ...(promptCache ? { promptCache } : {}),
+        },
+      )
+      expect(body.messages[0].content).toEqual([
+        { type: 'text', text: 'Be brief.', cache_control: marker },
+      ])
+      expect(body.messages.at(-1).content).toEqual([
+        { type: 'text', text: 'hi', cache_control: marker },
+      ])
+      expect(body.tools.at(-1).cache_control).toEqual(marker)
+    },
+  )
+
+  it('adds no Anthropic cache markers for a none retention', async () => {
     const { body } = await send(
       { compat: { cacheControlFormat: 'anthropic' } },
-      { systemPrompts: ['Be brief.'], tools: true },
+      {
+        systemPrompts: ['Be brief.'],
+        tools: true,
+        promptCache: { retention: 'none' },
+      },
     )
-    expect(body.messages[0].content).toEqual([
-      { type: 'text', text: 'Be brief.', cache_control: { type: 'ephemeral' } },
+    expect(body.messages).toEqual([
+      { role: 'system', content: 'Be brief.' },
+      { role: 'user', content: 'hi' },
     ])
-    expect(body.messages.at(-1).content[0].cache_control).toEqual({
-      type: 'ephemeral',
-    })
-    expect(body.tools.at(-1).cache_control).toEqual({ type: 'ephemeral' })
+    expect(body.tools.at(-1)).not.toHaveProperty('cache_control')
   })
+
+  it.each([
+    { format: 'openrouter', headers: { 'x-session-id': 'k-1' } },
+    {
+      format: 'openai',
+      headers: {
+        session_id: 'k-1',
+        'x-client-request-id': 'k-1',
+        'x-session-affinity': 'k-1',
+      },
+    },
+    {
+      format: 'openai-nosession',
+      headers: { 'x-client-request-id': 'k-1', 'x-session-affinity': 'k-1' },
+    },
+  ] as const)(
+    'sends the promptCache key as $format session headers',
+    async ({ format, headers }) => {
+      const { requestOptions } = await send(
+        {
+          compat: {
+            sendSessionAffinityHeaders: true,
+            sessionAffinityFormat: format,
+          },
+        },
+        {
+          conversationId: 'c1',
+          promptCache: { retention: 'short', key: 'k-1' },
+        },
+      )
+      expect(requestOptions.headers).toEqual(headers)
+    },
+  )
 
   it('sends session headers, and leaves out streaming usage when refused', async () => {
     const openrouter = await send(
@@ -369,5 +530,158 @@ describe('openaiCompatible request quirks', () => {
       'x-session-affinity': 'c1',
     })
     expect(openai.body).not.toHaveProperty('stream_options')
+  })
+})
+
+describe('openaiCompatible Chat Completions: chat({ promptCache })', () => {
+  /** Run one call through a provider compat and return its cache fields. */
+  async function chatCacheFields(
+    promptCache: ResolvedPromptCache,
+    options: {
+      baseURL?: string
+      compat?: OpenAICompatibleCompat
+      modelOptions?: Record<string, unknown>
+    } = {},
+  ) {
+    const { body } = await send(
+      { compat: options.compat ?? {} },
+      {
+        promptCache,
+        baseURL: options.baseURL ?? CUSTOM_URL,
+        ...(options.modelOptions ? { modelOptions: options.modelOptions } : {}),
+      },
+    )
+    return promptCacheFieldsOf(body)
+  }
+
+  it('sends the key to api.openai.com for a short retention', async () => {
+    expect(
+      await chatCacheFields(
+        { retention: 'short', key: 'k-1' },
+        { baseURL: OPENAI_URL },
+      ),
+    ).toStrictEqual({ prompt_cache_key: 'k-1' })
+  })
+
+  it('sends no key to another server for a short retention', async () => {
+    expect(
+      await chatCacheFields({ retention: 'short', key: 'k-1' }),
+    ).toStrictEqual({})
+  })
+
+  it('sends the key and 24h for a long retention', async () => {
+    expect(
+      await chatCacheFields({ retention: 'long', key: 'k-1' }),
+    ).toStrictEqual({ prompt_cache_key: 'k-1', prompt_cache_retention: '24h' })
+  })
+
+  it('sends nothing for a long retention when the provider has no long cache', async () => {
+    expect(
+      await chatCacheFields(
+        { retention: 'long', key: 'k-1' },
+        { compat: { supportsLongCacheRetention: false } },
+      ),
+    ).toStrictEqual({})
+  })
+
+  it('keeps the values the caller set in modelOptions', async () => {
+    expect(
+      await chatCacheFields(
+        { retention: 'long', key: 'k-1' },
+        {
+          modelOptions: {
+            prompt_cache_key: 'caller-key',
+            prompt_cache_retention: 'in_memory',
+          },
+        },
+      ),
+    ).toStrictEqual({
+      prompt_cache_key: 'caller-key',
+      prompt_cache_retention: 'in_memory',
+    })
+  })
+})
+
+describe('openaiCompatible Responses: chat({ promptCache })', () => {
+  it('turns automatic caching off for none with supportsExplicitPromptCacheMode', async () => {
+    expect(
+      await sendResponses(
+        'my-deployment',
+        { compat: { supportsExplicitPromptCacheMode: true } },
+        { retention: 'none', key: 'k-1' },
+      ),
+    ).toStrictEqual({ prompt_cache_options: { mode: 'explicit' } })
+  })
+
+  it('uses explicit mode for a gpt-5.6 deployment name without the flag', async () => {
+    expect(
+      await sendResponses('gpt-5.6', {}, { retention: 'none', key: 'k-1' }),
+    ).toStrictEqual({ prompt_cache_options: { mode: 'explicit' } })
+  })
+
+  it('sends the key and 24h for long on an older model', async () => {
+    expect(
+      await sendResponses(
+        'my-deployment',
+        {},
+        { retention: 'long', key: 'k-1' },
+      ),
+    ).toStrictEqual({ prompt_cache_key: 'k-1', prompt_cache_retention: '24h' })
+  })
+
+  it('sends only the key for long when the provider has no long cache', async () => {
+    expect(
+      await sendResponses(
+        'my-deployment',
+        { compat: { supportsLongCacheRetention: false } },
+        { retention: 'long', key: 'k-1' },
+      ),
+    ).toStrictEqual({ prompt_cache_key: 'k-1' })
+  })
+
+  it('keeps the values the caller set in modelOptions', async () => {
+    expect(
+      await sendResponses(
+        'gpt-5.6',
+        {},
+        { retention: 'long', key: 'k-1' },
+        { prompt_cache_key: 'caller-key', prompt_cache_options: { ttl: '5m' } },
+      ),
+    ).toStrictEqual({
+      prompt_cache_key: 'caller-key',
+      prompt_cache_options: { ttl: '5m' },
+    })
+  })
+
+  it('gets the provider compat from openaiCompatible and openaiCompatibleText', async () => {
+    const { fetch, bodies } = recordingFetch()
+    const clientConfig = {
+      baseURL: CUSTOM_URL,
+      apiKey: 'test',
+      api: 'responses',
+      compat: { supportsExplicitPromptCacheMode: true },
+      fetch,
+    } as const
+    const provider = openaiCompatible({
+      ...clientConfig,
+      models: ['my-deployment'],
+    })
+    const adapters = [
+      provider('my-deployment'),
+      openaiCompatibleText('my-deployment', clientConfig),
+    ]
+    for (const adapter of adapters)
+      await drain(
+        adapter.chatStream({
+          logger,
+          model: 'my-deployment',
+          messages: [{ role: 'user', content: 'hi' }],
+          promptCache: { retention: 'none' },
+        }),
+      )
+    expect(bodies.map(promptCacheFieldsOf)).toStrictEqual([
+      { prompt_cache_options: { mode: 'explicit' } },
+      { prompt_cache_options: { mode: 'explicit' } },
+    ])
   })
 })

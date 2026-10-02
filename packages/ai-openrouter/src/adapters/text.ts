@@ -18,6 +18,7 @@ import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-t
 import { OPENROUTER_MODEL_INPUT_MODALITIES } from '../model-meta'
 import { OPENROUTER_MODEL_REASONING } from '../model-reasoning'
 import { openRouterEffort } from '../internal/reasoning'
+import { addPromptCacheMarkers } from '../prompt-cache'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { buildOpenRouterUsage } from '../usage'
@@ -1345,7 +1346,9 @@ export class OpenRouterTextAdapter<
         },
       }),
     }
-    return request
+    return options.promptCache
+      ? addPromptCacheMarkers(request, options.promptCache)
+      : request
   }
 
   /**

@@ -10,6 +10,7 @@ import {
 } from '../converse/stream-processor'
 import { buildConverseUsage } from '../converse/usage'
 import { converseThinking } from '../converse/reasoning'
+import { addPromptCachePoints } from '../converse/prompt-cache'
 import { BEDROCK_MODEL_REASONING } from '../model-reasoning'
 import type { BedrockModelReasoningByName } from '../model-reasoning'
 import {
@@ -607,7 +608,7 @@ export class BedrockConverseTextAdapter<
           }
         : undefined
 
-    return {
+    const input: ConverseCommandInput = {
       modelId: this.model,
       messages,
       ...(system.length > 0 && { system }),
@@ -615,6 +616,7 @@ export class BedrockConverseTextAdapter<
       ...(inferenceConfig && { inferenceConfig }),
       ...(additionalModelRequestFields && { additionalModelRequestFields }),
     }
+    return addPromptCachePoints(this.model, input, options.promptCache)
   }
 }
 

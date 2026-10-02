@@ -32,7 +32,7 @@ Add it with `plugins: () => [today]` in `defineHarness`. `setup` runs once per s
 - `prompts`: text for the system prompt. A function runs for each turn, so it can show current state.
 - `middleware`: chat middleware for the lead turn, the same type as `chat({ middleware })`. `agentMiddleware` is for agent runs, see [Middleware in every agent](#middleware-in-every-agent).
 - `generationMiddleware`: middleware for the activities agents call.
-- `agents`: agents added to `session.agents`.
+- `agents`: agents added to `session.agents`. `routing.router` can send a turn to them too, see [Route a turn to an agent](./subagents#route-a-turn-to-an-agent).
 - `subagents`: agents the model can call as tools. They are also added to `session.agents`. [Delegate to coding agents](./coding-agents) uses them.
 - `commands`: user actions, see below.
 - `config`: session settings, see below.

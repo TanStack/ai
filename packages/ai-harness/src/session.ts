@@ -1,12 +1,14 @@
 import {
   EventType,
   RUN_CANCEL_REASON,
+  StreamProcessor,
   SubagentBudget,
   chat,
   compactForModel,
   convertSchemaToJsonSchema,
   createSubagentId,
   maxIterations,
+  modelMessagesToUIMessages,
   runAgentStream,
   validateWithStandardSchema,
 } from '@tanstack/ai'
@@ -43,12 +45,17 @@ import type {
   Interrupt,
   Modality,
   ModelMessage,
+  PromptCacheOptions,
   ProviderKeys,
+  ResolvedPromptCache,
   RunAgentResumeItem,
   RunRecord,
   SchemaInput,
   StreamChunk,
   SubagentBinding,
+  SubagentRouterPick,
+  SubagentsBag,
+  UIMessage,
 } from '@tanstack/ai'
 import type {
   AIPersistence,
@@ -234,6 +241,8 @@ export interface SessionDependencies {
   /** The log of the session. Default: the thread id. */
   logId: string
   lease?: LeaseOptions
+  /** The `promptCache` of `host.open()`. It overrides the harness value. */
+  promptCache?: PromptCacheOptions
   onClose: () => void
 }
 
@@ -243,6 +252,11 @@ interface QueuedTurn {
   resume?: Array<RunAgentResumeItem>
   parentRunId?: string
   inputId?: string
+  /**
+   * A resolve of a turn that `routing` sent to root agents: the messages it
+   * continues from, with the agents' cards.
+   */
+  routed?: { messages: Array<UIMessage> }
 }
 
 /** Limits for a harness's children when `subagents.limits` is not set. */
@@ -269,6 +283,10 @@ function customEvent(
 
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error)
+
+/** A `promptCache` option as an object. A string is the retention alone. */
+const cacheObject = (option: PromptCacheOptions | undefined) =>
+  typeof option === 'string' ? { retention: option, key: undefined } : option
 
 /** A short transcript note about how an agent ended, for the next turn. */
 function referenceNote(
@@ -307,10 +325,22 @@ const CHAT_OPS = new Set<string>(['prompt', 'steer', 'followUp', 'resolve'])
 /** Why a turn stops when its input passes its time limit. */
 const TIMEOUT_REASON = 'harness:input-timeout'
 
-/** The text of the last assistant message, for an operation rebuilt from the log. */
+/**
+ * The text of the last assistant message: the answer of an operation rebuilt
+ * from the log, or of a routed turn.
+ */
 function lastAssistantText(messages: ReadonlyArray<ModelMessage>) {
   const last = messages.findLast((message) => message.role === 'assistant')
   return typeof last?.content === 'string' ? last.content : ''
+}
+
+/**
+ * True when chat() runs its routed path for this bag: the router picks, and
+ * the engine does not run. So the middleware that gives the engine its
+ * history and its run lease does not run, and the turn does that work.
+ */
+function isRoutedBag(bag: Pick<SubagentsBag, 'agents' | 'router'> | undefined) {
+  return bag !== undefined && bag.agents.length > 0 && bag.router !== undefined
 }
 
 /** The turn has its final answer: an assistant message with no open tool call after it was applied. */
@@ -414,8 +444,16 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private readonly joining = new Set<string>()
   private readonly pendingNotes: Array<string> = []
   private activeTurn: OperationImpl<ChatTurnResult> | undefined
+  /**
+   * The last turn stopped for these interrupts. `routed`: the root agents of
+   * a routed turn stopped. The resolve continues their saved plan.
+   */
   private interrupted:
-    | { runId: string; interrupts: Array<Interrupt> }
+    | {
+        runId: string
+        interrupts: Array<Interrupt>
+        routed?: QueuedTurn['routed']
+      }
     | undefined
   private plugins: ReadonlyArray<HarnessPlugin> = []
   private sessionPlugins: MountedPlugins | undefined
@@ -448,11 +486,20 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private readonly services: PluginServices
   private readonly media: SessionDependencies['media']
   private readonly mediaStore: MediaStore
+  /** The prompt cache of every chat turn of this session. */
+  private readonly promptCache: ResolvedPromptCache
 
   constructor(deps: SessionDependencies) {
     this.harness = deps.harness as THarness
     this.threadId = deps.threadId
     this.logId = deps.logId
+    // The session value wins over the harness value, field by field.
+    const own = cacheObject(deps.promptCache)
+    const shared = cacheObject(this.harness.promptCache)
+    this.promptCache = {
+      retention: own?.retention ?? shared?.retention ?? 'short',
+      key: own?.key ?? shared?.key ?? deps.threadId,
+    }
     this.persistence = deps.persistence
     this.inbox = deps.inbox
     this.media = deps.media
@@ -849,11 +896,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       this.reject(inputId, 'busy')
       return { inputId, status: 'rejected', reason: 'busy' }
     }
-    const parentRunId = this.interrupted.runId
+    const { runId: parentRunId, routed } = this.interrupted
     this.interrupted = undefined
     const operation = this.createTurnOperation()
     this.bindTurn(inputId, operation)
-    this.enqueueTurn({ operation, resume, parentRunId, inputId })
+    this.enqueueTurn({ operation, resume, parentRunId, inputId, routed })
     return this.keep({ inputId, status: 'accepted', operationId: operation.id })
   }
 
@@ -1769,6 +1816,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         }),
       ],
       keys: this.keys,
+      // A child uses its own threadId as the key, so only the retention goes down.
+      promptCache: this.promptCache.retention,
     } satisfies SubagentBinding
   }
 
@@ -1901,6 +1950,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     this.publishStarted(operation)
 
     let runPlugins: MountedPlugins | undefined
+    let stopRunLease = () => {}
+    /** The next chat() call runs the root agents that `routing` picked. */
+    let isRootPart = false
+    /** The messages of the root part, with the agents' cards. */
+    let cardMessages: Array<UIMessage> | undefined
     let text = ''
     let interrupts: Array<Interrupt> | undefined
     let failure: string | undefined
@@ -1940,6 +1994,19 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         ...(this.harness.subagents?.agents ?? []),
         ...(session?.subagents ?? []),
         ...(runPlugins?.subagents ?? []),
+      ]
+      const subagents =
+        subagentList.length > 0
+          ? { ...this.harness.subagents, agents: subagentList }
+          : undefined
+      // Agents `routing` can pick: the harness's own, then the plugins'. An
+      // agent object counts once.
+      const rootAgents = [
+        ...new Set([
+          ...(this.harness.agents ?? []),
+          ...(session?.agents ?? []),
+          ...(runPlugins?.agents ?? []),
+        ]),
       ]
       const picked = [
         ...(session?.adapters ?? []),
@@ -1989,8 +2056,68 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         throw new Error('The session is not open yet.')
       }
       const durableTools = this.durableTools()
-      const turnHooks = this.harness.turn
       const signal = operation.abortController.signal
+      const { routing } = this.harness
+      // A new turn asks the router once. A resolve does not: it continues the
+      // turn it answers, the main model or the saved plan of the root agents.
+      let pick: SubagentRouterPick | undefined
+      if (routing && rootAgents.length > 0 && turn.resume === undefined) {
+        const history = await this.messages.loadThread(this.threadId)
+        pick = await routing.router({
+          messages: [...history, ...(message ? [message] : [])],
+          agents: rootAgents,
+          abortSignal: signal,
+          session: this,
+          ...(turn.message !== undefined ? { input: turn.message } : {}),
+          operationId: operation.id,
+          ...(turn.inputId ? { inputId: turn.inputId } : {}),
+          adapter,
+        })
+      }
+      const isRootTurn =
+        turn.routed !== undefined || (pick ?? 'main') !== 'main'
+      const rootBag =
+        routing && isRootTurn
+          ? {
+              ...routing,
+              agents: rootAgents,
+              router: () => {
+                // A resolve has no pick. chat() continues its saved plan.
+                if (pick === undefined) {
+                  throw new Error('The routed turn has no saved plan.')
+                }
+                return pick
+              },
+              // The harness runs the handoff, so the main model keeps its
+              // subagents.
+              strategy: 'exclusive' as const,
+            }
+          : undefined
+      isRootPart = rootBag !== undefined
+      /** The subagents of the next chat() call. */
+      let bag = rootBag ?? subagents
+      let routed = isRoutedBag(bag)
+      if (routed) {
+        // The same record withPersistence opens, so its open resumes this one.
+        const { runs } = this.persistence.stores
+        await runs?.createOrResume({
+          runId: operation.id,
+          threadId: this.threadId,
+          startedAt: Date.now(),
+        })
+        stopRunLease = await holdRunLease(
+          runs,
+          operation.id,
+          this.hostId,
+          this.lease,
+        )
+      }
+      // ponytail: a routed turn runs no turn hooks (no retry, no joins, no
+      // beforeFinish), also in the main part of a handoff. A steer waits and
+      // runs as its own turn. Give the handoff part the hooks if apps need them.
+      const turnHooks = rootBag ? undefined : this.harness.turn
+      /** The messages a resolve of a routed turn continues from. */
+      let routedFrom = turn.routed?.messages
       /** Retries since the last finished tool phase. */
       let retries = 0
       /** How many times `turn.beforeFinish` continued this turn. */
@@ -2004,9 +2131,25 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         let runError: { message: string; code?: string } | undefined
         let heldError: StreamChunk | undefined
         try {
+          // The router and the routed agents get the full history. The
+          // stores merge by message id, so no message is saved twice.
+          const history =
+            routed && !routedFrom
+              ? await this.messages.loadThread(this.threadId)
+              : []
+          const turnMessages = [...history, ...(message ? [message] : [])]
+          // The store keeps each agent in its own thread, and chat() finds a
+          // stopped agent in the cards that a client sends back. So the
+          // harness keeps the cards of the root part, as a client does.
+          const cards = isRootPart
+            ? new StreamProcessor({
+                initialMessages:
+                  routedFrom ?? modelMessagesToUIMessages(turnMessages),
+              })
+            : undefined
           const stream = chat({
             adapter,
-            messages: message ? [message] : [],
+            messages: routedFrom ?? turnMessages,
             systemPrompts: [
               ...(this.harness.systemPrompts ?? []),
               ...[...(session?.prompts ?? []), ...(runPlugins?.prompts ?? [])]
@@ -2022,7 +2165,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
               ...(session?.middleware ?? []),
               ...(runPlugins?.middleware ?? []),
               ...(durableTools ? [durableTools] : []),
-              this.steering(),
+              ...(rootBag ? [] : [this.steering()]),
               // Last, because a later middleware that returns `messages` (as
               // steering does) resets what the model gets.
               mediaMiddleware({
@@ -2034,12 +2177,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
                 transcribe: this.harness.media?.transcribe,
               }),
             ],
-            ...(subagentList.length > 0
+            ...(bag
               ? {
                   subagents: {
-                    ...this.harness.subagents,
-                    agents: subagentList,
-                    limits: this.limits(),
+                    ...bag,
+                    limits: bag.limits ?? this.limits(),
                     binding: this.binding(operation, captured, runPlugins),
                   },
                 }
@@ -2057,6 +2199,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             ...(this.harness.context !== undefined
               ? { context: this.harness.context }
               : {}),
+            promptCache: this.promptCache,
             threadId: this.threadId,
             runId: operation.id,
             ...(parentRunId ? { parentRunId } : {}),
@@ -2065,7 +2208,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             stream: true,
           } as never) as AsyncIterable<StreamChunk>
 
+          routedFrom = undefined
           for await (const chunk of stream) {
+            cards?.processChunk(chunk)
             if (
               chunk.type === EventType.RUN_ERROR &&
               turnHooks?.onModelError &&
@@ -2101,6 +2246,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
               textBefore = text
             }
           }
+          cardMessages = cards?.getMessages()
         } catch (error) {
           // The outer catch handles a cancelled turn, a log failure, and a
           // harness without the hook, as before.
@@ -2165,16 +2311,26 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           (interrupts?.length ?? 0) > 0 ||
           signal.aborted
         if (isFinished) break
-        // Claimed, so a cancel after this check cannot leave a run with no
-        // new input.
-        const hasLateJoin = (await this.claimJoins()) > 0
-        if (!hasLateJoin) {
-          if (
-            !(await this.continueBeforeFinish(operation, turn.inputId, cycle))
-          ) {
-            break
+        if (rootBag) {
+          const isHandoff = isRootPart && routing?.strategy === 'handoff'
+          if (!isHandoff) break
+          // The agents answered. The main model answers next, with the
+          // transcript that has their answer.
+          isRootPart = false
+          bag = subagents
+          routed = isRoutedBag(bag)
+        } else {
+          // Claimed, so a cancel after this check cannot leave a run with no
+          // new input.
+          const hasLateJoin = (await this.claimJoins()) > 0
+          if (!hasLateJoin) {
+            if (
+              !(await this.continueBeforeFinish(operation, turn.inputId, cycle))
+            ) {
+              break
+            }
+            cycle += 1
           }
-          cycle += 1
         }
         message = undefined
         resume = undefined
@@ -2187,6 +2343,11 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           error: undefined,
         })
       }
+      // Routed agents stream their text with a subagentRunId, so the main
+      // model wrote none. The turn text is the answer the transcript keeps.
+      if (routed && text === '') {
+        text = lastAssistantText(await this.messages.loadThread(this.threadId))
+      }
     } catch (error) {
       failure = errorText(error)
       if (!operation.abortController.signal.aborted) {
@@ -2197,6 +2358,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         })
       }
     } finally {
+      stopRunLease()
       stopTimer()
       await runPlugins?.dispose().catch(() => {})
     }
@@ -2260,7 +2422,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       await settleTurn({ outcome: 'failed', error: { message: failure } })
       operation.fail('failed', new Error(failure))
     } else if (interrupts && interrupts.length > 0) {
-      this.interrupted = { runId: operation.id, interrupts }
+      this.interrupted = {
+        runId: operation.id,
+        interrupts,
+        ...(isRootPart && cardMessages
+          ? { routed: { messages: cardMessages } }
+          : {}),
+      }
       await settleTurn({ outcome: 'interrupted' })
       operation.finish('interrupted', { text, interrupts })
     } else {
