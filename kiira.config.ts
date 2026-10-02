@@ -61,6 +61,7 @@ export default defineConfig({
     '@cencori/ai-sdk': '^0.4.0',
     '@soniox/tanstack-ai-adapter': '^0.1.2',
     '@upstash/agentkit-tanstack-ai': '^0.1.1',
+    '@pipe0/tanstack-ai': '^0.1.0',
     '@upstash/blob': '^0.0.8',
     '@fal-ai/client': '1.11.0-alpha.2',
     // Octane is a peer of @tanstack/ai-octane, not a root workspace dep.
