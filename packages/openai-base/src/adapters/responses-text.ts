@@ -200,6 +200,11 @@ function readReasoningItem(
  */
 export interface OpenAIResponsesToolCallMetadata extends ProviderExecutedToolMetadata {
   itemId?: string
+  /**
+   * The namespace of the called function. A tool that came through
+   * `additional_tools` has one, and the API needs it on the replayed call.
+   */
+  namespace?: string
   /** Set for shell, local_shell, and apply_patch calls the app must run. */
   openaiUserTool?: OpenAIUserToolName
   /** Shell `action.max_output_length`, echoed on `shell_call_output`. */
@@ -208,6 +213,17 @@ export interface OpenAIResponsesToolCallMetadata extends ProviderExecutedToolMet
     webSearchCall: ResponseFunctionWebSearch
     urlCitations: Array<ResponseOutputText.URLCitation>
     assistantMessage?: ResponseOutputMessage
+  }
+}
+
+/** The tool call metadata of a streamed `function_call` item. */
+function functionCallMetadata(item: {
+  id?: string
+  namespace?: string
+}): OpenAIResponsesToolCallMetadata {
+  return {
+    ...(item.id ? { itemId: item.id } : {}),
+    ...(item.namespace ? { namespace: item.namespace } : {}),
   }
 }
 
@@ -1627,9 +1643,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: chunk.output_index,
-                metadata: {
-                  itemId: item.id,
-                } satisfies OpenAIResponsesToolCallMetadata,
+                metadata: functionCallMetadata(item),
               }
               metadata.started = true
             }
@@ -1789,9 +1803,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
-                metadata: {
-                  itemId: item.id,
-                } satisfies OpenAIResponsesToolCallMetadata,
+                metadata: functionCallMetadata(item),
               }
               metadata.started = true
             }
@@ -1958,9 +1970,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
-                metadata: {
-                  itemId: item.id,
-                } satisfies OpenAIResponsesToolCallMetadata,
+                metadata: functionCallMetadata(item),
               }
               metadata.started = true
             }
@@ -2489,6 +2499,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               ...(itemId && canPairReasoning && { id: itemId }),
               name: toolCall.function.name,
               arguments: argumentsString,
+              // Without its namespace, the API cannot find an added tool.
+              ...(metadata?.namespace && { namespace: metadata.namespace }),
             })
           }
         }

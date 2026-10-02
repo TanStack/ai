@@ -225,3 +225,102 @@ describe('Responses mid-conversation changes', () => {
     expect(JSON.stringify(body)).toBe(JSON.stringify(today))
   })
 })
+
+describe('Responses function call namespace', () => {
+  // A tool that came through `additional_tools` is called in a namespace. The
+  // next request must send that namespace back, or the API answers 400.
+  const namespacedCall = {
+    id: 'fc_weather',
+    type: 'function_call',
+    call_id: 'call-weather',
+    name: 'get_weather',
+    namespace: 'get_weather',
+  }
+
+  /** A Responses stream in which the model calls `get_weather`. */
+  function namespacedCallStream() {
+    return (async function* () {
+      yield {
+        type: 'response.created',
+        response: { id: 'resp-2', model: 'test-model', status: 'in_progress' },
+      }
+      yield {
+        type: 'response.output_item.added',
+        output_index: 0,
+        item: { ...namespacedCall, status: 'in_progress', arguments: '' },
+      }
+      yield {
+        type: 'response.output_item.done',
+        output_index: 0,
+        item: {
+          ...namespacedCall,
+          status: 'completed',
+          arguments: '{"city":"Paris"}',
+        },
+      }
+      yield {
+        type: 'response.completed',
+        response: {
+          id: 'resp-2',
+          model: 'test-model',
+          status: 'completed',
+          output: [],
+          usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+        },
+      }
+    })()
+  }
+
+  beforeEach(() => {
+    create.mockReset()
+  })
+
+  it('keeps the namespace of a streamed function call in the tool call metadata', async () => {
+    create.mockImplementation(() => Promise.resolve(namespacedCallStream()))
+    const starts: Array<unknown> = []
+    for await (const chunk of new ChannelAdapter(both).chatStream({
+      logger,
+      model: 'test-model',
+      messages: [{ role: 'user', content: 'Weather in Paris?' }],
+    })) {
+      if (chunk.type === 'TOOL_CALL_START') starts.push(chunk.metadata)
+    }
+
+    expect(starts).toEqual([{ itemId: 'fc_weather', namespace: 'get_weather' }])
+  })
+
+  it('sends the namespace back with the replayed function call', async () => {
+    create.mockImplementation(() => Promise.resolve(completedStream()))
+    const body = await send(new ChannelAdapter(both), {
+      messages: [
+        { role: 'user', content: 'Weather in Paris?' },
+        {
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'call-weather',
+              type: 'function',
+              function: { name: 'get_weather', arguments: '{"city":"Paris"}' },
+              metadata: { itemId: 'fc_weather', namespace: 'get_weather' },
+            },
+          ],
+        },
+        { role: 'tool', toolCallId: 'call-weather', content: 'Sunny' },
+      ],
+    })
+
+    expect(
+      body.input.find(
+        (item: { type?: string }) => item.type === 'function_call',
+      ),
+    ).toEqual({
+      type: 'function_call',
+      call_id: 'call-weather',
+      id: 'fc_weather',
+      name: 'get_weather',
+      arguments: '{"city":"Paris"}',
+      namespace: 'get_weather',
+    })
+  })
+})
