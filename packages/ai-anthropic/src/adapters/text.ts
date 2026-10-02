@@ -1222,6 +1222,7 @@ export class AnthropicTextAdapter<
           } else if (event.content_block.type === 'thinking') {
             accumulatedThinking = ''
             accumulatedSignature = ''
+            hasClosedReasoning = false
             // Emit REASONING and STEP_STARTED for thinking
             stepId = genId()
             reasoningMessageId = genId()
@@ -1443,6 +1444,23 @@ export class AnthropicTextAdapter<
                 subtype: 'message' as const,
                 entityId: reasoningMessageId,
                 encryptedValue: accumulatedSignature,
+                model,
+                timestamp: Date.now(),
+              }
+            }
+            // End this block's reasoning message here, so the next thinking
+            // block gets its own end events.
+            if (reasoningMessageId && !hasClosedReasoning) {
+              hasClosedReasoning = true
+              yield {
+                type: EventType.REASONING_MESSAGE_END,
+                messageId: reasoningMessageId,
+                model,
+                timestamp: Date.now(),
+              }
+              yield {
+                type: EventType.REASONING_END,
+                messageId: reasoningMessageId,
                 model,
                 timestamp: Date.now(),
               }
