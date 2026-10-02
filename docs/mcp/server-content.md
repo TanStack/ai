@@ -121,9 +121,9 @@ export function handleMcp(request: Request, userId: string) {
 
 - `uri`: the URI the host asked for, as a `URL`.
 - `variables`: the values from the template. A resource with `uri` gets `{}`.
-- `ctx.context`: the values from `handle(request, { context })`, plus the verified token as `authInfo`. A tool gets the same values.
+- `ctx.context`: the values from `handle(request, { context })`, plus the verified token as `authInfo`. A tool gets the same values, plus `requestInput` and `sample`.
 
-`list` gets the same `ctx`. It returns `{ resources }`, with a `uri` and a `name` for each resource.
+`list` gets the same `ctx`. It returns `{ resources }`, with a `uri` and a `name` for each resource. Only a resource with `uriTemplate` can have `list`.
 
 ## Prompts
 

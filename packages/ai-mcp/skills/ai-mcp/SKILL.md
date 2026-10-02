@@ -208,7 +208,7 @@ const server = createMCPServer({
 When a middleware already verified the caller, pass the result to `server.handle`.
 `server.fetch(request)` stays a plain Fetch handler. `server.handle` takes options.
 `options.authInfo` is the SDK `AuthInfo`. The server skips its `auth` gate for that request.
-`options.context` reaches every tool call of that request on `ctx.context`.
+`options.context` reaches every tool call, resource read, and resource list of that request on `ctx.context`.
 Type the values with `MCPToolContext<{ db: Db }>`.
 `authInfo`, `requestInput`, and `sample` win over a same-named value in `context`.
 
@@ -233,7 +233,7 @@ The host gets them as the MCP tool title and annotations.
 Use the MCP names: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`.
 A host skips its confirmation for a tool with `readOnlyHint: true`.
 Set `metadata._meta` to send the MCP tool `_meta`, for example `{ ui: { resourceUri: 'ui://view' } }` for an MCP Apps view.
-Pass `onerror` to `createMCPServer` to log transport and protocol errors from the SDK.
+Pass `onerror` to `createMCPServer` to log transport and protocol errors from the SDK. `serveMCPStdio` also sends its transport errors there.
 
 A tool with no `outputSchema` can return an MCP `CallToolResult`.
 The server sends it as is: its content blocks, its `structuredContent`, and its `isError`.
@@ -242,7 +242,8 @@ The server sends it as is: its content blocks, its `structuredContent`, and its 
 
 Set `sessions: 'stateless'` on a host with many instances, such as Cloudflare Workers.
 A new server answers each spec 2025 request, and no session is kept.
-Elicitation and client sampling do not work for a spec 2025 client in that mode.
+In that mode, `ctx.context.requestInput` throws for a spec 2025 client.
+`ctx.context.sample` calls the `sample` option, or throws when it is not set.
 Set `sessions: 'reject'` to serve spec 2026 only. A spec 2025 request then gets the SDK rejection.
 The default is `'memory'`: sessions live in the process for 30 idle minutes.
 
@@ -268,7 +269,8 @@ await remote.callTool('get_weather', { city: 'Paris' })
 ```
 
 `createMCPClient({ server })` is a different client.
-It calls the tool functions in the same process and returns the tool output.
+It calls the tool functions in the same process and returns the tool output, parsed with the `outputSchema`.
+`readResource(uri, context)` puts `context` on the resource `ctx.context`. Without it, `ctx.context` is `{}`.
 It opens no connection, and the server `auth` option does not run.
 It has no `tools()`, so do not pass it to `chat()`.
 Use it only when the app and the server run in one process.

@@ -33,6 +33,7 @@ describe('resourceDefinition', () => {
 
   it('throws when uri and uriTemplate are missing', () => {
     expect(() =>
+      // @ts-expect-error A resource needs a uri or a uriTemplate.
       resourceDefinition({
         name: 'file',
         mimeType: 'text/plain',

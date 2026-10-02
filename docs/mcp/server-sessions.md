@@ -50,7 +50,10 @@ const server = createMCPServer({
 })
 ```
 
-Without a session, the server cannot send a request back to a spec 2025 client. So `ctx.context.requestInput` and a client sample do not work for that client.
+Without a session, the server cannot send a request back to a spec 2025 client. For that client:
+
+- `ctx.context.requestInput` throws an error that names the `sessions` option.
+- `ctx.context.sample` calls the `sample` option of the server. Without that option, it throws.
 
 ## Turn spec 2025 off
 

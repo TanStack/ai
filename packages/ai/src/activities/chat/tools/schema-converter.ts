@@ -246,7 +246,8 @@ export interface ConvertSchemaOptions {
  *
  * - Standard JSON Schemas are rebuilt structurally (dropping `$schema`, which
  *   LLM providers ignore) and given the explicit `type`/`properties`/`required`
- *   defaults object shapes need downstream.
+ *   defaults object shapes need downstream. `io` picks the `input` (default)
+ *   or `output` view.
  * - Plain `JSONSchema` inputs are rebuilt into the typed view; non-object inputs
  *   are surfaced untouched (they can't be widened).
  * - Standard Schema validators lacking a `~standard.jsonSchema` converter throw

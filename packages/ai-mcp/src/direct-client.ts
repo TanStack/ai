@@ -2,8 +2,10 @@ import { parseWithStandardSchema } from '@tanstack/ai'
 import type { InferToolInput, InferToolOutput } from '@tanstack/ai'
 import { createServerToolContext } from './server/context'
 import { optionsOfServer } from './server/registry'
-import type { MCPResourceContext, MCPServer } from './server/create-server'
-import type { Variables } from '@modelcontextprotocol/server'
+import { parseToolOutput } from './server/output'
+import { isCallToolResult } from '@modelcontextprotocol/client'
+import type { MCPServer } from './server/create-server'
+import type { MCPResourceContext, MCPResourceRead } from './server/definitions'
 
 type Named = { name: string }
 
@@ -109,12 +111,13 @@ type DirectToolContext = ReturnType<typeof directToolContext>
 type ListedTool = {
   name: string
   inputSchema?: unknown
+  outputSchema?: unknown
   execute?: (input: never, context?: DirectToolContext) => unknown
 }
 
 type ListedResource = {
   uri?: string
-  read: (uri: URL, variables: Variables, ctx: MCPResourceContext) => unknown
+  read: MCPResourceRead
 }
 
 type ListedPrompt = {
@@ -128,7 +131,8 @@ type ListedPrompt = {
  * `server` is the object from `createMCPServer`.
  * The tool names, resource URIs, and prompt arguments stay typed.
  * This client does not open a network connection.
- * `callTool` checks `args` with the tool input schema, like the HTTP server.
+ * `callTool` checks `args` with the tool input schema and parses the output
+ * with its output schema, like the HTTP server.
  * The tool gets the spec 2026 context: `ctx.context.requestInput` throws
  * `ToolInputRequiredError`, and `ctx.context.sample` uses the server
  * `sample` option.
@@ -170,11 +174,25 @@ export function directMCPClient<const TServer extends MCPServer>(
       const input = parseWithStandardSchema<
         InferToolInput<ToolByName<TServer['tools'], TName>>
       >(tool.inputSchema, args)
-      return execute(input, directToolContext(server, options?.signal))
+      const output = await execute(
+        input,
+        directToolContext(server, options?.signal),
+      )
+      // Parse like the HTTP server does, so both return the same value.
+      return (await parseToolOutput(
+        tool,
+        output,
+        isCallToolResult,
+      )) as InferToolOutput<ToolByName<TServer['tools'], TName>>
     },
 
+    /**
+     * Reads a resource with a fixed `uri`. `context` reaches the resource
+     * on `ctx.context`. It is empty when you leave it out.
+     */
     async readResource<const TUri extends ResourceUris<TServer['resources']>>(
       uri: TUri,
+      context: MCPResourceContext['context'] = {},
     ) {
       const resource = resources.find((item) => item.uri === uri)
       if (resource === undefined) {
@@ -185,7 +203,7 @@ export function directMCPClient<const TServer extends MCPServer>(
       ) =>
         | ResourceContents<ResourceByUri<TServer['resources'], TUri>>
         | Promise<ResourceContents<ResourceByUri<TServer['resources'], TUri>>>
-      return read(new URL(uri), {}, { context: {} })
+      return read(new URL(uri), {}, { context })
     },
 
     async getPrompt<const TName extends PromptNames<TServer['prompts']>>(

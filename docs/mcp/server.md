@@ -106,6 +106,8 @@ export default {
 
 The worker URL is the MCP URL.
 
+Each request can reach a different instance. To serve spec 2025 clients there, set `sessions: 'stateless'`. See [Serve spec 2025 without sessions](./server-sessions#serve-spec-2025-without-sessions).
+
 The host can list `get_weather`. Then the host can call that tool.
 
 To call this URL from `chat()`, see [MCP Server Tools](../tools/mcp).
@@ -154,7 +156,7 @@ export const showChart = toolDefinition({
 
 ## Log SDK errors
 
-Some errors never reach your tool code: transport errors, protocol errors, and rejected requests. Pass `onerror` to send them to your logs. It only reports. The response does not change.
+Some errors never reach your tool code: transport errors, protocol errors, and rejected requests. Pass `onerror` to send them to your logs. `serveMCPStdio` also sends its transport errors there. It only reports. The response does not change.
 
 ```ts
 import { createMCPServer } from '@tanstack/ai-mcp/server'
@@ -168,7 +170,7 @@ const server = createMCPServer({
 
 ## Shape the result yourself
 
-The server sends the tool output as one text block. An object also goes on `structuredContent`. When you want more than one block, or `isError` without an exception, return an MCP `CallToolResult` from a tool with no `outputSchema`. The server sends it as is.
+The server parses the tool output with its `outputSchema`. If the output does not match, the call returns a tool error that names the tool. The server sends the output as one text block. An object also goes on `structuredContent`. When you want more than one block, or `isError` without an exception, return an MCP `CallToolResult` from a tool with no `outputSchema`. The server sends it as is.
 
 ```ts
 import { toolDefinition } from '@tanstack/ai'
@@ -243,6 +245,8 @@ This client opens no connection. It calls the tool function directly and returns
 - The server `auth` option does not run.
 - The client has no `tools()`, so you cannot pass it to `chat()`.
 - A tool gets the spec 2026 context. `ctx.context.requestInput` throws, and `ctx.context.sample` uses the `sample` option of the server.
+- `callTool` parses the output with the tool `outputSchema`, the same as the HTTP server.
+- `readResource(uri, context)` puts `context` on the resource `ctx.context`. Without it, `ctx.context` is `{}`.
 
 Now `callTool('get_weather', { city })` goes to the deployed server, and `callTool('get_wether', { city })` fails the type check.
 
