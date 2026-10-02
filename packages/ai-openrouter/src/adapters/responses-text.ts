@@ -1,6 +1,7 @@
 import { OpenRouter } from '@openrouter/sdk'
 import {
   EventType,
+  buildBaseUsage,
   isFileSource,
   normalizeSystemPrompts,
   unsupportedFileSourceError,
@@ -33,6 +34,7 @@ import type {
   ReasoningEffort,
   ResponsesRequest,
   StreamEvents,
+  Usage,
 } from '@openrouter/sdk/models'
 import type {
   StructuredOutputOptions,
@@ -285,10 +287,8 @@ export class OpenRouterResponsesTextAdapter<
       // OpenRouter override: pass nulls through unchanged.
       const transformed = this.transformStructuredOutput(parsed)
 
-      // Responses API reports usage as inputTokens/outputTokens (not the
-      // chat-completions promptTokens/completionTokens shape). Map to
-      // TokenUsage and attach OpenRouter cost when present — same contract
-      // as structuredOutputStream / processStreamChunks. Cost-only usage
+      // Same TokenUsage contract as structuredOutputStream /
+      // processStreamChunks (see buildResponsesUsage). Cost-only usage
       // (finite cost, no token fields) still forwards with zeroed tokens.
       const usage = response.usage
       const cost = extractUsageCost(usage)
@@ -301,14 +301,7 @@ export class OpenRouterResponsesTextAdapter<
       return {
         data: transformed,
         rawText,
-        ...(hasUsage && {
-          usage: {
-            promptTokens: usage.inputTokens ?? 0,
-            completionTokens: usage.outputTokens ?? 0,
-            totalTokens: usage.totalTokens ?? 0,
-            ...cost,
-          },
-        }),
+        ...(hasUsage && { usage: buildResponsesUsage(usage) }),
       }
     } catch (error: unknown) {
       chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
@@ -358,13 +351,7 @@ export class OpenRouterResponsesTextAdapter<
     let stepId: string | undefined
     let hasClosedReasoning = false
     let model: string = chatOptions.model
-    let usage:
-      | {
-          inputTokens?: number
-          outputTokens?: number
-          totalTokens?: number
-        }
-      | undefined
+    let usage: Usage | undefined
     let responseCompleted = false
 
     const closeReasoning = function* (this: {
@@ -695,14 +682,7 @@ export class OpenRouterResponsesTextAdapter<
         model,
         timestamp: Date.now(),
         finishReason: 'stop',
-        ...(usage && {
-          usage: {
-            promptTokens: usage.inputTokens ?? 0,
-            completionTokens: usage.outputTokens ?? 0,
-            totalTokens: usage.totalTokens ?? 0,
-            ...extractUsageCost(usage),
-          },
-        }),
+        ...(usage && { usage: buildResponsesUsage(usage) }),
       }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
@@ -1605,12 +1585,7 @@ export class OpenRouterResponsesTextAdapter<
             threadId: aguiState.threadId,
             model: model || options.model,
             timestamp: Date.now(),
-            usage: {
-              promptTokens: responseObj.usage?.inputTokens || 0,
-              completionTokens: responseObj.usage?.outputTokens || 0,
-              totalTokens: responseObj.usage?.totalTokens || 0,
-              ...extractUsageCost(responseObj.usage),
-            },
+            usage: buildResponsesUsage(responseObj.usage ?? {}),
             finishReason,
           }
           runFinishedEmitted = true
@@ -2118,11 +2093,19 @@ function camelCaseResponseShape(
   }
   if (src.usage && typeof src.usage === 'object') {
     const u = src.usage as Record<string, unknown>
+    const inputDetails = u.input_tokens_details
+    const hasRawCachedTokens =
+      typeof inputDetails === 'object' &&
+      inputDetails !== null &&
+      'cached_tokens' in inputDetails
     out.usage = {
       ...u,
       ...('input_tokens' in u && { inputTokens: u.input_tokens }),
       ...('output_tokens' in u && { outputTokens: u.output_tokens }),
       ...('total_tokens' in u && { totalTokens: u.total_tokens }),
+      ...(hasRawCachedTokens && {
+        inputTokensDetails: { cachedTokens: inputDetails.cached_tokens },
+      }),
     }
   }
   if (Array.isArray(src.output)) {
@@ -2142,6 +2125,23 @@ function camelCaseOutputItem(
   const out: Record<string, unknown> = { ...src }
   if ('call_id' in src) out.callId = src.call_id
   return out
+}
+
+/**
+ * Map Responses API usage to TokenUsage, plus OpenRouter cost when present.
+ * `inputTokens` already includes cached tokens, so promptTokens stays the
+ * full input count. The fields are optional because the raw (UNKNOWN) stream
+ * fallback can leave them out.
+ */
+function buildResponsesUsage(usage: Partial<Usage>) {
+  const result = buildBaseUsage({
+    promptTokens: usage.inputTokens ?? 0,
+    completionTokens: usage.outputTokens ?? 0,
+    totalTokens: usage.totalTokens ?? 0,
+  })
+  const cachedTokens = usage.inputTokensDetails?.cachedTokens ?? 0
+  if (cachedTokens > 0) result.promptTokensDetails = { cachedTokens }
+  return { ...result, ...extractUsageCost(usage) }
 }
 
 /** Normalize an `error.code` to the string slot our RUN_ERROR event reads. */
