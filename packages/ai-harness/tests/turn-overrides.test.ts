@@ -197,6 +197,22 @@ describe('turn overrides: reasoning and prompt cache', () => {
     await host.close()
   })
 
+  it('takes a reasoning level alone, the same as chat()', async () => {
+    const { host, session, calls } = await open(
+      [() => text('a'), () => text('b')],
+      { reasoning: 'low' },
+    )
+
+    await session.prompt('one')
+    await session.prompt('two', { overrides: { reasoning: 'high' } })
+
+    expect(calls.map((call) => call.reasoning)).toEqual([
+      { level: 'low', summary: true },
+      { level: 'high', summary: true },
+    ])
+    await host.close()
+  })
+
   it('sends HarnessConfig.reasoning on every turn, and a turn value replaces it', async () => {
     const { host, session, calls } = await open(
       [() => text('a'), () => text('b'), () => text('c')],

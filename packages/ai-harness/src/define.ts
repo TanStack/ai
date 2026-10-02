@@ -7,7 +7,7 @@ import type {
   KeyedAdapter,
   ModelMessage,
   PromptCacheOptions,
-  ReasoningRequest,
+  ReasoningOption,
   SubagentRouterPick,
   SubagentsBag,
   SystemPrompt,
@@ -137,7 +137,7 @@ export interface HarnessConfig<
    * `TextOptions`. Not set: no reasoning is sent, and the provider default
    * applies. `overrides.reasoning` of a turn replaces it.
    */
-  reasoning?: ReasoningRequest
+  reasoning?: ReasoningOption
   interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
   /** Runtime context passed to middleware hooks and server tools. */
   context?: unknown

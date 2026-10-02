@@ -5,7 +5,7 @@ import type {
   Interrupt,
   KeyedAdapter,
   PromptCacheOptions,
-  ReasoningRequest,
+  ReasoningOption,
   RunAgentResumeItem,
   StreamChunk,
 } from '@tanstack/ai'
@@ -34,7 +34,7 @@ export interface TurnOverrides {
   /** Replaces the harness adapter and every plugin pick for this turn. */
   adapter?: AnyTextAdapter | KeyedAdapter<AnyTextAdapter>
   /** Replaces `HarnessConfig.reasoning` for this turn. */
-  reasoning?: ReasoningRequest
+  reasoning?: ReasoningOption
   /** Replaces the session and harness values for this turn, field by field. */
   promptCache?: PromptCacheOptions
   /**
