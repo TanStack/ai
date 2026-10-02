@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import { OPENAI_MODEL_INPUT_MODALITIES } from '../model-meta'
+import { chatPromptCacheFields } from '../prompt-cache'
 import type {
   OPENAI_CHAT_MODELS,
   OpenAIChatModel,
@@ -9,7 +10,7 @@ import type {
   OpenAIChatModelToolCapabilitiesByName,
   OpenAIModelInputModalitiesByName,
 } from '../model-meta'
-import type { Modality } from '@tanstack/ai'
+import type { Modality, TextOptions } from '@tanstack/ai'
 import type { OpenAIMessageMetadataByModality } from '../message-types'
 import type { OpenAIClientConfig } from '../utils/client'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
@@ -70,6 +71,19 @@ export class OpenAIChatCompletionsTextAdapter<
 
   constructor(config: OpenAIChatCompletionsConfig, model: TModel) {
     super(model, 'openai-chat', new OpenAI(config), config)
+  }
+
+  /** The request, plus the prompt cache fields for `chat({ promptCache })`. */
+  protected override mapOptionsToRequest(options: TextOptions) {
+    // The cache fields go first, so a value the caller set in `modelOptions`
+    // (already on the base request) wins.
+    return {
+      ...chatPromptCacheFields(options.promptCache, {
+        baseURL: this.client.baseURL ?? '',
+        longRetention: true,
+      }),
+      ...super.mapOptionsToRequest(options),
+    }
   }
 }
 
