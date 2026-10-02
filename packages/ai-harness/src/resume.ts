@@ -34,6 +34,31 @@ const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error)
 
 /**
+ * Hold the lease on run `runId` and renew it. Returns the function that stops
+ * the renewal. A host that stops lets the lease expire, so recovery can tell
+ * the run is dead.
+ */
+export async function holdRunLease(
+  runs: RunStore | undefined,
+  runId: string,
+  hostId: string,
+  lease?: LeaseOptions,
+): Promise<() => void> {
+  if (!runs) return () => {}
+  const ttlMs = lease?.ttlMs ?? LEASE.ttlMs
+  const renew = () =>
+    runs.update(runId, {
+      leaseOwner: hostId,
+      leaseExpiresAt: Date.now() + ttlMs,
+    })
+  await renew()
+  const timer = setInterval(() => void renew(), lease?.renewMs ?? LEASE.renewMs)
+  // A lease timer must not keep a CLI or a test process alive.
+  if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+  return () => clearInterval(timer)
+}
+
+/**
  * Chat middleware that makes a turn resumable after a crash:
  *
  * - holds a lease on the run record and renews it while the turn runs;
@@ -59,11 +84,9 @@ export function checkpointMiddleware(options: {
   }) => void | Promise<void>
 }): AnyChatMiddleware {
   const { runs, messages, hostId, onToolResult } = options
-  const ttlMs = options.lease?.ttlMs ?? LEASE.ttlMs
-  const renewMs = options.lease?.renewMs ?? LEASE.renewMs
   const state = new WeakMap<
     object,
-    { timer: ReturnType<typeof setInterval>; pending: Array<PendingTool> }
+    { stopLease: () => void; pending: Array<PendingTool> }
   >()
 
   const saveCheckpoint = async (runId: string, pending: Array<PendingTool>) => {
@@ -72,24 +95,20 @@ export function checkpointMiddleware(options: {
     })
   }
   const stop = (ctx: object) => {
-    const entry = state.get(ctx)
-    if (entry) clearInterval(entry.timer)
+    state.get(ctx)?.stopLease()
     state.delete(ctx)
   }
 
   return {
     name: 'harness:checkpoint',
     async onStart(ctx) {
-      const renew = () =>
-        runs?.update(ctx.runId, {
-          leaseOwner: hostId,
-          leaseExpiresAt: Date.now() + ttlMs,
-        })
-      await renew()
-      const timer = setInterval(() => void renew(), renewMs)
-      // A lease timer must not keep a CLI or a test process alive.
-      if (typeof timer === 'object' && 'unref' in timer) timer.unref()
-      state.set(ctx, { timer, pending: [] })
+      const stopLease = await holdRunLease(
+        runs,
+        ctx.runId,
+        hostId,
+        options.lease,
+      )
+      state.set(ctx, { stopLease, pending: [] })
     },
     async onBeforeToolCall(ctx, hook) {
       const entry = state.get(ctx)
@@ -146,7 +165,7 @@ export function checkpointMiddleware(options: {
   }
 }
 
-/** Chat runs of this thread that a crashed host left `running`. */
+/** Chat and agent runs of this thread that a crashed host left `running`. */
 export async function findCrashedRuns(
   runs: RunStore | undefined,
   threadId: string,
@@ -157,7 +176,9 @@ export async function findCrashedRuns(
   return records.filter(
     (record) =>
       record.status === 'running' &&
-      (record.kind === undefined || record.kind === 'chat') &&
+      (record.kind === undefined ||
+        record.kind === 'chat' ||
+        record.kind === 'agent') &&
       record.leaseExpiresAt !== undefined &&
       record.leaseExpiresAt < now,
   )

@@ -1,10 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
-import { toolDefinition } from '@tanstack/ai'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { INTERRUPTED_TOOL_RESULT } from '../src/resume'
-import { after, gate, mockAdapter, text, toolCall } from './helpers'
+import {
+  after,
+  gate,
+  messageTexts,
+  mockAdapter,
+  text,
+  toolCall,
+} from './helpers'
 import type { AnyTool, StreamChunk } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
 import type {
@@ -15,6 +22,16 @@ import type {
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
+
+/** A background agent that runs until it is cancelled. */
+const waiter = defineAgent({
+  name: 'waiter',
+  description: 'Waits until it is cancelled',
+  run: (ctx) =>
+    new Promise<string>((resolve) =>
+      ctx.abortSignal?.addEventListener('abort', () => resolve('stopped')),
+    ),
+})
 
 /** A lease store in memory, like a job queue's leases. */
 function memoryLeases() {
@@ -176,6 +193,41 @@ describe('a durable host with a lease store and no run store', () => {
     await next.host.close()
   })
 
+  it('fails a background agent with an expired lease, and keeps a finished one', async () => {
+    const leases = memoryLeases()
+    const persistence = leasedPersistence(leases.store)
+    const pricer = defineAgent({
+      name: 'pricer',
+      description: 'Prices',
+      run: async () => 'priced',
+    })
+    const first = createHarnessHost({ persistence })
+    const session = await first.open(
+      defineHarness({
+        name: 'test/leases',
+        adapter: mockAdapter([]).adapter,
+        agents: [pricer, waiter],
+      }),
+      { threadId: THREAD },
+    )
+    await session.agents.pricer.run()
+    session.agents.waiter.start(undefined, { wake: true })
+    await vi.waitFor(() => expect(leases.leases.size).toBe(1))
+
+    leases.expire()
+    const next = await openLeased(persistence, [() => text('noted')])
+    await vi.waitFor(() => expect(next.calls).toHaveLength(1))
+    await vi.waitFor(() => expect(next.session.snapshot().status).toBe('idle'))
+
+    // One wake, for the agent that stopped. The finished agent stays settled.
+    expect(next.calls).toHaveLength(1)
+    expect(messageTexts(next.calls[0]).at(-1)).toBe(
+      'Background agent waiter failed: [waiter failed] The host stopped during this agent run.',
+    )
+    await first.close().catch(() => {})
+    await next.host.close()
+  })
+
   it('repairs a cut batch from the log', async () => {
     const leases = memoryLeases()
     const persistence = leasedPersistence(leases.store)
@@ -299,5 +351,34 @@ describe('a durable host with runs and leases', () => {
     expect(leases.calls).toEqual(['acquire in-1:1', 'release in-1:1'])
     expect((await runs.get(turn.id))?.status).toBe('completed')
     await host.close()
+  })
+
+  it('keeps the failed run when the stopped host ends its agent later', async () => {
+    const leases = memoryLeases()
+    const { runs } = memoryPersistence().stores
+    const persistence = {
+      stores: { log: memoryLogStore(), runs, leases: leases.store },
+    }
+    const harness = defineHarness({
+      name: 'test/leases',
+      adapter: mockAdapter([]).adapter,
+      agents: [waiter],
+    })
+    const first = createHarnessHost({ persistence })
+    const run = (
+      await first.open(harness, { threadId: THREAD })
+    ).agents.waiter.start()
+    await vi.waitFor(() => expect(leases.leases.size).toBe(1))
+
+    leases.expire()
+    const next = createHarnessHost({ persistence })
+    await next.open(harness, { threadId: THREAD })
+    // The first host sees the writes of the second host, so it stops and
+    // cancels its agent.
+    await expect(Promise.resolve(run)).rejects.toThrow('Cancelled.')
+
+    expect((await runs.get(run.id))?.status).toBe('failed')
+    await first.close().catch(() => {})
+    await next.close()
   })
 })

@@ -67,6 +67,14 @@ When a host opens the thread and finds a turn whose lease expired, it checks the
 
 An input that was stored but never ran, runs now. See [Send inputs safely](./inputs) to read how an input ended.
 
+A background agent does not run again, because it has no checkpoints. When its lease expired, the next host:
+
+1. Ends the run `failed`, with the message `The host stopped during this agent run.`
+2. Adds a note about the failure to the transcript.
+3. Starts a new turn, if you started the agent with `{ wake: true }`.
+
+`durability.recover` does not run for background agents.
+
 ## Retry model errors
 
 A model call can fail for a short time: a 429, a 5xx, an overloaded provider, or a network error. Add `retryTransientErrors()` to run the model again in the same turn, after a backoff:

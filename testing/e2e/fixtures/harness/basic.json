@@ -34,6 +34,14 @@
     },
     {
       "match": {
+        "userMessage": "Background agent waiter failed: [waiter failed] The host stopped during this agent run."
+      },
+      "response": {
+        "content": "The waiter stopped before it finished."
+      }
+    },
+    {
+      "match": {
         "userMessage": "[harness-protocol] hello"
       },
       "response": {

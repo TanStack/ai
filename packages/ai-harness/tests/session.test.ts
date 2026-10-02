@@ -358,6 +358,33 @@ describe('agents', () => {
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
     await host.close()
   })
+
+  it('notes a failed background agent and wakes the session', async () => {
+    const failing = defineAgent({
+      name: 'failing',
+      description: 'Fails',
+      run: async () => {
+        throw new Error('no vendor')
+      },
+    })
+    const { host } = setup()
+    const { adapter, calls } = mockAdapter([() => text('sorry')])
+    const session = await host.open(
+      defineHarness({ name: 'test/wake-failed', adapter, agents: [failing] }),
+      { threadId: 't1' },
+    )
+
+    await expect(
+      session.agents.failing.start(undefined, { wake: true }),
+    ).rejects.toThrow('no vendor')
+    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    expect(messageTexts(calls[0]).slice(-2)).toEqual([
+      '[failing failed] no vendor',
+      'Background agent failing failed: [failing failed] no vendor',
+    ])
+    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await host.close()
+  })
 })
 
 describe('inbox', () => {

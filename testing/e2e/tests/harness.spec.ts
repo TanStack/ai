@@ -56,4 +56,18 @@ test.describe('harness session', () => {
     expect(body.result).toBe('Vendor A costs 12 dollars.')
     expect(body.text).toBe('It cost 12 dollars.')
   })
+
+  test('a background agent that a stopped host left running fails and wakes the thread', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'agent-restart', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    const body = await response.json()
+    expect(body.status).toBe('failed')
+    expect(body.text).toBe('The waiter stopped before it finished.')
+  })
 })

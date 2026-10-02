@@ -32,6 +32,7 @@ import {
   LEASE,
   checkpointMiddleware,
   findCrashedRuns,
+  holdRunLease,
   repairTranscript,
 } from './resume'
 import { HARNESS_EVENTS, InputRejectedError } from './types'
@@ -46,6 +47,7 @@ import type {
   ProviderKeys,
   ResolvedPromptCache,
   RunAgentResumeItem,
+  RunRecord,
   SchemaInput,
   StreamChunk,
   SubagentBinding,
@@ -108,16 +110,20 @@ import type {
 /** Options for running an agent from code. */
 export interface AgentRunOptions {
   /**
-   * How the main model learns about the result on its next turn:
-   * `'reference'` (default) adds a short note to the transcript, `'none'` adds
-   * nothing.
+   * How the main model learns about the result or the error on its next
+   * turn: `'reference'` (default) adds a short note to the transcript,
+   * `'none'` adds nothing.
    */
   attach?: 'reference' | 'none'
 }
 
 /** Options for starting an agent in the background. */
 export interface AgentStartOptions extends AgentRunOptions {
-  /** When the agent finishes, start a new chat turn with its result. */
+  /**
+   * When the agent finishes or fails, start a new chat turn with its result
+   * or its error. On a durable host, this also occurs when the host stopped
+   * during the run.
+   */
   wake?: boolean
 }
 
@@ -272,15 +278,22 @@ const errorText = (error: unknown) =>
 const cacheObject = (option: PromptCacheOptions | undefined) =>
   typeof option === 'string' ? { retention: option, key: undefined } : option
 
-/** A short transcript note about an agent result, for the next turn. */
-function referenceNote(agent: string, result: unknown): string {
+/** A short transcript note about how an agent ended, for the next turn. */
+function referenceNote(
+  agent: string,
+  result: unknown,
+  ended: 'finished' | 'failed' = 'finished',
+): string {
   const body =
     typeof result === 'string'
       ? result
       : JSON.stringify(compactForModel(result))
   const clipped = body.length > 2000 ? `${body.slice(0, 2000)}...` : body
-  return `[${agent} finished] ${clipped}`
+  return `[${agent} ${ended}] ${clipped}`
 }
+
+/** Why recovery fails an agent run whose host stopped. */
+const AGENT_STOPPED = 'The host stopped during this agent run.'
 
 /**
  * The kinds a model reads: the adapter's input list, narrowed by
@@ -296,7 +309,7 @@ export function acceptedKinds(
   return accepts.filter((kind) => modalities.includes(kind))
 }
 
-/** The inputs that run as chat turns, and settle. */
+/** The inputs that run as chat turns. They settle, and so do agent inputs. */
 const CHAT_OPS = new Set<string>(['prompt', 'steer', 'followUp', 'resolve'])
 
 /** Why a turn stops when its input passes its time limit. */
@@ -1841,14 +1854,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * Hold the lease of a turn attempt in `stores.leases` while it runs.
-   * Returns the function that releases it. Without a lease store (or
-   * without a log), it returns nothing: the run lease of the checkpoint
-   * middleware decides.
+   * Hold the lease of a turn or agent attempt in `stores.leases` while it
+   * runs. Returns the function that releases it. Without a lease store (or
+   * without a log), it returns nothing: the run lease decides.
    */
   private async holdLease(
     inputId: string | undefined,
-    operation: OperationImpl<ChatTurnResult>,
+    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
   ): Promise<(() => Promise<void>) | undefined> {
     const leases = this.persistence.stores.leases
     const attempt =
@@ -2520,7 +2532,17 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     let result: unknown
     let failure: string | undefined
     let subagentRunId = ''
+    let stopRunLease = () => {}
+    let releaseLease: (() => Promise<void>) | undefined
     try {
+      // A host that stops lets these leases expire. Then recovery fails the run.
+      stopRunLease = await holdRunLease(
+        runs,
+        operation.id,
+        this.hostId,
+        this.lease,
+      )
+      releaseLease = await this.holdLease(inputId, operation)
       const messages = await this.messages.loadThread(this.threadId)
       subagentRunId = createSubagentId()
       const stream = runAgentStream(
@@ -2569,6 +2591,23 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }
 
     const value = result !== undefined ? result : text
+    // The run record and the log keep how the agent ended, so recovery
+    // leaves it alone. After a log failure, another host owns the thread and
+    // decides how the run ended, so this host writes neither.
+    const end = async (
+      run: Pick<RunRecord, 'status'> &
+        Partial<Pick<RunRecord, 'error' | 'result'>>,
+      settlement: Pick<InputSettlement, 'outcome' | 'error'>,
+    ) => {
+      if (this.logFailure) return
+      await runs?.update(operation.id, { ...run, finishedAt: Date.now() })
+      // A refused append stops the session. The operation still ends.
+      await this.settle({
+        inputId,
+        operationId: operation.id,
+        ...settlement,
+      }).catch(() => {})
+    }
     if (operation.abortController.signal.aborted) {
       operation.publish({
         type: EventType.RUN_FINISHED,
@@ -2577,10 +2616,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         outcome: { type: 'cancelled' },
         timestamp: Date.now(),
       } as StreamChunk)
-      await runs?.update(operation.id, {
-        status: 'aborted',
-        finishedAt: Date.now(),
-      })
+      await end({ status: 'aborted' }, { outcome: 'aborted' })
       operation.fail('cancelled', new Error('Cancelled.'))
     } else if (failure !== undefined) {
       operation.publish({
@@ -2588,11 +2624,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         message: failure,
         timestamp: Date.now(),
       })
-      await runs?.update(operation.id, {
-        status: 'failed',
-        finishedAt: Date.now(),
-        error: { message: failure },
-      })
+      const error = { message: failure }
+      await end({ status: 'failed', error }, { outcome: 'failed', error })
+      await this.noteAgentEnd(name, 'failed', failure, options)
       operation.fail('failed', new Error(failure))
     } else {
       operation.publish({
@@ -2602,23 +2636,79 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         result: value,
         timestamp: Date.now(),
       } as StreamChunk)
-      await runs?.update(operation.id, {
-        status: 'completed',
-        finishedAt: Date.now(),
-        result: compactForModel(value),
-      })
-      if ((options.attach ?? 'reference') === 'reference') {
-        this.pendingNotes.push(referenceNote(name, value))
-        if (!this.activeTurn) await this.flushNotes()
-      }
+      await end(
+        { status: 'completed', result: compactForModel(value) },
+        { outcome: 'completed' },
+      )
+      await this.noteAgentEnd(name, 'finished', value, options)
       operation.finish('completed', value)
-      if (options.wake) {
-        void this.followUp(
-          `Background agent ${name} finished: ${referenceNote(name, value)}`,
-        )
-      }
     }
+    stopRunLease()
+    await releaseLease?.()
     this.publishFinished(operation)
+  }
+
+  /**
+   * Tell the main model how an agent ended: a transcript note (unless
+   * `attach: 'none'`), and a new chat turn when `wake` is set.
+   */
+  private async noteAgentEnd(
+    name: string,
+    ended: 'finished' | 'failed',
+    result: unknown,
+    options: AgentStartOptions,
+  ): Promise<void> {
+    const note = referenceNote(name, result, ended)
+    if ((options.attach ?? 'reference') === 'reference') {
+      this.pendingNotes.push(note)
+      if (!this.activeTurn) await this.flushNotes()
+    }
+    if (options.wake) {
+      void this.followUp(`Background agent ${name} ${ended}: ${note}`)
+    }
+  }
+
+  /**
+   * Fail an agent run whose host stopped. Its events end the operation for
+   * views, and the main model gets a note.
+   */
+  // ponytail: `wake` comes from the log. Without a log there is no wake, only
+  // the note. Keep `wake` on the run record if a host without a log needs it.
+  private async failStoppedAgent(stopped: {
+    operationId: string
+    agent: string
+    inputId?: string
+    wake?: boolean
+  }): Promise<void> {
+    const { operationId, inputId } = stopped
+    await this.persistence.stores.runs?.update(operationId, {
+      status: 'failed',
+      finishedAt: Date.now(),
+      error: { message: AGENT_STOPPED },
+    })
+    if (inputId) {
+      await this.settle({
+        inputId,
+        operationId,
+        outcome: 'failed',
+        error: { message: AGENT_STOPPED },
+      })
+    }
+    this.feed.publish(operationId, {
+      type: EventType.RUN_ERROR,
+      message: AGENT_STOPPED,
+      timestamp: Date.now(),
+    })
+    this.feed.publish(
+      operationId,
+      customEvent(HARNESS_EVENTS.operationFinished, {
+        operationId,
+        status: 'failed',
+      }),
+    )
+    await this.noteAgentEnd(stopped.agent, 'failed', AGENT_STOPPED, {
+      wake: stopped.wake === true,
+    })
   }
 
   /** Write queued agent notes to the transcript while no turn is writing it. */
@@ -2922,13 +3012,20 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
 
   /**
    * Continue the newest chat turn that a crashed host left running. Older
-   * crashed turns are marked failed.
+   * crashed turns are marked failed, and so are crashed agent runs.
    */
   private async recoverCrashedTurn(): Promise<void> {
-    const crashed = await findCrashedRuns(
+    const runs = await findCrashedRuns(
       this.persistence.stores.runs,
       this.threadId,
     )
+    for (const run of runs.filter((record) => record.kind === 'agent')) {
+      await this.failStoppedAgent({
+        operationId: run.runId,
+        agent: run.agent ?? 'agent',
+      })
+    }
+    const crashed = runs.filter((record) => record.kind !== 'agent')
     const newest = crashed.sort((a, b) => b.startedAt - a.startedAt)[0]
     for (const record of crashed) {
       await this.persistence.stores.runs?.update(record.runId, {
@@ -3016,8 +3113,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * order. A chat turn whose host stopped (its run lease expired) settles
    * `aborted` when an abort was asked, settles `failed` when no attempt or no
    * time is left, settles `completed` when the log already has its final
-   * answer, and else runs again as the next attempt. An input that never ran
-   * runs now. Other inputs are rejected with `expired_on_restart`.
+   * answer, and else runs again as the next attempt. An agent run whose host
+   * stopped settles `failed` and does not run again: it has no checkpoints.
+   * An input that never ran runs now. Other inputs are rejected with
+   * `expired_on_restart`.
    */
   private async recoverFromLog(writer: LogWriter): Promise<void> {
     const runs = this.persistence.stores.runs
@@ -3055,7 +3154,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         })
         continue
       }
-      if (input.status !== 'applied' || !isChat) continue
+      const isAgent = input.input.op === 'agent'
+      if (input.status !== 'applied' || !(isChat || isAgent)) continue
       const leases = this.persistence.stores.leases
       const run = input.operationId ? await runs?.get(input.operationId) : null
       const now = Date.now()
@@ -3073,6 +3173,18 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             run.leaseExpiresAt >= now
       // Another host still drives this turn.
       if (isAlive) continue
+      if (input.input.op === 'agent') {
+        // A run that ended before its settle record landed did not stop.
+        if (!run || run.status === 'running') {
+          await this.failStoppedAgent({
+            operationId: input.operationId ?? '',
+            agent: input.input.agent,
+            inputId: input.inputId,
+            wake: input.input.detached,
+          })
+        }
+        continue
+      }
       if (run?.status === 'running') {
         await runs?.update(run.runId, {
           status: 'failed',

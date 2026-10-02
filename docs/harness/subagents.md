@@ -59,7 +59,7 @@ export const review = definePlugin({
 ```
 
 - `ctx.agents.run(agent, input)` runs one agent and resolves with its result.
-- `ctx.agents.start(agent, input, { wake: true })` runs it in the background and starts a turn when it is done.
+- `ctx.agents.start(agent, input, { wake: true })` runs it in the background and starts a turn when it finishes or fails.
 - `ctx.agents.group(options, body)` runs several. With `onFailure: 'cancel-siblings'`, one failure cancels the others. With `'collect'`, use `group.runSettled` to get every result or error. Every child settles before `group` returns.
 
 To track usage or apply a policy in each of these runs, see [Middleware in every agent](./plugins#middleware-in-every-agent).

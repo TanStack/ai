@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { InputRejectedError, createHarnessHost, defineHarness } from '../src'
-import { gate, mockAdapter, text, untilAborted } from './helpers'
+import { gate, messageTexts, mockAdapter, text, untilAborted } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { HarnessDurability } from '../src'
@@ -209,6 +209,62 @@ describe('recovery of a durable input', () => {
       outcome: 'completed',
     })
     expect(calls).toHaveLength(0)
+    await host.close()
+  })
+
+  it('fails a background agent whose host stopped, and wakes the thread', async () => {
+    const persistence = durablePersistence()
+    await persistence.stores.log.append(THREAD, 1, [
+      {
+        type: 'harness.input',
+        inputId: 'in-agent',
+        input: { op: 'agent', agent: 'waiter', detached: true },
+        at: 1,
+      },
+      {
+        type: 'harness.input.applied',
+        inputId: 'in-agent',
+        operationId: 'op-agent',
+        attempt: 1,
+      },
+    ])
+    await persistence.stores.runs.createOrResume({
+      runId: 'op-agent',
+      threadId: THREAD,
+      startedAt: Date.now() - 60_000,
+      kind: 'agent',
+      agent: 'waiter',
+    })
+    await persistence.stores.runs.update('op-agent', {
+      leaseOwner: 'host-gone',
+      leaseExpiresAt: Date.now() - 1_000,
+    })
+
+    const { host, calls } = await openDurable({
+      persistence,
+      replies: [() => text('noted')],
+    })
+
+    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    expect(messageTexts(calls[0]).slice(-2)).toEqual([
+      '[waiter failed] The host stopped during this agent run.',
+      'Background agent waiter failed: [waiter failed] The host stopped during this agent run.',
+    ])
+    expect((await persistence.stores.runs.get('op-agent'))?.status).toBe(
+      'failed',
+    )
+    const settled = (await persistence.stores.log.read(THREAD))
+      .map((entry) => entry.record)
+      .find(
+        (record) =>
+          record.type === 'harness.input.settled' &&
+          record.inputId === 'in-agent',
+      )
+    expect(settled).toMatchObject({
+      operationId: 'op-agent',
+      outcome: 'failed',
+      error: { message: 'The host stopped during this agent run.' },
+    })
     await host.close()
   })
 
