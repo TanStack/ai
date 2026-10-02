@@ -6,7 +6,12 @@ import {
   normalizeToUIMessage,
   uiMessageToModelMessages,
 } from '../src/activities/chat/messages'
-import type { ContentPart, ModelMessage, UIMessage } from '../src/types'
+import type {
+  ContentPart,
+  ModelMessage,
+  ToolCallPart,
+  UIMessage,
+} from '../src/types'
 
 describe('Message Converters', () => {
   describe('uiMessageToModelMessages', () => {
@@ -513,6 +518,11 @@ describe('Message Converters', () => {
             },
           ],
           thinking: [{ content: 'Thinking between local tool calls' }],
+          blockOrder: [
+            { type: 'tool-call', id: 'tool-call-a' },
+            { type: 'thinking', index: 0 },
+            { type: 'tool-call', id: 'tool-call-b' },
+          ],
         },
         {
           role: 'tool',
@@ -2777,6 +2787,155 @@ describe('Message Converters', () => {
           m.content !== '',
       )
       expect(assistantWithContent).toBeUndefined()
+    })
+  })
+
+  describe('block order', () => {
+    function callPart(id: string): ToolCallPart {
+      return {
+        type: 'tool-call',
+        id,
+        name: 'lookup',
+        arguments: '{}',
+        state: 'input-complete',
+      }
+    }
+
+    it('writes blockOrder when the parts leave the default order', () => {
+      const [message] = uiMessageToModelMessages({
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          { type: 'thinking', content: 'plan', signature: 'sig-a' },
+          callPart('call_1'),
+          { type: 'thinking', content: 'next', signature: 'sig-b' },
+          callPart('call_2'),
+        ],
+      })
+
+      expect(message).toEqual({
+        id: 'a1',
+        role: 'assistant',
+        content: null,
+        toolCalls: [
+          {
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'lookup', arguments: '{}' },
+          },
+          {
+            id: 'call_2',
+            type: 'function',
+            function: { name: 'lookup', arguments: '{}' },
+          },
+        ],
+        thinking: [
+          { content: 'plan', signature: 'sig-a' },
+          { content: 'next', signature: 'sig-b' },
+        ],
+        blockOrder: [
+          { type: 'thinking', index: 0 },
+          { type: 'tool-call', id: 'call_1' },
+          { type: 'thinking', index: 1 },
+          { type: 'tool-call', id: 'call_2' },
+        ],
+      })
+    })
+
+    it('writes no blockOrder for parts in the default order', () => {
+      const [message] = uiMessageToModelMessages({
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          { type: 'thinking', content: 'plan', signature: 'sig-a' },
+          { type: 'text', content: 'Hello' },
+          callPart('call_1'),
+        ],
+      })
+
+      expect(message).not.toHaveProperty('blockOrder')
+    })
+
+    it('builds UIMessage parts in map order', () => {
+      const ui = modelMessageToUIMessage(
+        {
+          role: 'assistant',
+          content: 'AB',
+          thinking: [{ content: 'plan' }, { content: 'check' }],
+          blockOrder: [
+            { type: 'thinking', index: 0 },
+            { type: 'text', length: 1 },
+            { type: 'thinking', index: 1 },
+            { type: 'text', length: 1 },
+          ],
+        },
+        'a1',
+      )
+
+      expect(ui.parts).toEqual([
+        { type: 'thinking', content: 'plan' },
+        { type: 'text', content: 'A' },
+        { type: 'thinking', content: 'check' },
+        { type: 'text', content: 'B' },
+      ])
+    })
+
+    it('keeps the default order when the map does not match the message', () => {
+      const ui = modelMessageToUIMessage(
+        {
+          role: 'assistant',
+          content: 'AB',
+          thinking: [{ content: 'plan' }, { content: 'check' }],
+          // The text lengths add up to 1, not 2.
+          blockOrder: [
+            { type: 'thinking', index: 0 },
+            { type: 'text', length: 1 },
+            { type: 'thinking', index: 1 },
+          ],
+        },
+        'a1',
+      )
+
+      expect(ui.parts).toEqual([
+        { type: 'thinking', content: 'plan' },
+        { type: 'thinking', content: 'check' },
+        { type: 'text', content: 'AB' },
+      ])
+    })
+
+    it('keeps the order from UIMessage to ModelMessage and back', () => {
+      const original: UIMessage = {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          { type: 'thinking', content: 'plan', signature: 'sig-a' },
+          { type: 'text', content: 'Let me look.' },
+          callPart('call_1'),
+          { type: 'thinking', content: 'next', signature: 'sig-b' },
+          { type: 'text', content: 'And again.' },
+          callPart('call_2'),
+        ],
+      }
+
+      const back = modelMessagesToUIMessages(uiMessageToModelMessages(original))
+
+      expect(back).toHaveLength(1)
+      expect(
+        back[0]?.parts.map((part) =>
+          part.type === 'tool-call'
+            ? `tool-call:${part.id}`
+            : part.type === 'text' || part.type === 'thinking'
+              ? `${part.type}:${part.content}`
+              : part.type,
+        ),
+      ).toEqual([
+        'thinking:plan',
+        'text:Let me look.',
+        'tool-call:call_1',
+        'thinking:next',
+        'text:And again.',
+        'tool-call:call_2',
+      ])
     })
   })
 
