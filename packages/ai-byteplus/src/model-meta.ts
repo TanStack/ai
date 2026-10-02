@@ -1,10 +1,13 @@
 /**
  * BytePlus ModelArk model metadata.
  *
- * Every Ark model id in this file — chat, video and image — was verified live
- * against `https://ark.ap-southeast.bytepluses.com/api/v3` on 2026-07-31. The
- * two Seed Speech ids are the exception: they live on the voice host, which
- * needs a separate key that was not available, so they are docs-derived.
+ * Every hand-written Ark model id in this file — chat, video and image — was
+ * verified live against `https://ark.ap-southeast.bytepluses.com/api/v3` on
+ * 2026-07-31. Two kinds of id are the exception. The two Seed Speech ids live
+ * on the voice host, which needs a separate key that was not available, so
+ * they are docs-derived. Chat ids added by `scripts/sync-provider-models.ts`
+ * come from the modelschemas catalog and were not live-probed; the sync never
+ * adds them to the structured-output or thinking-summary lists below.
  * Capability metadata is a mix of probed and docs-derived facts; anything not
  * confirmed against the live API is annotated as such at its declaration.
  * BytePlus
@@ -21,6 +24,54 @@
  */
 import type { DurationOptions } from '@tanstack/ai/adapters'
 import type { BytePlusTextProviderOptions } from './text/text-provider-options'
+
+const DEEPSEEK_V4_1_FLASH_260910 = {
+  name: 'deepseek-v4-1-flash-260910',
+  context_window: 1_048_576,
+  max_output_tokens: 393_216,
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: ['reasoning', 'tool_calling'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
+
+const DEEPSEEK_V4_FLASH_GA_260731 = {
+  name: 'deepseek-v4-flash-ga-260731',
+  context_window: 1_048_576,
+  max_output_tokens: 393_216,
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: ['reasoning', 'tool_calling'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
+
+const DEEPSEEK_V4_PRO_GA_260813 = {
+  name: 'deepseek-v4-pro-ga-260813',
+  context_window: 1_048_576,
+  max_output_tokens: 393_216,
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: ['reasoning', 'tool_calling'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
+
+const GLM_5_3_FLASH_260828 = {
+  name: 'glm-5-3-flash-260828',
+  context_window: 1_048_576,
+  max_output_tokens: 131_072,
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    capabilities: ['reasoning', 'tool_calling'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
 
 /**
  * BytePlus exposes no server-side provider tools (no hosted web search, code
@@ -304,6 +355,10 @@ const GPT_OSS_120B_250805 = {
  * All supported BytePlus chat model identifiers.
  */
 export const BYTEPLUS_CHAT_MODELS = [
+  DEEPSEEK_V4_1_FLASH_260910.name,
+  DEEPSEEK_V4_FLASH_GA_260731.name,
+  DEEPSEEK_V4_PRO_GA_260813.name,
+  GLM_5_3_FLASH_260828.name,
   DOLA_SEED_2_1_TURBO.name,
   SEED_2_0_LITE_260428.name,
   SEED_2_0_MINI_260428.name,
@@ -450,6 +505,10 @@ export type BytePlusModelInputModalitiesByName = {
   [DEEPSEEK_V4_FLASH_260425.name]: typeof DEEPSEEK_V4_FLASH_260425.supports.input
   [DEEPSEEK_V3_2_251201.name]: typeof DEEPSEEK_V3_2_251201.supports.input
   [GPT_OSS_120B_250805.name]: typeof GPT_OSS_120B_250805.supports.input
+  [DEEPSEEK_V4_1_FLASH_260910.name]: typeof DEEPSEEK_V4_1_FLASH_260910.supports.input
+  [DEEPSEEK_V4_FLASH_GA_260731.name]: typeof DEEPSEEK_V4_FLASH_GA_260731.supports.input
+  [DEEPSEEK_V4_PRO_GA_260813.name]: typeof DEEPSEEK_V4_PRO_GA_260813.supports.input
+  [GLM_5_3_FLASH_260828.name]: typeof GLM_5_3_FLASH_260828.supports.input
 }
 
 /**

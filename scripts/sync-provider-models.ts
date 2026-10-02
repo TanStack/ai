@@ -1,76 +1,70 @@
 /**
- * Syncs OpenRouter models into native provider model-meta.ts files.
+ * Syncs modelschemas catalogs into native provider model-meta.ts files.
  *
- * For each supported provider (OpenAI, Anthropic, Gemini, Grok), this script:
- * 1. Reads the OpenRouter model list
- * 2. Filters models matching the provider prefix
+ * For each synced provider, this script:
+ * 1. Lists that provider's models from modelschemas (`@modelschemas/client`)
+ * 2. Uses native limits, modalities, pricing, and capabilities. Fills any
+ *    field the native row left empty from the modelschemas OpenRouter catalog
  * 3. Identifies models missing from the provider's model-meta.ts
  * 4. Generates and inserts new model constants, array entries, and type map entries
  *
  * Usage:
  *   pnpm tsx scripts/sync-provider-models.ts
  *
+ * Optional: MODELSCHEMAS_API_KEY raises the modelschemas rate limit.
+ *
  * ## Providers deliberately NOT synced
  *
- * The sync is only safe when the provider's own model ids can be derived from
- * OpenRouter's. Adding an entry to `PROVIDER_MAP` for a provider where that
- * doesn't hold generates ids that 404 at request time, which is worse than no
- * automation. These are excluded on purpose:
- *
- * - **byteplus** (`@tanstack/ai-byteplus`) — OpenRouter lists the same models
- *   under undated slugs (`bytedance-seed/seed-1.6`), but BytePlus Ark
- *   addresses them by *date-suffixed* id (`seed-1-6-250615`), and the suffix
- *   is not derivable from anything OpenRouter publishes. Ark's own `GET
- *   /models` is the catalog, and it is not exhaustive. On top of that the
- *   package's capability tables are live-probe-verified specifically because
- *   the published metadata is wrong in both directions, so a metadata-driven
- *   sync would overwrite probed facts with worse ones. Use `/gap-analysis
- *   byteplus` instead; the probe recipe is in that package's `model-meta.ts`.
- * - **fal**, **elevenlabs** — media-only providers whose endpoint ids are not
- *   OpenRouter models at all. fal image fields have their own generator
- *   (`scripts/generate-fal-image-field-map.ts`).
+ * - **fal** — 1k+ model-grained endpoints; image field maps have their own
+ *   generator (`scripts/generate-fal-image-field-map.ts`).
  * - **bedrock** — ids are AWS-region-qualified; see
  *   `scripts/fetch-bedrock-models.ts`.
+ * - **ollama**, **llmgateway**, **vercel-gateway**, **lovable** — different
+ *   catalogs (local, aggregator, or their own fetch scripts).
+ * - **claude-code**, **codex**, **opencode**, **grok-build** — harness aliases.
+ * BytePlus video/image duration and size tables stay hand-curated.
  */
 
 import { execFileSync } from 'node:child_process'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  isRoutingAlias,
-  toModelConstName,
-  toNativeProviderId,
-} from './model-sync/ids'
+  ELEVENLABS_ID_ARRAYS,
+  alreadySynced,
+  outputsText,
+  pricingLines,
+  selectElevenLabsInserts,
+  selectNativeInserts,
+} from './model-sync/catalog'
+import type { CatalogModel, SyncModel } from './model-sync/catalog'
+import { toModelConstName } from './model-sync/ids'
 import {
+  addToStringLiteralArray,
   applyChatModelCatalogInserts,
+  extractStringLiteralArrayValues,
   insertConstants,
 } from './model-sync/native-insert'
+import { createSyncClient, fetchSyncCatalogs } from './model-sync/modelschemas'
 import {
   buildAnthropicProviderOptionsType,
   buildProviderSupportsBody,
 } from './model-sync/provider-supports'
-import type { SyncedProvider } from './model-sync/provider-supports'
-import { models } from './openrouter.models'
-import type { OpenRouterModel } from './openrouter.models'
+import type { ArrayRef } from './model-sync/native-insert'
+import type { ModelMetaProvider } from './model-sync/provider-supports'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
-
-// ---------------------------------------------------------------------------
-// Provider configuration
-// ---------------------------------------------------------------------------
 
 /** Seconds in 30 days — models older than this before the last sync are skipped */
 const MAX_MODEL_AGE_SECONDS = 30 * 24 * 60 * 60
 const LAST_RUN_FILE = resolve(ROOT, 'scripts/.sync-models-last-run')
 
 interface ProviderConfig {
-  /** npm package name for changeset */
   packageName: string
   metaFile: string
   /** How array entries reference the constant, e.g. '.name' or '.id' */
-  arrayRef: '.name' | '.id'
+  arrayRef: ArrayRef
   /** Which field name is used for context window size */
   contextField: 'context_window' | 'max_input_tokens'
   /** Name of the exported chat model array */
@@ -99,8 +93,6 @@ interface ProviderConfig {
    * `claude-opus-5-fast` as excluded.
    */
   combinedToolsAndSchemaSetName?: string
-  /** Provider key for conservative supports generation */
-  kind: SyncedProvider
   /** Valid input modality types for this provider's ModelMeta interface */
   validInputModalities: Array<InputModality>
   /** The satisfies type clause (after 'as const satisfies') */
@@ -111,12 +103,22 @@ interface ProviderConfig {
   hasBothNameAndId: boolean
   /** Whether the provider options type is a mapped type (skip insertion) */
   providerOptionsIsMappedType: boolean
-  /** Model ID patterns to always skip (matched against stripped ID) */
+  /** Raw-id prefixes to always skip */
   skipPatterns: Array<string>
+  /** Activities to insert. `null` means the catalog left activity unset. */
+  acceptedActivities: Array<string | null>
+  /** See `NativeInsertRules.requireOpenRouterEnrich`. */
+  requireOpenRouterEnrich: boolean
+  /**
+   * Write a `pricing` block. An unknown side is left out, never written as
+   * 0, so Groq/Mistral can insert with `pricing: {}`. BytePlus has none.
+   */
+  includePricing: boolean
+  outputTokenField: 'max_output_tokens' | 'max_completion_tokens'
 }
 
-const PROVIDER_MAP: Record<string, ProviderConfig> = {
-  'openai/': {
+const PROVIDER_MAP: Record<ModelMetaProvider, ProviderConfig> = {
+  openai: {
     packageName: '@tanstack/ai-openai',
     metaFile: resolve(ROOT, 'packages/ai-openai/src/model-meta.ts'),
     arrayRef: '.name',
@@ -126,7 +128,6 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     inputModalitiesTypeName: 'OpenAIModelInputModalitiesByName',
     toolCapabilitiesTypeName: 'OpenAIChatModelToolCapabilitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video'],
-    kind: 'openai',
     referenceSatisfies:
       'ModelMeta<OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions>',
     referenceProviderOptionsEntry:
@@ -140,8 +141,12 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
       'gpt-oss-', // Open-source/experimental models
       'chatgpt-', // ChatGPT branded models
     ],
+    acceptedActivities: ['chat'],
+    requireOpenRouterEnrich: true,
+    includePricing: true,
+    outputTokenField: 'max_output_tokens',
   },
-  'anthropic/': {
+  anthropic: {
     packageName: '@tanstack/ai-anthropic',
     metaFile: resolve(ROOT, 'packages/ai-anthropic/src/model-meta.ts'),
     arrayRef: '.id',
@@ -153,7 +158,6 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     maxOutputTokensMapName: 'ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS',
     combinedToolsAndSchemaSetName: 'ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
-    kind: 'anthropic',
     referenceSatisfies:
       'ModelMeta<AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions>',
     referenceProviderOptionsEntry:
@@ -161,8 +165,12 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     hasBothNameAndId: true,
     providerOptionsIsMappedType: false,
     skipPatterns: [],
+    acceptedActivities: ['chat'],
+    requireOpenRouterEnrich: true,
+    includePricing: true,
+    outputTokenField: 'max_output_tokens',
   },
-  'google/': {
+  gemini: {
     packageName: '@tanstack/ai-gemini',
     metaFile: resolve(ROOT, 'packages/ai-gemini/src/model-meta.ts'),
     arrayRef: '.name',
@@ -172,7 +180,6 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     inputModalitiesTypeName: 'GeminiModelInputModalitiesByName',
     toolCapabilitiesTypeName: 'GeminiChatModelToolCapabilitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
-    kind: 'gemini',
     referenceSatisfies:
       'ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions>',
     referenceProviderOptionsEntry:
@@ -182,8 +189,12 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     skipPatterns: [
       'gemma-', // Gemma open-source models (not Gemini API models)
     ],
+    acceptedActivities: ['chat'],
+    requireOpenRouterEnrich: true,
+    includePricing: true,
+    outputTokenField: 'max_output_tokens',
   },
-  'x-ai/': {
+  grok: {
     packageName: '@tanstack/ai-grok',
     metaFile: resolve(ROOT, 'packages/ai-grok/src/model-meta.ts'),
     arrayRef: '.name',
@@ -193,18 +204,92 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     inputModalitiesTypeName: 'GrokModelInputModalitiesByName',
     toolCapabilitiesTypeName: 'GrokChatModelToolCapabilitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
-    kind: 'grok',
     referenceSatisfies: 'ModelMeta',
     referenceProviderOptionsEntry: 'GrokProviderOptions',
     hasBothNameAndId: false,
     providerOptionsIsMappedType: true,
     skipPatterns: [],
+    acceptedActivities: ['chat'],
+    requireOpenRouterEnrich: true,
+    includePricing: true,
+    outputTokenField: 'max_output_tokens',
+  },
+  groq: {
+    packageName: '@tanstack/ai-groq',
+    metaFile: resolve(ROOT, 'packages/ai-groq/src/model-meta.ts'),
+    arrayRef: '.name',
+    contextField: 'context_window',
+    chatArrayName: 'GROQ_CHAT_MODELS',
+    providerOptionsTypeName: 'GroqChatModelProviderOptionsByName',
+    inputModalitiesTypeName: 'GroqModelInputModalitiesByName',
+    toolCapabilitiesTypeName: 'GroqChatModelToolCapabilitiesByName',
+    validInputModalities: ['text', 'image', 'audio'],
+    referenceSatisfies: 'ModelMeta<GroqTextProviderOptions>',
+    referenceProviderOptionsEntry: 'GroqTextProviderOptions',
+    hasBothNameAndId: false,
+    providerOptionsIsMappedType: true,
+    skipPatterns: ['whisper-', 'canopylabs/'],
+    acceptedActivities: [null, 'chat'],
+    requireOpenRouterEnrich: false,
+    includePricing: true,
+    outputTokenField: 'max_completion_tokens',
+  },
+  mistral: {
+    packageName: '@tanstack/ai-mistral',
+    metaFile: resolve(ROOT, 'packages/ai-mistral/src/model-meta.ts'),
+    arrayRef: '.name',
+    contextField: 'context_window',
+    chatArrayName: 'MISTRAL_CHAT_MODELS',
+    providerOptionsTypeName: 'MistralChatModelProviderOptionsByName',
+    inputModalitiesTypeName: 'MistralModelInputModalitiesByName',
+    validInputModalities: ['text', 'image', 'audio', 'document'],
+    referenceSatisfies: 'ModelMeta<MistralTextProviderOptions>',
+    referenceProviderOptionsEntry: 'MistralTextProviderOptions',
+    hasBothNameAndId: false,
+    providerOptionsIsMappedType: false,
+    skipPatterns: [
+      'mistral-embed',
+      'codestral-embed',
+      'mistral-ocr',
+      'mistral-moderation',
+      'voxtral-',
+      'mistral-vibe',
+      'mistral-code-fim',
+      'mistral-code-',
+      'glm-',
+      'zai-',
+    ],
+    acceptedActivities: [null, 'chat'],
+    requireOpenRouterEnrich: false,
+    includePricing: true,
+    outputTokenField: 'max_completion_tokens',
+  },
+  byteplus: {
+    packageName: '@tanstack/ai-byteplus',
+    metaFile: resolve(ROOT, 'packages/ai-byteplus/src/model-meta.ts'),
+    arrayRef: '.name',
+    contextField: 'context_window',
+    chatArrayName: 'BYTEPLUS_CHAT_MODELS',
+    providerOptionsTypeName: 'BytePlusChatModelProviderOptionsByName',
+    inputModalitiesTypeName: 'BytePlusModelInputModalitiesByName',
+    validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
+    referenceSatisfies: 'ModelMeta',
+    referenceProviderOptionsEntry: 'BytePlusTextProviderOptions',
+    hasBothNameAndId: false,
+    providerOptionsIsMappedType: true,
+    skipPatterns: [],
+    acceptedActivities: ['chat'],
+    requireOpenRouterEnrich: false,
+    includePricing: false,
+    outputTokenField: 'max_output_tokens',
   },
 }
 
-// ---------------------------------------------------------------------------
-// Utility functions
-// ---------------------------------------------------------------------------
+/** ElevenLabs model-meta is id-literal arrays, not ModelMeta constants. */
+const ELEVENLABS = {
+  packageName: '@tanstack/ai-elevenlabs',
+  metaFile: resolve(ROOT, 'packages/ai-elevenlabs/src/model-meta.ts'),
+}
 
 type InputModality = 'text' | 'image' | 'audio' | 'video' | 'document'
 
@@ -217,325 +302,248 @@ const MODALITY_MAP: Record<string, InputModality> = {
   document: 'document',
 }
 
-/**
- * Map OpenRouter input modalities to our standard modality types.
- * Same mapping as the existing convert-openrouter-models.ts script.
- */
 function mapInputModalities(modalities: Array<string>): Array<InputModality> {
   const mapped = modalities
     .map((m) => MODALITY_MAP[m.toLowerCase()])
     .filter((m): m is InputModality => m !== undefined)
-  // Ensure at least 'text' is present
   if (!mapped.includes('text')) {
     mapped.unshift('text')
   }
   return mapped
 }
 
-/** Strip the provider prefix from an OpenRouter model ID */
-function stripPrefix(prefix: string, modelId: string): string {
-  return modelId.slice(prefix.length)
-}
-
-/**
- * Convert an OpenRouter price string to per-million-token pricing.
- * Same logic as the existing convert script.
- */
-function convertPrice(priceStr: string | undefined): number {
-  const price = parseFloat(priceStr ?? '0')
-  if (isNaN(price)) return 0
-  const result = price * 1_000_000
-  return Math.round(result * 1e10) / 1e10
-}
-
-function anthropicOptionsType(model: OpenRouterModel): string {
+function anthropicOptionsType(model: SyncModel): string {
   return buildAnthropicProviderOptionsType({
-    supportedParameters: model.supported_parameters,
-    reasoningMandatory: model.reasoning?.mandatory === true,
-    hasCachedPricing: convertPrice(model.pricing.input_cache_read) > 0,
+    supportedParameters: model.supportedParameters,
+    reasoningMandatory: model.reasoningMandatory,
+    // modelschemas has no cache price, and every current Claude model
+    // supports prompt caching.
+    hasCachedPricing: true,
   })
 }
 
 function providerOptionsEntryFor(
-  model: OpenRouterModel,
+  model: SyncModel,
+  provider: ModelMetaProvider,
   config: ProviderConfig,
 ): string {
-  if (config.kind === 'anthropic') return anthropicOptionsType(model)
+  if (provider === 'anthropic') return anthropicOptionsType(model)
   return config.referenceProviderOptionsEntry
 }
 
 function satisfiesClause(
-  model: OpenRouterModel,
+  model: SyncModel,
+  provider: ModelMetaProvider,
   config: ProviderConfig,
 ): string {
-  if (config.kind === 'anthropic') {
+  if (provider === 'anthropic') {
     return `ModelMeta<${anthropicOptionsType(model)}>`
   }
   return config.referenceSatisfies
 }
 
-/**
- * Normalize a model ID for comparison.
- * Handles cases where the same model uses dots vs dashes
- * (e.g., Anthropic's 'claude-3-5-haiku' vs OpenRouter's 'claude-3.5-haiku').
- */
-function normalizeId(id: string): string {
-  return id.replace(/[.]/g, '-')
-}
-
-/**
- * Extract existing model IDs from a model-meta file.
- * Matches BOTH name: 'xxx' AND id: 'xxx' lines to get a complete set,
- * since providers like Anthropic use different naming between name and id.
- * Returns a normalized set for comparison purposes.
- */
 function extractExistingModelIds(content: string): Set<string> {
-  const ids = new Set<string>()
-  // Match both name and id fields inside const blocks
-  const nameRegex = /^\s+name:\s*'([^']+)'/gm
-  const idRegex = /^\s+id:\s*'([^']+)'/gm
-  let match
-  while ((match = nameRegex.exec(content)) !== null) {
-    ids.add(normalizeId(match[1]!))
-  }
-  while ((match = idRegex.exec(content)) !== null) {
-    ids.add(normalizeId(match[1]!))
-  }
-  return ids
+  return new Set(
+    Array.from(content.matchAll(/^\s+(?:name|id):\s*'([^']+)'/gm), (m) =>
+      m[1]!.replaceAll('.', '-'),
+    ),
+  )
 }
 
-/**
- * Extract existing constant names from a model-meta file.
- * Matches: const UPPER_CASE_NAME =
- */
 function extractExistingConstNames(content: string): Set<string> {
-  const names = new Set<string>()
-  const regex = /^const\s+([A-Z][A-Z0-9_]+)\s*=/gm
-  let match
-  while ((match = regex.exec(content)) !== null) {
-    names.add(match[1]!)
-  }
-  return names
+  return new Set(
+    Array.from(
+      content.matchAll(/^const\s+([A-Z][A-Z0-9_]+)\s*=/gm),
+      (m) => m[1]!,
+    ),
+  )
 }
 
-/**
- * Check if an OpenRouter model outputs text (for chat model array).
- */
-function outputsText(model: OpenRouterModel): boolean {
-  return model.architecture.output_modalities.includes('text')
-}
-
-/**
- * Check if an OpenRouter model produces image output.
- *
- * Image-generation models are skipped entirely by the sync — regardless of
- * whether they ALSO output text — because image model arrays require manual
- * curation with specialized type maps (sizes, provider options, the native
- * image union). This covers text+image "native" image models such as the
- * Gemini "Nano Banana" family (`gemini-*-image`, e.g.
- * `gemini-3.1-flash-lite-image`), which would otherwise be misclassified as
- * chat models (they output text) and inserted with a bogus `output: ['text']`.
- */
-function outputsImage(model: OpenRouterModel): boolean {
-  return model.architecture.output_modalities.includes('image')
-}
-
-/**
- * Non-chat model family prefixes to exclude from chat model arrays.
- * These are audio/music/video/image generation models that happen to
- * include 'text' in their output modalities but are not chat models.
- */
-const NON_CHAT_MODEL_PREFIXES = [
-  'lyria-', // Google music generation
-  'veo-', // Google video generation
-  'imagen-', // Google image generation
-  'sora-', // OpenAI video generation
-  'dall-e-', // OpenAI image generation
-  'tts-', // Text-to-speech models
-]
-
-function isNonChatModel(strippedId: string): boolean {
-  return NON_CHAT_MODEL_PREFIXES.some((p) => strippedId.startsWith(p))
-}
-
-/**
- * Check if a model should be skipped based on provider-specific patterns.
- */
-function matchesSkipPattern(
-  strippedId: string,
-  patterns: Array<string>,
-): boolean {
-  return patterns.some((p) => strippedId.startsWith(p))
-}
-
-/**
- * Read the last sync run timestamp. Returns epoch seconds, or null if no previous run.
- */
 async function readLastRunTimestamp(): Promise<number | null> {
+  let content: string
   try {
-    const content = await readFile(LAST_RUN_FILE, 'utf-8')
-    const ts = parseInt(content.trim(), 10)
-    return isNaN(ts) ? null : ts
-  } catch {
-    return null
+    content = await readFile(LAST_RUN_FILE, 'utf-8')
+  } catch (error) {
+    // First run. Any other read error must not silently reset the cutoff.
+    if (isNodeError(error) && error.code === 'ENOENT') return null
+    throw error
   }
+  const ts = parseInt(content.trim(), 10)
+  if (isNaN(ts)) throw new Error(`${LAST_RUN_FILE} is not a timestamp`)
+  return ts
 }
 
-/**
- * Write the current timestamp as the last sync run.
- */
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error
+}
+
 async function writeLastRunTimestamp(): Promise<void> {
   const now = Math.floor(Date.now() / 1000)
   await writeFile(LAST_RUN_FILE, String(now) + '\n', 'utf-8')
 }
 
-/**
- * Check if a model is too old to sync. Models created more than 30 days
- * before the last sync run are considered deprecated/legacy and skipped.
- */
-function isModelTooOld(
-  model: OpenRouterModel,
-  cutoffTimestamp: number,
-): boolean {
-  if (!model.created) return false // No date = don't skip
-  return model.created < cutoffTimestamp
-}
-
-// ---------------------------------------------------------------------------
-// Model constant generation
-// ---------------------------------------------------------------------------
-
 function generateModelConstant(
-  model: OpenRouterModel,
-  prefix: string,
+  model: SyncModel,
+  provider: ModelMetaProvider,
   config: ProviderConfig,
 ): string {
-  const strippedId = stripPrefix(prefix, model.id)
-  const nativeId = toNativeProviderId(strippedId, config.kind)
-  const constName = toModelConstName(nativeId)
+  const constName = toModelConstName(model.nativeId)
 
-  const inputNormal = convertPrice(model.pricing.prompt)
-  const inputCached = convertPrice(model.pricing.input_cache_read)
-  const outputNormal = convertPrice(model.pricing.completion)
-
-  // Use actual input modalities from OpenRouter data, filtered to what this provider supports
-  const inputModalities = mapInputModalities(
-    model.architecture.input_modalities,
-  ).filter((m) => config.validInputModalities.includes(m))
+  const inputModalities = mapInputModalities(model.inputModalities).filter(
+    (m) => config.validInputModalities.includes(m),
+  )
 
   const lines: Array<string> = []
   lines.push(`const ${constName} = {`)
-
-  // name field
-  lines.push(`  name: '${nativeId}',`)
-
-  // id field (Anthropic has both name and id, set to same value for new models)
+  lines.push(`  name: '${model.nativeId}',`)
   if (config.hasBothNameAndId) {
-    lines.push(`  id: '${nativeId}',`)
+    lines.push(`  id: '${model.nativeId}',`)
   }
-
-  // context / max_input_tokens
-  if (model.context_length > 0) {
+  if (isPositive(model.contextWindow)) {
     lines.push(
-      `  ${config.contextField}: ${formatNumber(model.context_length)},`,
+      `  ${config.contextField}: ${formatNumber(model.contextWindow)},`,
     )
   }
-
-  // max_output_tokens
-  if (model.top_provider.max_completion_tokens) {
+  if (isPositive(model.maxOutput)) {
     lines.push(
-      `  max_output_tokens: ${formatNumber(model.top_provider.max_completion_tokens)},`,
+      `  ${config.outputTokenField}: ${formatNumber(model.maxOutput)},`,
     )
   }
-
   lines.push(`  supports: {`)
   lines.push(
     buildProviderSupportsBody({
-      provider: config.kind,
+      provider,
       inputModalities,
-      supportedParameters: model.supported_parameters,
-      reasoningMandatory: model.reasoning?.mandatory === true,
+      outputModalities: model.outputModalities,
+      supportedParameters: model.supportedParameters,
+      reasoningMandatory: model.reasoningMandatory,
     }),
   )
   lines.push(`  },`)
-
-  // pricing
-  lines.push(`  pricing: {`)
-  lines.push(`    input: {`)
-  lines.push(`      normal: ${inputNormal},`)
-  if (inputCached > 0) {
-    lines.push(`      cached: ${inputCached},`)
+  if (config.includePricing) {
+    lines.push(...pricingLines(model.pricing))
   }
-  lines.push(`    },`)
-  lines.push(`    output: {`)
-  lines.push(`      normal: ${outputNormal},`)
-  lines.push(`    },`)
-  lines.push(`  },`)
-
-  lines.push(`} as const satisfies ${satisfiesClause(model, config)}`)
-
+  lines.push(`} as const satisfies ${satisfiesClause(model, provider, config)}`)
   return lines.join('\n')
 }
 
-/**
- * Format a number with underscore separators for readability.
- * E.g. 131072 -> '131_072', 200000 -> '200_000'
- */
-function formatNumber(n: number): string {
-  if (n < 1000) return String(n)
-  const str = String(n)
-  // Insert underscores every 3 digits from the right
-  const parts: Array<string> = []
-  let remaining = str
-  while (remaining.length > 3) {
-    parts.unshift(remaining.slice(-3))
-    remaining = remaining.slice(0, -3)
-  }
-  parts.unshift(remaining)
-  return parts.join('_')
+function isPositive(n: number | null): n is number {
+  return n != null && n > 0
 }
 
-// ---------------------------------------------------------------------------
-// Git-based change detection
-// ---------------------------------------------------------------------------
+/** 1048576 → 1_048_576 */
+function formatNumber(n: number): string {
+  return n.toLocaleString('en-US').replaceAll(',', '_')
+}
 
-/**
- * Detect packages with uncommitted changes by running `git diff`.
- * This captures changes from ALL prior pipeline steps (e.g. convert-openrouter-models.ts)
- * not just the models added by this script.
- */
+/** Packages the fetch scripts changed, so the changeset covers them too. */
 function detectChangedPackages(): Set<string> {
+  const diff = execFileSync(
+    'git',
+    ['diff', 'HEAD', '--name-only', '--', 'packages/'],
+    { encoding: 'utf-8', cwd: ROOT },
+  )
   const changed = new Set<string>()
-  try {
-    const diff = execFileSync(
-      'git',
-      ['diff', 'HEAD', '--name-only', '--', 'packages/'],
-      { encoding: 'utf-8', cwd: ROOT },
-    ).trim()
-    if (!diff) return changed
-
-    for (const line of diff.split('\n')) {
-      // packages/ai-openrouter/... → @tanstack/ai-openrouter
-      const match = line.match(/^packages\/([\w-]+)\//)
-      if (match) {
-        changed.add(`@tanstack/${match[1]}`)
-      }
-    }
-  } catch {
-    // git not available (e.g. running outside a repo) — fall back to empty set
+  for (const match of diff.matchAll(/^packages\/([\w-]+)\//gm)) {
+    changed.add(`@tanstack/${match[1]}`)
   }
   return changed
 }
 
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
+async function syncModelMeta(
+  provider: ModelMetaProvider,
+  config: ProviderConfig,
+  catalogs: {
+    native: Record<ModelMetaProvider, Array<CatalogModel>>
+    openrouter: Array<CatalogModel>
+  },
+  cutoffTimestamp: number,
+): Promise<{ added: number; heldBack: number }> {
+  console.log(`\nProcessing provider: ${provider}`)
+  const rows = catalogs.native[provider]
+  console.log(`  Found ${rows.length} modelschemas models for '${provider}'`)
+
+  let content = await readFile(config.metaFile, 'utf-8')
+  const existingIds = extractExistingModelIds(content)
+  const existingConstNames = extractExistingConstNames(content)
+  console.log(
+    `  Existing models in file: ${existingIds.size} IDs, ${existingConstNames.size} constants`,
+  )
+
+  const { inserts, heldBack, skipped } = selectNativeInserts(
+    rows,
+    { ...config, provider, cutoffTimestamp },
+    catalogs.openrouter,
+    (nativeId) => alreadySynced(nativeId, existingIds, existingConstNames),
+  )
+  const skipCounts = Object.entries(skipped)
+    .map(([reason, count]) => `${reason}=${count}`)
+    .join(', ')
+  if (skipCounts) console.log(`  Skipped: ${skipCounts}`)
+  for (const rawId of heldBack) {
+    console.log(`  Waiting for an OpenRouter price: ${rawId}`)
+  }
+
+  if (inserts.length === 0) {
+    console.log('  No new models to add.')
+    return { added: 0, heldBack: heldBack.length }
+  }
+
+  console.log(`  Adding ${inserts.length} new models:`)
+  for (const { model } of inserts) {
+    console.log(`    - ${model.nativeId} (${toModelConstName(model.nativeId)})`)
+  }
+
+  content = insertConstants(
+    content,
+    inserts.map(({ model }) => generateModelConstant(model, provider, config)),
+  )
+  content = applyChatModelCatalogInserts(
+    content,
+    config,
+    inserts
+      .filter(({ model, activity }) => outputsText(model, activity))
+      .map(({ model }) => ({
+        constName: toModelConstName(model.nativeId),
+        providerOptionsEntry: providerOptionsEntryFor(model, provider, config),
+        hasMaxOutputTokens: isPositive(model.maxOutput),
+        acceptsCombinedToolsAndSchema: !model.nativeId.endsWith('-fast'),
+      })),
+  )
+
+  await writeFile(config.metaFile, content, 'utf-8')
+  console.log(`  Wrote updated file: ${config.metaFile}`)
+  return { added: inserts.length, heldBack: heldBack.length }
+}
+
+async function syncElevenLabs(
+  rows: Array<CatalogModel>,
+  cutoffTimestamp: number,
+): Promise<number> {
+  console.log(`\nProcessing provider: elevenlabs`)
+  let content = await readFile(ELEVENLABS.metaFile, 'utf-8')
+  const existingIds = new Set(
+    ELEVENLABS_ID_ARRAYS.flatMap((name) => [
+      ...extractStringLiteralArrayValues(content, name),
+    ]),
+  )
+  const byArray = selectElevenLabsInserts(rows, cutoffTimestamp, existingIds)
+  const added = Object.values(byArray).flat()
+  if (added.length === 0) {
+    console.log('  No new models to add.')
+    return 0
+  }
+  console.log(`  Adding ${added.length} new models:`)
+  for (const id of added) console.log(`    - ${id}`)
+  for (const name of ELEVENLABS_ID_ARRAYS) {
+    content = addToStringLiteralArray(content, name, byArray[name])
+  }
+  await writeFile(ELEVENLABS.metaFile, content, 'utf-8')
+  console.log(`  Wrote updated file: ${ELEVENLABS.metaFile}`)
+  return added.length
+}
 
 async function main() {
-  let totalAdded = 0
-  const changedPackages = new Set<string>()
-
-  // Determine age cutoff: skip models created >30 days before last run
   const lastRun = await readLastRunTimestamp()
   const now = Math.floor(Date.now() / 1000)
   const cutoffTimestamp = (lastRun ?? now) - MAX_MODEL_AGE_SECONDS
@@ -546,152 +554,49 @@ async function main() {
     `Model age cutoff: ${cutoffDate} (skipping models created before this date)`,
   )
 
-  for (const [prefix, config] of Object.entries(PROVIDER_MAP)) {
-    console.log(`\nProcessing provider: ${prefix}`)
+  const catalogs = await fetchSyncCatalogs(createSyncClient())
+  const counts = Object.entries(catalogs.native)
+    .map(([id, rows]) => `${id}=${rows.length}`)
+    .join(', ')
+  console.log(
+    `Fetched modelschemas catalogs: ${counts}, openrouter=${catalogs.openrouter.length}`,
+  )
 
-    // Filter OpenRouter models for this prefix
-    const providerModels = models.filter((m) => m.id.startsWith(prefix))
-    console.log(
-      `  Found ${providerModels.length} OpenRouter models with prefix '${prefix}'`,
+  const changedPackages = new Set<string>()
+  let totalAdded = 0
+  let totalHeldBack = 0
+  for (const [provider, config] of Object.entries(PROVIDER_MAP) as Array<
+    [ModelMetaProvider, ProviderConfig]
+  >) {
+    const { added, heldBack } = await syncModelMeta(
+      provider,
+      config,
+      catalogs,
+      cutoffTimestamp,
     )
-
-    // Read the provider's model-meta.ts
-    let content: string
-    try {
-      content = await readFile(config.metaFile, 'utf-8')
-    } catch {
-      console.warn(`  Skipping: could not read ${config.metaFile}`)
-      continue
-    }
-
-    // Extract existing model IDs (normalized) and constant names
-    const existingIds = extractExistingModelIds(content)
-    const existingConstNames = extractExistingConstNames(content)
-
-    console.log(
-      `  Existing models in file: ${existingIds.size} IDs, ${existingConstNames.size} constants`,
-    )
-
-    // Find new models
-    const newModels: Array<{
-      model: OpenRouterModel
-      constName: string
-      strippedId: string
-    }> = []
-
-    for (const model of providerModels) {
-      if (isRoutingAlias(model.id)) {
-        continue
-      }
-
-      const strippedId = stripPrefix(prefix, model.id)
-      const nativeId = toNativeProviderId(strippedId, config.kind)
-      const constName = toModelConstName(nativeId)
-
-      // Skip models with ':' variants (e.g., 'anthropic/claude-3.7-sonnet:thinking')
-      // These are routing variants, not separate models
-      if (strippedId.includes(':')) {
-        continue
-      }
-
-      // Skip non-chat model families (audio/music/video/image generation)
-      if (isNonChatModel(strippedId)) {
-        continue
-      }
-
-      // Skip provider-specific patterns (deprecated/legacy model families)
-      if (matchesSkipPattern(strippedId, config.skipPatterns)) {
-        continue
-      }
-
-      // Skip models that are too old (created >30 days before last sync)
-      if (isModelTooOld(model, cutoffTimestamp)) {
-        continue
-      }
-
-      // Normalize for comparison to handle dots-vs-dashes naming differences
-      if (
-        !existingIds.has(normalizeId(strippedId)) &&
-        !existingConstNames.has(constName)
-      ) {
-        newModels.push({ model, constName, strippedId: nativeId })
-      }
-    }
-
-    if (newModels.length === 0) {
-      console.log('  No new models to add.')
-      continue
-    }
-
-    console.log(`  Adding ${newModels.length} new models:`)
-    for (const { strippedId, constName } of newModels) {
-      console.log(`    - ${strippedId} (${constName})`)
-    }
-
-    // Filter out image-generation models (they need manual curation for
-    // size/provider type maps + the native image union). This includes
-    // text+image models like the Gemini "Nano Banana" native image family,
-    // not just image-only models.
-    const filteredModels = newModels.filter(({ model }) => !outputsImage(model))
-    const skippedImageModels = newModels.length - filteredModels.length
-    if (skippedImageModels > 0) {
-      console.log(
-        `  Skipping ${skippedImageModels} image-generation models (require manual curation)`,
-      )
-    }
-
-    if (filteredModels.length === 0) {
-      console.log('  No eligible models to add after filtering.')
-      continue
-    }
-
-    // Generate constants
-    const constants = filteredModels.map(({ model }) =>
-      generateModelConstant(model, prefix, config),
-    )
-
-    // Insert constants before first export
-    content = insertConstants(content, constants)
-
-    // NOTE: We intentionally do NOT add models to image arrays.
-    // Image model arrays have specialized type maps (sizes, provider options)
-    // that require manual curation.
-
-    const chatModels = filteredModels.filter(({ model }) => outputsText(model))
-    content = applyChatModelCatalogInserts(
-      content,
-      {
-        chatArrayName: config.chatArrayName,
-        arrayRef: config.arrayRef,
-        providerOptionsTypeName: config.providerOptionsTypeName,
-        inputModalitiesTypeName: config.inputModalitiesTypeName,
-        toolCapabilitiesTypeName: config.toolCapabilitiesTypeName,
-        maxOutputTokensMapName: config.maxOutputTokensMapName,
-        combinedToolsAndSchemaSetName: config.combinedToolsAndSchemaSetName,
-        providerOptionsIsMappedType: config.providerOptionsIsMappedType,
-      },
-      chatModels.map(({ model, constName, strippedId }) => ({
-        constName,
-        providerOptionsEntry: providerOptionsEntryFor(model, config),
-        hasMaxOutputTokens: Boolean(model.top_provider.max_completion_tokens),
-        acceptsCombinedToolsAndSchema: !strippedId.endsWith('-fast'),
-      })),
-    )
-
-    // Write the modified file
-    await writeFile(config.metaFile, content, 'utf-8')
-    console.log(`  Wrote updated file: ${config.metaFile}`)
-    totalAdded += filteredModels.length
-    changedPackages.add(config.packageName)
+    totalAdded += added
+    totalHeldBack += heldBack
+    if (added > 0) changedPackages.add(config.packageName)
   }
+  const elevenLabsAdded = await syncElevenLabs(
+    catalogs.native.elevenlabs,
+    cutoffTimestamp,
+  )
+  totalAdded += elevenLabsAdded
+  if (elevenLabsAdded > 0) changedPackages.add(ELEVENLABS.packageName)
 
   console.log(`\nDone. Added ${totalAdded} new models total.`)
 
-  // Record this run's timestamp for future age-based filtering
+  // Held-back ids still age out after 30 days. Freezing the timestamp
+  // instead would stall it for good on ids OpenRouter never prices (Live
+  // API models), so each run names them in its log.
+  if (totalHeldBack > 0) {
+    console.log(
+      `${totalHeldBack} models are waiting for an OpenRouter price (listed above).`,
+    )
+  }
   await writeLastRunTimestamp()
 
-  // Detect all packages with uncommitted changes (includes changes from
-  // convert-openrouter-models.ts which runs before this script)
   const allChangedPackages = detectChangedPackages()
   for (const pkg of changedPackages) {
     allChangedPackages.add(pkg)
@@ -702,48 +607,34 @@ async function main() {
   }
 }
 
-/**
- * Create or update the sync-models changeset file.
- * If one already exists, merges the package lists. Otherwise creates a new one.
- */
 async function createChangeset(changedPackages: Set<string>) {
   const changesetDir = resolve(ROOT, '.changeset')
-  const { readdir } = await import('node:fs/promises')
-  const files = await readdir(changesetDir)
-  const existing = files.find(
+  const existing = (await readdir(changesetDir)).find(
     (f) => f.startsWith('sync-models') && f.endsWith('.md'),
   )
-
+  const changesetPath = resolve(changesetDir, existing ?? 'sync-models.md')
   if (existing) {
-    const existingPath = resolve(changesetDir, existing)
-    const existingContent = await readFile(existingPath, 'utf-8')
-
-    // Merge existing packages into the set
-    const pkgRegex = /'([^']+)':\s*patch/g
-    let match
-    while ((match = pkgRegex.exec(existingContent)) !== null) {
+    const existingContent = await readFile(changesetPath, 'utf-8')
+    for (const match of existingContent.matchAll(/'([^']+)':\s*patch/g)) {
       changedPackages.add(match[1]!)
     }
-
-    const content = buildChangesetContent(changedPackages)
-    await writeFile(existingPath, content, 'utf-8')
-    console.log(`\nChangeset updated: ${existingPath}`)
-  } else {
-    const changesetFile = resolve(changesetDir, 'sync-models.md')
-    const content = buildChangesetContent(changedPackages)
-    await writeFile(changesetFile, content, 'utf-8')
-    console.log(`\nChangeset created: ${changesetFile}`)
   }
-
+  await writeFile(
+    changesetPath,
+    buildChangesetContent(changedPackages),
+    'utf-8',
+  )
+  console.log(
+    `\nChangeset ${existing ? 'updated' : 'created'}: ${changesetPath}`,
+  )
   console.log(`  Packages: ${Array.from(changedPackages).sort().join(', ')}`)
 }
-
 function buildChangesetContent(packages: Set<string>): string {
   const packageLines = Array.from(packages)
     .sort()
     .map((pkg) => `'${pkg}': patch`)
     .join('\n')
-  return `---\n${packageLines}\n---\n\nUpdate model metadata from OpenRouter API\n`
+  return `---\n${packageLines}\n---\n\nUpdate model metadata from modelschemas\n`
 }
 
 main().catch((err) => {

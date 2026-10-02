@@ -22,19 +22,17 @@ export function rejectRoutingAliases<T extends { id: string }>(
 }
 
 /**
- * Native adapters only accept the provider's own ids. OpenRouter uses dots
- * in Claude version suffixes (`claude-haiku-4.5`, `claude-fable-5.1`);
- * Anthropic's Messages API uses dashes (`claude-haiku-4-5`,
- * `claude-fable-5-1`). Other providers keep the OpenRouter stripped id.
+ * Native adapters only accept the provider's own ids. Anthropic's Messages
+ * API uses dashes in Claude version suffixes (`claude-haiku-4-5`), and
+ * OpenRouter uses dots (`claude-haiku-4.5`). The native modelschemas id is
+ * already dashed; this guards against a dotted one. Other providers keep
+ * the raw id.
  */
-export function toNativeProviderId(
-  strippedId: string,
-  provider: 'openai' | 'anthropic' | 'gemini' | 'grok',
-): string {
+export function toNativeProviderId(rawId: string, provider: string): string {
   if (provider === 'anthropic') {
-    return strippedId.replaceAll('.', '-')
+    return rawId.replaceAll('.', '-')
   }
-  return strippedId
+  return rawId
 }
 
 export function toModelConstName(modelId: string): string {
