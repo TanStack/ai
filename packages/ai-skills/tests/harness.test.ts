@@ -1,3 +1,4 @@
+import { watch } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -11,8 +12,52 @@ import {
 } from '@tanstack/ai-harness'
 import { skills } from '../src/harness'
 import type { TextOptions } from '@tanstack/ai'
+import type { FakeResponse } from '@tanstack/ai/testing'
 import type { HarnessHost, HarnessPlugin } from '@tanstack/ai-harness'
 import type { SkillsPluginOptions } from '../src/harness'
+import type { SkillSource } from '../src/types'
+
+/** The sources that the plugin gives to `withSkills`, newest last. */
+const seen = vi.hoisted(() => ({ sources: new Array<SkillSource>() }))
+/** Folders whose source fails: `list` rejects, or `open` throws when it is made. */
+const failing = vi.hoisted(() => ({
+  list: new Set<string>(),
+  open: new Set<string>(),
+}))
+
+// Pass-through spies. The tests reach the plugin's watchers, its skill
+// source, and a failing folder through them. Everything else is unchanged.
+vi.mock('node:fs', async (importOriginal) => {
+  const original = await importOriginal<typeof import('node:fs')>()
+  return { ...original, watch: vi.fn(original.watch) }
+})
+vi.mock('../src/middleware', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/middleware')>()
+  return {
+    ...original,
+    withSkills: (...args: Parameters<typeof original.withSkills>) => {
+      const [sources] = args
+      if (!Array.isArray(sources)) seen.sources.push(sources)
+      return original.withSkills(...args)
+    },
+  }
+})
+vi.mock('../src/node', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/node')>()
+  return {
+    ...original,
+    skillDirectory: (...args: Parameters<typeof original.skillDirectory>) => {
+      const key = String(args[0])
+      if (failing.open.has(key)) throw new Error(`cannot open ${key}`)
+      const source = original.skillDirectory(...args)
+      if (!failing.list.has(key)) return source
+      return {
+        ...source,
+        list: () => Promise.reject(new Error(`cannot read ${key}`)),
+      }
+    },
+  }
+})
 
 const temps: Array<string> = []
 const hosts: Array<HarnessHost> = []
@@ -21,6 +66,10 @@ afterEach(async () => {
   await Promise.all(
     temps.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
   )
+  seen.sources.length = 0
+  failing.list.clear()
+  failing.open.clear()
+  vi.mocked(watch).mockClear()
 })
 
 async function tempDir() {
@@ -38,23 +87,38 @@ async function addSkill(root: string, name: string, about = name) {
   )
 }
 
+/** Write `references/guide.md` with `text` into the skill `name` of `root`. */
+async function addGuide(root: string, name: string, text: string) {
+  await mkdir(join(root, name, 'references'), { recursive: true })
+  await writeFile(join(root, name, 'references', 'guide.md'), text)
+}
+
+/** The watchers made for `path`, oldest first. */
+function watchersOf(path: string) {
+  const spy = vi.mocked(watch)
+  return spy.mock.results.filter(
+    (_, index) => spy.mock.calls[index]?.[0] === path,
+  )
+}
+
 /**
- * A session with the skills plugin and `others` after it. The model answers
- * "ok" and keeps each request.
+ * A session with the skills plugin and `others` after it. The model gives
+ * `answers` in order, then "ok", and keeps each request.
  */
 async function open(
   options: SkillsPluginOptions,
   others: Array<HarnessPlugin> = [],
+  answers: Array<FakeResponse> = [],
 ) {
   const requests: Array<TextOptions> = []
   const fake = fakeText()
   fake.setResponses(
     Array.from(
       { length: 10 },
-      () =>
+      (_, index) =>
         ({ request }: { request: TextOptions }) => {
           requests.push(request)
-          return { text: 'ok' }
+          return answers[index] ?? { text: 'ok' }
         },
     ),
   )
@@ -233,5 +297,84 @@ describe('skills()', () => {
     await addSkill(dir, 'gamma')
     await new Promise((resolve) => setTimeout(resolve, 500))
     expect(opened.names()).not.toContain('gamma')
+  })
+
+  it('loads a skill from its folder when the model calls load_skill', async () => {
+    const dir = await tempDir()
+    await addSkill(dir, 'alpha')
+    await addGuide(dir, 'alpha', 'guide')
+    await mkdir(join(dir, 'alpha', 'scripts'))
+    await writeFile(join(dir, 'alpha', 'scripts', 'run.sh'), 'echo hi')
+    const { session, requests } = await open(
+      { dirs: [dir] },
+      [],
+      [{ toolCalls: [{ name: 'load_skill', input: { name: 'alpha' } }] }],
+    )
+
+    await session.prompt('use alpha')
+    await vi.waitFor(() => expect(requests).toHaveLength(2))
+    const sent = JSON.stringify(requests[1]?.messages)
+    expect(sent).toContain('Do alpha.')
+    expect(sent).toContain('references/guide.md')
+    expect(sent).toContain('scripts/run.sh')
+  })
+
+  it('reads a resource from the folder that has the skill now', async () => {
+    const first = await tempDir()
+    const second = await tempDir()
+    await addSkill(second, 'alpha')
+    await addGuide(second, 'alpha', 'second guide')
+    await open({ dirs: [first, second] })
+    const source = seen.sources.at(-1)
+    const read = (name: string) =>
+      source?.readResource?.(name, 'references/guide.md')
+
+    expect(await read('alpha')).toBe('second guide')
+    // The first folder wins a name, also for a skill made after the start.
+    await addSkill(first, 'alpha')
+    await addGuide(first, 'alpha', 'first guide')
+    expect(await read('alpha')).toBe('first guide')
+    await expect(read('missing')).rejects.toThrow('No skill named "missing"')
+  })
+
+  it('watches a folder again after a watch error', async () => {
+    const dir = await tempDir()
+    await addSkill(dir, 'alpha')
+    const { names, list } = await open({ dirs: [dir] })
+    await list()
+    expect(watchersOf(dir)).toHaveLength(1)
+
+    watchersOf(dir)[0]?.value.emit('error', new Error('watch failed'))
+    await list()
+    expect(watchersOf(dir)).toHaveLength(2)
+    await addSkill(dir, 'gamma')
+    await vi.waitFor(() => expect(names()).toContain('gamma'), {
+      timeout: 5000,
+    })
+  })
+
+  it('skips a folder whose skills cannot be read', async () => {
+    const broken = await tempDir()
+    const dir = await tempDir()
+    await addSkill(broken, 'beta')
+    await addSkill(dir, 'alpha')
+    failing.list.add(broken)
+    const { names, list } = await open({ dirs: [broken, dir] })
+
+    expect(await list()).toContain(`/alpha  ${dir}`)
+    expect(names()).toContain('alpha')
+    expect(names()).not.toContain('beta')
+  })
+
+  it('syncs again after a sync that failed', async () => {
+    const dir = await tempDir()
+    await addSkill(dir, 'alpha')
+    failing.open.add(dir)
+    const { names, list } = await open({ dirs: [dir] })
+
+    expect(await list()).toContain('No skills yet.')
+    failing.open.delete(dir)
+    await list()
+    expect(names()).toContain('alpha')
   })
 })
