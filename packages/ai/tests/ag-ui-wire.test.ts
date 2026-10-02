@@ -3,14 +3,24 @@ import type { MessagesSnapshotEvent } from '@ag-ui/core'
 import {
   aguiSnapshotMessageToUIMessage,
   convertMessagesToModelMessages,
+  modelMessagesToUIMessages,
 } from '../src/activities/chat/messages'
 import {
   applyActivitySnapshotToRecords,
   interleaveActivityRecords,
   peelInboundActivities,
 } from '../src/activities/chat/activity-records'
+import { StreamProcessor } from '../src/activities/chat/stream/processor'
 import { uiMessagesToWire, type WireMessage } from '../src/utilities/ag-ui-wire'
-import type { ModelMessage, UIMessage } from '../src/types'
+import { tanstackMetadata } from '../src/utilities/merge-metadata'
+import { EventType } from '../src/types'
+import { chunk } from './test-utils'
+import type {
+  ModelMessage,
+  ToolCallPart,
+  UIMessage,
+  UIResourcePart,
+} from '../src/types'
 
 // @ts-expect-error system wire messages require content
 const systemWithoutContent: WireMessage = { id: 'system', role: 'system' }
@@ -1370,5 +1380,339 @@ describe('uiMessagesToWire', () => {
         .filter((message) => message.role === 'tool')
         .map((message) => message.metadata?.tanstack?.toolResult?.createdAt),
     ).toEqual([first.toISOString(), second.toISOString()])
+  })
+})
+
+describe('ordered assistant rows', () => {
+  function callPart(id: string): ToolCallPart {
+    return {
+      type: 'tool-call',
+      id,
+      name: 'lookup',
+      arguments: '{}',
+      state: 'input-complete',
+    }
+  }
+
+  function resource(toolCallId: string): UIResourcePart {
+    return {
+      type: 'ui-resource',
+      resource: {
+        uri: `ui://${toolCallId}`,
+        mimeType: 'text/html',
+        text: '<p></p>',
+      },
+      toolCallId,
+      toolName: 'lookup',
+    }
+  }
+
+  /** The model messages that our server builds from the rows. */
+  function serverMessages(messages: Array<UIMessage>): Array<ModelMessage> {
+    // A request body carries the wire messages as parsed JSON.
+    const body: Array<ModelMessage> = JSON.parse(
+      JSON.stringify(uiMessagesToWire(messages)),
+    )
+    return convertMessagesToModelMessages(body)
+  }
+
+  function rowSummary(wire: Array<WireMessage>) {
+    return wire.map((message) => ({
+      role: message.role,
+      id: message.id,
+      ...(message.role === 'assistant' && {
+        content: message.content,
+        continues: message.metadata?.tanstack?.continues,
+      }),
+    }))
+  }
+
+  const thinkingAndText: UIMessage = {
+    id: 'm1',
+    role: 'assistant',
+    parts: [
+      { type: 'thinking', content: 'plan', signature: 'sig-a' },
+      { type: 'text', content: 'A' },
+      { type: 'thinking', content: 'check', signature: 'sig-b' },
+      { type: 'text', content: 'B' },
+    ],
+  }
+
+  it("keeps today's rows for a message in the default order", () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'm1',
+        role: 'assistant',
+        parts: [
+          { type: 'thinking', content: 'plan', signature: 'sig-a' },
+          { type: 'text', content: 'Hello' },
+          callPart('call_1'),
+        ],
+      },
+    ])
+
+    expect(wire).toEqual([
+      {
+        role: 'reasoning',
+        id: expect.any(String),
+        content: 'plan',
+        encryptedValue: 'sig-a',
+      },
+      {
+        id: 'm1',
+        role: 'assistant',
+        content: 'Hello',
+        toolCalls: [
+          {
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'lookup', arguments: '{}' },
+          },
+        ],
+      },
+    ])
+  })
+
+  it('sends thinking, text, thinking, text as ordered rows', () => {
+    expect(rowSummary(uiMessagesToWire([thinkingAndText]))).toEqual([
+      { role: 'reasoning', id: expect.any(String) },
+      { role: 'assistant', id: 'm1', content: 'A', continues: undefined },
+      { role: 'reasoning', id: expect.any(String) },
+      { role: 'assistant', id: 'm1-segment-1', content: 'B', continues: 'm1' },
+    ])
+  })
+
+  it('starts a row at text after a tool call', () => {
+    const message: UIMessage = {
+      id: 'm1',
+      role: 'assistant',
+      parts: [
+        { type: 'text', content: 'Looking.' },
+        callPart('call_1'),
+        { type: 'text', content: 'Found it.' },
+      ],
+    }
+
+    expect(rowSummary(uiMessagesToWire([message]))).toEqual([
+      {
+        role: 'assistant',
+        id: 'm1',
+        content: 'Looking.',
+        continues: undefined,
+      },
+      {
+        role: 'assistant',
+        id: 'm1-segment-1',
+        content: 'Found it.',
+        continues: 'm1',
+      },
+    ])
+    expect(serverMessages([message])).toMatchObject([
+      {
+        content: 'Looking.Found it.',
+        toolCalls: [{ id: 'call_1' }],
+        blockOrder: [
+          { type: 'text', length: 8 },
+          { type: 'tool-call', id: 'call_1' },
+          { type: 'text', length: 9 },
+        ],
+      },
+    ])
+  })
+
+  it('ends a row at a tool result and keeps the next model call as its own message', () => {
+    // Two model calls in one UIMessage: thinking and a tool call, the tool
+    // result, then thinking and the answer.
+    const message: UIMessage = {
+      id: 'm1',
+      role: 'assistant',
+      parts: [
+        { type: 'thinking', content: 'plan', signature: 'sig-a' },
+        { ...callPart('call_1'), state: 'complete', output: { ok: true } },
+        {
+          type: 'tool-result',
+          toolCallId: 'call_1',
+          content: '{"ok":true}',
+          state: 'complete',
+        },
+        { type: 'thinking', content: 'answer', signature: 'sig-b' },
+        { type: 'text', content: 'It is ok.' },
+      ],
+    }
+    const wire = uiMessagesToWire([message])
+
+    // The tool row sits at its place. The second row does not continue the
+    // first, because a tool result is between them.
+    expect(rowSummary(wire)).toEqual([
+      { role: 'reasoning', id: expect.any(String) },
+      { role: 'assistant', id: 'm1', content: undefined, continues: undefined },
+      { role: 'tool', id: 'tool-call_1' },
+      { role: 'reasoning', id: expect.any(String) },
+      {
+        role: 'assistant',
+        id: 'm1-segment-1',
+        content: 'It is ok.',
+        continues: undefined,
+      },
+    ])
+
+    // Our server rebuilds the order Anthropic needs. No map is needed.
+    expect(
+      serverMessages([message]).map((model) => ({
+        role: model.role,
+        content: model.content,
+        thinking: model.thinking?.map((block) => block.content),
+        toolCalls: model.toolCalls?.map((toolCall) => toolCall.id),
+        blockOrder: model.blockOrder,
+      })),
+    ).toEqual([
+      {
+        role: 'assistant',
+        content: undefined,
+        thinking: ['plan'],
+        toolCalls: ['call_1'],
+        blockOrder: undefined,
+      },
+      {
+        role: 'tool',
+        content: '{"ok":true}',
+        thinking: undefined,
+        toolCalls: undefined,
+        blockOrder: undefined,
+      },
+      {
+        role: 'assistant',
+        content: 'It is ok.',
+        thinking: ['answer'],
+        toolCalls: undefined,
+        blockOrder: undefined,
+      },
+    ])
+
+    // Both fold-back paths give one UIMessage in the original order.
+    const order = ['thinking', 'tool-call', 'tool-result', 'thinking', 'text']
+    const [back] = modelMessagesToUIMessages(serverMessages([message]))
+    expect(back?.parts.map((part) => part.type)).toEqual(order)
+
+    const processor = new StreamProcessor({})
+    processor.processChunk(
+      chunk(EventType.MESSAGES_SNAPSHOT, { messages: wire }),
+    )
+    expect(
+      processor.getMessages().map((ui) => ui.parts.map((part) => part.type)),
+    ).toEqual([order])
+  })
+
+  it('joins the rows into the message that the converter writes', () => {
+    const joined = serverMessages([thinkingAndText])
+
+    expect(joined).toEqual(convertMessagesToModelMessages([thinkingAndText]))
+    expect(joined[0]?.blockOrder).toEqual([
+      { type: 'thinking', index: 0 },
+      { type: 'text', length: 1 },
+      { type: 'thinking', index: 1 },
+      { type: 'text', length: 1 },
+    ])
+  })
+
+  it('joins a client-tool answer into one assistant message', () => {
+    const answer: UIMessage = {
+      id: 'm1',
+      role: 'assistant',
+      parts: [
+        { type: 'thinking', content: 'plan', signature: 'sig-a' },
+        { ...callPart('call_1'), state: 'complete', output: { ok: true } },
+        { type: 'thinking', content: 'next', signature: 'sig-b' },
+        { ...callPart('call_2'), state: 'complete', output: { ok: true } },
+      ],
+    }
+
+    const messages = serverMessages([answer])
+
+    expect(messages.map((message) => message.role)).toEqual([
+      'assistant',
+      'tool',
+      'tool',
+    ])
+    expect(messages[0]).toMatchObject({
+      thinking: [
+        { content: 'plan', signature: 'sig-a' },
+        { content: 'next', signature: 'sig-b' },
+      ],
+      toolCalls: [{ id: 'call_1' }, { id: 'call_2' }],
+      blockOrder: [
+        { type: 'thinking', index: 0 },
+        { type: 'tool-call', id: 'call_1' },
+        { type: 'thinking', index: 1 },
+        { type: 'tool-call', id: 'call_2' },
+      ],
+    })
+  })
+
+  it('keeps the ui resources of every joined row', () => {
+    const answer: UIMessage = {
+      id: 'm1',
+      role: 'assistant',
+      parts: [
+        { type: 'text', content: 'First.' },
+        { ...callPart('call_1'), state: 'complete', output: { ok: true } },
+        resource('call_1'),
+        { type: 'text', content: 'Second.' },
+        { ...callPart('call_2'), state: 'complete', output: { ok: true } },
+        resource('call_2'),
+      ],
+    }
+
+    const assistant = serverMessages([answer]).find(
+      (message) => message.role === 'assistant',
+    )
+
+    expect(tanstackMetadata(assistant)?.uiResources).toEqual([
+      resource('call_1'),
+      resource('call_2'),
+    ])
+  })
+
+  it('keeps subagent text on a message that was sent as ordered rows', () => {
+    const message: UIMessage = {
+      id: 'a1',
+      role: 'assistant',
+      parts: [
+        { type: 'text', content: 'Looking.' },
+        { ...callPart('call_1'), state: 'complete', output: { ok: true } },
+        { type: 'text', content: 'Found it.' },
+        {
+          type: 'subagent',
+          subagent: {
+            id: 'run-researcher',
+            name: 'researcher',
+            status: 'finished',
+            messages: [
+              {
+                id: 'note',
+                role: 'assistant',
+                parts: [{ type: 'text', content: 'Squids have three hearts.' }],
+              },
+            ],
+          },
+        },
+      ],
+    }
+
+    const assistants = serverMessages([message]).filter(
+      (candidate) => candidate.role === 'assistant',
+    )
+
+    expect(assistants).toHaveLength(1)
+    expect(assistants[0]?.content).toBe(
+      'Looking.Found it.\n\nresearcher:\nSquids have three hearts.',
+    )
+  })
+
+  it('folds the joined message back into one UIMessage in order', () => {
+    const back = modelMessagesToUIMessages(serverMessages([thinkingAndText]))
+
+    expect(back).toHaveLength(1)
+    expect(back[0]?.parts).toEqual(thinkingAndText.parts)
   })
 })

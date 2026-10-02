@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { chat } from '../src/activities/chat'
+import { convertMessagesToModelMessages } from '../src/activities/chat/messages'
+import { StreamProcessor } from '../src/activities/chat/stream/processor'
+import { tanstackMetadata } from '../src/utilities/merge-metadata'
 import { EventType } from '../src/types'
 import {
   chunk,
@@ -198,5 +201,72 @@ describe('chat() block order', () => {
         { type: 'text', length: 1 },
       ],
     })
+  })
+
+  it('sends a client-tool answer as ordered rows that fold back into one message', async () => {
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ...reasoning('step-1', 'plan', 'sig-a'),
+          ...callTool('call_1', 'pick'),
+          ...reasoning('step-2', 'next', 'sig-b'),
+          ...callTool('call_2', 'pick'),
+          ev.runFinished('tool_calls'),
+        ],
+      ],
+    })
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Pick two' }],
+        tools: [clientTool('pick')],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    const snapshot = chunks.find(
+      (candidate) => candidate.type === EventType.MESSAGES_SNAPSHOT,
+    )
+    if (snapshot?.type !== EventType.MESSAGES_SNAPSHOT) {
+      throw new Error('missing MESSAGES_SNAPSHOT')
+    }
+
+    // The wire keeps the real order. The second row continues the first.
+    const turn = snapshot.messages.filter((message) => message.role !== 'user')
+    expect(
+      turn.map((message) =>
+        message.role === 'assistant'
+          ? {
+              role: message.role,
+              toolCalls: message.toolCalls?.map((toolCall) => toolCall.id),
+              continues: tanstackMetadata(message)?.continues,
+            }
+          : { role: message.role },
+      ),
+    ).toEqual([
+      { role: 'reasoning' },
+      { role: 'assistant', toolCalls: ['call_1'], continues: undefined },
+      { role: 'reasoning' },
+      { role: 'assistant', toolCalls: ['call_2'], continues: turn[1]?.id },
+    ])
+
+    // The client shows one message in the real order.
+    const processor = new StreamProcessor({})
+    processor.processChunk(snapshot)
+    expect(
+      processor
+        .getMessages()
+        .filter((message) => message.role === 'assistant')
+        .map((message) => message.parts.map((part) => part.type)),
+    ).toEqual([['thinking', 'tool-call', 'thinking', 'tool-call']])
+
+    // Our server joins the rows back into the message that chat() stored.
+    const body: Array<ModelMessage> = JSON.parse(
+      JSON.stringify(snapshot.messages),
+    )
+    expect(
+      convertMessagesToModelMessages(body)
+        .filter((message) => message.role === 'assistant')
+        .map((message) => message.blockOrder),
+    ).toEqual([interleavedCalls])
   })
 })

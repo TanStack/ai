@@ -671,6 +671,12 @@ export interface TanStackMessageMetadata {
     errorMessage?: string
   }
   uiResources?: Array<UIResourcePart>
+  /**
+   * On an assistant wire row that exists only to keep the block order: the
+   * id of the assistant row before it. Our server joins the two rows into
+   * one message with a `blockOrder` map. See `uiMessagesToWire`.
+   */
+  continues?: string
 }
 
 /**
