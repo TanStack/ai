@@ -4,7 +4,7 @@ import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { loadLogState, sessionOf } from '../src/log'
 import { gate, messageTexts, mockAdapter, text, toolCall } from './helpers'
-import type { StreamChunk } from '@tanstack/ai'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type { HarnessSession, ProjectOptions, SessionEvent } from '../src'
 import type { Reply } from './helpers'
@@ -100,6 +100,77 @@ const deltasOf = (seen: Array<SessionEvent>, messageId: string) =>
     )
     .map((event) => ('delta' in event ? event.delta : ''))
     .join('')
+
+/** One model call: signed thinking, a tool call, signed thinking, a tool call. */
+function thinkCallThinkCall(): Array<StreamChunk> {
+  const thinking = (
+    id: string,
+    content: string,
+    signature: string,
+  ): Array<StreamChunk> => [
+    { type: EventType.STEP_STARTED, stepName: id, timestamp: Date.now() },
+    { type: EventType.REASONING_START, messageId: id, timestamp: Date.now() },
+    {
+      type: EventType.REASONING_MESSAGE_START,
+      messageId: id,
+      role: 'reasoning',
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.REASONING_MESSAGE_CONTENT,
+      messageId: id,
+      delta: content,
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.REASONING_ENCRYPTED_VALUE,
+      subtype: 'message',
+      entityId: id,
+      encryptedValue: signature,
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.REASONING_MESSAGE_END,
+      messageId: id,
+      timestamp: Date.now(),
+    },
+    { type: EventType.REASONING_END, messageId: id, timestamp: Date.now() },
+  ]
+  const call = (id: string, city: string): Array<StreamChunk> => [
+    {
+      type: EventType.TOOL_CALL_START,
+      toolCallId: id,
+      toolCallName: 'lookup',
+      timestamp: Date.now(),
+    },
+    {
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: id,
+      delta: JSON.stringify({ city }),
+      timestamp: Date.now(),
+    },
+    { type: EventType.TOOL_CALL_END, toolCallId: id, timestamp: Date.now() },
+  ]
+  return [
+    {
+      type: EventType.RUN_STARTED,
+      runId: 'r',
+      threadId: 't',
+      timestamp: Date.now(),
+    },
+    ...thinking('think-1', 'Check Berlin.', 'sig-1'),
+    ...call('call-1', 'Berlin'),
+    ...thinking('think-2', 'Now Paris.', 'sig-2'),
+    ...call('call-2', 'Paris'),
+    {
+      type: EventType.RUN_FINISHED,
+      runId: 'r',
+      threadId: 't',
+      timestamp: Date.now(),
+      metadata: { tanstack: { finishReason: 'tool_calls' } },
+    },
+  ]
+}
 
 // The types refuse these store sets. The runtime check is for JavaScript
 // callers and dynamic store bags, so these tests pass them with `as never`.
@@ -401,5 +472,60 @@ describe('durable session log', () => {
     )
     await writer.close()
     await reader.close()
+  })
+
+  it('keeps the block order of an answer in the log and after a rebuild', async () => {
+    const persistence = durablePersistence()
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up the weather',
+    }).server(async () => 'sunny')
+    const { adapter, calls } = mockAdapter([
+      () => thinkCallThinkCall(),
+      () => text('Both are sunny.'),
+    ])
+    const harness = defineHarness({
+      name: 'test/block-order',
+      adapter,
+      tools: [lookup],
+    })
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(harness, { threadId: THREAD })
+
+    await session.prompt('Weather in Berlin and Paris?')
+
+    const order = [
+      { type: 'thinking', index: 0 },
+      { type: 'tool-call', id: 'call-1' },
+      { type: 'thinking', index: 1 },
+      { type: 'tool-call', id: 'call-2' },
+    ]
+    const answer = (messages: Array<ModelMessage>) =>
+      messages.find((message) => message.toolCalls?.length)
+    // The next model call of the turn gets the map.
+    expect(answer(calls[1].messages)?.blockOrder).toEqual(order)
+    const transcript = await session.transcript()
+    expect(answer(transcript)).toMatchObject({
+      thinking: [
+        { content: 'Check Berlin.', signature: 'sig-1' },
+        { content: 'Now Paris.', signature: 'sig-2' },
+      ],
+      blockOrder: order,
+    })
+
+    // A fold of the log gives the same messages.
+    const rebuilt = sessionOf(
+      await loadLogState({ store: persistence.stores.log, logId: THREAD }),
+      THREAD,
+    )
+    expect(rebuilt.messages).toEqual(transcript)
+
+    // The first host never closes, like a process that stopped. A second
+    // host that opens the thread gets the same messages.
+    const next = createHarnessHost({ persistence })
+    const reopened = await next.open(harness, { threadId: THREAD })
+    expect(await reopened.transcript()).toEqual(transcript)
+    await host.close().catch(() => {})
+    await next.close()
   })
 })
