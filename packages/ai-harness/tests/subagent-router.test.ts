@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest'
-import { defineAgent } from '@tanstack/ai'
+import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
-import { gate, messageTexts, mockAdapter, text } from './helpers'
-import type { SubagentRouterPick } from '@tanstack/ai'
-import type { AnyAgent } from '../src'
+import { gate, messageTexts, mockAdapter, text, toolCall } from './helpers'
+import type { AnyTool, SubagentRouterPick } from '@tanstack/ai'
+import type { AnyAgent, HarnessSession } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
@@ -23,6 +24,33 @@ function writerAgent() {
   return { agent, seen }
 }
 
+/** A tool that asks approval before it removes a file. */
+function removeTool() {
+  const execute = vi.fn(async () => ({ removed: true }))
+  const tool = toolDefinition({
+    name: 'remove',
+    description: 'Remove a file',
+    needsApproval: true,
+    inputSchema: z.object({ path: z.string() }),
+  }).server(execute)
+  return { tool, execute }
+}
+
+/** Approve the first interrupt of `turn`, and wait for the turn that resumes. */
+async function approveFirst(
+  session: HarnessSession,
+  turn: { interrupts?: Array<{ id: string }> },
+) {
+  const interrupt = turn.interrupts?.[0]
+  if (!interrupt) throw new Error('The turn has no interrupt.')
+  const receipt = await session.resolve([
+    { interruptId: interrupt.id, status: 'resolved', payload: true },
+  ])
+  const resumed = session.operation(receipt.operationId ?? '')
+  if (!resumed) throw new Error('The resolve started no turn.')
+  return resumed
+}
+
 /**
  * A session whose `subagents.router` always returns `pick`. The router keeps
  * the messages of each call. `durable` gives the host a log.
@@ -33,6 +61,7 @@ async function openRouted(options: {
   pick: SubagentRouterPick
   replies?: Array<Reply>
   lease?: { renewMs?: number; ttlMs?: number }
+  tools?: ReadonlyArray<AnyTool>
 }) {
   const { stores } = memoryPersistence()
   const { runs, metadata } = stores
@@ -49,6 +78,7 @@ async function openRouted(options: {
     defineHarness({
       name: 'test/router',
       adapter: main.adapter,
+      ...(options.tools ? { tools: options.tools } : {}),
       subagents: {
         agents: [options.agent],
         router: ({ messages }) => {
@@ -172,6 +202,57 @@ describe.each([
     // A lease that still renews moves forward within a few renewals.
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect((await runs.get(turn.id))?.leaseExpiresAt).toBe(ended)
+    await host.close()
+  })
+
+  it('resumes a routed agent that stopped for an approval', async () => {
+    const remove = removeTool()
+    const child = mockAdapter([
+      () => toolCall('remove', { path: 'a.txt' }, 'call_c'),
+      () => text('Removed a.txt'),
+    ])
+    const agent = defineAgent({
+      name: 'cleaner',
+      description: 'Removes files',
+      run: (ctx) => ctx.chat({ adapter: child.adapter, tools: [remove.tool] }),
+    })
+    const { host, session, routerSaw, calls } = await openRouted({
+      durable,
+      agent,
+      pick: 'cleaner',
+    })
+
+    const turn = await session.prompt('clean up')
+    expect(remove.execute).not.toHaveBeenCalled()
+    const resumed = await approveFirst(session, turn)
+
+    expect(await resumed).toEqual({ text: 'cleaner:\nRemoved a.txt' })
+    expect(remove.execute).toHaveBeenCalledTimes(1)
+    expect(routerSaw).toHaveLength(1)
+    expect(calls).toHaveLength(0)
+    await host.close()
+  })
+
+  it("resumes the main model's approval when the router returns 'main'", async () => {
+    const remove = removeTool()
+    const { agent } = writerAgent()
+    const { host, session, calls } = await openRouted({
+      durable,
+      agent,
+      pick: 'main',
+      tools: [remove.tool],
+      replies: [
+        () => toolCall('remove', { path: 'b.txt' }, 'call_m'),
+        () => text('Removed b.txt'),
+      ],
+    })
+
+    const turn = await session.prompt('clean up')
+    const resumed = await approveFirst(session, turn)
+
+    expect(await resumed).toEqual({ text: 'Removed b.txt' })
+    expect(remove.execute).toHaveBeenCalledTimes(1)
+    expect(calls).toHaveLength(2)
     await host.close()
   })
 })

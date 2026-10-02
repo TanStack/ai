@@ -253,10 +253,11 @@ interface QueuedTurn {
   parentRunId?: string
   inputId?: string
   /**
-   * A resolve of a turn that `routing` sent to root agents: the messages it
-   * continues from, with the agents' cards.
+   * A resolve of a routed turn: the messages it continues from, with the
+   * agents' cards. `root` is true when `routing` sent the turn to root
+   * agents, and false for `subagents.router`.
    */
-  routed?: { messages: Array<UIMessage> }
+  routed?: { messages: Array<UIMessage>; root: boolean }
 }
 
 /** Limits for a harness's children when `subagents.limits` is not set. */
@@ -445,8 +446,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private readonly pendingNotes: Array<string> = []
   private activeTurn: OperationImpl<ChatTurnResult> | undefined
   /**
-   * The last turn stopped for these interrupts. `routed`: the root agents of
-   * a routed turn stopped. The resolve continues their saved plan.
+   * The last turn stopped for these interrupts. `routed`: a routed turn
+   * stopped. The resolve continues its saved plan.
    */
   private interrupted:
     | {
@@ -1953,7 +1954,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     let stopRunLease = () => {}
     /** The next chat() call runs the root agents that `routing` picked. */
     let isRootPart = false
-    /** The messages of the root part, with the agents' cards. */
+    /** The messages of the last run, with the agents' cards, when it was routed. */
     let cardMessages: Array<UIMessage> | undefined
     let text = ''
     let interrupts: Array<Interrupt> | undefined
@@ -2075,7 +2076,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         })
       }
       const isRootTurn =
-        turn.routed !== undefined || (pick ?? 'main') !== 'main'
+        turn.routed?.root === true || (pick ?? 'main') !== 'main'
       const rootBag =
         routing && isRootTurn
           ? {
@@ -2112,10 +2113,6 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           this.lease,
         )
       }
-      // ponytail: a routed turn runs no turn hooks (no retry, no joins, no
-      // beforeFinish), also in the main part of a handoff. A steer waits and
-      // runs as its own turn. Give the handoff part the hooks if apps need them.
-      const turnHooks = rootBag ? undefined : this.harness.turn
       /** The messages a resolve of a routed turn continues from. */
       let routedFrom = turn.routed?.messages
       /** Retries since the last finished tool phase. */
@@ -2127,6 +2124,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       // runs again when `turn.onModelError` answers 'retry'. A final answer
       // runs again when `turn.beforeFinish` adds to the transcript.
       for (;;) {
+        // The root agents of a routed turn run no turn hooks. The main model
+        // runs them, also in the main part of a handoff.
+        const turnHooks = isRootPart ? undefined : this.harness.turn
         let textBefore = text
         let runError: { message: string; code?: string } | undefined
         let heldError: StreamChunk | undefined
@@ -2140,8 +2140,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           const turnMessages = [...history, ...(message ? [message] : [])]
           // The store keeps each agent in its own thread, and chat() finds a
           // stopped agent in the cards that a client sends back. So the
-          // harness keeps the cards of the root part, as a client does.
-          const cards = isRootPart
+          // harness keeps the cards of a routed run, as a client does.
+          const cards = routed
             ? new StreamProcessor({
                 initialMessages:
                   routedFrom ?? modelMessagesToUIMessages(turnMessages),
@@ -2311,18 +2311,18 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           (interrupts?.length ?? 0) > 0 ||
           signal.aborted
         if (isFinished) break
-        if (rootBag) {
-          const isHandoff = isRootPart && routing?.strategy === 'handoff'
-          if (!isHandoff) break
+        if (isRootPart) {
+          if (routing?.strategy !== 'handoff') break
           // The agents answered. The main model answers next, with the
           // transcript that has their answer.
           isRootPart = false
           bag = subagents
           routed = isRoutedBag(bag)
         } else {
-          // Claimed, so a cancel after this check cannot leave a run with no
-          // new input.
-          const hasLateJoin = (await this.claimJoins()) > 0
+          // A steer does not join a turn that `routing` sent to root agents.
+          // It waits and runs as its own turn. Claimed, so a cancel after
+          // this check cannot leave a run with no new input.
+          const hasLateJoin = !rootBag && (await this.claimJoins()) > 0
           if (!hasLateJoin) {
             if (
               !(await this.continueBeforeFinish(operation, turn.inputId, cycle))
@@ -2425,8 +2425,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       this.interrupted = {
         runId: operation.id,
         interrupts,
-        ...(isRootPart && cardMessages
-          ? { routed: { messages: cardMessages } }
+        ...(cardMessages
+          ? { routed: { messages: cardMessages, root: isRootPart } }
           : {}),
       }
       await settleTurn({ outcome: 'interrupted' })

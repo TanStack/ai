@@ -90,6 +90,48 @@
     },
     {
       "match": {
+        "userMessage": "[harness-routing-fix] edit the draft",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "error": { "message": "Service Unavailable", "type": "server_error" },
+        "status": 503
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing-fix] edit the draft",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Edited after a retry."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing-fix] clean up",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "remove",
+            "arguments": "{\"path\":\"a.txt\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing-fix] clean up",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Removed a.txt."
+      }
+    },
+    {
+      "match": {
         "userMessage": "[harness-protocol] hello"
       },
       "response": {

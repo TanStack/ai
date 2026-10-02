@@ -1,11 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, defineAgent } from '@tanstack/ai'
+import { chat, defineAgent, toolDefinition } from '@tanstack/ai'
 import {
   HARNESS_EVENTS,
   createHarnessHost,
   defineHarness,
   harnessText,
+  retryTransientErrors,
 } from '@tanstack/ai-harness'
+import { createOpenaiChat } from '@tanstack/ai-openai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import type { ModelMessage, UIMessage } from '@tanstack/ai'
@@ -94,6 +96,88 @@ async function routingTurns(
     texts.push((await session.prompt(`[harness-routing] ${prompt}`)).text)
   }
   return { texts }
+}
+
+/** The `text` of a finished turn, or '' when the value has none. */
+function turnText(value: unknown) {
+  return typeof value === 'object' &&
+    value !== null &&
+    'text' in value &&
+    typeof value.text === 'string'
+    ? value.text
+    : ''
+}
+
+/**
+ * Two routed turns that need a second model call. In a handoff, the main
+ * model fails once with a 503, and `retryTransientErrors` runs it again. A
+ * `subagents.router` child asks approval, and the resolve continues it.
+ * Returns the text of both turns and how many times the tool ran.
+ */
+async function routingResumes(
+  host: HarnessHost,
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+  aimock: { port?: number; testId?: string },
+) {
+  // The harness must see the 503, so the SDK does not retry it.
+  const noSdkRetry = createOpenaiChat('gpt-4o', 'sk-e2e-test-dummy-key', {
+    baseURL: `http://127.0.0.1:${aimock.port ?? 4010}/v1`,
+    ...(aimock.testId
+      ? { defaultHeaders: { 'X-Test-Id': aimock.testId } }
+      : {}),
+    maxRetries: 0,
+  })
+  const drafter = defineAgent({
+    name: 'drafter',
+    description: 'Writes a draft',
+    run: async () => 'Draft',
+  })
+  const handoff = defineHarness({
+    name: 'e2e/harness-routing-handoff',
+    adapter: noSdkRetry,
+    agents: [drafter],
+    routing: { router: () => 'drafter', strategy: 'handoff' },
+    turn: { onModelError: retryTransientErrors({ baseDelayMs: 1 }) },
+  })
+  const editing = await host.open(handoff, { threadId: 'e2e-routing-handoff' })
+  const handoffText = (
+    await editing.prompt('[harness-routing-fix] edit the draft')
+  ).text
+
+  let removed = 0
+  const remove = toolDefinition({
+    name: 'remove',
+    description: 'Remove a file',
+    needsApproval: true,
+    inputSchema: z.object({ path: z.string() }),
+  }).server(async () => {
+    removed += 1
+    return { removed: true }
+  })
+  // The child reads the turn's messages, so its model call matches the user
+  // message, and its resume keeps its own tool call.
+  const cleaner = defineAgent({
+    name: 'cleaner',
+    description: 'Removes files',
+    run: (ctx) => ctx.chat({ adapter: openai(), tools: [remove] }),
+  })
+  const approving = await host.open(
+    defineHarness({
+      name: 'e2e/harness-routing-approval',
+      adapter: openai(),
+      subagents: { agents: [cleaner], router: () => 'cleaner' },
+    }),
+    { threadId: 'e2e-routing-approval' },
+  )
+  const stopped = await approving.prompt('[harness-routing-fix] clean up')
+  const interrupt = stopped.interrupts?.[0]
+  if (!interrupt) throw new Error('The cleaner did not ask for approval.')
+  const receipt = await approving.resolve([
+    { interruptId: interrupt.id, status: 'resolved', payload: true },
+  ])
+  const resumed = approving.operation(receipt.operationId ?? '')
+  if (!resumed) throw new Error('The resolve started no turn.')
+  return { handoffText, approvalText: turnText(await resumed), removed }
 }
 
 /**
@@ -236,6 +320,14 @@ export const Route = createFileRoute('/api/harness-test')({
               '[harness-limits] work twice',
             )
             return Response.json({ workerRuns, text: turn.text })
+          }
+          if (body.scenario === 'routing-resume') {
+            return Response.json(
+              await routingResumes(host, openai, {
+                ...(aimockPort !== undefined ? { port: aimockPort } : {}),
+                ...(testId !== undefined ? { testId } : {}),
+              }),
+            )
           }
           if (body.scenario === 'agent-restart') {
             return Response.json(await agentRestart(openai))

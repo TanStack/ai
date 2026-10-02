@@ -88,4 +88,20 @@ test.describe('harness session', () => {
       'pricer:\nAcme costs 30 dollars.',
     ])
   })
+
+  test('a handoff retries a model error, and an approved routed agent resumes', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'routing-resume', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    expect(await response.json()).toEqual({
+      handoffText: 'Edited after a retry.',
+      approvalText: 'cleaner:\nRemoved a.txt.',
+      removed: 1,
+    })
+  })
 })

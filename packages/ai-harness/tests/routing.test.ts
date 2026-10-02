@@ -66,6 +66,19 @@ function cleaner() {
   return { make, execute }
 }
 
+/** A model call that fails with `message`, like a provider error. */
+const failsWith =
+  (message: string): Reply =>
+  () => [
+    {
+      type: EventType.RUN_STARTED,
+      runId: 'r',
+      threadId: 't',
+      timestamp: Date.now(),
+    },
+    { type: EventType.RUN_ERROR, message, timestamp: Date.now() },
+  ]
+
 /** A router that answers `picks` in order, and keeps the context of each call. */
 function scriptedRouter(...picks: Array<SubagentRouterPick>) {
   const seen: Array<HarnessRouterContext> = []
@@ -323,6 +336,57 @@ describe('routing.router', () => {
       main.calls[0].tools.map((tool: { name: string }) => tool.name),
     ).toContain('checker')
     expect((await transcriptTexts(session)).at(-1)).toBe('Edited draft')
+    await host.close()
+  })
+
+  it('retries a model error in the main part of a handoff with turn.onModelError', async () => {
+    const writer = textAgent('writer', 'Draft')
+    const onModelError = vi.fn(
+      ({ retries }: { retries: number }): 'retry' | undefined =>
+        retries === 0 ? 'retry' : undefined,
+    )
+    const { host, session, main } = await openRouting({
+      router: () => 'writer',
+      strategy: 'handoff',
+      agents: [writer.agent],
+      turn: { onModelError },
+      replies: [
+        failsWith('503 Service Unavailable'),
+        () => text('Edited draft'),
+      ],
+    })
+
+    const turn = await session.prompt('write it')
+
+    expect(turn.text).toBe('Edited draft')
+    expect(onModelError).toHaveBeenCalledTimes(1)
+    expect(main.calls).toHaveLength(2)
+    // The agents ran once. The retry runs the main model only.
+    expect(writer.runs).toHaveLength(1)
+    await host.close()
+  })
+
+  it('runs turn.beforeFinish in the main part of a handoff', async () => {
+    const writer = textAgent('writer', 'Draft')
+    const beforeFinish = vi.fn(({ cycle }: { cycle: number }) =>
+      cycle === 0
+        ? { messages: [{ role: 'user' as const, content: 'one more' }] }
+        : undefined,
+    )
+    const { host, session, main } = await openRouting({
+      router: () => 'writer',
+      strategy: 'handoff',
+      agents: [writer.agent],
+      turn: { beforeFinish },
+      replies: [() => text('Edited draft'), () => text('Edited again')],
+    })
+
+    await session.prompt('write it')
+
+    expect(beforeFinish).toHaveBeenCalledTimes(2)
+    expect(main.calls).toHaveLength(2)
+    expect(messageTexts(main.calls[1]).at(-1)).toBe('one more')
+    expect(writer.runs).toHaveLength(1)
     await host.close()
   })
 
