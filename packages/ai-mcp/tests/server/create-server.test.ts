@@ -79,10 +79,12 @@ function summarizePrompt() {
   }).render(async (args) => [{ role: 'user', content: args.topic }])
 }
 
+// Keeps spec 2025 sessions, so the session tests can use it.
 function surfaceServer() {
   return createMCPServer({
     name: 'weather',
     version: '1.0.0',
+    sessions: 'memory',
     tools: [echoTool()],
     resources: [readmeResource()],
     prompts: [summarizePrompt()],
@@ -725,6 +727,7 @@ describe('createMCPServer', () => {
     const server = createMCPServer({
       name: 'secure',
       version: '1.0.0',
+      sessions: 'memory',
       auth: subjectAuth,
       tools: [echoTool()],
     })
@@ -843,6 +846,7 @@ describe('createMCPServer', () => {
     const server = createMCPServer({
       name: 'writer',
       version: '1.0.0',
+      sessions: 'memory',
       tools: [
         toolDefinition({
           name: 'draft',
@@ -900,6 +904,7 @@ describe('createMCPServer', () => {
     const server = createMCPServer({
       name: 'writer',
       version: '1.0.0',
+      sessions: 'memory',
       tools: [
         toolDefinition({
           name: 'ask',
@@ -1230,11 +1235,10 @@ describe('createMCPServer', () => {
     })
   })
 
-  it('serves a spec 2025 client without a session when sessions is stateless', async () => {
+  it('serves a spec 2025 client without a session by default', async () => {
     const server = createMCPServer({
       name: 'stateless',
       version: '1.0.0',
-      sessions: 'stateless',
       tools: [
         toolDefinition({
           name: 'tenant',

@@ -5,7 +5,7 @@ import {
 } from '@modelcontextprotocol/server'
 import type { JSONRPCMessage } from '@modelcontextprotocol/server'
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio'
-import { optionsOfServer } from './registry'
+import { markServedOverStdio, optionsOfServer } from './registry'
 
 const mcpUrl = 'http://127.0.0.1/mcp'
 const spec2026 = '2026-07-28'
@@ -39,6 +39,7 @@ const base64Suffix = '?='
 export function serveMCPStdio(server: {
   fetch: (request: Request) => Promise<Response>
 }) {
+  markServedOverStdio(server)
   const transport = new StdioServerTransport()
   const aborts = new Set<AbortController>()
   let sessionId: string | undefined

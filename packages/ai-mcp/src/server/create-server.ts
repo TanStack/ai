@@ -33,7 +33,7 @@ import {
   inputDeclinedMessage,
 } from './context'
 import type { SampleRequest, ToolInputRequest } from './context'
-import { rememberServerOptions } from './registry'
+import { isServedOverStdio, rememberServerOptions } from './registry'
 import { parseToolOutput } from './output'
 import type { MCPResourceContext, MCPResourceList } from './definitions'
 import { getTask, startTask, toCallToolResult } from './tasks'
@@ -117,12 +117,12 @@ export type MCPServerOptions = {
    */
   auth?: BearerAuthOptions
   /**
-   * What to do with a spec 2025 session. `'memory'` (the default) keeps
-   * sessions in this process. `'reject'` answers every spec 2025 request
-   * with the SDK rejection, so a host with many instances never opens a
-   * session it cannot find on the next request. `'stateless'` serves each
-   * spec 2025 request with a new server and keeps no session, so it works
-   * on a host with many instances. Elicitation and client sampling need a
+   * How to serve a spec 2025 client. `'stateless'` (the default) serves
+   * each spec 2025 request with a new server and keeps no session, so it
+   * works on a host with many instances. `'memory'` keeps sessions in this
+   * process for 30 idle minutes. `'reject'` answers every spec 2025 request
+   * with the SDK rejection. Under `serveMCPStdio`, the default is
+   * `'memory'`. Elicitation and client sampling need a
    * session: in that mode `ctx.context.requestInput` throws, and
    * `ctx.context.sample` calls `sample` or throws.
    */
@@ -198,7 +198,7 @@ type LegacySessions = Map<string, LegacySession>
  * A missing or bad token gets a 401. A token without a required scope gets a 403.
  * Spec 2025 sessions and tasks belong to the caller: the `clientId` of the
  * token plus its `sub` claim. A tool reads the token as `ctx.context.authInfo`.
- * Spec 2025 sessions live in this process. They close after 30 idle minutes.
+ * A spec 2025 client gets no session unless `options.sessions` is `'memory'`.
  * `options.sample` is the model adapter for `ctx.context.sample` on spec 2026.
  * `options.waitUntil` receives the task promise so a worker can stay alive.
  *
@@ -208,7 +208,7 @@ type LegacySessions = Map<string, LegacySession>
  * Those three lists keep the types you passed in.
  * Export the result from one package and pass it to `createMCPClient({ server })` in another.
  * `fetch` serves tools, resources, and prompts.
- * It speaks spec `2026-07-28` and full spec 2025 sessions.
+ * It speaks spec `2026-07-28` and spec 2025.
  * It does not serve the OAuth discovery documents. Mount
  * `oauthMetadataResponse` at the app root for them.
  *
@@ -216,9 +216,9 @@ type LegacySessions = Map<string, LegacySession>
  * the work ends. Spec 2026-07-28 has no tasks, so that tool runs inline there.
  * A tool reads its hooks on `ctx.context`. Type it with `MCPToolContext`.
  * On spec 2026, `ctx.context.sample` calls `options.sample` and does not ask the client.
- * On spec 2025, `ctx.context.sample` asks the MCP client.
+ * On spec 2025 with `sessions: 'memory'`, `ctx.context.sample` asks the MCP client.
  * On spec 2026, `ctx.context.requestInput` stops the call until the client sends the answer.
- * On spec 2025, `ctx.context.requestInput` waits on the open session.
+ * On spec 2025 with `sessions: 'memory'`, `ctx.context.requestInput` waits on the open session.
  *
  * @param options - Server name, version, tools, and the optional stores
  *
@@ -321,9 +321,13 @@ export function createMCPServer<
       const owner = ownerOf(authInfo)
       const context = handleOptions?.context
 
+      // Over stdio, one client owns the process, so sessions are the default.
+      const sessionMode =
+        options.sessions ??
+        (isServedOverStdio(mcpServer) ? 'memory' : 'stateless')
       const legacy =
-        options.sessions !== 'reject' && (await isLegacyRequest(request))
-      if (legacy && options.sessions !== 'stateless') {
+        sessionMode !== 'reject' && (await isLegacyRequest(request))
+      if (legacy && sessionMode === 'memory') {
         return legacyFetch(request, {
           open: () =>
             openLegacySession(request, {

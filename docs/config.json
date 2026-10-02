@@ -537,7 +537,7 @@
           "label": "Ask for Input",
           "to": "mcp/server-input",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Draft Text from a Tool",

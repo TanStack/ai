@@ -106,7 +106,7 @@ export default {
 
 The worker URL is the MCP URL.
 
-Each request can reach a different instance. To serve spec 2025 clients there, set `sessions: 'stateless'`. See [Serve spec 2025 without sessions](./server-sessions#serve-spec-2025-without-sessions).
+Each request can reach a different instance. The server keeps no spec 2025 session by default, so this works with no extra setup. See [MCP Server Sessions](./server-sessions).
 
 The host can list `get_weather`. Then the host can call that tool.
 

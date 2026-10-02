@@ -44,6 +44,8 @@ const tripBrief = promptDefinition({
 export const typedServer = createMCPServer({
   name: 'typed-weather',
   version: '1.0.0',
+  // The e2e suite checks that a spec 2025 session belongs to its token.
+  sessions: 'memory',
   tools: [forecast, buildReport],
   prompts: [tripBrief],
   auth: {

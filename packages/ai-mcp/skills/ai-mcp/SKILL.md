@@ -93,7 +93,7 @@ export function handleMcp(request: Request) {
 ```
 
 `createMCPServer` speaks spec `2026-07-28`.
-`createMCPServer` also speaks spec 2025 sessions.
+`createMCPServer` also speaks spec 2025. By default it keeps no spec 2025 session.
 
 `stdioTransport` from `@tanstack/ai-mcp/stdio` connects your client to a command.
 `serveMCPStdio` from `@tanstack/ai-mcp/server/stdio` serves your server on stdin and stdout.
@@ -138,7 +138,7 @@ Put work that must run once after `requestInput` returns.
 On spec 2026, a tool asks one question per call. A second `requestInput` throws an Error.
 If the user declines or cancels, `requestInput` throws an Error, and the call ends with a tool error.
 In an `execution: 'task'` tool, `ctx.context.requestInput` throws an error.
-On spec 2025, `requestInput` waits on the open session.
+On spec 2025 with `sessions: 'memory'`, `requestInput` waits on the open session. Without a session, it throws.
 The same tool call then continues.
 
 ```typescript
@@ -240,12 +240,13 @@ The server sends it as is: its content blocks, its `structuredContent`, and its 
 
 ### Spec 2025 on a host with many instances
 
-Set `sessions: 'stateless'` on a host with many instances, such as Cloudflare Workers.
+The default is `sessions: 'stateless'`. It works on a host with many instances, such as Cloudflare Workers.
 A new server answers each spec 2025 request, and no session is kept.
 In that mode, `ctx.context.requestInput` throws for a spec 2025 client.
 `ctx.context.sample` calls the `sample` option, or throws when it is not set.
 Set `sessions: 'reject'` to serve spec 2026 only. A spec 2025 request then gets the SDK rejection.
-The default is `'memory'`: sessions live in the process for 30 idle minutes.
+Set `sessions: 'memory'` to keep spec 2025 sessions in the process for 30 idle minutes. Route them with sticky sessions on the `mcp-session-id` header.
+`serveMCPStdio` uses `'memory'` when `sessions` is not set.
 
 ### Call a `createMCPServer` server with its types
 
