@@ -92,7 +92,13 @@ export function openaiCompatible<
         ResolveCompatOptions<TModels, TModelName>,
         ResolveCompatInput<TModels, TModelName>,
         ResolveCompatTools<TModels, TModelName>
-      >(client, model, name, { strictFallbackWarning })
+      >(
+        client,
+        model,
+        name,
+        { strictFallbackWarning },
+        modelConfig(models, model, compat),
+      )
     }
     return new OpenAICompatibleChatAdapter<
       TModelName,
@@ -143,6 +149,7 @@ export function openaiCompatibleText<const TModelName extends string>(
       model,
       name,
       { strictFallbackWarning },
+      compat ? { compat } : {},
     )
   }
   return new OpenAICompatibleChatAdapter<

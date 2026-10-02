@@ -81,6 +81,8 @@ export interface ModelCompat {
   supportsAdditionalTools?: boolean
   supportsToolSearch?: boolean
   supportsOpenAIGrammarTools?: boolean
+  /** `true`: the model takes `prompt_cache_options` (OpenAI gpt-5.6 and later); older models reject it. */
+  supportsExplicitPromptCacheMode?: boolean
 }
 
 /** Prices in USD per 1M tokens. */
