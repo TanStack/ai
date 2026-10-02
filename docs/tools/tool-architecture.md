@@ -403,6 +403,8 @@ LLM calls:
 All execute simultaneously, then LLM generates comparison.
 ```
 
+The server tools of one model turn start together, and the model gets their results in the order of its calls. To run them one at a time, see [Run tools one at a time](./tools#run-tools-one-at-a-time).
+
 ## Best Practices
 
 ### Tool Design

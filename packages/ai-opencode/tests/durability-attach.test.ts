@@ -91,8 +91,10 @@ function mockSandbox(): SandboxHandle & { spawns: Array<string> } {
       },
     },
     ports: {
-      connect: (port: number) =>
-        Promise.resolve({ url: `http://127.0.0.1:${port}` }),
+      // Port 1 refuses at once, so a run that passes the gate fails its first
+      // HTTP call and ends. A real port (4096) could be in use on the host,
+      // and then how far the run got before the file ended varied per machine.
+      connect: () => Promise.resolve({ url: 'http://127.0.0.1:1' }),
     },
     env: { set: () => Promise.resolve() },
     destroy: () => Promise.resolve(),
@@ -139,12 +141,9 @@ function contextWith(
 /**
  * Drain the stream, but give up after `ms` and return what arrived.
  *
- * A plain `collect` would be right for the refusal (it terminates at once) and
- * wrong for diagnosing its ABSENCE: if the refusal ever regressed, the run would
- * proceed and then hang against the mock's advertised-but-unlistened port, so the
- * failure would surface as "test timed out" instead of the assertion that
- * actually caught it. Bounding the drain keeps the red pointing at the spawn that
- * should not have happened.
+ * Every run here ends on its own (the refusal at once, a run past the gate when
+ * its first HTTP call to port 1 is refused). The bound only keeps a regression
+ * from showing up as "test timed out" instead of the assertion that caught it.
  */
 async function collectWithin(
   stream: AsyncIterable<AdapterYieldChunk>,
@@ -175,38 +174,6 @@ async function collectWithin(
 function errorMessageOf(chunks: Array<AdapterYieldChunk>): string | undefined {
   const err = chunks.find((c) => c.type === 'RUN_ERROR')
   return (err as { message?: string } | undefined)?.message
-}
-
-/**
- * Start the stream and stop as soon as the harness spawn is observed.
- *
- * The NON-refused cases cannot be collected to completion: past the gate the
- * adapter opens a real HTTP session against the mock's advertised port, where
- * nothing is listening, so the stream neither yields nor settles. That hang is
- * irrelevant to what these tests assert — the gate's decision is fully made
- * before the spawn, so observing the spawn is observing the decision. Kicking the
- * generator with one `next()` we never await, then polling for the spawn, tests
- * exactly that and terminates.
- *
- * Neither the `next()` nor the `return()` may be awaited. An async generator
- * serializes its own queue, so `return()` waits behind the still-pending
- * `next()` and would hang just as long as the thing we are avoiding. Both are
- * therefore fired and abandoned, with rejections swallowed so an abandoned
- * promise cannot surface as an unhandled rejection. Nothing real leaks: the
- * spawn is a mock and the only OS resource is a socket to a port with no
- * listener, which the runtime tears down on its own.
- */
-async function startUntilSpawn(
-  stream: AsyncIterable<AdapterYieldChunk>,
-  sandbox: { spawns: Array<string> },
-): Promise<void> {
-  const iterator = stream[Symbol.asyncIterator]()
-  void Promise.resolve(iterator.next()).catch(() => {})
-  const deadline = Date.now() + 4000
-  while (sandbox.spawns.length === 0 && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 10))
-  }
-  void Promise.resolve(iterator.return?.()).catch(() => {})
 }
 
 describe('opencode durability on a never-journaling adapter', () => {
@@ -253,7 +220,7 @@ describe('opencode durability on a never-journaling adapter', () => {
     const sandbox = mockSandbox()
     const logger = noopLogger()
 
-    await startUntilSpawn(
+    const chunks = await collectWithin(
       opencodeText(MODEL).chatStream({
         model: MODEL,
         runId: 'r-fresh-durable',
@@ -261,8 +228,10 @@ describe('opencode durability on a never-journaling adapter', () => {
         logger,
         capabilities: contextWith(sandbox, durability(false)),
       }),
-      sandbox,
+      3000,
     )
+    // Settled, not abandoned: the run ends on the refused port 1.
+    expect(errorMessageOf(chunks)).toBeDefined()
 
     // Once per run, not per chunk — a per-chunk warning would be worse than
     // none, so the COUNT is the assertion, not merely that it fired.
@@ -281,7 +250,7 @@ describe('opencode durability on a never-journaling adapter', () => {
     const sandbox = mockSandbox()
     const logger = noopLogger()
 
-    await startUntilSpawn(
+    const chunks = await collectWithin(
       opencodeText(MODEL).chatStream({
         model: MODEL,
         runId: 'r-no-durability',
@@ -289,8 +258,10 @@ describe('opencode durability on a never-journaling adapter', () => {
         logger,
         capabilities: contextWith(sandbox),
       }),
-      sandbox,
+      3000,
     )
+    // Settled, not abandoned: the run ends on the refused port 1.
+    expect(errorMessageOf(chunks)).toBeDefined()
 
     // The common default stays silent and unchanged: neither check may fire when
     // the app never asked for durability at all, and the run proceeds exactly as

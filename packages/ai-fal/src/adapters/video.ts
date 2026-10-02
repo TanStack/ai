@@ -1,6 +1,6 @@
 import { fal } from '@fal-ai/client'
 import { resolveMediaPrompt } from '@tanstack/ai'
-import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
+import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import {
   configureFalClient,
   generateId as utilGenerateId,
@@ -210,12 +210,6 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
     FalModelVideoDuration<TModel>
   > {
     return getFalVideoDurationOptions(this.model)
-  }
-
-  override snapDuration(
-    seconds: number,
-  ): FalModelVideoDuration<TModel> | undefined {
-    return snapToDurationOption(seconds, this.availableDurations())
   }
 
   async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
