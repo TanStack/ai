@@ -82,7 +82,9 @@ const stream = chat({
 
 Both fields are optional. Without `retention`, the retention is `'short'`. The types are exported from `@tanstack/ai`: `PromptCacheRetention`, `PromptCacheOptions`, and `ResolvedPromptCache`.
 
-In a harness, you set `promptCache` one time for every session. See [Build your first harness](../harness/overview#prompt-caching).
+In a harness, you set `promptCache` one time for every session. See [Build your first harness](../harness/overview#prompt-caching). To change it for one prompt of a session, see [Give one prompt its own settings](../harness/turn-control#give-one-prompt-its-own-settings).
+
+A middleware can change the retention or the key of one model call. See [Change the prompt cache of a call](./middleware#change-the-prompt-cache-of-a-call).
 
 ## When to turn it off or keep it longer
 

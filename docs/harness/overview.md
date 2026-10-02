@@ -197,6 +197,26 @@ const support = await host.open(assistant, {
 
 If the `threadId` already has a live session, `host.open` returns that session with its first `promptCache` value. Agents in the session use the same retention. The `/usage` command of the [`usage()` plugin](./coding-agent#what-each-plugin-adds) shows cache reads and writes. For the options and the cost, see [Prompt Caching](../advanced/prompt-caching).
 
+To change it for one prompt, pass `overrides.promptCache`. See [Give one prompt its own settings](./turn-control#give-one-prompt-its-own-settings).
+
+## Set a reasoning level
+
+A harness sends no reasoning level by default, so the main model thinks at the default of its provider. To set a level for every turn, set `reasoning` on the harness:
+
+```ts group=harness-first
+export const careful = defineHarness({
+  name: 'acme/careful',
+  adapter: openaiText('gpt-6.1-sol'),
+  reasoning: 'medium',
+})
+```
+
+- `level`: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. A model that does not have the level gets the nearest level that it has.
+- `summary`: `true` streams the thinking text. `false` keeps it out of the stream.
+- `budgetTokens`: optional. A thinking token budget, for models that think with a budget.
+
+For the levels of each model, see [Reasoning](../chat/reasoning). To use another level for one prompt, pass `overrides.reasoning`. See [Give one prompt its own settings](./turn-control#give-one-prompt-its-own-settings).
+
 ## What you have now
 
 - A harness defined once, with the same options as `chat()`.

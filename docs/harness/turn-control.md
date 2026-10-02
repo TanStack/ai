@@ -2,7 +2,7 @@
 title: Control how a turn ends
 id: harness-turn-control
 order: 4
-description: "Send the model back to work when it stops too soon, retry model errors, and choose which waiting messages join a running turn."
+description: "Send the model back to work when it stops too soon, retry model errors, choose which waiting messages join a running turn, and give one prompt its own model and tools."
 keywords:
   - tanstack ai
   - harness
@@ -12,9 +12,13 @@ keywords:
   - canJoin
   - onJoin
   - steer
+  - overrides
+  - TurnOverrides
 ---
 
 A model can stop before the job is done: it writes a nice answer and forgets to call `post_message`. A provider can answer 503 in the middle of a turn. A user can send three messages while the agent works, and one of them must not join. The `turn` options of the harness give you a hook for each case.
+
+One job can also need its own model or tools. Pass `overrides` to the prompt to [give it its own settings](#give-one-prompt-its-own-settings).
 
 ## Send the model back to work
 
@@ -161,8 +165,70 @@ const selective = defineHarness({
 
 Tools or system prompts that a plugin or a middleware adds during a turn keep the prompt cache on models with a mid-conversation channel. See [Mid-conversation changes in a harness](../advanced/mid-conversation-changes#in-a-harness).
 
+## Give one prompt its own settings
+
+Most prompts are fine with the harness settings. One job can need more: a stronger model for a review, more reasoning, or a tool that only this job uses. Pass `overrides` to `session.prompt` or `session.followUp`:
+
+```ts group=harness-turn-control
+import { toolDefinition } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { createHarnessHost } from '@tanstack/ai-harness'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+
+const readDiff = toolDefinition({
+  name: 'read_diff',
+  description: 'Read the diff of the open pull request',
+}).server(async () => 'diff --git a/src/cart.ts b/src/cart.ts')
+
+const host = createHarnessHost({ persistence: memoryPersistence() })
+const session = await host.open(resilient, { threadId: 'thread-1' })
+
+const review = await session.prompt('Review the open pull request.', {
+  overrides: {
+    adapter: anthropicText('claude-opus-5-5'),
+    reasoning: 'high',
+    tools: [readDiff],
+  },
+})
+console.log(review.text)
+```
+
+The overrides apply to this turn only. The next prompt without `overrides` uses the harness settings again. The type is `TurnOverrides`, from `@tanstack/ai-harness`.
+
+| Field | What it does in this turn |
+|---|---|
+| `adapter` | Replaces the harness adapter and every plugin pick. A keyed adapter uses the key of the user. |
+| `reasoning` | Replaces the `reasoning` of the harness. |
+| `promptCache` | Replaces the session and harness values, field by field. `{ key: 'review' }` keeps the session retention. |
+| `tools` | Adds tools to the tools of the harness and the plugins. |
+
+Every model call of the turn uses the overrides:
+
+- each step of the tool loop
+- each `onModelError` retry
+- each `beforeFinish` cycle
+- the main model after a [`routing`](./subagents#route-a-turn-to-an-agent) handoff
+- the extra model call for steer messages that arrive at the final answer
+
+### Tools for one turn
+
+- A tool name that the turn already has fails the turn, the same as two tools with one name.
+- A [durable tool](./durable-tools) gets `step` and `append` on a durable host.
+- A middleware `onConfig` that returns a new tool list does not drop these tools. The harness adds them back.
+
+### Where the overrides live
+
+The session keeps the overrides in memory only. The session log does not store them.
+
+- A queued prompt keeps its overrides until its turn runs.
+- A steer that joins a running turn uses the overrides of that turn. The session ignores the overrides of the steer.
+- A `prompt(text, { busy: 'steer', overrides })` that does not join runs as its own turn, with its own overrides.
+- After a restart, recovery runs an unfinished turn with the harness settings.
+- A second prompt with the same `inputId` and message is a duplicate, also when its overrides are different.
+
 ## What you have now
 
 - A turn that goes back to work until the job is done, with a limit.
 - Model errors that retry with a backoff, and a policy of your own for a context overflow.
 - Waiting messages that join a turn only when you allow it.
+- A prompt that runs with its own model, reasoning, prompt cache, and tools.
