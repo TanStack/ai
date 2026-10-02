@@ -5,6 +5,8 @@ export type {
   HarnessConfig,
   HarnessDefinition,
   HarnessDurability,
+  HarnessRouterContext,
+  HarnessRouting,
   HarnessSubagents,
 } from './define'
 

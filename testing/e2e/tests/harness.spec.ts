@@ -70,4 +70,22 @@ test.describe('harness session', () => {
     expect(body.status).toBe('failed')
     expect(body.text).toBe('The waiter stopped before it finished.')
   })
+
+  test('routing.router sends each turn to the picked root agents or to the main model', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'routing', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    expect((await response.json()).texts).toEqual([
+      'writer:\nHere is a short draft.',
+      'Hello from the main model.',
+      // The writer of the second step answers the text of the first step.
+      'researcher:\nBees make honey.\n\nseo:\nUse the keyword honey.\n\nwriter:\nBees make honey, so buy honey.',
+      'pricer:\nAcme costs 30 dollars.',
+    ])
+  })
 })

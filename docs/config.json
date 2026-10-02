@@ -166,7 +166,7 @@
           "label": "Subagents",
           "to": "chat/subagents",
           "addedAt": "2026-09-21",
-          "updatedAt": "2026-09-28"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Agentic Cycle",
@@ -942,7 +942,7 @@
           "label": "Write a plugin",
           "to": "harness/plugins",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-01"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Build a coding agent",
