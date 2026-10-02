@@ -237,6 +237,7 @@ describe('Anthropic adapter option mapping', () => {
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
+      promptCache: 'none',
       messages: [{ role: 'user', content: 'Hi' }],
       systemPrompts: ['You are a helpful assistant.', 'Be concise.'],
     })) {
@@ -343,6 +344,7 @@ describe('Anthropic adapter option mapping', () => {
 
     for await (const _ of chat({
       adapter,
+      promptCache: 'none',
       messages: [{ role: 'user', content: 'Hi' }],
       systemPrompts: ['real system prompt'],
       modelOptions: {
@@ -431,6 +433,7 @@ describe('Anthropic adapter option mapping', () => {
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
+      promptCache: 'none',
       messages: [
         { role: 'user', content: 'What is the forecast?' },
         {
@@ -1030,6 +1033,7 @@ describe('Anthropic adapter option mapping', () => {
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
+      promptCache: 'none',
       messages: [
         { role: 'user', content: 'What is the weather in Berlin?' },
         {
@@ -1343,6 +1347,7 @@ describe('Anthropic adapter option mapping', () => {
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
+      promptCache: 'none',
       messages: [
         { role: 'user', content: 'Weather in Berlin and Paris?' },
         {
@@ -1571,6 +1576,7 @@ describe('Anthropic adapter option mapping', () => {
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
+      promptCache: 'none',
       messages: [
         { role: 'user', content: 'Hello' },
         { role: 'assistant', content: '' }, // Empty assistant from failed request
