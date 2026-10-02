@@ -1,4 +1,4 @@
-import type { Modality } from '@tanstack/ai'
+import type { MidConversationChannels, Modality } from '@tanstack/ai'
 import type {
   AnthropicCacheControlOptions,
   AnthropicContainerOptions,
@@ -807,6 +807,22 @@ export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
   CLAUDE_SONNET_4_6.id,
   CLAUDE_HAIKU_4_5.id,
 ])
+
+/**
+ * The mid-conversation channels of each model (from pi 0.87.1): added tools
+ * use the `mid-conversation-tool-changes-2026-07-01` beta, and added prompts
+ * go in a mid-conversation `system` message. An unknown id gives
+ * `undefined`, so the adapter has no channels.
+ */
+export const ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS: Readonly<
+  Record<string, MidConversationChannels>
+> = {
+  [CLAUDE_OPUS_4_8.id]: { tools: true, systemPrompts: true },
+  [CLAUDE_OPUS_5.id]: { tools: true, systemPrompts: true },
+  [CLAUDE_OPUS_5_5.id]: { tools: true, systemPrompts: true },
+  [CLAUDE_FABLE_5.id]: { tools: true, systemPrompts: true },
+  [CLAUDE_FABLE_5_1.id]: { tools: true, systemPrompts: true },
+}
 
 // const ANTHROPIC_IMAGE_MODELS = [] as const
 // const ANTHROPIC_EMBEDDING_MODELS = [] as const

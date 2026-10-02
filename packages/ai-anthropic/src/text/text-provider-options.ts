@@ -2,6 +2,7 @@ import type { AnthropicThinkingFields } from './reasoning'
 import type {
   BetaContextManagementConfig,
   BetaMessageParam,
+  BetaTool,
   BetaToolChoiceAny,
   BetaToolChoiceAuto,
   BetaToolChoiceTool,
@@ -195,7 +196,8 @@ export interface InternalTextProviderOptions
    */
   system?: string | Array<TextBlockParam>
 
-  tools?: Array<AnthropicTool>
+  /** `BetaTool`: the placeholder and the deferred tools of mid-conversation tool mode. */
+  tools?: Array<AnthropicTool | BetaTool>
 
   /**
    * Schema-constrained final answer in a single Messages request (issue
