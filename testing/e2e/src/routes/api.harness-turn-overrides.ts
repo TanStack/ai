@@ -73,7 +73,8 @@ export const Route = createFileRoute('/api/harness-turn-overrides')({
         const capturingFetch: typeof fetch = async (input, init) => {
           bodies.push(await new Request(input, init).json())
           const sse = ANTHROPIC_REPLY.map(
-            (event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`,
+            (event) =>
+              `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`,
           ).join('')
           return new Response(sse, {
             headers: { 'Content-Type': 'text/event-stream' },
