@@ -229,6 +229,27 @@ const stream = chat({
 
 The adapter sends the level as `reasoning.effort`, with `summary: "auto"` so the reasoning summary streams back as thinking parts. Pass `reasoning: { level: "high", summary: false }` to skip the summary. The types list only the levels the model has. See [Reasoning](../chat/reasoning).
 
+### Prompt caching
+
+`chat()` sends `prompt_cache_key` by default, set to the `threadId` that you pass. OpenAI uses the key to send requests with the same start to the same cache. With `promptCache: 'long'`, `chat()` also asks for the long retention. See [Prompt Caching](../advanced/prompt-caching).
+
+To use your own key, set it in `modelOptions`. Your value wins over the automatic one:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "Hello!" }],
+  modelOptions: {
+    prompt_cache_key: "acme-support",
+  },
+});
+```
+
+`modelOptions.prompt_cache_retention` also wins over the automatic `prompt_cache_retention`.
+
 ## Summarization
 
 Summarize long text content:

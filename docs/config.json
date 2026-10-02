@@ -160,7 +160,7 @@
           "label": "Stream Events",
           "to": "chat/stream-events",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-09-23"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Subagents",
@@ -331,6 +331,11 @@
           "to": "advanced/compaction",
           "addedAt": "2026-08-24",
           "updatedAt": "2026-09-30"
+        },
+        {
+          "label": "Prompt Caching",
+          "to": "advanced/prompt-caching",
+          "addedAt": "2026-10-02"
         }
       ],
       "tab": "guides"
@@ -878,7 +883,7 @@
           "label": "Build your first harness",
           "to": "harness/overview",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-09-29"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Connect clients",
@@ -1294,13 +1299,13 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Google Gemini",
@@ -1453,7 +1458,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "BytePlus",
