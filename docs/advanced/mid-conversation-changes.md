@@ -76,7 +76,7 @@ Before each model call, the library compares the tools and the system prompts wi
 2. A tool that you add is a change. A system prompt that you add at the end of the list is a change too. A change goes out at its place in the conversation, in the model's own format.
 3. Any other difference makes a new start point. That request sends the full lists.
 
-The library saves a small record on the first assistant message of each call, in the `midConversationChange` field. The record holds tool names and short prompt hashes, not tool definitions. Keep the field when you store messages yourself.
+The library saves a small record on the first assistant message of a call that makes a start point or a change, in the `midConversationChange` field. The record holds tool names and short prompt hashes, not tool definitions. Keep the field when you store messages yourself.
 
 ## The models
 
