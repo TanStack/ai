@@ -273,11 +273,26 @@ distinct records, and the conformance suite checks it.
 then a `findOne` — `$setOnInsert` is the insert-if-absent primitive. Guard the
 `E11000` duplicate-key race and re-read. `list*` need `.sort({ requestedAt: 1 })`.
 
-**Redis / Upstash** — workable for `metadata` and excellent for `LockStore`, but
-think before putting `interrupts` there: the listings need ordered secondary
-indexes you have to maintain by hand (a sorted set per thread and per run,
-scored by `requestedAt`). A common split is Postgres for `messages`/`runs`/
-`interrupts` and Redis for locks; compose them with `composePersistence`.
+**Redis / Upstash** — all four stores fit, and Redis is excellent for
+`LockStore` too. Store each record as one JSON document (RedisJSON, or a JSON
+string) and list `runs` and `interrupts` through sorted-set indexes: one per
+thread and one per run, scored by `startedAt` / `requestedAt`. Those indexes
+are only safe when the record and every index it joins are written by **one
+Lua script** (`EVAL`), never as separate commands: insert the record if absent
+(`JSON.SET ... NX` or `SET ... NX`), `ZADD` each index only when that insert
+happened, and return the stored record. Pass every key the script touches in
+`KEYS`, so it also works on a cluster. That one script is `createOrResume`
+and `interrupts.create` (invariants 3 and 6), and it stays correct across
+instances. `interrupts.commitBatch` is one script too: check every id exists
+and is pending, then write them all, or write nothing. If `listReclaimable`
+reads a sorted set of detached runs, the `runs.update` that changes `status` or
+`detachedSince` must move the run in or out of it in the same script; as two
+commands, a crash between them hides a detached run from the reaper. `ZRANGE` on the index
+gives the `requestedAt` ordering for free. For `metadata`, build the key so
+`('a:b','c')` and `('a','b:c')` stay distinct, for example by escaping the
+delimiter. `@upstash/agentkit-tanstack-ai` (`upstashPersistence()`) is a
+published implementation of this layout that passes the conformance suite with
+all seven stores; on Upstash the app can use it instead of writing this file.
 
 **Anything else** — you only need the seven invariants above. The core never
 inspects your storage.

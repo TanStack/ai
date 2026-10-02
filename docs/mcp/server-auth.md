@@ -209,7 +209,7 @@ export const listNotes = toolDefinition({
 
 Your app already checks the caller in a middleware. That middleware puts the user and a database handle on the request. You do not want to check the token a second time in `createMCPServer`.
 
-Pass the verified token and your values to `server.handle`. The server skips its `auth` gate for that request. Every tool call of that request reads your values on `ctx.context`.
+Pass the verified token and your values to `server.handle`. The server skips its `auth` gate for that request. Every tool call, resource read, and resource list of that request reads your values on `ctx.context`.
 
 ```ts
 import { server } from './mcp-server'
@@ -244,7 +244,7 @@ export const listNotes = toolDefinition({
 })
 ```
 
-- `authInfo` is the SDK `AuthInfo`. A tool reads it as `ctx.context.authInfo`. A session or a task belongs to its `clientId` plus `extra.sub`.
+- `authInfo` is the SDK `AuthInfo`. A tool or a resource reads it as `ctx.context.authInfo`. A session or a task belongs to its `clientId` plus `extra.sub`.
 - `context` sits next to `authInfo`, `requestInput`, and `sample` on `ctx.context`. Those three names win over a value of yours.
 - `createMCPClient({ server })` passes no `context`.
 

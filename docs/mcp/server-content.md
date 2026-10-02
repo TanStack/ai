@@ -42,7 +42,7 @@ const file = resourceDefinition({
   mimeType: 'text/plain',
   uriTemplate: 'file:///{path}',
   argsSchema: z.object({ path: z.string() }),
-}).read(async ({ path }) => ({ text: `The body of ${path}` }))
+}).read(async (_uri, { path }) => ({ text: `The body of ${path}` }))
 
 const summarize = promptDefinition({
   name: 'summarize',
@@ -75,10 +75,56 @@ If you pass `uri` and `uriTemplate`, the server uses `uri`.
 
 `read` returns `{ text }` for a text document. For a binary document, `read` returns `{ blob }` with a base64 string. Add `mimeType` to that object when one template serves files of different types.
 
-For a `uriTemplate`, `read` gets the variables of the URI the host asked for, and the URI itself:
+## Serve One Resource per Item
 
-- `argsSchema.parse` runs first, so `read` gets the parsed variables. For `file:///notes.md`, `path` is `notes.md`.
-- Without `argsSchema`, `read` gets the variables as strings.
+A template such as `myapp://items/{itemId}/summary` serves many documents. The read must know which item the host asked for, and which user asks. A host also needs a list of the items that exist.
+
+1. Read `itemId` from the `variables` argument of `read`.
+2. Read the user from `ctx.context`.
+3. Add `list` to return the concrete resources for `resources/list`.
+
+```ts
+import { createMCPServer, resourceDefinition } from '@tanstack/ai-mcp/server'
+
+const summaries = new Map([
+  ['1', 'First item'],
+  ['2', 'Second item'],
+])
+
+const summary = resourceDefinition({
+  name: 'item-summary',
+  mimeType: 'text/plain',
+  uriTemplate: 'myapp://items/{itemId}/summary',
+  list: async () => ({
+    resources: [...summaries.keys()].map((id) => ({
+      uri: `myapp://items/${id}/summary`,
+      name: `Item ${id}`,
+    })),
+  }),
+}).read(async (uri, variables, ctx) => {
+  const itemId = String(variables.itemId)
+  const userId = String(ctx.context.userId)
+  return { text: `${summaries.get(itemId) ?? 'Unknown'} (for ${userId})` }
+})
+
+const server = createMCPServer({
+  name: 'items',
+  version: '1.0.0',
+  resources: [summary],
+})
+
+export function handleMcp(request: Request, userId: string) {
+  return server.handle(request, { context: { userId } })
+}
+```
+
+`read` gets three arguments:
+
+- `uri`: the URI the host asked for, as a `URL`.
+- `variables`: the values from the template. A resource with `uri` gets `{}`. When the template has `argsSchema`, `argsSchema.parse` runs first, so `read` gets the parsed values. For `file:///notes.md`, `path` is `notes.md`.
+- `ctx.context`: the values from `handle(request, { context })`, plus the verified token as `authInfo`. A tool gets the same values, plus `requestInput` and `sample`.
+
+`list` gets the same `ctx`. It returns `{ resources }`, with a `uri` and a `name` for each resource. Only a resource with `uriTemplate` can have `list`.
 
 ## Prompts
 

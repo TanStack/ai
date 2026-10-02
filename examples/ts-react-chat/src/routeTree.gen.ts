@@ -44,6 +44,7 @@ import { Route as GenerationsOpenrouterCombinedRouteImport } from './routes/gene
 import { Route as GenerationsImageRouteImport } from './routes/generations.image'
 import { Route as GenerationsAudioRouteImport } from './routes/generations.audio'
 import { Route as ExampleRuntimeContextRouteImport } from './routes/example.runtime-context'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as ApiTranscribeRouteImport } from './routes/api.transcribe'
 import { Route as ApiTanchatRouteImport } from './routes/api.tanchat'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
@@ -261,6 +262,11 @@ const GenerationsAudioRoute = GenerationsAudioRouteImport.update({
 const ExampleRuntimeContextRoute = ExampleRuntimeContextRouteImport.update({
   id: '/example/runtime-context',
   path: '/example/runtime-context',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
@@ -511,6 +517,7 @@ export interface FileRoutesByFullPath {
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/example/runtime-context': typeof ExampleRuntimeContextRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
@@ -586,6 +593,7 @@ export interface FileRoutesByTo {
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/example/runtime-context': typeof ExampleRuntimeContextRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
@@ -662,6 +670,7 @@ export interface FileRoutesById {
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tanchat': typeof ApiTanchatRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/example/runtime-context': typeof ExampleRuntimeContextRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
@@ -739,6 +748,7 @@ export interface FileRouteTypes {
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/auth/callback'
     | '/example/runtime-context'
     | '/generations/audio'
     | '/generations/image'
@@ -814,6 +824,7 @@ export interface FileRouteTypes {
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/auth/callback'
     | '/example/runtime-context'
     | '/generations/audio'
     | '/generations/image'
@@ -889,6 +900,7 @@ export interface FileRouteTypes {
     | '/api/summarize'
     | '/api/tanchat'
     | '/api/transcribe'
+    | '/auth/callback'
     | '/example/runtime-context'
     | '/generations/audio'
     | '/generations/image'
@@ -965,6 +977,7 @@ export interface RootRouteChildren {
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiTanchatRoute: typeof ApiTanchatRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   ExampleRuntimeContextRoute: typeof ExampleRuntimeContextRoute
   GenerationsAudioRoute: typeof GenerationsAudioRoute
   GenerationsImageRoute: typeof GenerationsImageRoute
@@ -1229,6 +1242,13 @@ declare module '@tanstack/react-router' {
       path: '/example/runtime-context'
       fullPath: '/example/runtime-context'
       preLoaderRoute: typeof ExampleRuntimeContextRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/transcribe': {
@@ -1567,6 +1587,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiTanchatRoute: ApiTanchatRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   ExampleRuntimeContextRoute: ExampleRuntimeContextRoute,
   GenerationsAudioRoute: GenerationsAudioRoute,
   GenerationsImageRoute: GenerationsImageRoute,

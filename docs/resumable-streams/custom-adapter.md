@@ -16,6 +16,9 @@ Electric, an object store. By the end of this page you have a `StreamDurability`
 adapter that plugs into `toServerSentEventsResponse` / `toHttpResponse`, so a
 client can reconnect to an in-flight run without re-running the model.
 
+> On Upstash Redis there is a ready-made third-party adapter: `upstashStream()` from
+> `@upstash/agentkit-tanstack-ai`. See [Upstash](../community-adapters/upstash#resumable-streams).
+
 Core never understands your store. It only round-trips opaque offset strings you
 hand it. You implement five methods:
 

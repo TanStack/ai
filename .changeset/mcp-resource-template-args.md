@@ -2,4 +2,4 @@
 '@tanstack/ai-mcp': minor
 ---
 
-A resource with a `uriTemplate` can read the URI the host asked for. `resourceDefinition({ uriTemplate, argsSchema })` parses the template variables, and `read` gets them and the URI. A read result `{ text | blob, mimeType }` sets the MIME type of that answer.
+A resource template can parse its variables. With `resourceDefinition({ uriTemplate, argsSchema })`, `argsSchema.parse` runs on the template variables before `read(uri, variables, ctx)` gets them. A read result `{ text | blob, mimeType }` sets the MIME type of that answer.

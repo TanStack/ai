@@ -5,7 +5,7 @@ import {
   resolveMediaPrompt,
   unsupportedFileSourceError,
 } from '@tanstack/ai'
-import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
+import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { getOpenRouterApiKeyFromEnv } from '../utils/client'
 import {
@@ -330,12 +330,6 @@ export class OpenRouterVideoAdapter<
     OpenRouterVideoModelDurationByName[TModel]
   > {
     return getVideoDurationOptions(this.model)
-  }
-
-  override snapDuration(
-    seconds: number,
-  ): OpenRouterVideoModelDurationByName[TModel] | undefined {
-    return snapToDurationOption(seconds, this.availableDurations())
   }
 
   async getVideoStatus(jobId: string): Promise<VideoStatusResult> {

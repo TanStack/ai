@@ -481,7 +481,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
     name: 'media',
     mimeType: 'application/octet-stream',
     argsSchema: { parse: mediaAddress },
-  }).read(async ({ threadId, id }) => {
+  }).read(async (_uri, { threadId, id }) => {
     const target = await host.open(harness, { threadId })
     const record = await target.getMedia(id)
     if (record === null) {
@@ -494,6 +494,10 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   return createMCPServer({
     name: options.name ?? harness.name,
     version: options.version ?? '1.0.0',
+    // `approvals: 'ask'` asks by elicitation, and elicitation needs a spec 2025
+    // session. ponytail: memory sessions live in this process, like the
+    // harness sessions. Add a `sessions` option when a host runs many instances.
+    sessions: 'memory',
     resources: [mediaResource],
     tools: [
       chat,

@@ -33,6 +33,10 @@
       "types": "./dist/esm/compatible/index.d.ts",
       "import": "./dist/esm/compatible/index.js"
     },
+    "./siwc": {
+      "types": "./dist/esm/siwc.d.ts",
+      "import": "./dist/esm/siwc.js"
+    },
     "./tools": {
       "types": "./dist/esm/tools/index.d.ts",
       "import": "./dist/esm/tools/index.js"

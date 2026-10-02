@@ -26,9 +26,12 @@
  *   the published metadata is wrong in both directions, so a metadata-driven
  *   sync would overwrite probed facts with worse ones. Use `/gap-analysis
  *   byteplus` instead; the probe recipe is in that package's `model-meta.ts`.
- * - **fal**, **elevenlabs** — media-only providers whose endpoint ids are not
- *   OpenRouter models at all. fal image fields have their own generator
+ * - **fal** — media-only provider whose endpoint ids are not OpenRouter
+ *   models. fal image fields have their own generator
  *   (`scripts/generate-fal-image-field-map.ts`).
+ * - **elevenlabs** — text-to-speech, music, sound effects, and voice design
+ *   ids come from modelschemas via `scripts/sync-elevenlabs-models.ts`, not
+ *   OpenRouter. Transcription stays hand-maintained.
  * - **bedrock** — ids are AWS-region-qualified; see
  *   `scripts/fetch-bedrock-models.ts`.
  */
