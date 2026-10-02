@@ -6,6 +6,7 @@ import {
 } from '@tanstack/ai'
 import {
   REDACTED_THINKING_ID_PREFIX,
+  orderedAssistantBlocks,
   toRetryAfterMs,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
@@ -70,6 +71,7 @@ import type {
   ModelMessage,
   AdapterYieldChunk,
   TextOptions,
+  ToolCall,
 } from '@tanstack/ai'
 import type {
   AnthropicSystemPromptMetadata,
@@ -960,6 +962,28 @@ export class AnthropicTextAdapter<
         continue
       }
 
+      // A valid block order map: send the blocks in the order the model
+      // sent them. Unsigned thinking is still skipped at its place.
+      const ordered =
+        role === 'assistant' ? orderedAssistantBlocks(message) : undefined
+      if (ordered) {
+        const contentBlocks: Array<BetaContentBlockParam> = []
+        for (const block of ordered) {
+          if (block.type === 'thinking') {
+            this.appendThinkingBlocks(contentBlocks, [block.thinking])
+          } else if (block.type === 'tool-call') {
+            this.appendToolCallBlocks(contentBlocks, block.toolCall)
+          } else {
+            contentBlocks.push({ type: 'text', text: block.text })
+          }
+        }
+        formattedMessages.push({
+          role: 'assistant',
+          content: contentBlocks.length > 0 ? contentBlocks : '',
+        })
+        continue
+      }
+
       if (role === 'assistant' && message.toolCalls?.length) {
         const contentBlocks: Array<BetaContentBlockParam> = []
 
@@ -976,42 +1000,7 @@ export class AnthropicTextAdapter<
         }
 
         for (const toolCall of message.toolCalls) {
-          let parsedInput: unknown = {}
-          try {
-            const parsed = toolCall.function.arguments
-              ? JSON.parse(toolCall.function.arguments)
-              : {}
-            parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
-          } catch {
-            parsedInput = {}
-          }
-
-          // Provider-executed server tools (e.g. web_search) replay as the
-          // original `server_tool_use` + result blocks so the model still sees
-          // the prior evidence. Their result was captured verbatim during
-          // streaming (see processAnthropicStream).
-          const serverMeta = readAnthropicServerToolMetadata(toolCall.metadata)
-          if (serverMeta) {
-            const serverToolUseBlock: ServerToolUseBlockParam = {
-              type: 'server_tool_use',
-              id: toolCall.id,
-              name: serverMeta.serverToolType,
-              input: parsedInput,
-            }
-            contentBlocks.push(serverToolUseBlock)
-            contentBlocks.push(
-              buildServerToolResultBlock(toolCall.id, serverMeta),
-            )
-            continue
-          }
-
-          const toolUseBlock: ToolUseBlockParam = {
-            type: 'tool_use',
-            id: toolCall.id,
-            name: toolCall.function.name,
-            input: parsedInput,
-          }
-          contentBlocks.push(toolUseBlock)
+          this.appendToolCallBlocks(contentBlocks, toolCall)
         }
 
         formattedMessages.push({
@@ -1096,6 +1085,47 @@ export class AnthropicTextAdapter<
       }
       contentBlocks.push(block)
     }
+  }
+
+  /** A tool call as a `tool_use` block, or a server tool as its two blocks. */
+  private appendToolCallBlocks(
+    contentBlocks: Array<BetaContentBlockParam>,
+    toolCall: ToolCall,
+  ): void {
+    let parsedInput: unknown = {}
+    try {
+      const parsed = toolCall.function.arguments
+        ? JSON.parse(toolCall.function.arguments)
+        : {}
+      parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+    } catch {
+      parsedInput = {}
+    }
+
+    // Provider-executed server tools (e.g. web_search) replay as the
+    // original `server_tool_use` + result blocks so the model still sees
+    // the prior evidence. Their result was captured verbatim during
+    // streaming (see processAnthropicStream).
+    const serverMeta = readAnthropicServerToolMetadata(toolCall.metadata)
+    if (serverMeta) {
+      const serverToolUseBlock: ServerToolUseBlockParam = {
+        type: 'server_tool_use',
+        id: toolCall.id,
+        name: serverMeta.serverToolType,
+        input: parsedInput,
+      }
+      contentBlocks.push(serverToolUseBlock)
+      contentBlocks.push(buildServerToolResultBlock(toolCall.id, serverMeta))
+      return
+    }
+
+    const toolUseBlock: ToolUseBlockParam = {
+      type: 'tool_use',
+      id: toolCall.id,
+      name: toolCall.function.name,
+      input: parsedInput,
+    }
+    contentBlocks.push(toolUseBlock)
   }
 
   /**
