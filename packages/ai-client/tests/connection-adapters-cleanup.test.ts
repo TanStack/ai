@@ -10,10 +10,12 @@ describe.each([
   ['SSE', fetchServerSentEvents, (data: string) => `data: ${data}\n\n`],
   ['NDJSON', fetchHttpStream, (data: string) => `${data}\n`],
 ] as const)('%s response cleanup', (_name, createAdapter, frame) => {
-  function connection(data: string, close = false, cancelError?: Error) {
-    const cancel = vi.fn(() => {
-      if (cancelError) throw cancelError
-    })
+  function connection(
+    data: string,
+    close = false,
+    onCancel?: () => void | Promise<void>,
+  ) {
+    const cancel = vi.fn(onCancel)
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(new TextEncoder().encode(frame(data)))
@@ -36,28 +38,43 @@ describe.each([
     expect(body.locked).toBe(false)
   })
 
-  it('cancels the response when the consumer stops early', async () => {
-    const { body, cancel, stream } = connection(JSON.stringify(chunk))
-    for await (const received of stream) {
-      expect(received).toMatchObject(chunk)
-      break
-    }
-    expect(cancel).toHaveBeenCalledOnce()
-    expect(body.locked).toBe(false)
-  })
+  it.each([false, true])(
+    'cancels the response on early return (pending cancellation: %s)',
+    async (pendingCancellation) => {
+      const { body, cancel, stream } = connection(
+        JSON.stringify(chunk),
+        false,
+        pendingCancellation ? () => new Promise<void>(() => {}) : undefined,
+      )
+      for await (const received of stream) {
+        expect(received).toMatchObject(chunk)
+        break
+      }
+      expect(cancel).toHaveBeenCalledOnce()
+      expect(body.locked).toBe(false)
+    },
+  )
 
-  it('preserves a parse error when cancellation rejects', async () => {
-    const { body, cancel, stream } = connection(
-      '{invalid json}',
-      false,
-      new Error('cleanup failed'),
-    )
-    await expect(stream[Symbol.asyncIterator]().next()).rejects.toBeInstanceOf(
-      SyntaxError,
-    )
-    expect(cancel).toHaveBeenCalledOnce()
-    expect(body.locked).toBe(false)
-  })
+  it.each(['throws', 'rejects', 'never settles'] as const)(
+    'preserves a parse error when cancellation %s',
+    async (behavior) => {
+      const { body, cancel, stream } = connection(
+        '{invalid json}',
+        false,
+        () => {
+          const error = new Error('cleanup failed')
+          if (behavior === 'throws') throw error
+          if (behavior === 'rejects') return Promise.reject(error)
+          return new Promise<void>(() => {})
+        },
+      )
+      await expect(
+        stream[Symbol.asyncIterator]().next(),
+      ).rejects.toBeInstanceOf(SyntaxError)
+      expect(cancel).toHaveBeenCalledOnce()
+      expect(body.locked).toBe(false)
+    },
+  )
 
   it('drains a normally closed response without canceling its source', async () => {
     const { body, cancel, stream } = connection(JSON.stringify(chunk), true)

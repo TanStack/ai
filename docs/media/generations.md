@@ -167,6 +167,8 @@ Combines the best of both: **type-safe input** from the fetcher pattern with **s
 
 If the client stops reading before the response ends, it cancels the response body. A `RUN_ERROR` event also closes the unfinished response.
 
+Custom cancellation hooks do not delay the client error or loading state. The client releases the reader lock even if cancellation fails or stays pending.
+
 **Server:**
 
 ```typescript ignore

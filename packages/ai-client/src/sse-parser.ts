@@ -38,9 +38,10 @@ async function* readStreamLines(
     }
   } finally {
     try {
-      await reader.cancel()
+      // Custom cancellation hooks must not delay errors or iterator return.
+      void reader.cancel().catch(() => {})
     } catch {
-      // A failed stream can reject cancellation. Preserve the original error.
+      // Preserve the original error if cancellation throws synchronously.
     }
     reader.releaseLock()
   }
