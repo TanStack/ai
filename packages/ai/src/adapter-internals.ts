@@ -75,4 +75,8 @@ export type {
   BlockOrderEntry,
   OrderedAssistantBlock,
 } from './utilities/block-order'
-export { splitMidConversationChanges } from './utilities/mid-conversation'
+export {
+  planMidConversationChanges,
+  promptHash,
+  splitMidConversationChanges,
+} from './utilities/mid-conversation'
