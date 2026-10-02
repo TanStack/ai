@@ -42,7 +42,9 @@ import type {
   Interrupt,
   Modality,
   ModelMessage,
+  PromptCacheOptions,
   ProviderKeys,
+  ResolvedPromptCache,
   RunAgentResumeItem,
   SchemaInput,
   StreamChunk,
@@ -228,6 +230,8 @@ export interface SessionDependencies {
   /** The log of the session. Default: the thread id. */
   logId: string
   lease?: LeaseOptions
+  /** The `promptCache` of `host.open()`. It overrides the harness value. */
+  promptCache?: PromptCacheOptions
   onClose: () => void
 }
 
@@ -263,6 +267,10 @@ function customEvent(
 
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error)
+
+/** A `promptCache` option as an object. A string is the retention alone. */
+const cacheObject = (option: PromptCacheOptions | undefined) =>
+  typeof option === 'string' ? { retention: option, key: undefined } : option
 
 /** A short transcript note about an agent result, for the next turn. */
 function referenceNote(agent: string, result: unknown): string {
@@ -435,11 +443,20 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private readonly services: PluginServices
   private readonly media: SessionDependencies['media']
   private readonly mediaStore: MediaStore
+  /** The prompt cache of every chat turn of this session. */
+  private readonly promptCache: ResolvedPromptCache
 
   constructor(deps: SessionDependencies) {
     this.harness = deps.harness as THarness
     this.threadId = deps.threadId
     this.logId = deps.logId
+    // The session value wins over the harness value, field by field.
+    const own = cacheObject(deps.promptCache)
+    const shared = cacheObject(this.harness.promptCache)
+    this.promptCache = {
+      retention: own?.retention ?? shared?.retention ?? 'short',
+      key: own?.key ?? shared?.key ?? deps.threadId,
+    }
     this.persistence = deps.persistence
     this.inbox = deps.inbox
     this.media = deps.media
@@ -1756,6 +1773,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         }),
       ],
       keys: this.keys,
+      // A child uses its own threadId as the key, so only the retention goes down.
+      promptCache: this.promptCache.retention,
     } satisfies SubagentBinding
   }
 
@@ -2045,6 +2064,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             ...(this.harness.context !== undefined
               ? { context: this.harness.context }
               : {}),
+            promptCache: this.promptCache,
             threadId: this.threadId,
             runId: operation.id,
             ...(parentRunId ? { parentRunId } : {}),

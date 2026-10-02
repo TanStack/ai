@@ -82,6 +82,10 @@ interface UsageTotals {
   promptTokens: number
   completionTokens: number
   totalTokens: number
+  /** Input tokens the provider read from its prompt cache. */
+  cachedTokens: number
+  /** Input tokens the provider wrote to its prompt cache. */
+  cacheWriteTokens: number
   /**
    * The input tokens of the latest model call of the lead turn: how much of
    * the model's context the conversation fills now.
@@ -92,7 +96,8 @@ interface UsageTotals {
 /**
  * Count tokens across the session: the lead turn and every agent run
  * (subagents, background agents, and their children). `/usage` shows the
- * totals. The plugin state also has `contextTokens`, the size of the lead
+ * totals, with the input tokens read from and written to the prompt cache.
+ * The plugin state also has `contextTokens`, the size of the lead
  * model's context at its latest call, for a UI.
  */
 export function usage() {
@@ -104,10 +109,18 @@ export function usage() {
         promptTokens: 0,
         completionTokens: 0,
         totalTokens: 0,
+        cachedTokens: 0,
+        cacheWriteTokens: 0,
         contextTokens: 0,
       })
-      const show = (totals: UsageTotals) =>
-        `${totals.turns} model calls, ${totals.promptTokens} input tokens, ${totals.completionTokens} output tokens, ${totals.totalTokens} total.`
+      const show = (totals: UsageTotals) => {
+        // Only a provider that reports its prompt cache has these counts.
+        const hasCache = totals.cachedTokens > 0 || totals.cacheWriteTokens > 0
+        const cache = hasCache
+          ? ` (${totals.cachedTokens} cache read, ${totals.cacheWriteTokens} cache write)`
+          : ''
+        return `${totals.turns} model calls, ${totals.promptTokens} input tokens${cache}, ${totals.completionTokens} output tokens, ${totals.totalTokens} total.`
+      }
       const counter = (lead: boolean) =>
         ({
           name: 'tanstack/usage',
@@ -118,6 +131,12 @@ export function usage() {
               completionTokens:
                 totals.completionTokens + (info.completionTokens ?? 0),
               totalTokens: totals.totalTokens + (info.totalTokens ?? 0),
+              cachedTokens:
+                totals.cachedTokens +
+                (info.promptTokensDetails?.cachedTokens ?? 0),
+              cacheWriteTokens:
+                totals.cacheWriteTokens +
+                (info.promptTokensDetails?.cacheWriteTokens ?? 0),
               contextTokens: lead
                 ? (info.promptTokens ?? totals.contextTokens)
                 : totals.contextTokens,

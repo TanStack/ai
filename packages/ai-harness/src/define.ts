@@ -5,6 +5,7 @@ import type {
   AnyTool,
   InterruptDefinition,
   KeyedAdapter,
+  PromptCacheOptions,
   SubagentsBag,
   SystemPrompt,
 } from '@tanstack/ai'
@@ -70,6 +71,13 @@ export interface HarnessConfig<
   /** When a turn stops calling the model. Defaults to `maxIterations(50)`. */
   agentLoopStrategy?: AgentLoopStrategy
   modelOptions?: TAdapter['~types']['providerOptions']
+  /**
+   * Automatic prompt caching for every session, the same as
+   * `chat({ promptCache })`. Default `'short'`. `'none'` turns it off. A
+   * `key` here is shared by all sessions, so usually leave it out: then each
+   * session uses its threadId as the key.
+   */
+  promptCache?: PromptCacheOptions
   interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
   /** Runtime context passed to middleware hooks and server tools. */
   context?: unknown
