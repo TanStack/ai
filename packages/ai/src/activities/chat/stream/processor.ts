@@ -2394,6 +2394,30 @@ export class StreamProcessor {
     const nextThinking = (state.thinkingSteps.get(stepId) ?? '') + delta
     state.thinkingSteps.set(stepId, nextThinking)
 
+    // A new thinking block after text ends that text segment, so the text
+    // after the block starts its own part ("A", then "B", not "AB"). The part
+    // lookup is the one updateThinkingPart uses: a block that already has a
+    // part (this step, or a hydrated part with no stepId) is updated in
+    // place, and the text segment goes on.
+    // ponytail: only reasoning content ends the segment. A redacted block
+    // that sends only REASONING_ENCRYPTED_VALUE still joins the two texts.
+    if (
+      state.currentSegmentText !== '' &&
+      !this.messages
+        .find((message) => message.id === messageId)
+        ?.parts.some(
+          (part) =>
+            part.type === 'thinking' &&
+            (part.stepId === stepId || part.stepId === undefined),
+        )
+    ) {
+      if (state.currentSegmentText !== state.lastEmittedText) {
+        this.emitTextUpdateForMessage(messageId)
+      }
+      state.currentSegmentText = ''
+      state.lastEmittedText = ''
+    }
+
     this.messages = updateThinkingPart(
       this.messages,
       messageId,
