@@ -1,4 +1,4 @@
-import type { Modality } from '@tanstack/ai'
+import type { MidConversationChannels, Modality } from '@tanstack/ai'
 import type {
   OpenAIBaseOptions,
   OpenAIMetadataOptions,
@@ -3399,3 +3399,25 @@ export const OPENAI_MODEL_INPUT_MODALITIES: Readonly<
   [GPT_6_1_SOL.name]: GPT_6_1_SOL.supports.input,
   [GPT_6_1_SOL_PRO.name]: GPT_6_1_SOL_PRO.supports.input,
 } satisfies OpenAIModelInputModalitiesByName
+
+/**
+ * The mid-conversation channels of each Responses model (from pi 0.87.1):
+ * added tools go out as an `additional_tools` item, and added prompts as a
+ * mid-conversation `developer` message. An unknown name gives `undefined`,
+ * so the adapter has no channels. `gpt-5.4` and `gpt-5.4-pro` are on pi's
+ * list but not in {@link OPENAI_CHAT_MODELS} yet, so the keys are strings.
+ */
+export const OPENAI_MODEL_MID_CONVERSATION_CHANNELS: Readonly<
+  Record<string, MidConversationChannels>
+> = {
+  'gpt-5.4': { tools: true, systemPrompts: true },
+  [GPT_5_4_MINI.name]: { tools: true, systemPrompts: true },
+  'gpt-5.4-pro': { tools: true, systemPrompts: true },
+  [GPT_5_5.name]: { tools: true, systemPrompts: true },
+  [GPT_5_6_LUNA.name]: { tools: true, systemPrompts: true },
+  [GPT_5_6_SOL.name]: { tools: true, systemPrompts: true },
+  [GPT_5_6_TERRA.name]: { tools: true, systemPrompts: true },
+  [GPT_6_ASTRA.name]: { tools: true, systemPrompts: true },
+  [GPT_6_LUNA.name]: { tools: true, systemPrompts: true },
+  [GPT_6_SOL.name]: { tools: true, systemPrompts: true },
+}
