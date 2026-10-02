@@ -18,7 +18,7 @@ import type {
   AgentResultOf,
   AnyAgent,
 } from './agents'
-import type { Operation } from './types'
+import type { Operation, TurnOverrides } from './types'
 import type { CredentialsAccess } from './auth'
 import type { AnyCommand, PluginSessionApi } from './commands'
 import type { ConfigOption } from './config'
@@ -74,9 +74,14 @@ export interface PluginContributions {
   /**
    * Pick the main-loop adapter for the next turn, or return `undefined` to
    * keep the harness adapter. The last plugin that returns one wins. The
-   * session builds a `keyedAdapter(...)` with the user's key.
+   * session builds a `keyedAdapter(...)` with the user's key. `turn` is the
+   * turn that starts. Its `overrides.adapter` wins over every pick.
    */
-  adapter?: () => AnyTextAdapter | KeyedAdapter<AnyTextAdapter> | undefined
+  adapter?: (turn: {
+    operationId: string
+    inputId?: string
+    overrides?: TurnOverrides
+  }) => AnyTextAdapter | KeyedAdapter<AnyTextAdapter> | undefined
   /**
    * Tools found at run time, for example the tools of an MCP server the user
    * signed in to after the session opened. Called before each chat turn. A

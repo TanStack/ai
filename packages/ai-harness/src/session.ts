@@ -109,6 +109,7 @@ import type {
   Principal,
   Receipt,
   SessionEvent,
+  TurnOverrides,
   UserInput,
 } from './types'
 
@@ -252,6 +253,8 @@ interface QueuedTurn {
   resume?: Array<RunAgentResumeItem>
   parentRunId?: string
   inputId?: string
+  /** The settings of this one turn. Kept in memory only, not in the log. */
+  overrides?: TurnOverrides
   /**
    * A resolve of a routed turn: the messages it continues from, with the
    * agents' cards. `root` is true when `routing` sent the turn to root
@@ -368,6 +371,24 @@ function isRoutedBag(bag: Pick<SubagentsBag, 'agents' | 'router'> | undefined) {
   return bag !== undefined && bag.agents.length > 0 && bag.router !== undefined
 }
 
+/**
+ * Middleware that keeps the override tools of a turn. A middleware `onConfig`
+ * can return a tool list without them, and this adds back each one whose
+ * name is missing.
+ */
+function keepTurnTools(kept: ReadonlyArray<AnyTool>) {
+  return {
+    name: 'harness:turn-tools',
+    onConfig: (ctx, config) => {
+      if (ctx.phase !== 'init' && ctx.phase !== 'beforeModel') return
+      const names = new Set(config.tools.map((tool) => tool.name))
+      const missing = kept.filter((tool) => !names.has(tool.name))
+      if (missing.length === 0) return
+      return { tools: [...config.tools, ...missing] }
+    },
+  } satisfies AnyChatMiddleware
+}
+
 /** The turn has its final answer: an assistant message with no open tool call after it was applied. */
 function hasFinalAnswer(
   messages: ReadonlyArray<ModelMessage>,
@@ -459,6 +480,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     inputId: string
     message: UserInput
     operation?: OperationImpl<ChatTurnResult>
+    /** Used only when the steer runs as its own turn. A join ignores them. */
+    overrides?: TurnOverrides
   }> = []
   /**
    * Waiting steers with an abort request. An id lands here before the abort
@@ -802,13 +825,22 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * same message returns the first input's operation and does not run again.
    * The same id with another message is rejected with `'conflict'`.
    * `await operation.receipt` resolves when the input is stored.
+   *
+   * `overrides` changes the adapter, reasoning, prompt cache, or tools of
+   * this turn only (see `TurnOverrides`). A steer that joins the running
+   * turn uses the overrides of that turn, and its own are ignored.
    */
   prompt(
     message: UserInput,
-    options?: { busy?: BusyPolicy; inputId?: string },
+    options?: {
+      busy?: BusyPolicy
+      inputId?: string
+      overrides?: TurnOverrides
+    },
   ): Operation<ChatTurnResult> {
     const busy = options?.busy ?? this.harness.busy ?? 'queue'
     const inputId = options?.inputId ?? createInputId()
+    const overrides = options?.overrides
     const input: HarnessInput = { op: 'prompt', message, busy }
     const known = this.knownTurn(inputId, input)
     if (known) return known
@@ -836,10 +868,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           operationId: operation.id,
         })
         if (this.activeTurn && busy === 'steer') {
-          this.steerQueue.push({ inputId, message, operation })
+          this.steerQueue.push({ inputId, message, operation, overrides })
           return
         }
-        this.enqueueTurn({ operation, message, inputId })
+        this.enqueueTurn({ operation, message, inputId, overrides })
       },
       (error: unknown) => {
         // The input was not stored. After a log failure, say why the
@@ -882,10 +914,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     })
   }
 
-  /** Run a turn after the current work settles. */
+  /**
+   * Run a turn after the current work settles. `overrides` changes the
+   * adapter, reasoning, prompt cache, or tools of this turn only.
+   */
   async followUp(
     message: UserInput,
-    options?: { inputId?: string },
+    options?: { inputId?: string; overrides?: TurnOverrides },
   ): Promise<Receipt> {
     const inputId = options?.inputId ?? createInputId()
     const admission = await this.accept(inputId, { op: 'followUp', message })
@@ -894,7 +929,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     this.bindTurn(inputId, operation)
     const status =
       this.activeTurn || this.queue.length > 0 ? 'queued' : 'accepted'
-    this.enqueueTurn({ operation, message, inputId })
+    this.enqueueTurn({
+      operation,
+      message,
+      inputId,
+      overrides: options?.overrides,
+    })
     return this.keep({ inputId, status, operationId: operation.id })
   }
 
@@ -2045,19 +2085,26 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           ...(runPlugins?.agents ?? []),
         ]),
       ]
+      // The settings of this turn. Every chat() call below uses them: the
+      // tool loop, retries, `beforeFinish` cycles, handoffs, and late joins.
+      const { overrides } = turn
       const picked = [
         ...(session?.adapters ?? []),
         ...(runPlugins?.adapters ?? []),
       ]
-        .map((pick) => pick())
+        .map((pick) =>
+          pick({ operationId: operation.id, inputId: turn.inputId, overrides }),
+        )
         .filter((adapter) => adapter !== undefined)
         .at(-1)
       const resolvePrompt = (prompt: string | (() => string)) =>
         typeof prompt === 'function' ? prompt() : prompt
+      const turnTools = overrides?.tools ?? []
       const staticTools = [
         ...(this.harness.tools ?? []),
         ...(session?.tools ?? []),
         ...(runPlugins?.tools ?? []),
+        ...turnTools,
       ]
       const discovered = await this.discoverTools(
         [...(session?.discoverers ?? []), ...(runPlugins?.discoverers ?? [])],
@@ -2077,10 +2124,22 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       const tools = bindTool
         ? prepared.map((tool) => bindDurable(tool, bindTool))
         : prepared
+      // The override tools as the turn has them: prepared and bound.
+      const turnToolNames = new Set(turnTools.map((tool) => tool.name))
+      const keptTools = tools.filter((tool) => turnToolNames.has(tool.name))
+      const keepTools =
+        keptTools.length > 0 ? keepTurnTools(keptTools) : undefined
+      const reasoning = overrides?.reasoning ?? this.harness.reasoning
+      // The turn value wins over the session value, field by field.
+      const turnCache = cacheObject(overrides?.promptCache)
+      const promptCache = {
+        retention: turnCache?.retention ?? this.promptCache.retention,
+        key: turnCache?.key ?? this.promptCache.key,
+      }
       // A keyed adapter is built for this turn with the user's key. A
       // missing key publishes `auth_required` and fails the turn.
       const adapter: AnyTextAdapter = await this.keys.adapter(
-        picked ?? this.harness.adapter,
+        overrides?.adapter ?? picked ?? this.harness.adapter,
       )
       let message =
         turn.message !== undefined
@@ -2200,6 +2259,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
               ...(this.harness.middleware ?? []),
               ...(session?.middleware ?? []),
               ...(runPlugins?.middleware ?? []),
+              ...(keepTools ? [keepTools] : []),
               ...(durableTools ? [durableTools] : []),
               ...(rootBag ? [] : [this.steering()]),
               // Last, because a later middleware that returns `messages` (as
@@ -2235,7 +2295,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             ...(this.harness.context !== undefined
               ? { context: this.harness.context }
               : {}),
-            promptCache: this.promptCache,
+            ...(reasoning !== undefined ? { reasoning } : {}),
+            promptCache,
             threadId: this.threadId,
             runId: operation.id,
             ...(parentRunId ? { parentRunId } : {}),
@@ -2525,6 +2586,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           operation: next,
           message: steer.message,
           inputId: steer.inputId,
+          overrides: steer.overrides,
         }
       }),
     )

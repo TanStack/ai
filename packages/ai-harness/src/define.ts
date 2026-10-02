@@ -7,6 +7,7 @@ import type {
   KeyedAdapter,
   ModelMessage,
   PromptCacheOptions,
+  ReasoningRequest,
   SubagentRouterPick,
   SubagentsBag,
   SystemPrompt,
@@ -131,6 +132,12 @@ export interface HarnessConfig<
    * session uses its threadId as the key.
    */
   promptCache?: PromptCacheOptions
+  /**
+   * How hard the main model thinks on every turn, as the adapter gets it in
+   * `TextOptions`. Not set: no reasoning is sent, and the provider default
+   * applies. `overrides.reasoning` of a turn replaces it.
+   */
+  reasoning?: ReasoningRequest
   interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
   /** Runtime context passed to middleware hooks and server tools. */
   context?: unknown

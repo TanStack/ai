@@ -1,12 +1,48 @@
 import type {
+  AnyTextAdapter,
+  AnyTool,
   ContentPart,
   Interrupt,
+  KeyedAdapter,
+  PromptCacheOptions,
+  ReasoningRequest,
   RunAgentResumeItem,
   StreamChunk,
 } from '@tanstack/ai'
 
 /** A user message: plain text, or content parts (text, images, files). */
 export type UserInput = string | Array<ContentPart>
+
+/**
+ * Settings for one chat turn: `session.prompt(message, { overrides })` or
+ * `session.followUp(message, { overrides })`. They apply to every model call
+ * of the turn, retries included. The rest of the session keeps its defaults.
+ *
+ * They live only in memory, on the queued turn, so they are not part of the
+ * input: the `inputId` duplicate check does not read them. A turn that
+ * recovery runs again after a restart uses the defaults. A steer that joins
+ * a running turn uses the overrides of that turn.
+ *
+ * @example
+ * ```ts
+ * session.prompt('Plan the migration.', {
+ *   overrides: { reasoning: { level: 'high', summary: true }, tools: [planTool] },
+ * })
+ * ```
+ */
+export interface TurnOverrides {
+  /** Replaces the harness adapter and every plugin pick for this turn. */
+  adapter?: AnyTextAdapter | KeyedAdapter<AnyTextAdapter>
+  /** Replaces `HarnessConfig.reasoning` for this turn. */
+  reasoning?: ReasoningRequest
+  /** Replaces the session and harness values for this turn, field by field. */
+  promptCache?: PromptCacheOptions
+  /**
+   * Added to the static tools of this turn. A name that a static tool has
+   * fails the turn. Durable tools get `step` and `append`.
+   */
+  tools?: ReadonlyArray<AnyTool>
+}
 
 /**
  * What a `prompt` does when a chat turn is already running:
