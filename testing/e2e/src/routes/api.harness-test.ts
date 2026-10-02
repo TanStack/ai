@@ -1,13 +1,67 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, defineAgent } from '@tanstack/ai'
 import {
+  HARNESS_EVENTS,
   createHarnessHost,
   defineHarness,
   harnessText,
 } from '@tanstack/ai-harness'
-import { memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import { createTextAdapter } from '@/lib/providers'
+
+/**
+ * Start a background agent on a durable host, and let that host stop: its
+ * short lease is not renewed in time. A second host opens the same log. It
+ * fails the run, and the wake turn answers. Returns the run status and the
+ * text of the wake turn.
+ */
+async function agentRestart(
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  const { runs, metadata } = memoryPersistence().stores
+  const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+  const waiter = defineAgent({
+    name: 'waiter',
+    description: 'Waits until it is cancelled',
+    run: (ctx) =>
+      new Promise<string>((resolve) =>
+        ctx.abortSignal?.addEventListener('abort', () => resolve('stopped')),
+      ),
+  })
+  const harness = defineHarness({
+    name: 'e2e/harness-restart',
+    adapter: openai(),
+    agents: [waiter],
+  })
+  const stopped = createHarnessHost({
+    persistence,
+    lease: { ttlMs: 50, renewMs: 60_000 },
+  })
+  const next = createHarnessHost({ persistence })
+  try {
+    const first = await stopped.open(harness, { threadId: 'e2e-restart' })
+    const run = first.agents.waiter.start(undefined, { wake: true })
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    const session = await next.open(harness, { threadId: 'e2e-restart' })
+    let text = ''
+    for await (const { event, operationId } of session.events({ from: '0' })) {
+      if (operationId === run.id) continue
+      if (event.type === 'TEXT_MESSAGE_CONTENT') text += event.delta
+      if (
+        event.type === 'CUSTOM' &&
+        event.name === HARNESS_EVENTS.operationFinished
+      )
+        break
+    }
+    return { status: (await runs.get(run.id))?.status, text }
+  } finally {
+    await next.close()
+    // The first host sees the writes of the second host, and stops.
+    await stopped.close().catch(() => {})
+  }
+}
 
 /**
  * Harness session. The main model and the agent are real OpenAI adapters
@@ -17,6 +71,8 @@ import { createTextAdapter } from '@/lib/providers'
  *   then runs with the first turn in its history.
  * - `agent`: `pricer` runs from code with typed input. Its result goes into
  *   the transcript, then a prompt runs.
+ * - `agent-restart`: a background agent runs on a durable host that stops.
+ *   The next host fails the run and wakes the thread.
  */
 export const Route = createFileRoute('/api/harness-test')({
   server: {
@@ -92,6 +148,9 @@ export const Route = createFileRoute('/api/harness-test')({
               '[harness-limits] work twice',
             )
             return Response.json({ workerRuns, text: turn.text })
+          }
+          if (body.scenario === 'agent-restart') {
+            return Response.json(await agentRestart(openai))
           }
           if (body.scenario === 'agent') {
             const result = await session.agents.pricer.run({

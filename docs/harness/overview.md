@@ -124,7 +124,7 @@ const price = await session.agents.pricer.run({ vendor: 'acme' })
 console.log(price.cents)
 ```
 
-The session adds a short note about the result to the transcript. The model sees it on the next turn. To run the agent in the background and start a new turn when it is done, use `start`:
+The session adds a short note about the result, or the error, to the transcript. The model sees it on the next turn. To run the agent in the background and start a new turn when it finishes or fails, use `start`:
 
 ```ts group=harness-first
 session.agents.pricer.start({ vendor: 'globex' }, { wake: true })
@@ -167,7 +167,7 @@ If two plugins add a tool with the same name, `host.open` fails and names both p
 The host takes the same stores as `withPersistence`. Add an `inbox` store and the session also keeps the messages it accepted but did not start yet. When the session opens again, it runs them.
 
 - `messages`: the transcript. Required.
-- `runs`: the record of every turn and agent run.
+- `runs`: the record of every turn and agent run. When the host stops during a background agent run, the next session ends that run `failed` and notes it in the transcript.
 - `interrupts`: approvals that wait for a user.
 - `inbox`: accepted messages that did not run yet.
 

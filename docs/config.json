@@ -878,7 +878,7 @@
           "label": "Build your first harness",
           "to": "harness/overview",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-09-29"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Connect clients",
@@ -901,7 +901,7 @@
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-01"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Send inputs safely",
@@ -997,7 +997,7 @@
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-09-29"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Deploy a harness",

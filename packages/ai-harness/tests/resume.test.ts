@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { EventType, chat, toolDefinition } from '@tanstack/ai'
+import { EventType, chat, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { HARNESS_EVENTS, createHarnessHost, defineHarness } from '../src'
 import {
@@ -41,6 +41,30 @@ async function runWithCheckpoint(options: {
     // Run the turn to the end.
   }
   return stores
+}
+
+/** A background agent that runs until it is cancelled. */
+const waiter = defineAgent({
+  name: 'waiter',
+  description: 'Waits until it is cancelled',
+  run: (ctx) =>
+    new Promise<string>((resolve) =>
+      ctx.abortSignal?.addEventListener('abort', () => resolve('stopped')),
+    ),
+})
+
+/** The event names of `operationId`, up to its `operationFinished` event. */
+async function operationEvents(
+  events: AsyncIterable<SessionEvent>,
+  operationId: string,
+) {
+  const names: Array<string> = []
+  for await (const { event, operationId: id } of events) {
+    if (id !== operationId) continue
+    names.push(event.type === EventType.CUSTOM ? event.name : event.type)
+    if (names.at(-1) === HARNESS_EVENTS.operationFinished) return names
+  }
+  return names
 }
 
 describe('checkpoints and leases', () => {
@@ -87,6 +111,27 @@ describe('checkpoints and leases', () => {
     await turn
     const finished = await persistence.stores.runs.get(turn.id)
     expect(finished?.checkpoint?.pendingTools).toEqual([])
+    await host.close()
+  })
+
+  it('holds a lease on a background agent run', async () => {
+    const persistence = memoryPersistence()
+    const host = createHarnessHost({ persistence })
+    const { adapter } = mockAdapter([])
+    const session = await host.open(
+      defineHarness({ name: 'test/agent-lease', adapter, agents: [waiter] }),
+      { threadId: 't1' },
+    )
+
+    const run = session.agents.waiter.start()
+    await vi.waitFor(async () =>
+      expect(
+        (await persistence.stores.runs.get(run.id))?.leaseExpiresAt,
+      ).toBeGreaterThan(Date.now()),
+    )
+    expect((await persistence.stores.runs.get(run.id))?.leaseOwner).toMatch(
+      /^host-/,
+    )
     await host.close()
   })
 })
@@ -294,17 +339,62 @@ describe('crash resume', () => {
     expect(tools[0]?.content).toBe('charged')
   })
 
-  it('leaves a run alone while its lease is still valid', async () => {
+  it('fails a background agent that a crashed host left running, and notes it', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.runs.createOrResume({
+      runId: 'crashed-agent',
+      threadId: 't1',
+      startedAt: Date.now() - 60_000,
+      kind: 'agent',
+      agent: 'waiter',
+    })
+    await persistence.stores.runs.update('crashed-agent', {
+      leaseOwner: 'host-gone',
+      leaseExpiresAt: Date.now() - 1_000,
+    })
+    const { adapter, calls } = mockAdapter([])
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({ name: 'test/agent-crash', adapter, agents: [waiter] }),
+      { threadId: 't1' },
+    )
+
+    expect(
+      await operationEvents(session.events({ from: '0' }), 'crashed-agent'),
+    ).toEqual([EventType.RUN_ERROR, HARNESS_EVENTS.operationFinished])
+    expect(await persistence.stores.runs.get('crashed-agent')).toMatchObject({
+      status: 'failed',
+      error: { message: 'The host stopped during this agent run.' },
+    })
+    const transcript = await persistence.stores.messages.loadThread('t1')
+    expect(transcript.at(-1)?.content).toBe(
+      '[waiter failed] The host stopped during this agent run.',
+    )
+    // Without a log, the session does not know if the agent was to wake it.
+    expect(calls).toHaveLength(0)
+    await host.close()
+  })
+
+  it('leaves a turn and an agent alone while their leases are still valid', async () => {
     const persistence = memoryPersistence()
     await persistence.stores.runs.createOrResume({
       runId: 'live-run',
       threadId: 't1',
       startedAt: Date.now(),
     })
-    await persistence.stores.runs.update('live-run', {
-      leaseOwner: 'host-other',
-      leaseExpiresAt: Date.now() + 20_000,
+    await persistence.stores.runs.createOrResume({
+      runId: 'live-agent',
+      threadId: 't1',
+      startedAt: Date.now(),
+      kind: 'agent',
+      agent: 'waiter',
     })
+    for (const runId of ['live-run', 'live-agent']) {
+      await persistence.stores.runs.update(runId, {
+        leaseOwner: 'host-other',
+        leaseExpiresAt: Date.now() + 20_000,
+      })
+    }
     const { adapter, calls } = mockAdapter([])
     const host = createHarnessHost({ persistence })
     const session = await host.open(
@@ -316,6 +406,9 @@ describe('crash resume', () => {
     expect(session.snapshot().status).toBe('idle')
     expect(calls).toHaveLength(0)
     expect((await persistence.stores.runs.get('live-run'))?.status).toBe(
+      'running',
+    )
+    expect((await persistence.stores.runs.get('live-agent'))?.status).toBe(
       'running',
     )
     await host.close()
