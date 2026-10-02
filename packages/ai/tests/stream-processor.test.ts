@@ -3522,6 +3522,32 @@ describe('StreamProcessor', () => {
     })
   })
 
+  it('keeps message ids unique when a tool call names a message that already exists', () => {
+    const processor = new StreamProcessor()
+    processor.setMessages([
+      { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+      { id: 'm1', role: 'assistant', parts: [{ type: 'text', content: 'so' }] },
+    ])
+    processor.prepareAssistantMessage()
+
+    processor.processChunk({
+      type: 'REASONING_MESSAGE_CONTENT',
+      messageId: 'think-1',
+      delta: 'plan',
+      timestamp: Date.now(),
+    } as StreamChunk)
+    processor.processChunk({
+      type: 'TOOL_CALL_START',
+      toolCallId: 'call_1',
+      toolCallName: 'lookup',
+      parentMessageId: 'm1',
+      timestamp: Date.now(),
+    } as StreamChunk)
+
+    const ids = processor.getMessages().map((m) => m.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
   describe('backward compat: startAssistantMessage without TEXT_MESSAGE_START', () => {
     it('should still work when only startAssistantMessage is used', () => {
       const processor = new StreamProcessor()
