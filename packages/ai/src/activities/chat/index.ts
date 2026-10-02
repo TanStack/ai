@@ -54,6 +54,8 @@ import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { buildBlockOrder } from '../../utilities/block-order'
 import type { BlockOrderEntry } from '../../utilities/block-order'
 import { assertMessagesFileSourceSupport } from '../../utilities/content-source'
+import { planMidConversationChanges } from '../../utilities/mid-conversation'
+import { normalizeSystemPrompts } from '../../system-prompts'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
 import type { DefinedAgent } from './agents/define-agent'
@@ -137,6 +139,7 @@ import type {
   Interrupt,
   JSONSchema,
   LazyToolsConfig,
+  MidConversationChange,
   ModelMessage,
   ModelMessageBlock,
   PromptCacheOptions,
@@ -918,6 +921,13 @@ class TextEngine<
    * the order could no longer be tracked (callers fall back to one message).
    */
   private turnParts: Array<TurnPart> | null = []
+  /**
+   * The mid-conversation record of the current model call. The first
+   * assistant message that the call produces takes it. A call that produces
+   * none (an error, an abort) saves nothing, and the next call plans again.
+   */
+  private pendingMidConversationChange: MidConversationChange | undefined =
+    undefined
   private currentThinkingContent = ''
   private currentThinkingSignature = ''
   private currentThinkingRedacted = false
@@ -1660,6 +1670,21 @@ class TextEngine<
     // covered too.
     assertMessagesFileSourceSupport(this.adapter, this.messages)
 
+    // Mid-conversation changes, only for an adapter with a channel that is
+    // on. Every other adapter gets today's request and no new field.
+    const channels = this.adapter.midConversationChannels
+    const midConversation =
+      channels?.tools || channels?.systemPrompts
+        ? planMidConversationChanges({
+            messages: this.providerMessages,
+            toolNames: tools.map((tool) => tool.name),
+            systemPrompts: normalizeSystemPrompts(this.systemPrompts).map(
+              (prompt) => prompt.content,
+            ),
+          })
+        : undefined
+    this.pendingMidConversationChange = midConversation?.record
+
     for await (const raw of this.adapter.chatStream({
       model: this.params.model,
       messages: this.providerMessages,
@@ -1672,6 +1697,9 @@ class TextEngine<
       logger: this.logger,
       threadId: this.threadId,
       promptCache: this.params.promptCache,
+      ...(midConversation
+        ? { midConversationChanges: midConversation.changes }
+        : {}),
       runId: this.runIdOverride,
       parentRunId: this.parentRunIdOverride,
       // Expose provided capabilities (e.g. sandbox) to harness adapters.
@@ -2748,6 +2776,7 @@ class TextEngine<
 
   private addAssistantToolCallMessage(toolCalls: Array<ToolCall>): void {
     this.finalizeCurrentThinkingStep()
+    const from = this.messages.length
 
     const segments = this.buildOrderedAssistantSegments(
       toolCalls,
@@ -2770,6 +2799,7 @@ class TextEngine<
         },
       ]),
     ]
+    this.saveMidConversationChange(from)
     this.middlewareCtx.messages = this.messages
   }
 
@@ -2883,6 +2913,7 @@ class TextEngine<
     }
 
     this.messages = messages
+    this.saveMidConversationChange(startedLength)
     this.middlewareCtx.messages = this.messages
   }
 
@@ -3413,11 +3444,32 @@ class TextEngine<
 
   private addAssistantTextMessageForInterrupt(): void {
     if (this.accumulatedContent.length === 0) return
+    const from = this.messages.length
     this.messages = [
       ...this.messages,
       { role: 'assistant', content: this.accumulatedContent },
     ]
+    this.saveMidConversationChange(from)
     this.middlewareCtx.messages = this.messages
+  }
+
+  /**
+   * Save the pending mid-conversation record on the first assistant message
+   * at index `from` or later. The record is a field of the message, so it
+   * goes wherever the transcript goes: a message store, a harness log, a
+   * restart.
+   */
+  private saveMidConversationChange(from: number): void {
+    const record = this.pendingMidConversationChange
+    if (!record) return
+    const index = this.messages.findIndex(
+      (message, at) => at >= from && message.role === 'assistant',
+    )
+    if (index < 0) return
+    this.pendingMidConversationChange = undefined
+    this.messages = this.messages.map((message, at) =>
+      at === index ? { ...message, midConversationChange: record } : message,
+    )
   }
 
   private getBoundaryActionableToolRequests(
