@@ -13,6 +13,11 @@ import {
 } from '../../utilities/merge-metadata'
 import { isRedactedThinkingId } from '../../utilities/reasoning-encrypted-value'
 import {
+  buildBlockOrder,
+  orderedAssistantBlocks,
+} from '../../utilities/block-order'
+import type { BlockOrderEntry } from '../../utilities/block-order'
+import {
   splitSubagentWire,
   subagentWireText,
 } from '../../utilities/subagent-wire'
@@ -24,6 +29,7 @@ import type {
   StructuredOutputPart,
   TanStackMessageMetadata,
   TextPart,
+  ThinkingPart,
   ToolCall,
   ToolCallPart,
   SubagentPart,
@@ -646,10 +652,12 @@ interface AssistantSegment {
      * `TToolCallMetadata` generic. */
     metadata?: unknown
   }>
+  /** The blocks of this segment in parts order, for the order map. */
+  order: Array<BlockOrderEntry>
 }
 
 function createSegment(): AssistantSegment {
-  return { contentParts: [], toolCalls: [] }
+  return { contentParts: [], toolCalls: [], order: [] }
 }
 
 function isToolCallIncluded(part: ToolCallPart): boolean {
@@ -699,6 +707,10 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     const hasContent = content !== null
     const hasToolCalls = current.toolCalls.length > 0
     const hasThinking = pendingThinking.length > 0
+    // A map can only point into string content.
+    const blockOrder = Array.isArray(content)
+      ? undefined
+      : buildBlockOrder(current.order)
 
     if (force || hasContent || hasToolCalls || hasThinking) {
       messageList.push({
@@ -710,6 +722,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         ...(current.structuredOutput && {
           structuredOutput: current.structuredOutput,
         }),
+        ...(blockOrder && { blockOrder }),
       })
       pendingThinking = []
     }
@@ -719,6 +732,10 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   for (const part of uiMessage.parts) {
     switch (part.type) {
       case 'text':
+        current.contentParts.push(part)
+        current.order.push({ type: 'text', text: part.content })
+        break
+
       case 'image':
       case 'audio':
       case 'video':
@@ -737,6 +754,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
             },
             ...(part.metadata !== undefined && { metadata: part.metadata }),
           })
+          current.order.push({ type: 'tool-call', id: part.id })
         }
         break
 
@@ -780,6 +798,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
             ...(part.signature && { signature: part.signature }),
             ...(part.redacted && { redacted: true }),
           })
+          current.order.push({ type: 'thinking' })
         }
         break
 
@@ -797,6 +816,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
                 : ''
           if (serialized !== '') {
             current.contentParts.push({ type: 'text', content: serialized })
+            current.order.push({ type: 'text', text: serialized })
             current.structuredOutput = part
           }
         }
@@ -819,10 +839,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
             : ''
         if (block !== '') {
           const prefix = current.contentParts.length > 0 ? '\n\n' : ''
-          current.contentParts.push({
-            type: 'text',
-            content: `${prefix}${block}`,
-          })
+          const text = `${prefix}${block}`
+          current.contentParts.push({ type: 'text', content: text })
+          current.order.push({ type: 'text', text })
         }
         break
       }
@@ -891,6 +910,37 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   return messageList
 }
 
+function thinkingToPart(
+  thinking: NonNullable<ModelMessage['thinking']>[number],
+): ThinkingPart {
+  return {
+    type: 'thinking',
+    content: thinking.content,
+    ...(thinking.signature && { signature: thinking.signature }),
+    ...(thinking.redacted && { redacted: true }),
+  }
+}
+
+function toolCallToPart(toolCall: ToolCall): ToolCallPart {
+  // Model-message arguments are complete, so surface the parsed input.
+  // A malformed arguments string just leaves `input` undefined.
+  let input: unknown
+  try {
+    input = JSON.parse(toolCall.function.arguments)
+  } catch {
+    input = undefined
+  }
+  return {
+    type: 'tool-call',
+    id: toolCall.id,
+    name: toolCall.function.name,
+    arguments: toolCall.function.arguments,
+    state: 'input-complete', // Model messages have complete arguments
+    ...(input !== undefined && { input }),
+    ...(toolCall.metadata !== undefined && { metadata: toolCall.metadata }),
+  }
+}
+
 /**
  * Convert a ModelMessage to UIMessage
  *
@@ -913,12 +963,7 @@ export function modelMessageToUIMessage(
   if (modelMessage.role === 'assistant' && modelMessage.thinking?.length) {
     for (const thinking of modelMessage.thinking) {
       if (!thinking.content && !thinking.signature) continue
-      parts.push({
-        type: 'thinking',
-        content: thinking.content,
-        ...(thinking.signature && { signature: thinking.signature }),
-        ...(thinking.redacted && { redacted: true }),
-      })
+      parts.push(thinkingToPart(thinking))
     }
   }
 
@@ -984,24 +1029,29 @@ export function modelMessageToUIMessage(
   // Handle tool calls
   if (modelMessage.toolCalls && modelMessage.toolCalls.length > 0) {
     for (const toolCall of modelMessage.toolCalls) {
-      // Model-message arguments are complete, so surface the parsed input.
-      // A malformed arguments string just leaves `input` undefined.
-      let input: unknown
-      try {
-        input = JSON.parse(toolCall.function.arguments)
-      } catch {
-        input = undefined
-      }
-      parts.push({
-        type: 'tool-call',
-        id: toolCall.id,
-        name: toolCall.function.name,
-        arguments: toolCall.function.arguments,
-        state: 'input-complete', // Model messages have complete arguments
-        ...(input !== undefined && { input }),
-        ...(toolCall.metadata !== undefined && { metadata: toolCall.metadata }),
-      })
+      parts.push(toolCallToPart(toolCall))
     }
+  }
+
+  // A valid order map puts the blocks back in the order the model sent them.
+  const ordered =
+    modelMessage.role === 'assistant' && structuredOutput === undefined
+      ? orderedAssistantBlocks(modelMessage)
+      : undefined
+  if (ordered) {
+    parts.splice(
+      0,
+      parts.length,
+      ...ordered.flatMap((block): Array<MessagePart> => {
+        if (block.type === 'text') {
+          return [{ type: 'text', content: block.text }]
+        }
+        if (block.type === 'tool-call') return [toolCallToPart(block.toolCall)]
+        return block.thinking.content || block.thinking.signature
+          ? [thinkingToPart(block.thinking)]
+          : []
+      }),
+    )
   }
 
   const ui: UIMessage = {
