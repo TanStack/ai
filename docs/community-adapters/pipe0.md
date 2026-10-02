@@ -41,6 +41,9 @@ octane: @pipe0/tanstack-ai @tanstack/ai zod
 
 <!-- ::end:tabs -->
 
+The examples below use the OpenAI adapter. Install `@tanstack/ai-openai`, or swap in any other
+TanStack AI adapter.
+
 ## Authentication
 
 The tools read your pipe0 API key from `PIPE0_API_KEY`. Create one in the
@@ -54,7 +57,9 @@ To pass the key in code instead, use the `apiKey` option.
 
 ## Basic Usage
 
-`pipe0Tools()` returns all three tools. Pass them to `chat()` in your server route:
+`pipe0Tools()` returns all three tools. Pass them to `chat()` in your server route. The tools run
+automatically and spend credits, so protect the route with your application's authorization and
+usage limits before calling `chat()`. This example leaves those checks out.
 
 ```typescript
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
