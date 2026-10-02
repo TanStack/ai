@@ -600,6 +600,8 @@ export {
   getProviderExecutedMetadata,
   isProviderExecutedToolCall,
 } from './utilities/provider-executed'
+export { orderedAssistantBlocks } from './utilities/block-order'
+export type { OrderedAssistantBlock } from './utilities/block-order'
 
 // Adapter extension utilities
 export { createModel, extendAdapter } from './extend-adapter'

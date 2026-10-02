@@ -371,6 +371,15 @@ export type ConstrainedContent<
   | null
   | Array<ContentPartForInputModalitiesTypes<TInputModalitiesTypes>>
 
+/**
+ * One block of an assistant `ModelMessage`, in the order the model sent it.
+ * Each entry points into a field of the message. See `ModelMessage.blockOrder`.
+ */
+export type ModelMessageBlock =
+  | { type: 'thinking'; index: number }
+  | { type: 'text'; length: number }
+  | { type: 'tool-call'; id: string }
+
 export interface ModelMessage<
   TContent extends string | null | Array<ContentPart> =
     | string
@@ -388,6 +397,14 @@ export interface ModelMessage<
    * opaque data. See `ThinkingPart.signature` for the planned rename.
    */
   thinking?: Array<{ content: string; signature?: string; redacted?: boolean }>
+  /**
+   * The order of the blocks of an assistant message, when it is not the
+   * default order (all thinking, then the text, then the tool calls). Each
+   * entry points into `thinking`, into `content` (a string, by UTF-16 length),
+   * or into `toolCalls`. The library writes and reads this field. A reader
+   * that finds a map that does not match the message uses the default order.
+   */
+  blockOrder?: Array<ModelMessageBlock>
   /** Error reported by an AG-UI tool message. */
   error?: string
   /** Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`. */
