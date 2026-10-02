@@ -165,6 +165,8 @@ const { generate, result, isLoading } = useGenerateImage({
 
 Combines the best of both: **type-safe input** from the fetcher pattern with **streaming** from a server function that returns an SSE `Response`. When the fetcher returns a `Response` object (instead of a plain result), the client automatically parses it as an SSE stream.
 
+If the client stops reading before the response ends, it cancels the response body. A `RUN_ERROR` event also closes the unfinished response.
+
 **Server:**
 
 ```typescript ignore

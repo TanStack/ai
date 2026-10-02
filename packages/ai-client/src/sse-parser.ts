@@ -37,6 +37,11 @@ async function* readStreamLines(
       yield buffer
     }
   } finally {
+    try {
+      await reader.cancel()
+    } catch {
+      // A failed stream can reject cancellation. Preserve the original error.
+    }
     reader.releaseLock()
   }
 }

@@ -359,6 +359,11 @@ async function* readStreamLines(
       throw new StreamTruncatedError()
     }
   } finally {
+    try {
+      await reader.cancel()
+    } catch {
+      // A failed stream can reject cancellation. Preserve the original error.
+    }
     reader.releaseLock()
   }
 }
