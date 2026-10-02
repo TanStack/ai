@@ -4554,6 +4554,7 @@ class TextEngine<
       metadata: this.params.metadata,
       modelOptions: this.params.modelOptions,
       reasoning: this.params.reasoning,
+      promptCache: this.params.promptCache,
     }
   }
 
@@ -5023,6 +5024,7 @@ class TextEngine<
       metadata: config.metadata,
       modelOptions: config.modelOptions,
       reasoning: config.reasoning,
+      promptCache: config.promptCache ?? this.params.promptCache,
     }
 
     // Sync context fields that depend on config
