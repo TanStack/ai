@@ -189,6 +189,25 @@ export default {
 - The adapter keeps all of its options: `chat({ reasoning })`, tools, `cache_control` for prompt caching, and Anthropic betas, which go out as the `anthropic-beta` header.
 - For `@cf/...` models and other gateway vendors, keep `createCloudflareText` with `binding: env.AI`.
 
+An adapter with a gateway `baseURL` (`cloudflareGateway()`) or with `cloudflareBindingFetch` sends the full tools and system prompts on every call, also on a model with a [mid-conversation channel](../advanced/mid-conversation-changes). AI Gateway then gets the same request as on any other model. To send tools and prompts added during a conversation through the channel, set `midConversationChannels: true`:
+
+```typescript
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
+import { cloudflareBindingFetch } from "@tanstack/ai-cloudflare";
+import type { Ai } from "@cloudflare/workers-types";
+
+export function gatewayClaude(env: { AI: Ai }) {
+  return createAnthropicChat("claude-opus-5-5", "cloudflare-binding", {
+    fetch: cloudflareBindingFetch({
+      binding: env.AI,
+      vendor: "anthropic",
+      gateway: { id: "default" },
+    }),
+    midConversationChannels: true,
+  });
+}
+```
+
 ## Bring your own key
 
 Two different things go by this name. Both work.

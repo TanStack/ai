@@ -159,6 +159,8 @@ const selective = defineHarness({
 })
 ```
 
+Tools or system prompts that a plugin or a middleware adds during a turn keep the prompt cache on models with a mid-conversation channel. See [Mid-conversation changes in a harness](../advanced/mid-conversation-changes#in-a-harness).
+
 ## What you have now
 
 - A turn that goes back to work until the job is done, with a limit.

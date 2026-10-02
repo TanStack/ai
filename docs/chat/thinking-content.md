@@ -16,7 +16,7 @@ keywords:
 
 Some models expose their internal reasoning as "thinking" content -- Claude with extended thinking, OpenAI o-series models with reasoning, and others. TanStack AI captures this as `ThinkingPart` in messages, streamed to your UI in real-time alongside text and tool calls.
 
-Unsigned thinking stays in the UI. Signed thinking is a `ThinkingPart` with a `signature`. Anthropic extended thinking uses this. The next request sends signed thinking back in the same order as the original response, including around provider-executed tools. The next-turn body puts that signature on spec `encryptedValue` on the `role: "reasoning"` fan-out. Stream events use `REASONING_ENCRYPTED_VALUE`.
+Unsigned thinking stays in the UI. Signed thinking is a `ThinkingPart` with a `signature`. Anthropic extended thinking uses this. The next request sends signed thinking back in the same order as the original response, including around tool calls and text. The next-turn body puts that signature on spec `encryptedValue` on the `role: "reasoning"` fan-out. Stream events use `REASONING_ENCRYPTED_VALUE`.
 
 ## How It Works
 
@@ -98,6 +98,12 @@ The typical streaming order is:
 4. `TEXT_MESSAGE_CONTENT` streams the response text.
 
 `STEP_STARTED` and `STEP_FINISHED` only carry `stepName`. They do not carry thinking text.
+
+Claude can think more than once in one answer: thinking, a tool call, more thinking, then text. Each thinking block streams as its own reasoning message, with its own `REASONING_MESSAGE_END` and `REASONING_END`. Then:
+
+- `message.parts` has the parts in the order Claude sent them.
+- The stored messages keep that order, and the next request sends the blocks back to Claude in it.
+- A message that you build yourself goes back in the default order: thinking, then text, then tool calls.
 
 If you use `useChat` from `@tanstack/ai-react` (or the Solid/Vue/Svelte equivalents), your `messages` array updates with both thinking and text parts as they arrive.
 

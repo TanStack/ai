@@ -137,7 +137,7 @@ Automatic caching adds these fields to the request.
 
 | Adapter | `'short'` | `'long'` |
 |---|---|---|
-| `anthropicText`, Claude on Vertex | `cache_control: { type: 'ephemeral' }` on the system blocks, the last tool, and the last block of the last user message. At most 4 markers. | The same markers with `ttl: '1h'` |
+| `anthropicText`, Claude on Vertex | `cache_control: { type: 'ephemeral' }` on the system blocks, the last tool, and the last block of the last user message. At most 4 markers. With [mid-conversation tool changes](./mid-conversation-changes) on, the tool marker goes on the last start tool instead, and a mid-conversation `system` message at the end takes the message marker. | The same markers with `ttl: '1h'` |
 | `bedrockText` (Converse), Claude models only | A `cachePoint` after the system prompt and at the end of the last user message | Both with `ttl: '1h'` |
 | `openRouterText` with an `anthropic/*` model | `sessionId`, plus markers on the system prompt, the last tool, and the last message | The markers with `ttl: '1h'` |
 | `openaiCompatible` with `compat.cacheControlFormat: 'anthropic'` (Claude through a gateway) | Markers on the system prompt, the last tool, and the last message | The markers with `ttl: '1h'` |
@@ -164,6 +164,10 @@ Your own cache settings win over the automatic ones:
 - **Bedrock**: `metadata.cachePoint` on a system prompt, a message part, or a tool. Then `chat()` adds no cache points to that request. See [Amazon Bedrock](../adapters/bedrock#prompt-caching).
 - **OpenAI**: `modelOptions.prompt_cache_key` and `modelOptions.prompt_cache_retention` replace the automatic values. See [OpenAI](../adapters/openai#prompt-caching).
 - **OpenRouter**: `modelOptions.sessionId` replaces the automatic `sessionId`.
+
+## When the tools change
+
+The tools are near the start of each request. A tool that a middleware adds during a run changes that start, so the next call cannot read the cache from there on. On GPT and Claude models with a mid-conversation channel, `chat()` keeps the start the same and sends the new tool later in the conversation. A system prompt that you add at the end of the list goes the same way. See [Mid-Conversation Changes](./mid-conversation-changes).
 
 ## Track cached tokens and cost
 

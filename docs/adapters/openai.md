@@ -394,6 +394,36 @@ const stream = chat({
 
 `modelOptions.prompt_cache_retention` also wins over the automatic `prompt_cache_retention`.
 
+#### Tools and prompts added during a conversation
+
+On some models, a tool or a system prompt that you add between model calls goes into the conversation, not into `tools` or `instructions`. The start of the request stays the same, so OpenAI can read it from its prompt cache. The `prompt_cache_key` above does not change.
+
+The models: `gpt-5.4-mini`, `gpt-5.5`, `gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-6-astra`, `gpt-6-luna`, and `gpt-6-sol`. Other models, such as `gpt-6.1-sol`, always send the full lists.
+
+What the adapter sends on these models:
+
+- `tools` and `instructions` keep the tools and the system prompts of the first call.
+- An added tool goes into `input` as `{ type: "additional_tools", role: "developer", tools: [...] }`.
+- A system prompt that you add at the end of the list goes into `input` as a `developer` message, at its place in the conversation.
+- With a provider tool such as `webSearchTool()` in the first call or in a change, `tools` is the full list for that request.
+
+The channels are on by default with OpenAI's own API. With a custom `baseURL` or `fetch`, or a proxy in the `OPENAI_BASE_URL` environment variable, they are off, and every call sends the full lists. Set `midConversationChannels` to choose:
+
+- `false`: send the full lists on every call.
+- `true`: use the channels with a custom `baseURL`, `fetch`, or `OPENAI_BASE_URL`. Set it only when that endpoint sends the request to OpenAI as it is.
+
+```typescript
+import { openaiText } from "@tanstack/ai-openai";
+
+const fullLists = openaiText("gpt-6-astra", { midConversationChannels: false });
+const throughProxy = openaiText("gpt-6-astra", {
+  baseURL: "https://llm-proxy.example.com/v1",
+  midConversationChannels: true,
+});
+```
+
+See [Mid-Conversation Changes](../advanced/mid-conversation-changes) for how the library finds the changes.
+
 ## Summarization
 
 Summarize long text content:

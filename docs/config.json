@@ -178,7 +178,7 @@
           "label": "Thinking & Reasoning",
           "to": "chat/thinking-content",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Reasoning",
@@ -336,6 +336,12 @@
         {
           "label": "Prompt Caching",
           "to": "advanced/prompt-caching",
+          "addedAt": "2026-10-02",
+          "updatedAt": "2026-10-02"
+        },
+        {
+          "label": "Mid-Conversation Changes",
+          "to": "advanced/mid-conversation-changes",
           "addedAt": "2026-10-02"
         }
       ],
@@ -931,7 +937,8 @@
         {
           "label": "Control how a turn ends",
           "to": "harness/turn-control",
-          "addedAt": "2026-10-01"
+          "addedAt": "2026-10-01",
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Share one log between sessions",
@@ -1268,7 +1275,7 @@
           "label": "Extend Adapter",
           "to": "advanced/extend-adapter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Model Catalog",
@@ -1425,7 +1432,7 @@
           "label": "Cloudflare",
           "to": "adapters/cloudflare",
           "addedAt": "2026-09-03",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "Claude Code",

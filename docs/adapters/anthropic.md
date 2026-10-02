@@ -288,6 +288,42 @@ const stream = chat({
 
 `modelOptions.cache_control` asks Anthropic to place one marker for the whole request. It also turns the automatic markers off.
 
+#### Tools and prompts added during a conversation
+
+On some Claude models, a tool or a system prompt that you add between model calls goes into the conversation, not into `tools` or `system`. The marked start of the request stays the same, so Claude reads it from the cache.
+
+The models: `claude-opus-4-8`, `claude-opus-5`, `claude-opus-5-5`, `claude-fable-5`, and `claude-fable-5-1`.
+
+What the adapter sends on these models:
+
+- `system` keeps the system prompts of the first call, with their `cache_control`.
+- In a request with tools, the `anthropic-beta` header has `mid-conversation-tool-changes-2026-07-01`, and `tools` has one placeholder tool, `__tanstack_deferred_placeholder__`. The model must never call it. It keeps Anthropic's hidden setup for added tools inside the cached start.
+- An added tool goes to the end of `tools` with `defer_loading: true`. A `system` message lists it in a `tool_addition` block.
+- A system prompt that you add goes into a `system` message as a text block. The message comes directly before the next assistant message, or at the end of the messages.
+- With a provider tool such as `webSearchTool()` in the first call or in a change, `tools` is the full list and has no placeholder.
+
+The automatic tool marker goes on the last tool of the first call, not on the placeholder or an added tool. So the marked start does not move when a tool is added. A `cache_control` of your own still wins.
+
+The channels are on by default with Anthropic's own API. With a custom `baseURL`, a custom `fetch`, or a proxy in the `ANTHROPIC_BASE_URL` environment variable, they are off, and every request is the same as on a model outside the list. An adapter on your own client (`createAnthropicChatWithClient`, `anthropicVertexText`) has no channels. Set `midConversationChannels` to choose:
+
+- `false`: send the full lists on every call.
+- `true`: use the channels with a custom `baseURL`, `fetch`, or `ANTHROPIC_BASE_URL`. Set it only when that endpoint sends the request and the `anthropic-beta` header to Anthropic as they are.
+
+```typescript
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+export const fullLists = anthropicText("claude-opus-5-5", {
+  midConversationChannels: false,
+});
+
+export const throughProxy = anthropicText("claude-opus-5-5", {
+  baseURL: "https://llm-proxy.example.com",
+  midConversationChannels: true,
+});
+```
+
+See [Mid-Conversation Changes](../advanced/mid-conversation-changes) for how the library finds the changes.
+
 ## Summarization
 
 Anthropic supports text summarization:
