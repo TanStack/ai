@@ -181,6 +181,54 @@ async function routingResumes(
 }
 
 /**
+ * A turn stops for approval, and its host closes. A second host opens the
+ * same stores and resolves the approval, like a server that started again.
+ * Returns the text of the resumed turn and how many times the tool ran.
+ */
+async function resolveAfterRestart(
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  const persistence = memoryPersistence()
+  let removed = 0
+  const remove = toolDefinition({
+    name: 'remove',
+    description: 'Remove a file',
+    needsApproval: true,
+    inputSchema: z.object({ path: z.string() }),
+  }).server(async () => {
+    removed += 1
+    return { removed: true }
+  })
+  const harness = defineHarness({
+    name: 'e2e/harness-resolve-restart',
+    adapter: openai(),
+    tools: [remove],
+  })
+  const first = createHarnessHost({ persistence })
+  const stopped = await (
+    await first.open(harness, { threadId: 'e2e-resolve-restart' })
+  ).prompt('[harness-restart-resolve] remove b.txt')
+  const interrupt = stopped.interrupts?.[0]
+  await first.close()
+  if (!interrupt) throw new Error('The turn did not ask for approval.')
+
+  const next = createHarnessHost({ persistence })
+  try {
+    const session = await next.open(harness, {
+      threadId: 'e2e-resolve-restart',
+    })
+    const receipt = await session.resolve([
+      { interruptId: interrupt.id, status: 'resolved', payload: true },
+    ])
+    const resumed = session.operation(receipt.operationId ?? '')
+    if (!resumed) throw new Error(`The resolve was ${receipt.status}.`)
+    return { text: turnText(await resumed), removed }
+  } finally {
+    await next.close()
+  }
+}
+
+/**
  * Start a background agent on a durable host, and let that host stop: its
  * short lease is not renewed in time. A second host opens the same log. It
  * fails the run, and the wake turn answers. Returns the run status and the
@@ -328,6 +376,9 @@ export const Route = createFileRoute('/api/harness-test')({
                 ...(testId !== undefined ? { testId } : {}),
               }),
             )
+          }
+          if (body.scenario === 'resolve-restart') {
+            return Response.json(await resolveAfterRestart(openai))
           }
           if (body.scenario === 'agent-restart') {
             return Response.json(await agentRestart(openai))

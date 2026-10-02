@@ -260,6 +260,30 @@ interface QueuedTurn {
   routed?: { messages: Array<UIMessage>; root: boolean }
 }
 
+/** The interrupts the last turn stopped for, and how a resolve continues it. */
+interface InterruptedTurn {
+  runId: string
+  interrupts: Array<Interrupt>
+  routed?: QueuedTurn['routed']
+}
+
+/** Where `stores.metadata` keeps the interrupted turn of each thread. */
+const INTERRUPTED = 'harness:interrupted'
+
+/** True for an interrupted turn as `stores.metadata` gives it back. */
+function isInterruptedTurn(value: unknown): value is InterruptedTurn {
+  if (!isRecord(value) || typeof value.runId !== 'string') return false
+  if (!Array.isArray(value.interrupts)) return false
+  if (!value.interrupts.every((item) => isRecord(item))) return false
+  const { routed } = value
+  return (
+    routed === undefined ||
+    (isRecord(routed) &&
+      Array.isArray(routed.messages) &&
+      typeof routed.root === 'boolean')
+  )
+}
+
 /** Limits for a harness's children when `subagents.limits` is not set. */
 export const DEFAULT_SUBAGENT_LIMITS = {
   maxDepth: 2,
@@ -447,15 +471,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private activeTurn: OperationImpl<ChatTurnResult> | undefined
   /**
    * The last turn stopped for these interrupts. `routed`: a routed turn
-   * stopped. The resolve continues its saved plan.
+   * stopped. The resolve continues its saved plan. `stores.metadata` keeps a
+   * copy, so a resolve after a restart continues the turn too.
    */
-  private interrupted:
-    | {
-        runId: string
-        interrupts: Array<Interrupt>
-        routed?: QueuedTurn['routed']
-      }
-    | undefined
+  private interrupted: InterruptedTurn | undefined
   private plugins: ReadonlyArray<HarnessPlugin> = []
   private sessionPlugins: MountedPlugins | undefined
   private closing: Promise<void> | undefined
@@ -632,6 +651,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       )
       await this.loadConfig()
       await this.loadPluginState()
+      await this.loadInterrupted()
       if (this.writer) {
         await this.recoverFromLog(this.writer)
         return
@@ -902,6 +922,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     const operation = this.createTurnOperation()
     this.bindTurn(inputId, operation)
     this.enqueueTurn({ operation, resume, parentRunId, inputId, routed })
+    // The stored copy goes too, so a restart does not offer this turn again.
+    // A failed delete is a warning: the resolve runs anyway.
+    await this.persistence.stores.metadata
+      ?.delete(INTERRUPTED, this.threadId)
+      .catch((error: unknown) =>
+        this.warn(operation, 'harness:interrupts', error),
+      )
     return this.keep({ inputId, status: 'accepted', operationId: operation.id })
   }
 
@@ -1265,6 +1292,15 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         // A stored value an option no longer accepts falls back to the default.
       }
     }
+  }
+
+  /** Restore the interrupted turn that `stores.metadata` keeps for this thread. */
+  private async loadInterrupted(): Promise<void> {
+    const stored = await this.persistence.stores.metadata?.get(
+      INTERRUPTED,
+      this.threadId,
+    )
+    if (isInterruptedTurn(stored)) this.interrupted = stored
   }
 
   /** Put each plugin's saved state in the snapshot before the first read. */
@@ -2429,6 +2465,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           ? { routed: { messages: cardMessages, root: isRootPart } }
           : {}),
       }
+      // Kept before the turn ends, so a restart right after it can resolve.
+      // A failed write is a warning: the turn still ends interrupted.
+      await this.persistence.stores.metadata
+        ?.set(INTERRUPTED, this.threadId, this.interrupted)
+        .catch((error: unknown) =>
+          this.warn(operation, 'harness:interrupts', error),
+        )
       await settleTurn({ outcome: 'interrupted' })
       operation.finish('interrupted', { text, interrupts })
     } else {

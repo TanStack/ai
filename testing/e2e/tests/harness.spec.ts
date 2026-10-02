@@ -104,4 +104,19 @@ test.describe('harness session', () => {
       removed: 1,
     })
   })
+
+  test('a resolve on a new host continues the turn that stopped for approval', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'resolve-restart', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    expect(await response.json()).toEqual({
+      text: 'Removed b.txt after the restart.',
+      removed: 1,
+    })
+  })
 })

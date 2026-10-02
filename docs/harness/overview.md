@@ -170,6 +170,7 @@ The host takes the same stores as `withPersistence`. Add an `inbox` store and th
 - `runs`: the record of every turn and agent run. When the host stops during a background agent run, the next session ends that run `failed` and notes it in the transcript.
 - `interrupts`: approvals that wait for a user.
 - `inbox`: accepted messages that did not run yet.
+- `metadata`: the session config, plugin state, and the interrupts that the last turn waits on. With it, `session.resolve` continues that turn after a restart, also a turn that a router sent to agents.
 
 `memoryPersistence()` has every store, but it keeps them in memory only. Write your own stores to keep data in your database. See [Build your own adapter](../persistence/build-your-own-adapter).
 

@@ -33,7 +33,7 @@ const host = createHarnessHost({
 })
 ```
 
-`metadata` is optional. With it, the host keeps a fold checkpoint of each log, so a long thread opens faster. To store the log in your database, implement the [`LogStore` contract](../persistence/store-reference#logstore).
+`metadata` is optional. With it, the host keeps a fold checkpoint of each log, so a long thread opens faster. It also keeps the interrupts that the last turn waits on, so `session.resolve` continues that turn on the next host. To store the log in your database, implement the [`LogStore` contract](../persistence/store-reference#logstore).
 
 ## Limit attempts and time
 

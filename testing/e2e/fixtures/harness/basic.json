@@ -109,6 +109,29 @@
     },
     {
       "match": {
+        "userMessage": "[harness-restart-resolve] remove b.txt",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "remove",
+            "arguments": "{\"path\":\"b.txt\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-restart-resolve] remove b.txt",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Removed b.txt after the restart."
+      }
+    },
+    {
+      "match": {
         "userMessage": "[harness-routing-fix] clean up",
         "sequenceIndex": 0
       },
