@@ -382,9 +382,14 @@ describe('serve mode', () => {
       expect(denied.status).toBe(401)
       const answered = await initialize({ authorization: 'Bearer secret' })
       expect(answered.status).toBe(200)
-      expect((await answered.json()).result.serverInfo.name).toBe(
-        'test/serve-mcp',
-      )
+      const body = await answered.text()
+      const data = body.startsWith('{')
+        ? body
+        : body.match(/^data: (.+)$/m)?.[1]
+      if (data === undefined) throw new Error('Missing MCP response data.')
+      expect(JSON.parse(data)).toMatchObject({
+        result: { serverInfo: { name: 'test/serve-mcp' } },
+      })
     } finally {
       await server.close()
       await host.close()

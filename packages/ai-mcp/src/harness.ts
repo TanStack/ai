@@ -376,6 +376,8 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   return createMCPServer({
     name: options.name ?? harness.name,
     version: options.version ?? '1.0.0',
+    // Approval prompts use spec 2025 elicitation, which requires a session.
+    sessions: 'memory',
     tools: [
       chat,
       steer,

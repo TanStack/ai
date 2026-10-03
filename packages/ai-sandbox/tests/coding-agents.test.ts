@@ -171,6 +171,7 @@ async function open(input: {
   const harness = defineHarness({
     name: 'test/coding-lead',
     adapter: lead(input.leadSteps),
+    subagents: { agents: [], limits: { maxConcurrent: 4 } },
     plugins: () => [
       permissions(),
       codingAgents({
