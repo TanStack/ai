@@ -17,8 +17,10 @@ import {
   channels,
   memberships,
   messages,
+  questions,
   runMeta,
   sessions,
+  spans,
   spend,
   teams,
   toolCalls,
@@ -28,6 +30,8 @@ import type {
   ChannelMemberRow,
   ChannelRow,
   MembershipRow,
+  QuestionRow,
+  SpanRow,
   Subscription,
   TeamRow,
 } from '@/db/collections'
@@ -185,6 +189,24 @@ function setStatus(ctx: Ctx, status: 'idle' | 'running' | 'requires_action') {
  * results still route by their explicit target channel, independent of this.
  */
 const activeChannelByThread = new Map<string, string>()
+const currentRunByThread = new Map<string, string>()
+
+function eventTime(event: { timestamp?: number | string }): number {
+  if (typeof event.timestamp === 'number') return event.timestamp
+  if (typeof event.timestamp === 'string') {
+    const parsed = Date.parse(event.timestamp)
+    if (!Number.isNaN(parsed)) return parsed
+  }
+  return Date.now()
+}
+
+function closeSpan(id: string, end: number): void {
+  if (!spans.has(id)) return
+  spans.update(id, (draft) => {
+    draft.end = end
+  })
+}
+
 export function setActiveChannel(threadId: string, channelId: string): void {
   activeChannelByThread.set(threadId, channelId)
 }
@@ -197,11 +219,35 @@ function project(ctx: Ctx, event: any, replay = false) {
   const channelId =
     event.channelId ?? activeChannelByThread.get(threadId) ?? ctx.channelId
   const nsKey = (raw: string) => `${agentId}:${raw}`
+  const runId =
+    event.runId ?? currentRunByThread.get(threadId) ?? `run-${threadId}`
+  const at = eventTime(event)
   switch (event.type) {
     case 'RUN_STARTED':
+      currentRunByThread.set(threadId, runId)
+      upsert<SpanRow>(spans, {
+        id: nsKey(`run:${runId}`),
+        runId,
+        threadId,
+        channelId,
+        agentId,
+        kind: 'run',
+        name: 'run',
+        start: at,
+      })
       setStatus(ctx, 'running')
       break
     case 'TEXT_MESSAGE_START':
+      upsert<SpanRow>(spans, {
+        id: nsKey(`text:${event.messageId}`),
+        runId,
+        threadId,
+        channelId,
+        agentId,
+        kind: 'text',
+        name: event.role === 'user' ? 'user message' : 'model response',
+        start: at,
+      })
       upsert(messages, {
         id: nsKey(event.messageId),
         threadId,
@@ -222,7 +268,20 @@ function project(ctx: Ctx, event: any, replay = false) {
       }
       break
     }
+    case 'TEXT_MESSAGE_END':
+      closeSpan(nsKey(`text:${event.messageId}`), at)
+      break
     case 'TOOL_CALL_START':
+      upsert<SpanRow>(spans, {
+        id: nsKey(`tool:${event.toolCallId}`),
+        runId,
+        threadId,
+        channelId,
+        agentId,
+        kind: 'tool',
+        name: event.toolCallName ?? 'tool',
+        start: at,
+      })
       upsert(toolCalls, {
         id: nsKey(event.toolCallId),
         threadId,
@@ -246,6 +305,7 @@ function project(ctx: Ctx, event: any, replay = false) {
     }
     case 'TOOL_CALL_RESULT': {
       const key = nsKey(event.toolCallId)
+      closeSpan(nsKey(`tool:${event.toolCallId}`), at)
       if (toolCalls.has(key)) {
         const { text, truncated } = clampResult(event.content)
         const name = (toolCalls.get(key) as { name?: string } | undefined)?.name
@@ -314,8 +374,32 @@ function project(ctx: Ctx, event: any, replay = false) {
           },
         )
       }
+      if (event.name === 'harness.question' && event.value?.questionId) {
+        upsert<QuestionRow>(questions, {
+          id: nsKey(event.value.questionId),
+          threadId,
+          channelId,
+          agentId,
+          message: event.value.message ?? 'Input required',
+          schema: event.value.schema,
+          status: 'pending',
+          createdAt: at,
+        })
+      }
+      if (
+        event.name === 'harness.question.answered' &&
+        event.value?.questionId
+      ) {
+        const id = nsKey(event.value.questionId)
+        if (questions.has(id)) {
+          questions.update(id, (draft) => {
+            draft.status = 'answered'
+          })
+        }
+      }
       break
     case 'RUN_FINISHED': {
+      closeSpan(nsKey(`run:${runId}`), at)
       // The raw feed tail carries per-turn usage here (no spend ticks), so sum
       // it into the spend row. The back-compat path uses `tanstack.spend` ticks.
       if (ctx.viaTail) {
@@ -352,6 +436,17 @@ function project(ctx: Ctx, event: any, replay = false) {
       // has no clearing event in the stream), so don't recreate them here.
       if (!replay && event.outcome?.type === 'interrupt') {
         for (const interrupt of event.outcome.interrupts ?? []) {
+          upsert<SpanRow>(spans, {
+            id: nsKey(`approval:${interrupt.id}`),
+            runId,
+            threadId,
+            channelId,
+            agentId,
+            kind: 'approval',
+            name: interrupt.message ?? 'approval',
+            start: at,
+            approvalId: nsKey(interrupt.id),
+          })
           upsert(approvals, {
             id: nsKey(interrupt.id),
             threadId,
@@ -372,6 +467,7 @@ function project(ctx: Ctx, event: any, replay = false) {
       } else {
         setStatus(ctx, 'idle')
       }
+      currentRunByThread.delete(threadId)
       break
     }
     default:
@@ -868,7 +964,50 @@ export async function hydrateSession(
   threadId: string,
   endpoint = '/api/agent',
 ): Promise<void> {
-  await hydrateMember(memberFromThread(threadId, endpoint))
+  const member = memberFromThread(threadId, endpoint)
+  await hydrateMember(member)
+  openQuestionTail(member)
+}
+
+const questionTailed = new Set<string>()
+function openQuestionTail(member: Member): void {
+  if (questionTailed.has(member.threadId) || typeof window === 'undefined')
+    return
+  questionTailed.add(member.threadId)
+  const source = new EventSource(
+    `${origin()}/api/tail?threadId=${encodeURIComponent(member.threadId)}&harness=${encodeURIComponent(member.harness)}`,
+  )
+  source.onmessage = (message) => {
+    try {
+      const parsed = JSON.parse(message.data)
+      const ctx: Ctx = {
+        threadId: member.threadId,
+        channelId: member.channelId,
+        agentId: member.agentId,
+      }
+      if (parsed.snapshot) {
+        for (const question of parsed.snapshot.pendingQuestions ?? []) {
+          upsert<QuestionRow>(questions, {
+            id: `${member.agentId}:${question.questionId}`,
+            threadId: member.threadId,
+            channelId: member.channelId,
+            agentId: member.agentId,
+            message: question.message ?? 'Input required',
+            schema: question.schema,
+            status: 'pending',
+            createdAt: Date.now(),
+          })
+        }
+      } else if (
+        parsed.event?.type === 'CUSTOM' &&
+        parsed.event.name?.startsWith('harness.question')
+      ) {
+        project(ctx, parsed.event, parsed.replay === true)
+      }
+    } catch {
+      // ignore malformed frames
+    }
+  }
 }
 
 /** Send a user prompt to a member's thread and stream the reply in. */
@@ -926,6 +1065,10 @@ export async function resolveApproval(
       draft.status = decision === 'approve' ? 'approved' : 'denied'
     })
   }
+  closeSpan(
+    `${row?.threadId ?? threadId}:approval:${rawInterruptId}`,
+    Date.now(),
+  )
 
   const member = membersByThread.get(targetThread)
   const endpoint = member ? endpointFor(member.harness) : '/api/agent'
@@ -958,6 +1101,20 @@ export async function resolveApproval(
       draft.status = 'idle'
     })
   }
+}
+
+export async function controlInput(
+  threadId: string,
+  input:
+    | { op: 'steer'; message: string }
+    | { op: 'cancel' }
+    | { op: 'answer'; questionId: string; value: unknown },
+): Promise<void> {
+  await fetch(`${origin()}/api/harness/control`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ threadId, input }),
+  })
 }
 
 /* ------------------------------------------------------------------ */
@@ -1006,6 +1163,18 @@ export function openChannelMember(member: Member): void {
             reason: interrupt.reason ?? 'tool_call',
             message: interrupt.message ?? 'Approval required',
             responseSchema: interrupt.responseSchema,
+            status: 'pending',
+            createdAt: Date.now(),
+          })
+        }
+        for (const question of parsed.snapshot.pendingQuestions ?? []) {
+          upsert<QuestionRow>(questions, {
+            id: `${ctx.agentId}:${question.questionId}`,
+            threadId: ctx.threadId,
+            channelId: ctx.channelId,
+            agentId: ctx.agentId,
+            message: question.message ?? 'Input required',
+            schema: question.schema,
             status: 'pending',
             createdAt: Date.now(),
           })

@@ -44,7 +44,7 @@ export interface ToolCallRow {
   status: 'running' | 'done'
   subagentRunId?: string
   /** Set when this tool call was injected out-of-band (not a model call). */
-  trigger?: 'timer' | 'manual' | 'webhook'
+  trigger?: 'timer' | 'manual' | 'webhook' | 'mcp'
   /** Set when the result was truncated for the live view. */
   truncated?: boolean
   createdAt: number
@@ -178,6 +178,30 @@ export interface RunMetaRow {
   updatedAt: number
 }
 
+export interface SpanRow {
+  id: string
+  runId: string
+  threadId: string
+  channelId?: string
+  agentId?: string
+  kind: 'run' | 'text' | 'tool' | 'approval'
+  name: string
+  start: number
+  end?: number
+  approvalId?: string
+}
+
+export interface QuestionRow {
+  id: string
+  threadId: string
+  channelId?: string
+  agentId?: string
+  message: string
+  schema?: Record<string, unknown>
+  status: 'pending' | 'answered'
+  createdAt: number
+}
+
 export const messages = createCollection(
   localOnlyCollectionOptions({ getKey: (row: MessageRow) => row.id }),
 )
@@ -210,6 +234,12 @@ export const channelMembers = createCollection(
 )
 export const runMeta = createCollection(
   localOnlyCollectionOptions({ getKey: (row: RunMetaRow) => row.id }),
+)
+export const spans = createCollection(
+  localOnlyCollectionOptions({ getKey: (row: SpanRow) => row.id }),
+)
+export const questions = createCollection(
+  localOnlyCollectionOptions({ getKey: (row: QuestionRow) => row.id }),
 )
 
 /**

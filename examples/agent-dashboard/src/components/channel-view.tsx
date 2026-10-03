@@ -18,6 +18,7 @@ import {
   channels,
   memberships,
   messages,
+  questions,
   runMeta,
   sessions,
   spend,
@@ -28,6 +29,7 @@ import {
 import {
   addAgentToChannel,
   channelSendPrompt,
+  controlInput,
   createDm,
   defaultSubscriptions,
   openChannelMember,
@@ -37,14 +39,19 @@ import { MemberList } from '@/components/member-list'
 import { MemoryPanel } from '@/components/memory-panel'
 import { JsonTree, tryParse } from '@/components/json-tree'
 import { Markdown } from '@/components/markdown'
+import { TraceWaterfall } from '@/components/trace-waterfall'
+import { TeamAutomations } from '@/components/team-automations'
+import { costUsd } from '@/lib/pricing'
 import type {
   ApprovalRow,
   ChannelMemberRow,
   ChannelRow,
   MembershipRow,
   MessageRow,
+  QuestionRow,
   RunMetaRow,
   SessionRow,
+  SpendRow,
   ToolCallRow,
   UiStateRow,
 } from '@/db/collections'
@@ -66,6 +73,7 @@ export function ChannelView({
   teamId?: string
 }) {
   const [input, setInput] = useState('')
+  const [view, setView] = useState<'timeline' | 'trace'>('timeline')
 
   const { data: chanRows = [] } = useLiveQuery(
     (q) => q.from({ c: channels }).where(({ c }) => eq(c.id, channelId)),
@@ -150,6 +158,13 @@ export function ChannelView({
       q.from({ a: approvals }).where(({ a }) => eq(a.channelId, channelId)),
     [channelId],
   )
+  const { data: questionRows = [] } = useLiveQuery(
+    (query) =>
+      query
+        .from({ question: questions })
+        .where(({ question }) => eq(question.channelId, channelId)),
+    [channelId],
+  )
   const { data: spendRows = [] } = useLiveQuery(
     (q) => q.from({ s: spend }).where(({ s }) => eq(s.channelId, channelId)),
     [channelId],
@@ -176,8 +191,15 @@ export function ChannelView({
     (sum, s) => sum + (s.totalTokens ?? 0),
     0,
   )
+  const dollars = (spendRows as Array<SpendRow>).reduce((sum, row) => {
+    const member = rosterRows.find((item) => item.threadId === row.threadId)
+    return sum + costUsd(member?.harness, row.inputTokens, row.outputTokens)
+  }, 0)
   const pending = (apprs as Array<ApprovalRow>).filter(
     (a) => a.status === 'pending',
+  )
+  const pendingQuestions = (questionRows as Array<QuestionRow>).filter(
+    (q) => q.status === 'pending',
   )
 
   const timeline = [
@@ -205,6 +227,10 @@ export function ChannelView({
     const t = text.trim()
     if (!t || !primary) return
     setInput('')
+    if (status === 'running') {
+      await controlInput(primary.threadId, { op: 'steer', message: t })
+      return
+    }
     await channelSendPrompt(primary, t, channelId)
   }
 
@@ -274,7 +300,20 @@ export function ChannelView({
           </span>
         )}
         <span className="ml-auto text-xs text-white/40">
-          {tokens.toLocaleString()} tokens
+          ${dollars.toFixed(4)} · {tokens.toLocaleString()} tokens
+        </span>
+        <span className="flex rounded border border-white/10 p-0.5 text-xs">
+          {(['timeline', 'trace'] as const).map((item) => (
+            <button
+              key={item}
+              onClick={() => setView(item)}
+              className={`rounded px-2 py-0.5 ${
+                view === item ? 'bg-white/10 text-white' : 'text-white/40'
+              }`}
+            >
+              {item}
+            </button>
+          ))}
         </span>
         {isMain && <AddAgentControl channelId={channelId} />}
       </div>
@@ -288,6 +327,9 @@ export function ChannelView({
           )}
         />
       ))}
+      {pendingQuestions.map((question) => (
+        <QuestionCard key={question.id} question={question} />
+      ))}
 
       <div className="flex gap-4">
         {isTeam && (
@@ -300,38 +342,46 @@ export function ChannelView({
           />
         )}
         <div className="flex-1 space-y-3 rounded-lg border border-white/10 bg-white/[0.02] p-4">
-          {timeline.length === 0 && (
-            <p className="text-sm text-white/40">
-              No activity yet. Send a message below, or drive it from the Demo
-              controls devtools panel.
-            </p>
-          )}
-          {timeline.map((entry) =>
-            entry.kind === 'message' ? (
-              entry.m.role === 'system' ? (
-                <SystemCard key={entry.m.id} message={entry.m} />
-              ) : (
-                <MessageBubble
-                  key={entry.m.id}
-                  message={entry.m}
-                  author={
-                    entry.m.agentId
-                      ? nameByAgent.get(entry.m.agentId)
-                      : undefined
-                  }
-                  showAuthor={isTeam}
-                />
-              )
-            ) : (
-              <ToolCard
-                key={entry.t.id}
-                tool={entry.t}
-                author={
-                  entry.t.agentId ? nameByAgent.get(entry.t.agentId) : undefined
-                }
-                showAuthor={isTeam}
-              />
-            ),
+          {view === 'trace' ? (
+            <TraceWaterfall channelId={channelId} />
+          ) : (
+            <>
+              {timeline.length === 0 && (
+                <p className="text-sm text-white/40">
+                  No activity yet. Send a message below, or drive it from the
+                  Demo controls devtools panel.
+                </p>
+              )}
+              {timeline.map((entry) =>
+                entry.kind === 'message' ? (
+                  entry.m.role === 'system' ? (
+                    <SystemCard key={entry.m.id} message={entry.m} />
+                  ) : (
+                    <MessageBubble
+                      key={entry.m.id}
+                      message={entry.m}
+                      author={
+                        entry.m.agentId
+                          ? nameByAgent.get(entry.m.agentId)
+                          : undefined
+                      }
+                      showAuthor={isTeam}
+                    />
+                  )
+                ) : (
+                  <ToolCard
+                    key={entry.t.id}
+                    tool={entry.t}
+                    author={
+                      entry.t.agentId
+                        ? nameByAgent.get(entry.t.agentId)
+                        : undefined
+                    }
+                    showAuthor={isTeam}
+                  />
+                ),
+              )}
+            </>
           )}
         </div>
       </div>
@@ -348,9 +398,19 @@ export function ChannelView({
           onClick={() => send(input)}
           className="rounded-md bg-emerald-500/90 px-4 py-2 text-sm font-medium text-black hover:bg-emerald-400"
         >
-          Send
+          {status === 'running' ? 'Steer' : 'Send'}
         </button>
+        {status === 'running' && primary && (
+          <button
+            onClick={() => controlInput(primary.threadId, { op: 'cancel' })}
+            className="rounded-md bg-rose-500/80 px-4 py-2 text-sm font-medium text-black hover:bg-rose-400"
+          >
+            Stop
+          </button>
+        )}
       </div>
+
+      {isMain && <TeamAutomations channelId={channelId} members={memberRows} />}
 
       {isTeam && isMain && (
         <section className="space-y-2">
@@ -560,6 +620,62 @@ function ToolCard({
         })()}
       {tool.truncated && (
         <div className="mt-1 text-white/30">(result truncated)</div>
+      )}
+    </div>
+  )
+}
+
+export function QuestionCard({ question }: { question: QuestionRow }) {
+  const [answer, setAnswer] = useState('')
+  const rawId = question.id.split(':').slice(1).join(':')
+  const submit = async (value: unknown) => {
+    questions.update(question.id, (draft) => {
+      draft.status = 'answered'
+    })
+    await controlInput(question.threadId, {
+      op: 'answer',
+      questionId: rawId,
+      value,
+    })
+  }
+
+  return (
+    <div className="rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/[0.06] p-4">
+      <div className="font-medium text-fuchsia-200">Agent question</div>
+      <p className="mt-1 text-sm">{question.message}</p>
+      {question.schema?.type === 'boolean' ? (
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={() => submit(true)}
+            className="rounded bg-emerald-500/90 px-3 py-1.5 text-sm text-black"
+          >
+            Yes
+          </button>
+          <button
+            onClick={() => submit(false)}
+            className="rounded bg-rose-500/80 px-3 py-1.5 text-sm text-black"
+          >
+            No
+          </button>
+        </div>
+      ) : (
+        <form
+          className="mt-3 flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void submit(answer)
+          }}
+        >
+          <input
+            value={answer}
+            onChange={(event) => setAnswer(event.target.value)}
+            className="flex-1 rounded border border-white/15 bg-transparent px-3 py-1.5 text-sm"
+            placeholder="Your answer"
+          />
+          <button className="rounded bg-fuchsia-400 px-3 py-1.5 text-sm text-black">
+            Answer
+          </button>
+        </form>
       )}
     </div>
   )
