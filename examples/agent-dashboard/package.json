@@ -18,6 +18,7 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-harness": "workspace:*",
+    "@tanstack/ai-mcp": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@tanstack/react-db": "^0.1.55",
     "@tanstack/react-devtools": "^0.9.10",

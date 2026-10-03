@@ -131,6 +131,15 @@ const summarizeSession = toolDefinition({
   }
 })
 
+export const metaTools = [
+  listAgents,
+  listSessions,
+  queryRuns,
+  getAgentConfig,
+  setAgentConfig,
+  summarizeSession,
+]
+
 /** Route a prompt to a tool by keyword. */
 function pickTool(text: string): {
   name: string

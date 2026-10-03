@@ -191,6 +191,9 @@ importers:
       '@tanstack/ai-harness':
         specifier: workspace:*
         version: link:../../packages/ai-harness
+      '@tanstack/ai-mcp':
+        specifier: workspace:*
+        version: link:../../packages/ai-mcp
       '@tanstack/ai-persistence':
         specifier: workspace:*
         version: link:../../packages/ai-persistence

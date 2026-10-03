@@ -27,6 +27,7 @@ import { Route as ApiRosterRouteImport } from './routes/api.roster'
 import { Route as ApiReplayRouteImport } from './routes/api.replay'
 import { Route as ApiMetaRouteImport } from './routes/api.meta'
 import { Route as ApiMemoryRouteImport } from './routes/api.memory'
+import { Route as ApiMcpRouteImport } from './routes/api.mcp'
 import { Route as ApiInjectRouteImport } from './routes/api.inject'
 import { Route as ApiHostsRouteImport } from './routes/api.hosts'
 import { Route as ApiConfigRouteImport } from './routes/api.config'
@@ -125,6 +126,11 @@ const ApiMemoryRoute = ApiMemoryRouteImport.update({
   path: '/api/memory',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpRoute = ApiMcpRouteImport.update({
+  id: '/api/mcp',
+  path: '/api/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInjectRoute = ApiInjectRouteImport.update({
   id: '/api/inject',
   path: '/api/inject',
@@ -171,6 +177,7 @@ export interface FileRoutesByFullPath {
   '/api/config': typeof ApiConfigRoute
   '/api/hosts': typeof ApiHostsRoute
   '/api/inject': typeof ApiInjectRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/api/memory': typeof ApiMemoryRoute
   '/api/meta': typeof ApiMetaRoute
   '/api/replay': typeof ApiReplayRoute
@@ -198,6 +205,7 @@ export interface FileRoutesByTo {
   '/api/config': typeof ApiConfigRoute
   '/api/hosts': typeof ApiHostsRoute
   '/api/inject': typeof ApiInjectRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/api/memory': typeof ApiMemoryRoute
   '/api/meta': typeof ApiMetaRoute
   '/api/replay': typeof ApiReplayRoute
@@ -226,6 +234,7 @@ export interface FileRoutesById {
   '/api/config': typeof ApiConfigRoute
   '/api/hosts': typeof ApiHostsRoute
   '/api/inject': typeof ApiInjectRoute
+  '/api/mcp': typeof ApiMcpRoute
   '/api/memory': typeof ApiMemoryRoute
   '/api/meta': typeof ApiMetaRoute
   '/api/replay': typeof ApiReplayRoute
@@ -255,6 +264,7 @@ export interface FileRouteTypes {
     | '/api/config'
     | '/api/hosts'
     | '/api/inject'
+    | '/api/mcp'
     | '/api/memory'
     | '/api/meta'
     | '/api/replay'
@@ -282,6 +292,7 @@ export interface FileRouteTypes {
     | '/api/config'
     | '/api/hosts'
     | '/api/inject'
+    | '/api/mcp'
     | '/api/memory'
     | '/api/meta'
     | '/api/replay'
@@ -309,6 +320,7 @@ export interface FileRouteTypes {
     | '/api/config'
     | '/api/hosts'
     | '/api/inject'
+    | '/api/mcp'
     | '/api/memory'
     | '/api/meta'
     | '/api/replay'
@@ -337,6 +349,7 @@ export interface RootRouteChildren {
   ApiConfigRoute: typeof ApiConfigRoute
   ApiHostsRoute: typeof ApiHostsRoute
   ApiInjectRoute: typeof ApiInjectRoute
+  ApiMcpRoute: typeof ApiMcpRoute
   ApiMemoryRoute: typeof ApiMemoryRoute
   ApiMetaRoute: typeof ApiMetaRoute
   ApiReplayRoute: typeof ApiReplayRoute
@@ -482,6 +495,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMemoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp': {
+      id: '/api/mcp'
+      path: '/api/mcp'
+      fullPath: '/api/mcp'
+      preLoaderRoute: typeof ApiMcpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/inject': {
       id: '/api/inject'
       path: '/api/inject'
@@ -556,6 +576,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiConfigRoute: ApiConfigRoute,
   ApiHostsRoute: ApiHostsRoute,
   ApiInjectRoute: ApiInjectRoute,
+  ApiMcpRoute: ApiMcpRoute,
   ApiMemoryRoute: ApiMemoryRoute,
   ApiMetaRoute: ApiMetaRoute,
   ApiReplayRoute: ApiReplayRoute,
