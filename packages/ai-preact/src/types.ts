@@ -97,7 +97,7 @@ export interface UseChatReturn<
   /**
    * Current messages in the conversation
    */
-  messages: Array<UIMessage<TTools>>
+  messages: ReadonlyArray<UIMessage<TTools>>
 
   /**
    * Send a message and get a response.
@@ -113,7 +113,7 @@ export interface UseChatReturn<
   /**
    * Pending messages queued while a stream is in flight.
    */
-  queue: Array<QueuedMessage>
+  queue: ReadonlyArray<QueuedMessage>
 
   /**
    * Cancel a queued message before it drains. No-op if already sent.

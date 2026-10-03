@@ -25,7 +25,7 @@ import ChatInput from '@/components/ChatInput'
 import { formatDuration } from '@/lib/efficiency'
 import { toolResultContentToString } from '@/lib/tool-result-content'
 
-export const Route = createFileRoute('/_database-demo/database-demo' as any)({
+export const Route = createFileRoute('/_database-demo/database-demo')({
   component: DatabaseDemoPage,
 })
 
@@ -355,7 +355,7 @@ function Messages({
   messages,
   toolCallEvents,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   toolCallEvents: Map<string, Array<VMEvent>>
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -641,7 +641,7 @@ const GOLD_PROMPT_MAP: Record<string, number> = {
   'For each city, show the total revenue, number of unique customers, and the most purchased product category': 4,
 }
 
-function extractReportText(messages: Array<UIMessage>): string {
+function extractReportText(messages: ReadonlyArray<UIMessage>): string {
   return messages
     .filter((m) => m.role === 'assistant')
     .flatMap((m) =>

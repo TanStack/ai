@@ -123,7 +123,7 @@ function RuntimeContextToolResult({
 function RuntimeMessages({
   messages,
 }: {
-  messages: Array<RuntimeContextMessage>
+  messages: ReadonlyArray<RuntimeContextMessage>
 }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const visibleMessages = messages.filter((message) =>

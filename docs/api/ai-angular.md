@@ -151,7 +151,7 @@ import type {
 type TSchema = any;
 
 interface InjectChatResult {
-  messages: Signal<UIMessage[]>;
+  messages: Signal<ReadonlyArray<UIMessage>>;
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,

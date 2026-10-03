@@ -160,10 +160,6 @@ export function useGeneration<
       onChunk: (c: StreamChunk) => {
         optionsRef.current.onChunk?.(c)
       },
-      onResultChange: setResult,
-      onLoadingChange: setIsLoading,
-      onErrorChange: setError,
-      onStatusChange: setStatus,
     }
 
     if (opts.connection) {
@@ -184,6 +180,18 @@ export function useGeneration<
       'useGeneration requires either a connection or fetcher option',
     )
   }, [clientId])
+
+  useEffect(() => {
+    const applySnapshot = () => {
+      const next = client.getSnapshot()
+      setResult(next.result)
+      setIsLoading(next.isLoading)
+      setError(next.error)
+      setStatus(next.status)
+    }
+    applySnapshot()
+    return client.subscribe(applySnapshot)
+  }, [client])
 
   // Sync body changes without recreating client
   useEffect(() => {

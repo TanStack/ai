@@ -75,6 +75,21 @@ afterEach(() => {
 })
 
 describe('AudioRecorder', () => {
+  it('uses Set subscription behavior and reports repeated states', async () => {
+    const recorder = new AudioRecorder()
+    const listener = vi.fn()
+    const first = recorder.subscribe(listener)
+    recorder.subscribe(listener)
+
+    getUserMedia.mockRejectedValueOnce(new Error('denied'))
+    await expect(recorder.start()).rejects.toThrow('denied')
+    expect(listener).toHaveBeenCalledTimes(1)
+    first()
+    getUserMedia.mockRejectedValueOnce(new Error('denied'))
+    await expect(recorder.start()).rejects.toThrow('denied')
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
   it('isSupported() is true when media APIs exist', () => {
     expect(AudioRecorder.isSupported()).toBe(true)
   })
