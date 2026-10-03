@@ -36,6 +36,7 @@ type ServerInfo = {
   prefix: string | undefined
   toolFilter?: (tool: { name: string }) => boolean
   needsApproval?: (tool: { name: string }) => boolean
+  toolName?: (tool: { name: string }) => string
 }
 
 // A method the call handler must never reach in these tests. Calling it is a
@@ -191,6 +192,35 @@ describe('createMcpAppCallHandler', () => {
       transport: { type: 'http', url: 'https://x/mcp' },
       prefix: 'weather',
       needsApproval,
+    })
+  })
+
+  it('reconnects with the client toolName', async () => {
+    const toolName = (tool: { name: string }) => `mcp__weather__${tool.name}`
+    const handler = createMcpAppCallHandler({
+      clients: fakePool({ weather: { ...WEATHER_HTTP, toolName } }),
+    })
+    await handler({ threadId: 't1', serverId: 'weather', toolName: 'x' })
+    expect(createMCPClient).toHaveBeenCalledWith({
+      transport: { type: 'http', url: 'https://x/mcp' },
+      prefix: 'weather',
+      toolName,
+    })
+  })
+
+  it('keeps the client toolName when a store returns a descriptor without it', async () => {
+    const toolName = (tool: { name: string }) => `mcp__weather__${tool.name}`
+    const store = inMemoryMcpSessionStore()
+    await store.set('t1', { weather: JSON.parse(JSON.stringify(WEATHER_HTTP)) })
+    const handler = createMcpAppCallHandler({
+      clients: fakePool({ weather: { ...WEATHER_HTTP, toolName } }),
+      store,
+    })
+    await handler({ threadId: 't1', serverId: 'weather', toolName: 'x' })
+    expect(createMCPClient).toHaveBeenCalledWith({
+      transport: { type: 'http', url: 'https://x/mcp' },
+      prefix: 'weather',
+      toolName,
     })
   })
 

@@ -766,6 +766,38 @@ describe('toServerTools — input schema defaults', () => {
   })
 })
 
+describe('toServerTools — toolName', () => {
+  it('names each tool with toolName, which wins over the prefix', () => {
+    const [tool] = toServerTools(
+      fakeMcpClient(vi.fn()),
+      [mcpToolDef({ name: 'get_weather' })],
+      { prefix: 'wx', toolName: (def) => `mcp__wx__${def.name}` },
+    )
+    expect(tool!.name).toBe('mcp__wx__get_weather')
+    expect(tool!.metadata.mcp).toMatchObject({
+      serverToolName: 'get_weather',
+      serverId: 'wx',
+    })
+  })
+
+  it('calls the server tool by its own name', async () => {
+    const callTool = vi
+      .fn()
+      .mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
+    const [tool] = toServerTools(
+      fakeMcpClient(callTool),
+      [mcpToolDef({ name: 'get_weather' })],
+      { toolName: () => 'renamed' },
+    )
+    expect(tool!.name).toBe('renamed')
+    await expect(tool!.execute!({})).resolves.toBe('ok')
+    expect(callTool).toHaveBeenCalledWith(
+      { name: 'get_weather', arguments: {} },
+      expect.anything(),
+    )
+  })
+})
+
 describe('toServerTools', () => {
   it('discovers tools and proxies execute to callTool', async () => {
     const { clientTransport } = await makeServerWithWeatherTool()

@@ -16,6 +16,7 @@ import type {
 import type { AnyTool } from '@tanstack/ai'
 import type { CredentialsAccess } from '@tanstack/ai-harness'
 import type { MCPClient } from './client'
+import type { MCPClientOptions } from './types'
 
 export interface McpConnectorOptions {
   /** A short id, for example `'notion'`. Commands are `connect:<id>` and `disconnect:<id>`. */
@@ -25,6 +26,11 @@ export interface McpConnectorOptions {
   url: string
   /** Tool name prefix. Default: the id. Tools are named `<prefix>_<tool>`. */
   prefix?: string
+  /**
+   * The name the model sees for each tool. Wins over `prefix`.
+   * See `MCPClientOptions.toolName`.
+   */
+  toolName?: MCPClientOptions['toolName']
   /** OAuth scopes to ask for. Default: what the server offers. */
   scopes?: ReadonlyArray<string>
   /** The client name shown on the consent screen. Default `'TanStack AI Harness'`. */
@@ -242,6 +248,7 @@ export function mcpConnector(options: McpConnectorOptions) {
                   ...(options.fetch ? { fetch: options.fetch } : {}),
                 },
                 prefix,
+                toolName: options.toolName,
                 needsApproval:
                   options.needsApproval ??
                   ((tool) => tool.annotations?.readOnlyHint !== true),

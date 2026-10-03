@@ -473,3 +473,30 @@ describe('mcpConnector stored credential shapes', () => {
     expect(model.toolNames(0)).toEqual([])
   })
 })
+
+describe('mcpConnector client options', () => {
+  it('names the tools with toolName', async () => {
+    const { server, host } = await setup({
+      type: 'oauth',
+      accessToken: 'access-1',
+    })
+    const model = recorder()
+    const session = await host.open(
+      defineHarness({
+        name: 'test/tool-name',
+        adapter: model.adapter,
+        plugins: () => [
+          mcpConnector({
+            id: 'demo',
+            label: 'Demo',
+            url: server.url,
+            toolName: (tool) => `mcp__demo__${tool.name}`,
+          }),
+        ],
+      }),
+      { threadId: 't', principal: { id: 'user-1' } },
+    )
+    await session.prompt('hi')
+    expect(model.toolNames(0)).toEqual(['mcp__demo__echo'])
+  })
+})

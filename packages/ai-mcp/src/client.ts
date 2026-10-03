@@ -56,7 +56,10 @@ export type TypedCallToolResult<TOutput> = unknown extends TOutput
   ? CallToolResult
   : Omit<CallToolResult, 'structuredContent'> & { structuredContent?: TOutput }
 
-type ToolPolicy = Pick<MCPClientOptions, 'toolFilter' | 'needsApproval'>
+type ToolPolicy = Pick<
+  MCPClientOptions,
+  'toolFilter' | 'needsApproval' | 'toolName'
+>
 
 export interface MCPClient<
   TServer extends ServerDescriptor = AutomaticDescriptor,
@@ -74,9 +77,9 @@ export interface MCPClient<
     (options?: ToolsOptions): Promise<DescriptorTools<TServer>>
     /**
      * Explicit: bind these TanStack toolDefinitions to the server (typed +
-     * validated, allowlist). Note: when the client has a `prefix`, the
-     * runtime tool name is `${prefix}_${def.name}` while the static `TName`
-     * stays the unprefixed definition name.
+     * validated, allowlist). Note: the runtime tool name is `toolName(tool)`
+     * when the client sets `toolName`, else `${prefix}_${def.name}` with a
+     * `prefix`. The static `TName` stays the definition name.
      */
     <const TDefs extends ReadonlyArray<AnyToolDefinition>>(
       defs: TDefs,
@@ -143,6 +146,7 @@ export interface MCPClient<
     clientOptions?: ClientOptions
     toolFilter?: MCPClientOptions['toolFilter']
     needsApproval?: MCPClientOptions['needsApproval']
+    toolName?: MCPClientOptions['toolName']
   }
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
@@ -208,14 +212,16 @@ class MCPClientImpl<
     clientOptions?: ClientOptions
     toolFilter?: MCPClientOptions['toolFilter']
     needsApproval?: MCPClientOptions['needsApproval']
+    toolName?: MCPClientOptions['toolName']
   } {
-    const { toolFilter, needsApproval } = this.#policy
+    const { toolFilter, needsApproval, toolName } = this.#policy
     return {
       transport: this.#transport,
       prefix: this.prefix,
       ...(this.#clientOptions ? { clientOptions: this.#clientOptions } : {}),
       ...(toolFilter ? { toolFilter } : {}),
       ...(needsApproval ? { needsApproval } : {}),
+      ...(toolName ? { toolName } : {}),
     }
   }
 
@@ -291,7 +297,7 @@ class MCPClientImpl<
       : // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         ((defsOrOptions as ToolsOptions) ?? {}) // SDK interop: defsOrOptions may be undefined at runtime even though TS types it as ToolsOptions here
 
-    const { toolFilter, needsApproval } = this.#policy
+    const { toolFilter, needsApproval, toolName } = this.#policy
     const listed = await this.#listTools()
     const defs = toolFilter ? listed.filter((def) => toolFilter(def)) : listed
 
@@ -335,9 +341,13 @@ class MCPClientImpl<
         // recover the UNPREFIXED native name + serverId, and carries the
         // server's display title / annotations to the host — mirrors
         // toServerTools.
+        // `toolName` wins over the prefix. metadata.mcp keeps the server name.
+        const name =
+          toolName?.(serverTool) ??
+          (this.prefix ? `${this.prefix}_${def.name}` : def.name)
         const tool: McpServerTool = {
           ...bound,
-          ...(this.prefix ? { name: `${this.prefix}_${def.name}` } : {}),
+          name,
           ...(options.lazy ? { lazy: true } : {}),
           metadata: {
             ...bound.metadata,
@@ -350,6 +360,7 @@ class MCPClientImpl<
       // Auto-discovery path.
       tools = toServerTools(this.#client, defs, {
         prefix: this.prefix,
+        toolName,
         lazy: options.lazy,
         needsApproval,
       })
@@ -510,7 +521,11 @@ async function connectTransport<
     // instance is single-use, so it is not retained as a descriptor.
     isTransportInstance(options.transport) ? undefined : options.transport,
     options.clientOptions,
-    { toolFilter: options.toolFilter, needsApproval: options.needsApproval },
+    {
+      toolFilter: options.toolFilter,
+      needsApproval: options.needsApproval,
+      toolName: options.toolName,
+    },
   )
   await impl.connect(transport)
   return impl

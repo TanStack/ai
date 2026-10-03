@@ -28,6 +28,7 @@ import type { McpServerTool, McpToolMetadata } from './types'
 
 interface ConvertOptions {
   prefix?: string
+  toolName?: (tool: McpToolDef) => string
   lazy?: boolean
   needsApproval?: (tool: McpToolDef) => boolean
 }
@@ -701,7 +702,10 @@ export function toServerTools(
   return defs
     .filter((def) => !requiresTaskExecution(def) || supportsTasks)
     .map((def) => {
-      const name = options.prefix ? `${options.prefix}_${def.name}` : def.name
+      // `toolName` wins over the prefix. metadata.mcp keeps the server name.
+      const name =
+        options.toolName?.(def) ??
+        (options.prefix ? `${options.prefix}_${def.name}` : def.name)
       // A server can leave out `type` or `properties`. Fill both, because
       // some providers reject an object schema without `properties`.
       const schema: Partial<McpToolDef['inputSchema']> = def.inputSchema ?? {}

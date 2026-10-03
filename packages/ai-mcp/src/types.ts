@@ -87,6 +87,24 @@ export interface MCPClientOptions {
   transport: TransportInput
   /** Tool-name prefix (e.g. 'github' → 'github_search'). Default: none. */
   prefix?: string
+  /**
+   * The name the model sees for each tool. Wins over `prefix`.
+   * Receives the raw MCP tool definition (native `name`).
+   * Default: `${prefix}_${tool.name}` with a prefix, else `tool.name`.
+   *
+   * Applies to `tools()` and `tools([...defs])`. Two tools with the same
+   * final name throw `DuplicateToolNameError`.
+   * `metadata.mcp.serverToolName` keeps the server's own name, so
+   * `callTool()` and MCP Apps widget calls still reach the tool.
+   *
+   * ```ts
+   * const mcp = await createMCPClient({
+   *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+   *   toolName: (tool) => `mcp__github__${tool.name}`,
+   * })
+   * ```
+   */
+  toolName?: (tool: McpToolDef) => string
   /** Client identity sent to the server. */
   name?: string
   version?: string

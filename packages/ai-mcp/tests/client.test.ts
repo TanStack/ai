@@ -19,6 +19,7 @@ import {
   makeServerWithChangingTools,
   makeServerWithLaxOutputSchemaTool,
   makeServerWithLoopingCursor,
+  makeServerWithMixedTools,
   makeServerWithPaginatedLaxSchemaTool,
   makeServerWithPaginatedTools,
   makeServerWithPendingTaskTool,
@@ -178,6 +179,62 @@ describe('createMCPClient', () => {
       openWorldHint: true,
     })
     expect(Object.isFrozen(mcp.annotations)).toBe(true)
+  })
+
+  it('names bound definitions with toolName and keeps the server name', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      prefix: 'wx',
+      toolName: (tool) => `mcp__weather__${tool.name}`,
+    })
+    const getWeather = toolDefinition({
+      name: 'get_weather',
+      description: 'Get weather for a city',
+      inputSchema: z.object({ city: z.string() }),
+    })
+    const tools = await client.tools([getWeather])
+    expect(tools[0].name).toBe('mcp__weather__get_weather')
+    expect(tools[0].metadata.mcp).toMatchObject({
+      serverToolName: 'get_weather',
+      serverId: 'wx',
+    })
+    // The call still reaches the server tool by its own name.
+    const result = await tools[0].execute!(
+      { city: 'Oslo' },
+      { toolCallId: 't', emitCustomEvent: () => {} },
+    )
+    expect(JSON.stringify(result)).toContain('Sunny in Oslo')
+  })
+
+  it('throws DuplicateToolNameError naming the name when toolName gives two tools the same name', async () => {
+    const { clientTransport } = await makeServerWithMixedTools()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      toolName: () => 'same_name',
+    })
+    const error: unknown = await client.tools().catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(DuplicateToolNameError)
+    if (!(error instanceof DuplicateToolNameError)) {
+      throw new Error('expected DuplicateToolNameError')
+    }
+    expect(error.toolName).toBe('same_name')
+    expect(error.message).toContain('"same_name"')
+  })
+
+  it('reports toolName on getInfo so a rebuilt client keeps it', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    const toolName = (tool: { name: string }) => `mcp__weather__${tool.name}`
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      prefix: 'wx',
+      toolName,
+    })
+    expect(client.getInfo()).toStrictEqual({
+      transport: undefined,
+      prefix: 'wx',
+      toolName,
+    })
   })
 
   it('discovers and executes task-required tools', async () => {
