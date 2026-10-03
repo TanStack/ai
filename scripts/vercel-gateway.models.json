@@ -1982,7 +1982,8 @@
       "reasoning",
       "structured-output",
       "tool-use",
-      "vision"
+      "vision",
+      "explicit-caching"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -5778,6 +5779,54 @@
     "pricing": {}
   },
   {
+    "id": "convaiinnovations/laya",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790812800,
+    "owned_by": "convaiinnovations",
+    "name": "Laya",
+    "description": "Laya is Convai Innovations’ System One evaluation model for fast, structured decisions. It evaluates shared state against choice, score, and yes/no questions and returns typed answers with probabilities in a single forward pass. It supports classification, routing, guardrail checks, and rubric-based assessment without generating free-form text.",
+    "context_window": 8192,
+    "max_tokens": 0,
+    "type": "evaluation",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["free"],
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0",
+      "output": "0"
+    }
+  },
+  {
+    "id": "convaiinnovations/laya-free",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790812800,
+    "owned_by": "convaiinnovations",
+    "name": "Laya (Free)",
+    "description": "Laya is Convai Innovations’ System One evaluation model for fast, structured decisions. It evaluates shared state against choice, score, and yes/no questions and returns typed answers with probabilities in a single forward pass. It supports classification, routing, guardrail checks, and rubric-based assessment without generating free-form text.",
+    "context_window": 8192,
+    "max_tokens": 0,
+    "type": "evaluation",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["free"],
+    "supported_specifications": ["v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0",
+      "output": "0"
+    }
+  },
+  {
     "id": "deepseek/deepseek-r1",
     "object": "model",
     "created": 1755815280,
@@ -6210,7 +6259,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "high", "max"]
+        "values": ["none", "low", "high", "max"]
       }
     ],
     "knowledge": "2025-05",
@@ -6231,7 +6280,8 @@
             "end_minute_utc": 600,
             "days_of_week": [1, 2, 3, 4, 5]
           }
-        ]
+        ],
+        "holiday_calendar": "cn"
       },
       "varies_by_provider": true,
       "regional": {
@@ -6281,7 +6331,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "high", "max"]
+        "values": ["none", "low", "high", "max"]
       }
     ],
     "pricing": {
@@ -6351,7 +6401,7 @@
       },
       {
         "type": "effort",
-        "values": ["none", "high", "max"]
+        "values": ["none", "low", "high", "max"]
       }
     ],
     "pricing": {
@@ -6359,6 +6409,11 @@
       "output": "0.0000012",
       "input_cache_read": "0.000000007",
       "varies_by_provider": true,
+      "fast": {
+        "input": "0.0000003",
+        "output": "0.0000012",
+        "input_cache_read": "0.000000006"
+      },
       "regional": {
         "us": {
           "input": "0.0000003",
@@ -6366,6 +6421,58 @@
           "input_cache_read": "0.000000007"
         }
       }
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v4.1-flash-fast",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790640000,
+    "owned_by": "deepseek",
+    "name": "DeepSeek V4.1 Flash Fast",
+    "description": "Speed-optimized deployment of DeepSeek V4.1 Flash using tensor parallelism and DSpark speculative decoding for faster token output and lower latency.",
+    "context_window": 1048576,
+    "max_tokens": 1000000,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "implicit-caching",
+      "reasoning",
+      "structured-output",
+      "tool-use",
+      "vision"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning",
+      "response_format",
+      "structured_outputs"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.0000003",
+      "output": "0.0000012",
+      "input_cache_read": "0.000000006"
     }
   },
   {
@@ -7965,9 +8072,9 @@
     "released": 1790121600,
     "owned_by": "google",
     "name": "Gemini 3.8 Flash-Lite TTS",
-    "description": "Gemini 3.8 Flash-Lite TTS is Google’s text-to-speech model optimized for high-volume, cost-efficient audio generation across more than 100 languages. It combines expressive speech with fine-grained control over tone, pacing, and line-by-line delivery, supporting long-form narration and native two-speaker conversations. Built for scale, it helps developers and creators power multilingual dubbing, audio content production, and expressive voice agents.",
+    "description": "Gemini 3.8 Flash-Lite TTS is Google's preview text-to-speech model for low-latency, high-volume speech generation in 101 languages. It supports single- and multi-speaker speech, streaming synthesis, and style direction using the same request schema as Gemini 3.8 Flash TTS. Prebuilt and curated voices, voice design, and voice replication support read-aloud features and conversational voice agents.",
     "type": "speech",
-    "zdr": "none",
+    "zdr": "some",
     "no_training": "all",
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -7983,7 +8090,6 @@
     "pricing": {
       "input": "0.0000005",
       "output": "0.000006",
-      "input_cache_read": "0.000000125",
       "audio_output_token_cost": "0.000006"
     }
   },
@@ -7994,9 +8100,9 @@
     "released": 1790121600,
     "owned_by": "google",
     "name": "Gemini 3.8 Flash TTS",
-    "description": "Gemini 3.8 Flash TTS is Google’s text-to-speech model for expressive voice generation and custom character design across more than 100 languages. It creates original voices from natural language prompts and offers granular control over acting cues, pacing, accents, and conversational reactions. Long-form audio and native two-speaker dialogue make it well suited to immersive audiobooks, games, podcasts, and interactive media",
+    "description": "Gemini 3.8 Flash TTS is Google's preview text-to-speech model for expressive narration and multi-speaker dialogue in 130 languages. It supports line-by-line style direction, regional accents, streaming synthesis, and consistent long-form audio. Prebuilt and curated voices, voice design, and voice replication help creators produce audiobooks, studio narration, games, and podcasts.",
     "type": "speech",
-    "zdr": "none",
+    "zdr": "some",
     "no_training": "all",
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -8012,7 +8118,6 @@
     "pricing": {
       "input": "0.0000005",
       "output": "0.000009",
-      "input_cache_read": "0.000000125",
       "audio_output_token_cost": "0.000009"
     }
   },
@@ -9218,7 +9323,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9271,7 +9376,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9315,7 +9420,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9374,7 +9479,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9440,7 +9545,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9490,7 +9595,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9573,7 +9678,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "tags": ["video-generation"],
     "supported_specifications": ["v3", "v4"],
     "modalities": {
@@ -9640,7 +9745,7 @@
     "max_tokens": 0,
     "type": "video",
     "zdr": "none",
-    "no_training": "none",
+    "no_training": "all",
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9706,7 +9811,7 @@
     "owned_by": "liquid",
     "name": "Liquid d1",
     "description": "Liquid d1 is a decision model for classification, routing, and scoring. It evaluates shared state against typed Choice, Score, and yes/no questions and returns structured answers with calibrated probabilities through the TypeSafe-compatible System One API.",
-    "context_window": 32000,
+    "context_window": 65536,
     "max_tokens": 0,
     "type": "evaluation",
     "zdr": "none",
@@ -9717,7 +9822,7 @@
       "output": ["text"]
     },
     "pricing": {
-      "input": "0",
+      "input": "0.00000004",
       "output": "0"
     }
   },
@@ -10331,6 +10436,151 @@
       "input": "0.0000001",
       "output": "0.0000002",
       "input_cache_read": "0.000000002"
+    }
+  },
+  {
+    "id": "microsoft/mai-transcribe-1.5",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1780272000,
+    "owned_by": "microsoft",
+    "name": "MAI-Transcribe-1.5",
+    "description": "Microsoft AI's multilingual speech-to-text model for file transcription, with automatic language detection and keyword biasing. Returns the transcript, audio duration, and a timed segment. ",
+    "type": "transcription",
+    "zdr": "all",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["audio"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.0000000001",
+      "transcription_duration_cost_per_second": "0.0001"
+    }
+  },
+  {
+    "id": "microsoft/mai-transcribe-2",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1788393600,
+    "owned_by": "microsoft",
+    "name": "MAI-Transcribe 2",
+    "description": "MAI-Transcribe 2 is a multilingual speech-to-text model from Microsoft AI, ranked #1 on the FLEURS multilingual benchmark. It supports 60 languages with automatic language identification, code switching for mixed-language speech, speaker diarization, word-level timestamps, keyword biasing for domain-specific terminology, and configurable verbatim or clean transcription styles. It is suited for captions, call transcription, subtitling, accessibility, and other voice-enabled applications, and is faster than MAI-Transcribe-1.5 on long-form audio.",
+    "type": "transcription",
+    "zdr": "all",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["audio"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0",
+      "transcription_duration_cost_per_second": "0.00002778"
+    }
+  },
+  {
+    "id": "microsoft/mai-transcribe-2-streaming",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790812800,
+    "owned_by": "microsoft",
+    "name": "MAI-Transcribe-2-Streaming",
+    "description": "MAI-Transcribe-2-Streaming is a low-latency, \"speech in, text out\" realtime transcription API. Audio can be sent to the model as a continuous stream over a WebSocket connection and transcripts are returned incrementally as the speaker talks, with no need to wait for the utterance to finish. Intermediate results (aka Partials) update the current transcription; final results confirm a segment.",
+    "type": "transcription",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": ["websocket-transcription"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["audio"],
+      "output": ["text"]
+    },
+    "pricing": {}
+  },
+  {
+    "id": "microsoft/mai-voice-2",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1780358400,
+    "owned_by": "microsoft",
+    "name": "MAI-Voice-2",
+    "description": "Microsoft AI's highest-fidelity text-to-speech model, with expressive multilingual voices and consistent speakers across long-form narration. Served through Azure Speech (preview).",
+    "type": "speech",
+    "zdr": "all",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.000022",
+      "speech_input_character_cost": "0.000022"
+    }
+  },
+  {
+    "id": "microsoft/mai-voice-2-flash",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1784764800,
+    "owned_by": "microsoft",
+    "name": "MAI-Voice-2-Flash",
+    "description": "Microsoft AI's low-latency text-to-speech model for voice agents and assistants, with the expressive multilingual voices of MAI-Voice-2 at twice the speed.",
+    "type": "speech",
+    "zdr": "all",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.000015",
+      "speech_input_character_cost": "0.000015"
+    }
+  },
+  {
+    "id": "microsoft/mai-voice-2.1",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790812800,
+    "owned_by": "microsoft",
+    "name": "MAI-Voice-2.1",
+    "description": "MAI-Voice-2.1 is our highest-fidelity, most expressive text-to-speech model, delivering rich, natural speech across 23 languages. It extends the MAI-Voice family with broad multilingual coverage, gated instant voice cloning, and strong long-form generation capabilities. With its detailed prosody, nuanced expressiveness, and studio-grade audio quality, MAI-Voice-2.1 is ideal for experiences where maximum voice quality and fidelity are required - long-form narration, brand-defining audio etc.",
+    "type": "speech",
+    "zdr": "all",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.000022",
+      "speech_input_character_cost": "0.000022"
+    }
+  },
+  {
+    "id": "microsoft/mai-voice-2.1-flash",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790812800,
+    "owned_by": "microsoft",
+    "name": "MAI-Voice-2.1-Flash",
+    "description": "MAI-Voice-2.1-Flash is a text-to-speech model built for fast, low-latency generation. It produces high- fidelity, natural, and expressive speech across 23 languages and supports gated instant voice cloning, all while being optimized for real-time responsiveness. Its human-like intonation, rhythm, and emotional nuance make it ideal for voice agents, assistants, and other interactive scenarios where latency and cost are critical.",
+    "type": "speech",
+    "zdr": "all",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.000015",
+      "speech_input_character_cost": "0.000015"
     }
   },
   {
@@ -12400,6 +12650,7 @@
       "structured-output",
       "fast"
     ],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -12432,6 +12683,18 @@
         "input": "0.00000425",
         "output": "0.000017",
         "input_cache_read": "0.000002125"
+      },
+      "regional": {
+        "eu": {
+          "input": "0.0000025",
+          "output": "0.00001",
+          "input_cache_read": "0.00000125"
+        },
+        "us": {
+          "input": "0.0000025",
+          "output": "0.00001",
+          "input_cache_read": "0.00000125"
+        }
       }
     }
   },
@@ -12457,6 +12720,7 @@
       "structured-output",
       "fast"
     ],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -12477,7 +12741,19 @@
       "input": "0.00000425",
       "output": "0.000017",
       "input_cache_read": "0.000002125",
-      "web_search": "10"
+      "web_search": "10",
+      "regional": {
+        "eu": {
+          "input": "0.00000425",
+          "output": "0.000017",
+          "input_cache_read": "0.000002125"
+        },
+        "us": {
+          "input": "0.00000425",
+          "output": "0.000017",
+          "input_cache_read": "0.000002125"
+        }
+      }
     }
   },
   {
@@ -12502,6 +12778,7 @@
       "structured-output",
       "fast"
     ],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -12534,6 +12811,18 @@
         "input": "0.00000025",
         "output": "0.000001",
         "input_cache_read": "0.000000125"
+      },
+      "regional": {
+        "eu": {
+          "input": "0.00000015",
+          "output": "0.0000006",
+          "input_cache_read": "0.000000075"
+        },
+        "us": {
+          "input": "0.00000015",
+          "output": "0.0000006",
+          "input_cache_read": "0.000000075"
+        }
       }
     }
   },
@@ -12559,6 +12848,7 @@
       "structured-output",
       "fast"
     ],
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text", "image", "pdf"],
@@ -12579,7 +12869,19 @@
       "input": "0.00000025",
       "output": "0.000001",
       "input_cache_read": "0.000000125",
-      "web_search": "10"
+      "web_search": "10",
+      "regional": {
+        "eu": {
+          "input": "0.00000025",
+          "output": "0.000001",
+          "input_cache_read": "0.000000125"
+        },
+        "us": {
+          "input": "0.00000025",
+          "output": "0.000001",
+          "input_cache_read": "0.000000125"
+        }
+      }
     }
   },
   {
@@ -16330,6 +16632,17 @@
             "output": "0.00015",
             "input_cache_read": "0.000004"
           }
+        },
+        "ultrafast": {
+          "input": "0.00006",
+          "output": "0.0003",
+          "input_cache_read": "0.000006",
+          "long_context": {
+            "threshold": 272001,
+            "input": "0.00012",
+            "output": "0.00045",
+            "input_cache_read": "0.000012"
+          }
         }
       },
       "fast": {
@@ -19279,13 +19592,22 @@
     "type": "embedding",
     "zdr": "some",
     "no_training": "all",
+    "regions": ["eu", "us"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
       "output": ["text"]
     },
     "pricing": {
-      "input": "0.00000002"
+      "input": "0.00000002",
+      "regional": {
+        "eu": {
+          "input": "0.00000002"
+        },
+        "us": {
+          "input": "0.00000002"
+        }
+      }
     }
   },
   {
@@ -19580,6 +19902,7 @@
       "input": ["text"],
       "output": ["image"]
     },
+    "deprecated_at": 1792137600000,
     "pricing": {
       "image_dimension_quality_pricing": [
         {
@@ -21594,6 +21917,77 @@
     }
   },
   {
+    "id": "spacexai/grok-imagine-video-1.5-lite",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790812800,
+    "owned_by": "spacexai",
+    "name": "Grok Imagine Video 1.5 Lite",
+    "description": "Grok Imagine Video 1.5 Lite is xAI's lightweight video generation model for turning text prompts and images into clips with native audio. It supports videos from 1 to 15 seconds in 480p, 720p, and 1080p, with seven aspect ratios for formats including widescreen 16:9 and vertical 9:16.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "video",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["video"]
+    },
+    "reasoning_options": [
+      {
+        "type": "toggle"
+      },
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
+    "video_capabilities": {
+      "supported_operations": ["text-to-video", "image-to-video"],
+      "supported_resolutions": ["480p", "720p", "1080p"],
+      "supported_aspect_ratios": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "3:2",
+        "2:3"
+      ],
+      "supported_durations_seconds": [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+      ],
+      "generate_audio": true,
+      "supported_fps": [24],
+      "input_limits": {
+        "image": {
+          "max_count": 7,
+          "supported_sources": ["url", "base64"]
+        },
+        "audio": {
+          "supported_sources": ["url"]
+        }
+      }
+    },
+    "pricing": {
+      "video_duration_pricing": [
+        {
+          "resolution": "480p",
+          "cost_per_second": "0.02"
+        },
+        {
+          "resolution": "720p",
+          "cost_per_second": "0.03"
+        },
+        {
+          "resolution": "1080p",
+          "cost_per_second": "0.14"
+        }
+      ]
+    }
+  },
+  {
     "id": "spacexai/grok-stt",
     "object": "model",
     "created": 1755815280,
@@ -21732,44 +22126,6 @@
     "pricing": {
       "realtime_client_message_cost": "0.004",
       "realtime_session_duration_cost_per_second": "0.001334"
-    }
-  },
-  {
-    "id": "stealth/pixel-canary",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1790294400,
-    "owned_by": "stealth",
-    "name": "Pixel Canary",
-    "description": "Pixel Canary is an anonymous large model with strong coding capabilities and adjustable reasoning effort. It is well suited to web and mobile app development, helping developers build and refine applications across both platforms. Prompts and outputs may be retained for training by the provider.",
-    "context_window": 262144,
-    "max_tokens": 131072,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["reasoning", "implicit-caching", "vision"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "xhigh"]
-      }
-    ],
-    "pricing": {
-      "input": "0",
-      "output": "0"
     }
   },
   {
@@ -22188,7 +22544,7 @@
     "released": 1789430400,
     "owned_by": "typesafe-ai",
     "name": "Jev",
-    "description": "TypeSafe AI System One evaluation model. Accepts shared state and typed questions, returning choices, scores, and boolean probabilities. Limits: 64,000 tokens total per request; 32,000 tokens for the state plus the longest question. No streaming or output-token limit.",
+    "description": "TypeSafe AI System One decision model. Accepts shared state and typed questions, returning choices, scores, and boolean probabilities. Limits: 64,000 tokens total per request; 32,000 tokens for the state plus the longest question. No streaming or output-token limit.",
     "context_window": 32000,
     "max_tokens": 0,
     "type": "evaluation",
@@ -22234,6 +22590,50 @@
     "owned_by": "voyage",
     "name": "Voyage Rerank 2.5 Lite",
     "description": "A generalist reranker optimized for both latency and quality with instruction-following and multilingual support.",
+    "context_window": 32000,
+    "max_tokens": 32000,
+    "type": "reranking",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.00000002"
+    }
+  },
+  {
+    "id": "voyage/rerank-3",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790726400,
+    "owned_by": "voyage",
+    "name": "Voyage Rerank 3",
+    "description": "A general-purpose reranker optimized for retrieval accuracy.",
+    "context_window": 32000,
+    "max_tokens": 32000,
+    "type": "reranking",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0.00000005"
+    }
+  },
+  {
+    "id": "voyage/rerank-3-lite",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1790726400,
+    "owned_by": "voyage",
+    "name": "Voyage Rerank 3 Lite",
+    "description": "A fast, cost-effective reranker optimized for latency-sensitive retrieval.",
     "context_window": 32000,
     "max_tokens": 32000,
     "type": "reranking",
@@ -22569,20 +22969,20 @@
     "released": 1789948800,
     "owned_by": "xiaomi",
     "name": "MiMo V2.6 Flash",
-    "description": "MiMo V2.6 Flash is Xiaomi's efficient multimodal reasoning model for coding, automation, and everyday agent workflows. It accepts text, images, audio, and video within a 1M-token context window, with up to 128K tokens of output. Deep thinking, tool calling, JSON mode, and prompt caching make it suitable for applications that need multimodal understanding at a lower token cost.",
+    "description": "MiMo-V2.6-Flash is an open-source Mixture-of-Experts model from Xiaomi with 309B total parameters and 15B activated per token. Its hybrid attention (sliding-window layers interleaved with global attention) keeps long-context serving efficient across a 1M-token context window. It accepts text and image input and is suited for coding, agent workflows and high-volume tool use.\n\nReasoning is supported and enabled by default.",
     "context_window": 1048576,
     "max_tokens": 131072,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
     "tags": [
+      "audio-input",
       "implicit-caching",
       "reasoning",
       "structured-output",
       "tool-use",
-      "vision",
-      "audio-input",
-      "video-input"
+      "video-input",
+      "vision"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
@@ -22611,9 +23011,9 @@
       }
     ],
     "pricing": {
-      "input": "0.00000014",
-      "output": "0.00000028",
-      "input_cache_read": "0.0000000028",
+      "input": "0.00000004",
+      "output": "0.00000128",
+      "input_cache_read": "0.00000004",
       "varies_by_provider": true
     }
   },
@@ -22631,13 +23031,13 @@
     "zdr": "some",
     "no_training": "some",
     "tags": [
+      "audio-input",
       "implicit-caching",
       "reasoning",
       "structured-output",
       "tool-use",
-      "vision",
-      "audio-input",
-      "video-input"
+      "video-input",
+      "vision"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
