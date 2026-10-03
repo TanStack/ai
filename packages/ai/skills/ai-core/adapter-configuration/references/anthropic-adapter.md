@@ -27,6 +27,7 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 | `claude-fable-5`     | 1M             | 128K       | Most capable; thinking always on (adaptive) |
 | `claude-opus-5`      | 1M             | 128K       | Opus tier; budget thinking + sampling       |
 | `claude-opus-5-fast` | 1M             | 128K       | Fast-mode Opus 5; same options as opus-5    |
+| `claude-sonnet-5-5`  | 1M             | 128K       | Sonnet tier; adaptive-only, no sampling     |
 | `claude-sonnet-5`    | 1M             | 128K       | Best balance; adaptive thinking by default  |
 | `claude-opus-4-8`    | 1M             | 128K       | Opus tier; adaptive thinking, no sampling   |
 | `claude-opus-4-7`    | 1M             | 128K       | Older Opus; adaptive thinking, no sampling  |
@@ -43,10 +44,10 @@ every registered id resolves against the first-party Anthropic API.
 `claude-opus-5-fast` is the only `-fast` id that remains.
 
 `output_config.effort` is typed only on the adaptive-era models
-(`claude-opus-4-7`, `claude-opus-4-8`, `claude-sonnet-5`, `claude-fable-5`,
-`claude-fable-5-1`). There is no top-level `effort` option on any model;
-`claude-opus-4-6` / `claude-sonnet-4-6` accept `thinking: { type: 'adaptive' }`
-but no effort knob.
+(`claude-opus-4-7`, `claude-opus-4-8`, `claude-sonnet-5`, `claude-sonnet-5-5`,
+`claude-fable-5`, `claude-fable-5-1`, `claude-opus-5`, `claude-opus-5-5`).
+There is no top-level `effort` option on any model. `claude-opus-4-6` /
+`claude-sonnet-4-6` accept `thinking: { type: 'adaptive' }` but no effort knob.
 
 ## Provider-Specific modelOptions
 
@@ -122,11 +123,11 @@ chat({
   messages,
   modelOptions: {
     // Adaptive thinking only — budget_tokens is rejected (400).
-    // On claude-fable-5, { type: 'disabled' } is also rejected;
-    // elsewhere it opts out of thinking.
+    // On claude-fable-5 and claude-sonnet-5-5, { type: 'disabled' } is
+    // also rejected; elsewhere it opts out of thinking.
     thinking: { type: 'adaptive', display: 'summarized' },
     // Effort lives under output_config; 'xhigh' is available on
-    // Opus 4.7+, Sonnet 5, and Fable 5.
+    // Opus 4.7+, Sonnet 5, Sonnet 5.5, and Fable 5.
     output_config: { effort: 'xhigh' },
     max_tokens: 64_000,
     // NO temperature / top_p / top_k — the API rejects them on these models
@@ -139,8 +140,8 @@ chat({
 - `thinking.budget_tokens` must be >= 1024 AND less than `modelOptions.max_tokens`.
   Failing either check throws a validation error.
 - Cannot set both `top_p` and `temperature` at the same time (throws error).
-- `claude-sonnet-5`, `claude-fable-5`, `claude-opus-4-8`, and
-  `claude-opus-4-7` do NOT accept `temperature`, `top_p`, `top_k`, or
+- `claude-sonnet-5`, `claude-sonnet-5-5`, `claude-fable-5`, `claude-opus-4-8`,
+  and `claude-opus-4-7` do NOT accept `temperature`, `top_p`, `top_k`, or
   `thinking: { type: 'enabled', budget_tokens }` — adaptive thinking +
   `output_config.effort` replace them (typed per model).
 - System prompts support prompt caching via `cache_control` on `TextBlockParam[]`.

@@ -278,6 +278,10 @@ Per-model rules (enforced by the adapter's types):
 - **`claude-fable-5`** — thinking is always on. The only accepted explicit
   config is `{ type: "adaptive" }` (both `disabled` and `budget_tokens`
   return a 400), and sampling parameters are rejected.
+- **`claude-sonnet-5-5`** — the types accept only `{ type: "adaptive" }`.
+  Both `disabled` and `budget_tokens` return a 400, and so do non-default
+  sampling values. To turn off up-front thinking, the API takes
+  `{ type: "between_tools" }`, which the adapter does not type yet.
 - **`claude-opus-4-6` / `claude-sonnet-4-6`** — accept
   `{ type: "adaptive" }` alongside the deprecated
   `{ type: "enabled", budget_tokens }` shape, and still accept sampling
@@ -285,11 +289,12 @@ Per-model rules (enforced by the adapter's types):
 - **`display`** defaults to `"omitted"` on Opus 4.7+ and the 5-generation
   models — set `"summarized"` to stream the reasoning text.
 - **`effort`** accepts `"low" | "medium" | "high" | "xhigh" | "max"`;
-  `"xhigh"` is available on Claude Opus 4.7+, Claude Sonnet 5, and
-  Claude Fable 5.
+  `"xhigh"` is available on Claude Opus 4.7+, Claude Sonnet 5, Claude
+  Sonnet 5.5, and Claude Fable 5.
 - **`output_config`** is accepted on Claude Opus 4.7, Opus 4.8, Sonnet 5,
-  Fable 5, Opus 5, Fable 5.1 and Opus 5.5. When you also pass an `outputSchema`, the
-  adapter adds `output_config.format` and keeps the `effort` you set.
+  Fable 5, Opus 5, Fable 5.1, Opus 5.5, and Sonnet 5.5. When you also pass
+  an `outputSchema`, the adapter adds `output_config.format` and keeps the
+  `effort` you set.
 
 ### Prompt Caching
 
@@ -529,7 +534,7 @@ const stream = chat({
 });
 ```
 
-**Supported models:** Claude Sonnet 3.5 and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+**Supported models:** Claude Sonnet 3.5 and above, except Claude Opus 5.5 and Claude Sonnet 5.5, which accept only the `computer_toolset_20260801` toolset. The adapter does not offer that toolset yet. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `bashTool`
 
