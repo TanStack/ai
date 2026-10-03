@@ -237,6 +237,7 @@ const { tool, systemPrompt } = createCodeMode({
 | `timeout` | `number` | Execution timeout in milliseconds (default: 30000) |
 | `memoryLimit` | `number` | Memory limit in MB (default: 128). Supported by Node and QuickJS drivers |
 | `getSnippetBindings` | `() => Promise<Record<string, ToolBinding>>` | Optional function returning additional bindings at execution time |
+| `debug` | `DebugOption` | Debug logging, same shape as `chat({ debug })`. Failed executions log under `errors` (on by default), successful ones under `tools`. Pass `{ logger }` to use your own `Logger`, or `false` to silence. See [Debug Logging](../advanced/debug-logging.md) |
 
 The tool returns a `CodeModeToolResult`:
 
