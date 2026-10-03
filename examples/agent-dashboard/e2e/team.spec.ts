@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { closeDemo, openDemo } from './devtools'
+import { answerAgentQuestion, closeDemo, openDemo } from './devtools'
 
 // The teams reframe: one agent looks like a plain chat; a second member reveals
 // the team (roster appears), and both members' AG-UI streams merge into ONE
@@ -23,6 +23,7 @@ test('a second agent reveals the team and both members share one channel', async
   // pauses for approval.
   await openDemo(page)
   await page.getByRole('button', { name: 'Start triage demo' }).click()
+  await answerAgentQuestion(page)
   await expect(page.getByText('lookup_ticket').first()).toBeVisible()
   await expect(
     page.getByText('Approval required', { exact: true }).first(),
@@ -38,6 +39,7 @@ test('a second agent reveals the team and both members share one channel', async
 
   // Run the second member from the roster; its stream joins the SAME channel.
   await page.getByRole('button', { name: 'Run triage 2' }).click()
+  await answerAgentQuestion(page)
 
   // Both members' runs are visible in one timeline — two lookup_ticket cards and
   // two approvals. If the two threads' row ids collided, we'd see only one each.

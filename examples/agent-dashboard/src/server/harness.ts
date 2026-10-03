@@ -240,7 +240,13 @@ export const triage = defineHarness({
   systemPrompts: [
     'You are a support triage agent. Look up the ticket, then draft a reply for a human to approve before sending.',
   ],
-  plugins: () => [permissions(), usage(), triageSettings],
+  plugins: () => [
+    permissions({
+      rules: [{ tool: 'lookup_ticket', decision: 'ask' }],
+    }),
+    usage(),
+    triageSettings,
+  ],
   tools: [lookupTicket, sendReply, fetchStats, ...podTools],
   // Only `fetch_stats` may be invoked out-of-band from the automations UI (the
   // reply tools stay private to the agent's own model turns). The `pod.*` system

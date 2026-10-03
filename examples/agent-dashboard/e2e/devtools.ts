@@ -32,3 +32,12 @@ export async function closeDemo(page: Page) {
     return // already closed
   await page.locator('button.close').first().click()
 }
+
+export async function answerAgentQuestion(page: Page) {
+  await page.getByText('Agent question').first().waitFor()
+  await page.getByPlaceholder('Your answer').first().fill('yes')
+  await page
+    .getByRole('button', { name: 'Answer', exact: true })
+    .first()
+    .click()
+}

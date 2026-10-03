@@ -1,14 +1,5 @@
 import { expect, test } from '@playwright/test'
-
-const runInput = (threadId: string) => ({
-  data: {
-    threadId,
-    runId: `${threadId}-r1`,
-    messages: [{ id: 'u1', role: 'user', content: 'handle it' }],
-    tools: [],
-    context: [],
-  },
-})
+import { answerAgentQuestion } from './devtools'
 
 test('config form reads and writes ConfigOption schemas', async ({ page }) => {
   await page.goto('/config')
@@ -30,6 +21,7 @@ test('spend dashboard shows live token usage after a run', async ({ page }) => {
   const threadId = `spend-${Date.now()}`
   await page.goto(`/sessions/${threadId}`)
   await page.getByRole('button', { name: 'Start triage demo' }).click()
+  await answerAgentQuestion(page)
   await expect(
     page.getByText('Approval required', { exact: true }),
   ).toBeVisible()
@@ -45,17 +37,18 @@ test('run history lists a run and replays it into the session view', async ({
 }) => {
   const threadId = `replay-${Date.now()}`
   // Run server-side so the browser has no local state for this thread.
-  await page.request.post('/api/agent', runInput(threadId))
+  await page.request.post('/api/run', {
+    data: {
+      threadId,
+      harness: 'dashboard/meta',
+      message: 'List agents',
+    },
+  })
 
   await page.goto('/history')
   await expect(page.getByText(threadId).first()).toBeVisible()
 
   // Open the session fresh — it rehydrates from stored events (replay).
   await page.goto(`/sessions/${threadId}`)
-  await expect(page.getByText("I'll pull up that ticket first.")).toBeVisible()
-  await expect(page.getByText('lookup_ticket').first()).toBeVisible()
-  // The pending approval is restored from the live snapshot.
-  await expect(
-    page.getByText('Approval required', { exact: true }),
-  ).toBeVisible()
+  await expect(page.getByText('list_agents').first()).toBeVisible()
 })

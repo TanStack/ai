@@ -140,6 +140,7 @@ export const Route = createFileRoute('/api/tail')({
                   snapshot: {
                     status: snap.status,
                     pendingInterrupts: snap.pendingInterrupts,
+                    pendingQuestions: snap.pendingQuestions,
                   },
                 })}\n\n`,
               ),

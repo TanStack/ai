@@ -4,16 +4,24 @@ import { useEffect, useState } from 'react'
 import {
   approvals,
   messages,
+  questions,
   sessions,
   spend,
   toolCalls,
 } from '@/db/collections'
 import {
+  controlInput,
   hydrateSession,
   resolveApproval,
   sendPrompt,
 } from '@/lib/session-controller'
-import type { ApprovalRow, MessageRow, ToolCallRow } from '@/db/collections'
+import { QuestionCard } from '@/components/channel-view'
+import type {
+  ApprovalRow,
+  MessageRow,
+  QuestionRow,
+  ToolCallRow,
+} from '@/db/collections'
 
 export const Route = createFileRoute('/sessions/$threadId')({
   component: SessionDetail,
@@ -39,6 +47,13 @@ function SessionDetail() {
     (q) => q.from({ a: approvals }).where(({ a }) => eq(a.threadId, threadId)),
     [threadId],
   )
+  const { data: questionRows = [] } = useLiveQuery(
+    (query) =>
+      query
+        .from({ question: questions })
+        .where(({ question }) => eq(question.threadId, threadId)),
+    [threadId],
+  )
   const { data: spendRows = [] } = useLiveQuery(
     (q) => q.from({ s: spend }).where(({ s }) => eq(s.threadId, threadId)),
     [threadId],
@@ -53,6 +68,9 @@ function SessionDetail() {
     (spendRows as Array<{ totalTokens: number }>)[0]?.totalTokens ?? 0
   const pending = (apprs as Array<ApprovalRow>).filter(
     (a) => a.status === 'pending',
+  )
+  const pendingQuestions = (questionRows as Array<QuestionRow>).filter(
+    (question) => question.status === 'pending',
   )
 
   const timeline = [
@@ -72,6 +90,10 @@ function SessionDetail() {
     const text = input.trim()
     if (!text) return
     setInput('')
+    if (status === 'running') {
+      await controlInput(threadId, { op: 'steer', message: text })
+      return
+    }
     await sendPrompt(threadId, text)
   }
 
@@ -107,6 +129,9 @@ function SessionDetail() {
           )}
           threadId={threadId}
         />
+      ))}
+      {pendingQuestions.map((question) => (
+        <QuestionCard key={question.id} question={question} />
       ))}
 
       <div className="space-y-3 rounded-lg border border-white/10 bg-white/[0.02] p-4">
@@ -144,8 +169,16 @@ function SessionDetail() {
           onClick={send}
           className="rounded-md bg-emerald-500/90 px-4 py-2 text-sm font-medium text-black hover:bg-emerald-400"
         >
-          Send
+          {status === 'running' ? 'Steer' : 'Send'}
         </button>
+        {status === 'running' && (
+          <button
+            onClick={() => controlInput(threadId, { op: 'cancel' })}
+            className="rounded-md bg-rose-500/80 px-4 py-2 text-sm font-medium text-black"
+          >
+            Stop
+          </button>
+        )}
       </div>
     </div>
   )

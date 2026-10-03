@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { openDemo } from './devtools'
+import { answerAgentQuestion, openDemo } from './devtools'
 
 // Server-side persistence: a team, its runs, and its resolved approvals survive a
 // full page reload (the roster rehydrates from the server; the session replays
@@ -15,6 +15,7 @@ test('a team and its approved run survive a reload', async ({ page }) => {
   await page.getByRole('button', { name: '+ New team' }).click()
   await expect(page).toHaveURL(/\/teams\//)
   await page.getByRole('button', { name: 'Start triage demo' }).click()
+  await answerAgentQuestion(page)
   await expect(
     page.getByText('Approval required', { exact: true }).first(),
   ).toBeVisible()
