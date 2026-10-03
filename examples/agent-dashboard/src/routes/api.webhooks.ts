@@ -10,9 +10,13 @@ export const Route = createFileRoute('/api/webhooks')({
   server: {
     handlers: {
       GET: ({ request }) => {
-        const channelId = new URL(request.url).searchParams.get('channelId')
+        const params = new URL(request.url).searchParams
+        const channelId = params.get('channelId')
+        const threadIds = params.getAll('threadId')
         const rows = [...webhooks.values()].filter(
-          (w) => !channelId || w.channelId === channelId,
+          (webhook) =>
+            (!channelId || webhook.channelId === channelId) &&
+            (threadIds.length === 0 || threadIds.includes(webhook.threadId)),
         )
         return Response.json({ webhooks: rows })
       },
@@ -45,9 +49,15 @@ export const Route = createFileRoute('/api/webhooks')({
           tool: body.tool ?? '',
           argMapping: body.argMapping ?? {},
           message: body.message,
+          deliveries: [],
         }
         webhooks.set(token, webhook)
         return Response.json({ webhook })
+      },
+      DELETE: ({ request }) => {
+        const token = new URL(request.url).searchParams.get('token')
+        if (token) webhooks.delete(token)
+        return Response.json({ ok: true })
       },
     },
   },
