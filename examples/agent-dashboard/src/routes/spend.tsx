@@ -1,7 +1,20 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useLiveQuery } from '@tanstack/react-db'
-import { DEFAULT_BUDGET, budgets, spend, upsert } from '@/db/collections'
-import type { BudgetRow, SpendRow } from '@/db/collections'
+import {
+  DEFAULT_BUDGET,
+  budgets,
+  memberships,
+  spend,
+  teams,
+  upsert,
+} from '@/db/collections'
+import { costUsd } from '@/lib/pricing'
+import type {
+  BudgetRow,
+  MembershipRow,
+  SpendRow,
+  TeamRow,
+} from '@/db/collections'
 
 export const Route = createFileRoute('/spend')({
   component: Spend,
@@ -14,13 +27,22 @@ interface Row {
   outputTokens: number
   budget: number
   over: boolean
+  cost: number
+  teamId?: string
 }
 
 function Spend() {
   const { data: spendRows = [] } = useLiveQuery((q) => q.from({ s: spend }))
   const { data: budgetRows = [] } = useLiveQuery((q) => q.from({ b: budgets }))
+  const { data: memberRows = [] } = useLiveQuery((q) =>
+    q.from({ m: memberships }),
+  )
+  const { data: teamRows = [] } = useLiveQuery((q) => q.from({ t: teams }))
 
   const rows: Array<Row> = (spendRows as Array<SpendRow>).map((s) => {
+    const member = (memberRows as Array<MembershipRow>).find(
+      (candidate) => candidate.threadId === s.threadId,
+    )
     const budget =
       (budgetRows as Array<BudgetRow>).find((b) => b.threadId === s.threadId)
         ?.maxTokens ?? DEFAULT_BUDGET
@@ -31,11 +53,22 @@ function Spend() {
       outputTokens: s.outputTokens,
       budget,
       over: s.totalTokens > budget,
+      cost: costUsd(member?.harness, s.inputTokens, s.outputTokens),
+      teamId: member?.teamId,
     }
   })
 
   const total = rows.reduce((sum, r) => sum + r.totalTokens, 0)
+  const totalCost = rows.reduce((sum, row) => sum + row.cost, 0)
   const overCount = rows.filter((r) => r.over).length
+  const teamNames = new Map(
+    (teamRows as Array<TeamRow>).map((team) => [team.id, team.name]),
+  )
+  const teamTotals = new Map<string, number>()
+  for (const row of rows) {
+    if (!row.teamId) continue
+    teamTotals.set(row.teamId, (teamTotals.get(row.teamId) ?? 0) + row.cost)
+  }
 
   const setBudget = (threadId: string, maxTokens: number) => {
     upsert(budgets, { id: threadId, threadId, maxTokens }, (draft) => {
@@ -48,7 +81,8 @@ function Spend() {
       <div className="flex items-center gap-3">
         <h1 className="text-lg font-semibold">Spend</h1>
         <span className="ml-auto text-sm text-white/50">
-          {total.toLocaleString()} tokens across {rows.length} session
+          ${totalCost.toFixed(4)} · {total.toLocaleString()} tokens across{' '}
+          {rows.length} session
           {rows.length === 1 ? '' : 's'}
         </span>
       </div>
@@ -65,6 +99,18 @@ function Spend() {
         </p>
       ) : (
         <>
+          {teamTotals.size > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {[...teamTotals].map(([teamId, cost]) => (
+                <span
+                  key={teamId}
+                  className="rounded-full bg-white/5 px-3 py-1 text-xs"
+                >
+                  {teamNames.get(teamId) ?? teamId}: ${cost.toFixed(4)}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
             <SpendChart rows={rows} />
           </div>
@@ -76,6 +122,7 @@ function Spend() {
                 <th className="py-1">In</th>
                 <th className="py-1">Out</th>
                 <th className="py-1">Total</th>
+                <th className="py-1">Cost</th>
                 <th className="py-1">Budget</th>
                 <th className="py-1">Status</th>
               </tr>
@@ -87,6 +134,9 @@ function Spend() {
                   <td className="py-2">{r.inputTokens.toLocaleString()}</td>
                   <td className="py-2">{r.outputTokens.toLocaleString()}</td>
                   <td className="py-2">{r.totalTokens.toLocaleString()}</td>
+                  <td className="py-2">
+                    {r.cost ? `$${r.cost.toFixed(4)}` : '$0.00 (scripted)'}
+                  </td>
                   <td className="py-2">
                     <input
                       type="number"
