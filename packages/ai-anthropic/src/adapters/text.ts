@@ -857,7 +857,7 @@ export class AnthropicTextAdapter<
               : {}
             parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
           } catch {
-            parsedInput = toolCall.function.arguments
+            parsedInput = {}
           }
 
           // Provider-executed server tools (e.g. web_search) replay as the
