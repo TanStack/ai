@@ -288,30 +288,26 @@ describe('BytePlus text adapter', () => {
       })
     })
 
-    it('attaches encrypted_content to the reasoning step as its signature', async () => {
+    it('ties encrypted_content to the reasoning message', async () => {
       setupMockSdkClient(thinkingStreamChunks(THINKING_SUMMARY_MODEL))
-      const adapter = createBytePlusText(THINKING_SUMMARY_MODEL, 'ark-test-key')
 
-      const chunks = await collect(
-        adapter.chatStream({
-          model: THINKING_SUMMARY_MODEL,
-          messages: [{ role: 'user', content: 'Say hi' }],
-          logger: testLogger,
-        }),
-      )
+      const chunks = []
+      for await (const chunk of chat({
+        adapter: createBytePlusText(THINKING_SUMMARY_MODEL, 'ark-test-key'),
+        messages: [{ role: 'user', content: 'Say hi' }],
+      })) {
+        chunks.push(chunk)
+      }
 
-      const stepFinished = chunks.filter(
-        (c) => c.type === EventType.STEP_FINISHED,
+      const reasoningIds = chunks.flatMap((c) =>
+        c.type === EventType.REASONING_MESSAGE_START ? [c.messageId] : [],
       )
-      expect(stepFinished).toHaveLength(1)
-      const step = stepFinished[0]
-      if (step?.type !== EventType.STEP_FINISHED) throw new Error('no step')
-      expect(step.signature).toBe(ENCRYPTED_BLOB)
-      // `delta` must carry the reasoning text too. chat()'s agent loop
-      // accumulates thinking only from STEP_FINISHED.delta and discards the
-      // whole step — signature included — when that accumulation is empty, so
-      // a signature without a delta never reaches the continuation message.
-      expect(step.delta).toBe('The user wants a greeting.')
+      const values = chunks.flatMap((c) =>
+        c.type === EventType.REASONING_ENCRYPTED_VALUE ? [c] : [],
+      )
+      expect(values.map((v) => v.encryptedValue)).toEqual([ENCRYPTED_BLOB])
+      // An AG-UI client attaches the value to the message with this id.
+      expect(values.map((v) => v.entityId)).toEqual(reasoningIds)
     })
 
     it('does not treat the encrypted chunk as reasoning text', async () => {

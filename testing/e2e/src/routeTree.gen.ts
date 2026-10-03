@@ -116,6 +116,7 @@ import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-mem
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
+import { Route as ApiByteplusEncryptedReasoningWireRouteImport } from './routes/api.byteplus-encrypted-reasoning-wire'
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiBedrockConverseCacheRouteImport } from './routes/api.bedrock-converse-cache'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
@@ -691,6 +692,12 @@ const ApiByteplusSeedance1080pWireRoute =
     path: '/api/byteplus-seedance-1080p-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiByteplusEncryptedReasoningWireRoute =
+  ApiByteplusEncryptedReasoningWireRouteImport.update({
+    id: '/api/byteplus-encrypted-reasoning-wire',
+    path: '/api/byteplus-encrypted-reasoning-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiByokChatRoute = ApiByokChatRouteImport.update({
   id: '/api/byok-chat',
   path: '/api/byok-chat',
@@ -826,6 +833,7 @@ export interface FileRoutesByFullPath {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
+  '/api/byteplus-encrypted-reasoning-wire': typeof ApiByteplusEncryptedReasoningWireRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
@@ -952,6 +960,7 @@ export interface FileRoutesByTo {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
+  '/api/byteplus-encrypted-reasoning-wire': typeof ApiByteplusEncryptedReasoningWireRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
@@ -1079,6 +1088,7 @@ export interface FileRoutesById {
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/bedrock-converse-cache': typeof ApiBedrockConverseCacheRoute
   '/api/byok-chat': typeof ApiByokChatRoute
+  '/api/byteplus-encrypted-reasoning-wire': typeof ApiByteplusEncryptedReasoningWireRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
@@ -1207,6 +1217,7 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
+    | '/api/byteplus-encrypted-reasoning-wire'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/compaction-wire'
@@ -1333,6 +1344,7 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
+    | '/api/byteplus-encrypted-reasoning-wire'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/compaction-wire'
@@ -1459,6 +1471,7 @@ export interface FileRouteTypes {
     | '/api/audio'
     | '/api/bedrock-converse-cache'
     | '/api/byok-chat'
+    | '/api/byteplus-encrypted-reasoning-wire'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/compaction-wire'
@@ -1586,6 +1599,7 @@ export interface RootRouteChildren {
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiBedrockConverseCacheRoute: typeof ApiBedrockConverseCacheRoute
   ApiByokChatRoute: typeof ApiByokChatRoute
+  ApiByteplusEncryptedReasoningWireRoute: typeof ApiByteplusEncryptedReasoningWireRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
@@ -2415,6 +2429,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiByteplusSeedance1080pWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/byteplus-encrypted-reasoning-wire': {
+      id: '/api/byteplus-encrypted-reasoning-wire'
+      path: '/api/byteplus-encrypted-reasoning-wire'
+      fullPath: '/api/byteplus-encrypted-reasoning-wire'
+      preLoaderRoute: typeof ApiByteplusEncryptedReasoningWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/byok-chat': {
       id: '/api/byok-chat'
       path: '/api/byok-chat'
@@ -2640,6 +2661,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiBedrockConverseCacheRoute: ApiBedrockConverseCacheRoute,
   ApiByokChatRoute: ApiByokChatRoute,
+  ApiByteplusEncryptedReasoningWireRoute:
+    ApiByteplusEncryptedReasoningWireRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
