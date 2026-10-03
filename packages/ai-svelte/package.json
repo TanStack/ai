@@ -53,6 +53,25 @@
     "test:build": "publint --strict",
     "build": "svelte-package -i src -o dist"
   },
+  "nx": {
+    "targets": {
+      "build": {
+        "dependsOn": [
+          "^build:types"
+        ],
+        "outputs": [
+          "{projectRoot}/dist"
+        ]
+      },
+      "build:types": {
+        "executor": "nx:noop",
+        "dependsOn": [
+          "build"
+        ],
+        "outputs": []
+      }
+    }
+  },
   "keywords": [
     "ai",
     "ai-sdk",

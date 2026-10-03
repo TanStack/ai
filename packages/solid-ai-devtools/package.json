@@ -37,12 +37,22 @@
     "src"
   ],
   "scripts": {
-    "build": "vite build",
+    "build": "node ../../scripts/vite-build.mjs js",
+    "build:types": "node ../../scripts/vite-build.mjs types",
     "clean": "premove ./build ./dist",
     "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
     "test:oxlint": "oxlint src --type-aware",
     "test:types": "tsc"
+  },
+  "nx": {
+    "targets": {
+      "build": {
+        "outputs": [
+          "{projectRoot}/dist/**/*.{js,cjs,map}"
+        ]
+      }
+    }
   },
   "keywords": [
     "ai",

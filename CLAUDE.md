@@ -286,6 +286,13 @@ pnpm dev      # start dev server
 - Nx caching speeds up builds and tests
 - `nx.json` configures Nx behavior
 - Use `nx run-many` to run commands across multiple packages
+- **The package build has two halves** (`scripts/vite-build.mjs`).
+  `build:types` writes the `.d.ts` files. `build` writes the JS and depends on
+  `build:types`. `test:types` depends on `^build:types` only, so a typecheck
+  does not bundle JS. The two targets have separate Nx `outputs`. Keep them
+  separate: a `build` cache restore must not replace the `.d.ts` files while a
+  consumer typecheck reads them. A new Vite package needs both scripts and the
+  `nx.targets.build.outputs` override. Copy them from `packages/ai-utils`.
 
 ## Important Conventions
 

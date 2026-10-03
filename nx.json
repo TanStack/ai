@@ -43,7 +43,7 @@
     },
     "test:types": {
       "cache": true,
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build:types"],
       "inputs": ["default", "^production"]
     },
     "test:build": {
@@ -51,9 +51,18 @@
       "dependsOn": ["build"],
       "inputs": ["production"]
     },
+    "build:types": {
+      "cache": true,
+      "dependsOn": ["^build:types"],
+      "inputs": ["production", "^production"],
+      "outputs": [
+        "{projectRoot}/dist/**/*.d.ts",
+        "{projectRoot}/dist/**/*.d.cts"
+      ]
+    },
     "build": {
       "cache": true,
-      "dependsOn": ["^build"],
+      "dependsOn": ["build:types", "^build"],
       "inputs": ["production", "^production"],
       "outputs": ["{projectRoot}/build", "{projectRoot}/dist"]
     },

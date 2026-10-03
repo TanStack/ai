@@ -62,6 +62,25 @@
     "test:build": "publint --strict",
     "build": "ng-packagr -p ng-package.json -c tsconfig.build.json && premove ./dist/package.json"
   },
+  "nx": {
+    "targets": {
+      "build": {
+        "dependsOn": [
+          "^build:types"
+        ],
+        "outputs": [
+          "{projectRoot}/dist"
+        ]
+      },
+      "build:types": {
+        "executor": "nx:noop",
+        "dependsOn": [
+          "build"
+        ],
+        "outputs": []
+      }
+    }
+  },
   "dependencies": {
     "@tanstack/ai-client": "workspace:^",
     "tslib": "^2.8.1"

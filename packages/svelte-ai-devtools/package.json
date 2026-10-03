@@ -23,7 +23,17 @@
     "test:oxlint": "oxlint src --type-aware",
     "test:types": "tsc",
     "test:build": "publint --strict",
-    "build": "vite build"
+    "build": "node ../../scripts/vite-build.mjs js",
+    "build:types": "node ../../scripts/vite-build.mjs types"
+  },
+  "nx": {
+    "targets": {
+      "build": {
+        "outputs": [
+          "{projectRoot}/dist/**/*.{js,cjs,map}"
+        ]
+      }
+    }
   },
   "type": "module",
   "svelte": "./dist/esm/index.js",

@@ -47,6 +47,25 @@
     "test:types": "vue-tsc --noEmit",
     "build": "tsdown"
   },
+  "nx": {
+    "targets": {
+      "build": {
+        "dependsOn": [
+          "^build:types"
+        ],
+        "outputs": [
+          "{projectRoot}/dist"
+        ]
+      },
+      "build:types": {
+        "executor": "nx:noop",
+        "dependsOn": [
+          "build"
+        ],
+        "outputs": []
+      }
+    }
+  },
   "keywords": [
     "ai",
     "ai-sdk",
