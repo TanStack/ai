@@ -4,6 +4,7 @@ import type {
   ChatMiddlewareContext,
   MetadataStore,
   ModelMessage,
+  SummarizationResult,
   TokenUsage,
   ToolCall,
 } from '@tanstack/ai'
@@ -1005,5 +1006,187 @@ describe('compactNext and auto', () => {
     const result = await runOnConfig(mw, longList(), threadContext().ctx)
     expect(result?.providerMessages?.[0]?.content).toContain('omitted')
     expect(onCompact).toHaveBeenCalledOnce()
+  })
+})
+
+describe('compaction usage and errors', () => {
+  const longList = () => [
+    big('user'),
+    big('assistant'),
+    big('user'),
+    big('assistant'),
+  ]
+
+  it('reports the usage of the summary call on onCompact and compaction:ended', async () => {
+    const summaryUsage = tokenUsage(120, 30)
+    // The result of summarize() from @tanstack/ai fits as it is.
+    const summarized: SummarizationResult = {
+      id: 's1',
+      model: 'test-model',
+      summary: 'the gist',
+      usage: summaryUsage,
+    }
+    const onCompact = vi.fn()
+    const mw = withCompaction({
+      maxTokens: 100,
+      onCompact,
+      strategy: summarizeOldest({
+        summarize: async () => summarized,
+        keepRecentTokens: 50,
+      }),
+    })
+    const { ctx, events } = recordingContext('beforeModel')
+    const result = await runOnConfig(mw, longList(), ctx)
+
+    expect(result?.providerMessages?.[0]?.content).toBe(
+      '<untrusted-conversation-summary>\nthe gist\n</untrusted-conversation-summary>',
+    )
+    expect(onCompact.mock.calls[0]?.[0]).toMatchObject({
+      reason: 'threshold',
+      usage: summaryUsage,
+    })
+    expect(events[0]?.value).toMatchObject({ reason: 'threshold' })
+    expect(events.at(-1)?.value).toMatchObject({
+      reason: 'threshold',
+      usage: summaryUsage,
+    })
+  })
+
+  it('sums the addUsage calls of a custom strategy', async () => {
+    const strategy: CompactionStrategy = (messages, ctx) => {
+      ctx.addUsage(tokenUsage(10, 2))
+      ctx.addUsage(tokenUsage(5, 1))
+      return messages.slice(-1)
+    }
+    const mw = withCompaction({ maxTokens: 100, strategy })
+    const { ctx, events } = recordingContext('beforeModel')
+    await runOnConfig(mw, longList(), ctx)
+    expect(events.at(-1)?.value.usage).toEqual(tokenUsage(15, 3))
+  })
+
+  it('marks a compactNext compaction with reason forced', async () => {
+    const mw = withCompaction({
+      maxTokens: 1000,
+      strategy: evictOldest({ keepRecentTokens: 50 }),
+    })
+    mw.compactNext('thread-1')
+    const { ctx, events } = recordingContext('beforeModel', {
+      threadId: 'thread-1',
+    })
+    await runOnConfig(mw, longList(), ctx)
+    expect(events[0]?.value.reason).toBe('forced')
+    expect(events.at(-1)?.value.reason).toBe('forced')
+  })
+
+  it('ends with the error and fails the run when the strategy throws', async () => {
+    const mw = withCompaction({
+      maxTokens: 100,
+      strategy: () => {
+        throw new Error('summary failed')
+      },
+    })
+    const { ctx, events } = recordingContext('beforeModel')
+    await expect(runOnConfig(mw, longList(), ctx)).rejects.toThrow(
+      'summary failed',
+    )
+    expect(events.map((event) => event.name)).toEqual([
+      COMPACTION_STARTED_EVENT,
+      COMPACTION_ENDED_EVENT,
+    ])
+    expect(events[1]?.value).toMatchObject({
+      after: 160,
+      messagesAfter: 4,
+      reason: 'threshold',
+      error: { message: 'summary failed' },
+    })
+  })
+
+  it('sends the list without compaction when continueOnError is set', async () => {
+    const mw = withCompaction({
+      maxTokens: 100,
+      continueOnError: true,
+      strategy: async () => {
+        throw new Error('summary failed')
+      },
+    })
+    const { ctx, events } = recordingContext('beforeModel')
+    expect(await runOnConfig(mw, longList(), ctx)).toBeUndefined()
+    expect(events.at(-1)?.value).toMatchObject({
+      error: { message: 'summary failed' },
+    })
+  })
+
+  it('keeps the checkpoint list when continueOnError is set and a later compaction fails', async () => {
+    const store = memoryStore()
+    const summarize = vi
+      .fn<() => Promise<string>>()
+      .mockResolvedValueOnce('the gist')
+      .mockRejectedValue(new Error('summary failed'))
+    const mw = withCompaction({
+      maxTokens: 100,
+      continueOnError: true,
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+      strategyKey: 'summary-v1',
+    })
+    const messages = longList()
+    await runOnConfig(mw, messages, checkpointContext(store))
+
+    const longer = [...messages, big('user'), big('assistant')]
+    const result = await runOnConfig(mw, longer, checkpointContext(store))
+
+    expect(summarize).toHaveBeenCalledTimes(2)
+    expect(result?.providerMessages?.[0]?.content).toContain('the gist')
+    expect(result?.providerMessages).toHaveLength(4)
+    expect(longer).toHaveLength(6)
+    expect(result?.providerMessages).not.toHaveLength(longer.length)
+  })
+
+  it('rethrows when the run is aborted, even with continueOnError', async () => {
+    const mw = withCompaction({
+      maxTokens: 100,
+      continueOnError: true,
+      strategy: async () => {
+        throw new Error('aborted')
+      },
+    })
+    const ctx = checkpointContext(memoryStore(), { aborted: true })
+    await expect(runOnConfig(mw, longList(), ctx)).rejects.toThrow('aborted')
+  })
+
+  it('keeps the old event fields and values for a caller with no new option', async () => {
+    const mw = withCompaction({ maxTokens: 100 })
+    const { ctx, events } = recordingContext('beforeModel')
+    await runOnConfig(mw, longList(), ctx)
+
+    expect(Object.keys(events[0]?.value ?? {}).sort()).toEqual([
+      'before',
+      'maxTokens',
+      'messagesBefore',
+      'reason',
+      'reusedCheckpoint',
+      'strategyKey',
+    ])
+    expect(events[0]?.value).toMatchObject({
+      before: 160,
+      messagesBefore: 4,
+      reusedCheckpoint: false,
+      maxTokens: 100,
+      strategyKey: 'evict-oldest:half:maxTokens=100',
+    })
+    expect(Object.keys(events[2]?.value ?? {}).sort()).toEqual([
+      'after',
+      'durationMs',
+      'maxTokens',
+      'messagesAfter',
+      'reason',
+      'reusedCheckpoint',
+      'strategyKey',
+    ])
+    expect(events[2]?.value).toMatchObject({
+      messagesAfter: 2,
+      reusedCheckpoint: false,
+      maxTokens: 100,
+      durationMs: expect.any(Number),
+    })
   })
 })

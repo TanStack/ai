@@ -18,12 +18,14 @@ import {
   countFromUsage,
   hashMessages,
   memoryMetadata,
+  sumUsage,
   toUsageCount,
 } from './usage-count'
 import type {
   ChatMiddleware,
   ChatMiddlewareContext,
   ModelMessage,
+  TokenUsage,
 } from '@tanstack/ai'
 
 /** CUSTOM stream event: compaction is about to run. */
@@ -48,6 +50,9 @@ export interface CompactionMessagePreview {
   text: string
 }
 
+/** Why a compaction ran. */
+export type CompactionReason = 'threshold' | 'forced' | 'after-turn'
+
 /** Payload of {@link COMPACTION_STARTED_EVENT}. */
 export interface CompactionStartedEventValue {
   before: number
@@ -55,6 +60,7 @@ export interface CompactionStartedEventValue {
   reusedCheckpoint: boolean
   maxTokens: number
   strategyKey?: string
+  reason: CompactionReason
 }
 
 /** Payload of {@link COMPACTION_STATE_EVENT}. */
@@ -80,6 +86,11 @@ export interface CompactionEndedEventValue {
   maxTokens: number
   durationMs: number
   strategyKey?: string
+  reason: CompactionReason
+  /** The sum of the strategy's `addUsage` calls, for example its summary call. */
+  usage?: TokenUsage
+  /** Set when the strategy threw. */
+  error?: { message: string }
 }
 
 function emitCompactionStarted(
@@ -235,6 +246,8 @@ export interface CompactionContext {
   maxTokens: number
   /** The shared token estimator (default {@link estimateMessageTokens}). */
   estimate: (message: ModelMessage) => number
+  /** Report the usage of a model call the strategy made, for example a summary. */
+  addUsage: (usage: TokenUsage) => void
 }
 
 /**
@@ -257,6 +270,10 @@ export interface CompactionInfo {
   messagesBefore: number
   /** Message count after compaction (unchanged for {@link clearToolResults}). */
   messagesAfter: number
+  /** Why the compaction ran. */
+  reason: CompactionReason
+  /** The usage the strategy reported with `addUsage`. */
+  usage?: TokenUsage
 }
 
 export interface CompactionOptions {
@@ -286,6 +303,11 @@ export interface CompactionOptions {
    * `compactNext` still compacts. Default `true`.
    */
   auto?: boolean
+  /**
+   * `true`: when the strategy throws, report the error in `compaction:ended`
+   * and send the list without compaction. Default `false`: the run fails.
+   */
+  continueOnError?: boolean
 }
 
 /** What {@link withCompaction} returns: a chat middleware with `compactNext`. */
@@ -373,7 +395,10 @@ export function evictOldest(
  * `summarize()` or any model call.
  */
 export function summarizeOldest(options: {
-  summarize: (messages: Array<ModelMessage>) => Promise<string>
+  /** Returns the summary text, or the text and the usage of its model call. */
+  summarize: (
+    messages: Array<ModelMessage>,
+  ) => Promise<string | { summary: string; usage?: TokenUsage }>
   /** Tokens of recent messages to keep verbatim. Default `floor(maxTokens/2)`. */
   keepRecentTokens?: number
   /** Role of the injected summary message. Default `'assistant'`. */
@@ -383,7 +408,9 @@ export function summarizeOldest(options: {
     const keep = options.keepRecentTokens ?? Math.floor(ctx.maxTokens / 2)
     const cut = splitAtRecent(messages, ctx.estimate, keep)
     if (cut <= 0) return null
-    const summary = await options.summarize(messages.slice(0, cut))
+    const result = await options.summarize(messages.slice(0, cut))
+    if (typeof result !== 'string' && result.usage) ctx.addUsage(result.usage)
+    const summary = typeof result === 'string' ? result : result.summary
     return [
       {
         role: options.summaryRole ?? 'assistant',
@@ -524,6 +551,7 @@ export function withCompaction(
       // hydrates the thread. Compact only on model-bound phases.
       if (ctx.phase === 'init') return
       const force = forced.delete(ctx.threadId)
+      const reason: CompactionReason = force ? 'forced' : 'threshold'
 
       const startedAt = Date.now()
       const { messages } = config
@@ -571,6 +599,7 @@ export function withCompaction(
         ...(checkpointStrategyKey
           ? { strategyKey: checkpointStrategyKey }
           : {}),
+        reason,
       }
 
       if (!force && (!auto || before <= options.maxTokens)) {
@@ -597,6 +626,7 @@ export function withCompaction(
             ...(checkpointStrategyKey
               ? { strategyKey: checkpointStrategyKey }
               : {}),
+            reason,
           })
           return { providerMessages: workingMessages }
         }
@@ -604,10 +634,39 @@ export function withCompaction(
       }
 
       emitCompactionStarted(ctx, startedValue)
-      const next = await strategy(workingMessages, {
-        maxTokens: options.maxTokens,
-        estimate,
-      })
+      // An object, so the closure below can write it and TypeScript reads it.
+      const spent: { usage?: TokenUsage } = {}
+      let next: Array<ModelMessage> | null
+      try {
+        next = await strategy(workingMessages, {
+          maxTokens: options.maxTokens,
+          estimate,
+          addUsage: (usage) => {
+            spent.usage = sumUsage(spent.usage, usage)
+          },
+        })
+      } catch (error) {
+        emitCompactionEnded(ctx, {
+          after: before,
+          messagesAfter: workingMessages.length,
+          reusedCheckpoint,
+          maxTokens: options.maxTokens,
+          durationMs: Date.now() - startedAt,
+          ...(checkpointStrategyKey
+            ? { strategyKey: checkpointStrategyKey }
+            : {}),
+          reason,
+          ...(spent.usage ? { usage: spent.usage } : {}),
+          error: {
+            message: error instanceof Error ? error.message : String(error),
+          },
+        })
+        // An aborted run must stop. Do not call the adapter with its signal.
+        if (!options.continueOnError || ctx.signal?.aborted) throw error
+        return reusedCheckpoint
+          ? { providerMessages: workingMessages }
+          : undefined
+      }
       if (!next || next === workingMessages) {
         emitCompactionEnded(ctx, {
           after: before,
@@ -618,6 +677,8 @@ export function withCompaction(
           ...(checkpointStrategyKey
             ? { strategyKey: checkpointStrategyKey }
             : {}),
+          reason,
+          ...(spent.usage ? { usage: spent.usage } : {}),
         })
         if (reusedCheckpoint) {
           return { providerMessages: workingMessages }
@@ -625,17 +686,22 @@ export function withCompaction(
         return
       }
 
-      const info = {
+      const info: CompactionInfo = {
         before,
         after: sum(next, estimate),
         messagesBefore: workingMessages.length,
         messagesAfter: next.length,
+        reason,
+        ...(spent.usage ? { usage: spent.usage } : {}),
       }
       options.onCompact?.(info)
       emitCompactionState(
         ctx,
         compactionStateValue({
-          ...info,
+          before: info.before,
+          after: info.after,
+          messagesBefore: info.messagesBefore,
+          messagesAfter: info.messagesAfter,
           reusedCheckpoint,
           maxTokens: options.maxTokens,
           strategyKey: checkpointStrategyKey,
@@ -653,6 +719,8 @@ export function withCompaction(
         ...(checkpointStrategyKey
           ? { strategyKey: checkpointStrategyKey }
           : {}),
+        reason,
+        ...(spent.usage ? { usage: spent.usage } : {}),
       })
 
       if (countUsage) {

@@ -114,3 +114,22 @@ export function memoryMetadata(): MetadataStore {
     },
   }
 }
+
+/**
+ * Add two usages. ponytail: only the token counts and `cost` add up. The
+ * details of a first usage are dropped when a second one comes.
+ */
+export function sumUsage(
+  total: TokenUsage | undefined,
+  next: TokenUsage,
+): TokenUsage {
+  if (!total) return next
+  return {
+    promptTokens: total.promptTokens + next.promptTokens,
+    completionTokens: total.completionTokens + next.completionTokens,
+    totalTokens: total.totalTokens + next.totalTokens,
+    ...(total.cost !== undefined && next.cost !== undefined
+      ? { cost: total.cost + next.cost }
+      : {}),
+  }
+}
