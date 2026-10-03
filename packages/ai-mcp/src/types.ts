@@ -154,8 +154,15 @@ export interface MCPClientOptions {
     resetTimeoutOnProgress?: boolean
   }
   /**
-   * Return `false` to hide a server tool. Receives the raw MCP tool definition
-   * (native `name`, `title`, `annotations`). Default: every tool.
+   * Choose the server tools the model gets. Default: every tool.
+   *
+   * - A function: keep the tools it returns `true` for. It receives the raw
+   *   MCP tool definition (native `name`, `title`, `annotations`).
+   * - A list of server tool names: keep exactly these, in this order. A name
+   *   the server does not have, or a repeated name, throws
+   *   `MCPToolFilterError`. A listed tool that needs task execution, on a
+   *   server without task support, throws `MCPTaskRequiredToolError`. An
+   *   empty list keeps no tools.
    *
    * Applies to `tools()`, `chat({ mcp })`, and MCP Apps widget calls. In
    * `tools([...defs])` a hidden definition throws `MCPToolNotFoundError`.
@@ -163,13 +170,18 @@ export interface MCPClientOptions {
    * a security boundary.
    *
    * ```ts
-   * const mcp = await createMCPClient({
+   * const readOnly = await createMCPClient({
    *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
    *   toolFilter: (tool) => tool.annotations?.readOnlyHint === true,
    * })
+   *
+   * const listed = await createMCPClient({
+   *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+   *   toolFilter: ['search_issues', 'get_issue'],
+   * })
    * ```
    */
-  toolFilter?: (tool: McpToolDef) => boolean
+  toolFilter?: ((tool: McpToolDef) => boolean) | ReadonlyArray<string>
   /**
    * Return `true` to require user approval before a discovered tool runs.
    * Default: no approval. `tools([...defs])` keeps each definition's own

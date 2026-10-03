@@ -28,6 +28,7 @@ export {
   MCPConnectionError,
   DuplicateToolNameError,
   MCPTaskRequiredToolError,
+  MCPToolFilterError,
   MCPToolNotFoundError,
 } from './errors'
 export {

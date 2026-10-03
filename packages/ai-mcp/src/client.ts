@@ -3,6 +3,7 @@ import {
   DuplicateToolNameError,
   MCPConnectionError,
   MCPTaskRequiredToolError,
+  MCPToolFilterError,
   MCPToolNotFoundError,
 } from './errors'
 import { listPages } from './list-pages'
@@ -304,7 +305,11 @@ class MCPClientImpl<
 
     const { toolFilter, needsApproval, toolName, requestOptions } = this.#policy
     const listed = await this.#listTools()
-    const defs = toolFilter ? listed.filter((def) => toolFilter(def)) : listed
+    const defs = applyToolFilter(
+      listed,
+      toolFilter,
+      serverSupportsTaskCalls(this.#client),
+    )
 
     let tools: Array<McpServerTool>
     if (isDefs) {
@@ -478,6 +483,53 @@ class MCPClientImpl<
 
 function isArgs(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Applies the client `toolFilter` to the listed tools.
+ * A function keeps the tools it returns `true` for.
+ * A list keeps exactly the listed tools, in list order. A missing or
+ * repeated name throws `MCPToolFilterError`. A listed tool that needs a task
+ * on a server without task support throws `MCPTaskRequiredToolError`.
+ */
+function applyToolFilter(
+  listed: Array<McpToolDef>,
+  toolFilter: MCPClientOptions['toolFilter'],
+  supportsTasks: boolean,
+): Array<McpToolDef> {
+  if (toolFilter === undefined) return listed
+  if (typeof toolFilter === 'function') {
+    return listed.filter((def) => toolFilter(def))
+  }
+  const byName = new Map(listed.map((def) => [def.name, def]))
+  const seen = new Set<string>()
+  const repeated = new Set<string>()
+  const missing: Array<string> = []
+  const kept: Array<McpToolDef> = []
+  for (const name of toolFilter) {
+    if (seen.has(name)) {
+      repeated.add(name)
+      continue
+    }
+    seen.add(name)
+    const def = byName.get(name)
+    if (def === undefined) missing.push(name)
+    else kept.push(def)
+  }
+  if (missing.length > 0 || repeated.size > 0) {
+    throw new MCPToolFilterError({
+      missing,
+      repeated: [...repeated],
+      available: listed.map((def) => def.name),
+    })
+  }
+  const unsupported = kept.find(
+    (def) => requiresTaskExecution(def) && !supportsTasks,
+  )
+  if (unsupported !== undefined) {
+    throw new MCPTaskRequiredToolError(unsupported.name)
+  }
+  return kept
 }
 
 /**
