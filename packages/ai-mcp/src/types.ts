@@ -41,8 +41,8 @@ export interface McpToolMetadata {
   /** MCP Apps widget link, from the tool def's `_meta.ui.resourceUri`. */
   uiResourceUri?: string
   /**
-   * The server's `annotations` for this tool, forwarded verbatim (absent when
-   * the server declares none). All fields are **hints** — useful for display
+   * A frozen copy of the server's `annotations` for this tool (absent when
+   * the server declares none). All fields are **hints**: useful for display
    * and for shaping an approval UI, never a security boundary.
    */
   annotations?: ToolAnnotations

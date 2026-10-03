@@ -160,6 +160,26 @@ describe('createMCPClient', () => {
     expect(mcp.title).toBe('Weather Lookup')
   })
 
+  it('freezes a copy of the server annotations on bound definitions', async () => {
+    const { clientTransport } = await makeServerWithAnnotatedTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const getWeather = toolDefinition({
+      name: 'get_weather',
+      description: 'Get weather for a city',
+      inputSchema: z.object({ city: z.string() }),
+    })
+    const tools = await client.tools([getWeather])
+    const mcp = tools[0].metadata.mcp
+    expect(mcp.annotations).toEqual({
+      title: 'Legacy Weather Title',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    })
+    expect(Object.isFrozen(mcp.annotations)).toBe(true)
+  })
+
   it('discovers and executes task-required tools', async () => {
     const { clientTransport } = await makeServerWithTaskRequiredTool()
     await using client = await createMCPClientFromTransport(clientTransport)

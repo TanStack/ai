@@ -41,7 +41,11 @@ function mcpToolDef(def: {
   name: string
   title?: string
   description?: string
-  inputSchema?: { type: 'object'; properties?: Record<string, unknown> }
+  inputSchema?: {
+    type?: 'object'
+    properties?: Record<string, unknown>
+    required?: Array<string>
+  }
   execution?: { taskSupport?: 'optional' | 'required' | 'forbidden' }
   annotations?: {
     title?: string
@@ -681,6 +685,84 @@ describe('toServerTools — annotations + title', () => {
     // The title is display-only — it must never leak into the model-facing name.
     expect(tool.name).toBe('wx_get_weather')
     expect(tool.metadata.mcp.title).toBe('Weather Lookup')
+  })
+
+  it('gives a frozen copy of the title and all 5 annotation fields', () => {
+    const annotations = {
+      title: 'Weather Lookup',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    }
+    const def = mcpToolDef({ name: 'get_weather', annotations })
+    const [tool] = toServerTools(fakeMcpClient(vi.fn()), [def], {})
+    const mcp = tool!.metadata.mcp
+    expect(mcp.title).toBe('Weather Lookup')
+    expect(mcp.annotations).toStrictEqual({
+      title: 'Weather Lookup',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    })
+    expect(Object.isFrozen(mcp.annotations)).toBe(true)
+    // A copy: the server's own object stays as it was.
+    expect(mcp.annotations).not.toBe(def.annotations)
+    expect(Object.isFrozen(def.annotations)).toBe(false)
+  })
+})
+
+describe('toServerTools — input schema defaults', () => {
+  it('adds properties: {} to a schema without properties', () => {
+    const [tool] = toServerTools(
+      fakeMcpClient(vi.fn()),
+      [mcpToolDef({ name: 'ping', inputSchema: { type: 'object' } })],
+      {},
+    )
+    expect(tool!.inputSchema).toEqual({ type: 'object', properties: {} })
+  })
+
+  it("adds type: 'object' to a schema without type and keeps its other keys", () => {
+    const [tool] = toServerTools(
+      fakeMcpClient(vi.fn()),
+      [
+        mcpToolDef({
+          name: 'search',
+          inputSchema: {
+            properties: { query: { type: 'string' } },
+            required: ['query'],
+          },
+        }),
+      ],
+      {},
+    )
+    expect(tool!.inputSchema).toEqual({
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
+    })
+  })
+
+  it('gives a tool without an input schema an empty object schema', () => {
+    const def = mcpToolDef({ name: 'bare' })
+    Reflect.deleteProperty(def, 'inputSchema')
+    const [tool] = toServerTools(fakeMcpClient(vi.fn()), [def], {})
+    expect(tool!.inputSchema).toEqual({ type: 'object', properties: {} })
+  })
+
+  it('keeps a full schema as the server sent it', () => {
+    const inputSchema = {
+      type: 'object' as const,
+      properties: { city: { type: 'string' } },
+      required: ['city'],
+    }
+    const [tool] = toServerTools(
+      fakeMcpClient(vi.fn()),
+      [mcpToolDef({ name: 'get_weather', inputSchema })],
+      {},
+    )
+    expect(tool!.inputSchema).toEqual(inputSchema)
   })
 })
 

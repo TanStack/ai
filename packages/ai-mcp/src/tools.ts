@@ -55,9 +55,10 @@ function toolDisplayTitle(def: McpToolDef): string {
  * Shared by auto-discovery (`toServerTools`) and the explicit `tools(defs)`
  * path in `client.ts` so the two cannot drift.
  *
- * `annotations` is the server's own object, forwarded verbatim. Per the MCP
- * spec its fields (including `title`) are **hints** — a host may use them for
- * display or to shape an approval UI, but never as a security boundary.
+ * `annotations` is a frozen copy of the server's object. A host cannot change
+ * the server's data through it. Per the MCP spec, its fields (including
+ * `title`) are hints. A host may use them for display or for an approval UI,
+ * but never as a security boundary.
  *
  * Fields the server didn't declare are OMITTED rather than set to `undefined`:
  * the explicit path merges this over any `mcp` block the caller already put on
@@ -74,7 +75,9 @@ export function toolMcpMetadata(
     serverId,
     title: toolDisplayTitle(def),
     ...(uiResourceUri !== undefined ? { uiResourceUri } : {}),
-    ...(annotations !== undefined ? { annotations } : {}),
+    ...(annotations !== undefined
+      ? { annotations: Object.freeze({ ...annotations }) }
+      : {}),
   }
 }
 
@@ -699,14 +702,18 @@ export function toServerTools(
     .filter((def) => !requiresTaskExecution(def) || supportsTasks)
     .map((def) => {
       const name = options.prefix ? `${options.prefix}_${def.name}` : def.name
+      // A server can leave out `type` or `properties`. Fill both, because
+      // some providers reject an object schema without `properties`.
+      const schema: Partial<McpToolDef['inputSchema']> = def.inputSchema ?? {}
       const tool: McpServerTool = {
         __toolSide: 'server',
         name,
         description: def.description ?? '',
-        inputSchema: (def.inputSchema as any) ?? {
-          type: 'object',
-          properties: {},
-        },
+        inputSchema: {
+          ...schema,
+          type: schema.type ?? 'object',
+          properties: schema.properties ?? {},
+        } as any,
         ...(def.outputSchema ? { outputSchema: def.outputSchema as any } : {}),
         ...(options.lazy ? { lazy: true } : {}),
         metadata: {
