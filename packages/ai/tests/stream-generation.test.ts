@@ -203,7 +203,7 @@ describe('generateVideo({ stream: true })', () => {
         }
       }),
 
-      getVideoUrl: vi.fn(async () => ({
+      getVideo: vi.fn(async () => ({
         jobId: 'job-123',
         url: 'https://example.com/video.mp4',
         expiresAt: new Date('2030-01-01'),
@@ -348,9 +348,9 @@ describe('generateVideo({ stream: true })', () => {
     }
   })
 
-  it('should emit RUN_ERROR when getVideoUrl throws after completed status', async () => {
+  it('should emit RUN_ERROR when getVideo throws after completed status', async () => {
     const adapter = createMockVideoAdapter({ pollsBeforeComplete: 1 })
-    adapter.getVideoUrl = vi.fn(async () => {
+    adapter.getVideo = vi.fn(async () => {
       throw new Error('Failed to retrieve video URL')
     })
 

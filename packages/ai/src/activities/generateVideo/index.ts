@@ -46,12 +46,43 @@ import type {
   TokenUsage,
   VideoJobResult,
   VideoStatusResult,
+  VideoStreamResult,
   VideoUrlResult,
 } from '../../types'
 
 // ===========================
 // Activity Kind
 // ===========================
+
+const UNHOSTED_VIDEO_ERROR = 'The provider returned video bytes without a URL.'
+
+/** A provider URL passes through; bytes go to middleware to be hosted. */
+function videoMedia(result: VideoUrlResult | VideoStreamResult) {
+  return result.body
+    ? { body: result.body, contentType: result.contentType }
+    : {
+        url: result.url,
+        ...(result.expiresAt ? { expiresAt: result.expiresAt } : {}),
+      }
+}
+
+/** Fail when no middleware turned the provider stream into a URL. */
+async function requireVideoUrl(
+  result: { url?: string; body?: unknown },
+  middleware: ReadonlyArray<unknown> | undefined,
+): Promise<void> {
+  if (result.body instanceof ReadableStream && !result.body.locked) {
+    await result.body.cancel().catch(() => {})
+  }
+  if (result.url) return
+  // With middleware configured, "add persistence" would mislead: say what a
+  // configured middleware still needs in order to host the stream.
+  throw new Error(
+    middleware?.length
+      ? `${UNHOSTED_VIDEO_ERROR} A middleware ran but did not turn them into one. withGenerationPersistence needs stores.artifacts, stores.blobs and artifactUrl; a custom extractArtifacts must return a descriptor with bytes: result.body.`
+      : `${UNHOSTED_VIDEO_ERROR} Add withGenerationPersistence with artifactUrl to stream them into your storage.`,
+  )
+}
 
 /** The adapter kind this activity handles */
 export const kind = 'video' as const
@@ -692,13 +723,13 @@ async function* runStreamingVideoGeneration<
       }
 
       if (statusResult.status === 'completed') {
-        const urlResult = await adapter.getVideoUrl(jobResult.jobId)
+        const video = await adapter.getVideo(jobResult.jobId)
 
         logger.output(
           `activity=generateVideo jobId=${jobResult.jobId} status=completed`,
           {
             jobId: jobResult.jobId,
-            url: urlResult.url,
+            url: video.url,
           },
         )
 
@@ -711,21 +742,21 @@ async function* runStreamingVideoGeneration<
         const rawResult = {
           jobId: jobResult.jobId,
           status: 'completed' as const,
-          url: urlResult.url,
-          expiresAt: urlResult.expiresAt,
-          ...(urlResult.usage ? { usage: urlResult.usage } : {}),
+          ...videoMedia(video),
+          ...(video.usage ? { usage: video.usage } : {}),
         }
         const result = await applyGenerationResultTransforms(mwCtx, rawResult)
+        await requireVideoUrl(result, middleware)
 
         // Fire finish before yielding the terminal chunks: the generation has
         // succeeded, so a consumer that stops reading after `generation:result`
         // (without pulling `RUN_FINISHED`) must not trip the abandonment path in
         // `finally`, which would otherwise report a spurious cancellation.
-        if (urlResult.usage)
-          await runGenerationUsage(middleware, mwCtx, urlResult.usage)
+        if (video.usage)
+          await runGenerationUsage(middleware, mwCtx, video.usage)
         await runGenerationFinish(middleware, mwCtx, {
           duration: Date.now() - obsStartTime,
-          usage: urlResult.usage,
+          usage: video.usage,
         })
         settled = true
         abortControls.clear()
@@ -956,12 +987,12 @@ export async function getVideoJobStatus<
 
   // If completed, also get the URL
   if (statusResult.status === 'completed') {
-    let urlResult: VideoUrlResult
+    let video: VideoUrlResult | VideoStreamResult
     // Scoped tightly to the provider call: a middleware hook that throws must
     // surface as itself, not be relabelled "failed to get video URL" and then
     // re-reported to the very middleware that threw.
     try {
-      urlResult = await adapter.getVideoUrl(jobId)
+      video = await adapter.getVideo(jobId)
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to get video URL'
@@ -999,39 +1030,50 @@ export async function getVideoJobStatus<
       jobId,
       status: statusResult.status,
       progress: statusResult.progress,
-      url: urlResult.url,
+      url: video.url,
       duration: Date.now() - startTime,
       timestamp: Date.now(),
     })
-    if (urlResult.usage) {
+    if (video.usage) {
       aiEventClient.emit('video:usage', {
         requestId,
         model: adapter.model,
-        usage: urlResult.usage,
+        usage: video.usage,
         timestamp: Date.now(),
       })
     }
 
     const mwCtx = terminalContext()
     await runGenerationStart(middleware, mwCtx)
-    const result = await applyGenerationResultTransforms<VideoJobStatusResult>(
-      mwCtx,
-      {
+    const result = await applyGenerationResultTransforms<
+      VideoJobStatusResult & { body?: ReadableStream<Uint8Array> }
+    >(mwCtx, {
+      jobId,
+      status: 'completed',
+      ...(statusResult.progress !== undefined
+        ? { progress: statusResult.progress }
+        : {}),
+      ...videoMedia(video),
+      ...(video.usage ? { usage: video.usage } : {}),
+    })
+    try {
+      await requireVideoUrl(result, middleware)
+    } catch (error) {
+      await runGenerationError(middleware, mwCtx, {
+        error,
+        duration: Date.now() - startTime,
+      })
+      return {
         jobId,
-        status: 'completed',
-        ...(statusResult.progress !== undefined
-          ? { progress: statusResult.progress }
-          : {}),
-        url: urlResult.url,
-        ...(urlResult.expiresAt ? { expiresAt: urlResult.expiresAt } : {}),
-        ...(urlResult.usage ? { usage: urlResult.usage } : {}),
-      },
-    )
-    if (urlResult.usage)
-      await runGenerationUsage(middleware, mwCtx, urlResult.usage)
+        status: 'failed' as const,
+        progress: statusResult.progress,
+        error: error instanceof Error ? error.message : UNHOSTED_VIDEO_ERROR,
+      }
+    }
+    if (video.usage) await runGenerationUsage(middleware, mwCtx, video.usage)
     await runGenerationFinish(middleware, mwCtx, {
       duration: Date.now() - startTime,
-      usage: urlResult.usage,
+      usage: video.usage,
     })
     return result
   }

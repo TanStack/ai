@@ -450,13 +450,14 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // BytePlus Seedance uses its own create→poll task API
   // (POST/GET /api/v3/contents/generations/tasks), mounted as
   // byteplusSeedanceMount in global-setup.ts for the same reason.
-  // OpenRouter excluded: its dedicated async video API
-  // (`POST /api/v1/videos` → poll → `unsigned_urls`) is a different wire
-  // shape from the OpenAI `/v1/videos` handler aimock 1.29 mocks. The
-  // adapter's submit/poll/download lifecycle is covered by unit tests
-  // (packages/ai-openrouter/tests/video-adapter.test.ts). Add it here when
-  // aimock learns the OpenRouter job endpoints
-  // (https://github.com/CopilotKit/aimock/issues/261).
+  // OpenRouter excluded: aimock mocks its async video API since 1.38, but
+  // answers `POST /api/v1/videos` with 200 and the official SDK accepts
+  // only 202, so job creation fails
+  // (https://github.com/CopilotKit/aimock/issues/491). The adapter's
+  // submit/poll/download lifecycle is covered by unit tests
+  // (packages/ai-openrouter/tests/video-adapter.test.ts). When that is
+  // fixed, bump aimock and add it here with generation persistence: the
+  // adapter returns the video as a stream, not a URL.
   'video-gen': new Set(['openai', 'gemini', 'byteplus', 'lovable']),
   // image-to-video (image parts in the generateVideo prompt). aimock 1.29's
   // `/v1/videos` handler parses Sora's multipart upload (the SDK switches to

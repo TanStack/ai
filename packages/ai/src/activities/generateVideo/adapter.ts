@@ -4,6 +4,7 @@ import type {
   VideoGenerationOptions,
   VideoJobResult,
   VideoStatusResult,
+  VideoStreamResult,
   VideoUrlResult,
 } from '../../types'
 
@@ -120,10 +121,11 @@ export interface VideoAdapter<
   getVideoStatus: (jobId: string) => Promise<VideoStatusResult>
 
   /**
-   * Get the URL to download/view the generated video.
-   * Should only be called after status is 'completed'.
+   * Get the finished video: a public URL when the provider has one, or the
+   * download stream for generation middleware to host. Call only after
+   * status is 'completed'.
    */
-  getVideoUrl: (jobId: string) => Promise<VideoUrlResult>
+  getVideo: (jobId: string) => Promise<VideoUrlResult | VideoStreamResult>
 
   /**
    * Describe the durations this adapter's model accepts. Returns a tagged
@@ -209,7 +211,7 @@ export abstract class BaseVideoAdapter<
 
   abstract getVideoStatus(jobId: string): Promise<VideoStatusResult>
 
-  abstract getVideoUrl(jobId: string): Promise<VideoUrlResult>
+  abstract getVideo(jobId: string): Promise<VideoUrlResult | VideoStreamResult>
 
   /**
    * Default implementation returns `{ kind: 'none' }`. Adapters that have

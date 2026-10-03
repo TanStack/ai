@@ -88,7 +88,21 @@ export const Route = createFileRoute('/api/video')({
                 )
               }
 
-              const result = await adapter.getVideoUrl(jobId)
+              const result = await adapter.getVideo(jobId)
+              // The panel has no blob store, so it cannot host provider bytes.
+              if (result.body) {
+                await result.body.cancel()
+                return new Response(
+                  JSON.stringify({
+                    error:
+                      'Provider returned video bytes; add generation persistence to host them',
+                  }),
+                  {
+                    status: 501,
+                    headers: { 'Content-Type': 'application/json' },
+                  },
+                )
+              }
 
               return new Response(
                 JSON.stringify({
