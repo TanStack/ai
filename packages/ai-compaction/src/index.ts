@@ -238,7 +238,8 @@ export interface CompactionContext {
 }
 
 /**
- * Shrinks a message list. Called only when the estimate is over budget.
+ * Shrinks a message list. Called when the count is over `maxTokens`, or when
+ * `compactNext` forces it.
  * Return the rewritten messages, or `null` to leave them unchanged.
  */
 export type CompactionStrategy = (
@@ -259,7 +260,7 @@ export interface CompactionInfo {
 }
 
 export interface CompactionOptions {
-  /** Compact when estimated tokens across `messages` exceed this. */
+  /** Compact when the token count of `messages` passes this (see `countTokens` and `auto`). */
   maxTokens: number
   /** How to shrink the messages. Default: {@link evictOldest}. */
   strategy?: CompactionStrategy
@@ -280,6 +281,20 @@ export interface CompactionOptions {
    * `'estimate'`.
    */
   countTokens?: 'estimate' | 'usage'
+  /**
+   * `false`: do not compact when the count passes `maxTokens`.
+   * `compactNext` still compacts. Default `true`.
+   */
+  auto?: boolean
+}
+
+/** What {@link withCompaction} returns: a chat middleware with `compactNext`. */
+export interface CompactionMiddleware extends ChatMiddleware {
+  /**
+   * Compact at the next model call on `threadId`, even when the count is
+   * under `maxTokens` or `auto` is `false`. That call clears the flag.
+   */
+  compactNext: (threadId: string) => void
 }
 
 const sum = (
@@ -469,7 +484,9 @@ export function composeStrategies(
  * })
  * ```
  */
-export function withCompaction(options: CompactionOptions): ChatMiddleware {
+export function withCompaction(
+  options: CompactionOptions,
+): CompactionMiddleware {
   const estimate = options.estimateTokens ?? estimateMessageTokens
   const strategy = options.strategy ?? evictOldest()
   const strategyKey =
@@ -479,6 +496,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
     ? `${strategyKey}:maxTokens=${options.maxTokens}`
     : undefined
   const countUsage = options.countTokens === 'usage'
+  const auto = options.auto !== false
   const memory = memoryMetadata()
   // The store of the checkpoint and of the usage. With countTokens: 'usage',
   // a run with no store, or a strategy with no key, uses the memory of this
@@ -492,14 +510,20 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
   // True when the last model call of a run got a compacted view. The usage of
   // that view fits a later call only when that call reuses the checkpoint.
   const compactedViews = new WeakMap<ChatMiddlewareContext, boolean>()
+  /** The threads whose next model call compacts. */
+  const forced = new Set<string>()
 
   return {
     name: 'compaction',
     optionalRequires: [MetadataCapability],
+    compactNext: (threadId) => {
+      forced.add(threadId)
+    },
     async onConfig(ctx, config) {
       // init is discarded by the engine rebuild and can run before persistence
       // hydrates the thread. Compact only on model-bound phases.
       if (ctx.phase === 'init') return
+      const force = forced.delete(ctx.threadId)
 
       const startedAt = Date.now()
       const { messages } = config
@@ -549,7 +573,7 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
           : {}),
       }
 
-      if (before <= options.maxTokens) {
+      if (!force && (!auto || before <= options.maxTokens)) {
         if (reusedCheckpoint) {
           emitCompactionStarted(ctx, startedValue)
           const stateValue = compactionStateValue({

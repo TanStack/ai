@@ -20,6 +20,7 @@ import {
   withCompaction,
 } from './index'
 import { countFromUsage, hashMessages, memoryMetadata } from './usage-count'
+import type { CompactionStrategy } from './index'
 
 interface RecordedCustom {
   name: string
@@ -223,6 +224,10 @@ describe('withCompaction', () => {
 
     expect(summarize).toHaveBeenCalledOnce()
     expect(onCompact).toHaveBeenCalledOnce()
+
+    // Estimate mode keeps no checkpoint in memory, so the next call compacts again.
+    await runOnConfig(mw, msgs, phaseContext('beforeModel'))
+    expect(summarize).toHaveBeenCalledTimes(2)
   })
 
   it('reuses a persisted checkpoint for an unchanged canonical prefix', async () => {
@@ -893,10 +898,112 @@ describe('countTokens: usage', () => {
 
     expect(await store.get('ns', '0')).toBe('again')
     expect(await store.get('ns', '1')).toBeNull()
+    // Only the oldest thread went: the cap is 1000, not 999.
+    expect(await store.get('ns', '2')).toBe(2)
     expect(await store.get('ns', '1000')).toBe(1000)
   })
 
   it('keeps the estimate and adds no onUsage hook without countTokens', () => {
     expect(withCompaction({ maxTokens: 100 }).onUsage).toBeUndefined()
+  })
+})
+
+describe('compactNext and auto', () => {
+  const longList = () => [
+    big('user'),
+    big('assistant'),
+    big('user'),
+    big('assistant'),
+  ]
+  const threadContext = (
+    threadId = 'thread-1',
+    phase: ChatMiddlewareContext['phase'] = 'beforeModel',
+  ) => recordingContext(phase, { threadId })
+
+  it('compacts at the next model call under the limit, then clears the flag', async () => {
+    const onCompact = vi.fn()
+    const mw = withCompaction({
+      maxTokens: 1000,
+      onCompact,
+      strategy: evictOldest({ keepRecentTokens: 50 }),
+    })
+    mw.compactNext('thread-1')
+
+    const first = await runOnConfig(mw, longList(), threadContext().ctx)
+    expect(first?.providerMessages?.[0]?.content).toContain('omitted')
+    expect(
+      await runOnConfig(mw, longList(), threadContext().ctx),
+    ).toBeUndefined()
+    expect(onCompact).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the flag through init and uses it at the model-bound call', async () => {
+    const mw = withCompaction({
+      maxTokens: 1000,
+      strategy: evictOldest({ keepRecentTokens: 50 }),
+    })
+    mw.compactNext('thread-1')
+
+    expect(
+      await runOnConfig(mw, longList(), threadContext('thread-1', 'init').ctx),
+    ).toBeUndefined()
+    const result = await runOnConfig(mw, longList(), threadContext().ctx)
+    expect(result?.providerMessages?.[0]?.content).toContain('omitted')
+  })
+
+  it('forces only the thread it names', async () => {
+    const mw = withCompaction({
+      maxTokens: 1000,
+      strategy: evictOldest({ keepRecentTokens: 50 }),
+    })
+    mw.compactNext('thread-a')
+
+    expect(
+      await runOnConfig(mw, longList(), threadContext('thread-b').ctx),
+    ).toBeUndefined()
+    const result = await runOnConfig(
+      mw,
+      longList(),
+      threadContext('thread-a').ctx,
+    )
+    expect(result?.providerMessages?.[0]?.content).toContain('omitted')
+  })
+
+  it('clears the flag and ends the events when the strategy returns null', async () => {
+    const strategy = vi.fn<CompactionStrategy>(() => null)
+    const mw = withCompaction({ maxTokens: 1000, strategy })
+    mw.compactNext('thread-1')
+
+    const first = threadContext()
+    expect(
+      await runOnConfig(mw, [text('user', 'hi')], first.ctx),
+    ).toBeUndefined()
+    expect(first.events.map((event) => event.name)).toEqual([
+      COMPACTION_STARTED_EVENT,
+      COMPACTION_ENDED_EVENT,
+    ])
+
+    // The next call is under the limit and is not forced again.
+    const second = threadContext()
+    expect(
+      await runOnConfig(mw, [text('user', 'hi')], second.ctx),
+    ).toBeUndefined()
+    expect(strategy).toHaveBeenCalledOnce()
+    expect(second.events).toEqual([])
+  })
+
+  it('does not compact on the threshold with auto: false, but compactNext still runs', async () => {
+    const onCompact = vi.fn()
+    const mw = withCompaction({ maxTokens: 100, auto: false, onCompact })
+
+    expect(
+      await runOnConfig(mw, longList(), threadContext().ctx),
+    ).toBeUndefined()
+    expect(onCompact).not.toHaveBeenCalled()
+
+    mw.compactNext('thread-1')
+    const result = await runOnConfig(mw, longList(), threadContext().ctx)
+    expect(result?.providerMessages?.[0]?.content).toContain('omitted')
+    expect(onCompact).toHaveBeenCalledOnce()
   })
 })
