@@ -1348,6 +1348,11 @@
           "label": "Upstash",
           "to": "community-adapters/upstash",
           "addedAt": "2026-09-29"
+        },
+        {
+          "label": "pipe0",
+          "to": "community-adapters/pipe0",
+          "addedAt": "2026-10-02"
         }
       ]
     },
