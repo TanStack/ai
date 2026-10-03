@@ -29,7 +29,9 @@ function tick(): void {
     if (!schedule.enabled || !schedule.nextFire || schedule.nextFire > now) {
       continue
     }
+    schedule.lastRunAt = now
     schedule.nextFire = computeNextFire(schedule, now)
+    schedules.set(schedule.id, schedule)
     void runInjection({
       threadId: schedule.threadId,
       channelId: schedule.channelId,

@@ -15,7 +15,7 @@ async function newPrWatcherTeam(page: Page) {
   await page.getByRole('button', { name: '+ PR-watcher demo' }).click()
   await expect(page).toHaveURL(/\/teams\//)
   await expect(page.getByText('Members · 2')).toBeVisible()
-  await expect(page.getByText('Automations')).toBeVisible()
+  await expect(page.getByText('Automations').first()).toBeVisible()
 }
 
 test('the PR-watcher loop: review, correct, remember, handle the next PR better', async ({

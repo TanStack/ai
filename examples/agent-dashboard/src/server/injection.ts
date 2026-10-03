@@ -17,7 +17,7 @@ import { getHarnessForThread, getHost } from './harness'
 import { memoryPreamble } from './memory'
 import { fileMap } from './store'
 
-export type Trigger = 'timer' | 'manual' | 'webhook'
+export type Trigger = 'timer' | 'manual' | 'webhook' | 'mcp'
 
 /**
  * A job either runs one tool out-of-band (`mode: 'tool'`, the Phase 2 default) or
@@ -54,6 +54,16 @@ export interface Schedule {
   everySeconds?: number
   enabled: boolean
   nextFire?: number
+  lastRunAt?: number
+}
+
+export interface WebhookDelivery {
+  id: string
+  at: number
+  payload: unknown
+  status: Job['status']
+  reason?: string
+  jobId: string
 }
 
 export interface Webhook {
@@ -68,6 +78,7 @@ export interface Webhook {
   argMapping: Record<string, string>
   /** For `mode: 'prompt'`: the message template (payload is appended as JSON). */
   message?: string
+  deliveries: Array<WebhookDelivery>
 }
 
 const jobs: Array<Job> = []

@@ -1,19 +1,20 @@
 import { expect, test } from '@playwright/test'
-import { openDemo } from './devtools'
+import { closeDemo, openDemo } from './devtools'
+import type { Page } from '@playwright/test'
 
 // Phase 2: the dashboard invokes work deterministically — run-now, timers, and
 // webhooks — with the structured result streaming into the channel. These share
 // server-side state (the scheduler + the offline flag), so run them serially.
 test.describe.configure({ mode: 'serial' })
 
-async function newTeam(page: import('@playwright/test').Page) {
+async function newTeam(page: Page) {
   await page.goto('/')
   // The team-creation demos now live in the Demo Controls devtools panel.
   await openDemo(page)
   await page.getByRole('button', { name: '+ New team' }).click()
   await expect(page).toHaveURL(/\/teams\//)
   // The automations panel is present once the channel view mounts.
-  await expect(page.getByText('Automations')).toBeVisible()
+  await expect(page.getByText('Automations').first()).toBeVisible()
 }
 
 test('run-now executes a public tool; private tools are never listed', async ({
@@ -44,6 +45,7 @@ test('a scheduled timer fires a public tool into the channel', async ({
   await newTeam(page)
 
   // Fire every second so the test doesn't wait on a slow interval.
+  await closeDemo(page)
   await page.getByLabel('schedule interval seconds').fill('1')
   await page.getByRole('button', { name: '+ Add schedule' }).click()
   // The timer (dashboard-owned clock) fires within a couple of seconds.

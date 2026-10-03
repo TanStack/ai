@@ -6,7 +6,17 @@ import type { Schedule } from '@/server/injection'
 import '@/server/meta'
 
 function serialize(schedule: Schedule) {
-  return { ...schedule }
+  const upcoming: Array<number> = []
+  if (schedule.enabled) {
+    let from = Date.now()
+    for (let index = 0; index < 3; index++) {
+      const next = computeNextFire(schedule, from)
+      if (!next) break
+      upcoming.push(next)
+      from = next
+    }
+  }
+  return { ...schedule, upcoming }
 }
 
 // The schedule table. Server-owned (the dashboard owns the clock), so schedules
@@ -16,11 +26,15 @@ export const Route = createFileRoute('/api/schedules')({
     handlers: {
       GET: ({ request }) => {
         startScheduler()
-        const channelId = new URL(request.url).searchParams.get('channelId')
+        const params = new URL(request.url).searchParams
+        const channelId = params.get('channelId')
+        const threadIds = params.getAll('threadId')
         const all = [...schedules.values()]
-        const rows = channelId
-          ? all.filter((s) => s.channelId === channelId)
-          : all
+        const rows = all.filter(
+          (schedule) =>
+            (!channelId || schedule.channelId === channelId) &&
+            (threadIds.length === 0 || threadIds.includes(schedule.threadId)),
+        )
         return Response.json({ schedules: rows.map(serialize) })
       },
       POST: async ({ request }) => {
