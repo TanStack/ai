@@ -55,7 +55,8 @@ For deeper architecture details (adapter system, isomorphic tools, framework int
 1. Fetches OpenRouter, Vercel AI Gateway, and Lovable AI Gateway catalogs.
 2. Regenerates `packages/ai-openrouter/src/model-meta.ts` and the Vercel Gateway model list.
 3. Inserts **new** native-provider models into `packages/ai-openai`, `ai-anthropic`, `ai-gemini`, and `ai-grok`.
-4. Writes a patch changeset for the packages that changed.
+4. Inserts **new** ElevenLabs text-to-speech, music, sound-effect, and voice-design ids from [modelschemas](https://modelschemas.com/v1/schemas/elevenlabs) into `packages/ai-elevenlabs/src/model-meta.ts`. Transcription ids stay hand-maintained.
+5. Writes a patch changeset for the packages that changed.
 
 Rules the generator follows:
 

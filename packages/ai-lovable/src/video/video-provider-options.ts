@@ -2,6 +2,9 @@
  * @experimental Video generation is an experimental feature and may change.
  */
 
+import { durationToSeconds } from '@tanstack/ai/adapters'
+import type { VideoDurationSpell } from '@tanstack/ai/adapters'
+
 export type LovableHdVideoSize =
   | '1280x720'
   | '720x1280'
@@ -14,7 +17,11 @@ export type LovableVideoSize = LovableHdVideoSize | Lovable4kVideoSize
 
 export type LovableVideoSeconds = '4' | '6' | '8'
 
-export type LovableVideoDuration = 4 | 6 | 8
+/**
+ * Gateway Veo clips are 4, 6, or 8 seconds. Callers may pass the number,
+ * the numeric string, or a `"6s"` template. The adapter sends `"4" | "6" | "8"`.
+ */
+export type LovableVideoDuration = VideoDurationSpell<4 | 6 | 8>
 
 export interface LovableVideoProviderOptions {
   size?: LovableVideoSize
@@ -84,19 +91,13 @@ export function validateVideoSize(
 export function validateVideoSeconds(
   model: string,
   seconds?: number | string,
-): asserts seconds is LovableVideoSeconds | LovableVideoDuration | undefined {
+): asserts seconds is LovableVideoDuration | undefined {
   if (seconds === undefined) return
+  if (toApiSeconds(seconds) !== undefined) return
 
-  const isValid =
-    typeof seconds === 'string'
-      ? seconds === '4' || seconds === '6' || seconds === '8'
-      : seconds === 4 || seconds === 6 || seconds === 8
-
-  if (!isValid) {
-    throw new Error(
-      `Duration "${seconds}" is not supported by model "${model}". Supported durations: 4, 6, or 8 seconds`,
-    )
-  }
+  throw new Error(
+    `Duration "${seconds}" is not supported by model "${model}". Supported durations: 4, 6, or 8 seconds ("6", "6s", or 6).`,
+  )
 }
 
 export function validateHighResDuration(
@@ -107,11 +108,7 @@ export function validateHighResDuration(
   if (!size || !isHighResVideoSize(size)) return
 
   const asNumber =
-    seconds === undefined
-      ? undefined
-      : typeof seconds === 'string'
-        ? Number(seconds)
-        : seconds
+    seconds === undefined ? undefined : durationToSeconds(seconds)
 
   if (asNumber !== undefined && asNumber !== 8) {
     throw new Error(
@@ -124,5 +121,9 @@ export function toApiSeconds(
   seconds: number | string | undefined,
 ): LovableVideoSeconds | undefined {
   if (seconds === undefined) return undefined
-  return String(seconds) as LovableVideoSeconds
+  const value = durationToSeconds(seconds)
+  if (value === 4) return '4'
+  if (value === 6) return '6'
+  if (value === 8) return '8'
+  return undefined
 }

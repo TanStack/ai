@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n proxy,threejs,vite -c magenta,green,cyan \"node scripts/serve-sandbox.mjs\" \"npx -y @modelcontextprotocol/server-threejs\" \"vite dev --port 3000\"",
+    "dev": "concurrently -k -n proxy,callback,threejs,vite -c magenta,yellow,green,cyan \"node scripts/serve-sandbox.mjs\" \"node scripts/serve-chatgpt-callback.mjs\" \"npx -y @modelcontextprotocol/server-threejs\" \"vite dev --port 3000\"",
     "dev:vite": "vite dev --port 3000",
     "build": "vite build",
     "serve": "vite preview",

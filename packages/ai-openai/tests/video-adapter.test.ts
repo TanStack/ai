@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { generateVideo } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { OpenAIVideoAdapter, createOpenaiVideo } from '../src/adapters/video'
 
@@ -163,6 +164,70 @@ describe('OpenAI Video Adapter', () => {
         }),
       ).rejects.toThrow(/audio prompt parts/)
       expect(mockCreate).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('duration', () => {
+    it.each([8, '8', '8s'] as const)(
+      'sends seconds "8" for duration %s',
+      async (duration) => {
+        const { adapter, mockCreate } = mockedAdapter()
+        await adapter.createVideoJob({
+          model: 'sora-2',
+          prompt: 'A cat walking',
+          duration,
+          logger: testLogger,
+        })
+        expect(mockCreate.mock.calls[0]![0].seconds).toBe('8')
+      },
+    )
+
+    it.each([6, '6s', 'auto'] as const)(
+      'rejects duration %s',
+      async (duration) => {
+        const { adapter, mockCreate } = mockedAdapter()
+        await expect(
+          adapter.createVideoJob({
+            model: 'sora-2',
+            prompt: 'A cat walking',
+            duration: duration as 8,
+            logger: testLogger,
+          }),
+        ).rejects.toThrow(/not supported/)
+        expect(mockCreate).not.toHaveBeenCalled()
+      },
+    )
+
+    it('snaps to the API string and keeps the earlier tie', () => {
+      const adapter = createOpenaiVideo('sora-2', 'test-api-key')
+      expect(adapter.availableDurations()).toEqual({
+        kind: 'discrete',
+        values: ['4', '8', '12'],
+      })
+      expect(adapter.snapDuration(8)).toBe('8')
+      expect(adapter.snapDuration(6)).toBe('4')
+      expect(adapter.snapDuration('6s')).toBe('4')
+      expect(adapter.snapDuration(7)).toBe('8')
+      expect(adapter.snapDuration('auto')).toBeUndefined()
+      expectTypeOf(adapter.snapDuration).returns.toEqualTypeOf<
+        '4' | '8' | '12' | undefined
+      >()
+    })
+
+    it('accepts 8, "8", and "8s" and rejects 6, "6s", and "auto"', () => {
+      const typeOnly = () => {
+        const adapter = createOpenaiVideo('sora-2', 'test-api-key')
+        void generateVideo({ adapter, prompt: 'x', duration: 8 })
+        void generateVideo({ adapter, prompt: 'x', duration: '8' })
+        void generateVideo({ adapter, prompt: 'x', duration: '8s' })
+        // @ts-expect-error 6 is not a Sora duration
+        void generateVideo({ adapter, prompt: 'x', duration: 6 })
+        // @ts-expect-error "6s" is not a Sora duration
+        void generateVideo({ adapter, prompt: 'x', duration: '6s' })
+        // @ts-expect-error "auto" is not a Sora duration
+        void generateVideo({ adapter, prompt: 'x', duration: 'auto' })
+      }
+      expect(typeOnly).toBeTypeOf('function')
     })
   })
 })

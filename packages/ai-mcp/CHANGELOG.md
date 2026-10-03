@@ -1,5 +1,26 @@
 # @tanstack/ai-mcp
 
+## 0.7.0
+
+### Minor Changes
+
+- [#1595](https://github.com/TanStack/ai/pull/1595) [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824) - `createMCPServer` from `@tanstack/ai-mcp/server`:
+  - A resource `read(uri, variables, ctx)` now gets the requested URI, the template variables, and `ctx.context` (the `handle` context plus `authInfo`). A template resource can take `list(ctx)` for `resources/list`.
+  - `metadata._meta` on a tool definition is sent as the MCP tool `_meta`, so a tool can link an MCP Apps view with `_meta.ui.resourceUri`.
+  - New `sessions: 'stateless'` serves spec 2025 clients without a session store, so it works on Cloudflare Workers and other multi-instance hosts. It is now the default. In that mode, `ctx.context.requestInput` throws a clear error for a spec 2025 client, and `ctx.context.sample` uses the `sample` option. Set `sessions: 'memory'` to keep the old spec 2025 sessions. `serveMCPStdio` still uses `'memory'` when `sessions` is not set.
+  - New `onerror` option receives SDK transport and protocol errors, including the `serveMCPStdio` transport errors.
+  - Tool and prompt schemas are converted and compiled once at `createMCPServer`, not on every request.
+  - Output schemas are advertised from the output view, and tool results are parsed with the output schema, so a transform or pipe no longer fails the structured-content check. Async output schemas work. Output that fails its schema returns a tool error that names the tool. An output schema with a bare transform advertises no output schema.
+  - `createMCPClient({ server })` parses tool output the same way, and `readResource(uri, context)` takes a context for the resource.
+  - `MCPResourceContext`, `MCPResourceRead`, and `MCPResourceList` are exported. `resourceDefinition` accepts `list` only with `uriTemplate`.
+
+  `convertSchemaToJsonSchema` from `@tanstack/ai` takes a new `io: 'input' | 'output'` option.
+
+### Patch Changes
+
+- Updated dependencies [[`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb), [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824), [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9), [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49)]:
+  - @tanstack/ai@0.64.0
+
 ## 0.6.0
 
 ### Minor Changes
