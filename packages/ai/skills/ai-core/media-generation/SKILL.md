@@ -637,16 +637,24 @@ return a URL (Grok, fal, BytePlus) pass through; persistence still re-hosts
 them, which you want because those URLs expire.
 
 ```typescript
-const status = await getVideoJobStatus({
-  adapter: openRouterVideo('google/veo-3.1'),
-  jobId,
-  threadId,
-  middleware: [
-    withGenerationPersistence(persistence, {
-      artifactUrl: (ref) => `/api/artifacts/${ref.artifactId}`,
-    }),
-  ],
-})
+import { getVideoJobStatus } from '@tanstack/ai'
+import { openRouterVideo } from '@tanstack/ai-openrouter'
+import { withGenerationPersistence } from '@tanstack/ai-persistence'
+// Your AIPersistence with generationRuns, artifacts, and blobs stores.
+import { persistence } from './persistence'
+
+export async function pollVideo(jobId: string, threadId: string) {
+  return getVideoJobStatus({
+    adapter: openRouterVideo('google/veo-3.1'),
+    jobId,
+    threadId,
+    middleware: [
+      withGenerationPersistence(persistence, {
+        artifactUrl: (ref) => `/api/artifacts/${ref.artifactId}`,
+      }),
+    ],
+  })
+}
 ```
 
 ```typescript
