@@ -1123,6 +1123,183 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     expect(finished.metadata?.tanstack?.finishReason).toBe('tool_calls')
   })
 
+  it('undoes strict null-widening before emitting the completed tool input', async () => {
+    // Strict tools reach the model with optionals widened to required +
+    // nullable, so an omitted optional comes back as `null`. Only those nulls
+    // are stripped; a genuine `.nullable()` null stays.
+    const strictTool: Tool = {
+      name: 'recommend_guitar',
+      description: 'Recommend a guitar',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          guitar: { type: 'string' },
+          strings: {
+            type: 'object',
+            properties: {
+              gauges: { type: 'array', items: { type: 'string' }, minItems: 1 },
+              brand: { type: 'string' },
+            },
+            required: ['gauges'],
+          },
+          note: { type: ['string', 'null'] },
+          case: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        },
+        required: ['guitar', 'note'],
+      },
+    }
+    const argumentsJson =
+      '{"guitar":"Martin D-28","strings":null,"note":null,"case":null}'
+    setupMockSdkClient([
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.output_item.added',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        item: {
+          type: 'function_call',
+          id: 'item_1',
+          callId: 'call_abc',
+          name: 'recommend_guitar',
+          arguments: '',
+        },
+      },
+      {
+        type: 'response.function_call_arguments.delta',
+        sequenceNumber: 2,
+        itemId: 'item_1',
+        outputIndex: 0,
+        delta: argumentsJson,
+      },
+      {
+        type: 'response.function_call_arguments.done',
+        sequenceNumber: 3,
+        itemId: 'item_1',
+        outputIndex: 0,
+        arguments: argumentsJson,
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 4,
+        response: {
+          model: 'm',
+          output: [{ type: 'function_call' }],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const c of createAdapter().chatStream({
+      logger: testLogger,
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Hello' }],
+      tools: [strictTool],
+    })) {
+      chunks.push(c)
+    }
+
+    const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    if (end?.type !== 'TOOL_CALL_END') {
+      throw new Error('expected TOOL_CALL_END')
+    }
+    expect(end.input).toEqual({ guitar: 'Martin D-28', note: null, case: null })
+  })
+
+  it('undoes null-widening inside nested optional and nullable objects', async () => {
+    const strictTool: Tool = {
+      name: 'recommend_guitar',
+      description: 'Recommend a guitar',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          strings: {
+            type: 'object',
+            properties: {
+              gauges: { type: 'array', items: { type: 'string' } },
+              brand: { type: 'string' },
+            },
+            required: ['gauges'],
+          },
+          pickup: {
+            anyOf: [
+              {
+                type: 'object',
+                properties: {
+                  store: { type: 'string' },
+                  date: { type: 'string' },
+                },
+                required: ['store'],
+              },
+              { type: 'null' },
+            ],
+          },
+        },
+        required: ['pickup'],
+      },
+    }
+    const argumentsJson =
+      '{"strings":{"gauges":["10","46"],"brand":null},"pickup":{"store":"Berlin","date":null}}'
+    setupMockSdkClient([
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.output_item.added',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        item: {
+          type: 'function_call',
+          id: 'item_1',
+          callId: 'call_abc',
+          name: 'recommend_guitar',
+          arguments: '',
+        },
+      },
+      {
+        type: 'response.function_call_arguments.done',
+        sequenceNumber: 2,
+        itemId: 'item_1',
+        outputIndex: 0,
+        arguments: argumentsJson,
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 3,
+        response: {
+          model: 'm',
+          output: [{ type: 'function_call' }],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const c of createAdapter().chatStream({
+      logger: testLogger,
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Hello' }],
+      tools: [strictTool],
+    })) {
+      chunks.push(c)
+    }
+
+    const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    if (end?.type !== 'TOOL_CALL_END') {
+      throw new Error('expected TOOL_CALL_END')
+    }
+    expect(end.input).toEqual({
+      strings: { gauges: ['10', '46'] },
+      pickup: { store: 'Berlin' },
+    })
+  })
+
   it('preserves a streamed function-call name when later items omit it', async () => {
     setupMockSdkClient([
       {
