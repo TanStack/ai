@@ -2375,6 +2375,25 @@ export interface VideoUrlResult {
   usage?: TokenUsage
   /** Persisted artifact references for generated assets, when available */
   artifacts?: Array<PersistedArtifactRef>
+  body?: never
+}
+
+/**
+ * Video bytes from a provider that has no public URL for the finished video.
+ * Core passes `body` to generation middleware, which streams it into storage
+ * and sets `url`. Use `withGenerationPersistence` with `artifactUrl`.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoStreamResult {
+  /** Job identifier */
+  jobId: string
+  /** The video bytes. Read once, with backpressure. Never buffer it whole. */
+  body: ReadableStream<Uint8Array>
+  /** MIME type of `body`, e.g. `video/mp4`. */
+  contentType: string
+  usage?: TokenUsage
+  url?: never
 }
 
 // ============================================================================

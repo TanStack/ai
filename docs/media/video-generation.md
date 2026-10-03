@@ -63,6 +63,75 @@ Currently supported:
 > [keep the finished clip](../persistence/keep-generated-files) by saving its
 > bytes to your own storage.
 
+## Videos with no public URL
+
+Some providers have no public URL for the finished video. The adapter then returns the video as a stream, and the browser cannot play a stream. Your server must store the video and return a URL.
+
+This applies to these providers:
+
+- **OpenRouter**: always. Its download URLs require your API key.
+- **Lovable**: when the finished job has no URL.
+- **OpenAI Sora**: when the finished job has no URL.
+
+Without storage, the run fails. `getVideoJobStatus()` returns `status: 'failed'`, and a streamed run emits `RUN_ERROR`. The error message names `withGenerationPersistence`.
+
+To fix this, add `withGenerationPersistence` with an `artifactUrl`. It pipes the stream into your blob store and sets `url` on the result. The server never holds the full video in memory.
+
+```typescript
+import { generateVideo, toServerSentEventsResponse } from "@tanstack/ai";
+import { openRouterVideo } from "@tanstack/ai-openrouter";
+import { withGenerationPersistence } from "@tanstack/ai-persistence";
+import { persistence } from "./persistence";
+
+export async function POST(request: Request) {
+  const body = await request.json();
+  const { prompt } = body.data;
+
+  const stream = generateVideo({
+    adapter: openRouterVideo("google/veo-3.1"),
+    prompt,
+    stream: true,
+    threadId: "videos",
+    middleware: [
+      withGenerationPersistence(persistence, {
+        // The URL of your route that serves the stored bytes.
+        artifactUrl: (ref) => `/api/artifacts/${ref.artifactId}`,
+      }),
+    ],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+`./persistence` is your persistence object. It needs the `generationRuns`, `artifacts`, and `blobs` stores. [Keep generated files](../persistence/keep-generated-files) shows how to build it and how to write the route that serves the bytes.
+
+The browser receives a URL on your own origin:
+
+```tsx
+import { useGenerateVideo, fetchServerSentEvents } from "@tanstack/ai-react";
+
+export function VideoPlayer() {
+  const { generate, result, isLoading } = useGenerateVideo({
+    connection: fetchServerSentEvents("/api/generate/video"),
+  });
+
+  return (
+    <div>
+      <button
+        onClick={() => generate({ prompt: "A paper boat in the rain" })}
+        disabled={isLoading}
+      >
+        Generate
+      </button>
+      {result?.url && <video src={result.url} controls />}
+    </div>
+  );
+}
+```
+
+Providers that return a public URL need no storage to play the video. Persistence still copies those videos into your store, which keeps them after the provider URL expires.
+
 ## Basic Usage
 
 ### Creating a Video Job
@@ -912,12 +981,11 @@ await generateVideo({
 
 Two OpenRouter-specific behaviors to know about:
 
-- **The completed video arrives as a `data:` URL.** OpenRouter's download
-  URLs require your API key in an `Authorization` header, so the adapter
-  downloads the content server-side and returns a base64 data URL that can
-  be handed straight to a `<video>` tag. Videos over ~10 MiB log a warning —
-  prefer re-uploading to your own storage/CDN over passing large data URLs
-  around.
+- **The completed video arrives as a stream.** OpenRouter's download URLs
+  require your API key in an `Authorization` header, so a browser cannot
+  load them. The adapter returns the download stream, and
+  `withGenerationPersistence` stores it and sets the URL. See
+  [Videos with no public URL](#videos-with-no-public-url).
 - **Cost is reported on completion.** The gateway reports the real billed
   cost for the job; it's surfaced as `usage.cost` on the completed result.
 

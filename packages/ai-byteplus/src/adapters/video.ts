@@ -548,7 +548,7 @@ export class BytePlusVideoAdapter<
     }
   }
 
-  async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
+  async getVideo(jobId: string): Promise<VideoUrlResult> {
     let task: BytePlusVideoTask
     try {
       task = await this.retrieveTask(jobId)

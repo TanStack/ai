@@ -230,4 +230,26 @@ describe('OpenAI Video Adapter', () => {
       expect(typeOnly).toBeTypeOf('function')
     })
   })
+
+  it('returns the download stream unread when the job has no url', async () => {
+    const adapter = createOpenaiVideo('sora-2', 'test-api-key')
+    const download = new Response('mp4-bytes', {
+      headers: { 'content-type': 'video/mp4' },
+    })
+    ;(adapter as unknown as { client: { videos: unknown } }).client = {
+      videos: {
+        retrieve: vi
+          .fn()
+          .mockResolvedValue({ id: 'job-1', status: 'completed' }),
+        downloadContent: vi.fn().mockResolvedValue(download),
+      },
+    }
+
+    const result = await adapter.getVideo('job-1')
+
+    if (!result.body) throw new Error('expected a stream result')
+    expect(download.bodyUsed).toBe(false)
+    expect(result.contentType).toBe('video/mp4')
+    await expect(new Response(result.body).text()).resolves.toBe('mp4-bytes')
+  })
 })

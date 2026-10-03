@@ -366,11 +366,11 @@ describe('OpenRouter Video Adapter', () => {
     })
   })
 
-  describe('getVideoUrl', () => {
+  describe('getVideo', () => {
     const CONTENT_URL =
       'https://openrouter.ai/api/v1/videos/job-123/content?index=0'
 
-    it('downloads the content into a data URL with gateway-reported cost', async () => {
+    it('returns the content stream unread with gateway-reported cost', async () => {
       mockGetGeneration = vi.fn().mockResolvedValueOnce(
         createMockJobResponse({
           status: 'completed',
@@ -382,12 +382,14 @@ describe('OpenRouter Video Adapter', () => {
       mockGetVideoContent = vi.fn().mockResolvedValueOnce(streamOf(bytes))
 
       const adapter = createAdapter()
-      const result = await adapter.getVideoUrl('job-123')
+      const result = await adapter.getVideo('job-123')
 
       expect(mockGetVideoContent).toHaveBeenCalledWith({ jobId: 'job-123' })
-      expect(result.url).toBe(
-        `data:video/mp4;base64,${Buffer.from(bytes).toString('base64')}`,
-      )
+      if (!result.body) throw new Error('expected a stream result')
+      expect(result.contentType).toBe('video/mp4')
+      expect(
+        new Uint8Array(await new Response(result.body).arrayBuffer()),
+      ).toEqual(bytes)
       expect(result.jobId).toBe('job-123')
       expect(result.usage).toMatchObject({ cost: 0.45 })
     })
@@ -404,7 +406,7 @@ describe('OpenRouter Video Adapter', () => {
         .mockResolvedValueOnce(streamOf(new Uint8Array([1, 2, 3])))
 
       const adapter = createAdapter()
-      const result = await adapter.getVideoUrl('job-123')
+      const result = await adapter.getVideo('job-123')
 
       expect(result.usage).toBeUndefined()
     })
@@ -421,7 +423,7 @@ describe('OpenRouter Video Adapter', () => {
         .mockRejectedValueOnce(new Error('Unauthorized'))
 
       const adapter = createAdapter()
-      await expect(adapter.getVideoUrl('job-123')).rejects.toThrow(
+      await expect(adapter.getVideo('job-123')).rejects.toThrow(
         /failed to download video content for job job-123: Unauthorized/,
       )
     })
@@ -436,7 +438,7 @@ describe('OpenRouter Video Adapter', () => {
       mockGetVideoContent = vi.fn()
 
       const adapter = createAdapter()
-      await expect(adapter.getVideoUrl('job-123')).rejects.toThrow(
+      await expect(adapter.getVideo('job-123')).rejects.toThrow(
         /job-123 failed: Provider rejected the prompt/,
       )
       expect(mockGetVideoContent).not.toHaveBeenCalled()
@@ -449,7 +451,7 @@ describe('OpenRouter Video Adapter', () => {
       mockGetVideoContent = vi.fn()
 
       const adapter = createAdapter()
-      await expect(adapter.getVideoUrl('job-123')).rejects.toThrow(
+      await expect(adapter.getVideo('job-123')).rejects.toThrow(
         /no downloadable content yet/,
       )
       expect(mockGetVideoContent).not.toHaveBeenCalled()

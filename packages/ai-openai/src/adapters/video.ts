@@ -2,7 +2,6 @@ import OpenAI from 'openai'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
-import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import { imagePartToFile } from '../image/image-input-to-file'
 import {
@@ -16,6 +15,7 @@ import type {
   VideoGenerationOptions,
   VideoJobResult,
   VideoStatusResult,
+  VideoStreamResult,
   VideoUrlResult,
 } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
@@ -29,23 +29,6 @@ import type {
   OpenAIVideoSeconds,
 } from '../video/video-provider-options'
 import type { OpenAIClientConfig } from '../utils/client'
-
-/**
- * Threshold for emitting a "this download will probably OOM serverless
- * runtimes" warning. Anything larger than this (in bytes) gets surfaced via
- * console.warn — workers and small isolates routinely run out of memory once
- * a downloaded video is base64-encoded.
- */
-const LARGE_MEDIA_BUFFER_BYTES = 10 * 1024 * 1024
-
-function warnIfLargeMediaBuffer(byteLength: number, source: string): void {
-  if (byteLength <= LARGE_MEDIA_BUFFER_BYTES) return
-  console.warn(
-    `[openai.${source}] downloaded ${(byteLength / 1024 / 1024).toFixed(1)} MiB into memory before base64 encoding. ` +
-      `Workers/serverless runtimes commonly run out of memory above ~10 MiB. ` +
-      `Consider streaming the video through a CDN or your own storage layer instead.`,
-  )
-}
 
 /**
  * Configuration for OpenAI video adapter.
@@ -199,10 +182,7 @@ export class OpenAIVideoAdapter<
       expires_at?: number
       error?: { message?: string }
     }>
-    downloadContent?: (id: string) => Promise<Response>
-    content?: (id: string) => Promise<unknown>
-    getContent?: (id: string) => Promise<unknown>
-    download?: (id: string) => Promise<unknown>
+    downloadContent: (id: string) => Promise<Response>
   } {
     return (this.client as { videos: any }).videos
   }
@@ -230,7 +210,7 @@ export class OpenAIVideoAdapter<
     }
   }
 
-  async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
+  async getVideo(jobId: string): Promise<VideoUrlResult | VideoStreamResult> {
     try {
       const videosClient = this.getVideosClient()
 
@@ -250,95 +230,14 @@ export class OpenAIVideoAdapter<
         }
       }
 
-      // SDK download fall-through: try the various possible method names.
-      if (typeof videosClient.downloadContent === 'function') {
-        const contentResponse = await videosClient.downloadContent(jobId)
-        const videoBlob = await contentResponse.blob()
-        const buffer = await videoBlob.arrayBuffer()
-        warnIfLargeMediaBuffer(buffer.byteLength, 'video.downloadContent')
-        const base64 = arrayBufferToBase64(buffer)
-        const mimeType =
-          contentResponse.headers.get('content-type') || 'video/mp4'
-        // Omit `expiresAt` to satisfy exactOptionalPropertyTypes; data URLs do
-        // not have a vendor-provided expiry.
-        return {
-          jobId,
-          url: `data:${mimeType};base64,${base64}`,
-        }
-      }
-
-      let response: any
-      if (typeof videosClient.content === 'function') {
-        response = await videosClient.content(jobId)
-      } else if (typeof videosClient.getContent === 'function') {
-        response = await videosClient.getContent(jobId)
-      } else if (typeof videosClient.download === 'function') {
-        response = await videosClient.download(jobId)
-      } else {
-        // Last resort: raw fetch with auth header.
-        const baseUrl = this.clientConfig.baseURL || 'https://api.openai.com/v1'
-        const apiKey = this.clientConfig.apiKey
-
-        const contentResponse = await fetch(
-          `${baseUrl}/videos/${jobId}/content`,
-          { method: 'GET', headers: { Authorization: `Bearer ${apiKey}` } },
-        )
-
-        if (!contentResponse.ok) {
-          const contentType = contentResponse.headers.get('content-type')
-          if (contentType?.includes('application/json')) {
-            const errorData = await contentResponse.json().catch(() => ({}))
-            throw new Error(
-              errorData.error?.message ||
-                `Failed to get video content: ${contentResponse.status}`,
-            )
-          }
-          throw new Error(
-            `Failed to get video content: ${contentResponse.status}`,
-          )
-        }
-
-        const videoBlob = await contentResponse.blob()
-        const buffer = await videoBlob.arrayBuffer()
-        warnIfLargeMediaBuffer(buffer.byteLength, 'video.fetch')
-        const base64 = arrayBufferToBase64(buffer)
-        const mimeType =
-          contentResponse.headers.get('content-type') || 'video/mp4'
-        return {
-          jobId,
-          url: `data:${mimeType};base64,${base64}`,
-        }
-      }
-
-      // The fall-through SDK methods produce a Blob-ish or fetch-`Response`-ish
-      // object. Read as bytes + wrap in a data URL so callers see a playable
-      // URL instead of an endpoint URL.
-      const fallthroughBlob =
-        typeof response?.blob === 'function'
-          ? await response.blob()
-          : response instanceof Blob
-            ? response
-            : null
-      if (!fallthroughBlob) {
-        throw new Error(
-          `Video content download via SDK fall-through returned an unexpected shape (no blob()).`,
-        )
-      }
-      const fallthroughBuffer = await fallthroughBlob.arrayBuffer()
-      warnIfLargeMediaBuffer(
-        fallthroughBuffer.byteLength,
-        'video.sdkFallthrough',
-      )
-      const fallthroughBase64 = arrayBufferToBase64(fallthroughBuffer)
-      const fallthroughMime =
-        (typeof response?.headers?.get === 'function'
-          ? response.headers.get('content-type')
-          : undefined) ||
-        fallthroughBlob.type ||
-        'video/mp4'
+      // No URL: hand the download stream to generation middleware (which
+      // stores it and sets the URL) instead of buffering the whole video.
+      const response = await videosClient.downloadContent(jobId)
+      if (!response.body) throw new Error('Video download returned no body')
       return {
         jobId,
-        url: `data:${fallthroughMime};base64,${fallthroughBase64}`,
+        body: response.body,
+        contentType: response.headers.get('content-type') || 'video/mp4',
       }
     } catch (error: any) {
       if (error.status === 404) {

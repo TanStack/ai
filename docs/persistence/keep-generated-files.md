@@ -216,6 +216,11 @@ for production. Control what gets captured with `withGenerationPersistence`'s
 `extractArtifacts` (return your own descriptors) and `nameArtifact` (name each
 file) options.
 
+A custom `extractArtifacts` replaces the built-in rule. If you use a video
+provider with [no public URL](../media/video-generation#videos-with-no-public-url),
+return a descriptor with `bytes: result.body` for the video. If you do not, the
+stream is not stored and the run fails.
+
 ## Choose where the bytes land
 
 By default an artifact's bytes are written under
@@ -304,6 +309,20 @@ one.
 buys is a ceiling on what a runaway or hostile origin can make you pull and
 store: `content-length` is advisory, so an origin can declare 1 KB and send
 forever. That is the only reason there is a default at all.
+
+### A provider stream is stored the same way
+
+Some video providers return the finished video as a stream, with no URL to
+fetch. See [Videos with no public URL](../media/video-generation#videos-with-no-public-url).
+The middleware passes that stream to `BlobStore.put` as it is, so memory stays
+flat here too.
+
+Two differences from a fetched URL:
+
+- **No declared length.** The stream has no `content-length`, and the
+  middleware sends no `BlobPutOptions.expectedLength`. Your store must accept
+  a stream of unknown length. On R2 that means a multipart upload.
+- **No size cap.** `maxArtifactBytes` applies to URL fetches only.
 
 ### The body reaches your store untouched when it can
 
