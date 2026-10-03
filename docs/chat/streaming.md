@@ -137,6 +137,10 @@ A dropped connection mid-line throws `StreamTruncatedError`. The client then mov
 
 For OpenAI and OpenRouter Responses, a stream that ends without `response.completed` emits `RUN_ERROR` with code `incomplete-stream`. This applies to chat and to structured output. Text received before the error remains available. The run does not call `onFinish`.
 
+Chat Completions adapters built on `@tanstack/openai-base` also check completion in `chat()`. A started stream needs a non-null `finish_reason` or a final usage-only chunk (`choices: []` with `usage`). Otherwise, the adapter closes open lifecycles and emits `RUN_ERROR` with code `incomplete-stream`. Partial text remains available. The run calls `onError`, skips pending server tools, and does not call `onFinish`.
+
+The usage-only exception preserves provider compatibility. Usage on an earlier chunk or alongside a choice does not satisfy it. The OpenAI SDK hides `[DONE]`, so this check cannot verify that marker. A stream with only `[DONE]` after content still needs a finish reason or usage-only tail to succeed.
+
 ## Later
 
 - **No HTTP.** Iterate `chat()` yourself. Branch on `chunk.type === "TEXT_MESSAGE_CONTENT"`. Then read `chunk.delta`.

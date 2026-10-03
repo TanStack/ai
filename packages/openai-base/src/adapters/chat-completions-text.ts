@@ -775,6 +775,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     // therefore defer RUN_FINISHED until the iterator is exhausted so we can
     // pick up usage from the trailing chunk regardless of arrival order.
     let lastUsage: ChatCompletionChunk['usage'] | undefined
+    let endsWithUsageOnlyChunk = false
     let pendingFinishReason:
       | ChatCompletionChunk['choices'][number]['finish_reason']
       | undefined
@@ -810,6 +811,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
     try {
       for await (const chunk of stream) {
+        endsWithUsageOnlyChunk =
+          chunk.choices.length === 0 && chunk.usage != null
         const choiceForLog = chunk.choices[0]
         options.logger.provider(
           `provider=${this.name} finish_reason=${choiceForLog?.finish_reason ?? 'none'} hasContent=${!!choiceForLog?.delta.content} hasToolCalls=${!!choiceForLog?.delta.tool_calls} hasUsage=${!!chunk.usage}`,
@@ -1090,11 +1093,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         }
       }
 
-      // Emit a single terminal RUN_FINISHED after the iterator is exhausted.
-      // This both delivers accurate token counts (the trailing usage chunk
-      // may arrive AFTER the finish_reason chunk) and gives consumers a
-      // guaranteed terminal event even when the upstream cuts off mid-stream
-      // (no finish_reason chunk ever arrives).
+      // Drain lifecycles before classifying the exhausted stream. Waiting for
+      // EOF also preserves usage that arrives after the finish_reason chunk.
       if (aguiState.hasEmittedRunStarted) {
         // Close any started tool calls that never got finish_reason. A
         // truncated stream that emitted TOOL_CALL_START but never reached
@@ -1183,6 +1183,23 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               content: accumulatedReasoning,
             }
           }
+        }
+
+        // Preserve the historical usage-only tail fallback. The SDK consumes
+        // [DONE], so this compatibility path cannot verify that marker.
+        if (!pendingFinishReason && !endsWithUsageOnlyChunk) {
+          const message =
+            'Chat Completions stream ended without a finish_reason or usage-only tail'
+          yield {
+            type: EventType.RUN_ERROR,
+            runId: aguiState.runId,
+            model: lastModel || options.model,
+            timestamp: Date.now(),
+            message,
+            code: 'incomplete-stream',
+            error: { message, code: 'incomplete-stream' },
+          }
+          return
         }
 
         // Map upstream finish_reason to AG-UI's narrower vocabulary.
