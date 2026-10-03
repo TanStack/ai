@@ -201,6 +201,21 @@ function serializeToolInput(input: unknown): string | undefined {
 }
 
 /**
+ * The input of a tool call from its raw arguments: `{}` for an empty string,
+ * `undefined` when the arguments are not complete JSON (for example cut off)
+ * or are `null`.
+ */
+function parseToolArguments(args: string): unknown {
+  if (args.trim() === '') return {}
+  try {
+    const parsed: unknown = JSON.parse(args)
+    return parsed ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * StreamProcessor - State machine for processing AI response streams
  *
  * Manages the full UIMessage[] conversation and emits events on changes.
@@ -243,6 +258,13 @@ export class StreamProcessor {
 
   // Run tracking (for concurrent run safety)
   private readonly activeRuns = new Set<string>()
+  // Tool calls started since a RUN_STARTED that found no other run active, in
+  // order. A success RUN_FINISHED hands the unanswered ones to the client.
+  private runToolCallIds: Array<string> = []
+  // Tool calls that an interrupt or tool-input-available already handed to
+  // onToolCall since that same reset, so the success path does not run them
+  // twice.
+  private readonly toolCallsSentToClient = new Set<string>()
   // Direct children by subagentRunId. See childProcessor().
   private readonly childProcessors = new Map<string, StreamProcessor>()
   // Child tool calls whose later events may omit subagentRunId.
@@ -1886,6 +1908,7 @@ export class StreamProcessor {
 
       state.toolCalls.set(toolCallId, newToolCall)
       state.toolCallOrder.push(toolCallId)
+      this.runToolCallIds.push(toolCallId)
 
       // Store mapping for TOOL_CALL_ARGS/END routing
       this.toolCallToMessage.set(toolCallId, messageId)
@@ -2115,6 +2138,11 @@ export class StreamProcessor {
   private handleRunStartedEvent(
     chunk: Extract<StreamChunk, { type: 'RUN_STARTED' }>,
   ): void {
+    // A run that overlaps another keeps the calls both runs started.
+    if (this.activeRuns.size === 0) {
+      this.runToolCallIds = []
+      this.toolCallsSentToClient.clear()
+    }
     this.activeRuns.add(chunk.runId)
   }
 
@@ -2150,8 +2178,61 @@ export class StreamProcessor {
       if (isIntermediateToolTurn) {
         return
       }
+      if (!chunk.outcome || chunk.outcome.type === 'success') {
+        this.handlePendingToolCalls(chunk.outcome?.pendingToolCallIds)
+      }
       this.isDone = true
       this.finalizeStream()
+    }
+  }
+
+  /**
+   * AG-UI ends a run that calls a frontend tool with a success outcome and
+   * leaves the call unanswered. The pending calls are the ones named in
+   * `pendingToolCallIds` that this run started, or else every call this run
+   * started that has no result. Fire onToolCall once for each, so the client
+   * runs it and continues.
+   */
+  private handlePendingToolCalls(pendingToolCallIds?: Array<string>): void {
+    const ids = pendingToolCallIds?.length
+      ? pendingToolCallIds.filter((id) => this.runToolCallIds.includes(id))
+      : this.runToolCallIds
+    // Read the parts, not the stream state: a MESSAGES_SNAPSHOT before
+    // RUN_FINISHED resets the stream state.
+    const parts = this.messages
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- `parts` is typed as required, but seeded ModelMessage-shaped messages can lack it at runtime.
+      .flatMap((msg) => msg.parts ?? [])
+    for (const toolCallId of ids) {
+      if (this.toolCallsSentToClient.has(toolCallId)) continue
+      const part = parts.find(
+        (p): p is ToolCallPart => p.type === 'tool-call' && p.id === toolCallId,
+      )
+      if (
+        !part ||
+        // The provider already ran it (e.g. Anthropic web_search).
+        isProviderExecutedToolCall(part) ||
+        // Answered, by the same rule as areAllToolsComplete().
+        part.output !== undefined ||
+        parts.some(
+          (p) => p.type === 'tool-result' && p.toolCallId === toolCallId,
+        ) ||
+        this.isToolCallPartTerminal(toolCallId) ||
+        this.isToolCallPartAwaitingUserAction(toolCallId)
+      ) {
+        continue
+      }
+      // A snapshot can carry a part with arguments but no input. Parse them
+      // strictly, as completeToolCall() does. An empty argument string is a
+      // call with no arguments.
+      const input = part.input ?? parseToolArguments(part.arguments)
+      if (input === undefined) {
+        console.warn(
+          `[StreamProcessor] Did not run tool call ${toolCallId}: the arguments of ${part.name} are not complete JSON`,
+        )
+        continue
+      }
+      this.toolCallsSentToClient.add(toolCallId)
+      this.events.onToolCall?.({ toolCallId, toolName: part.name, input })
     }
   }
 
@@ -2237,6 +2318,7 @@ export class StreamProcessor {
         // Generic interrupts in the same batch decide `toolResume`. Do not
         // run client tools until that policy is `continue`.
         if (hasGeneric || !emit) continue
+        this.toolCallsSentToClient.add(toolCallId)
         this.events.onToolCall?.({
           toolCallId,
           toolName,
@@ -2547,6 +2629,7 @@ export class StreamProcessor {
       }
 
       // Emit onToolCall event for the client to execute the tool
+      this.toolCallsSentToClient.add(toolCallId)
       this.events.onToolCall?.({
         toolCallId,
         toolName,

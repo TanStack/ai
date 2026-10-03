@@ -28,6 +28,7 @@ import { Route as HeadlessUiRouteImport } from './routes/headless-ui'
 import { Route as GenerationPersistenceServerRouteImport } from './routes/generation-persistence-server'
 import { Route as GenerationPersistenceResumeRouteImport } from './routes/generation-persistence-resume'
 import { Route as ForeignInterruptRouteImport } from './routes/foreign-interrupt'
+import { Route as ForeignClientToolRouteImport } from './routes/foreign-client-tool'
 import { Route as DevtoolsToolsRouteImport } from './routes/devtools-tools'
 import { Route as DevtoolsSubagentsRouteImport } from './routes/devtools-subagents'
 import { Route as DevtoolsStructuredRouteImport } from './routes/devtools-structured'
@@ -108,6 +109,7 @@ import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api
 import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
 import { Route as ApiGeminiImageGaModelsRouteImport } from './routes/api.gemini-image-ga-models'
 import { Route as ApiForeignInterruptRouteImport } from './routes/api.foreign-interrupt'
+import { Route as ApiForeignClientToolRouteImport } from './routes/api.foreign-client-tool'
 import { Route as ApiFileSourceWireRouteImport } from './routes/api.file-source-wire'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
@@ -229,6 +231,11 @@ const GenerationPersistenceResumeRoute =
 const ForeignInterruptRoute = ForeignInterruptRouteImport.update({
   id: '/foreign-interrupt',
   path: '/foreign-interrupt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForeignClientToolRoute = ForeignClientToolRouteImport.update({
+  id: '/foreign-client-tool',
+  path: '/foreign-client-tool',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DevtoolsToolsRoute = DevtoolsToolsRouteImport.update({
@@ -650,6 +657,11 @@ const ApiForeignInterruptRoute = ApiForeignInterruptRouteImport.update({
   path: '/api/foreign-interrupt',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiForeignClientToolRoute = ApiForeignClientToolRouteImport.update({
+  id: '/api/foreign-client-tool',
+  path: '/api/foreign-client-tool',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiFileSourceWireRoute = ApiFileSourceWireRouteImport.update({
   id: '/api/file-source-wire',
   path: '/api/file-source-wire',
@@ -795,6 +807,7 @@ export interface FileRoutesByFullPath {
   '/devtools-structured': typeof DevtoolsStructuredRoute
   '/devtools-subagents': typeof DevtoolsSubagentsRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
+  '/foreign-client-tool': typeof ForeignClientToolRoute
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
@@ -834,6 +847,7 @@ export interface FileRoutesByFullPath {
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
+  '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
@@ -921,6 +935,7 @@ export interface FileRoutesByTo {
   '/devtools-structured': typeof DevtoolsStructuredRoute
   '/devtools-subagents': typeof DevtoolsSubagentsRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
+  '/foreign-client-tool': typeof ForeignClientToolRoute
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
@@ -960,6 +975,7 @@ export interface FileRoutesByTo {
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
+  '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
@@ -1048,6 +1064,7 @@ export interface FileRoutesById {
   '/devtools-structured': typeof DevtoolsStructuredRoute
   '/devtools-subagents': typeof DevtoolsSubagentsRoute
   '/devtools-tools': typeof DevtoolsToolsRoute
+  '/foreign-client-tool': typeof ForeignClientToolRoute
   '/foreign-interrupt': typeof ForeignInterruptRoute
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
@@ -1087,6 +1104,7 @@ export interface FileRoutesById {
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/file-source-wire': typeof ApiFileSourceWireRoute
+  '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
@@ -1176,6 +1194,7 @@ export interface FileRouteTypes {
     | '/devtools-structured'
     | '/devtools-subagents'
     | '/devtools-tools'
+    | '/foreign-client-tool'
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
@@ -1215,6 +1234,7 @@ export interface FileRouteTypes {
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/file-source-wire'
+    | '/api/foreign-client-tool'
     | '/api/foreign-interrupt'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
@@ -1302,6 +1322,7 @@ export interface FileRouteTypes {
     | '/devtools-structured'
     | '/devtools-subagents'
     | '/devtools-tools'
+    | '/foreign-client-tool'
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
@@ -1341,6 +1362,7 @@ export interface FileRouteTypes {
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/file-source-wire'
+    | '/api/foreign-client-tool'
     | '/api/foreign-interrupt'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
@@ -1428,6 +1450,7 @@ export interface FileRouteTypes {
     | '/devtools-structured'
     | '/devtools-subagents'
     | '/devtools-tools'
+    | '/foreign-client-tool'
     | '/foreign-interrupt'
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
@@ -1467,6 +1490,7 @@ export interface FileRouteTypes {
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/file-source-wire'
+    | '/api/foreign-client-tool'
     | '/api/foreign-interrupt'
     | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
@@ -1555,6 +1579,7 @@ export interface RootRouteChildren {
   DevtoolsStructuredRoute: typeof DevtoolsStructuredRoute
   DevtoolsSubagentsRoute: typeof DevtoolsSubagentsRoute
   DevtoolsToolsRoute: typeof DevtoolsToolsRoute
+  ForeignClientToolRoute: typeof ForeignClientToolRoute
   ForeignInterruptRoute: typeof ForeignInterruptRoute
   GenerationPersistenceResumeRoute: typeof GenerationPersistenceResumeRoute
   GenerationPersistenceServerRoute: typeof GenerationPersistenceServerRoute
@@ -1594,6 +1619,7 @@ export interface RootRouteChildren {
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
   ApiFileSourceWireRoute: typeof ApiFileSourceWireRoute
+  ApiForeignClientToolRoute: typeof ApiForeignClientToolRoute
   ApiForeignInterruptRoute: typeof ApiForeignInterruptRoute
   ApiGeminiImageGaModelsRoute: typeof ApiGeminiImageGaModelsRoute
   ApiGeminiNativeImageWireRoute: typeof ApiGeminiNativeImageWireRoute
@@ -1797,6 +1823,13 @@ declare module '@tanstack/react-router' {
       path: '/foreign-interrupt'
       fullPath: '/foreign-interrupt'
       preLoaderRoute: typeof ForeignInterruptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/foreign-client-tool': {
+      id: '/foreign-client-tool'
+      path: '/foreign-client-tool'
+      fullPath: '/foreign-client-tool'
+      preLoaderRoute: typeof ForeignClientToolRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/devtools-tools': {
@@ -2359,6 +2392,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiForeignInterruptRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/foreign-client-tool': {
+      id: '/api/foreign-client-tool'
+      path: '/api/foreign-client-tool'
+      fullPath: '/api/foreign-client-tool'
+      preLoaderRoute: typeof ApiForeignClientToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/file-source-wire': {
       id: '/api/file-source-wire'
       path: '/api/file-source-wire'
@@ -2608,6 +2648,7 @@ const rootRouteChildren: RootRouteChildren = {
   DevtoolsStructuredRoute: DevtoolsStructuredRoute,
   DevtoolsSubagentsRoute: DevtoolsSubagentsRoute,
   DevtoolsToolsRoute: DevtoolsToolsRoute,
+  ForeignClientToolRoute: ForeignClientToolRoute,
   ForeignInterruptRoute: ForeignInterruptRoute,
   GenerationPersistenceResumeRoute: GenerationPersistenceResumeRoute,
   GenerationPersistenceServerRoute: GenerationPersistenceServerRoute,
@@ -2648,6 +2689,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
   ApiFileSourceWireRoute: ApiFileSourceWireRoute,
+  ApiForeignClientToolRoute: ApiForeignClientToolRoute,
   ApiForeignInterruptRoute: ApiForeignInterruptRoute,
   ApiGeminiImageGaModelsRoute: ApiGeminiImageGaModelsRoute,
   ApiGeminiNativeImageWireRoute: ApiGeminiNativeImageWireRoute,

@@ -1899,6 +1899,380 @@ describe('StreamProcessor', () => {
   })
 
   // ==========================================================================
+  // Frontend tools on a success RUN_FINISHED
+  // ==========================================================================
+  describe('frontend tools on a success RUN_FINISHED', () => {
+    const toolCall = (toolCallId: string, args = '') => [
+      ev.toolStart(toolCallId, 'ping'),
+      ev.toolArgs(toolCallId, args),
+      ev.toolEnd(toolCallId),
+    ]
+    const finished = (outcome?: Record<string, unknown>) =>
+      chunk(EventType.RUN_FINISHED, {
+        runId: 'run-1',
+        threadId: 'thread-1',
+        ...(outcome && { outcome }),
+      })
+    const run = (...chunks: Array<StreamChunk>) => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      for (const c of [ev.runStarted(), ...chunks]) processor.processChunk(c)
+      return { events, processor }
+    }
+
+    it.each([
+      ['no outcome', undefined],
+      ['a success outcome', { type: 'success' }],
+    ])('fires onToolCall for an unanswered call with %s', (_, outcome) => {
+      const { events } = run(...toolCall('tc-1'), finished(outcome))
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+      expect(events.onToolCall).toHaveBeenCalledWith({
+        toolCallId: 'tc-1',
+        toolName: 'ping',
+        input: {},
+      })
+    })
+
+    it('fires only the calls named in pendingToolCallIds', () => {
+      const { events } = run(
+        ...toolCall('tc-1', '{"n":1}'),
+        ...toolCall('tc-2', '{"n":2}'),
+        finished({ type: 'success', pendingToolCallIds: ['tc-2'] }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+      expect(events.onToolCall).toHaveBeenCalledWith({
+        toolCallId: 'tc-2',
+        toolName: 'ping',
+        input: { n: 2 },
+      })
+    })
+
+    it('ignores pendingToolCallIds of an earlier run', () => {
+      const { events, processor } = run(
+        ...toolCall('tc-1'),
+        ev.runError('boom'),
+      )
+      processor.processChunk(ev.runStarted('run-2'))
+      processor.processChunk(
+        chunk(EventType.RUN_FINISHED, {
+          runId: 'run-2',
+          threadId: 'thread-1',
+          outcome: { type: 'success', pendingToolCallIds: ['tc-1'] },
+        }),
+      )
+
+      expect(events.onToolCall).not.toHaveBeenCalled()
+    })
+
+    it('skips calls the run answered with TOOL_CALL_RESULT', () => {
+      const { events } = run(
+        ...toolCall('tc-1'),
+        ev.toolResult('tc-1', '"pong"'),
+        ...toolCall('tc-2'),
+        finished(),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+      expect(events.onToolCall.mock.calls[0]![0].toolCallId).toBe('tc-2')
+    })
+
+    it('skips provider-executed calls, which have no TOOL_CALL_RESULT', () => {
+      const { events } = run(
+        chunk(EventType.TOOL_CALL_START, {
+          toolCallId: 'srvtoolu-1',
+          toolCallName: 'web_search',
+          metadata: { providerExecuted: true },
+        }),
+        chunk(EventType.TOOL_CALL_END, { toolCallId: 'srvtoolu-1' }),
+        ev.runFinished('stop'),
+      )
+
+      expect(events.onToolCall).not.toHaveBeenCalled()
+    })
+
+    it('skips a call that waits for approval', () => {
+      const { events } = run(
+        ...toolCall('tc-1'),
+        ev.custom('approval-requested', {
+          toolCallId: 'tc-1',
+          toolName: 'ping',
+          input: {},
+          approval: { id: 'approval-1', needsApproval: true },
+        }),
+        finished(),
+      )
+
+      expect(events.onApprovalRequest).toHaveBeenCalledTimes(1)
+      expect(events.onToolCall).not.toHaveBeenCalled()
+    })
+
+    it('does not fire a call that tool-input-available already sent', () => {
+      const { events } = run(
+        ...toolCall('tc-1'),
+        ev.custom('tool-input-available', {
+          toolCallId: 'tc-1',
+          toolName: 'ping',
+          input: {},
+        }),
+        finished(),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+    })
+
+    const clientToolInterrupt = {
+      id: 'int-1',
+      reason: 'client_tool_input',
+      toolCallId: 'tc-1',
+      metadata: { kind: 'client_tool', toolName: 'ping', input: {} },
+    }
+    const genericInterrupt = {
+      id: 'int-2',
+      reason: 'confirmation',
+      metadata: { 'tanstack:interruptBinding': { kind: 'generic' } },
+    }
+
+    it.each([
+      ['a client-tool interrupt', [clientToolInterrupt], 1],
+      [
+        'a batch with a generic interrupt',
+        [clientToolInterrupt, genericInterrupt],
+        0,
+      ],
+    ])('leaves %s to the interrupt path', (_, interrupts, calls) => {
+      const { events } = run(
+        ...toolCall('tc-1'),
+        finished({ type: 'interrupt', interrupts }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(calls)
+    })
+
+    it('does not fire on a cancelled run', () => {
+      const { events } = run(
+        ...toolCall('tc-1'),
+        finished({ type: 'cancelled' }),
+      )
+
+      expect(events.onToolCall).not.toHaveBeenCalled()
+    })
+
+    it('does not fire on an intermediate tool_calls turn of chat()', () => {
+      const { events } = run(...toolCall('tc-1'), ev.runFinished('tool_calls'))
+
+      expect(events.onToolCall).not.toHaveBeenCalled()
+    })
+
+    it('fires only the calls of the run that finishes', () => {
+      const { events, processor } = run(
+        ...toolCall('tc-1'),
+        ev.runError('boom'),
+        ev.runStarted('run-2'),
+        ...toolCall('tc-2'),
+      )
+      processor.processChunk(
+        chunk(EventType.RUN_FINISHED, { runId: 'run-2', threadId: 'thread-1' }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+      expect(events.onToolCall.mock.calls[0]![0].toolCallId).toBe('tc-2')
+    })
+
+    it('finds the call after a MESSAGES_SNAPSHOT', () => {
+      const { events } = run(
+        ...toolCall('tc-1', '{"n":1}'),
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            { id: 'u-1', role: 'user', content: 'ping me' },
+            {
+              id: 'a-1',
+              role: 'assistant',
+              toolCalls: [
+                {
+                  id: 'tc-1',
+                  type: 'function',
+                  function: { name: 'ping', arguments: '{"n":1}' },
+                },
+              ],
+            },
+          ],
+        }),
+        finished({ type: 'success' }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledWith({
+        toolCallId: 'tc-1',
+        toolName: 'ping',
+        input: { n: 1 },
+      })
+    })
+
+    it('parses the arguments of a call a parts snapshot left without input', () => {
+      const { events } = run(
+        ev.toolStart('tc-1', 'ping'),
+        ev.toolArgs('tc-1', '{"n":1}'),
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'a-1',
+              role: 'assistant',
+              parts: [
+                {
+                  type: 'tool-call',
+                  id: 'tc-1',
+                  name: 'ping',
+                  arguments: '{"n":1}',
+                  state: 'input-streaming',
+                },
+              ],
+            },
+          ],
+        }),
+        finished({ type: 'success' }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledWith({
+        toolCallId: 'tc-1',
+        toolName: 'ping',
+        input: { n: 1 },
+      })
+    })
+
+    it('keeps the calls of a run that another run overlaps', () => {
+      const { events, processor } = run(
+        ...toolCall('tc-1'),
+        ev.runStarted('run-2'),
+        finished(),
+      )
+      processor.processChunk(
+        chunk(EventType.RUN_FINISHED, { runId: 'run-2', threadId: 'thread-1' }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+      expect(events.onToolCall.mock.calls[0]![0].toolCallId).toBe('tc-1')
+    })
+
+    it('runs a reused call id again in a later run', () => {
+      const legacyRun = [
+        ...toolCall('call_0'),
+        ev.custom('tool-input-available', {
+          toolCallId: 'call_0',
+          toolName: 'ping',
+          input: {},
+        }),
+        finished(),
+      ]
+      const { events, processor } = run(...legacyRun)
+      processor.clearMessages()
+      for (const c of [ev.runStarted(), ...toolCall('call_0'), finished()]) {
+        processor.processChunk(c)
+      }
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not fire again a call that an interrupt of another run sent', () => {
+      const { events, processor } = run(
+        ev.runStarted('run-2'),
+        ...toolCall('tc-1'),
+        finished({ type: 'interrupt', interrupts: [clientToolInterrupt] }),
+      )
+      processor.processChunk(
+        chunk(EventType.RUN_FINISHED, { runId: 'run-2', threadId: 'thread-1' }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+    })
+
+    it('fires a call once when the same RUN_FINISHED comes twice', () => {
+      const { events, processor } = run(...toolCall('tc-1'), finished())
+      processor.processChunk(finished())
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+    })
+
+    it('fires a call once when pendingToolCallIds names it twice', () => {
+      const { events } = run(
+        ...toolCall('tc-1'),
+        finished({ type: 'success', pendingToolCallIds: ['tc-1', 'tc-1'] }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+    })
+
+    it('fires a call once when it starts again after a MESSAGES_SNAPSHOT', () => {
+      const { events } = run(
+        ...toolCall('tc-1'),
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'a-1',
+              role: 'assistant',
+              toolCalls: [
+                {
+                  id: 'tc-1',
+                  type: 'function',
+                  function: { name: 'ping', arguments: '{}' },
+                },
+              ],
+            },
+          ],
+        }),
+        ...toolCall('tc-1'),
+        finished(),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+    })
+
+    // A tool-call part can keep a non-terminal state after its result. The
+    // result is then in `output` or in a tool-result part.
+    it.each([
+      ['an output', 'output'],
+      ['a tool-result part', 'tool-result'],
+    ])('skips a call that has %s', (_, answer) => {
+      const { events, processor } = run(...toolCall('tc-1'))
+      processor.addToolResult('tc-1', { pong: true })
+      processor.setMessages(
+        processor.getMessages().map((msg) => ({
+          ...msg,
+          parts: msg.parts
+            .filter((p) => answer === 'tool-result' || p.type !== 'tool-result')
+            .map((p) =>
+              p.type === 'tool-call'
+                ? {
+                    ...p,
+                    state: 'input-complete' as const,
+                    output: answer === 'output' ? p.output : undefined,
+                  }
+                : p,
+            ),
+        })),
+      )
+      processor.processChunk(finished())
+
+      expect(events.onToolCall).not.toHaveBeenCalled()
+    })
+
+    it('skips a call with cut-off arguments and warns', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const { events } = run(
+        ev.toolStart('tc-1', 'ping'),
+        ev.toolArgs('tc-1', '{"msg":"hel'),
+        ev.runFinished('length'),
+      )
+
+      expect(events.onToolCall).not.toHaveBeenCalled()
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('Did not run tool call tc-1'),
+      )
+      warn.mockRestore()
+    })
+  })
+
+  // ==========================================================================
   // Approval flow
   // ==========================================================================
   describe('approval flow', () => {
