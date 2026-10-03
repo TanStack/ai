@@ -100,9 +100,9 @@ one fires per `chat()` invocation.
 
 - `onStructuredOutputConfig` fires **before** `onConfig` at the structured-output boundary.
 - `onConfig` re-fires at the same boundary with `ctx.phase === 'structuredOutput'`, receiving the post-`onStructuredOutputConfig` view of the config (minus `outputSchema`).
-- `onChunk` and `onUsage` fire for every chunk and usage event emitted by the structured-output call, with `ctx.phase === 'structuredOutput'`.
+- `onChunk` fires for every chunk with `ctx.phase === 'structuredOutput'`. `onUsage` fires when `RUN_FINISHED` carries usage. Read provider usage on `RUN_ERROR` through `onChunk`.
 - `onIteration` does **not** fire for finalization — it is agent-loop-only.
-- **Terminal `info` and structured-output:** `info.usage` / `info.finishReason` / `info.content` reflect the **agent loop's** terminal state, NOT the finalization step. Finalization state is intentionally segregated to keep agent-loop semantics clean. For a tools-less `chat({ outputSchema })` run, `info.usage` is `undefined` and `info.finishReason` is `null` (no agent-loop iteration produced `RUN_FINISHED`). To capture finalization tokens, use `onUsage` — it fires for both agent-loop iterations and the final call. For the structured-output result itself, observe the `structured-output.complete` CUSTOM event in `onChunk`.
+- **Terminal `info` and structured-output:** `info.usage` / `info.finishReason` / `info.content` reflect the **agent loop's** terminal state, NOT the finalization step. Finalization state is intentionally segregated to keep agent-loop semantics clean. For a tools-less `chat({ outputSchema })` run, `info.usage` is `undefined` and `info.finishReason` is `null` (no agent-loop iteration produced `RUN_FINISHED`). To capture tokens from successful finalization, use `onUsage`. If the adapter reports usage on `RUN_ERROR`, capture it through `onChunk`. For the structured-output result itself, observe the `structured-output.complete` CUSTOM event in `onChunk`.
 
 **Native-combined output:**
 

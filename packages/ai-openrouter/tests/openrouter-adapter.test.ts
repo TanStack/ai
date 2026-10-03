@@ -3157,3 +3157,94 @@ describe('OpenRouter cost tracking', () => {
     }
   })
 })
+
+describe('structured output usage on interrupted streams', () => {
+  it.each(['Error', 'AbortError', 'RequestAbortedError'])(
+    '%s preserves only received usage',
+    async (name) => {
+      for (const hasUsage of [false, true]) {
+        const providerUsage = {
+          promptTokens: 10,
+          completionTokens: 50,
+          totalTokens: 60,
+          cost: 0.002,
+        }
+        const closed = vi.fn()
+        mockSend = vi.fn().mockResolvedValue({
+          async *[Symbol.asyncIterator]() {
+            try {
+              if (hasUsage)
+                yield {
+                  id: 'gen-test',
+                  model: 'openai/gpt-4o-mini',
+                  choices: [],
+                  usage: providerUsage,
+                }
+              throw Object.assign(new Error('stream interrupted'), { name })
+            } finally {
+              closed()
+            }
+          },
+        })
+        const chunks: Array<AdapterYieldChunk> = []
+        for await (const chunk of createAdapter().structuredOutputStream({
+          chatOptions: {
+            model: 'openai/gpt-4o-mini',
+            messages: [{ role: 'user', content: 'Return JSON.' }],
+            logger: testLogger,
+          },
+          outputSchema: { type: 'object' },
+        })) {
+          chunks.push(chunk)
+        }
+        const terminal = chunks.at(-1)
+        expect(terminal).toMatchObject({
+          type: 'RUN_ERROR',
+          message: name === 'Error' ? 'stream interrupted' : 'Request aborted',
+        })
+        if (name !== 'Error')
+          expect(terminal).toMatchObject({ code: 'aborted' })
+        if (hasUsage) expect(terminal).toMatchObject({ usage: providerUsage })
+        else expect(terminal).not.toHaveProperty('usage')
+        expect(
+          chunks.filter((chunk) => chunk.type === 'RUN_FINISHED'),
+        ).toHaveLength(0)
+        expect(chunks.filter((chunk) => 'usage' in chunk)).toHaveLength(
+          hasUsage ? 1 : 0,
+        )
+        expect(closed).toHaveBeenCalledOnce()
+      }
+    },
+  )
+
+  it('closes the provider iterator when the consumer stops', async () => {
+    const closed = vi.fn()
+    mockSend = vi.fn().mockResolvedValue({
+      async *[Symbol.asyncIterator]() {
+        try {
+          yield {
+            id: 'gen-test',
+            model: 'openai/gpt-4o-mini',
+            choices: [],
+            usage: { promptTokens: 10, completionTokens: 50, totalTokens: 60 },
+          }
+          throw new Error('consumer must not request another chunk')
+        } finally {
+          closed()
+        }
+      },
+    })
+    for await (const chunk of createAdapter().structuredOutputStream({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Return JSON.' }],
+        logger: testLogger,
+      },
+      outputSchema: { type: 'object' },
+    })) {
+      expect(chunk.type).toBe('RUN_STARTED')
+      break
+    }
+    expect(closed).toHaveBeenCalledOnce()
+  })
+})
