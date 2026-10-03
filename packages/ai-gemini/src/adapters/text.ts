@@ -441,6 +441,14 @@ export class GeminiTextAdapter<
         },
       })
 
+      // A response cut off at the output cap is a truncated JSON document;
+      // report it before the parse error (issue #1426).
+      if (result.candidates?.[0]?.finishReason === FinishReason.MAX_TOKENS) {
+        throw new Error(
+          'gemini.structuredOutput: the response was cut off because the maximum token limit was reached (finishReason=MAX_TOKENS); raise modelOptions.maxOutputTokens',
+        )
+      }
+
       // Extract text content from the response
       const rawText = this.extractTextFromResponse(result)
 
