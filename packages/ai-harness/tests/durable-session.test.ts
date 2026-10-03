@@ -623,3 +623,119 @@ describe('LogRecordsCapability', () => {
     await host.close()
   })
 })
+
+describe('compaction-style host records from a middleware', () => {
+  const summary = 'Earlier: q1 and a1.'
+  // The same record a durable compaction writes, in this file's own shape.
+  const compactRecord = { type: 'app.compact', summary, firstKept: 2 }
+
+  async function rebuild(persistence: ReturnType<typeof durablePersistence>) {
+    const state = await loadLogState({
+      store: persistence.stores.log,
+      logId: THREAD,
+      project,
+    })
+    return sessionOf(state, THREAD).messages
+  }
+
+  it('lands a record from onFinish after the saved reply', async () => {
+    const persistence = durablePersistence()
+    const { adapter, calls } = mockAdapter([
+      () => text('a1'),
+      () => text('a2'),
+      () => text('a3'),
+    ])
+    let runs = 0
+    // Like an after-turn compaction: at the end of turn 2, replace q1 and a1.
+    const afterTurn: ChatMiddleware = {
+      name: 'test:after-turn',
+      onFinish: async (ctx) => {
+        runs += 1
+        if (runs !== 2) return
+        await getLogRecords(ctx).append([compactRecord])
+      },
+    }
+    const host = createHarnessHost({ persistence, project })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/after-turn-record',
+        adapter,
+        middleware: [afterTurn],
+      }),
+      { threadId: THREAD },
+    )
+
+    await session.prompt('q1')
+    await session.prompt('q2')
+
+    // (a) The record comes after the transcript record that saved the reply.
+    const entries = await persistence.stores.log.read(THREAD, { after: 0 })
+    const replyAt = entries.findIndex(
+      (entry) =>
+        entry.record.type === 'harness.transcript' &&
+        JSON.stringify(entry.record).includes('"a2"'),
+    )
+    const recordAt = entries.findIndex(
+      (entry) => entry.record.type === 'app.compact',
+    )
+    expect(replyAt).toBeGreaterThanOrEqual(0)
+    expect(recordAt).toBeGreaterThan(replyAt)
+
+    // (b) The live context equals a rebuild, and the fold keeps the reply.
+    const rebuilt = await rebuild(persistence)
+    expect(await session.transcript()).toEqual(rebuilt)
+    expect(rebuilt.map((message) => message.content)).toEqual([
+      summary,
+      'q2',
+      'a2',
+    ])
+
+    // (c) The next model call gets the fold.
+    await session.prompt('q3')
+    expect(messageTexts(calls[2])).toEqual([summary, 'q2', 'a2', 'q3'])
+    await host.close()
+  })
+
+  it('gives the model the fold after a record from onConfig, the same as a rebuild', async () => {
+    const persistence = durablePersistence()
+    const { adapter, calls } = mockAdapter([
+      () => text('a1'),
+      () => text('a2'),
+      () => text('a3'),
+    ])
+    // Like a durable compaction before the model call of turn 3. It returns
+    // nothing: the harness gives the model the fold.
+    const beforeCall: ChatMiddleware = {
+      name: 'test:before-call',
+      onConfig: async (ctx, config) => {
+        if (ctx.phase !== 'beforeModel' || config.messages.length !== 5) return
+        await getLogRecords(ctx).append([compactRecord])
+      },
+    }
+    const host = createHarnessHost({ persistence, project })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/before-call-record',
+        adapter,
+        middleware: [beforeCall],
+      }),
+      { threadId: THREAD },
+    )
+
+    await session.prompt('q1')
+    await session.prompt('q2')
+    await session.prompt('q3')
+
+    expect(messageTexts(calls[2])).toEqual([summary, 'q2', 'a2', 'q3'])
+    const rebuilt = await rebuild(persistence)
+    expect(await session.transcript()).toEqual(rebuilt)
+    expect(rebuilt.map((message) => message.content)).toEqual([
+      summary,
+      'q2',
+      'a2',
+      'q3',
+      'a3',
+    ])
+    await host.close()
+  })
+})
