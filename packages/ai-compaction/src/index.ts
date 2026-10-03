@@ -13,6 +13,13 @@
  * `messages`.
  */
 import { MetadataCapability, getMetadata } from '@tanstack/ai'
+import {
+  USAGE_NAMESPACE,
+  countFromUsage,
+  hashMessages,
+  memoryMetadata,
+  toUsageCount,
+} from './usage-count'
 import type {
   ChatMiddleware,
   ChatMiddlewareContext,
@@ -113,16 +120,6 @@ function identifyStrategy(
 ): CompactionStrategy {
   if (key) strategyKeys.set(strategy, key)
   return strategy
-}
-
-async function hashMessages(
-  messages: ReadonlyArray<ModelMessage>,
-): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify(messages))
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes)
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, '0'),
-  ).join('')
 }
 
 function isModelMessage(value: unknown): value is ModelMessage {
@@ -275,6 +272,14 @@ export interface CompactionOptions {
   strategyKey?: string
   /** Observe each compaction (logging, metrics). */
   onCompact?: (info: CompactionInfo) => void
+  /**
+   * How to count the tokens of the list. `'usage'`: the usage the provider
+   * reported for the last model call, plus the estimate of each message after
+   * its reply. The estimate counts when no saved usage fits the list. The
+   * strategies still use the estimate to choose the cut. Default
+   * `'estimate'`.
+   */
+  countTokens?: 'estimate' | 'usage'
 }
 
 const sum = (
@@ -473,6 +478,20 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
   const checkpointStrategyKey = strategyKey
     ? `${strategyKey}:maxTokens=${options.maxTokens}`
     : undefined
+  const countUsage = options.countTokens === 'usage'
+  const memory = memoryMetadata()
+  // The store of the checkpoint and of the usage. With countTokens: 'usage',
+  // a run with no store, or a strategy with no key, uses the memory of this
+  // middleware. Then the next call reuses the compacted list, and the saved
+  // usage fits that list.
+  const storeOf = (ctx: ChatMiddlewareContext) => {
+    const shared = getMetadata(ctx, { optional: true })
+    if (shared && checkpointStrategyKey) return shared
+    return countUsage ? memory : undefined
+  }
+  // True when the last model call of a run got a compacted view. The usage of
+  // that view fits a later call only when that call reuses the checkpoint.
+  const compactedViews = new WeakMap<ChatMiddlewareContext, boolean>()
 
   return {
     name: 'compaction',
@@ -485,15 +504,16 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
       const startedAt = Date.now()
       const { messages } = config
       const inputMessages = config.providerMessages ?? messages
-      const metadata = getMetadata(ctx, { optional: true })
+      const metadata = storeOf(ctx)
+      const checkpointKey = checkpointStrategyKey ?? 'memory'
       let workingMessages = inputMessages
       let reusedCheckpoint = false
 
-      if (metadata && checkpointStrategyKey && inputMessages === messages) {
+      if (metadata && inputMessages === messages) {
         const stored = await metadata.get(CHECKPOINT_NAMESPACE, ctx.threadId)
         if (
           isCompactionCheckpoint(stored) &&
-          stored.strategyKey === checkpointStrategyKey &&
+          stored.strategyKey === checkpointKey &&
           stored.sourceMessageCount <= messages.length &&
           stored.sourceHash ===
             (await hashMessages(messages.slice(0, stored.sourceMessageCount)))
@@ -505,8 +525,20 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
           reusedCheckpoint = true
         }
       }
+      // A reused checkpoint is always given to the model. A new compaction
+      // sets this again below.
+      compactedViews.set(ctx, reusedCheckpoint)
 
-      const before = sum(workingMessages, estimate)
+      const fromUsage =
+        countUsage && metadata
+          ? await countFromUsage(
+              await metadata.get(USAGE_NAMESPACE, ctx.threadId),
+              messages,
+              estimate,
+              reusedCheckpoint,
+            )
+          : undefined
+      const before = fromUsage ?? sum(workingMessages, estimate)
       const startedValue: CompactionStartedEventValue = {
         before,
         messagesBefore: workingMessages.length,
@@ -599,12 +631,17 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
           : {}),
       })
 
-      if (metadata && checkpointStrategyKey && inputMessages === messages) {
+      if (countUsage) {
+        // The saved usage counted the list before this compaction.
+        await metadata?.delete(USAGE_NAMESPACE, ctx.threadId)
+      }
+
+      if (metadata && inputMessages === messages) {
         const checkpoint: CompactionCheckpoint = {
           schemaVersion: 1,
           sourceMessageCount: messages.length,
           sourceHash: await hashMessages(messages),
-          strategyKey: checkpointStrategyKey,
+          strategyKey: checkpointKey,
           compactedMessages: next,
         }
         if (!ctx.signal?.aborted) {
@@ -612,7 +649,20 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
         }
       }
 
+      compactedViews.set(ctx, true)
       return { providerMessages: next }
     },
+    onUsage: countUsage
+      ? async (ctx, usage) => {
+          const saved = await toUsageCount(
+            ctx.messages,
+            usage,
+            compactedViews.get(ctx) ?? false,
+          )
+          // A cancelled call keeps the last good usage.
+          if (!saved || ctx.signal?.aborted) return
+          await storeOf(ctx)?.set(USAGE_NAMESPACE, ctx.threadId, saved)
+        }
+      : undefined,
   }
 }

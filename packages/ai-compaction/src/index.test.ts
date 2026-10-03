@@ -4,6 +4,7 @@ import type {
   ChatMiddlewareContext,
   MetadataStore,
   ModelMessage,
+  TokenUsage,
   ToolCall,
 } from '@tanstack/ai'
 import { provideMetadata } from '@tanstack/ai'
@@ -18,6 +19,7 @@ import {
   summarizeOldest,
   withCompaction,
 } from './index'
+import { countFromUsage, hashMessages, memoryMetadata } from './usage-count'
 
 interface RecordedCustom {
   name: string
@@ -539,5 +541,362 @@ describe('composeStrategies', () => {
 describe('estimateMessageTokens', () => {
   it('counts content and tool calls', () => {
     expect(estimateMessageTokens(text('user', 'x'.repeat(40)))).toBe(10)
+  })
+})
+
+/** A beforeModel context of thread-1 whose `messages` are `messages`. */
+function usageContext(
+  messages: ReadonlyArray<ModelMessage>,
+  extras: Partial<ChatMiddlewareContext> = {},
+) {
+  return recordingContext('beforeModel', {
+    threadId: 'thread-1',
+    messages,
+    ...extras,
+  })
+}
+
+const tokenUsage = (
+  promptTokens: number,
+  completionTokens = 0,
+): TokenUsage => ({
+  promptTokens,
+  completionTokens,
+  totalTokens: promptTokens + completionTokens,
+})
+
+describe('countTokens: usage', () => {
+  it('counts the reported usage and the messages after the reply', async () => {
+    const onCompact = vi.fn()
+    const mw = withCompaction({
+      maxTokens: 200,
+      countTokens: 'usage',
+      onCompact,
+    })
+    const first = [big('user'), big('assistant'), big('user')]
+    // No usage yet: the estimate (120) is under the limit.
+    expect(
+      await runOnConfig(mw, first, usageContext(first).ctx),
+    ).toBeUndefined()
+    await mw.onUsage?.(usageContext(first).ctx, tokenUsage(150, 40))
+
+    // The estimate is 180, but the usage count is 150 + 40 + 20 = 210.
+    const second = [...first, big('assistant'), text('user', 'x'.repeat(80))]
+    const { ctx, events } = usageContext(second)
+    await runOnConfig(mw, second, ctx)
+
+    expect(events[0]?.name).toBe(COMPACTION_STARTED_EVENT)
+    expect(events[0]?.value.before).toBe(210)
+    expect(onCompact).toHaveBeenCalledOnce()
+  })
+
+  it('uses the estimate when the last covered message changed or the list is shorter', async () => {
+    const mw = withCompaction({ maxTokens: 200, countTokens: 'usage' })
+    const first = [big('user'), big('assistant'), big('user')]
+    await mw.onUsage?.(usageContext(first).ctx, tokenUsage(150, 40))
+
+    const edited = [
+      big('user'),
+      big('assistant'),
+      text('user', 'edited'),
+      big('assistant'),
+      text('user', 'x'.repeat(80)),
+    ]
+    const editedCall = usageContext(edited)
+    expect(await runOnConfig(mw, edited, editedCall.ctx)).toBeUndefined()
+    expect(editedCall.events).toEqual([])
+
+    const shorter = [big('user'), big('assistant')]
+    const shorterCall = usageContext(shorter)
+    expect(await runOnConfig(mw, shorter, shorterCall.ctx)).toBeUndefined()
+    expect(shorterCall.events).toEqual([])
+  })
+
+  it('does not compact again after a provider-only compaction only because the canonical list is long', async () => {
+    const summarize = vi.fn(async () => 'the gist')
+    const mw = withCompaction({
+      maxTokens: 100,
+      countTokens: 'usage',
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+    })
+    const first = [big('user'), big('assistant'), big('user'), big('assistant')]
+    const firstCall = usageContext(first)
+    const compacted = await runOnConfig(mw, first, firstCall.ctx)
+    expect(compacted?.providerMessages?.[0]?.content).toContain('the gist')
+    // The model got the short list, so its usage is small.
+    await mw.onUsage?.(firstCall.ctx, tokenUsage(30, 5))
+
+    // The canonical list is long (estimate 201). The count is 30 + 5 + 1 = 36.
+    // The estimate of the reused view is 100, so only the usage gives 36.
+    const second = [...first, big('assistant'), text('user', 'next')]
+    const { ctx, events } = usageContext(second)
+    const result = await runOnConfig(mw, second, ctx)
+
+    expect(summarize).toHaveBeenCalledOnce()
+    expect(events[0]?.value.before).toBe(36)
+    // The model still gets the compacted list, from the checkpoint in memory.
+    expect(result?.providerMessages?.[0]?.content).toContain('the gist')
+    expect(result?.providerMessages?.at(-1)?.content).toBe('next')
+  })
+
+  it('drops the saved usage after a compaction, so a call with no usage reuses the checkpoint', async () => {
+    const summarize = vi.fn(async () => 'the gist')
+    const mw = withCompaction({
+      maxTokens: 100,
+      countTokens: 'usage',
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+    })
+    const first = [big('user')]
+    await mw.onUsage?.(usageContext(first).ctx, tokenUsage(40, 40))
+
+    // The count is 40 + 40 + 40 = 120, so this call compacts. The call is
+    // aborted, so it reports no usage.
+    const second = [...first, big('assistant'), big('user')]
+    const compacted = await runOnConfig(mw, second, usageContext(second).ctx)
+    expect(compacted?.providerMessages?.[0]?.content).toContain('the gist')
+
+    // The old usage counted the list before the compaction (122 here). With
+    // no usage, the estimate of the reused view (61) counts.
+    const third = [...second, text('assistant', 'ok'), text('user', 'next')]
+    const { ctx, events } = usageContext(third)
+    const result = await runOnConfig(mw, third, ctx)
+
+    expect(summarize).toHaveBeenCalledOnce()
+    expect(events[0]?.value).toMatchObject({
+      before: 61,
+      reusedCheckpoint: true,
+    })
+    expect(result?.providerMessages?.[0]?.content).toContain('the gist')
+  })
+
+  it('keeps the usage with the checkpoint when the strategy has no key', async () => {
+    const store = memoryStore()
+    // A strategy with no key keeps its checkpoint in the middleware's memory.
+    const strategy = evictOldest({
+      keepRecentTokens: 50,
+      marker: (count) => `[${count} dropped]`,
+    })
+    const first = [big('user'), big('assistant'), big('user'), big('assistant')]
+    const firstCtx = checkpointContext(store)
+    firstCtx.messages = first
+    const firstMw = withCompaction({
+      maxTokens: 100,
+      countTokens: 'usage',
+      strategy,
+    })
+    expect(await runOnConfig(firstMw, first, firstCtx)).toBeDefined()
+    // The model got the short list, so its usage is small.
+    await firstMw.onUsage?.(firstCtx, tokenUsage(30, 5))
+    expect(
+      await store.get('@tanstack/ai-compaction:usage', 'thread-1'),
+    ).toBeNull()
+
+    // A new middleware per request has no checkpoint. The usage of the
+    // compacted view does not fit, so the estimate (201) counts.
+    const onCompact = vi.fn()
+    const second = [...first, big('assistant'), text('user', 'next')]
+    const result = await runOnConfig(
+      withCompaction({
+        maxTokens: 100,
+        countTokens: 'usage',
+        strategy,
+        onCompact,
+      }),
+      second,
+      checkpointContext(store),
+    )
+
+    expect(onCompact.mock.calls[0]?.[0].before).toBe(201)
+    expect(result?.providerMessages?.length).toBeLessThan(second.length)
+  })
+
+  it('reads the usage from the store it was saved in when the strategy has no key', async () => {
+    const store = memoryStore()
+    const mw = withCompaction({
+      maxTokens: 100,
+      countTokens: 'usage',
+      strategy: evictOldest({
+        keepRecentTokens: 50,
+        marker: (count) => `[${count} dropped]`,
+      }),
+    })
+    const first = [big('user'), big('assistant'), big('user'), big('assistant')]
+    const firstCtx = checkpointContext(store)
+    firstCtx.messages = first
+    expect(await runOnConfig(mw, first, firstCtx)).toBeDefined()
+    await mw.onUsage?.(firstCtx, tokenUsage(30, 5))
+
+    // The usage is in the memory of this middleware, not in the store. The
+    // count is 30 + 5 + 1 = 36. The estimate of the reused view is 84.
+    const second = [...first, big('assistant'), text('user', 'next')]
+    const ctx = checkpointContext(store)
+    const emit = vi.spyOn(ctx, 'emitCustomEvent')
+    await runOnConfig(mw, second, ctx)
+
+    expect(emit.mock.calls[0]?.[1]).toMatchObject({
+      before: 36,
+      reusedCheckpoint: true,
+    })
+  })
+
+  it('does not use the usage of a compacted view when the checkpoint does not fit', async () => {
+    const store = memoryStore()
+    const summarize = vi.fn(async () => 'the gist')
+    const onCompact = vi.fn()
+    const mw = withCompaction({
+      maxTokens: 100,
+      countTokens: 'usage',
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+      onCompact,
+    })
+    const first = [big('user'), big('assistant'), big('user'), big('assistant')]
+    const firstCtx = checkpointContext(store)
+    firstCtx.messages = first
+    await runOnConfig(mw, first, firstCtx)
+    // The model got the short list, so its usage is small.
+    await mw.onUsage?.(firstCtx, tokenUsage(30, 5))
+
+    // An earlier message changed (for example, a run tag from persistence).
+    // The checkpoint does not fit, but the last covered message is the same.
+    const second = [
+      big('user'),
+      text('assistant', 'y'.repeat(160)),
+      big('user'),
+      big('assistant'),
+      big('assistant'),
+      text('user', 'next'),
+    ]
+    const result = await runOnConfig(mw, second, checkpointContext(store))
+
+    // The estimate (201) counts, not the usage of the compacted view (36).
+    expect(onCompact.mock.calls[1]?.[0].before).toBe(201)
+    expect(summarize).toHaveBeenCalledTimes(2)
+    expect(result?.providerMessages?.length).toBeLessThan(second.length)
+  })
+
+  it('marks the usage of a reused checkpoint as a compacted view', async () => {
+    const store = memoryStore()
+    const summarize = vi.fn(async () => 'the gist')
+    const onCompact = vi.fn()
+    const mw = withCompaction({
+      maxTokens: 100,
+      countTokens: 'usage',
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+      onCompact,
+    })
+    const first = [big('user'), big('assistant'), big('user'), big('assistant')]
+    await runOnConfig(mw, first, checkpointContext(store))
+
+    // This call reuses the checkpoint, so the model gets the compacted view.
+    const second = [...first, text('user', 'next')]
+    const secondCtx = checkpointContext(store)
+    secondCtx.messages = second
+    expect(
+      (await runOnConfig(mw, second, secondCtx))?.providerMessages?.[0]
+        ?.content,
+    ).toContain('the gist')
+    await mw.onUsage?.(secondCtx, tokenUsage(30, 5))
+
+    // The checkpoint does not fit, so the usage of that view (37) does not
+    // count. The estimate (203) counts, and the call compacts again.
+    const third = [
+      big('user'),
+      text('assistant', 'y'.repeat(160)),
+      big('user'),
+      big('assistant'),
+      text('user', 'next'),
+      big('assistant'),
+      text('user', 'again'),
+    ]
+    await runOnConfig(mw, third, checkpointContext(store))
+    expect(onCompact).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the last good usage after an aborted call, and the estimate when there is none', async () => {
+    const mw = withCompaction({ maxTokens: 200, countTokens: 'usage' })
+    // The first call was aborted, so no usage exists. The estimate (120) counts.
+    const first = [big('user'), big('assistant'), big('user')]
+    await expect(
+      runOnConfig(mw, first, usageContext(first).ctx),
+    ).resolves.toBeUndefined()
+
+    // A call that ends saves its usage.
+    const second = [...first, big('assistant'), big('user')]
+    await mw.onUsage?.(usageContext(second).ctx, tokenUsage(150, 10))
+
+    // The next call is aborted. A late report under the aborted signal is ignored.
+    const third = [...second, big('assistant'), text('user', 'x'.repeat(200))]
+    await mw.onUsage?.(
+      usageContext(third, { signal: AbortSignal.abort() }).ctx,
+      tokenUsage(5, 0),
+    )
+
+    // The count is the last good usage, 150 + 10, plus 50 for the new message.
+    const { ctx, events } = usageContext(third)
+    await expect(runOnConfig(mw, third, ctx)).resolves.toBeDefined()
+    expect(events[0]?.value.before).toBe(210)
+  })
+
+  it('saves the usage in the MetadataStore, so a restart can use it', async () => {
+    const store = memoryStore()
+    const covered = [big('user')]
+    const ctx = checkpointContext(store)
+    ctx.messages = covered
+    await withCompaction({ maxTokens: 200, countTokens: 'usage' }).onUsage?.(
+      ctx,
+      tokenUsage(150, 10),
+    )
+    expect(
+      await store.get('@tanstack/ai-compaction:usage', 'thread-1'),
+    ).toEqual({
+      schemaVersion: 1,
+      tokens: 160,
+      coveredCount: 1,
+      lastCoveredHash: expect.any(String),
+      compacted: false,
+    })
+
+    // A new middleware (a restart) reads the saved usage.
+    const onCompact = vi.fn()
+    const next = [...covered, big('assistant'), text('user', 'x'.repeat(200))]
+    await runOnConfig(
+      withCompaction({ maxTokens: 200, countTokens: 'usage', onCompact }),
+      next,
+      checkpointContext(store),
+    )
+    expect(onCompact.mock.calls[0]?.[0].before).toBe(210)
+  })
+
+  it('ignores a saved usage that has no compacted field', async () => {
+    const messages = [big('user'), text('user', 'next')]
+    const saved = {
+      schemaVersion: 1,
+      tokens: 10,
+      coveredCount: 1,
+      lastCoveredHash: await hashMessages([big('user')]),
+    }
+    const count = (value: unknown) =>
+      countFromUsage(value, messages, estimateMessageTokens, false)
+
+    expect(await count({ ...saved, compacted: false })).toBe(11)
+    expect(await count(saved)).toBeUndefined()
+  })
+
+  it('keeps the 1000 newest threads in memory', async () => {
+    const store = memoryMetadata()
+    for (let thread = 0; thread < 1000; thread++) {
+      await store.set('ns', String(thread), thread)
+    }
+    // A new value moves thread 0 to the newest place.
+    await store.set('ns', '0', 'again')
+    await store.set('ns', '1000', 1000)
+
+    expect(await store.get('ns', '0')).toBe('again')
+    expect(await store.get('ns', '1')).toBeNull()
+    expect(await store.get('ns', '1000')).toBe(1000)
+  })
+
+  it('keeps the estimate and adds no onUsage hook without countTokens', () => {
+    expect(withCompaction({ maxTokens: 100 }).onUsage).toBeUndefined()
   })
 })
