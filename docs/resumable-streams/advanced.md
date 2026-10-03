@@ -118,8 +118,9 @@ Either way the producer awaits `close()` on exit, and a terminal is written
 before closing so a reconnecting or joining client sees a terminal instead of
 hanging. If appending that terminal or closing fails, the cause is logged
 server-side by default (a joiner only ever sees a generic incomplete error, so
-the server log is where the real cause lives). Pass `debug` to route it to your
-own logger:
+the server log is where the real cause lives). The server logs a failed replay
+the same way, for example a reconnect or join for an expired run. That reader
+also gets a `RUN_ERROR`. Pass `debug` to route these logs to your own logger:
 
 ```ts
 import { memoryStream, toServerSentEventsResponse } from '@tanstack/ai'

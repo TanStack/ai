@@ -746,6 +746,47 @@ describe('resume response helpers', () => {
     expect(ndjson.status).toBe(400)
     expect(await sse.text()).toMatch(/No resume offset/)
   })
+
+  it('logs a replay failure server-side as well as sending it to the reader', async () => {
+    const errorLog = vi.fn()
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: errorLog,
+    }
+    // A reconnect for a run this process doesn't hold (expired, or never
+    // produced here). The reader gets a RUN_ERROR; the operator needs the
+    // cause server-side too.
+    const reconnect = memoryStream(
+      new Request('https://example.test/api/chat?runId=other-worker', {
+        headers: { 'Last-Event-ID': 'memory:v1:other-worker:3' },
+      }),
+    )
+
+    const events = parseSseEvents(
+      await readBody(
+        resumeServerSentEventsResponse({
+          adapter: reconnect,
+          debug: { logger },
+        }),
+      ),
+    )
+
+    expect(events.map((event) => field(event, 'type'))).toEqual([
+      EventType.RUN_ERROR,
+    ])
+    expect(errorLog).toHaveBeenCalledWith(
+      expect.stringContaining('replaying durability stream failed'),
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: expect.stringMatching(
+            /Unknown or expired memory stream run/,
+          ),
+        }),
+      }),
+    )
+  })
 })
 
 /**
