@@ -253,6 +253,91 @@ describe('uiMessagesToWire', () => {
     })
   })
 
+  it('keeps text written after a tool result after that result', () => {
+    const messages: Array<UIMessage> = [
+      {
+        id: 'u1',
+        role: 'user',
+        parts: [{ type: 'text', content: 'Weather?' }],
+      },
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tc1',
+            name: 'getWeather',
+            arguments: '{}',
+            state: 'input-complete',
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tc1',
+            content: '{"tempC":4}',
+            state: 'complete',
+          },
+          { type: 'text', content: 'It is 4°C.' },
+        ],
+      },
+      {
+        id: 'u2',
+        role: 'user',
+        parts: [{ type: 'text', content: 'And tomorrow?' }],
+      },
+    ]
+    const wire = uiMessagesToWire(messages)
+    expect(
+      wire.map((m) => [
+        m.role,
+        m.id,
+        'content' in m ? m.content : undefined,
+        m.role === 'assistant'
+          ? m.toolCalls?.map((call) => call.id)
+          : undefined,
+      ]),
+    ).toEqual([
+      ['user', 'u1', 'Weather?', undefined],
+      ['assistant', 'a1', undefined, ['tc1']],
+      ['tool', 'tool-tc1', '{"tempC":4}', undefined],
+      ['assistant', 'a1-segment-1', 'It is 4°C.', undefined],
+      ['user', 'u2', 'And tomorrow?', undefined],
+    ])
+    expect(
+      convertMessagesToModelMessages(wire as Array<ModelMessage>).map(
+        (m) => m.role,
+      ),
+    ).toEqual(['user', 'assistant', 'tool', 'assistant', 'user'])
+  })
+
+  it('keeps text after a client tool output after that output', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          { type: 'text', content: 'Switching.' },
+          {
+            type: 'tool-call',
+            id: 'tc1',
+            name: 'setTheme',
+            arguments: '{"theme":"light"}',
+            state: 'complete',
+            output: { ok: true },
+          },
+          { type: 'text', content: 'Done.' },
+        ],
+      },
+    ])
+    expect(
+      wire.map((m) => [m.role, 'content' in m ? m.content : undefined]),
+    ).toEqual([
+      ['assistant', 'Switching.'],
+      ['tool', '{"ok":true}'],
+      ['assistant', 'Done.'],
+    ])
+  })
+
   it('fans out two output-only tool calls with unique tool-owned ids', () => {
     const wire = uiMessagesToWire([
       {
