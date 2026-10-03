@@ -44,6 +44,24 @@ describe('createMCPClient', () => {
     expect(client.capabilities).toBeDefined()
   })
 
+  it('exposes the server instructions after connect', async () => {
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair()
+    const server = new Server(
+      { name: 'with-instructions', version: '1.0.0' },
+      { capabilities: {}, instructions: 'Call get_weather before planning.' },
+    )
+    await server.connect(serverTransport)
+    await using client = await createMCPClientFromTransport(clientTransport)
+    expect(client.instructions).toBe('Call get_weather before planning.')
+  })
+
+  it('leaves instructions undefined when the server sends none', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    expect(client.instructions).toBeUndefined()
+  })
+
   it('binds passed toolDefinitions to the server, typed + validated', async () => {
     const { clientTransport } = await makeServerWithWeatherTool()
     await using client = await createMCPClientFromTransport(clientTransport)

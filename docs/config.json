@@ -503,7 +503,7 @@
           "label": "Manual MCP",
           "to": "tools/mcp-manual",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-07-17"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "MCP Type Generation",
