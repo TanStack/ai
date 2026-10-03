@@ -155,6 +155,31 @@ describe('text adapter (binding)', () => {
     expect(finished.usage).toMatchObject({ promptTokens: 41, totalTokens: 45 })
   })
 
+  it('sends defaultHeaders as extraHeaders next to the gateway', async () => {
+    const { binding, run } = fakeBinding(() => sse(chatStreamEvents))
+    const adapter = createCloudflareText('@cf/test', {
+      binding,
+      gateway: { id: 'g1' },
+      defaultHeaders: { 'x-session-affinity': 'ses_abc' },
+    })
+
+    await collect(
+      adapter.chatStream({
+        model: '@cf/test',
+        messages: [{ role: 'user', content: 'Hi' }],
+        logger,
+      }),
+    )
+
+    // Only the configured headers: none of the OpenAI SDK's own headers
+    // (authorization, user-agent, x-stainless-*) reach the binding.
+    expect(run.mock.calls[0]![2]).toEqual({
+      returnRawResponse: true,
+      gateway: { id: 'g1' },
+      extraHeaders: { 'x-session-affinity': 'ses_abc' },
+    })
+  })
+
   it('surfaces reasoning_content as reasoning events', async () => {
     const { binding } = fakeBinding(() =>
       sse([
@@ -340,6 +365,22 @@ describe('embedding adapter', () => {
       { vector: [0.1, 0.2], index: 0 },
       { vector: [0.3, 0.4], index: 1 },
     ])
+  })
+
+  it('sends defaultHeaders as extraHeaders', async () => {
+    const { binding, run } = fakeBinding(() => ({ data: [[0.1]] }))
+    const adapter = createCloudflareEmbedding('@cf/baai/bge-m3', {
+      binding,
+      defaultHeaders: { 'x-session-affinity': 'ses_abc' },
+    })
+    await adapter.createEmbeddings({
+      model: '@cf/baai/bge-m3',
+      input: ['a'],
+      logger,
+    })
+    expect(run.mock.calls[0]![2]).toEqual({
+      extraHeaders: { 'x-session-affinity': 'ses_abc' },
+    })
   })
 
   it('rejects dimensions and a mismatched output shape', async () => {
