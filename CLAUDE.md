@@ -289,10 +289,10 @@ pnpm dev      # start dev server
 - **The package build has two halves** (`scripts/vite-build.mjs`).
   `build:types` writes the `.d.ts` files. `build` writes the JS and depends on
   `build:types`. `test:types` depends on `^build:types` only, so a typecheck
-  does not bundle JS. The two targets have separate Nx `outputs`. Keep them
-  separate: a `build` cache restore must not replace the `.d.ts` files while a
-  consumer typecheck reads them. A new Vite package needs both scripts and the
-  `nx.targets.build.outputs` override. Copy them from `packages/ai-utils`.
+  does not bundle JS. `tools/workspace-plugin` adds the `build:types` target
+  and sets the `outputs` of each `build` target. Do not add `outputs` for
+  `build` to `nx.json`: that value replaces the value from the plugin. A new
+  Vite package needs only `"build": "node ../../scripts/vite-build.mjs js"`.
 
 ## Important Conventions
 

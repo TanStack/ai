@@ -63,8 +63,7 @@
     "build": {
       "cache": true,
       "dependsOn": ["build:types", "^build"],
-      "inputs": ["production", "^production"],
-      "outputs": ["{projectRoot}/build", "{projectRoot}/dist"]
+      "inputs": ["production", "^production"]
     },
     "test:docs": {
       "cache": true,

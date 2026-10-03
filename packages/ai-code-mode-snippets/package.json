@@ -40,7 +40,6 @@
   ],
   "scripts": {
     "build": "node ../../scripts/vite-build.mjs js",
-    "build:types": "node ../../scripts/vite-build.mjs types",
     "clean": "premove ./build ./dist",
     "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
@@ -57,15 +56,6 @@
     "test:cli:registry": "tsx test-cli/cli.ts registry",
     "test:cli:live": "tsx test-cli/cli.ts live",
     "test:cli:structured": "tsx test-cli/cli.ts structured"
-  },
-  "nx": {
-    "targets": {
-      "build": {
-        "outputs": [
-          "{projectRoot}/dist/**/*.{js,cjs,map}"
-        ]
-      }
-    }
   },
   "keywords": [
     "ai",

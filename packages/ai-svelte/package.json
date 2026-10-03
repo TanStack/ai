@@ -58,9 +58,6 @@
       "build": {
         "dependsOn": [
           "^build:types"
-        ],
-        "outputs": [
-          "{projectRoot}/dist"
         ]
       },
       "build:types": {

@@ -51,17 +51,7 @@
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc",
     "test:build": "publint --strict",
-    "build": "node ../../scripts/vite-build.mjs js",
-    "build:types": "node ../../scripts/vite-build.mjs types"
-  },
-  "nx": {
-    "targets": {
-      "build": {
-        "outputs": [
-          "{projectRoot}/dist/**/*.{js,cjs,map}"
-        ]
-      }
-    }
+    "build": "node ../../scripts/vite-build.mjs js"
   },
   "keywords": [
     "ai",

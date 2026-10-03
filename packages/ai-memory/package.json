@@ -50,7 +50,6 @@
   ],
   "scripts": {
     "build": "node ../../scripts/vite-build.mjs js",
-    "build:types": "node ../../scripts/vite-build.mjs types",
     "clean": "premove ./build ./dist",
     "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
@@ -62,11 +61,6 @@
   },
   "nx": {
     "targets": {
-      "build": {
-        "outputs": [
-          "{projectRoot}/dist/**/*.{js,cjs,map}"
-        ]
-      },
       "test:lib": {
         "dependsOn": [
           "build",
