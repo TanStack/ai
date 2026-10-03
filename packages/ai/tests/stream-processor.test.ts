@@ -5138,6 +5138,272 @@ describe('StreamProcessor', () => {
   })
 
   // ==========================================================================
+  // *_CHUNK shorthand events
+  // ==========================================================================
+  describe('*_CHUNK shorthand events', () => {
+    /** Messages without the per-instance createdAt, for comparison. */
+    const messagesOf = (...chunks: Array<StreamChunk>) => {
+      const processor = new StreamProcessor()
+      for (const c of chunks) processor.processChunk(c)
+      return processor
+        .getMessages()
+        .map(({ createdAt: _createdAt, ...message }) => message)
+    }
+    const textChunk = (fields: Record<string, unknown>) =>
+      chunk(EventType.TEXT_MESSAGE_CHUNK, fields)
+    const toolChunk = (fields: Record<string, unknown>) =>
+      chunk(EventType.TOOL_CALL_CHUNK, fields)
+    const reasoningChunk = (fields: Record<string, unknown>) =>
+      chunk(EventType.REASONING_MESSAGE_CHUNK, fields)
+
+    it('builds the same message as START / CONTENT / END (#1531 repro)', () => {
+      const metadata = { error: 'the run failed' }
+      const chunked = messagesOf(
+        ev.runStarted(),
+        textChunk({ messageId: 'msg-1', delta: 'the run failed', metadata }),
+        ev.runError('boom'),
+      )
+
+      expect(chunked).toEqual(
+        messagesOf(
+          ev.runStarted(),
+          chunk(EventType.TEXT_MESSAGE_START, {
+            messageId: 'msg-1',
+            role: 'assistant',
+            metadata,
+          }),
+          chunk(EventType.TEXT_MESSAGE_CONTENT, {
+            messageId: 'msg-1',
+            delta: 'the run failed',
+            metadata,
+          }),
+          chunk(EventType.TEXT_MESSAGE_END, { messageId: 'msg-1' }),
+          ev.runError('boom'),
+        ),
+      )
+      expect(chunked[0]).toMatchObject({
+        id: 'msg-1',
+        parts: [{ type: 'text', content: 'the run failed' }],
+        metadata,
+      })
+    })
+
+    it('continues a stream on a chunk with no id, and closes it on the next event', () => {
+      const chunked = messagesOf(
+        ev.runStarted(),
+        reasoningChunk({ messageId: 'r-1', delta: 'Let me ' }),
+        reasoningChunk({ delta: 'check.' }),
+        toolChunk({
+          toolCallId: 'tc-1',
+          toolCallName: 'lookup',
+          parentMessageId: 'msg-1',
+          delta: '{"q":',
+        }),
+        toolChunk({ delta: '"x"}' }),
+        ev.toolResult('tc-1', '"found"'),
+        textChunk({ messageId: 'msg-1', delta: 'Found ' }),
+        textChunk({ delta: 'it.' }),
+        textChunk({ metadata: { note: 'last chunk' } }),
+        ev.runFinished(),
+      )
+
+      expect(chunked).toEqual(
+        messagesOf(
+          ev.runStarted(),
+          chunk(EventType.REASONING_MESSAGE_START, {
+            messageId: 'r-1',
+            role: 'reasoning',
+          }),
+          ev.reasoningContent('Let me ', 'r-1'),
+          ev.reasoningContent('check.', 'r-1'),
+          chunk(EventType.REASONING_MESSAGE_END, { messageId: 'r-1' }),
+          chunk(EventType.TOOL_CALL_START, {
+            toolCallId: 'tc-1',
+            toolCallName: 'lookup',
+            parentMessageId: 'msg-1',
+          }),
+          ev.toolArgs('tc-1', '{"q":'),
+          ev.toolArgs('tc-1', '"x"}'),
+          ev.toolEnd('tc-1'),
+          ev.toolResult('tc-1', '"found"'),
+          ev.textStart('msg-1'),
+          ev.textContent('Found ', 'msg-1'),
+          ev.textContent('it.', 'msg-1'),
+          chunk(EventType.TEXT_MESSAGE_CONTENT, {
+            messageId: 'msg-1',
+            delta: '',
+            metadata: { note: 'last chunk' },
+          }),
+          ev.textEnd('msg-1'),
+          ev.runFinished(),
+        ),
+      )
+      expect(chunked[0]?.metadata).toEqual({ note: 'last chunk' })
+    })
+
+    it('keeps the parent message and the metadata of a tool call chunk', () => {
+      const metadata = { thoughtSignature: 'sig-1' }
+      const chunked = messagesOf(
+        ev.runStarted(),
+        toolChunk({
+          toolCallId: 'tc-1',
+          toolCallName: 'lookup',
+          parentMessageId: 'msg-1',
+          delta: '{}',
+          metadata,
+        }),
+        ev.runFinished(),
+      )
+
+      expect(chunked).toEqual(
+        messagesOf(
+          ev.runStarted(),
+          chunk(EventType.TOOL_CALL_START, {
+            toolCallId: 'tc-1',
+            toolCallName: 'lookup',
+            parentMessageId: 'msg-1',
+            metadata,
+          }),
+          ev.toolArgs('tc-1', '{}'),
+          ev.toolEnd('tc-1'),
+          ev.runFinished(),
+        ),
+      )
+      expect(chunked[0]).toMatchObject({
+        id: 'msg-1',
+        parts: [{ type: 'tool-call', id: 'tc-1', metadata }],
+      })
+    })
+
+    it.each([
+      chunk(EventType.RAW, { event: {} }),
+      chunk(EventType.ACTIVITY_SNAPSHOT, {
+        messageId: 'activity-1',
+        activityType: 'progress',
+        content: {},
+      }),
+      chunk(EventType.ACTIVITY_DELTA, {
+        messageId: 'activity-1',
+        activityType: 'progress',
+        patch: [],
+      }),
+      chunk(EventType.REASONING_ENCRYPTED_VALUE, {
+        subtype: 'message',
+        entityId: 'r-1',
+        encryptedValue: 'enc',
+      }),
+      chunk(EventType.SUBAGENT_STARTED, { subagentRunId: 'sub-1', name: 'a' }),
+      chunk(EventType.SUBAGENT_FINISHED, { subagentRunId: 'sub-1' }),
+      chunk(EventType.SUBAGENT_ERROR, { subagentRunId: 'sub-1', message: 'x' }),
+    ])('keeps the stream open across $type', (event) => {
+      // A subagent's own lifecycle event needs a subagent to belong to.
+      const subagent =
+        event.type === EventType.SUBAGENT_FINISHED ||
+        event.type === EventType.SUBAGENT_ERROR
+          ? [
+              chunk(EventType.SUBAGENT_STARTED, {
+                subagentRunId: 'sub-1',
+                name: 'a',
+              }),
+            ]
+          : []
+      expect(
+        messagesOf(
+          ev.runStarted(),
+          textChunk({ messageId: 'msg-1', delta: 'Hello, ' }),
+          ...subagent,
+          event,
+          textChunk({ delta: 'world' }),
+          ev.runFinished(),
+        ),
+      ).toEqual(
+        messagesOf(
+          ev.runStarted(),
+          ev.textStart('msg-1'),
+          ev.textContent('Hello, ', 'msg-1'),
+          ...subagent,
+          event,
+          ev.textContent('world', 'msg-1'),
+          ev.textEnd('msg-1'),
+          ev.runFinished(),
+        ),
+      )
+    })
+
+    it('closes the open tool call when a new one has no toolCallName', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const chunked = messagesOf(
+        ev.runStarted(),
+        toolChunk({
+          toolCallId: 'tc-1',
+          toolCallName: 'lookup',
+          delta: '{"a":1}',
+        }),
+        toolChunk({ toolCallId: 'tc-2', delta: '{"b":' }),
+        toolChunk({ delta: '2}' }),
+        ev.runFinished(),
+      )
+
+      expect(chunked[0]?.parts).toMatchObject([
+        { type: 'tool-call', id: 'tc-1', arguments: '{"a":1}' },
+      ])
+      expect(warn).toHaveBeenCalledTimes(2)
+      warn.mockRestore()
+    })
+
+    it('closes the open stream when it drops an id-less chunk of another kind', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const chunked = messagesOf(
+        ev.runStarted(),
+        toolChunk({
+          toolCallId: 'tc-1',
+          toolCallName: 'lookup',
+          delta: '{"a":1}',
+        }),
+        textChunk({ delta: 'orphan' }),
+        toolChunk({ delta: '{"b":2}' }),
+        ev.runFinished(),
+      )
+
+      expect(chunked[0]?.parts).toMatchObject([
+        { type: 'tool-call', id: 'tc-1', arguments: '{"a":1}' },
+      ])
+      expect(warn).toHaveBeenCalledTimes(2)
+      warn.mockRestore()
+    })
+
+    it.each([
+      'clearMessages',
+      'prepareAssistantMessage',
+      'finalizeStream',
+    ] as const)('does not continue a stream after %s()', (reset) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const processor = new StreamProcessor()
+      processor.processChunk(textChunk({ messageId: 'msg-1', delta: 'old' }))
+      processor[reset]()
+      processor.processChunk(textChunk({ delta: 'new' }))
+
+      expect(JSON.stringify(processor.getMessages())).not.toContain('new')
+      expect(warn).toHaveBeenCalledOnce()
+      warn.mockRestore()
+    })
+
+    it('drops, with a warning, an id-less chunk with nothing open and a tool call chunk with no name', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const chunked = messagesOf(
+        ev.runStarted(),
+        textChunk({ delta: 'orphan' }),
+        toolChunk({ toolCallId: 'tc-1', delta: '{}' }),
+        ev.runFinished(),
+      )
+
+      expect(chunked).toEqual([])
+      expect(warn).toHaveBeenCalledTimes(2)
+      warn.mockRestore()
+    })
+  })
+
+  // ==========================================================================
   // REASONING events
   // ==========================================================================
   describe('REASONING events', () => {
