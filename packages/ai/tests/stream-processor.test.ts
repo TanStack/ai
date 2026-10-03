@@ -1783,7 +1783,9 @@ describe('StreamProcessor', () => {
         (p) => p.type === 'tool-call',
       ) as ToolCallPart
       expect((toolCallPart as any).output).toEqual({ temp: 72 })
-      expect(toolCallPart.state).toBe('complete')
+      // The tool-call part stays at its terminal 'input-complete' state; the
+      // completed result lives in the separate tool-result part below.
+      expect(toolCallPart.state).toBe('input-complete')
 
       const toolResultPart = messages[0]!.parts.find(
         (p) => p.type === 'tool-result',
@@ -3849,7 +3851,9 @@ describe('StreamProcessor', () => {
         ?.parts.find(
           (p): p is ToolCallPart => p.type === 'tool-call' && p.id === 'tc-1',
         )
-      expect(updated?.state).toBe('complete')
+      // The tool-call part keeps its terminal 'input-complete' state; the
+      // result is carried by the tool-result part.
+      expect(updated?.state).toBe('input-complete')
       expect(updated?.output).toEqual({ temp: 72 })
 
       warn.mockRestore()

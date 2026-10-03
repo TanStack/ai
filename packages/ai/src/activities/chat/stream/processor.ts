@@ -434,12 +434,19 @@ export class StreamProcessor {
       return
     }
 
-    // Step 1: Update the tool-call part's output field (for UI rendering)
+    // Step 1: Update the tool-call part's output field (for UI rendering).
+    // A successful result keeps the tool-call part at its terminal
+    // 'input-complete' state (the model's request is complete); the result
+    // itself lives in the tool-result part created in Step 2. Setting the
+    // tool-call part to 'complete' here raced the finalize-stream safety net
+    // (completeToolCall), so the visible state flipped depending on async
+    // ordering (#1233). Only an execution error makes the tool-call part
+    // itself terminal with 'error'.
     let updatedMessages = updateToolCallWithOutput(
       this.messages,
       toolCallId,
       output,
-      error ? 'error' : undefined,
+      error ? 'error' : 'input-complete',
       error,
     )
 
