@@ -378,6 +378,13 @@ export type {
   AnyChatMiddleware,
   MetadataStore,
 } from './activities/chat/middleware/index'
+// A durable host gives a run its session log with this capability.
+export {
+  LogRecordsCapability,
+  getLogRecords,
+  provideLogRecords,
+} from './activities/chat/middleware/log-records'
+export type { LogRecordsWriter } from './activities/chat/middleware/log-records'
 // Locks are a distributed-mutex primitive — coordination, not chat state — and
 // live behind their own subpath: `@tanstack/ai/locks` (see ./locks.ts).
 

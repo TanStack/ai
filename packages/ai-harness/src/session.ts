@@ -1,5 +1,6 @@
 import {
   EventType,
+  LogRecordsCapability,
   RUN_CANCEL_REASON,
   StreamProcessor,
   SubagentBudget,
@@ -9,6 +10,7 @@ import {
   createSubagentId,
   maxIterations,
   modelMessagesToUIMessages,
+  provideLogRecords,
   runAgentStream,
   validateWithStandardSchema,
 } from '@tanstack/ai'
@@ -43,6 +45,7 @@ import type {
   AnyTextAdapter,
   AnyTool,
   Interrupt,
+  LogRecordsWriter,
   Modality,
   ModelMessage,
   PromptCacheOptions,
@@ -1674,6 +1677,29 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }
   }
 
+  /**
+   * On a durable host, each turn's chat run gets `LogRecordsCapability`. A
+   * middleware, for example a durable compaction, appends host records with
+   * it. They land in the log at once and fold, with the checks of
+   * `session.append`. Agent runs do not get it: a child writes to its own
+   * thread.
+   */
+  private logRecords(): AnyChatMiddleware | undefined {
+    const { writer } = this
+    if (!writer) return undefined
+    const records: LogRecordsWriter = {
+      append: async (list) => {
+        checkHostRecords(list)
+        await writer.append(list)
+      },
+    }
+    return {
+      name: 'harness:log-records',
+      provides: [LogRecordsCapability],
+      setup: (ctx) => provideLogRecords(ctx, records),
+    }
+  }
+
   private isAbortRequested(inputId: string) {
     return (
       this.writer?.state.inputs.get(inputId)?.abortRequested === true ||
@@ -2065,6 +2091,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       const bridges = [
         session?.capabilityBridge,
         runPlugins?.capabilityBridge,
+        this.logRecords(),
       ].filter((bridge): bridge is AnyChatMiddleware => bridge !== undefined)
       // Agents the model can call: the harness's own, then the plugins'.
       const subagentList = [

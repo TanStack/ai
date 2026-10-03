@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType, toolDefinition } from '@tanstack/ai'
+import { EventType, getLogRecords, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { loadLogState, sessionOf } from '../src/log'
 import { gate, messageTexts, mockAdapter, text, toolCall } from './helpers'
-import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { ChatMiddleware, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type { HarnessSession, ProjectOptions, SessionEvent } from '../src'
 import type { Reply } from './helpers'
@@ -527,5 +527,99 @@ describe('durable session log', () => {
     expect(await reopened.transcript()).toEqual(transcript)
     await host.close().catch(() => {})
     await next.close()
+  })
+})
+
+describe('LogRecordsCapability', () => {
+  it('lets a middleware append host records that fold into the next model call', async () => {
+    const persistence = durablePersistence()
+    const { adapter, calls } = mockAdapter([() => text('a1'), () => text('a2')])
+    const signal: ChatMiddleware = {
+      name: 'test:signal',
+      onFinish: async (ctx) => {
+        await getLogRecords(ctx, { optional: true })?.append([
+          { type: 'app.signal', text: '[signal] saved' },
+        ])
+      },
+    }
+    const host = createHarnessHost({ persistence, project })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/log-records',
+        adapter,
+        middleware: [signal],
+      }),
+      { threadId: THREAD },
+    )
+
+    await session.prompt('q1')
+    await session.prompt('q2')
+
+    expect(messageTexts(calls[1])).toEqual(['q1', 'a1', '[signal] saved', 'q2'])
+    const rebuilt = sessionOf(
+      await loadLogState({
+        store: persistence.stores.log,
+        logId: THREAD,
+        project,
+      }),
+      THREAD,
+    )
+    expect(await session.transcript()).toEqual(rebuilt.messages)
+    await host.close()
+  })
+
+  it('refuses a record type that the harness owns', async () => {
+    let failure: unknown
+    const bad: ChatMiddleware = {
+      name: 'test:bad',
+      onFinish: async (ctx) => {
+        try {
+          await getLogRecords(ctx).append([{ type: 'harness.event' }])
+        } catch (error) {
+          failure = error
+        }
+      },
+    }
+    const { adapter } = mockAdapter([() => text('a1')])
+    const host = createHarnessHost({ persistence: durablePersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/log-records-bad',
+        adapter,
+        middleware: [bad],
+      }),
+      { threadId: THREAD },
+    )
+
+    await session.prompt('q1')
+
+    expect(failure).toBeInstanceOf(Error)
+    expect(String(failure)).toContain('reserved for the harness')
+    await host.close()
+  })
+
+  it('gives nothing on a host without a log', async () => {
+    let seen: unknown = 'not called'
+    const probe: ChatMiddleware = {
+      name: 'test:probe',
+      onConfig: (ctx) => {
+        seen = getLogRecords(ctx, { optional: true })
+      },
+    }
+    const { adapter } = mockAdapter([() => text('a1')])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/log-records-none',
+        adapter,
+        middleware: [probe],
+      }),
+      { threadId: THREAD },
+    )
+
+    await session.prompt('q1')
+
+    expect(seen).toBeUndefined()
+    await host.close()
   })
 })
