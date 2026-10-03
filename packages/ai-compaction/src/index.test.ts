@@ -2,26 +2,37 @@ import { describe, expect, it, vi } from 'vitest'
 import type {
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
+  FinishInfo,
   MetadataStore,
   ModelMessage,
   SummarizationResult,
   TokenUsage,
   ToolCall,
 } from '@tanstack/ai'
-import { provideMetadata } from '@tanstack/ai'
+import {
+  CapabilityRegistry,
+  provideLogRecords,
+  provideMetadata,
+} from '@tanstack/ai'
 import {
   COMPACTION_ENDED_EVENT,
+  COMPACTION_RECORD_TYPE,
   COMPACTION_STARTED_EVENT,
   COMPACTION_STATE_EVENT,
   clearToolResults,
   composeStrategies,
   estimateMessageTokens,
   evictOldest,
+  projectCompaction,
   summarizeOldest,
   withCompaction,
 } from './index'
 import { countFromUsage, hashMessages, memoryMetadata } from './usage-count'
-import type { CompactionStrategy } from './index'
+import type {
+  CompactionInfo,
+  CompactionMiddleware,
+  CompactionStrategy,
+} from './index'
 
 interface RecordedCustom {
   name: string
@@ -1188,5 +1199,572 @@ describe('compaction usage and errors', () => {
       maxTokens: 100,
       durationMs: expect.any(Number),
     })
+  })
+})
+
+const withId = (message: ModelMessage, id: string): ModelMessage => ({
+  ...message,
+  id,
+})
+
+const summaryOf = (summary: string): ModelMessage => ({
+  role: 'assistant',
+  content: `<untrusted-conversation-summary>\n${summary}\n</untrusted-conversation-summary>`,
+})
+
+/** A context of thread-1 with LogRecordsCapability. Each append lands in `appended`. */
+function durableContext(
+  appended: Array<unknown>,
+  messages: ReadonlyArray<ModelMessage> = [],
+) {
+  const recorded = usageContext(messages, {
+    capabilities: new CapabilityRegistry(),
+  })
+  provideLogRecords(recorded.ctx, {
+    append: async (records) => {
+      appended.push(...records)
+    },
+  })
+  return recorded
+}
+
+describe('durable compaction', () => {
+  const longList = () => [
+    withId(big('user'), 'm1'),
+    withId(big('assistant'), 'm2'),
+    withId(big('user'), 'm3'),
+    withId(big('assistant'), 'm4'),
+  ]
+
+  it('writes a head and from record and gives the model the same list', async () => {
+    const appended: Array<unknown> = []
+    const mw = withCompaction({
+      maxTokens: 100,
+      durable: true,
+      strategy: summarizeOldest({
+        summarize: async () => 'the gist',
+        keepRecentTokens: 50,
+      }),
+    })
+    const messages = longList()
+    const result = await runOnConfig(mw, messages, durableContext(appended).ctx)
+
+    expect(result?.providerMessages).toEqual([
+      summaryOf('the gist'),
+      messages[3],
+    ])
+    expect(appended).toEqual([
+      {
+        type: COMPACTION_RECORD_TYPE,
+        reason: 'threshold',
+        tokensBefore: 160,
+        tokensAfter: expect.any(Number),
+        head: [summaryOf('the gist')],
+        from: 3,
+        firstKeptId: 'm4',
+      },
+    ])
+  })
+
+  it('puts the usage of the summary call on the record', async () => {
+    const appended: Array<unknown> = []
+    const mw = withCompaction({
+      maxTokens: 100,
+      durable: true,
+      strategy: summarizeOldest({
+        summarize: async () => ({
+          summary: 'the gist',
+          usage: tokenUsage(12, 3),
+        }),
+        keepRecentTokens: 50,
+      }),
+    })
+    await runOnConfig(mw, longList(), durableContext(appended).ctx)
+    expect(appended[0]).toMatchObject({ usage: tokenUsage(12, 3) })
+  })
+
+  it('writes the full new list as head, from the end of the list, when the strategy changed the last message', async () => {
+    const appended: Array<unknown> = []
+    const strategy: CompactionStrategy = (messages) =>
+      messages.map((message) => ({ ...message, content: 'short' }))
+    const mw = withCompaction({ maxTokens: 100, durable: true, strategy })
+    const result = await runOnConfig(
+      mw,
+      longList(),
+      durableContext(appended).ctx,
+    )
+
+    expect(appended).toEqual([
+      {
+        type: COMPACTION_RECORD_TYPE,
+        reason: 'threshold',
+        tokensBefore: 160,
+        tokensAfter: 8,
+        head: result?.providerMessages,
+        from: 4,
+      },
+    ])
+  })
+
+  it('writes a record that a fold without the tool results of this phase skips', async () => {
+    // Five parallel tool calls. The fold of the log does not have their
+    // results yet: they are saved after this hook. A record that the fold
+    // used would give the model those results two times.
+    const appended: Array<{ type: string } & Record<string, unknown>> = []
+    const ids = ['c1', 'c2', 'c3', 'c4', 'c5']
+    const fold = [
+      withId(text('user', 'q1'), 'm1'),
+      withId(text('assistant', 'a1'), 'm2'),
+      withId(text('user', 'q2'), 'm3'),
+      withId(
+        {
+          role: 'assistant',
+          content: '',
+          toolCalls: ids.map((id) => ({ ...call, id })),
+        },
+        'm4',
+      ),
+    ]
+    const messages = [
+      ...fold,
+      ...ids.map(
+        (id): ModelMessage => ({
+          role: 'tool',
+          content: 'r'.repeat(40),
+          toolCallId: id,
+        }),
+      ),
+    ]
+    const mw = withCompaction({
+      maxTokens: 20,
+      durable: true,
+      strategy: clearToolResults(),
+    })
+    const result = await runOnConfig(mw, messages, durableContext(appended).ctx)
+
+    expect(appended).toMatchObject([
+      { head: result?.providerMessages?.slice(0, 6), from: 6 },
+    ])
+    expect(
+      appended.map((record) => projectCompaction({ messages: fold, record })),
+    ).toEqual([undefined])
+    // The fold that has the results gives the list the model got.
+    expect(
+      appended.map((record) => projectCompaction({ messages, record })),
+    ).toEqual([result?.providerMessages])
+  })
+
+  it('keeps each rewritten message of clearToolResults in head', async () => {
+    const appended: Array<unknown> = []
+    const toolResult = (id: string): ModelMessage => ({
+      role: 'tool',
+      content: 'x'.repeat(160),
+      toolCallId: id,
+    })
+    const messages = [
+      withId(big('user'), 'm1'),
+      toolResult('t1'),
+      toolResult('t2'),
+      withId(big('user'), 'm2'),
+    ]
+    const mw = withCompaction({
+      maxTokens: 10,
+      durable: true,
+      strategy: clearToolResults({ keepRecentToolResults: 1 }),
+    })
+    await runOnConfig(mw, messages, durableContext(appended).ctx)
+
+    expect(appended).toMatchObject([
+      {
+        head: [
+          messages[0],
+          {
+            role: 'tool',
+            content: '[tool output cleared to save context]',
+            toolCallId: 't1',
+          },
+        ],
+        from: 2,
+      },
+    ])
+  })
+
+  it('never reuses a checkpoint in durable mode', async () => {
+    const store = memoryStore()
+    const strategy = summarizeOldest({
+      summarize: async () => 'the gist',
+      keepRecentTokens: 50,
+    })
+    // A run on a host without a log writes a checkpoint to the shared store.
+    await runOnConfig(
+      withCompaction({ maxTokens: 100, durable: true, strategy }),
+      longList().slice(0, 3),
+      checkpointContext(store),
+    )
+    expect(
+      await store.get('@tanstack/ai-compaction', 'thread-1'),
+    ).not.toBeNull()
+
+    // A durable run with the same store compacts the full list again.
+    const appended: Array<unknown> = []
+    const { ctx } = durableContext(appended)
+    provideMetadata(ctx, store)
+    await runOnConfig(
+      withCompaction({ maxTokens: 100, durable: true, strategy }),
+      longList(),
+      ctx,
+    )
+    expect(appended).toMatchObject([{ from: 3, firstKeptId: 'm4' }])
+  })
+
+  it('falls back to the checkpoint without LogRecordsCapability', async () => {
+    const store = memoryStore()
+    await runOnConfig(
+      withCompaction({ maxTokens: 100, durable: true }),
+      longList(),
+      checkpointContext(store),
+    )
+    expect(
+      await store.get('@tanstack/ai-compaction', 'thread-1'),
+    ).not.toBeNull()
+  })
+
+  it('keeps a provider-only result when an earlier middleware set providerMessages', async () => {
+    const appended: Array<unknown> = []
+    const messages = longList()
+    const config: ChatMiddlewareConfig = {
+      messages,
+      providerMessages: [...messages],
+      systemPrompts: [],
+      tools: [],
+    }
+    const result = await withCompaction({
+      maxTokens: 100,
+      durable: true,
+    }).onConfig?.(durableContext(appended).ctx, config)
+
+    expect(result?.providerMessages?.[0]?.content).toContain('omitted')
+    expect(appended).toEqual([])
+  })
+})
+
+describe('projectCompaction', () => {
+  const fold = [
+    withId(text('user', 'q1'), 'm1'),
+    withId(text('assistant', 'a1'), 'm2'),
+    withId(text('user', 'q2'), 'm3'),
+    withId(text('assistant', 'a2'), 'm4'),
+  ]
+  const summary = summaryOf('the gist')
+
+  it('ignores a record of another type', () => {
+    expect(
+      projectCompaction({
+        messages: fold,
+        record: { type: 'app.note', head: [summary], from: 0 },
+      }),
+    ).toBeUndefined()
+  })
+
+  it('finds the first kept message by id before it uses from', () => {
+    // `from` is wrong here, as when a record lands before the reply is saved.
+    expect(
+      projectCompaction({
+        messages: fold,
+        record: {
+          type: COMPACTION_RECORD_TYPE,
+          head: [summary],
+          from: 1,
+          firstKeptId: 'm3',
+        },
+      }),
+    ).toEqual([summary, fold[2], fold[3]])
+  })
+
+  it('uses from when the first kept message has no id', () => {
+    expect(
+      projectCompaction({
+        messages: fold,
+        record: { type: COMPACTION_RECORD_TYPE, head: [summary], from: 2 },
+      }),
+    ).toEqual([summary, fold[2], fold[3]])
+  })
+
+  it('keeps the full head when from is the end of the fold', () => {
+    expect(
+      projectCompaction({
+        messages: fold,
+        record: { type: COMPACTION_RECORD_TYPE, head: [summary], from: 4 },
+      }),
+    ).toEqual([summary])
+  })
+
+  // The log is folded again on each open, so a bad record must not throw.
+  it.each<[string, Record<string, unknown>]>([
+    [
+      'a kept id that the fold does not have',
+      { head: [summary], from: 1, firstKeptId: 'x' },
+    ],
+    ['a from past the end of the fold', { head: [summary], from: 9 }],
+    ['a negative from', { head: [summary], from: -1 }],
+    ['a from that is not an integer', { head: [summary], from: 1.5 }],
+    ['a head that is not a message list', { head: [null], from: 1 }],
+    ['only a messages list', { messages: [1] }],
+  ])('skips a record with %s', (_label, fields) => {
+    expect(
+      projectCompaction({
+        messages: fold,
+        record: { type: COMPACTION_RECORD_TYPE, ...fields },
+      }),
+    ).toBeUndefined()
+  })
+})
+
+describe('after-turn check', () => {
+  const finish: FinishInfo = { finishReason: 'stop', duration: 0, content: '' }
+  const covered = () => [
+    withId(big('user'), 'm1'),
+    withId(big('assistant'), 'm2'),
+    withId(big('user'), 'm3'),
+  ]
+  const reply = withId(big('assistant'), 'm4')
+  const gist = () =>
+    summarizeOldest({ summarize: async () => 'the gist', keepRecentTokens: 50 })
+
+  /** One model call with `promptTokens + 10` of usage, then the end of the run. */
+  async function finishTurn(
+    mw: CompactionMiddleware,
+    ctx: ChatMiddlewareContext,
+    promptTokens: number,
+  ) {
+    const list = covered()
+    ctx.messages = list
+    await mw.onUsage?.(ctx, tokenUsage(promptTokens, 10))
+    ctx.messages = [...list, reply]
+    await mw.onFinish?.(ctx, finish)
+  }
+
+  it('compacts after a silent overflow, even with auto: false', async () => {
+    const appended: Array<unknown> = []
+    const onCompact = vi.fn()
+    const mw = withCompaction({
+      maxTokens: 1000,
+      contextWindow: 100,
+      countTokens: 'usage',
+      auto: false,
+      durable: true,
+      onCompact,
+      strategy: gist(),
+    })
+    await finishTurn(mw, durableContext(appended).ctx, 110)
+
+    expect(appended).toEqual([
+      {
+        type: COMPACTION_RECORD_TYPE,
+        reason: 'after-turn',
+        tokensBefore: 120,
+        tokensAfter: expect.any(Number),
+        head: [summaryOf('the gist')],
+        from: 3,
+        firstKeptId: 'm4',
+      },
+    ])
+    expect(onCompact).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'after-turn', before: 120 }),
+    )
+  })
+
+  it('compacts after the turn over maxTokens when auto is on', async () => {
+    const appended: Array<unknown> = []
+    const mw = withCompaction({
+      maxTokens: 100,
+      contextWindow: 1000,
+      countTokens: 'usage',
+      durable: true,
+      strategy: gist(),
+    })
+    await finishTurn(mw, durableContext(appended).ctx, 110)
+    expect(appended).toMatchObject([{ reason: 'after-turn', from: 3 }])
+  })
+
+  it('counts the usage of a last call that got a compacted view', async () => {
+    const appended: Array<unknown> = []
+    const mw = withCompaction({
+      maxTokens: 100,
+      contextWindow: 1000,
+      countTokens: 'usage',
+      durable: true,
+      strategy: gist(),
+    })
+    const { ctx } = durableContext(appended)
+    // The call compacts, and the model gets the compacted view.
+    const view = (await runOnConfig(mw, covered(), ctx))?.providerMessages ?? []
+    ctx.messages = view
+    await mw.onUsage?.(ctx, tokenUsage(110, 10))
+    ctx.messages = [...view, reply]
+    await mw.onFinish?.(ctx, finish)
+
+    expect(appended).toMatchObject([
+      { reason: 'threshold' },
+      { reason: 'after-turn', tokensBefore: 120 },
+    ])
+  })
+
+  it('ignores maxTokens after the turn with auto: false', async () => {
+    const appended: Array<unknown> = []
+    const mw = withCompaction({
+      maxTokens: 100,
+      contextWindow: 1000,
+      countTokens: 'usage',
+      auto: false,
+      durable: true,
+      strategy: gist(),
+    })
+    await finishTurn(mw, durableContext(appended).ctx, 110)
+    expect(appended).toEqual([])
+  })
+
+  it('writes no record when the strategy returns its input', async () => {
+    const appended: Array<unknown> = []
+    const strategy = vi.fn<CompactionStrategy>(
+      (messages) => messages as Array<ModelMessage>,
+    )
+    const mw = withCompaction({
+      maxTokens: 100,
+      contextWindow: 1000,
+      countTokens: 'usage',
+      durable: true,
+      strategy,
+    })
+    await finishTurn(mw, durableContext(appended).ctx, 110)
+    expect(strategy).toHaveBeenCalledOnce()
+    expect(appended).toEqual([])
+  })
+
+  it('writes the record and never fails the run when onCompact throws', async () => {
+    const appended: Array<unknown> = []
+    const onCompact = vi.fn<(info: CompactionInfo) => void>(() => {
+      throw new Error('observer failed')
+    })
+    const mw = withCompaction({
+      maxTokens: 1000,
+      contextWindow: 100,
+      countTokens: 'usage',
+      durable: true,
+      onCompact,
+      strategy: gist(),
+    })
+
+    await expect(
+      finishTurn(mw, durableContext(appended).ctx, 110),
+    ).resolves.toBeUndefined()
+    expect(appended).toMatchObject([{ reason: 'after-turn' }])
+    expect(onCompact).toHaveBeenLastCalledWith(
+      expect.objectContaining({ error: { message: 'observer failed' } }),
+    )
+  })
+
+  it('fails the run when the log append fails, and reports no success', async () => {
+    const onCompact = vi.fn()
+    const mw = withCompaction({
+      maxTokens: 1000,
+      contextWindow: 100,
+      countTokens: 'usage',
+      durable: true,
+      onCompact,
+      strategy: gist(),
+    })
+    const { ctx } = usageContext([], {
+      capabilities: new CapabilityRegistry(),
+    })
+    provideLogRecords(ctx, {
+      append: async () => {
+        throw new Error('log closed')
+      },
+    })
+
+    await expect(finishTurn(mw, ctx, 110)).rejects.toThrow('log closed')
+    expect(onCompact).not.toHaveBeenCalled()
+  })
+
+  it('does nothing under both limits', async () => {
+    const appended: Array<unknown> = []
+    const summarize = vi.fn(async () => 'the gist')
+    const mw = withCompaction({
+      maxTokens: 1000,
+      contextWindow: 1000,
+      countTokens: 'usage',
+      durable: true,
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+    })
+    await finishTurn(mw, durableContext(appended).ctx, 110)
+    expect(summarize).not.toHaveBeenCalled()
+    expect(appended).toEqual([])
+  })
+
+  it('skips without LogRecordsCapability, and the next call checks the overflow', async () => {
+    const store = memoryStore()
+    const summarize = vi.fn(async () => 'the gist')
+    const mw = withCompaction({
+      maxTokens: 100,
+      contextWindow: 1000,
+      countTokens: 'usage',
+      durable: true,
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+    })
+    // A store but no log: the after-turn check does nothing.
+    await finishTurn(mw, checkpointContext(store), 110)
+    expect(summarize).not.toHaveBeenCalled()
+    expect(await store.get('@tanstack/ai-compaction', 'thread-1')).toBeNull()
+
+    // The next call counts 120 + 1 from the saved usage and compacts first.
+    const next = [...covered(), reply, text('user', 'next')]
+    const result = await runOnConfig(mw, next, checkpointContext(store))
+    expect(summarize).toHaveBeenCalledOnce()
+    expect(result?.providerMessages?.[0]).toEqual(summaryOf('the gist'))
+  })
+
+  it('reports a failed after-turn compaction through onCompact and never fails the run', async () => {
+    const appended: Array<unknown> = []
+    const onCompact = vi.fn()
+    // continueOnError is not set: the after-turn check still does not throw.
+    const mw = withCompaction({
+      maxTokens: 1000,
+      contextWindow: 100,
+      countTokens: 'usage',
+      durable: true,
+      onCompact,
+      strategy: summarizeOldest({
+        summarize: async () => {
+          throw new Error('summary failed')
+        },
+        keepRecentTokens: 50,
+      }),
+    })
+
+    await expect(
+      finishTurn(mw, durableContext(appended).ctx, 110),
+    ).resolves.toBeUndefined()
+    expect(onCompact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'after-turn',
+        before: 120,
+        error: { message: 'summary failed' },
+      }),
+    )
+    expect(appended).toEqual([])
+  })
+
+  it('adds no onFinish hook without both durable: true and countTokens: usage', () => {
+    expect(
+      withCompaction({ maxTokens: 100, durable: true }).onFinish,
+    ).toBeUndefined()
+    expect(
+      withCompaction({
+        maxTokens: 100,
+        contextWindow: 1000,
+        countTokens: 'usage',
+      }).onFinish,
+    ).toBeUndefined()
   })
 })

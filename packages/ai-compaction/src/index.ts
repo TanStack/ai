@@ -12,7 +12,13 @@
  * The system prompt is never touched — `chat()` keeps it separate from
  * `messages`.
  */
-import { MetadataCapability, getMetadata } from '@tanstack/ai'
+import {
+  LogRecordsCapability,
+  MetadataCapability,
+  getLogRecords,
+  getMetadata,
+} from '@tanstack/ai'
+import { compactionRecord } from './record'
 import {
   USAGE_NAMESPACE,
   countFromUsage,
@@ -27,6 +33,9 @@ import type {
   ModelMessage,
   TokenUsage,
 } from '@tanstack/ai'
+
+export { COMPACTION_RECORD_TYPE, projectCompaction } from './record'
+export type { CompactionRecord } from './record'
 
 /** CUSTOM stream event: compaction is about to run. */
 export const COMPACTION_STARTED_EVENT = 'compaction:started'
@@ -274,6 +283,12 @@ export interface CompactionInfo {
   reason: CompactionReason
   /** The usage the strategy reported with `addUsage`. */
   usage?: TokenUsage
+  /**
+   * Set only when the after-turn check failed: the strategy, the store, or
+   * `onCompact` threw. The run goes on. When the strategy failed, the next
+   * call's own check tries again.
+   */
+  error?: { message: string }
 }
 
 export interface CompactionOptions {
@@ -300,12 +315,30 @@ export interface CompactionOptions {
   countTokens?: 'estimate' | 'usage'
   /**
    * `false`: do not compact when the count passes `maxTokens`.
-   * `compactNext` still compacts. Default `true`.
+   * `compactNext` and the after-turn overflow check still compact. Default
+   * `true`.
    */
   auto?: boolean
   /**
-   * `true`: when the strategy throws, report the error in `compaction:ended`
-   * and send the list without compaction. Default `false`: the run fails.
+   * The model's context window in tokens. With `countTokens: 'usage'` and
+   * `durable: true` on a host with a log, the check after the last model call
+   * of a run compacts when the usage is over it, even with `auto: false`. A
+   * failed after-turn compaction never fails the run: `onCompact` gets
+   * `error`. Only a failed log append fails it.
+   */
+  contextWindow?: number
+  /**
+   * Write each compaction as a log record when the host provides
+   * `LogRecordsCapability` (a durable harness session). Fold the record with
+   * {@link projectCompaction}. Without the capability, the checkpoint is
+   * used, and there is no after-turn check. When an earlier middleware set
+   * `providerMessages`, the result stays provider-only. Default `false`.
+   */
+  durable?: boolean
+  /**
+   * `true`: when the strategy throws in the check before a model call, report
+   * the error in `compaction:ended` and send the list without compaction.
+   * Default `false`: the run fails. The after-turn check never fails the run.
    */
   continueOnError?: boolean
 }
@@ -540,9 +573,103 @@ export function withCompaction(
   /** The threads whose next model call compacts. */
   const forced = new Set<string>()
 
+  /**
+   * After the last model call of a run on a durable host: compact when the
+   * usage is over the context window, or over `maxTokens` with `auto` on, and
+   * write the record. Custom events from `onFinish` do not reach the stream,
+   * so only `onCompact` reports it.
+   */
+  async function afterTurn(ctx: ChatMiddlewareContext) {
+    // Without a log the result could go only to a checkpoint, and that can
+    // miss on the next run. The next call's own check covers it.
+    const logRecords = getLogRecords(ctx, { optional: true })
+    const store = storeOf(ctx)
+    if (!logRecords || !store) return
+    const messages = [...ctx.messages]
+    const spent: { usage?: TokenUsage } = {}
+    let tokens = 0
+    const info = (after: number, messagesAfter: number): CompactionInfo => ({
+      before: tokens,
+      after,
+      messagesBefore: messages.length,
+      messagesAfter,
+      reason: 'after-turn',
+      ...(spent.usage ? { usage: spent.usage } : {}),
+    })
+    // The answer already streamed, so only a failed log append fails the run.
+    // Other errors go to onCompact.
+    const fail = (error: unknown, done = info(tokens, messages.length)) => {
+      try {
+        options.onCompact?.({
+          ...done,
+          error: {
+            message: error instanceof Error ? error.message : String(error),
+          },
+        })
+      } catch {
+        // An onCompact that throws here must not fail the run either.
+      }
+    }
+
+    let next: Array<ModelMessage> | null
+    let tokensAfter: number
+    try {
+      // A durable run never reuses a checkpoint. So this is true only when
+      // the last call of this run compacted, and the list here is the folded
+      // view that the saved usage counted.
+      const counted = await countFromUsage(
+        await store.get(USAGE_NAMESPACE, ctx.threadId),
+        messages,
+        estimate,
+        compactedViews.get(ctx) === true,
+      )
+      if (counted === undefined) return
+      tokens = counted
+      const isOverflow =
+        options.contextWindow !== undefined && tokens > options.contextWindow
+      if (!isOverflow && !(auto && tokens > options.maxTokens)) return
+      next = await strategy(messages, {
+        maxTokens: options.maxTokens,
+        estimate,
+        addUsage: (usage) => {
+          spent.usage = sumUsage(spent.usage, usage)
+        },
+      })
+      if (!next || next === messages || ctx.signal?.aborted) return
+      tokensAfter = sum(next, estimate)
+    } catch (error) {
+      // The saved usage stays, and the next call's own check tries again.
+      fail(error)
+      return
+    }
+    const record = compactionRecord({
+      reason: 'after-turn',
+      before: messages,
+      after: next,
+      tokensBefore: tokens,
+      tokensAfter,
+      ...(spent.usage ? { usage: spent.usage } : {}),
+    })
+    // Append first, so a failed append is never reported as a success.
+    // withPersistence saved the reply before this hook: it is earlier in the
+    // middleware list. If it was not, firstKeptId finds the kept tail, or the
+    // fold skips the record.
+    await logRecords.append([record])
+    const done = info(tokensAfter, next.length)
+    try {
+      // The saved usage counted the list before this compaction.
+      await store.delete(USAGE_NAMESPACE, ctx.threadId)
+      options.onCompact?.(done)
+    } catch (error) {
+      fail(error, done)
+    }
+  }
+
   return {
     name: 'compaction',
-    optionalRequires: [MetadataCapability],
+    optionalRequires: options.durable
+      ? [MetadataCapability, LogRecordsCapability]
+      : [MetadataCapability],
     compactNext: (threadId) => {
       forced.add(threadId)
     },
@@ -556,7 +683,15 @@ export function withCompaction(
       const startedAt = Date.now()
       const { messages } = config
       const inputMessages = config.providerMessages ?? messages
-      const metadata = storeOf(ctx)
+      const store = storeOf(ctx)
+      // A durable compaction goes to the log, and the fold gives the next
+      // call the compacted list, so it needs no checkpoint. A list that an
+      // earlier middleware made provider-only cannot be recorded.
+      const logRecords =
+        options.durable && inputMessages === messages
+          ? getLogRecords(ctx, { optional: true })
+          : undefined
+      const metadata = logRecords ? undefined : store
       const checkpointKey = checkpointStrategyKey ?? 'memory'
       let workingMessages = inputMessages
       let reusedCheckpoint = false
@@ -582,9 +717,9 @@ export function withCompaction(
       compactedViews.set(ctx, reusedCheckpoint)
 
       const fromUsage =
-        countUsage && metadata
+        countUsage && store
           ? await countFromUsage(
-              await metadata.get(USAGE_NAMESPACE, ctx.threadId),
+              await store.get(USAGE_NAMESPACE, ctx.threadId),
               messages,
               estimate,
               reusedCheckpoint,
@@ -725,10 +860,24 @@ export function withCompaction(
 
       if (countUsage) {
         // The saved usage counted the list before this compaction.
-        await metadata?.delete(USAGE_NAMESPACE, ctx.threadId)
+        await store?.delete(USAGE_NAMESPACE, ctx.threadId)
       }
 
-      if (metadata && inputMessages === messages) {
+      if (logRecords) {
+        // The model gets `next` now. The record makes the log fold the same.
+        if (!ctx.signal?.aborted) {
+          await logRecords.append([
+            compactionRecord({
+              reason,
+              before: workingMessages,
+              after: next,
+              tokensBefore: before,
+              tokensAfter: info.after,
+              ...(spent.usage ? { usage: spent.usage } : {}),
+            }),
+          ])
+        }
+      } else if (metadata && inputMessages === messages) {
         const checkpoint: CompactionCheckpoint = {
           schemaVersion: 1,
           sourceMessageCount: messages.length,
@@ -756,5 +905,8 @@ export function withCompaction(
           await storeOf(ctx)?.set(USAGE_NAMESPACE, ctx.threadId, saved)
         }
       : undefined,
+    // Only a durable run checks after the turn (orchestrator decision).
+    onFinish:
+      countUsage && options.durable ? (ctx) => afterTurn(ctx) : undefined,
   }
 }
