@@ -162,6 +162,7 @@ Any provider implementing the OpenAI Chat Completions API works. Common ones are
 | DeepInfra | `https://api.deepinfra.com/v1/openai` | `meta-llama/Llama-3.3-70B-Instruct` |
 | Perplexity | `https://api.perplexity.ai` | `sonar`, `sonar-pro` |
 | Requesty | `https://router.requesty.ai/v1` | `openai/gpt-4o-mini` |
+| Cheaper Inference | `https://api.cheaperinference.com/v1` | `gpt-5.4-mini`, `claude-sonnet-5` |
 | Mistral | `https://api.mistral.ai/v1` | `mistral-large-latest` |
 | Nebius | `https://api.studio.nebius.ai/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | Z.AI (GLM) | `https://api.z.ai/api/paas/v4` | `glm-4.6` |
