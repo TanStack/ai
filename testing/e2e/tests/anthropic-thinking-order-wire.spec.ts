@@ -40,4 +40,32 @@ test.describe('anthropic — signed thinking order around web_search', () => {
       ['thinking', 'tool-call', 'thinking', 'text', 'tool-call'],
     ])
   })
+
+  test('a client tool answer keeps its order through the client and the wire', async ({
+    request,
+  }) => {
+    const response = await request.post('/api/anthropic-thinking-order-wire')
+    expect(response.ok()).toBe(true)
+    const result = (await response.json()) as {
+      ok: boolean
+      error?: string
+      clientToolView: Array<Array<string>>
+      clientToolReplay: Array<string>
+    }
+    if (!result.ok) throw new Error(`Route failed: ${result.error}`)
+
+    // The client shows the answer in the order Claude sent it.
+    expect(result.clientToolView).toEqual([
+      ['thinking', 'tool-call', 'thinking', 'tool-call'],
+    ])
+
+    // After the client sends both tool results, the next request replays the
+    // answer in the order Claude signed it.
+    expect(result.clientToolReplay).toEqual([
+      'thinking:sig-c',
+      'tool_use:toolu_stockholm',
+      'thinking:sig-d',
+      'tool_use:toolu_oslo',
+    ])
+  })
 })

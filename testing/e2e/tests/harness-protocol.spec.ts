@@ -1,0 +1,228 @@
+import { test, expect } from './fixtures'
+
+test.describe('harness protocol', () => {
+  const headers = (testId: string, aimockPort: number) => ({
+    authorization: 'Bearer e2e-token',
+    'x-test-id': testId,
+    'x-aimock-port': String(aimockPort),
+  })
+
+  test('refuses a request without the token', async ({ request }) => {
+    const response = await request.get('/api/harness-protocol/capabilities')
+    expect(response.status()).toBe(401)
+  })
+
+  test('lists exposed agents in the capabilities', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.get('/api/harness-protocol/capabilities', {
+      headers: headers(testId, aimockPort),
+    })
+    const body = await response.json()
+    expect(body.identity.name).toBe('e2e/protocol')
+    expect(body.custom.tanstack.agents[0].name).toBe('echo')
+  })
+
+  test('streams a standard AG-UI run through a session', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-protocol/run', {
+      headers: {
+        ...headers(testId, aimockPort),
+        'content-type': 'application/json',
+      },
+      data: {
+        threadId: `protocol-${testId}`,
+        runId: 'client-run',
+        messages: [
+          { id: 'u1', role: 'user', content: '[harness-protocol] hello' },
+        ],
+        tools: [],
+        context: [],
+        state: {},
+        forwardedProps: {},
+      },
+    })
+    expect(response.headers()['content-type']).toContain('text/event-stream')
+    const text = await response.text()
+    const events = text
+      .split('\n')
+      .filter((line) => line.startsWith('data: '))
+      .map((line) => JSON.parse(line.slice(6)))
+    const answer = events
+      .filter((event) => event.type === 'TEXT_MESSAGE_CONTENT')
+      .map((event) => event.delta)
+      .join('')
+    expect(answer).toBe('Hello over the harness protocol.')
+    expect(events.at(-1).name).toBe('harness.operation.finished')
+  })
+
+  test('changes a plugin setting and runs a plugin command', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const control = async (input: unknown) =>
+      (
+        await request.post('/api/harness-protocol/control', {
+          headers: {
+            ...headers(testId, aimockPort),
+            'content-type': 'application/json',
+          },
+          data: { threadId: `plugins-${testId}`, input },
+        })
+      ).json()
+
+    expect(
+      await control({ op: 'config', key: 'tone', value: 'warm' }),
+    ).toMatchObject({
+      status: 'accepted',
+    })
+    const rejected = await control({ op: 'config', key: 'tone', value: 'loud' })
+    expect(rejected.status).toBe('rejected')
+    expect(rejected.reason).toContain('plain, warm')
+    const command = await control({ op: 'command', name: 'greet' })
+    expect(command.status).toBe('accepted')
+    expect(command.operationId).toMatch(/^op-command-/)
+  })
+
+  test('runs a retried prompt with the same inputId once on a durable host', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const threadId = `durable-${testId}`
+    const durable = { ...headers(testId, aimockPort), 'x-harness-durable': '1' }
+    const control = async (input: unknown) =>
+      (
+        await request.post('/api/harness-protocol/control', {
+          headers: { ...durable, 'content-type': 'application/json' },
+          data: { threadId, input },
+        })
+      ).json()
+    const prompt = {
+      op: 'prompt',
+      message: '[harness-durable] run once',
+      inputId: `once-${testId}`,
+    }
+
+    const first = await control(prompt)
+    const retry = await control(prompt)
+
+    expect(first.status).toBe('accepted')
+    expect(retry).toEqual(first)
+    const answers = async () => {
+      const response = await request.get(
+        `/api/harness-protocol/transcript?threadId=${threadId}`,
+        { headers: durable },
+      )
+      const transcript: Array<{ role: string; content: unknown }> =
+        await response.json()
+      return transcript
+        .filter((message) => message.role === 'assistant')
+        .map((message) => message.content)
+    }
+    await expect.poll(answers).toEqual(['Stored once.'])
+    expect(
+      await control({ ...prompt, message: '[harness-durable] other text' }),
+    ).toMatchObject({ status: 'rejected', reason: 'conflict' })
+  })
+
+  test('retries a 503 from the model in the same turn', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const threadId = `retry-${testId}`
+    const turnHeaders = {
+      ...headers(testId, aimockPort),
+      'x-harness-turn': 'retry',
+    }
+    const receipt = await (
+      await request.post('/api/harness-protocol/control', {
+        headers: { ...turnHeaders, 'content-type': 'application/json' },
+        data: {
+          threadId,
+          input: { op: 'prompt', message: '[harness-retry] try twice' },
+        },
+      })
+    ).json()
+    expect(receipt.status).toBe('accepted')
+
+    const answers = async () => {
+      const response = await request.get(
+        `/api/harness-protocol/transcript?threadId=${threadId}`,
+        { headers: turnHeaders },
+      )
+      const transcript: Array<{ role: string; content: unknown }> =
+        await response.json()
+      return transcript
+        .filter((message) => message.role === 'assistant')
+        .map((message) => message.content)
+    }
+    await expect.poll(answers).toEqual(['Back after a retry.'])
+  })
+
+  test('sends the model back to work with beforeFinish', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const threadId = `finish-${testId}`
+    const turnHeaders = {
+      ...headers(testId, aimockPort),
+      'x-harness-turn': 'finish',
+    }
+    await request.post('/api/harness-protocol/control', {
+      headers: { ...turnHeaders, 'content-type': 'application/json' },
+      data: {
+        threadId,
+        input: { op: 'prompt', message: '[harness-finish] post it' },
+      },
+    })
+
+    const transcript = async () => {
+      const response = await request.get(
+        `/api/harness-protocol/transcript?threadId=${threadId}`,
+        { headers: turnHeaders },
+      )
+      const messages: Array<{ role: string; content: unknown }> =
+        await response.json()
+      return messages.map(
+        (message) => `${message.role}: ${String(message.content)}`,
+      )
+    }
+    await expect
+      .poll(transcript)
+      .toEqual([
+        'user: [harness-finish] post it',
+        'assistant: Draft answer.',
+        'user: [harness-finish] reminder: post the answer',
+        'assistant: Posted answer.',
+      ])
+  })
+
+  test('takes a control input and returns a receipt', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-protocol/control', {
+      headers: {
+        ...headers(testId, aimockPort),
+        'content-type': 'application/json',
+      },
+      data: {
+        threadId: `control-${testId}`,
+        input: { op: 'agent', agent: 'echo', input: { text: 'hi' } },
+      },
+    })
+    const receipt = await response.json()
+    expect(receipt.status).toBe('accepted')
+    expect(receipt.operationId).toMatch(/^op-agent-/)
+  })
+})

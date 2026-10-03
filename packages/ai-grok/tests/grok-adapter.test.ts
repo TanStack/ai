@@ -208,32 +208,44 @@ describe('Grok adapters', () => {
       })
     })
 
-    it('rejects reasoning options locally for grok-build-0.1', async () => {
-      const adapter = createGrokText('grok-build-0.1', 'test-api-key')
-      const mockCreate = injectMockResponsesClient(adapter, [])
+    it('sends reasoning.effort from chat({ reasoning })', async () => {
+      const adapter = createGrokText('grok-4.3', 'test-api-key')
+      const mockCreate = injectMockResponsesClient(adapter, [
+        responseCreated,
+        responseCompleted,
+      ])
 
-      const chunks: Array<AdapterYieldChunk> = []
-      for await (const chunk of adapter.chatStream({
-        model: 'grok-build-0.1',
-        messages: [{ role: 'user', content: 'Hello' }],
-        modelOptions: {
-          reasoning: { effort: 'high' },
-        } as any,
-        logger: testLogger,
-      })) {
-        chunks.push(chunk)
-      }
-
-      expect(mockCreate).not.toHaveBeenCalled()
-      expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
-        true,
+      await consume(
+        adapter.chatStream({
+          model: 'grok-4.3',
+          messages: [{ role: 'user', content: 'Hello' }],
+          reasoning: { level: 'high', summary: true },
+          logger: testLogger,
+        }),
       )
-      expect(
-        chunks.find((chunk) => chunk.type === EventType.RUN_ERROR),
-      ).toMatchObject({
-        message:
-          'grok-build-0.1 does not support reasoning modelOptions; omit reasoning for this model.',
+
+      expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({
+        reasoning: { effort: 'high', summary: 'auto' },
       })
+    })
+
+    it('sends no reasoning for grok-build-0.1, which refuses it', async () => {
+      const adapter = createGrokText('grok-build-0.1', 'test-api-key')
+      const mockCreate = injectMockResponsesClient(adapter, [
+        responseCreated,
+        responseCompleted,
+      ])
+
+      await consume(
+        adapter.chatStream({
+          model: 'grok-build-0.1',
+          messages: [{ role: 'user', content: 'Hello' }],
+          reasoning: { level: 'high', summary: true },
+          logger: testLogger,
+        }),
+      )
+
+      expect(mockCreate.mock.calls[0]?.[0]).not.toHaveProperty('reasoning')
     })
 
     it('converts function tools to Responses API tools', async () => {
@@ -569,7 +581,7 @@ describe('Grok adapters', () => {
       // Type-level regression guard: the SummarizeAdapter constraint only
       // instantiates at the summarize() call site, so constructing the adapter
       // (covered above) is not enough. This closure is type-checked but never
-      // executed — passing CI's test:types is the assertion.
+      // executed â€” passing CI's test:types is the assertion.
       const _typeCheck = () => {
         void summarize({ adapter: grokSummarize('grok-4.3'), text: '' })
         void summarize({ adapter: grokSummarize('grok-build-0.1'), text: '' })

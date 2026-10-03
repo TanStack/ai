@@ -2,6 +2,10 @@ import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { withVercelGatewayDefaults } from '../utils/client'
 import { mapGatewayModelOptions } from '../utils/map-gateway-options'
+import { VERCEL_GATEWAY_MODEL_REASONING } from '../model-reasoning'
+import { resolveReasoning } from '@tanstack/ai/adapter-internals'
+import type { ResolvedReasoning } from '@tanstack/ai/adapter-internals'
+import type { VercelGatewayModelReasoningByName } from '../model-reasoning'
 import type { Modality, TextOptions } from '@tanstack/ai'
 import type {
   VERCEL_GATEWAY_CHAT_MODELS,
@@ -12,6 +16,26 @@ import type {
 import type { VercelGatewayMessageMetadataByModality } from '../message-types'
 import type { VercelGatewayClientConfig } from '../utils/client'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof VercelGatewayModelReasoningByName
+    ? VercelGatewayModelReasoningByName[TModel]
+    : never
+
+/**
+ * AI Gateway's `reasoning` object for Chat Completions: `enabled: false` for
+ * `off`, a `max_tokens` budget when the request sets one (it cannot go with
+ * `effort`), or the effort. `exclude` hides the thinking text.
+ */
+function gatewayReasoning(resolved: ResolvedReasoning) {
+  if (resolved.level === 'off') return { enabled: false }
+  const exclude = resolved.summary ? {} : { exclude: true }
+  if (resolved.budgetTokens !== undefined) {
+    return { enabled: true, max_tokens: resolved.budgetTokens, ...exclude }
+  }
+  return { effort: resolved.value ?? resolved.level, ...exclude }
+}
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof VercelGatewayChatModelToolCapabilitiesByName
@@ -41,7 +65,8 @@ export class VercelGatewayTextAdapter<
   TProviderOptions,
   TInputModalities,
   VercelGatewayMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'vercel-gateway' as const
@@ -66,6 +91,14 @@ export class VercelGatewayTextAdapter<
       gateway?: unknown
     }
     void _gateway
+    // `chat({ reasoning })`. The `reasoning` object is an AI Gateway field
+    // that the OpenAI SDK type does not list, so it goes on with
+    // Object.assign.
+    const resolved = resolveReasoning(
+      options.reasoning,
+      VERCEL_GATEWAY_MODEL_REASONING[options.model],
+    )
+    if (resolved) Object.assign(rest, { reasoning: gatewayReasoning(resolved) })
     return rest
   }
 }

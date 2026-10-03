@@ -90,6 +90,8 @@ The router can return:
 - `{ names, order }`
 - `{ steps }`
 
+Anywhere a name goes, `{ name, input }` can go too, for example `{ name: 'pricer', input: { vendor: 'Acme' } }`. An agent with `inputSchema` needs it.
+
 `subagents.order` is the default for an array. `parallel` starts the names together. `sequence` runs them one after another, and each later child reads the earlier child text. Omit `order` to get `parallel`.
 
 `subagentRoute` asks Jev for the order. Jev picks `parallel` when no agent must read text from another agent. The same topic is not a reason to wait. Jev picks `sequence` only when a later agent must read the earlier text, such as research notes and then a draft.
@@ -154,6 +156,69 @@ const stream = chat({
 })
 ```
 
+**Give a routed agent its input.** An agent with `inputSchema` gets its input from the router. `route.needsInput(result)` lists the picked agents that need one, each with its schema. Make each input. Then pass them to `route.pick(result, { inputs })`. Here the model writes each input, with the schema as `outputSchema`:
+
+```ts
+import { chat, decide, defineAgent, subagentRoute } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { typesafeDecider } from '@tanstack/ai-typesafe'
+import { z } from 'zod'
+
+const writer = defineAgent({
+  name: 'writer',
+  description: 'Writes the post',
+  run: async function* () {},
+})
+const pricer = defineAgent({
+  name: 'pricer',
+  description: 'Compares the plans and prices of one vendor',
+  inputSchema: z.object({ vendor: z.string() }),
+  run: (ctx) =>
+    ctx.chat({
+      adapter: openaiText('gpt-5.6'),
+      messages: [{ role: 'user', content: `Compare the plans of ${ctx.input.vendor}` }],
+      stream: false,
+    }),
+})
+const messages = [
+  { role: 'user' as const, content: 'What does Acme cost? Write a post about it.' },
+]
+
+const stream = chat({
+  adapter: openaiText('gpt-5.6'),
+  messages,
+  subagents: {
+    agents: [pricer, writer],
+    router: async ({ messages: turnMessages, agents }) => {
+      const route = subagentRoute(agents, { then: ['writer'] })
+      const result = await decide({
+        adapter: typesafeDecider('jev-latest'),
+        state: turnMessages,
+        questions: route.questions,
+      })
+      const inputs = Object.fromEntries(
+        await Promise.all(
+          route.needsInput(result).map(async ({ name, inputSchema }) => [
+            name,
+            await chat({
+              adapter: openaiText('gpt-5.6'),
+              messages: turnMessages,
+              outputSchema: inputSchema,
+            }),
+          ]),
+        ),
+      )
+      return route.pick(result, { inputs })
+    },
+  },
+})
+```
+
+- `inputs` is typed. Each key is the name of an agent with `inputSchema`, and the value has the type of that schema.
+- If a picked agent with a schema has no input, `pick` throws `Agent "pricer" needs input. Pass it in inputs.`
+- `chat()` checks each input against the schema before the child starts. If an input does not match, `chat()` throws, and the child does not start.
+- `run` reads the input as `ctx.input`. A resumed child gets the same input.
+
 **Without a router.** The library adds one synthetic server tool per agent. The main model calls that tool. The public stream still emits `SUBAGENT_STARTED` / `SUBAGENT_FINISHED` (or `SUBAGENT_ERROR`) and nested parts. The UI does not treat spawn as a normal tool card. The child's events stream while the tool runs, and the child's text becomes the tool result. The child reads the conversation as it is at that tool call.
 
 ## Let the model write the brief
@@ -202,9 +267,82 @@ const stream = chat({
 - If the input does not match the schema, the model gets a tool error and can call the tool again. The child does not start.
 - `ctx.messages` still holds the parent conversation. Add parts of it when the child needs more context.
 - A resumed child gets the same `ctx.input` as the first run.
-- `inputSchema` needs tool mode. If `subagents.router` is set and an agent has `inputSchema`, `chat()` throws.
+- With `subagents.router`, the router gives the input. See [Route, or let the model pick](#route-or-let-the-model-pick).
 
 To show the brief in the UI, see [Show the brief on a card](#show-the-brief-on-a-card).
+
+## Return a value, or call any activity
+
+A child does not have to be a chat. It can make an image, or return a plain value that the parent model reads as the tool result. Call the activity on `ctx` and return what it gives you:
+
+```ts group=subagent-values
+import { chat, defineAgent } from '@tanstack/ai'
+import { openaiImage, openaiText } from '@tanstack/ai-openai'
+import { z } from 'zod'
+
+const heroImage = defineAgent({
+  name: 'heroImage',
+  description: 'Makes a hero image for a post',
+  produces: 'image',
+  inputSchema: z.object({ prompt: z.string() }),
+  run: (ctx) =>
+    ctx.generateImage({
+      adapter: openaiImage('gpt-image-2'),
+      prompt: `${ctx.input.prompt}. Brand colors: blue and white.`,
+      size: '1536x1024',
+    }),
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-5.6'),
+  messages: [{ role: 'user', content: 'Make a hero image about squids' }],
+  subagents: { agents: [heroImage] },
+})
+```
+
+- `ctx.chat`, `ctx.generateImage`, `ctx.generateVideo`, `ctx.generateSpeech`, and the other activities on `ctx` take the same options as the plain functions. They fill in the thread id, a run id, and the abort signal.
+- `ctx.chat` also uses the parent conversation (`ctx.messages`) when you do not pass `messages`.
+- `run` can return a promise of any value. The value arrives on `SUBAGENT_FINISHED.result`, and the parent model gets it as the tool result.
+- A string result also streams as the child's text, so the card shows it.
+- A very long string in the result (for example a base64 image) reaches the parent model as a short note, `[omitted 5000 characters]`. The full value stays on `SUBAGENT_FINISHED.result`.
+- `produces` says what the agent makes (`'image'`, `'text'`, and so on). It does not change how the agent runs.
+
+When you call the plain `chat()` instead, spread `ctx.forward` to pass the child's ids and abort controller in one line:
+
+```ts group=subagent-values
+const researcher = defineAgent({
+  name: 'researcher',
+  description: 'Looks up facts',
+  run: (ctx) =>
+    chat({
+      adapter: openaiText('gpt-5.6'),
+      messages: ctx.messages,
+      ...ctx.forward,
+    }),
+})
+```
+
+## Limit the tree
+
+A child can have children of its own, and a model can call a child many times. Set `limits` so one request cannot start an unbounded tree:
+
+```ts group=subagent-values
+const limited = chat({
+  adapter: openaiText('gpt-5.6'),
+  messages: [{ role: 'user', content: 'Research squids in depth' }],
+  subagents: {
+    agents: [researcher],
+    limits: { maxDepth: 2, maxConcurrent: 3, maxCalls: 12, timeoutMs: 120_000 },
+  },
+})
+```
+
+- `maxDepth`: how deep the tree may grow. The first chat is depth 0.
+- `maxCalls`: how many children the whole tree may start.
+- `maxConcurrent`: how many children one run may have running at once.
+- `timeoutMs`: how long one child may run. A child never gets more time than its parent has left.
+
+The whole tree shares one budget. A child that calls `ctx.chat({ subagents })` passes it on, so a child cannot reset it. A refused start reaches the model as a tool error, for example `subagent limit reached (maxCalls 12)`.
 
 ## Strategy
 
@@ -313,6 +451,8 @@ The same flow works without a router. The child's tool call stays open until the
 A child is its own `chat()` call. Put the child's middleware in that call. The parent's middleware list does not reach the child.
 
 Inside a child, the middleware context has `subagentRunId`. Use it to tell a child run from a top-level run, and to link a child trace to its card.
+
+When the child calls `ctx.chat`, the context also has `subagentName`, the name of the agent. For a nested child, `parentSubagentRunId` is the id of the child that started it.
 
 On a routed turn where a child runs and main does not, the parent's middleware does not run. Only `withPersistence` records that turn. A turn where main runs, including a handoff, runs the parent's middleware as usual.
 
@@ -580,7 +720,7 @@ function Briefs({ message }: { message: UIMessage }) {
 }
 ```
 
-A child that a router started has no `parentToolCallId`, so it has no brief.
+A child that a router started has no `parentToolCallId`, so `briefOf` finds no brief for it.
 
 ### Style one child's parts
 

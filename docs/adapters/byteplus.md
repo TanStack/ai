@@ -142,7 +142,7 @@ export function Chat() {
 
 ### Model options
 
-Ark's chat endpoint is OpenAI-compatible, so sampling parameters keep their OpenAI snake_case names and live in `modelOptions`. `thinking`, `reasoning_effort`, `repetition_penalty` and `service_tier` are the Ark-only additions:
+Ark's chat endpoint is OpenAI-compatible, so sampling parameters keep their OpenAI snake_case names and live in `modelOptions`. `repetition_penalty` and `service_tier` are the Ark-only additions. The reasoning level goes in `reasoning`:
 
 ```typescript
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
@@ -158,25 +158,21 @@ export async function POST(request: Request) {
       temperature: 0.7,
       top_p: 0.9,
       max_tokens: 2048,
-      thinking: { type: 'enabled' },
-      reasoning_effort: 'medium',
     },
+    reasoning: 'medium',
   })
 
   return toServerSentEventsResponse(stream)
 }
 ```
 
-Two constraints the type system can't express, both live-verified as `400`s:
-
-- `max_tokens` and `max_completion_tokens` are mutually exclusive.
-- `reasoning_effort` cannot be combined with `thinking: { type: 'disabled' }`.
+`max_tokens` and `max_completion_tokens` are mutually exclusive. The type system can't express this, and Ark returns a `400` when you send both.
 
 `service_tier: 'flex'` routes the request to the cheaper offline batch queue with no latency guarantee.
 
 ## Reasoning and `encrypted_content`
 
-Seed models reason by default. Reasoning arrives as its own stream of `reasoning_content` deltas and is surfaced as reasoning content rather than answer text, so `useChat` renders it separately from the reply. Turn it off per request:
+Seed models reason by default. Reasoning arrives as its own stream of `reasoning_content` deltas and is surfaced as reasoning content rather than answer text, so `useChat` renders it separately from the reply. The adapter sends `reasoning` as Ark's `thinking.type`, plus `reasoning_effort` when the level has an effort. Turn reasoning off per request on a model that can stop thinking:
 
 ```typescript
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
@@ -186,16 +182,16 @@ export async function POST(request: Request) {
   const { messages } = await request.json()
 
   const stream = chat({
-    adapter: byteplusText('dola-seed-2-1-turbo-260628'),
+    adapter: byteplusText('glm-5-2-260617'),
     messages,
-    modelOptions: { thinking: { type: 'disabled' } },
+    reasoning: 'off',
   })
 
   return toServerSentEventsResponse(stream)
 }
 ```
 
-`disabled` works everywhere; `auto` is accepted only by `gpt-oss-120b-250805`. `deepseek-v3-2-251201` is the one model that defaults to reasoning *off*.
+`off` sends `thinking: { type: 'disabled' }` and no effort, because Ark rejects the pair. `deepseek-v3-2-251201` is the one model that defaults to reasoning *off*.
 
 The four "thinking summary" models — `dola-seed-2-1-turbo-260628`, `seed-2-0-lite-260428`, `seed-2-0-mini-260428` and `seed-2-0-pro-260328` — also emit an opaque `encrypted_content` blob alongside the reasoning trace. It is a signature over that trace, and BytePlus's docs ask for it back verbatim on the assistant message in the next turn.
 

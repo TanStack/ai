@@ -1,0 +1,210 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[harness-turns] first"
+      },
+      "response": {
+        "content": "First answer."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-turns] second"
+      },
+      "response": {
+        "content": "Second answer."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-agent] price vendor a"
+      },
+      "response": {
+        "content": "Vendor A costs 12 dollars."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-agent] what did it cost?"
+      },
+      "response": {
+        "content": "It cost 12 dollars."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "Background agent waiter failed: [waiter failed] The host stopped during this agent run."
+      },
+      "response": {
+        "content": "The waiter stopped before it finished."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing:writer] [harness-routing] write"
+      },
+      "response": {
+        "content": "Here is a short draft."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing] hello"
+      },
+      "response": {
+        "content": "Hello from the main model."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing:researcher] [harness-routing] article"
+      },
+      "response": {
+        "content": "Bees make honey."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing:seo] [harness-routing] article"
+      },
+      "response": {
+        "content": "Use the keyword honey."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing:writer] Bees make honey.\n\nUse the keyword honey."
+      },
+      "response": {
+        "content": "Bees make honey, so buy honey."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing:pricer] acme"
+      },
+      "response": {
+        "content": "Acme costs 30 dollars."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing-fix] edit the draft",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "error": { "message": "Service Unavailable", "type": "server_error" },
+        "status": 503
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing-fix] edit the draft",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Edited after a retry."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-restart-resolve] remove b.txt",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "remove",
+            "arguments": "{\"path\":\"b.txt\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-restart-resolve] remove b.txt",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Removed b.txt after the restart."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing-fix] clean up",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "remove",
+            "arguments": "{\"path\":\"a.txt\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-routing-fix] clean up",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Removed a.txt."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-protocol] hello"
+      },
+      "response": {
+        "content": "Hello over the harness protocol."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-durable] run once"
+      },
+      "response": {
+        "content": "Stored once."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-limits] work twice",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "worker",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-limits] work twice",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "worker",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-limits] work twice",
+        "sequenceIndex": 2
+      },
+      "response": {
+        "content": "The second call hit the limit."
+      }
+    }
+  ]
+}

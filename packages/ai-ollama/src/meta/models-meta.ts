@@ -71,14 +71,6 @@ export interface OllamaChatRequest {
   options?: Partial<OllamaOptions>
 }
 
-export interface OllamaChatRequestThinking {
-  think?: boolean
-}
-
-export interface OllamaChatRequestThinking_OpenAI {
-  think?: 'low' | 'medium' | 'high'
-}
-
 export interface OllamaChatRequestTools {
   tools?: Array<Tool>
 }

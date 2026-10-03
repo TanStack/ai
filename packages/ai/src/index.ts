@@ -91,18 +91,43 @@ export {
   type DefinedAgent,
   type SubagentChoiceOptions,
   type SubagentRunContext,
+  type SubagentRunInput,
+  type AgentProduces,
 } from './activities/chat/agents/define-agent'
+export type {
+  BoundActivities,
+  SubagentBinding,
+  SubagentForward,
+} from './activities/chat/agents/bound'
+export {
+  keyedAdapter,
+  isKeyedAdapter,
+  type KeyedAdapter,
+  type ProviderKeys,
+} from './byok/keyed'
+export {
+  SubagentBudget,
+  type SubagentLimits,
+} from './activities/chat/agents/limits'
 export {
   subagentRoute,
   type SubagentRouteOptions,
 } from './activities/chat/agents/route'
 export type {
   SubagentOrder,
+  SubagentPickName,
   SubagentRouterPick,
   SubagentRouterPlan,
   SubagentStep,
   SubagentStepsPlan,
+  SubagentsBag,
 } from './activities/chat/agents/spawn'
+// For hosts (a harness session) that run an agent outside a parent chat turn.
+export {
+  spawnAgentStream as runAgentStream,
+  createSubagentId,
+} from './activities/chat/agents/spawn'
+export { compactForModel } from './activities/chat/tools/tool-calls'
 
 // Tool definition
 export {
@@ -336,6 +361,7 @@ export type {
 // Capability primitives + middleware builder
 export {
   createCapability,
+  CapabilityRegistry,
   defineChatMiddleware,
   createChatMiddleware,
   MetadataCapability,
@@ -367,6 +393,9 @@ export type {
   RunStatus,
   TerminalRunStatus,
   RunRecord,
+  RunKind,
+  RunArtifactRef,
+  RunCheckpoint,
   RunError,
   RunStore,
 } from './activities/chat/middleware/index'
@@ -411,6 +440,23 @@ export type {
 // All types
 export * from './types'
 
+// One reasoning option for every provider: `chat({ reasoning })`.
+export {
+  REASONING_LEVELS,
+  clampReasoningLevel,
+  supportedReasoningLevels,
+} from './reasoning'
+export type {
+  AdapterReasoning,
+  ModelReasoning,
+  ReasoningCapability,
+  ReasoningLevel,
+  ReasoningMap,
+  ReasoningOption,
+  ReasoningOptionFor,
+  ReasoningRequest,
+} from './reasoning'
+
 // Shared identity/isolation scope for the persistence + memory subsystems
 export type { Scope } from './scope'
 
@@ -421,6 +467,10 @@ export {
 
 // Usage utilities
 export { buildBaseUsage, type BaseUsageInput } from './utilities/usage'
+
+// Context overflow detection
+export { isContextOverflow } from './utilities/context-overflow'
+export type { ContextOverflowInput } from './utilities/context-overflow'
 
 // Media-generation prompt resolution (used by image / video adapters)
 export { resolveMediaPrompt } from './utilities/media-prompt'
@@ -551,6 +601,10 @@ export {
   getProviderExecutedMetadata,
   isProviderExecutedToolCall,
 } from './utilities/provider-executed'
+export { orderedAssistantBlocks } from './utilities/block-order'
+export type { OrderedAssistantBlock } from './utilities/block-order'
+export { splitMidConversationChanges } from './utilities/mid-conversation'
+export type { MidConversationRequest } from './utilities/mid-conversation'
 
 // Adapter extension utilities
 export { createModel, extendAdapter } from './extend-adapter'

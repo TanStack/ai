@@ -1,9 +1,9 @@
+import type { Modality } from '@tanstack/ai'
 import type {
   GeminiCachedContentOptions,
   GeminiCommonConfigOptions,
   GeminiSafetyOptions,
   GeminiStructuredOutputOptions,
-  GeminiThinkingOptions,
   GeminiToolConfigOptions,
 } from './text/text-provider-options'
 import type { GeminiEmbeddingProviderOptions } from './embedding/embedding-provider-options'
@@ -81,8 +81,7 @@ const GEMINI_3_1_PRO = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_FLASH = {
@@ -115,8 +114,7 @@ const GEMINI_3_FLASH = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 /**
@@ -148,8 +146,7 @@ const GEMINI_3_PRO_IMAGE = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 /**
@@ -182,8 +179,7 @@ const GEMINI_3_PRO_IMAGE_PREVIEW = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 /**
@@ -215,8 +211,7 @@ const GEMINI_3_1_FLASH_IMAGE = {
   GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
-    GeminiCachedContentOptions &
-    GeminiThinkingOptions
+    GeminiCachedContentOptions
 >
 
 /**
@@ -249,8 +244,7 @@ const GEMINI_3_1_FLASH_IMAGE_PREVIEW = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 /**
@@ -281,8 +275,7 @@ const GEMINI_3_1_FLASH_LITE_IMAGE = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_1_FLASH_LITE = {
@@ -315,8 +308,7 @@ const GEMINI_3_1_FLASH_LITE = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_1_FLASH_LITE_PREVIEW = {
@@ -349,8 +341,7 @@ const GEMINI_3_1_FLASH_LITE_PREVIEW = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_2_5_PRO = {
@@ -389,8 +380,7 @@ const GEMINI_2_5_PRO = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_2_5_PRO_TTS = {
@@ -454,8 +444,7 @@ const GEMINI_2_5_FLASH = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 /**
@@ -525,8 +514,7 @@ const GEMINI_2_5_FLASH_LIVE = {
   GeminiToolConfigOptions &
   GeminiSafetyOptions &
   GeminiGenerationConfigOptions &
-  GeminiCachedContentOptions &
-  GeminiThinkingOptions
+  GeminiCachedContentOptions
 >
 */
 const GEMINI_2_5_FLASH_TTS = {
@@ -660,8 +648,7 @@ const GEMINI_2_5_FLASH_LITE = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const IMAGEN_4_GENERATE = {
@@ -910,8 +897,7 @@ const GEMINI_3_8_FLASH = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions<'LOW' | 'MEDIUM' | 'HIGH'>
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_7_FLASH = {
@@ -955,8 +941,7 @@ const GEMINI_3_7_FLASH = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_6_FLASH = {
@@ -998,8 +983,7 @@ const GEMINI_3_6_FLASH = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_5_FLASH = {
@@ -1039,8 +1023,7 @@ const GEMINI_3_5_FLASH = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 const GEMINI_3_5_FLASH_LITE = {
@@ -1081,8 +1064,7 @@ const GEMINI_3_5_FLASH_LITE = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 >
 
 export const GEMINI_MODELS = [
@@ -1270,74 +1252,62 @@ export type GeminiChatModelProviderOptionsByName = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions<'LOW' | 'MEDIUM' | 'HIGH'>
+    GeminiStructuredOutputOptions
   [GEMINI_3_7_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_6_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_5_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_5_FLASH_LITE.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_1_PRO.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_1_FLASH_LITE.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_3_1_FLASH_LITE_PREVIEW.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_2_5_PRO.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_2_5_FLASH.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
   [GEMINI_2_5_FLASH_LITE.name]: GeminiToolConfigOptions &
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
-    GeminiThinkingOptions
+    GeminiStructuredOutputOptions
 }
 
 /**
@@ -1389,3 +1359,26 @@ export type GeminiModelInputModalitiesByName = {
   // Models with text, image, audio, video (no document)
   [GEMINI_2_5_FLASH.name]: typeof GEMINI_2_5_FLASH.supports.input
 }
+
+/**
+ * Runtime map from chat model name to its supported input modalities, for the
+ * text adapter's `inputModalities`. `satisfies` keeps it equal to
+ * {@link GeminiModelInputModalitiesByName}. An unknown name gives `undefined`.
+ */
+export const GEMINI_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [GEMINI_3_8_FLASH.name]: GEMINI_3_8_FLASH.supports.input,
+  [GEMINI_3_7_FLASH.name]: GEMINI_3_7_FLASH.supports.input,
+  [GEMINI_3_6_FLASH.name]: GEMINI_3_6_FLASH.supports.input,
+  [GEMINI_3_5_FLASH.name]: GEMINI_3_5_FLASH.supports.input,
+  [GEMINI_3_5_FLASH_LITE.name]: GEMINI_3_5_FLASH_LITE.supports.input,
+  [GEMINI_3_1_PRO.name]: GEMINI_3_1_PRO.supports.input,
+  [GEMINI_3_FLASH.name]: GEMINI_3_FLASH.supports.input,
+  [GEMINI_3_1_FLASH_LITE.name]: GEMINI_3_1_FLASH_LITE.supports.input,
+  [GEMINI_3_1_FLASH_LITE_PREVIEW.name]:
+    GEMINI_3_1_FLASH_LITE_PREVIEW.supports.input,
+  [GEMINI_2_5_PRO.name]: GEMINI_2_5_PRO.supports.input,
+  [GEMINI_2_5_FLASH_LITE.name]: GEMINI_2_5_FLASH_LITE.supports.input,
+  [GEMINI_2_5_FLASH.name]: GEMINI_2_5_FLASH.supports.input,
+} satisfies GeminiModelInputModalitiesByName

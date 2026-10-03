@@ -368,6 +368,186 @@ export function defineInterruptStore(store: InterruptStore): InterruptStore {
 export function defineMetadataStore(store: MetadataStore): MetadataStore {
   return store
 }
+
+/** Lifecycle of one inbox entry. */
+export type InboxStatus = 'pending' | 'applied' | 'rejected' | 'expired'
+
+/**
+ * One input a client sent to a harness session (a prompt, a steer message, a
+ * follow-up, an interrupt answer, an agent run, a command). Written before the
+ * session answers with a receipt, so an accepted input survives a crash.
+ */
+export interface InboxEntry {
+  /** Idempotency key. A second append with the same id is a no-op. */
+  inputId: string
+  threadId: string
+  /** Who sent it, from the host's `authorize`. */
+  principal?: { id: string }
+  /** The input itself. Storage holds it as-is. The harness validates it. */
+  input: unknown
+  status: InboxStatus
+  createdAt: number
+  expiresAt?: number
+  /** The operation that applied the input. */
+  operationId?: string
+  /** Why the input was rejected. */
+  reason?: string
+}
+
+/** Durable store for harness session inputs. */
+export interface InboxStore {
+  /**
+   * Store a new entry as `'pending'`, or return the existing entry unchanged
+   * when `inputId` is already present.
+   */
+  append: (entry: Omit<InboxEntry, 'status'>) => Promise<InboxEntry>
+  /** Pending entries of a thread, oldest first. */
+  listPending: (threadId: string) => Promise<Array<InboxEntry>>
+  /** Mark an entry applied by `operationId`. A no-op for an unknown id. */
+  markApplied: (inputId: string, operationId: string) => Promise<void>
+  /** Mark an entry rejected with `reason`. A no-op for an unknown id. */
+  markRejected: (inputId: string, reason: string) => Promise<void>
+  /** The entry for `inputId`, or `null`. */
+  get: (inputId: string) => Promise<InboxEntry | null>
+}
+
+/** Type an {@link InboxStore} implementation inline. */
+export function defineInboxStore(store: InboxStore): InboxStore {
+  return store
+}
+
+/**
+ * One record of a session log. `type` names the kind of record. The other
+ * fields are JSON. Records with a `type` that starts with `harness.` belong
+ * to `@tanstack/ai-harness`. A host adds its own records with other types.
+ */
+export interface LogRecord {
+  type: string
+  [key: string]: unknown
+}
+
+/** A {@link LogRecord} and its position in the log. */
+export interface LogEntry {
+  /** The position of the record. The first record of a thread is at 1. */
+  seq: number
+  record: LogRecord
+}
+
+/**
+ * The error {@link LogStore.append} rejects with when `seq` is not the next
+ * free position of the thread. It means that another writer appended first.
+ * Nothing of the rejected batch is written.
+ */
+export class LogConflictError extends Error {
+  readonly threadId: string
+  readonly seq: number
+
+  constructor(threadId: string, seq: number) {
+    super(
+      `Log conflict on thread ${JSON.stringify(threadId)}: position ${seq} is not the next free position.`,
+    )
+    this.name = 'LogConflictError'
+    this.threadId = threadId
+    this.seq = seq
+  }
+}
+
+/**
+ * Durable append-only log of a harness session, one log per thread. A durable
+ * harness host keeps the events, the transcript, the inputs, and the tool
+ * steps of a thread in it.
+ *
+ * The log has one writer at a time. `append` is a compare-and-append: the
+ * writer names the position of the first record, and the store refuses the
+ * batch when another writer took that position first. In SQL, a primary key
+ * on `(thread_id, seq)` and one transaction per batch give this.
+ */
+export interface LogStore {
+  /**
+   * Write `records` at positions `seq`, `seq + 1`, and so on.
+   *
+   * INVARIANT (atomic): the whole batch is written, or none of it is. A crash
+   * or an error never leaves a part of the batch.
+   *
+   * INVARIANT (compare-and-append): `seq` must be the next free position (the
+   * last position of the thread plus 1, or 1 for a new thread). For any other
+   * `seq`, a position that is taken or a gap, reject with
+   * {@link LogConflictError} and write nothing.
+   *
+   * An empty batch writes nothing and resolves.
+   */
+  append: (
+    threadId: string,
+    seq: number,
+    records: ReadonlyArray<LogRecord>,
+  ) => Promise<void>
+  /**
+   * The entries of `threadId` with `seq` greater than `after` (default 0), in
+   * ascending order, at most `limit` of them. `limit: 0` gives `[]`.
+   *
+   * INVARIANT: a thread that has no records gives `[]`. The returned records
+   * are copies: a change to them does not change the log.
+   */
+  read: (
+    threadId: string,
+    options?: { after?: number; limit?: number },
+  ) => Promise<Array<LogEntry>>
+  /**
+   * Call `listener` after each append to `threadId` that this store can see.
+   * A store that cannot see appends from other processes can poll. Returns a
+   * function that stops the calls.
+   */
+  subscribe: (threadId: string, listener: () => void) => () => void
+}
+
+/** Type a {@link LogStore} implementation inline. */
+export function defineLogStore(store: LogStore): LogStore {
+  return store
+}
+
+/** A secret a user or an organization saved: an API key or OAuth tokens. */
+export type Credential =
+  | { type: 'api_key'; value: string }
+  | {
+      type: 'oauth'
+      accessToken: string
+      refreshToken?: string
+      expiresAt?: number
+      scopes?: Array<string>
+      /**
+       * The OAuth client these tokens belong to (for example one made by
+       * dynamic client registration). A refresh needs it. `issuer` is the
+       * authorization server that issued the client and the tokens.
+       */
+      client?: {
+        clientId: string
+        clientSecret?: string
+        redirectUri?: string
+        issuer?: string
+      }
+    }
+
+/**
+ * Durable store for credentials, keyed by scope and credential id (for
+ * example `'github'`). A credential saved without `scope.userId` belongs to
+ * the tenant. Encrypt at rest in your implementation.
+ */
+export interface CredentialStore {
+  get: (scope: Scope, id: string) => Promise<Credential | null>
+  set: (scope: Scope, id: string, credential: Credential) => Promise<void>
+  delete: (scope: Scope, id: string) => Promise<void>
+  /** Ids and types only. `list` never returns secret values. */
+  list: (
+    scope: Scope,
+  ) => Promise<
+    Array<{ id: string; type: Credential['type']; expiresAt?: number }>
+  >
+}
+
+/** Type a {@link CredentialStore} implementation inline. */
+export function defineCredentialStore(store: CredentialStore): CredentialStore {
+  return store
+}
 /** Type a {@link GenerationRunStore} implementation inline. */
 export function defineGenerationRunStore(
   store: GenerationRunStore,
@@ -601,6 +781,39 @@ export interface BlobStore {
   list: (options?: BlobListOptions) => Promise<BlobListPage>
 }
 
+/** The id of one attempt of a harness turn. */
+export interface TurnLeaseKey {
+  threadId: string
+  inputId: string
+  /** The operation that runs the attempt. Also the AG-UI run id. */
+  operationId: string
+  /** 1 for the first run of the input, then 1 more after each crash. */
+  attempt: number
+}
+
+/** A lease on one attempt of a harness turn. */
+export interface TurnLease extends TurnLeaseKey {
+  /** The host that runs the attempt. */
+  ownerId: string
+  /** Epoch milliseconds. */
+  expiresAt: number
+}
+
+/**
+ * Leases for harness turns, from a system that already has them (a job
+ * queue, a submission table). A durable harness host takes a lease when an
+ * attempt starts, renews it while the attempt runs, and releases it when the
+ * attempt ends. After a crash, a host asks `isAlive` to find the attempts
+ * that nobody runs any more.
+ */
+export interface LeaseStore {
+  acquire: (lease: TurnLease) => Promise<void>
+  renew: (lease: TurnLease) => Promise<void>
+  release: (lease: TurnLease) => Promise<void>
+  /** True while another host still runs the attempt. */
+  isAlive: (key: TurnLeaseKey) => Promise<boolean>
+}
+
 /**
  * Sparse bag of **state** store keys — composition / validation only.
  *
@@ -620,6 +833,14 @@ export interface AIPersistenceStores {
   generationRuns?: GenerationRunStore
   artifacts?: ArtifactStore
   blobs?: BlobStore
+  /** Harness session inputs. Optional: only harness hosts read it. */
+  inbox?: InboxStore
+  /** User and tenant credentials. Optional: only harness hosts read it. */
+  credentials?: CredentialStore
+  /** The harness session log. Optional: only durable harness hosts read it. */
+  log?: LogStore
+  /** Turn leases. Optional: only durable harness hosts read it. */
+  leases?: LeaseStore
 }
 
 /**
@@ -795,6 +1016,10 @@ const storeKeys = [
   'metadata',
   'artifacts',
   'blobs',
+  'inbox',
+  'credentials',
+  'log',
+  'leases',
 ] satisfies Array<StoreKey>
 
 const storeKeySet = new Set<string>(storeKeys)

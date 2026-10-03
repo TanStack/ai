@@ -42,11 +42,10 @@ Retired models (Claude 3.x, Sonnet 3.7, Opus 4 / Sonnet 4) were removed —
 every registered id resolves against the first-party Anthropic API.
 `claude-opus-5-fast` is the only `-fast` id that remains.
 
-`output_config.effort` is typed only on the adaptive-era models
-(`claude-opus-4-7`, `claude-opus-4-8`, `claude-sonnet-5`, `claude-fable-5`,
-`claude-fable-5-1`). There is no top-level `effort` option on any model;
-`claude-opus-4-6` / `claude-sonnet-4-6` accept `thinking: { type: 'adaptive' }`
-but no effort knob.
+Thinking is set with `chat({ reasoning })`, not `modelOptions`. The adapter
+sends adaptive thinking with `output_config.effort` on Claude 4.7 and later,
+adaptive thinking with a top-level `effort` on `claude-opus-4-6` /
+`claude-sonnet-4-6`, and a thinking token budget on the older models.
 
 ## Provider-Specific modelOptions
 
@@ -64,15 +63,6 @@ chat({
     temperature: 0.7,
     // top_p: 0.9, // cannot be combined with temperature
     max_tokens: 16000,
-    // Extended thinking (budget-based)
-    thinking: {
-      type: 'enabled',
-      budget_tokens: 8000, // must be >= 1024 and < max_tokens
-    },
-    // Adaptive thinking (claude-sonnet-4-6, claude-opus-4-6+) — the
-    // alternative to the budget shape above; effort is tuned via
-    // output_config.effort on the adaptive-era models (see below)
-    // thinking: { type: 'adaptive' },
     // Service tier
     service_tier: 'auto', // 'auto' | 'standard_only'
     // Stop sequences
@@ -120,14 +110,10 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: anthropicText('claude-sonnet-5'), // or 'claude-fable-5', 'claude-opus-4-8'
   messages,
+  // Adaptive thinking with output_config.effort. 'xhigh' is a level on
+  // Opus 4.7+, Sonnet 5, and Fable 5. claude-fable-5 cannot turn thinking off.
+  reasoning: 'xhigh',
   modelOptions: {
-    // Adaptive thinking only — budget_tokens is rejected (400).
-    // On claude-fable-5, { type: 'disabled' } is also rejected;
-    // elsewhere it opts out of thinking.
-    thinking: { type: 'adaptive', display: 'summarized' },
-    // Effort lives under output_config; 'xhigh' is available on
-    // Opus 4.7+, Sonnet 5, and Fable 5.
-    output_config: { effort: 'xhigh' },
     max_tokens: 64_000,
     // NO temperature / top_p / top_k — the API rejects them on these models
   },
@@ -136,12 +122,11 @@ chat({
 
 ## Gotchas
 
-- `thinking.budget_tokens` must be >= 1024 AND less than `modelOptions.max_tokens`.
-  Failing either check throws a validation error.
+- A thinking budget (`reasoning: { level, budgetTokens }`) goes only to the
+  budget models. The adapter raises `max_tokens` above the budget.
 - Cannot set both `top_p` and `temperature` at the same time (throws error).
 - `claude-sonnet-5`, `claude-fable-5`, `claude-opus-4-8`, and
-  `claude-opus-4-7` do NOT accept `temperature`, `top_p`, `top_k`, or
-  `thinking: { type: 'enabled', budget_tokens }` — adaptive thinking +
-  `output_config.effort` replace them (typed per model).
+  `claude-opus-4-7` do NOT accept `temperature`, `top_p`, or `top_k`
+  (typed per model). Their `reasoning` levels go out as adaptive thinking.
 - System prompts support prompt caching via `cache_control` on `TextBlockParam[]`.
 - All Claude models accept `text`, `image`, and `document` (PDF) input.

@@ -16,6 +16,8 @@ there is no separate enable list.
 | `generationRuns` | Generation run status and result metadata, keyed by its own `runId`. | `withGenerationPersistence`, required |
 | `artifacts` | File metadata. Needs `blobs`. | `withGenerationPersistence`, portable snapshots |
 | `blobs` | File bytes. Needs `artifacts`. | `withGenerationPersistence`, portable snapshots |
+| `log` | Append-only session log per thread. | Durable harness hosts, with `runs` or `leases` |
+| `leases` | Leases for harness turns, from a system that already has them. | Durable harness hosts, instead of `runs` |
 
 Named groupings of the chat stores (`ChatTranscriptStores`, `ChatPersistenceStores`,
 `ChatWithInterruptsStores`) are covered in [Controls](./controls).
@@ -540,6 +542,144 @@ asserts it. Ignoring `range` and returning the whole file is what makes
 entire artifact for every seek. A reference-only backend that stores no bytes
 skips `blobs` altogether instead.
 
+## LogStore
+
+A durable harness host keeps each thread's events, transcript, inputs, and tool
+steps in one append-only log. `LogStore` stores that log.
+
+```ts
+interface LogRecord {
+  type: string
+  [key: string]: unknown
+}
+
+interface LogEntry {
+  seq: number
+  record: LogRecord
+}
+
+interface LogStore {
+  append(
+    threadId: string,
+    seq: number,
+    records: ReadonlyArray<LogRecord>,
+  ): Promise<void>
+  read(
+    threadId: string,
+    options?: { after?: number; limit?: number },
+  ): Promise<Array<LogEntry>>
+  subscribe(threadId: string, listener: () => void): () => void
+}
+```
+
+- `append` writes the batch at `seq`, `seq + 1`, and so on. The first record of a
+  thread is at `1`.
+- The batch is atomic. Write all of it or none of it, in one transaction.
+- `seq` must be the next free position. For a taken position or a gap, reject with
+  `LogConflictError` from `@tanstack/ai-persistence`, and write nothing. This is how
+  the harness finds a second host that writes the same thread.
+- An empty batch writes nothing.
+- `read` returns the entries after `after`, in `seq` order, at most `limit`. A thread
+  with no records returns `[]`. Return copies, so a caller cannot change the log.
+- `subscribe` calls `listener` after each append that the store can see. A store that
+  cannot see appends from other processes can poll, or call only for its own appends.
+
+In SQL, a primary key on `(thread_id, seq)` gives the conflict rule. Insert the batch
+in one transaction, and map the key violation to `LogConflictError`:
+
+```sql
+CREATE TABLE harness_log (
+  thread_id TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  record TEXT NOT NULL,
+  PRIMARY KEY (thread_id, seq)
+);
+```
+
+A key violation covers a taken position. A gap needs one more check in the same
+transaction: `seq` must equal `MAX(seq) + 1` for the thread, or `1`.
+
+Each record is JSON. Store it as text or as a JSON column. The harness writes the
+record types that start with `harness.`, and a host adds its own types. The store does
+not read them.
+
+## LeaseStore
+
+You may already have leases: a job queue, or a submission table that says which
+worker owns a job. `LeaseStore` lets the harness use them. A durable harness host
+(`stores.log`) needs `stores.runs` or `stores.leases`.
+
+With `leases`, the harness does four things:
+
+- It takes a lease when a turn attempt starts.
+- It renews the lease while the attempt runs. It renews every `lease.renewMs`,
+  and each renewal makes the lease last `lease.ttlMs`.
+- It releases the lease after the attempt settles.
+- After a crash, it calls `isAlive` to find attempts that nobody runs any more.
+
+```ts
+interface TurnLeaseKey {
+  threadId: string
+  inputId: string
+  operationId: string // the operation that runs the attempt, also the AG-UI run id
+  attempt: number // 1 for the first run of the input, then 1 more after each crash
+}
+
+interface TurnLease extends TurnLeaseKey {
+  ownerId: string // the host that runs the attempt
+  expiresAt: number // epoch ms
+}
+
+interface LeaseStore {
+  acquire(lease: TurnLease): Promise<void>
+  renew(lease: TurnLease): Promise<void>
+  release(lease: TurnLease): Promise<void>
+  isAlive(key: TurnLeaseKey): Promise<boolean>
+}
+```
+
+Rules for an implementation:
+
+- `isAlive` returns `true` while another host still runs the attempt. That means a
+  lease exists and has not expired.
+- `renew` and `release` for a lease you do not hold can do nothing.
+- The harness keys a lease by input id and attempt. Two attempts of one input are
+  two leases.
+
+This store keeps leases in a `Map`:
+
+```ts
+import type {
+  LeaseStore,
+  TurnLease,
+  TurnLeaseKey,
+} from '@tanstack/ai-persistence'
+
+function createMemoryLeases(): LeaseStore {
+  const leases = new Map<string, TurnLease>()
+  const keyOf = (key: TurnLeaseKey) => `${key.inputId}:${key.attempt}`
+
+  return {
+    acquire: async (lease) => {
+      leases.set(keyOf(lease), lease)
+    },
+    renew: async (lease) => {
+      leases.set(keyOf(lease), lease)
+    },
+    release: async (lease) => {
+      leases.delete(keyOf(lease))
+    },
+    isAlive: async (key) => {
+      const lease = leases.get(keyOf(key))
+      return lease !== undefined && lease.expiresAt >= Date.now()
+    },
+  }
+}
+```
+
+To wire `leases` into a host, and to set `lease.renewMs` and `lease.ttlMs`, see
+[Use your own leases](../harness/durable-sessions#use-your-own-leases).
+
 ## How the records relate
 
 The thread is not a table of its own: it exists as the `thread_id` the other records
@@ -597,11 +737,12 @@ erDiagram
 
 Each store has a `define*Store` helper (`defineMessageStore`, `defineRunStore`,
 `defineInterruptStore`, `defineMetadataStore`, `defineGenerationRunStore`,
-`defineArtifactStore`, `defineBlobStore`). They compose into `defineAIPersistence`,
-which tracks exact presence: the stores you passed autocomplete on
-`persistence.stores`, and reading one you did not pass is a compile error.
+`defineArtifactStore`, `defineBlobStore`, `defineLogStore`). They compose into
+`defineAIPersistence`, which tracks exact presence: the stores you passed autocomplete
+on `persistence.stores`, and reading one you did not pass is a compile error.
 
-Those seven keys are the only ones `stores` accepts. Anything else throws
+The keys in the table at the top are the only ones `stores` accepts, together with the
+harness keys `inbox`, `credentials`, `log`, and `leases`. Anything else throws
 `Unknown AIPersistence store key` at construction.
 
 To annotate the value instead, use a named shape:

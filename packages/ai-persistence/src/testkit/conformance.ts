@@ -37,11 +37,13 @@
  * starting with `rc-`, or it silently changes that expected set.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
+import { LogConflictError } from '../types'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   AIPersistence,
   AIPersistenceStores,
   ArtifactRecord,
+  LogStore,
   RunStore,
 } from '../types'
 
@@ -1525,6 +1527,268 @@ export function runPersistenceConformance(
         const exact = await store.list({ prefix: 'page/', limit: 5 })
         expect(exact.objects.map((o) => o.key)).toEqual(seen)
         expect(exact.truncated).toBeFalsy()
+      })
+    })
+
+    // Credentials are opt-in: only harness hosts read them.
+    describe('credentials', () => {
+      it('keys by user and tenant, lists without values, and deletes', async (ctx) => {
+        const store = persistence.stores.credentials
+        if (!store) return ctx.skip('credentials store not provided')
+
+        const user = { threadId: 't', userId: 'u1', tenantId: 'org' }
+        const tenant = { threadId: 't', tenantId: 'org' }
+        await store.set(user, 'github', {
+          type: 'oauth',
+          accessToken: 'secret-access',
+          refreshToken: 'secret-refresh',
+          expiresAt: 100,
+        })
+        await store.set(tenant, 'notion', {
+          type: 'api_key',
+          value: 'secret-key',
+        })
+
+        expect(await store.get(user, 'github')).toMatchObject({
+          accessToken: 'secret-access',
+        })
+        // A user credential is not visible at tenant scope, and the other way around.
+        expect(await store.get(tenant, 'github')).toBeNull()
+        expect(await store.get(user, 'notion')).toBeNull()
+
+        const listed = await store.list(user)
+        expect(listed).toEqual([
+          { id: 'github', type: 'oauth', expiresAt: 100 },
+        ])
+        // `list` never returns secret values.
+        expect(JSON.stringify(listed)).not.toContain('secret')
+
+        await store.delete(user, 'github')
+        expect(await store.get(user, 'github')).toBeNull()
+        expect(await store.list(user)).toEqual([])
+      })
+    })
+
+    // Compare-and-set on metadata is opt-in.
+    describe('metadata setIf', () => {
+      it('writes only when the revision matches', async (ctx) => {
+        const store = persistence.stores.metadata
+        if (!store?.setIf || !store.getVersioned) {
+          return ctx.skip('metadata setIf not provided')
+        }
+        const created = await store.setIf('cas', 'k', { n: 1 }, null)
+        expect(created.ok).toBe(true)
+        expect(await store.setIf('cas', 'k', { n: 9 }, null)).toEqual({
+          ok: false,
+          reason: 'conflict',
+        })
+        const current = await store.getVersioned('cas', 'k')
+        expect(current?.value).toEqual({ n: 1 })
+        const revision = current?.revision ?? null
+        const updated = await store.setIf('cas', 'k', { n: 2 }, revision)
+        expect(updated.ok).toBe(true)
+        expect(await store.setIf('cas', 'k', { n: 3 }, revision)).toMatchObject(
+          {
+            ok: false,
+          },
+        )
+        expect(await store.get('cas', 'k')).toEqual({ n: 2 })
+      })
+    })
+
+    // The inbox is opt-in: only harness hosts read it. A backend without it
+    // skips these cases and needs no `skip` entry.
+    describe('inbox', () => {
+      it('appends idempotently, lists pending oldest first, and settles entries', async (ctx) => {
+        const store = persistence.stores.inbox
+        if (!store) return ctx.skip('inbox store not provided')
+
+        const first = await store.append({
+          inputId: 'in-1',
+          threadId: 'inbox-thread',
+          input: { op: 'prompt', message: 'hi' },
+          createdAt: 1,
+        })
+        expect(first.status).toBe('pending')
+        // Same id again: the stored entry wins, the new payload is ignored.
+        const again = await store.append({
+          inputId: 'in-1',
+          threadId: 'inbox-thread',
+          input: { op: 'prompt', message: 'changed' },
+          createdAt: 5,
+        })
+        expect(again.input).toEqual({ op: 'prompt', message: 'hi' })
+
+        await store.append({
+          inputId: 'in-2',
+          threadId: 'inbox-thread',
+          principal: { id: 'user-1' },
+          input: { op: 'steer', message: 'shorter' },
+          createdAt: 2,
+        })
+        await store.append({
+          inputId: 'in-other',
+          threadId: 'other-thread',
+          input: { op: 'prompt', message: 'x' },
+          createdAt: 0,
+        })
+
+        expect(
+          (await store.listPending('inbox-thread')).map(
+            (entry) => entry.inputId,
+          ),
+        ).toEqual(['in-1', 'in-2'])
+
+        await store.markApplied('in-1', 'op-1')
+        await store.markRejected('in-2', 'busy')
+        expect(await store.listPending('inbox-thread')).toEqual([])
+        expect(await store.get('in-1')).toMatchObject({
+          status: 'applied',
+          operationId: 'op-1',
+        })
+        expect(await store.get('in-2')).toMatchObject({
+          status: 'rejected',
+          reason: 'busy',
+          principal: { id: 'user-1' },
+        })
+
+        // Unknown ids are no-ops.
+        await store.markApplied('missing', 'op-x')
+        await store.markRejected('missing', 'nope')
+        expect(await store.get('missing')).toBeNull()
+      })
+    })
+
+    // The session log is opt-in: only durable harness hosts read it. A backend
+    // without it skips these cases and needs no `skip` entry. Each case uses
+    // its own thread, because the suite shares one persistence.
+    describe('log', () => {
+      const newThread = () => `log-${crypto.randomUUID()}`
+      const types = async (store: LogStore, threadId: string) =>
+        (await store.read(threadId)).map((entry) => [
+          entry.seq,
+          entry.record.type,
+        ])
+
+      it('writes a batch at consecutive positions and reads it in order', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const threadId = newThread()
+
+        await store.append(threadId, 1, [
+          { type: 'a', n: 1 },
+          { type: 'b', n: 2 },
+        ])
+        await store.append(threadId, 3, [{ type: 'c', nested: { deep: [1] } }])
+
+        expect(await store.read(threadId)).toEqual([
+          { seq: 1, record: { type: 'a', n: 1 } },
+          { seq: 2, record: { type: 'b', n: 2 } },
+          { seq: 3, record: { type: 'c', nested: { deep: [1] } } },
+        ])
+      })
+
+      it('rejects a taken position or a gap with LogConflictError and writes nothing', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const threadId = newThread()
+        await store.append(threadId, 1, [{ type: 'first' }])
+
+        const taken = store.append(threadId, 1, [
+          { type: 'late-1' },
+          { type: 'late-2' },
+        ])
+        await expect(taken).rejects.toBeInstanceOf(LogConflictError)
+        await expect(taken).rejects.toMatchObject({ threadId, seq: 1 })
+
+        // A gap (position 3 while 2 is free) is a conflict too.
+        await expect(
+          store.append(threadId, 3, [{ type: 'gap' }]),
+        ).rejects.toBeInstanceOf(LogConflictError)
+
+        expect(await types(store, threadId)).toEqual([[1, 'first']])
+      })
+
+      it('writes nothing for an empty batch', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const threadId = newThread()
+
+        await store.append(threadId, 1, [])
+
+        expect(await store.read(threadId)).toEqual([])
+        await store.append(threadId, 1, [{ type: 'still-first' }])
+        expect(await types(store, threadId)).toEqual([[1, 'still-first']])
+      })
+
+      it('reads after a position, with a limit', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const threadId = newThread()
+        await store.append(threadId, 1, [
+          { type: 'r1' },
+          { type: 'r2' },
+          { type: 'r3' },
+          { type: 'r4' },
+        ])
+
+        const page = await store.read(threadId, { after: 1, limit: 2 })
+        expect(page.map((entry) => entry.seq)).toEqual([2, 3])
+        expect(
+          (await store.read(threadId, { after: 3 })).map((entry) => entry.seq),
+        ).toEqual([4])
+        expect(await store.read(threadId, { after: 4 })).toEqual([])
+        expect(await store.read(threadId, { limit: 0 })).toEqual([])
+        expect(await store.read(newThread())).toEqual([])
+      })
+
+      it('keeps threads apart', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const left = newThread()
+        const right = newThread()
+
+        await store.append(left, 1, [{ type: 'left' }])
+        // Position 1 is free on the other thread.
+        await store.append(right, 1, [{ type: 'right' }])
+
+        expect(await types(store, left)).toEqual([[1, 'left']])
+        expect(await types(store, right)).toEqual([[1, 'right']])
+      })
+
+      it('calls a listener after each append until it unsubscribes', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const threadId = newThread()
+        let calls = 0
+        const stop = store.subscribe(threadId, () => {
+          calls += 1
+        })
+
+        await store.append(threadId, 1, [{ type: 'one' }])
+        await expect.poll(() => calls).toBe(1)
+        stop()
+        await store.append(threadId, 2, [{ type: 'two' }])
+
+        // Give a store that notifies later (a poller) the time to call again.
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        expect(calls).toBe(1)
+      })
+
+      it('does not share record objects with the caller', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const threadId = newThread()
+        const written = { type: 'shared', list: [1] }
+        await store.append(threadId, 1, [written])
+        written.list.push(2)
+
+        const [first] = await store.read(threadId)
+        if (first) first.record.type = 'changed'
+
+        expect(await store.read(threadId)).toEqual([
+          { seq: 1, record: { type: 'shared', list: [1] } },
+        ])
       })
     })
 

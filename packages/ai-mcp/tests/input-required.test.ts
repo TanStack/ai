@@ -85,4 +85,13 @@ describe('MCPInputRequiredError', () => {
       }),
     ).toBe(false)
   })
+
+  it('rejects the shape without a kind', () => {
+    expect(
+      isMCPInputRequiredError({
+        name: 'MCPInputRequiredError',
+        request: { elicitationId: 'elicit-4' },
+      }),
+    ).toBe(false)
+  })
 })

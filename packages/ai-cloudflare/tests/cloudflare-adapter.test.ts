@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import {
+  cloudflareBindingFetch,
   cloudflareGateway,
   createCloudflareEmbedding,
   createCloudflareImage,
@@ -567,5 +568,124 @@ describe('cloudflareGateway', () => {
     expect(cloudflareGateway('anthropic', target).baseURL).toBe(
       'https://gateway.ai.cloudflare.com/v1/acc/prod/anthropic',
     )
+  })
+})
+
+describe('cloudflareBindingFetch', () => {
+  /** A request the way the Anthropic and OpenAI SDKs send it. */
+  function sdkRequest(model: string, headers: Record<string, string> = {}) {
+    return {
+      method: 'POST',
+      headers: {
+        'x-api-key': 'cloudflare-binding',
+        authorization: 'Bearer cloudflare-binding',
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        accept: 'application/json',
+        'user-agent': 'Anthropic/JS',
+        'x-stainless-os': 'Windows',
+        ...headers,
+      },
+      body: JSON.stringify({
+        model,
+        stream: true,
+        system: 'Be brief.',
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [{ name: 'lookup' }],
+      }),
+    }
+  }
+
+  it('sends an anthropic/ request through env.AI.run with its betas as a header', async () => {
+    const answer = sse(['[DONE]'])
+    const { binding, run } = fakeBinding(() => answer)
+    const fetchImpl = cloudflareBindingFetch({
+      binding,
+      vendor: 'anthropic',
+      gateway: { id: 'gw' },
+    })
+
+    const response = await fetchImpl(
+      'https://api.anthropic.com/v1/messages',
+      sdkRequest('claude-opus-5-5', {
+        'anthropic-beta':
+          'interleaved-thinking-2025-05-14,files-api-2025-04-14',
+      }),
+    )
+
+    expect(response).toBe(answer)
+    expect(run.mock.calls[0]).toEqual([
+      'anthropic/claude-opus-5-5',
+      {
+        stream: true,
+        system: 'Be brief.',
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [{ name: 'lookup' }],
+      },
+      {
+        returnRawResponse: true,
+        gateway: { id: 'gw' },
+        extraHeaders: {
+          'anthropic-beta':
+            'interleaved-thinking-2025-05-14,files-api-2025-04-14',
+        },
+      },
+    ])
+  })
+
+  it('keeps a model id that already has the vendor prefix, and passes the signal', async () => {
+    const { binding, run } = fakeBinding(() => sse(['[DONE]']))
+    const fetchImpl = cloudflareBindingFetch({ binding, vendor: 'openai' })
+    const controller = new AbortController()
+
+    await fetchImpl('https://api.openai.com/v1/responses', {
+      ...sdkRequest('openai/gpt-6.1-sol'),
+      signal: controller.signal,
+    })
+
+    const [model, , options] = run.mock.calls[0]!
+    expect(model).toBe('openai/gpt-6.1-sol')
+    expect(options).toEqual({
+      returnRawResponse: true,
+      signal: controller.signal,
+    })
+  })
+
+  it('rewraps a Cloudflare error body so the SDK can read it', async () => {
+    const { binding } = fakeBinding(
+      () =>
+        new Response(
+          JSON.stringify({
+            errors: [{ code: 5007, message: 'No such model' }],
+          }),
+          { status: 400, headers: { 'content-type': 'application/json' } },
+        ),
+    )
+    const fetchImpl = cloudflareBindingFetch({ binding, vendor: 'anthropic' })
+
+    const response = await fetchImpl(
+      'https://api.anthropic.com/v1/messages',
+      sdkRequest('claude-nope'),
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: { message: 'No such model', type: 'cloudflare_error', code: 5007 },
+    })
+  })
+
+  it('leaves any @cf/ model id on cloudflareText, with no model metadata', async () => {
+    const { binding, run } = fakeBinding(() => sse(chatStreamEvents))
+    const adapter = createCloudflareText('@cf/acme/unlisted-model', { binding })
+
+    await collect(
+      adapter.chatStream({
+        model: '@cf/acme/unlisted-model',
+        messages: [{ role: 'user', content: 'Hi' }],
+        logger,
+      }),
+    )
+
+    expect(run.mock.calls[0]?.[0]).toBe('@cf/acme/unlisted-model')
   })
 })

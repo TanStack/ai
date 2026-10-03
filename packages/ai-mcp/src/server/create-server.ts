@@ -772,10 +772,16 @@ function registerServerResource(
         ? undefined
         : (sdkCtx: ServerContext) => list(resourceContext(sdkCtx)),
   })
+  // A template gets the variables the SDK matched in the asked-for URI.
   server.registerResource(resource.name, template, metadata, read)
 }
 
-function resourceContents(uri: string, mimeType: string, body: unknown) {
+function resourceContents(uri: string, fallback: string, body: unknown) {
+  // A body can name its own MIME type: one template can serve many types.
+  const mimeType =
+    isRecord(body) && typeof body.mimeType === 'string'
+      ? body.mimeType
+      : fallback
   if (isRecord(body) && typeof body.text === 'string') {
     return { contents: [{ uri, mimeType, text: body.text }] }
   }

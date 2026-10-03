@@ -137,12 +137,12 @@ const stream = chat({
   modelOptions: {
     temperature: 0.7,
     max_completion_tokens: 4096,
-    reasoning_effort: "high",
   },
+  reasoning: "high",
 });
 ```
 
-`reasoning_effort` accepts the extended scale `none` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max` in addition to OpenAI's standard tiers — which tiers a model honors depends on the model and provider it is routed to (see the model's page on [llmgateway.io/models](https://llmgateway.io/models)).
+`reasoning` goes out as `reasoning_effort`. The types list the levels each model has, from the model catalog. See [Reasoning](../chat/reasoning).
 
 Reasoning models stream their thinking as `reasoning_content` deltas, which the adapter surfaces as AG-UI `REASONING_*` events.
 

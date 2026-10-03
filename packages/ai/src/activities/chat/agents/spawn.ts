@@ -26,7 +26,16 @@ import type {
   Tool,
   UIMessage,
 } from '../../../types'
-import type { DefinedAgent, SubagentRunContext } from './define-agent'
+import { envProviderKeys } from '../../../byok/env-keys'
+import { createBoundActivities } from './bound'
+import { SubagentBudget } from './limits'
+import type { SubagentBinding } from './bound'
+import type { SubagentLimits } from './limits'
+import type {
+  DefinedAgent,
+  SubagentRunContext,
+  SubagentRunInput,
+} from './define-agent'
 import type { ChatMiddleware } from '../middleware/types'
 import type { SubagentTurn } from './turn'
 
@@ -36,14 +45,21 @@ export const SUBAGENT_ERROR = EventType.SUBAGENT_ERROR
 
 export type SubagentOrder = 'parallel' | 'sequence'
 
+/**
+ * One agent in a router pick: its name, or its name and its input. An agent
+ * with `inputSchema` needs `{ name, input }`. The input is checked against
+ * the schema, and `run` reads it as `ctx.input`.
+ */
+export type SubagentPickName = string | { name: string; input?: unknown }
+
 export interface SubagentRouterPlan {
-  names: ReadonlyArray<string>
+  names: ReadonlyArray<SubagentPickName>
   /** Overrides `subagents.order` for this turn. */
   order?: SubagentOrder
 }
 
 export interface SubagentStep {
-  names: ReadonlyArray<string>
+  names: ReadonlyArray<SubagentPickName>
   /** Overrides `subagents.order` for this step. */
   order?: SubagentOrder
 }
@@ -54,10 +70,23 @@ export interface SubagentStepsPlan {
 
 export type SubagentRouterPick =
   | 'main'
-  | string
-  | ReadonlyArray<string>
+  | SubagentPickName
+  | ReadonlyArray<SubagentPickName>
   | SubagentRouterPlan
   | SubagentStepsPlan
+
+/**
+ * A router pick after `normalizeRouterPick`. Each step has plain names, and
+ * `inputs` holds the raw input of each name that has one. This is the plan
+ * on `SUBAGENT_STARTED` metadata.
+ */
+export interface RoutedPlan {
+  steps: ReadonlyArray<{
+    names: ReadonlyArray<string>
+    inputs?: Record<string, unknown>
+    order?: SubagentOrder
+  }>
+}
 
 export interface SubagentsBag<
   TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
@@ -76,6 +105,18 @@ export interface SubagentsBag<
    */
   order?: 'parallel' | 'sequence'
   sandbox?: 'own' | 'inherit'
+  /**
+   * Limits for the whole tree of children the model starts through tools:
+   * depth, total calls, children at once, and time per child. A refused
+   * start returns to the model as a tool error.
+   */
+  limits?: SubagentLimits
+  /**
+   * What a host adds to every activity call a child makes through `ctx`
+   * (`ctx.chat`, `ctx.generateImage`, and the rest). A harness session sets
+   * it. Apps do not.
+   */
+  binding?: SubagentBinding
 }
 
 /** What the children of one parent run left behind for the parent terminal. */
@@ -94,7 +135,7 @@ export function createSubagentSink(): SubagentSink {
 /** One child to start, or a suspended child to continue. */
 export interface SpawnEntry {
   name: string
-  /** The checked tool input for an agent with `inputSchema`. */
+  /** The checked input of an agent with `inputSchema`, from a tool or a router. */
   input?: unknown
   resume?: {
     subagentRunId: string
@@ -114,6 +155,8 @@ interface SpawnContext {
   parentRunId: string
   /** The interrupted parent run, on a resume. */
   interruptedRunId?: string
+  /** The parent chat's own subagentRunId, when that chat is a child too. */
+  parentSubagentRunId?: string
 }
 
 export function createSubagentId() {
@@ -218,7 +261,8 @@ function orAbort<T>(promise: Promise<T>, signal?: AbortSignal) {
 function agentByName(agents: ReadonlyArray<DefinedAgent>, name: string) {
   const agent = agents.find((entry) => entry.name === name)
   if (!agent) {
-    throw new Error(`Unknown subagent: ${name}`)
+    const names = agents.map((entry) => entry.name).join(', ')
+    throw new Error(`Unknown subagent: ${name}. The router can pick: ${names}.`)
   }
   return agent
 }
@@ -229,6 +273,7 @@ function openAgentStream(
   ctx: SpawnContext,
   sink?: SubagentSink,
   parentToolCallId?: string,
+  binding: SubagentBinding | undefined = bag.binding,
 ) {
   const agent = agentByName(bag.agents, entry.name)
   const resume = entry.resume
@@ -258,10 +303,14 @@ function openAgentStream(
       runId: childRunId(ctx.parentRunId, subagentRunId),
       parentRunId: resumed?.parentRunId ?? ctx.parentRunId,
       subagentRunId,
+      ...(ctx.parentSubagentRunId !== undefined
+        ? { parentSubagentRunId: ctx.parentSubagentRunId }
+        : {}),
       ...(resumed ? { resume: resumed.resume } : {}),
     },
     sink,
     parentToolCallId,
+    binding,
   )
 }
 
@@ -274,40 +323,56 @@ function assertOrder(order: SubagentOrder | undefined) {
   }
 }
 
+/** One step of a pick: plain names, plus the input of each name that has one. */
 function normalizeNames(
-  names: ReadonlyArray<string>,
+  picks: ReadonlyArray<SubagentPickName>,
   agents: ReadonlyArray<DefinedAgent>,
-): ReadonlyArray<string> {
-  if (names.length === 0) throw new Error(ROUTER_PICK_ERROR)
+) {
+  if (picks.length === 0) throw new Error(ROUTER_PICK_ERROR)
+  const names = picks.map((pick) =>
+    typeof pick === 'string' ? pick : pick.name,
+  )
   const hasMain = names.includes('main')
   if (hasMain && names.length > 1) {
     throw new Error('Do not mix main into a subagent list.')
   }
-  if (hasMain) return ['main']
+  if (hasMain) return { names: ['main'] }
   for (const name of names) agentByName(agents, name)
-  return [...names]
+  // ponytail: one input per name in a step. A name picked twice in one step
+  // keeps its last input. Key inputs by position if a router needs two.
+  let inputs: Record<string, unknown> | undefined
+  for (const pick of picks) {
+    if (typeof pick === 'string' || pick.input === undefined) continue
+    inputs = { ...inputs, [pick.name]: pick.input }
+  }
+  return inputs === undefined ? { names } : { names, inputs }
 }
 
-function isStringList(pick: SubagentRouterPick): pick is ReadonlyArray<string> {
+function isPickList(
+  pick: SubagentRouterPick,
+): pick is ReadonlyArray<SubagentPickName> {
   return Array.isArray(pick)
 }
 
 export function normalizeRouterPick(
   pick: SubagentRouterPick,
   agents: ReadonlyArray<DefinedAgent>,
-): { steps: ReadonlyArray<SubagentStep> } {
+) {
   if (pick === 'main' || typeof pick === 'string') {
-    return { steps: [{ names: normalizeNames([pick], agents) }] }
+    return { steps: [normalizeNames([pick], agents)] }
   }
-  if (isStringList(pick)) {
-    return { steps: [{ names: normalizeNames(pick, agents) }] }
+  if (isPickList(pick)) {
+    return { steps: [normalizeNames(pick, agents)] }
+  }
+  if ('name' in pick) {
+    return { steps: [normalizeNames([pick], agents)] }
   }
   if ('steps' in pick) {
     if (pick.steps.length === 0) throw new Error(ROUTER_PICK_ERROR)
     const steps = pick.steps.map((step) => {
       assertOrder(step.order)
       const names = normalizeNames(step.names, agents)
-      return step.order === undefined ? { names } : { names, order: step.order }
+      return step.order === undefined ? names : { ...names, order: step.order }
     })
     const flat = steps.flatMap((step) => step.names)
     if (flat.includes('main') && flat.length > 1) {
@@ -318,9 +383,7 @@ export function normalizeRouterPick(
   assertOrder(pick.order)
   const names = normalizeNames(pick.names, agents)
   return {
-    steps: [
-      pick.order === undefined ? { names } : { names, order: pick.order },
-    ],
+    steps: [pick.order === undefined ? names : { ...names, order: pick.order }],
   }
 }
 
@@ -403,21 +466,99 @@ export function withChildUsage(
   return withTanstackMetadata(next, { usage: leftover }) as ParentTerminal
 }
 
+function isAsyncIterable(value: unknown): value is AsyncIterable<StreamChunk> {
+  return (
+    typeof value === 'object' && value !== null && Symbol.asyncIterator in value
+  )
+}
+
+/**
+ * Chunks for an agent whose `run` resolved to a plain value instead of a
+ * stream. A string also streams as the child's text, so the parent model, a
+ * `sequence` router, and the UI all read it like chat output.
+ */
+function* valueResultChunks(
+  value: unknown,
+  id: string,
+): Generator<StreamChunk> {
+  if (typeof value === 'string' && value !== '') {
+    const messageId = `${id}-text`
+    const timestamp = Date.now()
+    yield attributeChunk(
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId,
+        role: 'assistant',
+        timestamp,
+      },
+      id,
+    )
+    yield attributeChunk(
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId,
+        delta: value,
+        timestamp,
+      },
+      id,
+    )
+    yield attributeChunk(
+      { type: EventType.TEXT_MESSAGE_END, messageId, timestamp },
+      id,
+    )
+  }
+  yield {
+    type: SUBAGENT_FINISHED,
+    subagentRunId: id,
+    ...(value !== undefined ? { result: value } : {}),
+    timestamp: Date.now(),
+  } satisfies SubagentFinishedEvent
+}
+
+/**
+ * Build the context `run` receives: the spawn input plus `forward`, the
+ * provider keys, and the bound activity functions.
+ */
+function runContext(
+  agentName: string,
+  input: SubagentRunInput,
+  abortController: AbortController,
+  binding?: SubagentBinding,
+) {
+  return {
+    ...input,
+    forward: {
+      threadId: input.threadId,
+      runId: input.runId,
+      parentRunId: input.parentRunId,
+      subagentRunId: input.subagentRunId,
+      ...(input.resume ? { resume: input.resume } : {}),
+      abortController,
+      ...(binding?.promptCache ? { promptCache: binding.promptCache } : {}),
+    },
+    keys: binding?.keys ?? envProviderKeys,
+    ...createBoundActivities(agentName, input, abortController, binding),
+  } satisfies SubagentRunContext
+}
+
 export async function* spawnAgentStream(
   agent: DefinedAgent,
-  ctx: SubagentRunContext,
+  input: SubagentRunInput,
   sink?: SubagentSink,
   parentToolCallId?: string,
+  binding?: SubagentBinding,
 ): AsyncIterable<StreamChunk> {
+  const link = linkAbort(input.abortSignal)
+  const ctx = runContext(agent.name, input, link.controller, binding)
   const id = ctx.subagentRunId
+  // No parentSubagentRunId here, also for a nested child: the chat that
+  // started this child lists it as a direct child. attributeChunk adds the id
+  // one level up, in the stream of the parent child.
   yield {
     type: SUBAGENT_STARTED,
     subagentRunId: id,
     name: agent.name,
     description: agent.description,
-    ...(ctx.parentSubagentRunId !== undefined
-      ? { parentSubagentRunId: ctx.parentSubagentRunId }
-      : {}),
     ...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
     timestamp: Date.now(),
   } satisfies SubagentStartedEvent
@@ -429,11 +570,19 @@ export async function* spawnAgentStream(
       yield stoppedEvent(id)
       return
     }
-    const stream = await orAbort(
+    const produced: unknown = await orAbort(
       Promise.resolve(agent.run(ctx)),
       ctx.abortSignal,
     )
-    iterator = stream[Symbol.asyncIterator]()
+    if (!isAsyncIterable(produced)) {
+      if (ctx.abortSignal?.aborted) {
+        yield stoppedEvent(id)
+        return
+      }
+      yield* valueResultChunks(produced, id)
+      return
+    }
+    iterator = produced[Symbol.asyncIterator]()
     while (true) {
       if (ctx.abortSignal?.aborted) {
         yield stoppedEvent(id)
@@ -523,6 +672,7 @@ export async function* spawnAgentStream(
     } catch {
       // Child stream may already be closed or aborted.
     }
+    link.dispose()
   }
 }
 
@@ -687,11 +837,16 @@ export function createSyntheticSubagentTools(
     threadId: string
     runId: string
     interruptedRunId?: string
+    /** The parent chat's own subagentRunId, when that chat is a child too. */
+    parentSubagentRunId?: string
     abortSignal?: AbortSignal
     turn?: SubagentTurn
     sink: SubagentSink
   },
 ): Array<Tool> {
+  // One budget per root run. A child run inherits its parent's budget.
+  const budget = bag.binding?.budget ?? SubagentBudget.root(bag.limits)
+  let active = 0
   return bag.agents.map((agent) => ({
     name: agent.name,
     description: agent.description,
@@ -726,11 +881,39 @@ export function createSyntheticSubagentTools(
           },
         }),
       }
+      // A resumed child already counted when it first started.
+      const refusal = suspended ? undefined : budget.reserve(active)
+      if (refusal !== undefined) {
+        return {
+          subagentRunId: '',
+          text: '',
+          error: refusal,
+        } satisfies SubagentToolOutcome
+      }
+      active += 1
       const sink = createSubagentSink()
       const link = linkAbort(parent.abortSignal)
+      const timeout = budget.childTimeout()
+      const timer =
+        timeout === undefined
+          ? undefined
+          : setTimeout(
+              () =>
+                link.controller.abort(
+                  new Error(`subagent timed out after ${timeout} ms`),
+                ),
+              timeout,
+            )
+      const childBinding: SubagentBinding = {
+        ...bag.binding,
+        budget: budget.child(
+          timeout === undefined ? undefined : Date.now() + timeout,
+        ),
+      }
       let subagentRunId = suspended?.subagentRunId ?? ''
       let text = suspended?.text ?? ''
       let error: string | undefined
+      let result: unknown
       try {
         for await (const chunk of openAgentStream(
           entry,
@@ -743,9 +926,13 @@ export function createSyntheticSubagentTools(
             ...(parent.interruptedRunId !== undefined
               ? { interruptedRunId: parent.interruptedRunId }
               : {}),
+            ...(parent.parentSubagentRunId !== undefined
+              ? { parentSubagentRunId: parent.parentSubagentRunId }
+              : {}),
           },
           sink,
           toolCallId,
+          childBinding,
         )) {
           if (chunk.type === SUBAGENT_STARTED && subagentRunId === '') {
             subagentRunId = chunk.subagentRunId
@@ -763,9 +950,18 @@ export function createSyntheticSubagentTools(
           ) {
             error = chunk.message
           }
+          if (
+            chunk.type === SUBAGENT_FINISHED &&
+            chunk.subagentRunId === subagentRunId &&
+            chunk.result !== undefined
+          ) {
+            result = chunk.result
+          }
           toolContext?.[EMIT_STREAM_CHUNK]?.(chunk)
         }
       } finally {
+        active -= 1
+        if (timer !== undefined) clearTimeout(timer)
         link.dispose()
       }
       parent.sink.usage.push(...sink.usage)
@@ -777,6 +973,7 @@ export function createSyntheticSubagentTools(
       return {
         subagentRunId,
         text,
+        ...(result !== undefined ? { result } : {}),
         ...(error !== undefined ? { error } : {}),
         ...(sink.interrupts.length > 0 ? { interrupts: sink.interrupts } : {}),
       } satisfies SubagentToolOutcome

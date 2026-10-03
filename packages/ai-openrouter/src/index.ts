@@ -113,7 +113,6 @@ export type {
   PluginAutoRouter,
   Plugin,
   ProviderPreferences,
-  ReasoningOptions,
   StreamOptions,
   ImageConfig,
   OpenRouterSystemPromptMetadata,

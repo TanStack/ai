@@ -35,7 +35,7 @@
     "@tanstack/react-router": "^1.158.4",
     "@tanstack/react-start": "^1.159.0",
     "@tanstack/router-plugin": "^1.158.4",
-    "@tanstack/store": "^0.8.0",
+    "@tanstack/store": "^0.11.1",
     "framer-motion": "^11.15.0",
     "highlight.js": "^11.11.1",
     "isolated-vm": "^6.0.2",

@@ -16,7 +16,7 @@ keywords:
 
 Some models expose their internal reasoning as "thinking" content -- Claude with extended thinking, OpenAI o-series models with reasoning, and others. TanStack AI captures this as `ThinkingPart` in messages, streamed to your UI in real-time alongside text and tool calls.
 
-Unsigned thinking stays in the UI. Signed thinking is a `ThinkingPart` with a `signature`. Anthropic extended thinking uses this. The next request sends signed thinking back in the same order as the original response, including around provider-executed tools. The next-turn body puts that signature on spec `encryptedValue` on the `role: "reasoning"` fan-out. Stream events use `REASONING_ENCRYPTED_VALUE`.
+Unsigned thinking stays in the UI. Signed thinking is a `ThinkingPart` with a `signature`. Anthropic extended thinking uses this. The next request sends signed thinking back in the same order as the original response, including around tool calls and text. The next-turn body puts that signature on spec `encryptedValue` on the `role: "reasoning"` fan-out. Stream events use `REASONING_ENCRYPTED_VALUE`.
 
 ## How It Works
 
@@ -38,11 +38,7 @@ Claude can also send a redacted thinking block. It is encrypted, so it has no te
 
 ## Enabling Thinking
 
-How you enable thinking depends on the provider.
-
-### Anthropic (Extended Thinking)
-
-Pass the `thinking` option in `modelOptions` with `type: "enabled"` and a `budget_tokens` (minimum 1024). Keep `budget_tokens` below `modelOptions.max_tokens` so there is room for the visible response in addition to the thinking budget:
+Turn thinking on with `reasoning` on `chat()`. It works the same on every provider:
 
 ```typescript
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
@@ -53,60 +49,13 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: anthropicText("claude-sonnet-4-6"),
     messages,
-    modelOptions: {
-      max_tokens: 32000,
-      // budget_tokens must be at least 1024 and below max_tokens
-      thinking: { type: "enabled", budget_tokens: 10000 },
-    },
+    reasoning: "high",
   });
   return toServerSentEventsResponse(stream);
 }
 ```
 
-### OpenAI (Reasoning Models)
-
-OpenAI o-series models (o1, o3, o3-mini, o3-pro) perform reasoning automatically. You can control the depth with the `reasoning` option:
-
-```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-
-export async function POST(request: Request) {
-  const { messages } = await request.json();
-  const stream = chat({
-    adapter: openaiText("o3-mini"),
-    messages,
-    modelOptions: {
-      reasoning: {
-        effort: "medium", // 'none' | 'minimal' | 'low' | 'medium' | 'high'
-        summary: "auto", // 'auto' | 'detailed'
-      },
-    },
-  });
-  return toServerSentEventsResponse(stream);
-}
-```
-
-When `reasoning.summary` is set, the adapter streams reasoning summary text as thinking content. Without it, reasoning tokens are still used internally but may not be surfaced depending on the model.
-
-GPT-5 and later models also support reasoning. Their `reasoning.effort` accepts `"none" | "minimal" | "low" | "medium" | "high"`, and reasoning activates on any non-`none` value:
-
-```typescript
-import { chat, toServerSentEventsResponse } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
-
-export async function POST(request: Request) {
-  const { messages } = await request.json();
-  const stream = chat({
-    adapter: openaiText("gpt-5.5"),
-    messages,
-    modelOptions: {
-      reasoning: { effort: "high" },
-    },
-  });
-  return toServerSentEventsResponse(stream);
-}
-```
+The thinking text streams back as `ThinkingPart`s. Some models reason without returning any text; with those, the part stays empty. See [Reasoning](./reasoning) for the levels, token budgets, and hiding the thinking text.
 
 ## Rendering in React
 
@@ -149,6 +98,12 @@ The typical streaming order is:
 4. `TEXT_MESSAGE_CONTENT` streams the response text.
 
 `STEP_STARTED` and `STEP_FINISHED` only carry `stepName`. They do not carry thinking text.
+
+Claude can think more than once in one answer: thinking, a tool call, more thinking, then text. Each thinking block streams as its own reasoning message, with its own `REASONING_MESSAGE_END` and `REASONING_END`. Then:
+
+- `message.parts` has the parts in the order Claude sent them.
+- The stored messages keep that order, and the next request sends the blocks back to Claude in it.
+- A message that you build yourself goes back in the default order: thinking, then text, then tool calls.
 
 If you use `useChat` from `@tanstack/ai-react` (or the Solid/Vue/Svelte equivalents), your `messages` array updates with both thinking and text parts as they arrive.
 

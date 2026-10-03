@@ -38,6 +38,8 @@ Later:
 
 On `RUN_FINISHED`, in-process `chat()` still uses TanStack `TokenUsage` (`promptTokens`). The SSE and HTTP wires use the spec `usage` array (`inputTokens`). Read `finishReason` from `metadata.tanstack.finishReason`. Custom servers: see [Event metadata](../protocol/metadata).
 
+`usage.promptTokens` is the full input, cached tokens included. Cache reads are on `usage.promptTokensDetails.cachedTokens`, and cache writes are on `usage.promptTokensDetails.cacheWriteTokens`. On the wire, they are `cachedInputTokens` and `cacheWriteInputTokens`. See [Prompt Caching](../advanced/prompt-caching#track-cached-tokens-and-cost).
+
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";

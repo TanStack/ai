@@ -1,25 +1,8 @@
-import type { TokenUsage } from '@tanstack/ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { AnthropicTextAdapter } from '../src/adapters/text'
 import type { AdapterYieldChunk } from '@tanstack/ai'
-
-/** `chat()` restores a TokenUsage object on RUN_FINISHED. */
-function tokenUsageOf(chunk: unknown): TokenUsage | undefined {
-  if (typeof chunk !== 'object' || chunk === null || !('usage' in chunk)) {
-    return undefined
-  }
-  const usage = chunk.usage
-  if (
-    typeof usage !== 'object' ||
-    usage === null ||
-    Array.isArray(usage) ||
-    !('promptTokens' in usage)
-  ) {
-    return undefined
-  }
-  return usage as TokenUsage
-}
+import type Anthropic_SDK from '@anthropic-ai/sdk'
 
 const mocks = vi.hoisted(() => {
   const betaMessagesCreate = vi.fn()
@@ -63,13 +46,15 @@ function createMockStream(
   }
 }
 
-describe('Anthropic usage extraction', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('extracts basic token usage from message_delta', async () => {
-    const mockStream = createMockStream([
+/**
+ * Stream one text reply. The final `message_delta` carries `deltaUsage`.
+ * Returns the usage that `chat()` puts on RUN_FINISHED.
+ */
+async function runFinishedUsage(
+  deltaUsage: Partial<Anthropic_SDK.Beta.BetaMessageDeltaUsage>,
+) {
+  mocks.betaMessagesCreate.mockResolvedValueOnce(
+    createMockStream([
       {
         type: 'message_start',
         message: {
@@ -78,10 +63,7 @@ describe('Anthropic usage extraction', () => {
           role: 'assistant',
           content: [],
           model: 'claude-opus-4-1',
-          usage: {
-            input_tokens: 100,
-            output_tokens: 0,
-          },
+          usage: { input_tokens: 100, output_tokens: 0 },
         },
       },
       {
@@ -97,270 +79,115 @@ describe('Anthropic usage extraction', () => {
       {
         type: 'message_delta',
         delta: { stop_reason: 'end_turn' },
-        usage: {
-          input_tokens: 100,
-          output_tokens: 50,
-        },
+        usage: deltaUsage,
       },
-      {
-        type: 'message_stop',
-      },
-    ])
+      { type: 'message_stop' },
+    ]),
+  )
 
-    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+  const chunks: Array<AdapterYieldChunk> = []
+  for await (const chunk of chat({
+    adapter: createAdapter(),
+    messages: [{ role: 'user', content: 'Hello' }],
+  })) {
+    chunks.push(chunk)
+  }
 
-    const chunks: Array<AdapterYieldChunk> = []
-    for await (const chunk of chat({
-      adapter: createAdapter(),
-      messages: [{ role: 'user', content: 'Hello' }],
-    })) {
-      chunks.push(chunk)
-    }
+  const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
+  // `unknown` so the loose chunk `usage` type does not leak into the tests.
+  const usage: unknown = doneChunk?.usage
+  return usage
+}
 
-    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
-    expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage).toMatchObject({
+describe('Anthropic usage extraction', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('uses input_tokens as promptTokens when there are no cache fields', async () => {
+    const usage = await runFinishedUsage({
+      input_tokens: 100,
+      output_tokens: 50,
+    })
+
+    // No cache tokens and no server tool use: the detail objects must be
+    // omitted entirely rather than emitted as empty `{}` (matches every other
+    // adapter's guarded behavior).
+    expect(usage).toEqual({
       promptTokens: 100,
       completionTokens: 50,
       totalTokens: 150,
     })
   })
 
-  it('extracts cache token details', async () => {
-    const mockStream = createMockStream([
-      {
-        type: 'message_start',
-        message: {
-          id: 'msg_123',
-          type: 'message',
-          role: 'assistant',
-          content: [],
-          model: 'claude-opus-4-1',
-          usage: {
-            input_tokens: 100,
-            output_tokens: 0,
-            cache_creation_input_tokens: 50,
-            cache_read_input_tokens: 25,
-          },
-        },
-      },
-      {
-        type: 'content_block_start',
-        index: 0,
-        content_block: { type: 'text', text: '' },
-      },
-      {
-        type: 'content_block_delta',
-        index: 0,
-        delta: { type: 'text_delta', text: 'Hello world' },
-      },
-      {
-        type: 'message_delta',
-        delta: { stop_reason: 'end_turn' },
-        usage: {
-          input_tokens: 100,
-          output_tokens: 50,
-          cache_creation_input_tokens: 50,
-          cache_read_input_tokens: 25,
-        },
-      },
-      {
-        type: 'message_stop',
-      },
-    ])
+  it('adds cache read and cache write tokens to promptTokens', async () => {
+    const usage = await runFinishedUsage({
+      input_tokens: 100,
+      output_tokens: 50,
+      cache_creation_input_tokens: 50,
+      cache_read_input_tokens: 25,
+    })
 
-    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
+    // promptTokens = 100 uncached + 25 read + 50 write.
+    expect(usage).toEqual({
+      promptTokens: 175,
+      completionTokens: 50,
+      totalTokens: 225,
+      promptTokensDetails: {
+        cacheWriteTokens: 50,
+        cachedTokens: 25,
+      },
+    })
+  })
 
-    const chunks: Array<AdapterYieldChunk> = []
-    for await (const chunk of chat({
-      adapter: createAdapter(),
-      messages: [{ role: 'user', content: 'Hello' }],
-    })) {
-      chunks.push(chunk)
-    }
+  it('counts a cache hit with a null cache write field', async () => {
+    // The SDK types the cache fields as `number | null`.
+    const usage = await runFinishedUsage({
+      input_tokens: 12,
+      output_tokens: 40,
+      cache_creation_input_tokens: null,
+      cache_read_input_tokens: 1800,
+    })
 
-    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
-    expect(doneChunk).toBeDefined()
-    expect(tokenUsageOf(doneChunk)?.promptTokensDetails).toEqual({
-      cacheWriteTokens: 50,
-      cachedTokens: 25,
+    expect(usage).toEqual({
+      promptTokens: 1812,
+      completionTokens: 40,
+      totalTokens: 1852,
+      promptTokensDetails: { cachedTokens: 1800 },
     })
   })
 
   it('extracts server tool use metrics', async () => {
-    const mockStream = createMockStream([
-      {
-        type: 'message_start',
-        message: {
-          id: 'msg_123',
-          type: 'message',
-          role: 'assistant',
-          content: [],
-          model: 'claude-opus-4-1',
-          usage: {
-            input_tokens: 100,
-            output_tokens: 0,
-          },
+    const usage = await runFinishedUsage({
+      input_tokens: 100,
+      output_tokens: 50,
+      server_tool_use: {
+        web_search_requests: 3,
+        web_fetch_requests: 2,
+      },
+    })
+
+    expect(usage).toEqual({
+      promptTokens: 100,
+      completionTokens: 50,
+      totalTokens: 150,
+      providerUsageDetails: {
+        serverToolUse: {
+          webSearchRequests: 3,
+          webFetchRequests: 2,
         },
-      },
-      {
-        type: 'content_block_start',
-        index: 0,
-        content_block: { type: 'text', text: '' },
-      },
-      {
-        type: 'content_block_delta',
-        index: 0,
-        delta: { type: 'text_delta', text: 'Hello world' },
-      },
-      {
-        type: 'message_delta',
-        delta: { stop_reason: 'end_turn' },
-        usage: {
-          input_tokens: 100,
-          output_tokens: 50,
-          server_tool_use: {
-            web_search_requests: 3,
-            web_fetch_requests: 2,
-          },
-        },
-      },
-      {
-        type: 'message_stop',
-      },
-    ])
-
-    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
-
-    const chunks: Array<AdapterYieldChunk> = []
-    for await (const chunk of chat({
-      adapter: createAdapter(),
-      messages: [{ role: 'user', content: 'Hello' }],
-    })) {
-      chunks.push(chunk)
-    }
-
-    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
-    expect(doneChunk).toBeDefined()
-    expect(tokenUsageOf(doneChunk)?.providerUsageDetails).toMatchObject({
-      serverToolUse: {
-        webSearchRequests: 3,
-        webFetchRequests: 2,
       },
     })
   })
 
-  it('handles response with no cache tokens', async () => {
-    const mockStream = createMockStream([
-      {
-        type: 'message_start',
-        message: {
-          id: 'msg_123',
-          type: 'message',
-          role: 'assistant',
-          content: [],
-          model: 'claude-opus-4-1',
-          usage: {
-            input_tokens: 100,
-            output_tokens: 0,
-          },
-        },
-      },
-      {
-        type: 'content_block_start',
-        index: 0,
-        content_block: { type: 'text', text: '' },
-      },
-      {
-        type: 'content_block_delta',
-        index: 0,
-        delta: { type: 'text_delta', text: 'Hello world' },
-      },
-      {
-        type: 'message_delta',
-        delta: { stop_reason: 'end_turn' },
-        usage: {
-          input_tokens: 100,
-          output_tokens: 50,
-        },
-      },
-      {
-        type: 'message_stop',
-      },
-    ])
-
-    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
-
-    const chunks: Array<AdapterYieldChunk> = []
-    for await (const chunk of chat({
-      adapter: createAdapter(),
-      messages: [{ role: 'user', content: 'Hello' }],
-    })) {
-      chunks.push(chunk)
-    }
-
-    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
-    expect(doneChunk).toBeDefined()
-    // No cache tokens and no server tool use: the detail objects must be
-    // omitted entirely rather than emitted as empty `{}` (matches every other
-    // adapter's guarded behavior).
-    expect(tokenUsageOf(doneChunk)?.promptTokensDetails).toBeUndefined()
-    expect(tokenUsageOf(doneChunk)?.providerUsageDetails).toBeUndefined()
-  })
-
   it('defaults missing output_tokens to 0 instead of NaN', async () => {
-    const mockStream = createMockStream([
-      {
-        type: 'message_start',
-        message: {
-          id: 'msg_123',
-          type: 'message',
-          role: 'assistant',
-          content: [],
-          model: 'claude-opus-4-1',
-          usage: {
-            input_tokens: 100,
-            output_tokens: 0,
-          },
-        },
-      },
-      {
-        type: 'content_block_start',
-        index: 0,
-        content_block: { type: 'text', text: '' },
-      },
-      {
-        type: 'content_block_delta',
-        index: 0,
-        delta: { type: 'text_delta', text: 'Hello world' },
-      },
-      {
-        type: 'message_delta',
-        delta: { stop_reason: 'end_turn' },
-        // output_tokens intentionally omitted to exercise the `?? 0` guard.
-        usage: {
-          input_tokens: 100,
-        },
-      },
-      {
-        type: 'message_stop',
-      },
-    ])
+    // output_tokens intentionally omitted to exercise the `|| 0` guard.
+    const usage = await runFinishedUsage({ input_tokens: 100 })
 
-    mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
-
-    const chunks: Array<AdapterYieldChunk> = []
-    for await (const chunk of chat({
-      adapter: createAdapter(),
-      messages: [{ role: 'user', content: 'Hello' }],
-    })) {
-      chunks.push(chunk)
-    }
-
-    const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
-    expect(doneChunk).toBeDefined()
-    expect(tokenUsageOf(doneChunk)?.completionTokens).toBe(0)
-    expect(tokenUsageOf(doneChunk)?.totalTokens).toBe(100)
-    expect(Number.isNaN(tokenUsageOf(doneChunk)?.totalTokens)).toBe(false)
+    expect(usage).toEqual({
+      promptTokens: 100,
+      completionTokens: 0,
+      totalTokens: 100,
+    })
   })
 })

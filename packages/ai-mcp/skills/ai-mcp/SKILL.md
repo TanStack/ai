@@ -54,6 +54,8 @@ The package has these subpaths:
 - `./server` exports `createMCPServer`.
 - `./server/stdio` exports `serveMCPStdio`.
 - `./apps` exports `createMcpAppCallHandler`.
+- `./harness` exports `createHarnessMcpServer`. It serves a TanStack AI
+  harness as an MCP server. See `docs/harness/mcp-server.md`.
 
 Import `./stdio` and `./server/stdio` only from Node code.
 Those entries use Node I/O.

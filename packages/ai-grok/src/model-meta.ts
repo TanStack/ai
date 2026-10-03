@@ -1,10 +1,8 @@
 /**
  * Model metadata interface for documentation and type inference
  */
-import type {
-  GrokBuildProviderOptions,
-  GrokTextProviderOptions,
-} from './text/text-provider-options'
+import type { Modality } from '@tanstack/ai'
+import type { GrokTextProviderOptions } from './text/text-provider-options'
 
 interface ModelMeta {
   name: string
@@ -437,6 +435,26 @@ export type GrokModelInputModalitiesByName = {
 }
 
 /**
+ * Runtime map from Grok chat model name to its supported input modalities,
+ * read by the text adapter's `inputModalities`. `satisfies` ties it to
+ * {@link GrokModelInputModalitiesByName}, so the two cannot drift.
+ */
+export const GROK_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [GROK_4_3.name]: GROK_4_3.supports.input,
+  [GROK_BUILD_0_1.name]: GROK_BUILD_0_1.supports.input,
+  [GROK_4_5.name]: GROK_4_5.supports.input,
+  [GROK_4_6.name]: GROK_4_6.supports.input,
+  [GROK_4_20_REASONING.name]: GROK_4_20_REASONING.supports.input,
+  [GROK_4_20_NON_REASONING.name]: GROK_4_20_NON_REASONING.supports.input,
+  [GROK_4_1_FAST_REASONING.name]: GROK_4_1_FAST_REASONING.supports.input,
+  [GROK_4_1_FAST_NON_REASONING.name]:
+    GROK_4_1_FAST_NON_REASONING.supports.input,
+  [GROK_4_7.name]: GROK_4_7.supports.input,
+} satisfies GrokModelInputModalitiesByName
+
+/**
  * Type-only map from Grok chat model name to its supported provider tools.
  * Keeps Grok provider-tool factories type-checked against the models that
  * advertise xAI Responses server-side tools.
@@ -458,7 +476,7 @@ export type GrokProviderOptions = GrokTextProviderOptions
  */
 export type GrokChatModelProviderOptionsByName = {
   [GROK_4_3.name]: GrokProviderOptions
-  [GROK_BUILD_0_1.name]: GrokBuildProviderOptions
+  [GROK_BUILD_0_1.name]: GrokProviderOptions
   [GROK_4_20_REASONING.name]: GrokProviderOptions
   [GROK_4_20_NON_REASONING.name]: GrokProviderOptions
   [GROK_4_1_FAST_REASONING.name]: GrokProviderOptions

@@ -15,7 +15,9 @@ describe('memoryPersistence', () => {
     expect(Object.keys(memoryPersistence().stores).sort()).toEqual([
       'artifacts',
       'blobs',
+      'credentials',
       'generationRuns',
+      'inbox',
       'interrupts',
       'messages',
       'metadata',

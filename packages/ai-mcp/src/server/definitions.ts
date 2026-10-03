@@ -34,6 +34,16 @@ type PromptArgsSchema<TArgs> = {
 }
 
 /**
+ * The `variables` that `read` gets: the result of `argsSchema.parse` when the
+ * resource has an `argsSchema`, else the template variables as matched.
+ */
+type ResourceArgsOf<TConfig> = TConfig extends {
+  argsSchema: PromptArgsSchema<infer TArgs>
+}
+  ? TArgs
+  : Variables
+
+/**
  * Builds a resource definition for the MCP server.
  *
  * `config` takes `name`, `mimeType`, and one of `uri` or `uriTemplate`.
@@ -45,7 +55,11 @@ type PromptArgsSchema<TArgs> = {
  * `ctx.context` holds the values from `handle(request, { context })` and
  * the verified `authInfo`. A tool gets the same values on its `ctx.context`.
  *
- * @param config - The resource `name`, `mimeType`, `uri` or `uriTemplate`, and `list`.
+ * A template can also take `argsSchema`. Its `parse` runs on the variables
+ * before `read` gets them. A body `{ text | blob, mimeType }` sets the MIME
+ * type of that answer, for a template whose files have different types.
+ *
+ * @param config - The resource `name`, `mimeType`, `uri` or `uriTemplate`, `list`, and `argsSchema`.
  * @throws {TypeError} When `uri` and `uriTemplate` are both missing.
  *
  * @example
@@ -61,6 +75,13 @@ type PromptArgsSchema<TArgs> = {
  *   name: 'item-summary',
  *   mimeType: 'text/plain',
  * }).read(async (_uri, { itemId }) => ({ text: `Summary of ${String(itemId)}` }))
+ *
+ * const user = resourceDefinition({
+ *   uriTemplate: 'users://{id}',
+ *   name: 'user',
+ *   mimeType: 'application/json',
+ *   argsSchema: z.object({ id: z.string() }),
+ * }).read(async (_uri, { id }) => ({ text: JSON.stringify(await loadUser(id)) }))
  * ```
  */
 export function resourceDefinition<
@@ -71,6 +92,7 @@ export function resourceDefinition<
         uri: string
         uriTemplate?: never
         list?: never
+        argsSchema?: never
       }
     | {
         name: string
@@ -78,6 +100,7 @@ export function resourceDefinition<
         uriTemplate: string
         uri?: never
         list?: MCPResourceList
+        argsSchema?: PromptArgsSchema<unknown>
       },
 >(config: TConfig) {
   const hasUri = config.uri !== undefined
@@ -90,10 +113,26 @@ export function resourceDefinition<
 
   return {
     ...config,
-    read<TContents>(readContents: MCPResourceRead<TContents>) {
+    read<TContents>(
+      readContents: (
+        uri: URL,
+        variables: ResourceArgsOf<TConfig>,
+        ctx: MCPResourceContext,
+      ) => TContents | Promise<TContents>,
+    ) {
       return {
         ...config,
-        read: readContents,
+        read: (uri: URL, variables: Variables, ctx: MCPResourceContext) =>
+          readContents(
+            uri,
+            // Without `argsSchema`, `read` gets the variables as matched.
+            // `ResourceArgsOf` picks the same branch from the config type,
+            // which TypeScript cannot follow through the runtime check.
+            (config.argsSchema
+              ? config.argsSchema.parse(variables)
+              : variables) as ResourceArgsOf<TConfig>,
+            ctx,
+          ),
       }
     },
   }

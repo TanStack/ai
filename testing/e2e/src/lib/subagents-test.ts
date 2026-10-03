@@ -18,7 +18,12 @@ export const lookupFacts = toolDefinition({
   inputSchema: z.object({ topic: z.string() }),
 })
 
-export type SubagentScenario = 'route' | 'approval' | 'tool' | 'brief'
+export type SubagentScenario =
+  | 'route'
+  | 'approval'
+  | 'tool'
+  | 'brief'
+  | 'result'
 
 /** The user message for each scenario. It matches `fixtures/subagents`. */
 export const SUBAGENT_PROMPTS: Record<SubagentScenario, string> = {
@@ -26,6 +31,7 @@ export const SUBAGENT_PROMPTS: Record<SubagentScenario, string> = {
   approval: '[subagent-approval] clean up the old logs',
   tool: '[subagent-tool] research squids',
   brief: '[subagent-brief] compare squid facts',
+  result: '[subagent-result] price vendor a',
 }
 
 export function isSubagentScenario(value: unknown): value is SubagentScenario {
@@ -33,6 +39,7 @@ export function isSubagentScenario(value: unknown): value is SubagentScenario {
     value === 'route' ||
     value === 'approval' ||
     value === 'tool' ||
-    value === 'brief'
+    value === 'brief' ||
+    value === 'result'
   )
 }

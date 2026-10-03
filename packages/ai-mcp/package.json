@@ -52,6 +52,14 @@
     "./server/stdio": {
       "types": "./dist/esm/server/stdio.d.ts",
       "import": "./dist/esm/server/stdio.js"
+    },
+    "./connector": {
+      "types": "./dist/esm/connector.d.ts",
+      "import": "./dist/esm/connector.js"
+    },
+    "./harness": {
+      "types": "./dist/esm/harness.d.ts",
+      "import": "./dist/esm/harness.js"
     }
   },
   "files": [
@@ -76,7 +84,17 @@
     "@tanstack/ai": "workspace:^",
     "jose": "^6.2.12"
   },
+  "peerDependencies": {
+    "@tanstack/ai-harness": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/ai-harness": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@tanstack/ai-harness": "workspace:*",
+    "@tanstack/ai-persistence": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
     "jiti": "^2.4.2",
     "json-schema-to-typescript": "^15.0.4",

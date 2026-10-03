@@ -14,7 +14,7 @@ async function run(page: Page) {
 
 function open(
   page: Page,
-  scenario: 'route' | 'approval' | 'tool' | 'brief',
+  scenario: 'route' | 'approval' | 'tool' | 'brief' | 'result',
   testId: string,
   aimockPort: number,
 ) {
@@ -130,6 +130,23 @@ test.describe('subagents', () => {
     // transcript instead would get no reply.
     await expect(page.getByTestId('card-researcher')).toContainText(
       'text:Squids have three hearts and blue blood.',
+    )
+  })
+
+  test('a child whose run resolves to a string reports it to the parent', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'result', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('parent-text')).toHaveText(
+      'Pricing is ready.',
+    )
+    await expect(page.getByTestId('card-status-pricer')).toHaveText('finished')
+    await expect(page.getByTestId('card-pricer')).toContainText(
+      'text:Vendor A costs 42 EUR.',
     )
   })
 })

@@ -21,6 +21,8 @@ import type {
   ChatTranscriptPersistence,
   ChatTranscriptStores,
   GenerationRunStore,
+  InboxStore,
+  CredentialStore,
   InterruptStore,
   MessagePage,
   MessageStore,
@@ -139,6 +141,8 @@ expectTypeOf(memoryPersistence()).toEqualTypeOf<
     metadata: MetadataStore
     artifacts: ArtifactStore
     blobs: BlobStore
+    inbox: InboxStore
+    credentials: CredentialStore
   }>
 >()
 const transcript: ChatTranscriptPersistence = messagesOnly

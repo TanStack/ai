@@ -1903,18 +1903,14 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(params.maxCompletionTokens).toBe(64)
   })
 
-  it('normalizes reasoning enabled false to effort none on the wire (#1006)', async () => {
+  it('sends effort none for reasoning off (#1006)', async () => {
     setupMockSdkClient(minimalStreamChunks)
-    const adapter = createAdapter()
-
-    const modelOptions: OpenRouterTextModelOptions = {
-      reasoning: { enabled: false },
-    }
+    const adapter = createOpenRouterText('deepseek/deepseek-r1', 'test-key')
 
     for await (const _ of chat({
       adapter,
       messages: [{ role: 'user', content: 'test' }],
-      modelOptions,
+      reasoning: 'off',
     })) {
       // consume
     }
@@ -1927,18 +1923,29 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(serialized.reasoning).toEqual({ effort: 'none' })
   })
 
-  it('omits an empty reasoning object from the SDK request (#1006)', async () => {
+  it('sends the level effort from chat({ reasoning })', async () => {
     setupMockSdkClient(minimalStreamChunks)
-    const adapter = createAdapter()
-
-    const modelOptions: OpenRouterTextModelOptions = {
-      reasoning: {},
-    }
+    const adapter = createOpenRouterText('openai/gpt-5.5', 'test-key')
 
     for await (const _ of chat({
       adapter,
       messages: [{ role: 'user', content: 'test' }],
-      modelOptions,
+      reasoning: 'xhigh',
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    expect(rawParams.chatRequest.reasoning).toEqual({ effort: 'xhigh' })
+  })
+
+  it('omits reasoning from the SDK request without a reasoning option (#1006)', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
     })) {
       // consume
     }

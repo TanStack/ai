@@ -92,13 +92,11 @@ Example:
 ```typescript ignore
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT5_2_CHAT.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
@@ -108,6 +106,8 @@ export type OpenAIChatModelProviderOptionsByName = {
 
 ```
 This ensures strict type safety and feature correctness at compile time.
+
+Reasoning is not a provider option: `chat({ reasoning })` owns it. Declare each model's reasoning levels on the adapter instead. See [Add reasoning to your adapter](../advanced/extend-adapter#add-reasoning-to-your-adapter).
 
 ### 5. Define supported input modalities
 
@@ -140,9 +140,9 @@ export interface OpenAIBaseOptions {
 // Feature fragments that can be stitched per-model 
 
 /**
- * Reasoning options for models  
+ * Tool options for models
  */
-export interface OpenAIReasoningOptions {
+export interface OpenAIToolsOptions {
    //...
 }
  
@@ -160,7 +160,6 @@ Models can then opt into only the features they support:
 ```typescript ignore
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
     OpenAIStreamingOptions &

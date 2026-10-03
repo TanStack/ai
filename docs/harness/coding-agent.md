@@ -1,0 +1,118 @@
+---
+title: Build a coding agent
+id: harness-coding-agent
+order: 6
+description: "Turn a harness into a coding agent with file tools, permission modes, a todo list, a model picker, project instructions, and /compact."
+keywords:
+  - tanstack ai
+  - harness
+  - coding agent
+  - permissions
+  - workspace tools
+---
+
+You want your own coding agent in the terminal: it reads and edits files, runs commands after you approve them, and keeps a todo list. The first-party plugins in `@tanstack/ai-harness/plugins` give you those parts. You pick the model and the rules.
+
+## 1. Define the agent
+
+```ts group=harness-coding-agent
+import { defineHarness } from '@tanstack/ai-harness'
+import {
+  compact,
+  fileCommands,
+  modelPicker,
+  permissions,
+  projectInstructions,
+  todos,
+  usage,
+  workspaceTools,
+} from '@tanstack/ai-harness/plugins'
+import { runCli } from '@tanstack/ai-harness-cli'
+import { openaiText } from '@tanstack/ai-openai'
+
+const root = process.cwd()
+const smart = openaiText('gpt-5.6')
+const fast = openaiText('gpt-5.6-luna')
+
+const coder = defineHarness({
+  name: 'acme/coder',
+  adapter: smart,
+  systemPrompts: ['You are a careful coding agent. Read before you edit.'],
+  plugins: () => [
+    permissions(),
+    workspaceTools({ root }),
+    todos(),
+    modelPicker({ choices: { smart, fast }, default: 'smart' }),
+    projectInstructions({ root }),
+    fileCommands({ dir: `${root}/.claude/commands` }),
+    compact({ adapter: fast }),
+    usage(),
+  ],
+})
+
+process.exitCode = await runCli(coder)
+```
+
+## 2. Run it
+
+Run the file with `npx tsx coder.ts`. Ask for a change. The agent reads files freely and asks before it writes a file or runs a command. Type `y` to allow a call or `n` to refuse it.
+
+## What each plugin adds
+
+| Plugin | Adds |
+|---|---|
+| `permissions()` | Asks before risky tool calls. `/mode` switches between `default`, `plan` (read-only), `acceptEdits` (edits run without asking), and `bypass`. |
+| `workspaceTools({ root })` | `read_file`, `write_file`, `edit_file`, `list_files`, `grep`, and `bash`, in `root`. A path outside `root` is refused, or asks first with `outside: 'ask'`. |
+| `todos()` | A `todo_write` tool the model uses for multi-step work, and `/todos`. |
+| `modelPicker({ choices })` | `/model <name>` switches the model at the next turn. |
+| `projectInstructions({ root })` | Adds `AGENTS.md` and `CLAUDE.md` to the system prompt. |
+| `fileCommands({ dir })` | Each `.md` file becomes a slash command. `$ARGUMENTS` is replaced by what you type after it. |
+| `compact({ adapter })` | `/compact` replaces a long conversation with a summary. |
+| `usage()` | `/usage` shows the tokens of the session: the lead turn and every agent. Its state also has `contextTokens`, the prompt size of the last lead call, for a context meter. |
+| `goal({ judge })` | `/goal <text>` keeps the agent working until a judge model says that the goal is met. See [Work until a goal is met](./goal). |
+
+## Add your own rules
+
+Tool plugins add permission rules to the `PermissionRules` extension point. Add your own for any tool:
+
+```ts group=harness-coding-agent
+import { PermissionRules } from '@tanstack/ai-harness/plugins'
+import { definePlugin } from '@tanstack/ai-harness'
+
+export const noDeploys = definePlugin({
+  name: 'acme/no-deploys',
+  setup: () => ({
+    contribute: [PermissionRules.item({ tool: 'deploy_*', decision: 'deny' })],
+  }),
+})
+```
+
+A trailing `*` matches every tool that starts with the text. The last matching rule wins.
+
+The workspace tools run on your machine with your permissions. Run code you do not trust in a sandbox.
+
+## Ask before the agent goes outside the workspace
+
+Now and then the agent needs a file from another project, but you do not want to open the whole disk. Pass `outside: 'ask'`:
+
+```ts group=harness-coding-agent
+export const askOutside = workspaceTools({
+  root: process.cwd(),
+  outside: 'ask',
+})
+```
+
+- A path outside `root` asks the user first. A yes allows that folder, and the folders in it, until the session ends.
+- `list_files` and `grep` take a `path`, so the agent can search an allowed folder.
+- `/mode bypass` allows every path without a question.
+- Without the option, a path outside `root` is refused.
+
+## Hand work to Claude Code or Codex
+
+Your agent can also give tasks to coding agents you already use. [Delegate to coding agents](./coding-agents) shows how.
+
+## What you have now
+
+- A terminal coding agent with file tools, approvals, modes, a todo list, and a model picker.
+
+Next: connect the agent to GitHub and other services with [auth and connectors](./auth).

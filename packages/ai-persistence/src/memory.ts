@@ -1,4 +1,4 @@
-import { defineAIPersistence } from './types'
+import { LogConflictError, defineAIPersistence } from './types'
 import { resolveBlobRange } from './blob-range'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
@@ -14,9 +14,17 @@ import type {
   BlobStore,
   GenerationRunRecord,
   GenerationRunStore,
+  Credential,
+  CredentialStore,
+  InboxEntry,
+  InboxStore,
+  Scope,
   InterruptCommitEntry,
   InterruptRecord,
   InterruptStore,
+  LogEntry,
+  LogRecord,
+  LogStore,
   MessageStore,
   MetadataStore,
   RunRecord,
@@ -55,15 +63,9 @@ class MemoryMessageStore implements MessageStore {
 
 class MemoryRunStore implements RunStore {
   private readonly runs = new Map<string, RunRecord>()
-  createOrResume(input: {
-    runId: string
-    threadId: string
-    status?: RunRecord['status']
-    startedAt: number
-    parentRunId?: string
-    subagentRunId?: string
-    name?: string
-  }): Promise<RunRecord> {
+  createOrResume(
+    input: Parameters<RunStore['createOrResume']>[0],
+  ): Promise<RunRecord> {
     const existing = this.runs.get(input.runId)
     if (existing) return Promise.resolve(existing)
     const record: RunRecord = {
@@ -78,25 +80,17 @@ class MemoryRunStore implements RunStore {
         ? { subagentRunId: input.subagentRunId }
         : {}),
       ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.kind !== undefined ? { kind: input.kind } : {}),
+      ...(input.activity !== undefined ? { activity: input.activity } : {}),
+      ...(input.agent !== undefined ? { agent: input.agent } : {}),
+      ...(input.principal !== undefined ? { principal: input.principal } : {}),
     }
     this.runs.set(record.runId, record)
     return Promise.resolve(record)
   }
   update(
     runId: string,
-    patch: Partial<
-      Pick<
-        RunRecord,
-        | 'status'
-        | 'finishedAt'
-        | 'error'
-        | 'usage'
-        | 'sandboxKey'
-        | 'detachedSince'
-        | 'cancelRequested'
-        | 'driverEpoch'
-      >
-    >,
+    patch: Parameters<RunStore['update']>[1],
   ): Promise<void> {
     const existing = this.runs.get(runId)
     if (existing) this.runs.set(runId, { ...existing, ...patch })
@@ -312,6 +306,47 @@ class MemoryMetadataStore implements MetadataStore {
   // (This parameter is an app-defined metadata namespace string — not the
   // shared `Scope` identity type from `@tanstack/ai`.)
   private readonly values = new Map<string, Map<string, unknown>>()
+  private readonly revisions = new Map<string, Map<string, number>>()
+  private revisionOf(namespace: string, key: string): number | undefined {
+    return this.revisions.get(namespace)?.get(key)
+  }
+  private bump(namespace: string, key: string): string {
+    let bucket = this.revisions.get(namespace)
+    if (!bucket) {
+      bucket = new Map()
+      this.revisions.set(namespace, bucket)
+    }
+    const next = (bucket.get(key) ?? 0) + 1
+    bucket.set(key, next)
+    return String(next)
+  }
+  getVersioned(
+    namespace: string,
+    key: string,
+  ): Promise<{ value: unknown; revision: string } | null> {
+    const bucket = this.values.get(namespace)
+    if (!bucket || !bucket.has(key)) return Promise.resolve(null)
+    return Promise.resolve({
+      value: bucket.get(key),
+      revision: String(this.revisionOf(namespace, key) ?? 0),
+    })
+  }
+  async setIf(
+    namespace: string,
+    key: string,
+    value: unknown,
+    expectedRevision: string | null,
+  ): Promise<
+    { ok: true; revision: string } | { ok: false; reason: 'conflict' }
+  > {
+    const present = this.values.get(namespace)?.has(key) ?? false
+    const current = present
+      ? String(this.revisionOf(namespace, key) ?? 0)
+      : null
+    if (current !== expectedRevision) return { ok: false, reason: 'conflict' }
+    await this.set(namespace, key, value)
+    return { ok: true, revision: String(this.revisionOf(namespace, key)) }
+  }
   get(namespace: string, key: string): Promise<unknown | null> {
     const bucket = this.values.get(namespace)
     if (!bucket || !bucket.has(key)) return Promise.resolve(null)
@@ -324,11 +359,13 @@ class MemoryMetadataStore implements MetadataStore {
       this.values.set(namespace, bucket)
     }
     bucket.set(key, value)
+    this.bump(namespace, key)
     return Promise.resolve()
   }
   delete(namespace: string, key: string): Promise<void> {
     const bucket = this.values.get(namespace)
     if (!bucket) return Promise.resolve()
+    this.revisions.get(namespace)?.delete(key)
     bucket.delete(key)
     if (bucket.size === 0) this.values.delete(namespace)
     return Promise.resolve()
@@ -556,6 +593,164 @@ class MemoryBlobStore implements BlobStore {
   }
 }
 
+class MemoryInboxStore implements InboxStore {
+  private readonly entries = new Map<string, InboxEntry>()
+  append(entry: Omit<InboxEntry, 'status'>): Promise<InboxEntry> {
+    const existing = this.entries.get(entry.inputId)
+    if (existing) return Promise.resolve({ ...existing })
+    const stored: InboxEntry = { ...entry, status: 'pending' }
+    this.entries.set(entry.inputId, stored)
+    return Promise.resolve({ ...stored })
+  }
+  listPending(threadId: string): Promise<Array<InboxEntry>> {
+    // Map iteration keeps insertion order; sort by time in case clocks tie.
+    const pending = [...this.entries.values()]
+      .filter(
+        (entry) => entry.threadId === threadId && entry.status === 'pending',
+      )
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((entry) => ({ ...entry }))
+    return Promise.resolve(pending)
+  }
+  markApplied(inputId: string, operationId: string): Promise<void> {
+    const existing = this.entries.get(inputId)
+    if (existing) {
+      this.entries.set(inputId, { ...existing, status: 'applied', operationId })
+    }
+    return Promise.resolve()
+  }
+  markRejected(inputId: string, reason: string): Promise<void> {
+    const existing = this.entries.get(inputId)
+    if (existing) {
+      this.entries.set(inputId, { ...existing, status: 'rejected', reason })
+    }
+    return Promise.resolve()
+  }
+  get(inputId: string): Promise<InboxEntry | null> {
+    const existing = this.entries.get(inputId)
+    return Promise.resolve(existing ? { ...existing } : null)
+  }
+}
+
+class MemoryCredentialStore implements CredentialStore {
+  private readonly values = new Map<string, Map<string, Credential>>()
+  // A credential without a userId belongs to the tenant.
+  private owner(scope: Scope): string {
+    return JSON.stringify([scope.tenantId ?? null, scope.userId ?? null])
+  }
+  get(scope: Scope, id: string): Promise<Credential | null> {
+    const stored = this.values.get(this.owner(scope))?.get(id)
+    return Promise.resolve(stored ? { ...stored } : null)
+  }
+  set(scope: Scope, id: string, credential: Credential): Promise<void> {
+    const key = this.owner(scope)
+    let bucket = this.values.get(key)
+    if (!bucket) {
+      bucket = new Map()
+      this.values.set(key, bucket)
+    }
+    bucket.set(id, { ...credential })
+    return Promise.resolve()
+  }
+  delete(scope: Scope, id: string): Promise<void> {
+    this.values.get(this.owner(scope))?.delete(id)
+    return Promise.resolve()
+  }
+  list(
+    scope: Scope,
+  ): Promise<
+    Array<{ id: string; type: Credential['type']; expiresAt?: number }>
+  > {
+    const bucket = this.values.get(this.owner(scope))
+    return Promise.resolve(
+      [...(bucket?.entries() ?? [])].map(([id, credential]) => ({
+        id,
+        type: credential.type,
+        ...(credential.type === 'oauth' && credential.expiresAt !== undefined
+          ? { expiresAt: credential.expiresAt }
+          : {}),
+      })),
+    )
+  }
+}
+
+/** A JSON copy, so the log never shares an object with a caller. */
+const copyRecord = (record: LogRecord) =>
+  JSON.parse(JSON.stringify(record)) as LogRecord
+
+class MemoryLogStore implements LogStore {
+  private readonly threads = new Map<string, Array<LogRecord>>()
+  private readonly listeners = new Map<string, Set<() => void>>()
+
+  append(
+    threadId: string,
+    seq: number,
+    records: ReadonlyArray<LogRecord>,
+  ): Promise<void> {
+    if (records.length === 0) return Promise.resolve()
+    const log = this.threads.get(threadId) ?? []
+    if (seq !== log.length + 1) {
+      return Promise.reject(new LogConflictError(threadId, seq))
+    }
+    // Copy the whole batch before the push, so a record that cannot become
+    // JSON rejects the batch with nothing written.
+    let copies: Array<LogRecord>
+    try {
+      copies = records.map(copyRecord)
+    } catch (error) {
+      return Promise.reject(error)
+    }
+    log.push(...copies)
+    this.threads.set(threadId, log)
+    for (const listener of [...(this.listeners.get(threadId) ?? [])]) {
+      listener()
+    }
+    return Promise.resolve()
+  }
+
+  read(
+    threadId: string,
+    options?: { after?: number; limit?: number },
+  ): Promise<Array<LogEntry>> {
+    const log = this.threads.get(threadId) ?? []
+    const after = options?.after ?? 0
+    const end =
+      options?.limit === undefined ? log.length : after + options.limit
+    const entries = log.slice(after, end).map((record, index) => ({
+      seq: after + index + 1,
+      record: copyRecord(record),
+    }))
+    return Promise.resolve(entries)
+  }
+
+  subscribe(threadId: string, listener: () => void): () => void {
+    let set = this.listeners.get(threadId)
+    if (!set) {
+      set = new Set()
+      this.listeners.set(threadId, set)
+    }
+    set.add(listener)
+    return () => {
+      set.delete(listener)
+    }
+  }
+}
+
+/**
+ * In-process reference {@link LogStore}, for tests and one-process hosts. The
+ * log is lost when the process stops. Records are JSON-copied in and out.
+ *
+ * @example
+ * ```ts
+ * const host = createHarnessHost({
+ *   persistence: { stores: { log: memoryLogStore(), runs } },
+ * })
+ * ```
+ */
+export function memoryLogStore(): LogStore {
+  return new MemoryLogStore()
+}
+
 interface MemoryPersistenceStores {
   messages: MessageStore
   runs: RunStore
@@ -564,14 +759,17 @@ interface MemoryPersistenceStores {
   metadata: MetadataStore
   artifacts: ArtifactStore
   blobs: BlobStore
+  inbox: InboxStore
+  credentials: CredentialStore
 }
 
 /**
  * In-process reference backend for the full state + generation store set.
  *
  * Returns messages + runs + generationRuns + interrupts + metadata + artifacts
- * + blobs. Locks are not included — use `InMemoryLockStore` + `withLocks` from
- * `@tanstack/ai` when a test or single-process app needs coordination.
+ * + blobs + inbox + credentials. Locks are not included — use `InMemoryLockStore` +
+ * `withLocks` from `@tanstack/ai` when a test or single-process app needs
+ * coordination.
  */
 export function memoryPersistence() {
   const stores: MemoryPersistenceStores = {
@@ -580,6 +778,8 @@ export function memoryPersistence() {
     generationRuns: new MemoryGenerationRunStore(),
     interrupts: new MemoryInterruptStore(),
     metadata: new MemoryMetadataStore(),
+    inbox: new MemoryInboxStore(),
+    credentials: new MemoryCredentialStore(),
     artifacts: new MemoryArtifactStore(),
     blobs: new MemoryBlobStore(),
   }

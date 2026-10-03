@@ -40,10 +40,10 @@ import { byteplusSpeech, byteplusTranscription } from '@tanstack/ai-byteplus'
 | `seed-2-0-pro-260328`        | 256K    | Structured output; thinking summary                                |
 | `seed-2-0-lite-260228`       | 256K    | Structured output — use instead of `-260428` for typed output      |
 | `seed-1-6-flash-250715`      | 256K    | Fast/cheap; structured output                                      |
-| `glm-5-2-260617`             | 1024K   | Structured output; `reasoning_effort` incl. `none`/`xhigh`/`max`   |
+| `glm-5-2-260617`             | 1024K   | Structured output; reasoning levels `off` to `max`                 |
 | `deepseek-v4-pro-260425`     | 1024K   | 384K output; no structured output                                  |
 | `deepseek-v3-2-251201`       | 128K    | Reasoning defaults **off**; no structured output                   |
-| `gpt-oss-120b-250805`        | 128K    | Only model accepting `thinking: { type: 'auto' }`                  |
+| `gpt-oss-120b-250805`        | 128K    | Reasoning levels `low`, `medium`, `high`                           |
 
 `BYTEPLUS_CHAT_MODELS` is the full list of 18 (also
 `seed-2-0-mini-260215`, `seed-2-0-code-preview-260328`, `seed-1-8-251228`,
@@ -72,8 +72,6 @@ chat({
   messages,
   modelOptions: {
     // Ark-only
-    thinking: { type: 'enabled' }, // 'enabled' | 'disabled' | 'auto' ('auto': gpt-oss-120b only)
-    reasoning_effort: 'medium', // 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
     repetition_penalty: 1.1,
     service_tier: 'default', // 'default' | 'flex' (flex = cheaper offline batch queue)
     // Sampling (OpenAI-compatible names)
@@ -122,8 +120,10 @@ BYTEPLUS_VOICE_API_KEY   # TTS + transcription — a DIFFERENT product key
   reject `json_object` too, so there is no JSON-mode fallback. `glm-4-7-251222`
   is excluded deliberately — it accepts the schema with `200` and then answers
   in prose. `seed-2-0-lite-260428` is _not_ on the list.
-- **`reasoning_effort` + `thinking: { type: 'disabled' }` is a 400.** So is
-  sending both `max_tokens` and `max_completion_tokens`.
+- **Thinking is `chat({ reasoning })`.** The adapter sends `thinking.type`
+  plus `reasoning_effort`, and only `disabled` for `off`, because Ark rejects
+  an effort next to it. Sending both `max_tokens` and `max_completion_tokens`
+  is a 400.
 - **`reasoning_effort` values are gated per model.** `minimal` / `low` /
   `medium` / `high` are general; `none` and `xhigh` are accepted only by
   `glm-5-2-260617`; `max` only by `glm-5-2-260617` and the two
