@@ -24,14 +24,14 @@ export interface McpConnectorOptions {
   label: string
   /** The MCP server URL (Streamable HTTP), for example `https://mcp.notion.com/mcp`. */
   url: string
-  /** Tool name prefix. Default: the id. Tools are named `<prefix>_<tool>`. */
+  /** Tool name prefix. Default: the id. Tools are named `<prefix>_<tool>` unless `toolName` is set. */
   prefix?: string
   /**
    * The name the model sees for each tool. Wins over `prefix`.
    * See `MCPClientOptions.toolName`.
    */
   toolName?: MCPClientOptions['toolName']
-  /** Sent with every request to the server. See `MCPClientOptions.requestOptions`. */
+  /** Sent with tool lists, tool calls, resources, and prompts. See `MCPClientOptions.requestOptions`. */
   requestOptions?: MCPClientOptions['requestOptions']
   /** OAuth scopes to ask for. Default: what the server offers. */
   scopes?: ReadonlyArray<string>
@@ -187,7 +187,8 @@ function credentialProvider(
  * - `/connect <id>` finds the server's OAuth settings, registers a client,
  *   and opens the browser (PKCE, loopback on `127.0.0.1`).
  * - The tokens stay in the credential store. The model never sees them.
- * - After sign-in, the next turn has the server's tools, named `<prefix>_<tool>`.
+ * - After sign-in, the next turn has the server's tools, named
+ *   `<prefix>_<tool>` by default. `toolName` can change the names.
  *   Tools that can change data ask for approval.
  *
  * @example

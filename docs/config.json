@@ -508,13 +508,13 @@
           "label": "MCP Server Tools",
           "to": "tools/mcp",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-03"
         },
         {
           "label": "Managed MCP with chat()",
           "to": "tools/mcp-managed",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-03"
         },
         {
           "label": "Manual MCP",
