@@ -3298,7 +3298,7 @@ class TextEngine<
       if (this.toolCallManager.hasToolCalls()) {
         this.addAssistantToolCallMessage(this.toolCallManager.getToolCalls())
       } else {
-        this.addAssistantTextMessageForInterrupt()
+        this.addTerminalAssistantMessages()
       }
     }
     const actionable = this.getBoundaryActionableToolRequests(toolCalls)
@@ -3310,15 +3310,6 @@ class TextEngine<
       inputRequired,
     )
     return true
-  }
-
-  private addAssistantTextMessageForInterrupt(): void {
-    if (this.accumulatedContent.length === 0) return
-    this.messages = [
-      ...this.messages,
-      { role: 'assistant', content: this.accumulatedContent },
-    ]
-    this.middlewareCtx.messages = this.messages
   }
 
   private getBoundaryActionableToolRequests(
