@@ -555,6 +555,45 @@ describe('makeMcpExecute', () => {
     )
   })
 
+  it('sends requestOptions with the abortSignal to client.callTool', async () => {
+    const callTool = vi
+      .fn()
+      .mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
+    const controller = new AbortController()
+    const execute = makeMcpExecute(fakeMcpClient(callTool), 'x', false, false, {
+      timeout: 5000,
+      resetTimeoutOnProgress: true,
+    })
+    await expect(execute({}, { abortSignal: controller.signal })).resolves.toBe(
+      'ok',
+    )
+    expect(callTool).toHaveBeenCalledWith(
+      { name: 'x', arguments: {} },
+      {
+        timeout: 5000,
+        resetTimeoutOnProgress: true,
+        // The SDK asks the server for progress only with an onprogress callback.
+        onprogress: expect.any(Function),
+        signal: controller.signal,
+        allowInputRequired: true,
+      },
+    )
+  })
+
+  it('adds no onprogress when resetTimeoutOnProgress is not set', async () => {
+    const callTool = vi
+      .fn()
+      .mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
+    const execute = makeMcpExecute(fakeMcpClient(callTool), 'x', false, false, {
+      timeout: 5000,
+    })
+    await execute({})
+    expect(callTool).toHaveBeenCalledWith(
+      { name: 'x', arguments: {} },
+      { timeout: 5000, allowInputRequired: true },
+    )
+  })
+
   it('rejects without calling the server when the signal is already aborted', async () => {
     const callTool = vi.fn()
     const client = fakeMcpClient(callTool)
@@ -1012,6 +1051,30 @@ describe('callMcpTool — spec 2026 raw requests', () => {
     }
   })
 
+  it('uses the requestOptions timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      const { client } = scriptedModernClient(() => [])
+      const outcome = callMcpTool(
+        client,
+        'ask',
+        {},
+        false,
+        undefined,
+        undefined,
+        {
+          timeout: 1000,
+        },
+      ).catch((error: unknown) => error)
+      await vi.advanceTimersByTimeAsync(1000)
+      const error = await outcome
+      expect(error).toBeInstanceOf(Error)
+      expect(String(error)).toContain('timed out after 1000 ms')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('reads every input request shape', async () => {
     const call = (result: unknown) =>
       callMcpTool(
@@ -1186,6 +1249,23 @@ describe('callMcpTool — spec 2025 task replies', () => {
     await expect(callMcpTool(client, 'job', {}, true)).resolves.toEqual(
       okResult,
     )
+  })
+
+  it('sends requestOptions with the task tools/call', async () => {
+    const seen: Array<unknown> = []
+    const client = {
+      getProtocolEra: () => 'legacy',
+      async request(_rpc: unknown, _schema: unknown, options?: unknown) {
+        seen.push(options)
+        return okResult
+      },
+    } as unknown as Client
+    await expect(
+      callMcpTool(client, 'job', {}, true, undefined, undefined, {
+        timeout: 5000,
+      }),
+    ).resolves.toEqual(okResult)
+    expect(seen).toEqual([{ timeout: 5000 }])
   })
 
   it('throws the abort reason when the request fails after an abort', async () => {

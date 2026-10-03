@@ -651,6 +651,104 @@ describe('clientOptions', () => {
   })
 })
 
+describe('requestOptions', () => {
+  it('sends the timeout with tools/list, tools/call, resources, and prompts', async () => {
+    const { clientTransport } = await makeSilentServer()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      requestOptions: { timeout: 50 },
+    })
+    // The server never answers, so only the 50 ms timeout ends a request.
+    await expect(client.tools()).rejects.toThrow('Request timed out')
+    await expect(client.callTool('slow')).rejects.toThrow('Request timed out')
+    await expect(client.resources()).rejects.toThrow('Request timed out')
+    await expect(client.readResource('file:///a.txt')).rejects.toThrow(
+      'Request timed out',
+    )
+    await expect(client.resourceTemplates()).rejects.toThrow(
+      'Request timed out',
+    )
+    await expect(client.prompts()).rejects.toThrow('Request timed out')
+    await expect(client.getPrompt('brief')).rejects.toThrow('Request timed out')
+  }, 5000)
+
+  it('sends the timeout with the spec 2025 listTools cache fill', async () => {
+    const { clientTransport } = await makeServerThatAnswersListOnce()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      requestOptions: { timeout: 50 },
+    })
+    // The raw walk gets the first answer. Only the cache fill is left
+    // unanswered, so only the 50 ms timeout can end it.
+    await expect(client.tools()).rejects.toThrow('Request timed out')
+  }, 5000)
+
+  it('restarts the timeout on progress with resetTimeoutOnProgress', async () => {
+    const { clientTransport, sawProgressToken } = await makeProgressServer()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      requestOptions: { timeout: 200, resetTimeoutOnProgress: true },
+    })
+    // The tool runs 300 ms and reports progress every 50 ms.
+    const result = await client.callTool('slow')
+    expect(result.content).toEqual([{ type: 'text', text: 'done' }])
+    // The client asked for progress, so the server could send it.
+    expect(sawProgressToken()).toBe(true)
+  })
+
+  it('times out a long tool without resetTimeoutOnProgress', async () => {
+    const { clientTransport } = await makeProgressServer()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      requestOptions: { timeout: 200 },
+    })
+    await expect(client.callTool('slow')).rejects.toThrow('Request timed out')
+  })
+
+  it('sends requestOptions with the execute of tools from client.tools()', async () => {
+    const { clientTransport } = await makeProgressServer()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      requestOptions: { timeout: 200 },
+    })
+    const [tool] = await client.tools()
+    await expect(
+      tool!.execute!({}, { toolCallId: 't', emitCustomEvent: () => {} }),
+    ).rejects.toThrow('Request timed out')
+  })
+
+  it('sends requestOptions with the execute of tools from client.tools([defs])', async () => {
+    const { clientTransport } = await makeProgressServer()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      requestOptions: { timeout: 200 },
+    })
+    const [tool] = await client.tools([
+      toolDefinition({
+        name: 'slow',
+        description: 'Slow tool',
+        inputSchema: z.object({}),
+      }),
+    ])
+    await expect(
+      tool!.execute!({}, { toolCallId: 't', emitCustomEvent: () => {} }),
+    ).rejects.toThrow('Request timed out')
+  })
+
+  it('reports requestOptions on getInfo so a rebuilt client keeps them', async () => {
+    const { clientTransport } = await makeServerWithWeatherTool()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      requestOptions: { timeout: 5000 },
+    })
+    expect(client.getInfo()).toStrictEqual({
+      transport: undefined,
+      prefix: undefined,
+      requestOptions: { timeout: 5000 },
+    })
+  })
+})
+
 // tools/list always returns a new cursor, so pagination never reaches the last page.
 async function makeServerWithUnendingToolList() {
   const [clientTransport, serverTransport] =
@@ -755,4 +853,75 @@ function isSubscriptionsListen(
     message.method === 'subscriptions/listen' &&
     (typeof message.id === 'string' || typeof message.id === 'number')
   )
+}
+
+// A spec 2025 server that never answers a request after the handshake.
+async function makeSilentServer() {
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  const server = new Server(
+    { name: 'silent', version: '1.0.0' },
+    { capabilities: { tools: {}, resources: {}, prompts: {} } },
+  )
+  const never = () => new Promise<never>(() => {})
+  server.setRequestHandler('tools/list', never)
+  server.setRequestHandler('tools/call', never)
+  server.setRequestHandler('resources/list', never)
+  server.setRequestHandler('resources/read', never)
+  server.setRequestHandler('resources/templates/list', never)
+  server.setRequestHandler('prompts/list', never)
+  server.setRequestHandler('prompts/get', never)
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
+// A spec 2025 server that answers the first tools/list and never answers again.
+async function makeServerThatAnswersListOnce() {
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  const server = new Server(
+    { name: 'answers-once', version: '1.0.0' },
+    { capabilities: { tools: {} } },
+  )
+  let calls = 0
+  server.setRequestHandler('tools/list', () => {
+    calls += 1
+    if (calls > 1) return new Promise<never>(() => {})
+    return {
+      tools: [{ name: 'slow', inputSchema: { type: 'object' as const } }],
+    }
+  })
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
+// A spec 2025 tool that runs 300 ms. It reports progress every 50 ms when
+// the request carries a progressToken.
+async function makeProgressServer() {
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  const server = new Server(
+    { name: 'progress', version: '1.0.0' },
+    { capabilities: { tools: {} } },
+  )
+  let sawToken = false
+  server.setRequestHandler('tools/list', () => ({
+    tools: [{ name: 'slow', inputSchema: { type: 'object' as const } }],
+  }))
+  server.setRequestHandler('tools/call', async (_request, ctx) => {
+    const progressToken = ctx.mcpReq._meta?.progressToken
+    if (progressToken !== undefined) sawToken = true
+    for (let step = 1; step <= 6; step += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      if (progressToken !== undefined) {
+        await ctx.mcpReq.notify({
+          method: 'notifications/progress',
+          params: { progressToken, progress: step, total: 6 },
+        })
+      }
+    }
+    return { content: [{ type: 'text' as const, text: 'done' }] }
+  })
+  await server.connect(serverTransport)
+  return { server, clientTransport, sawProgressToken: () => sawToken }
 }

@@ -31,6 +31,8 @@ export interface McpConnectorOptions {
    * See `MCPClientOptions.toolName`.
    */
   toolName?: MCPClientOptions['toolName']
+  /** Sent with every request to the server. See `MCPClientOptions.requestOptions`. */
+  requestOptions?: MCPClientOptions['requestOptions']
   /** OAuth scopes to ask for. Default: what the server offers. */
   scopes?: ReadonlyArray<string>
   /** The client name shown on the consent screen. Default `'TanStack AI Harness'`. */
@@ -249,6 +251,7 @@ export function mcpConnector(options: McpConnectorOptions) {
                 },
                 prefix,
                 toolName: options.toolName,
+                requestOptions: options.requestOptions,
                 needsApproval:
                   options.needsApproval ??
                   ((tool) => tool.annotations?.readOnlyHint !== true),

@@ -10,6 +10,7 @@ import {
   callMcpTool,
   makeMcpExecute,
   requiresTaskExecution,
+  sdkRequestOptions,
   serverSupportsTaskCalls,
   toolMcpMetadata,
   toServerTools,
@@ -58,7 +59,7 @@ export type TypedCallToolResult<TOutput> = unknown extends TOutput
 
 type ToolPolicy = Pick<
   MCPClientOptions,
-  'toolFilter' | 'needsApproval' | 'toolName'
+  'toolFilter' | 'needsApproval' | 'toolName' | 'requestOptions'
 >
 
 export interface MCPClient<
@@ -147,6 +148,7 @@ export interface MCPClient<
     toolFilter?: MCPClientOptions['toolFilter']
     needsApproval?: MCPClientOptions['needsApproval']
     toolName?: MCPClientOptions['toolName']
+    requestOptions?: MCPClientOptions['requestOptions']
   }
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
@@ -213,8 +215,9 @@ class MCPClientImpl<
     toolFilter?: MCPClientOptions['toolFilter']
     needsApproval?: MCPClientOptions['needsApproval']
     toolName?: MCPClientOptions['toolName']
+    requestOptions?: MCPClientOptions['requestOptions']
   } {
-    const { toolFilter, needsApproval, toolName } = this.#policy
+    const { toolFilter, needsApproval, toolName, requestOptions } = this.#policy
     return {
       transport: this.#transport,
       prefix: this.prefix,
@@ -222,6 +225,7 @@ class MCPClientImpl<
       ...(toolFilter ? { toolFilter } : {}),
       ...(needsApproval ? { needsApproval } : {}),
       ...(toolName ? { toolName } : {}),
+      ...(requestOptions ? { requestOptions } : {}),
     }
   }
 
@@ -268,19 +272,20 @@ class MCPClientImpl<
   // `raw: true` is the lazy `callTool` path. It must stay free of that cache.
   async #listTools(options?: { raw?: boolean }) {
     const client = this.#client
+    const requestOptions = sdkRequestOptions(this.#policy.requestOptions)
     const defs = await listPages(async (cursor) => {
       const page =
         cursor === undefined
-          ? await client.request({ method: 'tools/list' })
-          : await client.request({
-              method: 'tools/list',
-              params: { cursor },
-            })
+          ? await client.request({ method: 'tools/list' }, requestOptions)
+          : await client.request(
+              { method: 'tools/list', params: { cursor } },
+              requestOptions,
+            )
       return { items: page.tools, nextCursor: page.nextCursor }
     })
     this.#toolDefinitions = new Map(defs.map((def) => [def.name, def]))
     if (options?.raw !== true && client.getProtocolEra() !== 'modern') {
-      await client.listTools()
+      await client.listTools(undefined, requestOptions)
     }
     return defs
   }
@@ -297,7 +302,7 @@ class MCPClientImpl<
       : // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         ((defsOrOptions as ToolsOptions) ?? {}) // SDK interop: defsOrOptions may be undefined at runtime even though TS types it as ToolsOptions here
 
-    const { toolFilter, needsApproval, toolName } = this.#policy
+    const { toolFilter, needsApproval, toolName, requestOptions } = this.#policy
     const listed = await this.#listTools()
     const defs = toolFilter ? listed.filter((def) => toolFilter(def)) : listed
 
@@ -322,6 +327,7 @@ class MCPClientImpl<
             def.name,
             Boolean(def.outputSchema),
             requiresTaskExecution(serverTool),
+            requestOptions,
           ),
         ) as ServerTool
         // A caller-supplied definition may already carry its own `mcp` block,
@@ -363,6 +369,7 @@ class MCPClientImpl<
         toolName,
         lazy: options.lazy,
         needsApproval,
+        requestOptions,
       })
     }
 
@@ -377,22 +384,27 @@ class MCPClientImpl<
 
   async resources(): Promise<Array<Resource>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
-    return (await this.#client.listResources()).resources
+    const options = sdkRequestOptions(this.#policy.requestOptions)
+    return (await this.#client.listResources(undefined, options)).resources
   }
 
   async readResource(uri: string): Promise<ReadResourceResult> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
-    return this.#client.readResource({ uri })
+    const options = sdkRequestOptions(this.#policy.requestOptions)
+    return this.#client.readResource({ uri }, options)
   }
 
   async resourceTemplates(): Promise<Array<ResourceTemplateType>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
-    return (await this.#client.listResourceTemplates()).resourceTemplates
+    const options = sdkRequestOptions(this.#policy.requestOptions)
+    return (await this.#client.listResourceTemplates(undefined, options))
+      .resourceTemplates
   }
 
   async prompts(): Promise<Array<Prompt>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
-    return (await this.#client.listPrompts()).prompts
+    const options = sdkRequestOptions(this.#policy.requestOptions)
+    return (await this.#client.listPrompts(undefined, options)).prompts
   }
 
   async getPrompt(name: string, args?: unknown): Promise<GetPromptResult> {
@@ -403,7 +415,8 @@ class MCPClientImpl<
           Object.entries(args).map(([key, value]) => [key, String(value)]),
         )
       : undefined
-    return this.#client.getPrompt({ name, arguments: promptArgs })
+    const options = sdkRequestOptions(this.#policy.requestOptions)
+    return this.#client.getPrompt({ name, arguments: promptArgs }, options)
   }
 
   async callTool<TName extends keyof TServer['tools'] & string>(
@@ -438,6 +451,8 @@ class MCPClientImpl<
       isArgs(args) ? args : {},
       taskRequired,
       options?.signal,
+      undefined,
+      this.#policy.requestOptions,
     )
     // Trust boundary: the server type says what `structuredContent` holds.
     // The client does not check the wire value against that type.
@@ -525,6 +540,7 @@ async function connectTransport<
       toolFilter: options.toolFilter,
       needsApproval: options.needsApproval,
       toolName: options.toolName,
+      requestOptions: options.requestOptions,
     },
   )
   await impl.connect(transport)

@@ -134,6 +134,26 @@ export interface MCPClientOptions {
    */
   clientOptions?: ClientOptions
   /**
+   * Sent with every request this client makes: `tools/list`, `tools/call`,
+   * resources, and prompts. SDK defaults when unset.
+   *
+   * A spec 2026 `tools/call` gets no progress notifications, so there only
+   * `timeout` applies.
+   *
+   * ```ts
+   * const mcp = await createMCPClient({
+   *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+   *   requestOptions: { timeout: 120_000, resetTimeoutOnProgress: true },
+   * })
+   * ```
+   */
+  requestOptions?: {
+    /** Milliseconds. The SDK default is 60,000. */
+    timeout?: number
+    /** Restart the timeout when the server sends a progress notification. */
+    resetTimeoutOnProgress?: boolean
+  }
+  /**
    * Return `false` to hide a server tool. Receives the raw MCP tool definition
    * (native `name`, `title`, `annotations`). Default: every tool.
    *

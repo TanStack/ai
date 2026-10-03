@@ -131,6 +131,7 @@ function buildRegistry(clients: McpAppClientsInput): AppRegistry {
     toolFilter?: McpServerDescriptor['toolFilter']
     needsApproval?: McpServerDescriptor['needsApproval']
     toolName?: McpServerDescriptor['toolName']
+    requestOptions?: McpServerDescriptor['requestOptions']
   }) => {
     const descriptor: McpServerDescriptor = {
       transport: info.transport,
@@ -139,6 +140,7 @@ function buildRegistry(clients: McpAppClientsInput): AppRegistry {
       ...(info.toolFilter ? { toolFilter: info.toolFilter } : {}),
       ...(info.needsApproval ? { needsApproval: info.needsApproval } : {}),
       ...(info.toolName ? { toolName: info.toolName } : {}),
+      ...(info.requestOptions ? { requestOptions: info.requestOptions } : {}),
     }
     total += 1
     const key = info.prefix
@@ -244,11 +246,15 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
     // can come back without `toolFilter`, `needsApproval`, or `toolName`. Fall
     // back to the options of the same server in `clients`, or a widget could
     // call a tool the model cannot see, or run one the model can run only
-    // after approval.
+    // after approval. A stored descriptor can also lack `requestOptions` when
+    // the code that wrote it did not set it. Then the widget call uses the
+    // timeout of the same server in `clients`.
     const toolFilter = descriptor.toolFilter ?? fromRegistry?.toolFilter
     const needsApproval =
       descriptor.needsApproval ?? fromRegistry?.needsApproval
     const toolName = descriptor.toolName ?? fromRegistry?.toolName
+    const requestOptions =
+      descriptor.requestOptions ?? fromRegistry?.requestOptions
     const client = await createMCPClient({
       transport: descriptor.transport,
       prefix: descriptor.prefix,
@@ -258,6 +264,7 @@ export function createMcpAppCallHandler(opts: McpAppCallHandlerOptions) {
       ...(toolFilter ? { toolFilter } : {}),
       ...(needsApproval ? { needsApproval } : {}),
       ...(toolName ? { toolName } : {}),
+      ...(requestOptions ? { requestOptions } : {}),
     })
 
     try {

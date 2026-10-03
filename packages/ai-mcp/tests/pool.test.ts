@@ -238,6 +238,23 @@ describe('createMCPClients', () => {
     })
     await expect(pool.tools()).rejects.toThrow(DuplicateToolNameError)
   })
+
+  it('reports each server requestOptions on getServers()', async () => {
+    const a = await makeServerWithWeatherTool()
+    await using pool = await createMCPClients({
+      alpha: {
+        transport: a.clientTransport,
+        requestOptions: { timeout: 5000 },
+      },
+    })
+    expect(pool.getServers()).toStrictEqual({
+      alpha: {
+        transport: undefined,
+        prefix: 'alpha',
+        requestOptions: { timeout: 5000 },
+      },
+    })
+  })
 })
 
 // The server has no public setter for the negotiated era, so the test sets it.

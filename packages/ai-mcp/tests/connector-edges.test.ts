@@ -499,4 +499,52 @@ describe('mcpConnector client options', () => {
     await session.prompt('hi')
     expect(model.toolNames(0)).toEqual(['mcp__demo__echo'])
   })
+
+  it('sends requestOptions with each MCP request', async () => {
+    const { server, host } = await setup({
+      type: 'oauth',
+      accessToken: 'access-1',
+    })
+    const model = recorder()
+    const held: Array<Promise<Response>> = []
+    const session = await host.open(
+      defineHarness({
+        name: 'test/request-options',
+        adapter: model.adapter,
+        plugins: () => [
+          mcpConnector({
+            id: 'demo',
+            label: 'Demo',
+            url: server.url,
+            requestOptions: { timeout: 50 },
+            // Hold the tools/list answer for 500 ms, so only the 50 ms
+            // timeout can end that request.
+            fetch: (input, init) => {
+              const response = fetch(input, init)
+              const body = init?.body
+              if (typeof body !== 'string' || !body.includes('"tools/list"')) {
+                return response
+              }
+              const late = new Promise<void>((resolve) => {
+                setTimeout(resolve, 500)
+              }).then(() => response)
+              held.push(late)
+              return late
+            },
+          }),
+        ],
+      }),
+      { threadId: 't', principal: { id: 'user-1' } },
+    )
+    const seen = await promptAndCollect(session, 'hi')
+    // Let the held answer finish before the server closes.
+    await Promise.allSettled(held)
+    expect(model.toolNames(0)).toEqual([])
+    expect(customValues(seen, 'harness.plugin.warning')).toEqual([
+      {
+        plugin: 'connector/demo',
+        message: expect.stringContaining('timed out'),
+      },
+    ])
+  })
 })
