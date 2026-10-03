@@ -2435,7 +2435,16 @@ export class ChatClient<
       return
     }
 
-    // Type assertion: after checking for system, we know it's user or assistant
+    // Activity is frontend-only. Keep it in the transcript; do not start a run.
+    if (normalizedMessage.role === 'activity') {
+      const uiMessage = normalizedMessage as UIMessage
+      this.events.messageAppended(uiMessage)
+      const messages = this.processor.getMessages()
+      this.processor.setMessages([...messages, uiMessage])
+      this.devtoolsBridge.emitSnapshot()
+      return
+    }
+
     const uiMessage = normalizedMessage as UIMessage
 
     // Emit message appended event
@@ -2503,7 +2512,8 @@ export class ChatClient<
     let runTerminalEventEmitted = false
 
     try {
-      // Get UIMessages with parts (preserves approval state and client tool results)
+      // Get UIMessages with parts (preserves approval state and client tool results).
+      // Activity is frontend-only — never send it as model input.
       const messages = this.messagesForSend(this.processor.getMessages())
       const clientTools = new Map(this.clientToolsRef.current)
       const runtimeContext = this.context
@@ -3138,6 +3148,7 @@ export class ChatClient<
    * Get current messages
    */
   getMessages(): Array<UIMessage<TTools>> {
+    // StreamProcessor is untyped over client tools / output schema.
     return this.processor.getMessages() as Array<UIMessage<TTools>>
   }
 
@@ -3283,11 +3294,12 @@ export class ChatClient<
   }
 
   private messagesForSend(messages: Array<UIMessage>) {
+    const forModel = messages.filter((message) => message.role !== 'activity')
     if (this.historyPageSize === undefined) {
-      return messages
+      return forModel
     }
     const unknownMessages: Array<UIMessage> = []
-    for (const message of messages) {
+    for (const message of forModel) {
       const isKnown = this.knownServerMessageIds.has(message.id)
       if (isKnown) {
         continue
@@ -3300,13 +3312,13 @@ export class ChatClient<
     // No new ids: reload has already dropped the old assistant, so this is
     // `[lastUser]`. Resume/continue still has the assistant, so the cutoff is
     // that assistant and the stored tool-call stays.
-    const lastUserIndex = messages.findLastIndex(
+    const lastUserIndex = forModel.findLastIndex(
       (message) => message.role === 'user',
     )
     if (lastUserIndex === -1) {
       return []
     }
-    return messages.slice(lastUserIndex)
+    return forModel.slice(lastUserIndex)
   }
 
   /**
