@@ -39,6 +39,9 @@ Three steps: pick an adapter, wrap your response with it, add a `GET` handler.
 - `durableStream(request, options)` from `@tanstack/ai-durable-stream` writes to
   an external [Durable Streams](https://durablestreams.com) backend. Use this in
   production, where requests span many processes.
+- `upstashStream(request)` from `@upstash/agentkit-tanstack-ai` writes to Upstash
+  Redis Streams. It is a third-party adapter, see
+  [Upstash](../community-adapters/upstash#resumable-streams).
 
 Using a different store (Redis, Postgres, a queue)? Implement the four-method
 `StreamDurability` interface: see [Custom Durability Adapter](./custom-adapter).

@@ -129,7 +129,7 @@ Open http://localhost:3105. Paste an OpenRouter key. Send a prompt. Then refresh
 
 ### Evaluate
 
-A slim TanStack Start app. Paste a support ticket. Jev answers queue, urgency, and refund.
+A slim TanStack Start app. Paste a support ticket. The app shows queue, urgency, and refund.
 
 **Path:** `examples/react/evaluate`
 
@@ -139,7 +139,7 @@ A slim TanStack Start app. Paste a support ticket. Jev answers queue, urgency, a
 pnpm --filter evaluate dev
 ```
 
-Open http://localhost:3100. Add a key in `.env`. Pick a provider. Click Submit.
+Open http://localhost:3100. For a hosted provider, add its key in `.env`. For Ollaya, run `ollaya serve` and `ollaya pull laya:latest`. Pick a provider. Click Submit.
 
 📖 [Full Documentation](react/evaluate/README.md)
 

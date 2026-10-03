@@ -182,11 +182,12 @@ byok.setServerCoverage(true);
 
 Then a send with no pasted key still POSTs. The relay uses the env key. If that is also empty, the relay returns `byokMissing` (401). The client sets `snapshot.prompt`.
 
-## Image, audio, and OpenRouter
+## Image, audio, and other providers
 
 For other cases:
 
 - Image and audio POSTs use the same store. See [Generation Hooks](../media/generation-hooks#usegenerateaudio).
+- OpenAI users can sign in with ChatGPT and skip the key. See [Sign in with ChatGPT](../adapters/openai#sign-in-with-chatgpt-byok).
 - OpenRouter can mint a key with OAuth. See [Sign in with OpenRouter](../adapters/openrouter#sign-in-with-openrouter-byok).
 - Lovable uses `lovableByok` from `@tanstack/ai-lovable/byok`. See [Lovable AI Gateway](../adapters/lovable#bring-your-own-key).
 - Cloudflare needs a token plus an account id. `cloudflareByok` from `@tanstack/ai-cloudflare/byok` declares `cloudflareAccountByok` as a companion. Pass both to `defineByok({ providers })` and a send for `cloudflare` carries both headers. See [Cloudflare](../adapters/cloudflare#bring-your-own-key).

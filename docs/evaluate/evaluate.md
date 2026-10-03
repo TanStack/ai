@@ -13,6 +13,8 @@ keywords:
   - boolean
   - typesafe
   - jev
+  - ollaya
+  - laya
 ---
 
 You have a ticket, a record, or a log, and you need answers your code can branch on.
@@ -23,14 +25,15 @@ By the end of this guide you call `decide()` once and read typed fields like `re
 
 ## Providers
 
-Evaluate talks to TypeSafe Jev through four adapters:
+Evaluate talks to a decision model through five adapters:
 
+- **[Ollaya](../adapters/ollaya)** (`@tanstack/ai-ollaya`): `ollayaDecider('laya:latest')`. Local server at `http://127.0.0.1:11435`. No API key.
 - **TypeSafe** (`@tanstack/ai-typesafe`): `typesafeDecider('jev-latest')`. Reads `TYPESAFE_API_KEY`.
 - **OpenRouter** (`@tanstack/ai-openrouter`): `openRouterDecider('~typesafe/jev-latest')`. Reads `OPENROUTER_API_KEY`.
 - **Vercel AI Gateway** (`@tanstack/ai-vercel-gateway`): `vercelGatewayDecider('typesafe-ai/jev')`. Reads `AI_GATEWAY_API_KEY`.
 - **Cloudflare** (`@tanstack/ai-cloudflare`): `cloudflareDecider('typesafe/jev')`. Uses a Worker binding, or `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`.
 
-All four implement the same `evaluate` activity. Swap the adapter. Keep the `decide()` call.
+All five implement the same `evaluate` activity. Swap the adapter. Keep the `decide()` call.
 
 ## Installation
 
@@ -66,6 +69,7 @@ octane: @tanstack/ai
 
 Other adapters:
 
+- [Ollaya](../adapters/ollaya): `@tanstack/ai-ollaya`
 - OpenRouter: `@tanstack/ai-openrouter`
 - Vercel AI Gateway: `@tanstack/ai-vercel-gateway`
 - Cloudflare: `@tanstack/ai-cloudflare`
@@ -442,20 +446,32 @@ If a question key is `meta`, `decide()` throws.
 
 `examples/react/evaluate` is a small TanStack Start app that runs this page.
 Paste a support ticket. The UI shows queue, urgency, and refund.
-A dropdown switches among the four adapters over the same `decide()` call.
+The dropdown lists five adapters. Each call to `decide()` uses the same questions.
+
+1. Copy `.env.example` to `.env`.
+2. If you pick a hosted adapter, add its key in `.env`.
+3. If you pick Ollaya, run `ollaya serve`.
+4. If you pick Ollaya, run `ollaya pull laya:latest`.
+5. Run the dev server with the command below.
+
+Ollaya does not need an API key.
 
 ```bash
 pnpm --filter evaluate dev
 ```
 
-Open http://localhost:3100. Copy `.env.example` to `.env` first, and add a key for the adapter you pick.
-
-Add a key for the adapter you pick. Then open the app and paste a ticket.
+Open http://localhost:3100.
 
 ## Next Steps
 
-- [Evaluate a ticket](../tutorials/evaluate) - Build a Start route that routes a ticket
+Local:
+
+- [Ollaya Adapter](../adapters/ollaya) - Local `laya` decisions. No API key.
 - [TypeSafe Adapter](../adapters/typesafe) - Direct Jev, models, and explicit API keys
+- [Evaluate a ticket](../tutorials/evaluate) - Build a Start route that routes a ticket
+
+Hosted:
+
 - [OpenRouter Adapter](../adapters/openrouter) - Evaluate through your OpenRouter key
 - [Vercel AI Gateway](../adapters/vercel-gateway) - Evaluate through the Gateway
 - [Cloudflare Adapter](../adapters/cloudflare) - Evaluate from a Worker or REST
