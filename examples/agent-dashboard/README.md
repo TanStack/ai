@@ -102,6 +102,45 @@ interrupt through **both** paths the interrupt supports:
 - **Deny** → the harness-native control endpoint (`/api/harness/control`).
 - **Edit** → approve with edited tool arguments.
 
+## Operate a live run
+
+Open a team and start a run. The team page gives you these controls:
+
+1. Select **Trace** to see run, model, tool, and approval spans in a live waterfall.
+2. Select **approve** or **deny** on an approval span to continue the run.
+3. Send a message during a run to steer it.
+4. Select **Stop** to cancel the run.
+5. Answer an agent question with its question card.
+
+The **Spend** page shows token use and estimated dollar cost. Scripted demo
+agents cost `$0.00`. The `sentiment/react` agent uses the price for
+`claude-haiku-4-5` from the Anthropic model metadata.
+
+## Manage automations
+
+Use the **Automations** section on a team page to run work on a schedule or from
+a webhook.
+
+1. Select an agent and one of its public tools.
+2. Add an interval or a five-field cron schedule.
+3. Use the schedule list to see the next three runs, pause the schedule, or delete it.
+4. Add a webhook and copy its endpoint.
+5. Use the delivery list to inspect a result or retry the payload.
+
+## Manage the dashboard through MCP
+
+The dashboard serves its management tools at `/api/mcp`. Connect Claude Code:
+
+```bash
+claude mcp add --transport http dashboard http://localhost:3002/api/mcp
+```
+
+The MCP server can list dashboard state, send and steer messages, stop runs,
+answer questions, resolve approvals, run public tools, and control schedules.
+
+This local demo does not require authentication. Add an authentication gate
+before you expose the endpoint outside localhost.
+
 ## Meta-chat (the demo)
 
 `/chat` is the dashboard's **own** agent (`dashboard/meta`), a tool-using chat
