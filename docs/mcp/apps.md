@@ -23,6 +23,8 @@ There are two levels of MCP Apps support:
 - **Static** — the MCP tool result contains a `ui://` resource. TanStack AI reads it during the `chat()` run and surfaces it as a `UIResourcePart` on the assistant `UIMessage`. No extra routes needed; render it with `MCPAppResource`.
 - **Interactive** — the widget's iframe posts tool-call or prompt actions back. You mount a server handler (`createMcpAppCallHandler`) at a route and wire a client bridge (`createMcpAppBridge`) so those actions reach the right MCP server.
 
+To link a tool to its widget from your own TanStack MCP server, see [Tell the host what a tool does](./server#tell-the-host-what-a-tool-does).
+
 ## Static Widgets
 
 When an MCP tool's result carries a `ui://` resource, TanStack AI emits a `UIResourcePart` on the assistant `UIMessage`. The part is added to the message's `parts` array **alongside** the normal `ToolResultPart` — it never enters model input.

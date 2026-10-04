@@ -8,7 +8,7 @@ import {
   resolveMediaPrompt,
   unsupportedFileSourceError,
 } from '@tanstack/ai'
-import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
+import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils'
 import {
@@ -664,12 +664,6 @@ export class GeminiVideoAdapter<
     GeminiVideoModelDurationByName[TModel]
   > {
     return getGeminiVideoDurationOptions(this.model)
-  }
-
-  override snapDuration(
-    seconds: number,
-  ): GeminiVideoModelDurationByName[TModel] | undefined {
-    return snapToDurationOption(seconds, this.availableDurations())
   }
 
   /**

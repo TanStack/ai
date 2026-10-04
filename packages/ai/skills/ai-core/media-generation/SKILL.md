@@ -365,7 +365,7 @@ const { generate, result, isLoading } = useGenerateAudio({
 ### 3. Text-to-Speech
 
 Adapters include `openaiSpeech` (tts-1, tts-1-hd, gpt-4o-audio-preview),
-`byteplusSpeech` (`seed-audio-1.0`), and `elevenlabsSpeech` (`eleven_v3`).
+`byteplusSpeech` (`seed-audio-1.0`), and `elevenlabsSpeech` (`eleven_v4`).
 
 `elevenlabsSpeech` accepts `format: 'mp3' | 'pcm' | 'opus' | 'wav'`.
 WAV output contains 44.1 kHz, 16-bit mono PCM with a RIFF header.
@@ -492,7 +492,7 @@ if (!voice) throw new Error('The provider returned no voices.')
 // voice.status   -> 'ready' on every adapter today
 
 const speech = await generateSpeech({
-  adapter: elevenlabsSpeech('eleven_v3'),
+  adapter: elevenlabsSpeech('eleven_v4'),
   text: 'Once upon a time...',
   voice: voice.voiceId,
 })
@@ -513,7 +513,7 @@ import { listVoices } from '@tanstack/ai'
 import { elevenlabsSpeech } from '@tanstack/ai-elevenlabs'
 
 const { voices } = await listVoices({
-  adapter: elevenlabsSpeech('eleven_v3'),
+  adapter: elevenlabsSpeech('eleven_v4'),
   origins: ['generated', 'cloned'],
 })
 ```

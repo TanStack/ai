@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 import { resolveMediaPrompt } from '@tanstack/ai'
-import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
+import { BaseVideoAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import {
@@ -219,10 +219,6 @@ export class LovableVideoAdapter<
 
   override availableDurations(): DurationOptions<LovableVideoDuration> {
     return { kind: 'discrete', values: VIDEO_DURATIONS }
-  }
-
-  override snapDuration(seconds: number): LovableVideoDuration | undefined {
-    return snapToDurationOption(seconds, this.availableDurations())
   }
 
   protected mapStatus(
