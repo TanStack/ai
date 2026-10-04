@@ -173,10 +173,11 @@ export type VideoCreateOptions<
   /** Video size — format depends on the provider (e.g., "16:9", "1280x720") */
   size?: VideoSizeForAdapter<TAdapter>
   /**
-   * Video duration in seconds. Adapters that declare a per-model duration
-   * map narrow this to the model's valid union (e.g. `4 | 6 | 8` for Veo 3).
-   * Pass `adapter.snapDuration(seconds)` to coerce raw seconds to a valid
-   * value.
+   * Video duration. Adapters that declare a per-model duration map narrow
+   * this to that model's union (for example `4 | 6 | 8` for Veo 3, or
+   * `4 | "4" | "4s"` for Sora). Pass `adapter.snapDuration(input)` to coerce
+   * a raw value. `input` may be seconds, a `"6s"` template, or `"auto"` when
+   * the model lists it.
    */
   duration?: VideoDurationForAdapter<TAdapter>
   /**

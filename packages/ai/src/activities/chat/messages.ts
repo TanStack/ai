@@ -11,6 +11,7 @@ import {
   tanstackMetadata,
   withTanstackMetadata,
 } from '../../utilities/merge-metadata'
+import { isRedactedThinkingId } from '../../utilities/reasoning-encrypted-value'
 import {
   splitSubagentWire,
   subagentWireText,
@@ -70,6 +71,13 @@ function encryptedValueFrom(value: object): string | undefined {
     if (fromSpec !== undefined) return fromSpec
   }
   return nonEmptyString(tanstackMetadata(value)?.signature)
+}
+
+/** `{ redacted: true }` when a reasoning message's id marks a redacted block. */
+function redactedFrom(value: object) {
+  return 'id' in value && isRedactedThinkingId(value.id)
+    ? { redacted: true }
+    : {}
 }
 
 function toolCallFromWire(toolCall: ToolCall, bag: unknown): ToolCall {
@@ -246,7 +254,7 @@ function convertOwnMessages(
   }
 
   const modelMessages: Array<ModelMessage> = []
-  let pendingThinking: Array<{ content: string; signature?: string }> = []
+  let pendingThinking: NonNullable<ModelMessage['thinking']> = []
   for (const msg of messages) {
     if ('parts' in msg) {
       modelMessages.push(...uiMessageToModelMessages(msg))
@@ -273,6 +281,7 @@ function convertOwnMessages(
         pendingThinking.push({
           content: typeof content === 'string' ? content : '',
           ...(signature !== undefined ? { signature } : {}),
+          ...redactedFrom(msg),
         })
       }
       continue
@@ -663,7 +672,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   // shared UI id on each one so persistence can retain the original identity.
   const messageList: Array<ModelMessage> = []
   let current = createSegment()
-  let pendingThinking: Array<{ content: string; signature?: string }> = []
+  let pendingThinking: NonNullable<ModelMessage['thinking']> = []
 
   // Track emitted tool result IDs to avoid duplicates.
   // A tool call can have BOTH an explicit tool-result part AND an output
@@ -764,6 +773,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
           pendingThinking.push({
             content: part.content,
             ...(part.signature && { signature: part.signature }),
+            ...(part.redacted && { redacted: true }),
           })
         }
         break
@@ -898,6 +908,7 @@ export function modelMessageToUIMessage(
         type: 'thinking',
         content: thinking.content,
         ...(thinking.signature && { signature: thinking.signature }),
+        ...(thinking.redacted && { redacted: true }),
       })
     }
   }
@@ -1121,6 +1132,7 @@ export function aguiSnapshotMessageToUIMessage(
                   type: 'thinking' as const,
                   content,
                   ...(signature !== undefined ? { signature } : {}),
+                  ...redactedFrom(message),
                 },
               ]
             : [],

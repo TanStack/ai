@@ -17,3 +17,16 @@ export function rememberServerOptions(
 export function optionsOfServer(server: object) {
   return serverOptionsByServer.get(server)
 }
+
+// A stdio process serves one client, so spec 2025 sessions cost nothing.
+const stdioServers = new WeakSet<object>()
+
+/** Internal. Records that `serveMCPStdio` serves `server`. */
+export function markServedOverStdio(server: object) {
+  stdioServers.add(server)
+}
+
+/** Internal. True when `serveMCPStdio` serves `server`. */
+export function isServedOverStdio(server: object) {
+  return stdioServers.has(server)
+}

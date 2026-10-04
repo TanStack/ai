@@ -182,9 +182,15 @@ describe('OpenRouter combined tools + outputSchema', () => {
           'k',
         ).supportsCombinedToolsAndSchema(),
       ).toBe(false)
+      const modelWithoutCombined = OPENROUTER_CHAT_MODELS.find(
+        (id) => !OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(id),
+      )
+      if (modelWithoutCombined === undefined) {
+        throw new Error('catalog has no model outside the combined set')
+      }
       expect(
         createOpenRouterText(
-          'anthropic/claude-3-haiku',
+          modelWithoutCombined,
           'k',
         ).supportsCombinedToolsAndSchema(),
       ).toBe(false)

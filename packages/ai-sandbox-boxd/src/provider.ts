@@ -154,12 +154,14 @@ class BoxdProvider implements SandboxProvider {
     try {
       input.signal?.throwIfAborted()
       const ready = await this.client.machines.waitUntilReady(machine.id)
+      input.signal?.throwIfAborted()
       const handle = this.handle(ready, input.env)
       // From `/`: the workdir does not exist yet, and every handle exec `cd`s
       // into its cwd first.
       const mkdir = await handle.process.exec(`mkdir -p ${q(this.workdir)}`, {
         cwd: '/',
       })
+      input.signal?.throwIfAborted()
       if (mkdir.exitCode !== 0) {
         throw new Error(
           `boxd: failed to create workspace directory "${this.workdir}" (exit ${mkdir.exitCode}): ${mkdir.stderr.trim()}`,
