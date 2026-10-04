@@ -41,39 +41,35 @@ export function DemoControlsPanel() {
     navigate({ to: '/teams/$teamId', params: { teamId } })
 
   return (
-    <div className="min-h-full space-y-4 bg-neutral-950 p-4 text-white">
+    <div className="min-h-full space-y-4 bg-surface p-4 font-sans text-ink">
       <div>
-        <h2 className="text-sm font-semibold text-amber-200/90">
-          Demo controls
-        </h2>
-        <p className="text-xs text-white/40">
+        <h2 className="font-display text-[17px] font-bold">Demo controls</h2>
+        <p className="text-xs text-ink-3">
           Scaffolding to drive the demo — not part of the product UX. Reads live
           app state (TanStack DB) from the devtools render root.
         </p>
       </div>
 
       <div className="space-y-2">
-        <div className="text-xs uppercase tracking-wide text-white/40">
-          Seeded demos
-        </div>
+        <div className="label">Seeded demos</div>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() =>
               go(createTeam('Support triage', 'support/triage').teamId)
             }
-            className="rounded-md border border-white/15 px-3 py-1.5 text-sm text-white/70 hover:bg-white/[0.05]"
+            className="btn btn-outline"
           >
             + New team
           </button>
           <button
             onClick={() => go(createReactNewsTeam().teamId)}
-            className="rounded-md border border-white/15 px-3 py-1.5 text-sm text-white/70 hover:bg-white/[0.05]"
+            className="btn btn-outline"
           >
             + React-news demo
           </button>
           <button
             onClick={() => go(createPrWatcherTeam().teamId)}
-            className="rounded-md border border-white/15 px-3 py-1.5 text-sm text-white/70 hover:bg-white/[0.05]"
+            className="btn btn-outline"
           >
             + PR-watcher demo
           </button>
@@ -83,7 +79,7 @@ export function DemoControlsPanel() {
       {active?.channelId ? (
         <DemoControls channelId={active.channelId} />
       ) : (
-        <p className="text-xs text-white/40">
+        <p className="text-xs text-ink-3">
           Open a team channel to see its per-channel demo controls.
         </p>
       )}
@@ -126,11 +122,11 @@ function DemoControls({ channelId }: { channelId: string }) {
     memberRows.find((m) => m.role === 'agent') ?? memberRows[0] ?? undefined
 
   if (!channel) {
-    return <p className="text-xs text-white/40">This channel isn't loaded.</p>
+    return <p className="text-xs text-ink-3">This channel isn't loaded.</p>
   }
 
   return (
-    <div className="space-y-4 border-t border-white/10 pt-3">
+    <div className="space-y-4 border-t border-line pt-3">
       {isMain && primary?.harness === 'support/triage' && (
         <button
           disabled={!primary}
@@ -142,7 +138,7 @@ function DemoControls({ channelId }: { channelId: string }) {
               channelId,
             )
           }
-          className="rounded-md border border-white/15 px-3 py-2 text-sm text-white/70 hover:bg-white/[0.05] disabled:opacity-40"
+          className="btn btn-outline"
         >
           ▶ Start triage demo
         </button>

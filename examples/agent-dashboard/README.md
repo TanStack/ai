@@ -27,10 +27,13 @@ pnpm --filter agent-dashboard dev   # http://localhost:3002
 - **TanStack Query** — server state: host/session/run lists and agent config.
 - **Composing teams (product UI)** — the home page is an **agents table**; each
   row's **Add to team** starts a new team with that agent or drops it into an
-  existing one. On a team, **＋ Add agent** adds any available agent, and each
-  roster agent has a **🔧 tools** button to run one of its public tools with
+  existing one. On a team, **Add agent** adds any available agent, and each
+  roster agent has a **Run a tool** (wrench) button to run one of its public tools with
   JSON parameters. Agents carry **default subscriptions** by harness (what they
   react to), so a hand-composed team behaves like a seeded one.
+- **Styling** — Tailwind v4 with the TanStack AI design tokens (colors, type,
+  radii) in `src/styles.css`. Dark is the default; the rail's theme toggle
+  switches to light. Icons are Phosphor (`@phosphor-icons/react`).
 - **TanStack DevTools** — the demo-only scaffolding (the seeded-team launchers,
   the triage demo, automations, pod memory) lives in a custom **Demo Controls**
   panel, kept out of the product UI so it's clear what's scaffolding vs. the real
@@ -45,7 +48,7 @@ service and a _real_ LLM — the graduation from the scripted demo agents:
 
 - **`reddit/fetcher`** — a procedural agent (no LLM) carrying one real tool,
   `reddit.search_react_news`, which reads Reddit's public **RSS (Atom)** feed
-  (read-only, no auth, no key). Run it from the roster's **🔧 tools** button, a
+  (read-only, no auth, no key). Run it from the roster's **Run a tool** button, a
   30-min schedule, or the Demo Controls panel.
 - **`sentiment/react`** — a **real LLM** agent (Anthropic). Its harness default
   subscription is the fetcher's tool _result_

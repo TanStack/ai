@@ -17,7 +17,7 @@ export function TraceWaterfall({ channelId }: { channelId: string }) {
   }
 
   if (rows.length === 0) {
-    return <p className="text-sm text-white/40">No trace data yet.</p>
+    return <p className="py-10 text-center text-ink-3">No trace data yet.</p>
   }
 
   return (
@@ -30,8 +30,8 @@ export function TraceWaterfall({ channelId }: { channelId: string }) {
         const duration = Math.max(finish - start, 1)
         return (
           <section key={runId} className="space-y-1">
-            <div className="flex text-xs text-white/40">
-              <span className="font-mono">{runId}</span>
+            <div className="flex font-mono text-[11px] text-ink-3">
+              <span>{runId}</span>
               <span className="ml-auto">{duration}ms</span>
             </div>
             {[...runSpans]
@@ -70,31 +70,29 @@ function TraceSpan({
     : undefined
 
   return (
-    <div className="grid grid-cols-[10rem_1fr_5rem] items-center gap-2 text-xs">
-      <span className="truncate font-mono" title={span.name}>
+    <div className="grid grid-cols-[12rem_1fr_6rem] items-center gap-3 text-xs">
+      <span className="truncate font-mono text-ink-2" title={span.name}>
         {span.kind} · {span.name}
       </span>
-      <div className="relative h-5 rounded bg-white/5">
+      <div className="relative h-5 rounded-sm bg-surface-raised">
         <div
-          className={`absolute top-1 h-3 rounded ${
-            span.kind === 'tool'
-              ? 'bg-sky-400/70'
-              : span.kind === 'approval'
-                ? 'bg-amber-400/70'
-                : span.kind === 'text'
-                  ? 'bg-fuchsia-400/60'
-                  : 'bg-emerald-400/50'
+          className={`absolute top-1 h-3 rounded-[3px] ${
+            span.kind === 'approval'
+              ? 'bg-warn'
+              : span.kind === 'tool'
+                ? 'bg-ink-2'
+                : 'bg-ink-3'
           }`}
           style={{ left: `${left}%`, width: `${Math.min(width, 100 - left)}%` }}
         />
       </div>
       {approval?.status === 'pending' ? (
-        <span className="flex gap-1">
+        <span className="flex justify-end gap-1">
           <button
             onClick={() =>
               resolveApproval(approval.threadId, approval.id, 'approve')
             }
-            className="text-emerald-300"
+            className="btn btn-sm btn-accent px-1.5 py-0.5"
           >
             approve
           </button>
@@ -102,13 +100,13 @@ function TraceSpan({
             onClick={() =>
               resolveApproval(approval.threadId, approval.id, 'deny')
             }
-            className="text-rose-300"
+            className="btn btn-sm btn-ghost px-1.5 py-0.5"
           >
             deny
           </button>
         </span>
       ) : (
-        <span className="text-right text-white/40">
+        <span className="text-right font-mono text-[11px] text-ink-3">
           {span.end ? `${span.end - span.start}ms` : 'running'}
         </span>
       )}

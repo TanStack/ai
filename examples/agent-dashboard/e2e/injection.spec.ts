@@ -35,7 +35,7 @@ test('run-now executes a public tool; private tools are never listed', async ({
 
   // Run it now — the result streams back as a structured, injected card.
   await page.getByRole('button', { name: 'run fetch_stats' }).click()
-  await expect(page.getByText('⏵ manual')).toBeVisible()
+  await expect(page.getByText('manual trigger')).toBeVisible()
   await expect(page.getByText('fetch_stats').first()).toBeVisible()
 })
 
@@ -49,7 +49,7 @@ test('a scheduled timer fires a public tool into the channel', async ({
   await page.getByLabel('schedule interval seconds').fill('1')
   await page.getByRole('button', { name: '+ Add schedule' }).click()
   // The timer (dashboard-owned clock) fires within a couple of seconds.
-  await expect(page.getByText('⏵ timer').first()).toBeVisible({
+  await expect(page.getByText('timer trigger').first()).toBeVisible({
     timeout: 10000,
   })
 
@@ -63,7 +63,7 @@ test('a webhook produces the same injected result as the other triggers', async 
   await newTeam(page)
 
   await page.getByRole('button', { name: 'Send test webhook' }).click()
-  await expect(page.getByText('⏵ webhook')).toBeVisible()
+  await expect(page.getByText('webhook trigger')).toBeVisible()
 })
 
 test('an injected job queues while the host is offline and flushes on reconnect', async ({
@@ -77,9 +77,9 @@ test('an injected job queues while the host is offline and flushes on reconnect'
   // Injecting while offline queues instead of running — no card appears yet.
   await page.getByRole('button', { name: 'run fetch_stats' }).click()
   await expect(page.getByText(/1 queued/)).toBeVisible()
-  await expect(page.getByText('⏵ manual')).toHaveCount(0)
+  await expect(page.getByText('manual trigger')).toHaveCount(0)
 
   // Reconnect → the queue flushes → the result appears.
   await page.getByRole('button', { name: 'Bring host online' }).click()
-  await expect(page.getByText('⏵ manual')).toBeVisible({ timeout: 8000 })
+  await expect(page.getByText('manual trigger')).toBeVisible({ timeout: 8000 })
 })

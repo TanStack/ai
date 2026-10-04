@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { answerAgentQuestion } from './devtools'
+import { answerAgentQuestion, closeDemo } from './devtools'
 
 test('config form reads and writes ConfigOption schemas', async ({ page }) => {
   await page.goto('/config')
@@ -20,6 +20,7 @@ test('config form reads and writes ConfigOption schemas', async ({ page }) => {
 test('spend dashboard shows live token usage after a run', async ({ page }) => {
   const threadId = `spend-${Date.now()}`
   await page.goto(`/sessions/${threadId}`)
+  await closeDemo(page)
   await page.getByRole('button', { name: 'Start triage demo' }).click()
   await answerAgentQuestion(page)
   await expect(

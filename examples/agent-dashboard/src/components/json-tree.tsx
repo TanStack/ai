@@ -33,12 +33,12 @@ function Node({ label, value }: { label: string | null; value: unknown }) {
       ? `[ ] ${count} item${count === 1 ? '' : 's'}`
       : `{ } ${count} key${count === 1 ? '' : 's'}`
     return (
-      <details className="ml-2">
-        <summary className="cursor-pointer text-white/60 marker:text-white/30">
+      <details className="ml-1">
+        <summary className="cursor-pointer text-ink-2 marker:text-ink-3">
           {label !== null && <Key label={label} />}
-          <span className="text-white/40">{kind}</span>
+          <span className="text-ink-3">{kind}</span>
         </summary>
-        <div className="border-l border-white/10 pl-2">
+        <div className="ml-1 border-l border-line pl-2">
           {entries.map(([k, v]) => (
             <Node key={k} label={k} value={v} />
           ))}
@@ -47,7 +47,7 @@ function Node({ label, value }: { label: string | null; value: unknown }) {
     )
   }
   return (
-    <div className="ml-2">
+    <div className="ml-1">
       {label !== null && <Key label={label} />}
       <Leaf value={value} />
     </div>
@@ -55,15 +55,15 @@ function Node({ label, value }: { label: string | null; value: unknown }) {
 }
 
 function Key({ label }: { label: string }) {
-  return <span className="mr-1 text-sky-300">{label}:</span>
+  return <span className="mr-1 text-ink">{label}:</span>
 }
 
 function Leaf({ value }: { value: unknown }) {
   if (typeof value === 'string')
-    return <span className="text-emerald-200/80 break-all">"{value}"</span>
+    return <span className="break-all text-ink-2">"{value}"</span>
   if (typeof value === 'number')
-    return <span className="text-amber-200/80">{value}</span>
+    return <span className="text-ink-2">{value}</span>
   if (typeof value === 'boolean')
-    return <span className="text-violet-300">{String(value)}</span>
-  return <span className="text-white/40">null</span>
+    return <span className="text-ink-2">{String(value)}</span>
+  return <span className="text-ink-3">null</span>
 }

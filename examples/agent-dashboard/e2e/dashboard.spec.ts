@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { answerAgentQuestion } from './devtools'
+import { answerAgentQuestion, closeDemo } from './devtools'
 
 // The dashboard embeds a deterministic support-triage agent, so this runs with
 // no API key: send a prompt, watch the AG-UI stream, approve a tool call
@@ -7,6 +7,7 @@ import { answerAgentQuestion } from './devtools'
 test('streams a session and approves a tool call mid-run', async ({ page }) => {
   const threadId = `e2e-${Date.now()}`
   await page.goto(`/sessions/${threadId}`)
+  await closeDemo(page)
 
   const startButton = page.getByRole('button', { name: 'Start triage demo' })
   await expect(startButton).toBeVisible()

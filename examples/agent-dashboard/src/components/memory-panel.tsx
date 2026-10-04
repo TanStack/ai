@@ -5,7 +5,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { TrashIcon } from '@/components/icons'
+import { FileTextIcon, TrashIcon } from '@phosphor-icons/react'
 
 export function MemoryPanel({
   threadId,
@@ -54,24 +54,21 @@ export function MemoryPanel({
   const entries = Object.entries(memory.data?.entries ?? {})
 
   return (
-    <div
-      role="group"
-      aria-label={`memory ${name}`}
-      className="space-y-2 rounded-lg border border-white/10 bg-white/[0.02] p-4"
-    >
-      <h2 className="text-sm font-semibold text-white/80">Memory · {name}</h2>
+    <div role="group" aria-label={`memory ${name}`} className="space-y-2">
+      <h2 className="label">Memory · {name}</h2>
       <ul className="space-y-1">
         {entries.length === 0 && (
-          <li className="text-xs text-white/40">no entries yet</li>
+          <li className="text-xs font-normal text-ink-3">no entries yet</li>
         )}
         {entries.map(([k, v]) => (
-          <li
-            key={k}
-            className="flex items-start gap-2 rounded border border-white/5 px-2 py-1.5 text-xs"
-          >
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <div className="break-all font-mono text-amber-300">{k}</div>
-              <div className="line-clamp-3 text-white/60" title={v}>
+          <li key={k} className="group flex items-start gap-2 text-[13px]">
+            <FileTextIcon size={14} className="mt-0.5 shrink-0 text-ink-3" />
+            <div className="min-w-0 flex-1">
+              <div className="font-mono text-xs break-all text-ink">{k}</div>
+              <div
+                className="line-clamp-2 text-xs font-normal text-ink-3"
+                title={v}
+              >
                 {v}
               </div>
             </div>
@@ -79,32 +76,32 @@ export function MemoryPanel({
               onClick={() => remove.mutate(k)}
               aria-label={`delete memory ${k}`}
               title="Delete"
-              className="shrink-0 rounded border border-white/15 p-1 text-white/50 hover:bg-white/[0.05] hover:text-white/80"
+              className="icon-btn shrink-0"
             >
-              <TrashIcon />
+              <TrashIcon size={13} />
             </button>
           </li>
         ))}
       </ul>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex gap-1.5">
         <input
           value={key}
           onChange={(e) => setKey(e.target.value)}
           aria-label="memory key"
           placeholder="key"
-          className="w-28 rounded border border-white/15 bg-transparent px-2 py-1 text-xs"
+          className="input w-20 min-w-0 py-1 text-xs"
         />
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
           aria-label="memory value"
           placeholder="value"
-          className="min-w-40 flex-1 rounded border border-white/15 bg-transparent px-2 py-1 text-xs"
+          className="input min-w-0 flex-1 py-1 text-xs"
         />
         <button
           onClick={() => add.mutate()}
           disabled={!key || !value}
-          className="rounded-md border border-white/15 px-2 py-1 text-xs text-white/70 hover:bg-white/[0.05] disabled:opacity-40"
+          className="btn btn-sm btn-outline"
         >
           + Add entry
         </button>

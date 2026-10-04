@@ -12,8 +12,11 @@
 import { eq, useLiveQuery } from '@tanstack/react-db'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import { CoinsIcon, DatabaseIcon, UserPlusIcon } from '@phosphor-icons/react'
 import {
+  DEFAULT_BUDGET,
   approvals,
+  budgets,
   channelMembers,
   channels,
   memberships,
@@ -33,17 +36,22 @@ import {
   createDm,
   defaultSubscriptions,
   openChannelMember,
-  resolveApproval,
 } from '@/lib/session-controller'
 import { MemberList } from '@/components/member-list'
 import { MemoryPanel } from '@/components/memory-panel'
-import { JsonTree, tryParse } from '@/components/json-tree'
-import { Markdown } from '@/components/markdown'
+import {
+  Composer,
+  StatusPill,
+  Stream,
+  buildTimeline,
+} from '@/components/stream'
+import { compact } from '@/components/ui'
 import { TraceWaterfall } from '@/components/trace-waterfall'
 import { TeamAutomations } from '@/components/team-automations'
 import { costUsd } from '@/lib/pricing'
 import type {
   ApprovalRow,
+  BudgetRow,
   ChannelMemberRow,
   ChannelRow,
   MembershipRow,
@@ -174,6 +182,7 @@ export function ChannelView({
     [channelId],
   )
   const { data: runMetaRows = [] } = useLiveQuery((q) => q.from({ r: runMeta }))
+  const { data: budgetRows = [] } = useLiveQuery((q) => q.from({ b: budgets }))
 
   const isTeam = memberRows.length > 1
   const nameByAgent = new Map(rosterRows.map((m) => [m.agentId, m.displayName]))
@@ -195,23 +204,14 @@ export function ChannelView({
     const member = rosterRows.find((item) => item.threadId === row.threadId)
     return sum + costUsd(member?.harness, row.inputTokens, row.outputTokens)
   }, 0)
-  const pending = (apprs as Array<ApprovalRow>).filter(
-    (a) => a.status === 'pending',
-  )
-  const pendingQuestions = (questionRows as Array<QuestionRow>).filter(
-    (q) => q.status === 'pending',
-  )
-
-  const timeline = [
-    ...(msgs as Array<MessageRow>).map((m) => ({
-      kind: 'message' as const,
-      at: m.createdAt,
-      m,
-    })),
-    ...(tools as Array<ToolCallRow>)
-      .filter((t) => !HIDDEN_TOOL_CARDS.has(t.name))
-      .map((t) => ({ kind: 'tool' as const, at: t.createdAt, t })),
-  ].sort((a, b) => a.at - b.at)
+  const timeline = buildTimeline({
+    msgs: msgs as Array<MessageRow>,
+    tools: (tools as Array<ToolCallRow>).filter(
+      (t) => !HIDDEN_TOOL_CARDS.has(t.name),
+    ),
+    approvals: apprs as Array<ApprovalRow>,
+    questions: questionRows as Array<QuestionRow>,
+  })
 
   // Human input targets the primary agent member (broadcast is a later phase).
   const primary =
@@ -267,71 +267,112 @@ export function ChannelView({
     })
   }
 
-  const title = isMain
-    ? isTeam
-      ? 'main'
-      : (primary?.displayName ?? channel?.name ?? channelId)
-    : `#${channel?.name ?? channelId}`
+  const budget = memberRows.reduce(
+    (sum, m) =>
+      sum +
+      ((budgetRows as Array<BudgetRow>).find((b) => b.threadId === m.threadId)
+        ?.maxTokens ?? DEFAULT_BUDGET),
+    0,
+  )
+
+  const sigil = channel?.kind === 'dm' ? '@' : '#'
+  const title =
+    isMain && !isTeam
+      ? (primary?.displayName ?? channel?.name ?? channelId)
+      : isMain
+        ? 'main'
+        : (channel?.name ?? channelId)
+  const column = isTeam ? 'px-6' : 'mx-auto w-full max-w-[720px] px-6'
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <a href="/" className="text-xs text-white/40 hover:text-white/70">
-          ← teams
-        </a>
-        <h1 className="font-mono text-sm">{title}</h1>
-        {channel?.topic && (
-          <span className="text-xs text-white/40">{channel.topic}</span>
-        )}
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs ${
-            status === 'running'
-              ? 'bg-sky-500/20 text-sky-300'
-              : status === 'requires_action'
-                ? 'bg-amber-500/20 text-amber-300'
-                : 'bg-white/10 text-white/60'
-          }`}
-        >
-          {status.replace('_', ' ')}
-        </span>
-        {attached > 0 && (
-          <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-200">
-            🧠 {attached} memory {attached === 1 ? 'entry' : 'entries'} attached
-          </span>
-        )}
-        <span className="ml-auto text-xs text-white/40">
-          ${dollars.toFixed(4)} · {tokens.toLocaleString()} tokens
-        </span>
-        <span className="flex rounded border border-white/10 p-0.5 text-xs">
-          {(['timeline', 'trace'] as const).map((item) => (
-            <button
-              key={item}
-              onClick={() => setView(item)}
-              className={`rounded px-2 py-0.5 ${
-                view === item ? 'bg-white/10 text-white' : 'text-white/40'
-              }`}
-            >
-              {item}
-            </button>
-          ))}
-        </span>
-        {isMain && <AddAgentControl channelId={channelId} />}
-      </div>
+    <div className="flex h-full">
+      <section className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-[60px] shrink-0 items-center gap-3 border-b border-line px-6">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="truncate font-display text-[17px] font-bold">
+                {(isTeam || !isMain) && (
+                  <span className="text-ink-3">{sigil} </span>
+                )}
+                {title}
+              </h1>
+              {!isMain && (
+                <span className="pill border border-line-strong font-normal text-ink-2">
+                  {channel?.kind}
+                </span>
+              )}
+              <StatusPill status={status} />
+            </div>
+            {channel?.topic && (
+              <div className="truncate text-xs font-normal text-ink-3">
+                {channel.topic}
+              </div>
+            )}
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {attached > 0 && (
+              <span className={CHIP}>
+                <DatabaseIcon size={14} />
+                {attached} memory {attached === 1 ? 'entry' : 'entries'}{' '}
+                attached
+              </span>
+            )}
+            <span className={CHIP}>
+              <CoinsIcon size={14} />${dollars.toFixed(4)} ·{' '}
+              {tokens.toLocaleString()} tokens
+            </span>
+            <span className="flex rounded-sm bg-ui p-0.5 text-xs font-normal">
+              {(['timeline', 'trace'] as const).map((item) => (
+                <button
+                  key={item}
+                  onClick={() => setView(item)}
+                  className={`rounded-[4px] px-2 py-0.5 ${
+                    view === item ? 'bg-surface text-ink' : 'text-ink-3'
+                  }`}
+                >
+                  {item}
+                </button>
+              ))}
+            </span>
+            {isMain && <AddAgentControl channelId={channelId} />}
+          </div>
+        </header>
 
-      {pending.map((approval) => (
-        <ApprovalCard
-          key={approval.id}
-          approval={approval}
-          tool={(tools as Array<ToolCallRow>).find(
-            (t) => t.id === approval.toolCallId,
-          )}
-        />
-      ))}
-      {pendingQuestions.map((question) => (
-        <QuestionCard key={question.id} question={question} />
-      ))}
+        {/* column-reverse keeps the stream bottom-anchored, like chat. */}
+        <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto">
+          <div className={`flex flex-col gap-3.5 py-5 ${column}`}>
+            {view === 'trace' ? (
+              <TraceWaterfall channelId={channelId} />
+            ) : timeline.length === 0 ? (
+              <p className="py-10 text-center text-ink-3">
+                No activity yet. Send a message below, or drive it from the Demo
+                controls devtools panel.
+              </p>
+            ) : (
+              <Stream
+                entries={timeline}
+                team={isTeam}
+                nameByAgent={nameByAgent}
+              />
+            )}
+          </div>
+        </div>
 
-      <div className="flex gap-4">
+        <div className={`pt-3 pb-5 ${column}`}>
+          <Composer
+            value={input}
+            onChange={setInput}
+            onSend={() => send(input)}
+            running={status === 'running' && Boolean(primary)}
+            onStop={() =>
+              primary && controlInput(primary.threadId, { op: 'cancel' })
+            }
+            solo={!isTeam}
+          />
+        </div>
+      </section>
+
+      <aside className="w-[300px] shrink-0 space-y-6 overflow-y-auto border-l border-line px-4 py-[18px]">
         {isTeam && (
           <MemberList
             members={memberRows}
@@ -341,83 +382,27 @@ export function ChannelView({
             onToggleSubscription={toggleSubscription}
           />
         )}
-        <div className="flex-1 space-y-3 rounded-lg border border-white/10 bg-white/[0.02] p-4">
-          {view === 'trace' ? (
-            <TraceWaterfall channelId={channelId} />
-          ) : (
-            <>
-              {timeline.length === 0 && (
-                <p className="text-sm text-white/40">
-                  No activity yet. Send a message below, or drive it from the
-                  Demo controls devtools panel.
-                </p>
-              )}
-              {timeline.map((entry) =>
-                entry.kind === 'message' ? (
-                  entry.m.role === 'system' ? (
-                    <SystemCard key={entry.m.id} message={entry.m} />
-                  ) : (
-                    <MessageBubble
-                      key={entry.m.id}
-                      message={entry.m}
-                      author={
-                        entry.m.agentId
-                          ? nameByAgent.get(entry.m.agentId)
-                          : undefined
-                      }
-                      showAuthor={isTeam}
-                    />
-                  )
-                ) : (
-                  <ToolCard
-                    key={entry.t.id}
-                    tool={entry.t}
-                    author={
-                      entry.t.agentId
-                        ? nameByAgent.get(entry.t.agentId)
-                        : undefined
-                    }
-                    showAuthor={isTeam}
-                  />
-                ),
-              )}
-            </>
-          )}
-        </div>
-      </div>
 
-      <div className="flex gap-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && send(input)}
-          placeholder="Send a message…"
-          className="min-w-40 flex-1 rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-white/30"
-        />
-        <button
-          onClick={() => send(input)}
-          className="rounded-md bg-emerald-500/90 px-4 py-2 text-sm font-medium text-black hover:bg-emerald-400"
-        >
-          {status === 'running' ? 'Steer' : 'Send'}
-        </button>
-        {status === 'running' && primary && (
-          <button
-            onClick={() => controlInput(primary.threadId, { op: 'cancel' })}
-            className="rounded-md bg-rose-500/80 px-4 py-2 text-sm font-medium text-black hover:bg-rose-400"
-          >
-            Stop
-          </button>
-        )}
-      </div>
-
-      {isMain && <TeamAutomations channelId={channelId} members={memberRows} />}
-
-      {isTeam && isMain && (
         <section className="space-y-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-white/40">
-            Memory
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <h2 className="label">Spend boundary</h2>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="font-display text-[22px] font-bold">
+              {compact(tokens)}
+            </span>
+            <span className="text-xs font-normal text-ink-3">
+              of {compact(budget)} tok
+            </span>
+          </div>
+          <div className="h-1 overflow-hidden rounded-full bg-line-strong">
+            <div
+              className={`h-full ${tokens > budget * 0.8 ? 'bg-warn' : 'bg-ink-2'}`}
+              style={{ width: `${Math.min((tokens / budget) * 100, 100)}%` }}
+            />
+          </div>
+        </section>
+
+        {isTeam && isMain && (
+          <section className="space-y-3">
             {memberRows
               .filter((m) => m.role === 'agent')
               .map((m) => (
@@ -427,12 +412,19 @@ export function ChannelView({
                   name={m.displayName}
                 />
               ))}
-          </div>
-        </section>
-      )}
+          </section>
+        )}
+
+        {isMain && (
+          <TeamAutomations channelId={channelId} members={memberRows} />
+        )}
+      </aside>
     </div>
   )
 }
+
+const CHIP =
+  'inline-flex items-center gap-1.5 rounded-full bg-ui px-2.5 py-1 text-xs font-normal text-ink-2'
 
 /** Add any available agent to this team (product control, main channel only). */
 function AddAgentControl({ channelId }: { channelId: string }) {
@@ -449,12 +441,13 @@ function AddAgentControl({ channelId }: { channelId: string }) {
     <div className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="rounded-md border border-white/15 px-2 py-0.5 text-xs text-white/70 hover:bg-white/[0.05]"
+        className="btn btn-sm btn-outline"
       >
-        ＋ Add agent
+        <UserPlusIcon size={14} />
+        Add agent
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-1 max-h-64 w-72 space-y-0.5 overflow-auto rounded-md border border-white/15 bg-neutral-900 p-1 shadow-lg">
+        <div className="absolute right-0 z-20 mt-1 max-h-72 w-72 overflow-auto rounded-md border border-line bg-ui p-1 shadow-2">
           {agents.map((a) => (
             <button
               key={a.name}
@@ -462,303 +455,14 @@ function AddAgentControl({ channelId }: { channelId: string }) {
                 addAgentToChannel(channelId, a.name)
                 setOpen(false)
               }}
-              className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]"
+              className="block w-full rounded-sm px-2 py-1.5 text-left font-mono text-xs hover:bg-ui-hover"
               title={a.description}
             >
-              <span className="font-mono text-xs text-sky-300">{a.name}</span>
+              {a.name}
             </button>
           ))}
         </div>
       )}
-    </div>
-  )
-}
-
-function AuthorTag({ author }: { author?: string }) {
-  if (!author) return null
-  return (
-    <span className="mr-1 rounded bg-white/10 px-1 text-[10px] text-white/60">
-      {author}
-    </span>
-  )
-}
-
-function SystemCard({ message }: { message: MessageRow }) {
-  const icon = message.system?.kind === 'channel_created' ? '📢' : '👋'
-  return (
-    <div className="rounded-md border border-sky-500/30 bg-sky-500/[0.05] px-3 py-1.5 text-xs text-sky-200/80">
-      <span className="mr-1">{icon}</span>
-      {message.text}
-      {message.system?.topic && (
-        <span className="ml-1 text-white/40">— {message.system.topic}</span>
-      )}
-    </div>
-  )
-}
-
-function MessageBubble({
-  message,
-  author,
-  showAuthor,
-}: {
-  message: MessageRow
-  author?: string
-  showAuthor: boolean
-}) {
-  const isUser = message.role === 'user'
-  const [expanded, setExpanded] = useState(false)
-  // Strip the internal `[channel:<id>]` routing tag the injector prefixes onto a
-  // subscription prompt — it's plumbing, not something a human should read.
-  const text = message.text.replace(/^\[channel:[^\]]+\]\s*/, '')
-  // Injected trigger prompts (a subscription's "New … batch" context) arrive as
-  // long user messages. Collapse them to a few lines so they don't drown the
-  // channel; a human's own message is short and never trips this.
-  const long = isUser && text.length > 280
-  return (
-    <div className={isUser ? 'text-right' : ''}>
-      <div
-        className={`inline-block max-w-[80%] rounded-lg px-3 py-2 text-left text-sm ${
-          isUser ? 'bg-emerald-500/15 text-emerald-100' : 'bg-white/[0.06]'
-        }`}
-      >
-        {showAuthor && !isUser && <AuthorTag author={author} />}
-        {message.subagentRunId && (
-          <span className="mr-1 rounded bg-fuchsia-500/20 px-1 text-[10px] text-fuchsia-300">
-            subagent
-          </span>
-        )}
-        {text ? (
-          isUser ? (
-            <>
-              <div
-                className={
-                  long && !expanded
-                    ? 'line-clamp-3 whitespace-pre-wrap'
-                    : 'whitespace-pre-wrap'
-                }
-              >
-                {text}
-              </div>
-              {long && (
-                <button
-                  onClick={() => setExpanded((v) => !v)}
-                  className="mt-1 text-[11px] text-emerald-300/70 hover:text-emerald-200"
-                >
-                  {expanded ? 'Show less' : 'Show more'}
-                </button>
-              )}
-            </>
-          ) : (
-            <Markdown>{text}</Markdown>
-          )
-        ) : (
-          <span className="text-white/30">…</span>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function ToolCard({
-  tool,
-  author,
-  showAuthor,
-}: {
-  tool: ToolCallRow
-  author?: string
-  showAuthor: boolean
-}) {
-  // Injected tool calls (timer/manual/webhook) get a distinct border + badge.
-  const injected = Boolean(tool.trigger)
-  return (
-    <div
-      className={`rounded-md border p-2 font-mono text-xs ${
-        injected
-          ? 'border-violet-500/40 bg-violet-500/[0.06]'
-          : 'border-white/10 bg-black/20'
-      }`}
-    >
-      <div className="flex items-center gap-2">
-        {showAuthor && <AuthorTag author={author} />}
-        {injected && (
-          <span className="rounded bg-violet-500/20 px-1 text-[10px] text-violet-300">
-            ⏵ {tool.trigger}
-          </span>
-        )}
-        <span className="text-sky-300">⚙ {tool.name}</span>
-        <span
-          className={`ml-auto rounded px-1.5 text-[10px] ${
-            tool.status === 'done'
-              ? 'bg-emerald-500/20 text-emerald-300'
-              : 'bg-white/10 text-white/50'
-          }`}
-        >
-          {tool.status}
-        </span>
-      </div>
-      {tool.args &&
-        (() => {
-          const parsed = tryParse(tool.args)
-          return parsed !== undefined ? (
-            <div className="mt-1">
-              <JsonTree value={parsed} />
-            </div>
-          ) : (
-            <div className="mt-1 text-white/50">{tool.args}</div>
-          )
-        })()}
-      {tool.result &&
-        (() => {
-          const parsed = tryParse(tool.result)
-          return parsed !== undefined ? (
-            <div className="mt-1">
-              <JsonTree value={parsed} />
-            </div>
-          ) : (
-            <div className="mt-1 text-emerald-200/70">→ {tool.result}</div>
-          )
-        })()}
-      {tool.truncated && (
-        <div className="mt-1 text-white/30">(result truncated)</div>
-      )}
-    </div>
-  )
-}
-
-export function QuestionCard({ question }: { question: QuestionRow }) {
-  const [answer, setAnswer] = useState('')
-  const rawId = question.id.split(':').slice(1).join(':')
-  const submit = async (value: unknown) => {
-    questions.update(question.id, (draft) => {
-      draft.status = 'answered'
-    })
-    await controlInput(question.threadId, {
-      op: 'answer',
-      questionId: rawId,
-      value,
-    })
-  }
-
-  return (
-    <div className="rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/[0.06] p-4">
-      <div className="font-medium text-fuchsia-200">Agent question</div>
-      <p className="mt-1 text-sm">{question.message}</p>
-      {question.schema?.type === 'boolean' ? (
-        <div className="mt-3 flex gap-2">
-          <button
-            onClick={() => submit(true)}
-            className="rounded bg-emerald-500/90 px-3 py-1.5 text-sm text-black"
-          >
-            Yes
-          </button>
-          <button
-            onClick={() => submit(false)}
-            className="rounded bg-rose-500/80 px-3 py-1.5 text-sm text-black"
-          >
-            No
-          </button>
-        </div>
-      ) : (
-        <form
-          className="mt-3 flex gap-2"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void submit(answer)
-          }}
-        >
-          <input
-            value={answer}
-            onChange={(event) => setAnswer(event.target.value)}
-            className="flex-1 rounded border border-white/15 bg-transparent px-3 py-1.5 text-sm"
-            placeholder="Your answer"
-          />
-          <button className="rounded bg-fuchsia-400 px-3 py-1.5 text-sm text-black">
-            Answer
-          </button>
-        </form>
-      )}
-    </div>
-  )
-}
-
-function ApprovalCard({
-  approval,
-  tool,
-}: {
-  approval: ApprovalRow
-  tool?: ToolCallRow
-}) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(tool?.args ?? '{}')
-  const [busy, setBusy] = useState(false)
-
-  const act = async (decision: 'approve' | 'deny', edited?: boolean) => {
-    setBusy(true)
-    let editedArgs: Record<string, unknown> | undefined
-    if (edited) {
-      try {
-        editedArgs = JSON.parse(draft)
-      } catch {
-        setBusy(false)
-        return
-      }
-    }
-    await resolveApproval(approval.threadId, approval.id, decision, editedArgs)
-    setBusy(false)
-  }
-
-  return (
-    <div className="rounded-lg border border-amber-500/40 bg-amber-500/[0.06] p-4">
-      <div className="flex items-center gap-2">
-        <span className="text-lg">🔔</span>
-        <span className="font-medium text-amber-200">Approval required</span>
-        {tool && (
-          <span className="ml-auto font-mono text-xs text-amber-200/70">
-            {tool.name}
-          </span>
-        )}
-      </div>
-      <p className="mt-1 text-sm text-amber-100/80">{approval.message}</p>
-      {editing ? (
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          rows={5}
-          className="mt-2 w-full rounded-md border border-white/15 bg-black/30 p-2 font-mono text-xs outline-none"
-        />
-      ) : (
-        tool?.args && (
-          <pre className="mt-2 overflow-x-auto rounded-md bg-black/30 p-2 font-mono text-xs text-white/60">
-            {tool.args}
-          </pre>
-        )
-      )}
-      <div className="mt-3 flex gap-2">
-        <button
-          disabled={busy}
-          onClick={() => act('approve', editing)}
-          className="rounded-md bg-emerald-500/90 px-3 py-1.5 text-sm font-medium text-black hover:bg-emerald-400 disabled:opacity-50"
-        >
-          {editing ? 'Approve edited' : 'Approve'}
-        </button>
-        <button
-          disabled={busy}
-          onClick={() => act('deny')}
-          className="rounded-md bg-rose-500/80 px-3 py-1.5 text-sm font-medium text-black hover:bg-rose-400 disabled:opacity-50"
-        >
-          Deny
-        </button>
-        <button
-          disabled={busy}
-          onClick={() => setEditing((v) => !v)}
-          className="rounded-md border border-white/15 px-3 py-1.5 text-sm text-white/70 hover:bg-white/[0.05]"
-        >
-          {editing ? 'Cancel edit' : 'Edit'}
-        </button>
-        <span className="ml-auto self-center text-[10px] text-white/30">
-          approve → AG-UI resume · deny → harness protocol
-        </span>
-      </div>
     </div>
   )
 }

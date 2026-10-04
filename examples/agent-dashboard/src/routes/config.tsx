@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { PageHeader } from '@/components/ui'
 
 export const Route = createFileRoute('/config')({
   component: Config,
@@ -55,21 +56,27 @@ function Config() {
   const entries = config.data?.options ?? []
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold">Agent config</h1>
-        <span className="ml-auto text-xs text-white/40">
+    <div className="px-8 py-7">
+      <PageHeader
+        title="Config"
+        sub={
+          <>
+            Generated from the agent's typed{' '}
+            <code className="rounded-[4px] bg-ui px-1 font-mono text-xs">
+              ConfigOption
+            </code>{' '}
+            schemas. Changes write through the harness protocol.
+          </>
+        }
+      >
+        <span className="font-mono text-[11px] text-ink-3">
           support/triage · protocol v{config.data?.protocolVersion ?? '…'}
         </span>
-      </div>
-      <p className="text-sm text-white/50">
-        Generated from the agent's typed <code>ConfigOption</code> schemas.
-        Changes write through the harness protocol.
-      </p>
+      </PageHeader>
 
-      <div className="space-y-4 rounded-lg border border-white/10 bg-white/[0.02] p-5">
+      <div className="panel max-w-3xl divide-y divide-line py-1">
         {entries.length === 0 && (
-          <p className="text-sm text-white/40">Loading config…</p>
+          <p className="py-4 text-ink-3">Loading config…</p>
         )}
         {entries.map((entry) => (
           <Field
@@ -92,11 +99,11 @@ function Field({
 }) {
   const { key, option, value } = entry
   return (
-    <div className="grid grid-cols-[200px_1fr] items-center gap-4">
+    <div className="grid grid-cols-[220px_1fr] items-center gap-6 py-4">
       <div>
-        <div className="font-mono text-sm">{key}</div>
+        <div className="font-mono text-[13px]">{key}</div>
         {option.description && (
-          <div className="text-xs text-white/40">{option.description}</div>
+          <div className="mt-0.5 text-xs text-ink-3">{option.description}</div>
         )}
       </div>
       <div>
@@ -105,10 +112,10 @@ function Field({
             aria-label={key}
             value={String(value)}
             onChange={(e) => onChange(e.target.value)}
-            className="rounded-md border border-white/15 bg-transparent px-3 py-1.5 text-sm outline-none"
+            className="input"
           >
             {option.options.map((o) => (
-              <option key={o} value={o} className="bg-[#0b0d12]">
+              <option key={o} value={o}>
                 {o}
               </option>
             ))}
@@ -117,20 +124,20 @@ function Field({
         {option.type === 'boolean' && (
           <button
             onClick={() => onChange(!value)}
-            className={`rounded-full px-3 py-1 text-xs ${
-              value
-                ? 'bg-emerald-500/20 text-emerald-300'
-                : 'bg-white/10 text-white/60'
-            }`}
+            aria-label={key}
+            aria-pressed={Boolean(value)}
+            className={`relative h-4 w-7 rounded-full transition-colors duration-150 ${value ? 'bg-ink' : 'bg-line-strong'}`}
           >
-            {value ? 'on' : 'off'}
+            <span
+              className={`absolute top-0.5 size-3 rounded-full bg-surface transition-[left] duration-150 ${value ? 'left-3.5' : 'left-0.5'}`}
+            />
           </button>
         )}
         {option.type === 'text' && (
           <input
             defaultValue={String(value)}
             onBlur={(e) => onChange(e.target.value)}
-            className="w-full max-w-sm rounded-md border border-white/15 bg-transparent px-3 py-1.5 text-sm outline-none"
+            className="input w-full max-w-sm"
           />
         )}
         {option.type === 'number' && (
@@ -140,7 +147,7 @@ function Field({
             min={option.min}
             max={option.max}
             onBlur={(e) => onChange(Number(e.target.value))}
-            className="w-28 rounded-md border border-white/15 bg-transparent px-3 py-1.5 text-sm outline-none"
+            className="input w-28"
           />
         )}
       </div>

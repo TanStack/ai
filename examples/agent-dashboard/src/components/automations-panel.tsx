@@ -97,14 +97,14 @@ export function AutomationsPanel({
   })
 
   return (
-    <div className="space-y-4 rounded-lg border border-white/10 bg-white/[0.02] p-4">
+    <div className="panel space-y-4">
       <div className="flex items-center gap-2">
-        <h2 className="text-sm font-semibold text-white/80">Automations</h2>
-        <span className="text-xs text-white/40">
+        <h2 className="font-display text-[17px] font-bold">Automations</h2>
+        <span className="text-xs text-ink-3">
           deterministic tool runs — no tokens
         </span>
         {offline.data?.offline && (
-          <span className="ml-auto rounded-full bg-rose-500/20 px-2 py-0.5 text-xs text-rose-300">
+          <span className="pill ml-auto bg-warn-soft text-warn">
             host offline — {offline.data.queued} queued
           </span>
         )}
@@ -112,12 +112,10 @@ export function AutomationsPanel({
 
       {/* Tool registry + run-now (public tools only) */}
       <div>
-        <div className="text-xs uppercase tracking-wide text-white/40">
-          Public tools
-        </div>
+        <div className="label">Public tools</div>
         <div className="mt-1 flex flex-wrap gap-2">
           {toolNames.length === 0 && (
-            <span className="text-xs text-white/40">none</span>
+            <span className="text-xs text-ink-3">none</span>
           )}
           {toolNames.map((t) => (
             <button
@@ -125,7 +123,7 @@ export function AutomationsPanel({
               onClick={() =>
                 runInjection(primary, t.name, { queue: 'run-now' })
               }
-              className="rounded-md border border-white/15 px-2 py-1 font-mono text-xs text-white/70 hover:bg-white/[0.05]"
+              className="btn btn-sm btn-outline font-mono"
               title={t.description}
             >
               ▶ run {t.name}
@@ -139,21 +137,21 @@ export function AutomationsPanel({
         <button
           onClick={() => sendWebhook.mutate()}
           disabled={!selectedTool}
-          className="rounded-md border border-white/15 px-2 py-1 text-xs text-white/70 hover:bg-white/[0.05] disabled:opacity-40"
+          className="btn btn-sm btn-outline"
         >
           Send test webhook
         </button>
         {primary.harness === 'ops/pr-watcher' && (
           <button
             onClick={() => sendPrWebhook.mutate()}
-            className="rounded-md border border-emerald-500/40 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/[0.08]"
+            className="btn btn-sm btn-outline"
           >
             Send PR webhook
           </button>
         )}
         <button
           onClick={() => setOffline.mutate(!offline.data?.offline)}
-          className="rounded-md border border-white/15 px-2 py-1 text-xs text-white/70 hover:bg-white/[0.05]"
+          className="btn btn-sm btn-outline"
         >
           {offline.data?.offline
             ? 'Bring host online'

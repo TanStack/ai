@@ -7,6 +7,7 @@
  */
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import { XIcon } from '@phosphor-icons/react'
 import { runInjection } from '@/lib/session-controller'
 import type { MembershipRow } from '@/db/collections'
 
@@ -58,28 +59,28 @@ export function RunToolDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md space-y-3 rounded-lg border border-white/15 bg-neutral-900 p-4"
+        className="w-full max-w-md space-y-4 rounded-lg border border-line bg-surface-raised p-5 shadow-2"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">
+          <h2 className="font-display text-[17px] font-bold">
             Run a tool · {member.displayName}
           </h2>
           <button
             onClick={onClose}
             aria-label="Dismiss dialog"
-            className="text-white/40 hover:text-white/80"
+            className="icon-btn"
           >
-            ✕
+            <XIcon size={14} />
           </button>
         </div>
 
         {toolNames.length === 0 ? (
-          <p className="text-xs text-white/50">
+          <p className="text-[13px] text-ink-3">
             {tools.isLoading
               ? 'Loading tools…'
               : 'This agent has no public tools to run.'}
@@ -87,57 +88,43 @@ export function RunToolDialog({
         ) : (
           <>
             <label className="block space-y-1">
-              <span className="text-xs uppercase tracking-wide text-white/40">
-                Tool
-              </span>
+              <span className="label">Tool</span>
               <select
                 aria-label="tool"
                 value={selected}
                 onChange={(e) => setTool(e.target.value)}
-                className="w-full rounded border border-white/15 bg-transparent px-2 py-1 text-sm"
+                className="input w-full font-mono"
               >
                 {toolNames.map((t) => (
-                  <option
-                    key={t.name}
-                    value={t.name}
-                    className="bg-neutral-900"
-                  >
+                  <option key={t.name} value={t.name}>
                     {t.name}
                   </option>
                 ))}
               </select>
             </label>
             {selectedInfo?.description && (
-              <p className="text-xs text-white/40">
+              <p className="text-[13px] text-ink-2">
                 {selectedInfo.description}
               </p>
             )}
             <label className="block space-y-1">
-              <span className="text-xs uppercase tracking-wide text-white/40">
-                Parameters (JSON)
-              </span>
+              <span className="label">Parameters (JSON)</span>
               <textarea
                 aria-label="parameters"
                 value={argsText}
                 onChange={(e) => setArgsText(e.target.value)}
                 rows={4}
                 spellCheck={false}
-                className="w-full rounded border border-white/15 bg-black/30 px-2 py-1 font-mono text-xs"
+                className="input w-full bg-surface-sunken font-mono text-xs"
               />
             </label>
-            {error && <p className="text-xs text-red-400">{error}</p>}
-            {result && <p className="text-xs text-emerald-300">{result}</p>}
+            {error && <p className="text-xs text-err">{error}</p>}
+            {result && <p className="text-xs text-ok">{result}</p>}
             <div className="flex justify-end gap-2">
-              <button
-                onClick={onClose}
-                className="rounded-md border border-white/15 px-3 py-1.5 text-sm text-white/60 hover:bg-white/[0.05]"
-              >
+              <button onClick={onClose} className="btn btn-outline">
                 Close
               </button>
-              <button
-                onClick={() => void run()}
-                className="rounded-md bg-emerald-500/90 px-3 py-1.5 text-sm font-medium text-black hover:bg-emerald-400"
-              >
+              <button onClick={() => void run()} className="btn btn-accent">
                 Run
               </button>
             </div>

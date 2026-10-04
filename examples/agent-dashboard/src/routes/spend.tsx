@@ -8,7 +8,9 @@ import {
   teams,
   upsert,
 } from '@/db/collections'
+import { WarningIcon } from '@phosphor-icons/react'
 import { costUsd } from '@/lib/pricing'
+import { PageHeader, compact } from '@/components/ui'
 import type {
   BudgetRow,
   MembershipRow,
@@ -76,171 +78,148 @@ function Spend() {
     })
   }
 
+  const totalBudget = rows.reduce((sum, r) => sum + r.budget, 0) || 1
+  const used = total / totalBudget
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold">Spend</h1>
-        <span className="ml-auto text-sm text-white/50">
-          ${totalCost.toFixed(4)} · {total.toLocaleString()} tokens across{' '}
-          {rows.length} session
-          {rows.length === 1 ? '' : 's'}
-        </span>
+    <div className="px-8 py-7">
+      <PageHeader
+        title="Spend"
+        sub={`$${totalCost.toFixed(4)} · ${total.toLocaleString()} tokens across ${rows.length} session${rows.length === 1 ? '' : 's'}`}
+      />
+
+      <div className="grid grid-cols-[1.3fr_1fr_1.2fr] items-end gap-12 border-b border-line pb-8">
+        <div>
+          <div className="text-[13px] text-ink-2">Tokens</div>
+          <div className="font-display text-[88px] leading-[0.9] font-bold tracking-[-0.03em]">
+            {compact(total)}
+          </div>
+          <div className="mt-2 text-xs text-ink-3">
+            {compact(rows.reduce((sum, r) => sum + r.inputTokens, 0))} in ·{' '}
+            {compact(rows.reduce((sum, r) => sum + r.outputTokens, 0))} out
+          </div>
+        </div>
+        <div>
+          <div className="text-[13px] text-ink-2">Cost</div>
+          <div className="font-display text-[56px] leading-[0.9] font-bold tracking-[-0.02em] text-ink-2">
+            ${totalCost.toFixed(2)}
+          </div>
+          <div className="mt-2 text-xs text-ink-3">
+            estimated from model pricing
+          </div>
+        </div>
+        {rows.length > 0 && (
+          <div>
+            <div className="mb-2 flex justify-between text-[13px] text-ink-2">
+              <span>Boundary · {compact(totalBudget)} tok</span>
+              <span>{Math.round(used * 100)}%</span>
+            </div>
+            <div className="relative h-2 rounded-full bg-line-strong">
+              <div
+                className={`h-full rounded-full ${used > 1 ? 'bg-err' : 'bg-ink'}`}
+                style={{ width: `${Math.min(used * 100, 100)}%` }}
+              />
+              <span className="absolute -top-1 left-[80%] h-4 w-px bg-warn" />
+            </div>
+            <div className="mt-2 text-xs text-ink-3">
+              Sum of per-session budgets. Alert at 80%.
+            </div>
+          </div>
+        )}
       </div>
 
       {overCount > 0 && (
-        <div className="rounded-lg border border-rose-500/40 bg-rose-500/[0.08] px-4 py-2 text-sm text-rose-200">
-          ⚠ {overCount} session{overCount === 1 ? '' : 's'} over budget
+        <div className="mt-6 flex items-center gap-2 rounded-md bg-err-soft px-4 py-3 text-[13px] text-err">
+          <WarningIcon size={16} />
+          {overCount} session{overCount === 1 ? '' : 's'} over budget
         </div>
       )}
 
       {rows.length === 0 ? (
-        <p className="text-sm text-white/40">
+        <p className="mt-8 text-ink-3">
           No spend yet. Run a session to see tokens accrue here live.
         </p>
       ) : (
-        <>
-          {teamTotals.size > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {[...teamTotals].map(([teamId, cost]) => (
-                <span
-                  key={teamId}
-                  className="rounded-full bg-white/5 px-3 py-1 text-xs"
-                >
-                  {teamNames.get(teamId) ?? teamId}: ${cost.toFixed(4)}
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
-            <SpendChart rows={rows} />
-          </div>
-
-          <table className="w-full text-left text-sm">
-            <thead className="text-xs text-white/40">
-              <tr>
-                <th className="py-1">Session</th>
-                <th className="py-1">In</th>
-                <th className="py-1">Out</th>
-                <th className="py-1">Total</th>
-                <th className="py-1">Cost</th>
-                <th className="py-1">Budget</th>
-                <th className="py-1">Status</th>
+        <div className="mt-8 grid grid-cols-[1.5fr_1fr] gap-12">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="label">
+                <th className="pb-2 font-normal">Session</th>
+                <th className="pb-2 font-normal">Tokens</th>
+                <th className="pb-2 font-normal">In / out</th>
+                <th className="pb-2 font-normal">Cost</th>
+                <th className="pb-2 font-normal">Budget</th>
+                <th className="pb-2 font-normal">Of budget</th>
               </tr>
             </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.threadId} className="border-t border-white/5">
-                  <td className="py-2 font-mono text-xs">{r.threadId}</td>
-                  <td className="py-2">{r.inputTokens.toLocaleString()}</td>
-                  <td className="py-2">{r.outputTokens.toLocaleString()}</td>
-                  <td className="py-2">{r.totalTokens.toLocaleString()}</td>
-                  <td className="py-2">
-                    {r.cost ? `$${r.cost.toFixed(4)}` : '$0.00 (scripted)'}
-                  </td>
-                  <td className="py-2">
-                    <input
-                      type="number"
-                      value={r.budget}
-                      onChange={(e) =>
-                        setBudget(r.threadId, Number(e.target.value) || 0)
-                      }
-                      className="w-24 rounded border border-white/15 bg-transparent px-2 py-0.5 text-xs outline-none"
-                    />
-                  </td>
-                  <td className="py-2">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs ${
-                        r.over
-                          ? 'bg-rose-500/20 text-rose-300'
-                          : 'bg-emerald-500/20 text-emerald-300'
-                      }`}
-                    >
-                      {r.over ? 'over budget' : 'ok'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-line border-y border-line">
+              {rows.map((r) => {
+                const pct = r.budget ? r.totalTokens / r.budget : 0
+                return (
+                  <tr key={r.threadId}>
+                    <td className="max-w-48 truncate py-3 pr-4 font-mono text-xs">
+                      {r.threadId}
+                    </td>
+                    <td className="py-3 pr-4 font-display text-lg font-bold">
+                      {compact(r.totalTokens)}
+                    </td>
+                    <td className="py-3 pr-4 font-mono text-xs text-ink-2">
+                      {compact(r.inputTokens)} / {compact(r.outputTokens)}
+                    </td>
+                    <td className="py-3 pr-4 text-ink-2">
+                      {r.cost ? `$${r.cost.toFixed(4)}` : '$0.00 (scripted)'}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <input
+                        type="number"
+                        aria-label={`budget ${r.threadId}`}
+                        value={r.budget}
+                        onChange={(e) =>
+                          setBudget(r.threadId, Number(e.target.value) || 0)
+                        }
+                        className="input w-24 py-1 text-xs"
+                      />
+                    </td>
+                    <td className="py-3">
+                      <span className="flex items-center gap-2">
+                        <span className="h-1 w-20 rounded-full bg-line-strong">
+                          <span
+                            className={`block h-full rounded-full ${r.over ? 'bg-err' : pct > 0.8 ? 'bg-warn' : 'bg-ink'}`}
+                            style={{ width: `${Math.min(pct * 100, 100)}%` }}
+                          />
+                        </span>
+                        <span
+                          className={`font-mono text-[11px] ${r.over ? 'text-err' : pct > 0.8 ? 'text-warn' : 'text-ink-2'}`}
+                        >
+                          {r.over ? 'over' : `${Math.round(pct * 100)}%`}
+                        </span>
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
-        </>
+
+          <div>
+            <h2 className="label mb-2">By team</h2>
+            {teamTotals.size === 0 ? (
+              <p className="text-[13px] text-ink-3">No team sessions yet.</p>
+            ) : (
+              <ul className="divide-y divide-line border-y border-line">
+                {[...teamTotals].map(([teamId, cost]) => (
+                  <li key={teamId} className="flex items-center py-2.5">
+                    <span>{teamNames.get(teamId) ?? teamId}</span>
+                    <span className="ml-auto font-mono text-xs">
+                      ${cost.toFixed(4)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       )}
     </div>
-  )
-}
-
-/**
- * A small SSR-safe SVG bar chart of tokens per session, with each session's
- * budget drawn as a reference line. (react-charts 0.18 auto-sizing can loop its
- * ResizeObserver and freeze the main thread, so we render plain SVG instead.)
- */
-function SpendChart({ rows }: { rows: Array<Row> }) {
-  const max = Math.max(...rows.map((r) => Math.max(r.totalTokens, r.budget)), 1)
-  const barH = 26
-  const gap = 12
-  const labelW = 160
-  const trackW = 520
-  const height = rows.length * (barH + gap)
-  return (
-    <svg
-      width="100%"
-      viewBox={`0 0 ${labelW + trackW + 70} ${height}`}
-      role="img"
-      aria-label="Tokens per session"
-      style={{ display: 'block' }}
-    >
-      {rows.map((r, i) => {
-        const y = i * (barH + gap)
-        const w = (r.totalTokens / max) * trackW
-        const budgetX = labelW + (r.budget / max) * trackW
-        return (
-          <g key={r.threadId}>
-            <text
-              x={0}
-              y={y + barH / 2 + 4}
-              fill="#8a93a6"
-              fontSize={11}
-              fontFamily="monospace"
-            >
-              {r.threadId.length > 20
-                ? `${r.threadId.slice(0, 19)}…`
-                : r.threadId}
-            </text>
-            <rect
-              x={labelW}
-              y={y}
-              width={trackW}
-              height={barH}
-              fill="#141922"
-              rx={4}
-            />
-            <rect
-              x={labelW}
-              y={y}
-              width={w}
-              height={barH}
-              fill={r.over ? '#f43f5e' : '#5cc8ff'}
-              rx={4}
-            />
-            <line
-              x1={budgetX}
-              x2={budgetX}
-              y1={y - 2}
-              y2={y + barH + 2}
-              stroke="#e6e8ee"
-              strokeDasharray="3 3"
-              strokeWidth={1}
-            />
-            <text
-              x={labelW + trackW + 8}
-              y={y + barH / 2 + 4}
-              fill="#e6e8ee"
-              fontSize={11}
-            >
-              {r.totalTokens.toLocaleString()}
-            </text>
-          </g>
-        )
-      })}
-    </svg>
   )
 }

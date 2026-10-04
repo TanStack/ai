@@ -34,6 +34,8 @@ export async function closeDemo(page: Page) {
 }
 
 export async function answerAgentQuestion(page: Page) {
+  // The question card sits at the bottom of the stream, under the open panel.
+  await closeDemo(page)
   await page.getByText('Agent question').first().waitFor()
   await page.getByPlaceholder('Your answer').first().fill('yes')
   await page
