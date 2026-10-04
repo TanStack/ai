@@ -1,0 +1,94 @@
+import { z } from 'zod'
+import type { APIRequestContext } from '@playwright/test'
+import { test, expect } from './fixtures'
+
+const STUB = '[tool output cleared'
+
+const Message = z.object({
+  role: z.string(),
+  content: z.unknown(),
+  toolCallId: z.string().optional(),
+})
+
+const Result = z.object({
+  ok: z.literal(true),
+  calls: z.number(),
+  texts: z.array(z.string()),
+  transcript: z.array(Message),
+  rebuilt: z.array(Message),
+  records: z.array(z.string()),
+  lastRequest: z.object({
+    input: z.array(z.record(z.string(), z.unknown())),
+  }),
+})
+
+test.describe('compaction: durable records in a harness session', () => {
+  async function run(request: APIRequestContext, testCase: string) {
+    const response = await request.post('/api/compaction-durable-wire', {
+      data: { case: testCase },
+    })
+    expect(response.ok()).toBe(true)
+    const json: unknown = await response.json()
+    return Result.parse(json)
+  }
+
+  test('the after-turn check compacts a silent overflow', async ({
+    request,
+  }) => {
+    const result = await run(request, 'silent-overflow')
+    expect(result.texts).toEqual(['First response.', 'Completed response.'])
+    expect(result.calls).toBe(3)
+    expect(result.records).toEqual(['after-turn'])
+    expect(result.rebuilt).toEqual(result.transcript)
+  })
+
+  test('an overflow error compacts and retries once', async ({ request }) => {
+    const result = await run(request, 'error-overflow')
+    expect(result.texts).toEqual(['First response.', 'Recovered response.'])
+    expect(result.calls).toBe(4)
+    expect(result.records).toEqual(['forced'])
+    expect(result.rebuilt).toEqual(result.transcript)
+  })
+
+  test('turn control calls compactNext and retries', async ({ request }) => {
+    const result = await run(request, 'turn-control')
+    expect(result.texts).toEqual(['a1', 'fits now'])
+    expect(result.calls).toBe(4)
+    expect(result.records).toEqual(['forced'])
+    expect(result.rebuilt).toEqual(result.transcript)
+  })
+
+  test('parallel tools: only the oldest result is cleared', async ({
+    request,
+  }) => {
+    const result = await run(request, 'parallel-tools')
+    expect(result.texts).toEqual(['All parts read.'])
+    expect(result.calls).toBe(2)
+    expect(result.records).toEqual(['threshold'])
+    expect(result.transcript).toHaveLength(7)
+    expect(result.rebuilt).toEqual(result.transcript)
+
+    const tools = result.transcript.filter((m) => m.role === 'tool')
+    expect(tools.map((m) => m.toolCallId)).toEqual([
+      'call_part_1',
+      'call_part_2',
+      'call_part_3',
+      'call_part_4',
+    ])
+    expect(String(tools[0]?.content)).toContain(STUB)
+    tools.slice(1).forEach((m, index) => {
+      expect(String(m.content)).toContain(`RESULT_${index + 2}`)
+    })
+
+    const outputs = result.lastRequest.input.filter(
+      (item) => item.type === 'function_call_output',
+    )
+    expect(outputs.map((item) => item.call_id)).toEqual([
+      'call_part_1',
+      'call_part_2',
+      'call_part_3',
+      'call_part_4',
+    ])
+    expect(String(outputs[0]?.output)).toContain(STUB)
+  })
+})

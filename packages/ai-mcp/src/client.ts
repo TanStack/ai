@@ -3,6 +3,7 @@ import {
   DuplicateToolNameError,
   MCPConnectionError,
   MCPTaskRequiredToolError,
+  MCPToolFilterError,
   MCPToolNotFoundError,
 } from './errors'
 import { listPages } from './list-pages'
@@ -10,6 +11,7 @@ import {
   callMcpTool,
   makeMcpExecute,
   requiresTaskExecution,
+  sdkRequestOptions,
   serverSupportsTaskCalls,
   toolMcpMetadata,
   toServerTools,
@@ -56,7 +58,10 @@ export type TypedCallToolResult<TOutput> = unknown extends TOutput
   ? CallToolResult
   : Omit<CallToolResult, 'structuredContent'> & { structuredContent?: TOutput }
 
-type ToolPolicy = Pick<MCPClientOptions, 'toolFilter' | 'needsApproval'>
+type ToolPolicy = Pick<
+  MCPClientOptions,
+  'toolFilter' | 'needsApproval' | 'toolName' | 'requestOptions'
+>
 
 export interface MCPClient<
   TServer extends ServerDescriptor = AutomaticDescriptor,
@@ -74,9 +79,9 @@ export interface MCPClient<
     (options?: ToolsOptions): Promise<DescriptorTools<TServer>>
     /**
      * Explicit: bind these TanStack toolDefinitions to the server (typed +
-     * validated, allowlist). Note: when the client has a `prefix`, the
-     * runtime tool name is `${prefix}_${def.name}` while the static `TName`
-     * stays the unprefixed definition name.
+     * validated, allowlist). Note: the runtime tool name is `toolName(tool)`
+     * when the client sets `toolName`, else `${prefix}_${def.name}` with a
+     * `prefix`. The static `TName` stays the definition name.
      */
     <const TDefs extends ReadonlyArray<AnyToolDefinition>>(
       defs: TDefs,
@@ -143,6 +148,8 @@ export interface MCPClient<
     clientOptions?: ClientOptions
     toolFilter?: MCPClientOptions['toolFilter']
     needsApproval?: MCPClientOptions['needsApproval']
+    toolName?: MCPClientOptions['toolName']
+    requestOptions?: MCPClientOptions['requestOptions']
   }
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
@@ -208,14 +215,18 @@ class MCPClientImpl<
     clientOptions?: ClientOptions
     toolFilter?: MCPClientOptions['toolFilter']
     needsApproval?: MCPClientOptions['needsApproval']
+    toolName?: MCPClientOptions['toolName']
+    requestOptions?: MCPClientOptions['requestOptions']
   } {
-    const { toolFilter, needsApproval } = this.#policy
+    const { toolFilter, needsApproval, toolName, requestOptions } = this.#policy
     return {
       transport: this.#transport,
       prefix: this.prefix,
       ...(this.#clientOptions ? { clientOptions: this.#clientOptions } : {}),
       ...(toolFilter ? { toolFilter } : {}),
       ...(needsApproval ? { needsApproval } : {}),
+      ...(toolName ? { toolName } : {}),
+      ...(requestOptions ? { requestOptions } : {}),
     }
   }
 
@@ -262,19 +273,20 @@ class MCPClientImpl<
   // `raw: true` is the lazy `callTool` path. It must stay free of that cache.
   async #listTools(options?: { raw?: boolean }) {
     const client = this.#client
+    const requestOptions = sdkRequestOptions(this.#policy.requestOptions)
     const defs = await listPages(async (cursor) => {
       const page =
         cursor === undefined
-          ? await client.request({ method: 'tools/list' })
-          : await client.request({
-              method: 'tools/list',
-              params: { cursor },
-            })
+          ? await client.request({ method: 'tools/list' }, requestOptions)
+          : await client.request(
+              { method: 'tools/list', params: { cursor } },
+              requestOptions,
+            )
       return { items: page.tools, nextCursor: page.nextCursor }
     })
     this.#toolDefinitions = new Map(defs.map((def) => [def.name, def]))
     if (options?.raw !== true && client.getProtocolEra() !== 'modern') {
-      await client.listTools()
+      await client.listTools(undefined, requestOptions)
     }
     return defs
   }
@@ -291,9 +303,13 @@ class MCPClientImpl<
       : // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         ((defsOrOptions as ToolsOptions) ?? {}) // SDK interop: defsOrOptions may be undefined at runtime even though TS types it as ToolsOptions here
 
-    const { toolFilter, needsApproval } = this.#policy
+    const { toolFilter, needsApproval, toolName, requestOptions } = this.#policy
     const listed = await this.#listTools()
-    const defs = toolFilter ? listed.filter((def) => toolFilter(def)) : listed
+    const defs = applyToolFilter(
+      listed,
+      toolFilter,
+      serverSupportsTaskCalls(this.#client),
+    )
 
     let tools: Array<McpServerTool>
     if (isDefs) {
@@ -316,6 +332,7 @@ class MCPClientImpl<
             def.name,
             Boolean(def.outputSchema),
             requiresTaskExecution(serverTool),
+            requestOptions,
           ),
         ) as ServerTool
         // A caller-supplied definition may already carry its own `mcp` block,
@@ -335,9 +352,13 @@ class MCPClientImpl<
         // recover the UNPREFIXED native name + serverId, and carries the
         // server's display title / annotations to the host — mirrors
         // toServerTools.
+        // `toolName` wins over the prefix. metadata.mcp keeps the server name.
+        const name =
+          toolName?.(serverTool) ??
+          (this.prefix ? `${this.prefix}_${def.name}` : def.name)
         const tool: McpServerTool = {
           ...bound,
-          ...(this.prefix ? { name: `${this.prefix}_${def.name}` } : {}),
+          name,
           ...(options.lazy ? { lazy: true } : {}),
           metadata: {
             ...bound.metadata,
@@ -350,8 +371,10 @@ class MCPClientImpl<
       // Auto-discovery path.
       tools = toServerTools(this.#client, defs, {
         prefix: this.prefix,
+        toolName,
         lazy: options.lazy,
         needsApproval,
+        requestOptions,
       })
     }
 
@@ -366,22 +389,27 @@ class MCPClientImpl<
 
   async resources(): Promise<Array<Resource>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
-    return (await this.#client.listResources()).resources
+    const options = sdkRequestOptions(this.#policy.requestOptions)
+    return (await this.#client.listResources(undefined, options)).resources
   }
 
   async readResource(uri: string): Promise<ReadResourceResult> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
-    return this.#client.readResource({ uri })
+    const options = sdkRequestOptions(this.#policy.requestOptions)
+    return this.#client.readResource({ uri }, options)
   }
 
   async resourceTemplates(): Promise<Array<ResourceTemplateType>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
-    return (await this.#client.listResourceTemplates()).resourceTemplates
+    const options = sdkRequestOptions(this.#policy.requestOptions)
+    return (await this.#client.listResourceTemplates(undefined, options))
+      .resourceTemplates
   }
 
   async prompts(): Promise<Array<Prompt>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
-    return (await this.#client.listPrompts()).prompts
+    const options = sdkRequestOptions(this.#policy.requestOptions)
+    return (await this.#client.listPrompts(undefined, options)).prompts
   }
 
   async getPrompt(name: string, args?: unknown): Promise<GetPromptResult> {
@@ -392,7 +420,8 @@ class MCPClientImpl<
           Object.entries(args).map(([key, value]) => [key, String(value)]),
         )
       : undefined
-    return this.#client.getPrompt({ name, arguments: promptArgs })
+    const options = sdkRequestOptions(this.#policy.requestOptions)
+    return this.#client.getPrompt({ name, arguments: promptArgs }, options)
   }
 
   async callTool<TName extends keyof TServer['tools'] & string>(
@@ -427,6 +456,8 @@ class MCPClientImpl<
       isArgs(args) ? args : {},
       taskRequired,
       options?.signal,
+      undefined,
+      this.#policy.requestOptions,
     )
     // Trust boundary: the server type says what `structuredContent` holds.
     // The client does not check the wire value against that type.
@@ -452,6 +483,53 @@ class MCPClientImpl<
 
 function isArgs(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Applies the client `toolFilter` to the listed tools.
+ * A function keeps the tools it returns `true` for.
+ * A list keeps exactly the listed tools, in list order. A missing or
+ * repeated name throws `MCPToolFilterError`. A listed tool that needs a task
+ * on a server without task support throws `MCPTaskRequiredToolError`.
+ */
+function applyToolFilter(
+  listed: Array<McpToolDef>,
+  toolFilter: MCPClientOptions['toolFilter'],
+  supportsTasks: boolean,
+): Array<McpToolDef> {
+  if (toolFilter === undefined) return listed
+  if (typeof toolFilter === 'function') {
+    return listed.filter((def) => toolFilter(def))
+  }
+  const byName = new Map(listed.map((def) => [def.name, def]))
+  const seen = new Set<string>()
+  const repeated = new Set<string>()
+  const missing: Array<string> = []
+  const kept: Array<McpToolDef> = []
+  for (const name of toolFilter) {
+    if (seen.has(name)) {
+      repeated.add(name)
+      continue
+    }
+    seen.add(name)
+    const def = byName.get(name)
+    if (def === undefined) missing.push(name)
+    else kept.push(def)
+  }
+  if (missing.length > 0 || repeated.size > 0) {
+    throw new MCPToolFilterError({
+      missing,
+      repeated: [...repeated],
+      available: listed.map((def) => def.name),
+    })
+  }
+  const unsupported = kept.find(
+    (def) => requiresTaskExecution(def) && !supportsTasks,
+  )
+  if (unsupported !== undefined) {
+    throw new MCPTaskRequiredToolError(unsupported.name)
+  }
+  return kept
 }
 
 /**
@@ -510,7 +588,12 @@ async function connectTransport<
     // instance is single-use, so it is not retained as a descriptor.
     isTransportInstance(options.transport) ? undefined : options.transport,
     options.clientOptions,
-    { toolFilter: options.toolFilter, needsApproval: options.needsApproval },
+    {
+      toolFilter: options.toolFilter,
+      needsApproval: options.needsApproval,
+      toolName: options.toolName,
+      requestOptions: options.requestOptions,
+    },
   )
   await impl.connect(transport)
   return impl

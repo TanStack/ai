@@ -141,3 +141,10 @@ const policy: MCPClientOptions = {
   needsApproval: (tool) => tool.annotations?.destructiveHint !== false,
 }
 void policy
+
+// A list of server tool names also works.
+const listPolicy: MCPClientOptions = {
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  toolFilter: ['search_issues', 'get_issue'],
+}
+void listPolicy

@@ -143,7 +143,11 @@ const pool = await createMCPClients({
     transport: { type: 'http', url: process.env.LINEAR_MCP_URL! },
     needsApproval: (tool) => tool.annotations?.readOnlyHint !== true,
   },
-  docs: { transport: { type: 'http', url: process.env.DOCS_MCP_URL! } },
+  docs: {
+    transport: { type: 'http', url: process.env.DOCS_MCP_URL! },
+    // Exactly these two tools, by server name
+    toolFilter: ['search_docs', 'get_page'],
+  },
 })
 
 const stream = chat({
@@ -153,7 +157,14 @@ const stream = chat({
 })
 ```
 
-The hints come from the server, and a compromised server can send false hints. For the trust rules and a name-based filter, see [Limit and Gate Tools](./mcp#limit-and-gate-tools).
+A `toolFilter` list is strict. If the server has no tool with a listed name, or a name is listed twice, discovery fails:
+
+- A single client throws `MCPToolFilterError`.
+- A `createMCPClients` pool throws `MCPConnectionError`. Its `cause` is the `MCPToolFilterError`.
+
+`chat()` handles this like any other [discovery failure](#handling-discovery-failures). By default, the run fails before the first model call.
+
+The hints come from the server, and a compromised server can send false hints. For the trust rules and the list form, see [Limit and Gate Tools](./mcp#limit-and-gate-tools).
 
 ## Keep connections warm
 

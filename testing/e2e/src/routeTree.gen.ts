@@ -87,6 +87,7 @@ import { Route as ApiMessageIdsRouteImport } from './routes/api.message-ids'
 import { Route as ApiMessageHistoryPagingRouteImport } from './routes/api.message-history-paging'
 import { Route as ApiMcpTypedTestRouteImport } from './routes/api.mcp-typed-test'
 import { Route as ApiMcpTypedServerRouteImport } from './routes/api.mcp-typed-server'
+import { Route as ApiMcpToolOptionsWireRouteImport } from './routes/api.mcp-tool-options-wire'
 import { Route as ApiMcpTestRouteImport } from './routes/api.mcp-test'
 import { Route as ApiMcpTaskErrorsRouteImport } from './routes/api.mcp-task-errors'
 import { Route as ApiMcpStatusTestRouteImport } from './routes/api.mcp-status-test'
@@ -118,6 +119,7 @@ import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-tak
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
+import { Route as ApiCompactionDurableWireRouteImport } from './routes/api.compaction-durable-wire'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
@@ -549,6 +551,11 @@ const ApiMcpTypedServerRoute = ApiMcpTypedServerRouteImport.update({
   path: '/api/mcp-typed-server',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpToolOptionsWireRoute = ApiMcpToolOptionsWireRouteImport.update({
+  id: '/api/mcp-tool-options-wire',
+  path: '/api/mcp-tool-options-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpTestRoute = ApiMcpTestRouteImport.update({
   id: '/api/mcp-test',
   path: '/api/mcp-test',
@@ -707,6 +714,12 @@ const ApiCompactionWireRoute = ApiCompactionWireRouteImport.update({
   path: '/api/compaction-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCompactionDurableWireRoute =
+  ApiCompactionDurableWireRouteImport.update({
+    id: '/api/compaction-durable-wire',
+    path: '/api/compaction-durable-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCloudflareBindingWireRoute =
   ApiCloudflareBindingWireRouteImport.update({
     id: '/api/cloudflare-binding-wire',
@@ -867,6 +880,7 @@ export interface FileRoutesByFullPath {
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/compaction-durable-wire': typeof ApiCompactionDurableWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -898,6 +912,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
+  '/api/mcp-tool-options-wire': typeof ApiMcpToolOptionsWireRoute
   '/api/mcp-typed-server': typeof ApiMcpTypedServerRoute
   '/api/mcp-typed-test': typeof ApiMcpTypedTestRoute
   '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
@@ -999,6 +1014,7 @@ export interface FileRoutesByTo {
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/compaction-durable-wire': typeof ApiCompactionDurableWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -1030,6 +1046,7 @@ export interface FileRoutesByTo {
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
+  '/api/mcp-tool-options-wire': typeof ApiMcpToolOptionsWireRoute
   '/api/mcp-typed-server': typeof ApiMcpTypedServerRoute
   '/api/mcp-typed-test': typeof ApiMcpTypedTestRoute
   '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
@@ -1132,6 +1149,7 @@ export interface FileRoutesById {
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/compaction-durable-wire': typeof ApiCompactionDurableWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -1163,6 +1181,7 @@ export interface FileRoutesById {
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
+  '/api/mcp-tool-options-wire': typeof ApiMcpToolOptionsWireRoute
   '/api/mcp-typed-server': typeof ApiMcpTypedServerRoute
   '/api/mcp-typed-test': typeof ApiMcpTypedTestRoute
   '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
@@ -1266,6 +1285,7 @@ export interface FileRouteTypes {
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/cloudflare-binding-wire'
+    | '/api/compaction-durable-wire'
     | '/api/compaction-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1297,6 +1317,7 @@ export interface FileRouteTypes {
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
     | '/api/mcp-test'
+    | '/api/mcp-tool-options-wire'
     | '/api/mcp-typed-server'
     | '/api/mcp-typed-test'
     | '/api/message-history-paging'
@@ -1398,6 +1419,7 @@ export interface FileRouteTypes {
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/cloudflare-binding-wire'
+    | '/api/compaction-durable-wire'
     | '/api/compaction-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1429,6 +1451,7 @@ export interface FileRouteTypes {
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
     | '/api/mcp-test'
+    | '/api/mcp-tool-options-wire'
     | '/api/mcp-typed-server'
     | '/api/mcp-typed-test'
     | '/api/message-history-paging'
@@ -1530,6 +1553,7 @@ export interface FileRouteTypes {
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/cloudflare-binding-wire'
+    | '/api/compaction-durable-wire'
     | '/api/compaction-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1561,6 +1585,7 @@ export interface FileRouteTypes {
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
     | '/api/mcp-test'
+    | '/api/mcp-tool-options-wire'
     | '/api/mcp-typed-server'
     | '/api/mcp-typed-test'
     | '/api/message-history-paging'
@@ -1663,6 +1688,7 @@ export interface RootRouteChildren {
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
+  ApiCompactionDurableWireRoute: typeof ApiCompactionDurableWireRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
@@ -1694,6 +1720,7 @@ export interface RootRouteChildren {
   ApiMcpStatusTestRoute: typeof ApiMcpStatusTestRoute
   ApiMcpTaskErrorsRoute: typeof ApiMcpTaskErrorsRoute
   ApiMcpTestRoute: typeof ApiMcpTestRoute
+  ApiMcpToolOptionsWireRoute: typeof ApiMcpToolOptionsWireRoute
   ApiMcpTypedServerRoute: typeof ApiMcpTypedServerRoute
   ApiMcpTypedTestRoute: typeof ApiMcpTypedTestRoute
   ApiMessageHistoryPagingRoute: typeof ApiMessageHistoryPagingRoute
@@ -2292,6 +2319,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpTypedServerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-tool-options-wire': {
+      id: '/api/mcp-tool-options-wire'
+      path: '/api/mcp-tool-options-wire'
+      fullPath: '/api/mcp-tool-options-wire'
+      preLoaderRoute: typeof ApiMcpToolOptionsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-test': {
       id: '/api/mcp-test'
       path: '/api/mcp-test'
@@ -2507,6 +2541,13 @@ declare module '@tanstack/react-router' {
       path: '/api/compaction-wire'
       fullPath: '/api/compaction-wire'
       preLoaderRoute: typeof ApiCompactionWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/compaction-durable-wire': {
+      id: '/api/compaction-durable-wire'
+      path: '/api/compaction-durable-wire'
+      fullPath: '/api/compaction-durable-wire'
+      preLoaderRoute: typeof ApiCompactionDurableWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cloudflare-binding-wire': {
@@ -2765,6 +2806,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
+  ApiCompactionDurableWireRoute: ApiCompactionDurableWireRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
@@ -2796,6 +2838,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpStatusTestRoute: ApiMcpStatusTestRoute,
   ApiMcpTaskErrorsRoute: ApiMcpTaskErrorsRoute,
   ApiMcpTestRoute: ApiMcpTestRoute,
+  ApiMcpToolOptionsWireRoute: ApiMcpToolOptionsWireRoute,
   ApiMcpTypedServerRoute: ApiMcpTypedServerRoute,
   ApiMcpTypedTestRoute: ApiMcpTypedTestRoute,
   ApiMessageHistoryPagingRoute: ApiMessageHistoryPagingRoute,

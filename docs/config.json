@@ -331,7 +331,7 @@
           "label": "Compaction",
           "to": "advanced/compaction",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-03"
         },
         {
           "label": "Prompt Caching",
@@ -508,13 +508,13 @@
           "label": "MCP Server Tools",
           "to": "tools/mcp",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-03"
         },
         {
           "label": "Managed MCP with chat()",
           "to": "tools/mcp-managed",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-03"
         },
         {
           "label": "Manual MCP",
@@ -932,13 +932,18 @@
           "label": "Build on the session log",
           "to": "harness/session-log",
           "addedAt": "2026-09-30",
-          "updatedAt": "2026-10-01"
+          "updatedAt": "2026-10-03"
         },
         {
           "label": "Control how a turn ends",
           "to": "harness/turn-control",
           "addedAt": "2026-10-01",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-03"
+        },
+        {
+          "label": "Compact a long session",
+          "to": "harness/compaction",
+          "addedAt": "2026-10-03"
         },
         {
           "label": "Share one log between sessions",
@@ -955,7 +960,7 @@
           "label": "Build a coding agent",
           "to": "harness/coding-agent",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-01"
+          "updatedAt": "2026-10-04"
         },
         {
           "label": "Connect model providers",

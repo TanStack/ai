@@ -10,6 +10,7 @@ import {
 import type {
   Client,
   Request,
+  RequestOptions,
   TaskStatus,
   Tool as McpToolDef,
   ToolAnnotations,
@@ -24,12 +25,14 @@ import {
   isMCPInputRequiredError,
   MCPInputRequiredError,
 } from './input-required'
-import type { McpServerTool, McpToolMetadata } from './types'
+import type { MCPClientOptions, McpServerTool, McpToolMetadata } from './types'
 
 interface ConvertOptions {
   prefix?: string
+  toolName?: (tool: McpToolDef) => string
   lazy?: boolean
   needsApproval?: (tool: McpToolDef) => boolean
+  requestOptions?: MCPClientOptions['requestOptions']
 }
 
 /** Reads the MCP Apps `_meta.ui.resourceUri` link from a tool def, if present. */
@@ -55,9 +58,10 @@ function toolDisplayTitle(def: McpToolDef): string {
  * Shared by auto-discovery (`toServerTools`) and the explicit `tools(defs)`
  * path in `client.ts` so the two cannot drift.
  *
- * `annotations` is the server's own object, forwarded verbatim. Per the MCP
- * spec its fields (including `title`) are **hints** — a host may use them for
- * display or to shape an approval UI, but never as a security boundary.
+ * `annotations` is a frozen copy of the server's object. A host cannot change
+ * the server's data through it. Per the MCP spec, its fields (including
+ * `title`) are hints. A host may use them for display or for an approval UI,
+ * but never as a security boundary.
  *
  * Fields the server didn't declare are OMITTED rather than set to `undefined`:
  * the explicit path merges this over any `mcp` block the caller already put on
@@ -74,7 +78,9 @@ export function toolMcpMetadata(
     serverId,
     title: toolDisplayTitle(def),
     ...(uiResourceUri !== undefined ? { uiResourceUri } : {}),
-    ...(annotations !== undefined ? { annotations } : {}),
+    ...(annotations !== undefined
+      ? { annotations: Object.freeze({ ...annotations }) }
+      : {}),
   }
 }
 
@@ -140,6 +146,7 @@ export function mcpContentToTanstack(
  * @param taskRequired - True when the tool requires a spec 2025 task
  * @param signal - Stops the wait when the caller aborts
  * @param inputResponse - The user's answer from an `mcp_input` interrupt
+ * @param requestOptions - The client `requestOptions`, sent with tools/call
  */
 export async function callMcpTool(
   client: Client,
@@ -148,13 +155,17 @@ export async function callMcpTool(
   taskRequired: boolean,
   signal?: AbortSignal,
   inputResponse?: ToolInputResponse,
+  requestOptions?: MCPClientOptions['requestOptions'],
 ) {
   signal?.throwIfAborted()
   const isModern = client.getProtocolEra() === 'modern'
   if (!taskRequired && !isModern) {
     const result = await client.callTool(
       { name: mcpName, arguments: args },
-      { signal, allowInputRequired: true },
+      {
+        ...sdkRequestOptions(requestOptions, signal),
+        allowInputRequired: true,
+      },
     )
     throwIfInputRequired(result)
     return result
@@ -162,12 +173,13 @@ export async function callMcpTool(
 
   const params = { name: mcpName, arguments: args }
   let raw = isModern
-    ? await rawRequest(client, 'tools/call', params, signal)
+    ? await rawRequest(client, 'tools/call', params, signal, requestOptions)
     : await sdkRequest(
         client,
         'tools/call',
         { name: mcpName, arguments: args, task: {} },
         signal,
+        requestOptions,
       )
   // ponytail: the answer is sent on the second call, so the server state never
   // travels through the browser. The cost is one extra tools/call.
@@ -177,6 +189,7 @@ export async function callMcpTool(
       'tools/call',
       { ...params, ...retryParams(raw, inputResponse) },
       signal,
+      requestOptions,
     )
     // ponytail: one input round per call. The next resume starts with no
     // requestState, so a second pause would ask round 1 again forever.
@@ -352,6 +365,9 @@ async function readPolledTask(
   return task
 }
 
+// ponytail: task polls (tasks/get, tasks/result, tasks/cancel) keep the SDK
+// default timeout. Each poll is a short request. Pass the client
+// requestOptions here if a server is slow to answer a poll.
 function taskRequest(
   client: Client,
   method: string,
@@ -361,11 +377,33 @@ function taskRequest(
   return sdkRequest(client, method, params, signal)
 }
 
+/**
+ * The SDK options for one request: the client `requestOptions` plus the
+ * caller's `signal`. `undefined` when both are unset, so the SDK defaults
+ * apply.
+ *
+ * The SDK asks the server for progress only when `onprogress` is set. So a
+ * no-op `onprogress` comes with `resetTimeoutOnProgress`, or that option
+ * would never see a progress notification.
+ */
+export function sdkRequestOptions(
+  requestOptions: MCPClientOptions['requestOptions'],
+  signal?: AbortSignal,
+): RequestOptions | undefined {
+  if (requestOptions === undefined && signal === undefined) return undefined
+  return {
+    ...requestOptions,
+    ...(requestOptions?.resetTimeoutOnProgress ? { onprogress: () => {} } : {}),
+    ...(signal === undefined ? {} : { signal }),
+  }
+}
+
 async function sdkRequest(
   client: Client,
   method: string,
   params: Record<string, unknown>,
   signal?: AbortSignal,
+  requestOptions?: MCPClientOptions['requestOptions'],
 ) {
   signal?.throwIfAborted()
   const rpc: Request = { method, params }
@@ -373,7 +411,7 @@ async function sdkRequest(
     return await client.request(
       rpc,
       passThroughResult,
-      signal === undefined ? undefined : { signal },
+      sdkRequestOptions(requestOptions, signal),
     )
   } catch (error) {
     if (signal?.aborted) throw abortReason(signal)
@@ -386,6 +424,7 @@ function rawRequest(
   method: string,
   params: Record<string, unknown>,
   signal?: AbortSignal,
+  requestOptions?: MCPClientOptions['requestOptions'],
 ) {
   signal?.throwIfAborted()
   const transport = client.transport
@@ -398,15 +437,20 @@ function rawRequest(
   const body = withEnvelope(params, readEnvelope(client))
   return new Promise<unknown>((resolve, reject) => {
     let settled = false
-    // Same limit as an SDK request, so a lost response cannot hang the call.
+    // The client `timeout`, else the SDK default, so a lost response cannot
+    // hang the call.
+    // ponytail: this request sends no progressToken, so the server sends no
+    // progress and `resetTimeoutOnProgress` cannot apply. Send a token and
+    // match notifications/progress in `accept` if a spec 2026 server needs it.
+    const timeout = requestOptions?.timeout ?? DEFAULT_REQUEST_TIMEOUT_MSEC
     const timer = setTimeout(() => {
       finish(
         new SdkError(
           SdkErrorCode.RequestTimeout,
-          `The MCP request ${method} timed out after ${DEFAULT_REQUEST_TIMEOUT_MSEC} ms.`,
+          `The MCP request ${method} timed out after ${timeout} ms.`,
         ),
       )
-    }, DEFAULT_REQUEST_TIMEOUT_MSEC)
+    }, timeout)
     const finish = (error: unknown, result?: unknown) => {
       if (settled) return
       settled = true
@@ -629,12 +673,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *   return `result.structuredContent` if present so the existing output
  *   validation in `executeServerTool` validates MCP's typed payload rather than
  *   a JSON-in-text blob. Otherwise normalize `content[]` → string | ContentPart[].
+ * @param requestOptions - The client `requestOptions`, sent with each call
  */
 export function makeMcpExecute(
   client: Client,
   mcpName: string,
   preferStructured: boolean,
   taskRequired = false,
+  requestOptions?: MCPClientOptions['requestOptions'],
 ) {
   return async (
     args: unknown,
@@ -647,6 +693,7 @@ export function makeMcpExecute(
       taskRequired,
       ctx?.abortSignal,
       ctx?.inputResponse,
+      requestOptions,
     )
     if (result.isError) {
       const text = Array.isArray(result.content)
@@ -698,15 +745,22 @@ export function toServerTools(
   return defs
     .filter((def) => !requiresTaskExecution(def) || supportsTasks)
     .map((def) => {
-      const name = options.prefix ? `${options.prefix}_${def.name}` : def.name
+      // `toolName` wins over the prefix. metadata.mcp keeps the server name.
+      const name =
+        options.toolName?.(def) ??
+        (options.prefix ? `${options.prefix}_${def.name}` : def.name)
+      // A server can leave out `type` or `properties`. Fill both, because
+      // some providers reject an object schema without `properties`.
+      const schema: Partial<McpToolDef['inputSchema']> = def.inputSchema ?? {}
       const tool: McpServerTool = {
         __toolSide: 'server',
         name,
         description: def.description ?? '',
-        inputSchema: (def.inputSchema as any) ?? {
-          type: 'object',
-          properties: {},
-        },
+        inputSchema: {
+          ...schema,
+          type: schema.type ?? 'object',
+          properties: schema.properties ?? {},
+        } as any,
         ...(def.outputSchema ? { outputSchema: def.outputSchema as any } : {}),
         ...(options.lazy ? { lazy: true } : {}),
         metadata: {
@@ -717,6 +771,7 @@ export function toServerTools(
           def.name,
           Boolean(def.outputSchema),
           requiresTaskExecution(def),
+          options.requestOptions,
         ),
       }
       if (options.needsApproval?.(def)) {

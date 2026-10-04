@@ -1107,11 +1107,37 @@ export function engineMessageStore(options: {
         commonPrefix(target, list) === list.length
       return isSame ? undefined : [...target]
     },
+    /**
+     * Host records from a middleware of the running turn. The messages that
+     * the engine added since its last save (the tool results of the last
+     * phase) go first in the same append, as a save puts them. So a record
+     * that counts them lands on a fold that has them. A `list` that changed
+     * older messages is not written: the last save keeps them (for example
+     * the run id that `withPersistence` puts on a reply). A `list` with no
+     * new messages appends only the records, so the staged records of a
+     * running tool batch stay staged.
+     */
+    appendRecords: (
+      list: ReadonlyArray<ModelMessage>,
+      records: ReadonlyArray<LogRecord>,
+    ) => {
+      const kept = commonPrefix(held, list)
+      if (kept < held.length || list.length === held.length) {
+        return writer.append(records)
+      }
+      const target = rebase(held, [...list])
+      held = [...list]
+      return writer.commit({ messages: target, records })
+    },
   } satisfies MessageStore & {
     beforeModel: (
       list: ReadonlyArray<ModelMessage>,
       records?: ReadonlyArray<LogRecord>,
     ) => Promise<Array<ModelMessage> | undefined>
+    appendRecords: (
+      list: ReadonlyArray<ModelMessage>,
+      records: ReadonlyArray<LogRecord>,
+    ) => Promise<void>
   }
   return engine
 }

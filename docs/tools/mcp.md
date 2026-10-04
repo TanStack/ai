@@ -249,6 +249,33 @@ const mcp = await createMCPClient({
 > a provider backed by pre-provisioned or stored tokens with working refresh —
 > the config form shown above is all you need.
 
+## Timeouts
+
+A slow MCP server can hold a request for a long time. By default, each request waits up to 60 seconds, then fails. A tool that runs longer, such as a report or a build, fails at that limit too.
+
+Set `requestOptions` to change the limit for tool lists, tool calls, resource requests, and prompt requests:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: 'https://my-mcp-server.example.com/mcp' },
+  requestOptions: {
+    // Wait up to 2 minutes for each request.
+    timeout: 120_000,
+    // Start the 2 minutes again each time the server reports progress.
+    resetTimeoutOnProgress: true,
+  },
+})
+```
+
+- `timeout`: the limit in milliseconds. The SDK default is 60,000.
+- `resetTimeoutOnProgress`: start the timeout again when the server sends a progress notification. A tool call on protocol `2026-07-28` gets no progress notifications, so there only `timeout` applies.
+- The connect handshake, the `subscriptions/listen` stream, and task status polls keep the SDK defaults.
+- A request that runs out of time throws an `SdkError` from `@modelcontextprotocol/client`, with the code `SdkErrorCode.RequestTimeout`.
+
+Each server in [`createMCPClients`](#multi-server-pool) can have its own `requestOptions`. [MCP Apps](../mcp/apps) widget calls use the options of the same client.
+
 ## Three Modes of Type Safety
 
 ### Mode 1 — Auto-discovery (`client.tools()`)
@@ -264,6 +291,8 @@ const mcp = await createMCPClient({
 const tools = await mcp.tools()
 // tools: ServerTool[]  — args typed unknown at compile time
 ```
+
+If a server sends an input schema without `properties`, the tool gets `properties: {}`. A schema without `type` gets `type: 'object'`. Some providers reject an object schema without `properties`, and these defaults keep those tools working. The client does not change a schema that has both fields.
 
 MCP schemas often use `$ref` or `oneOf`. On adapters built on the OpenAI API, those tools are sent without strict mode, and the adapter warns in development. See [Tools that cannot use strict mode](../adapters/openai.md#tools-that-cannot-use-strict-mode).
 
@@ -315,7 +344,7 @@ MCP servers can ship display and behavior metadata alongside each tool: a human-
 | `metadata.mcp` field | Value |
 |---|---|
 | `title` | `string` — display name, resolved with the spec's precedence: the tool's `title` → `annotations.title` → `name`. Always set. |
-| `annotations` | The server's `annotations` object, forwarded verbatim. Absent when the server declares none. |
+| `annotations` | A frozen copy of the server's `annotations` object. Absent when the server declares none. To change a value, copy it first: `{ ...tool.metadata.mcp.annotations, readOnlyHint: false }`. |
 | `serverToolName` | `string` — server-native (unprefixed) tool name. |
 | `serverId` | The client's `prefix` (undefined when there is none). |
 | `uiResourceUri` | [MCP Apps](../mcp/apps) widget link, when the tool declares one. |
@@ -419,10 +448,10 @@ export function ToolCatalog() {
 
 By default, the model gets every tool that the server lists, and each tool runs without approval. A server can expose tools that write or delete data. Two client options control this:
 
-- `toolFilter`: return `false` to hide a tool from the model.
+- `toolFilter`: a function that returns `false` to hide a tool, or a list of the tool names to keep.
 - `needsApproval`: return `true` to pause the run for [approval](./tool-approval) before each call to the tool.
 
-Both options receive the tool definition that the server sent. The definition has the native (unprefixed) `name`, the `title`, and the `annotations`. Both options are off by default.
+A `toolFilter` function and `needsApproval` receive the tool definition that the server sent. The definition has the native (unprefixed) `name`, the `title`, and the `annotations`. Both options are off by default.
 
 Send only the tools that the server marks read-only:
 
@@ -439,18 +468,27 @@ const tools = await mcp.tools() // only read-only tools
 
 A tool with no `annotations` does not pass this filter.
 
-On a server that you do not trust, filter by name. You control the names, and the server controls the hints:
+On a server that you do not trust, list the tools by name. You control the names, and the server controls the hints:
 
 ```ts
 import { createMCPClient } from '@tanstack/ai-mcp'
 
-const allowed = new Set(['search_issues', 'get_issue'])
-
 const mcp = await createMCPClient({
   transport: { type: 'http', url: 'https://my-mcp-server.example.com/mcp' },
-  toolFilter: (tool) => allowed.has(tool.name),
+  toolFilter: ['search_issues', 'get_issue'],
 })
+
+const tools = await mcp.tools() // search_issues, then get_issue
 ```
+
+A list is strict:
+
+- The tools come back in the list order.
+- A name that the server does not have, or a name listed twice, throws `MCPToolFilterError`. Its `missing`, `repeated`, and `available` fields name the tools. A typo fails the `tools()` call, so the model never runs with fewer tools than you expect.
+- A listed tool that needs task execution, on a server without task support, throws `MCPTaskRequiredToolError`.
+- An empty list keeps no tools.
+
+A function does not fail when a tool is missing. If the tool list of the server can change, use a function.
 
 Keep every tool, but ask the user before a tool runs:
 
@@ -668,6 +706,51 @@ try {
 
 Use a unique `prefix` on each client to avoid collisions — `createMCPClients` does this automatically using the config key.
 
+## Name Tools Yourself
+
+The model sees `<prefix>_<tool>`, or the server's tool name when there is no prefix. Some apps need another pattern, for example a fixed `mcp__<server>__<tool>` form, or names without characters that a provider rejects.
+
+Pass `toolName`. It gets the tool definition from the server and returns the name the model sees. It wins over `prefix`:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+// Keep only letters, digits, `_`, and `-` in the name.
+const clean = (value: string) => value.replace(/[^A-Za-z0-9_-]/g, '_')
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: 'https://my-mcp-server.example.com/mcp' },
+  toolName: (tool) => `mcp__github__${clean(tool.name)}`,
+})
+
+const tools = await mcp.tools() // mcp__github__search_issues, ...
+```
+
+- The name applies to `tools()` and to `tools([...defs])`.
+- `metadata.mcp.serverToolName` keeps the server's own name. [MCP Apps](../mcp/apps) widget calls use it, and `callTool()` takes it, so both still reach the tool.
+- `metadata.mcp.serverId` is still the client `prefix`.
+- MCP Apps routes widget calls by `prefix`. If you use MCP Apps with `toolName`, keep a `prefix` on each client.
+- Two tools with the same final name throw `DuplicateToolNameError`, in one client and across a pool.
+
+In a pool, each server gets its own `toolName`:
+
+```ts
+import { createMCPClients } from '@tanstack/ai-mcp'
+
+const pool = await createMCPClients({
+  github: {
+    transport: { type: 'http', url: process.env.GITHUB_MCP_URL! },
+    toolName: (tool) => `mcp__github__${tool.name}`,
+  },
+  linear: {
+    transport: { type: 'http', url: process.env.LINEAR_MCP_URL! },
+    toolName: (tool) => `mcp__linear__${tool.name}`,
+  },
+})
+
+const tools = await pool.tools() // mcp__github__..., mcp__linear__...
+```
+
 ## Lazy Tool Discovery
 
 Pass `{ lazy: true }` to defer sending tool schemas to the LLM until it explicitly asks for them. This reduces token usage when working with tool-heavy servers.
@@ -710,7 +793,8 @@ The Quick Start above hands tools to `chat()` manually via `tools: await mcp.too
 |---|---|
 | `MCPConnectionError` | `createMCPClient` fails to connect, or a method is called after `close()` |
 | `DuplicateToolNameError` | Two tools have the same name within one client or across the pool |
-| `MCPToolNotFoundError` | A `toolDefinition` name passed to `tools([...defs])` is not found on the server |
-| `MCPTaskRequiredToolError` | A task-required tool was bound via `tools([...defs])` or called via `callTool()` but the server does not declare the tasks capability for `tools/call`, so the call could never execute |
+| `MCPToolNotFoundError` | A `toolDefinition` name passed to `tools([...defs])` is not found on the server, or the client's `toolFilter` hides it |
+| `MCPToolFilterError` | A `toolFilter` list names a tool that the server does not have, or names a tool twice. In a pool, `pool.tools()` throws `MCPConnectionError` with this error as its `cause` |
+| `MCPTaskRequiredToolError` | A task-required tool was bound via `tools([...defs])`, listed in a `toolFilter` list, or called via `callTool()`, but the server does not declare the tasks capability for `tools/call`, so the call can never run |
 
 For the `MCPDuplicateToolNameError` thrown when merging tools from multiple sources inside a `chat({ mcp })` run, see [Managed MCP with `chat()`](./mcp-managed#tool-name-collisions).

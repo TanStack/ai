@@ -84,7 +84,7 @@ echo.setResponses([
 
 ## Test errors and overflow
 
-An answer with `error` fails the call. With [`isContextOverflow`](./compaction#retry-after-an-overflow), test the code that compacts and retries:
+An answer with `error` fails the call. With [`isContextOverflow`](./compaction#compact-now-after-an-overflow), test the code that compacts and retries:
 
 ```ts group=testing
 import { isContextOverflow } from '@tanstack/ai'
