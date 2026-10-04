@@ -32,8 +32,9 @@ Add it with `plugins: () => [today]` in `defineHarness`. `setup` runs once per s
 - `prompts`: text for the system prompt. A function runs for each turn, so it can show current state.
 - `middleware`: chat middleware for the lead turn, the same type as `chat({ middleware })`. `agentMiddleware` is for agent runs, see [Middleware in every agent](#middleware-in-every-agent).
 - `generationMiddleware`: middleware for the activities agents call.
-- `agents`: agents added to `session.agents`.
+- `agents`: agents added to `session.agents`. `routing.router` can send a turn to them too, see [Route a turn to an agent](./subagents#route-a-turn-to-an-agent).
 - `subagents`: agents the model can call as tools. They are also added to `session.agents`. [Delegate to coding agents](./coding-agents) uses them.
+- `adapter`: a picker for the model of each turn, see [Pick the model of a turn](#pick-the-model-of-a-turn).
 - `commands`: user actions, see below.
 - `config`: session settings, see below.
 - `contribute`: items for another plugin's extension point.
@@ -75,6 +76,57 @@ export const greeter = definePlugin({
 - `session.command('greet', { name: 'Ada' })` runs the command. The input is checked against its schema.
 - `session.setConfig('tone', 'warm')` changes the setting. A value the option does not accept is rejected.
 - `ask` waits for `session.answer(questionId, value)`. The question shows up in `session.snapshot().pendingQuestions`, and the CLI prompts for it.
+
+## Change commands while the session runs
+
+Some commands come from data that changes: a folder of skills, saved shortcuts, a list from a server. `ctx.commands` adds and removes them while the session runs. Here `/macro` saves a new command that sends a message:
+
+```ts group=harness-plugins
+export const macros = definePlugin({
+  name: 'acme/macros',
+  setup: (ctx) => ({
+    commands: {
+      macro: defineCommand({
+        description: 'Save a command that sends a message: /macro <name> <message>',
+        run: (input: unknown) => {
+          const [name = '', ...words] = String(input ?? '').trim().split(' ')
+          if (ctx.commands.has(name)) return `/${name} is taken.`
+          ctx.commands.set(
+            name,
+            defineCommand({
+              description: `Send: ${words.join(' ')}`,
+              run: () => {
+                void ctx.session.prompt(words.join(' '))
+              },
+            }),
+          )
+          return `Saved /${name}.`
+        },
+      }),
+    },
+  }),
+})
+```
+
+- `ctx.commands.set(name, command)` adds a command of this plugin, or replaces it. A name that another plugin owns throws.
+- `ctx.commands.delete(name)` removes a command of this plugin. Another plugin's name does nothing.
+- Session views (`createSessionView`) get the new list at once, so the command shows in the `/` list of a CLI.
+- During `setup`, wait for `ctx.commands.ready` before you call `has` or `set`. The plugins after this one add their commands later, so a name can look free and still be taken.
+
+```ts group=harness-plugins
+export const greetings = definePlugin({
+  name: 'acme/greetings',
+  setup: (ctx) => {
+    void ctx.commands.ready.then(() => {
+      if (!ctx.commands.has('hi')) {
+        ctx.commands.set('hi', defineCommand({ description: 'Say hi', run: () => 'Hi!' }))
+      }
+    })
+  },
+})
+```
+
+The [skills plugin](./skills) works this way: one command for each skill in a folder.
 
 ## Keep state
 
@@ -135,6 +187,41 @@ export const usageByAgent = definePlugin({
 - `ctx.subagentRunId` is different for each run of an agent. For a nested child, `ctx.parentSubagentRunId` is the id of the child that started it.
 - Each model call goes to `onUsage` one time, in the run that made the call. The lead turn does not count the usage of a child again.
 
+## Pick the model of a turn
+
+Some turns need another model: a hard plan needs a strong model, and a short reply does not. Return an `adapter` picker from `setup`. The session calls it when each turn starts, with that turn:
+
+```ts group=harness-plugins
+import { anthropicText } from '@tanstack/ai-anthropic'
+
+export const strongForHardTurns = definePlugin({
+  name: 'acme/strong-for-hard-turns',
+  setup: () => ({
+    adapter: (turn) =>
+      turn.overrides?.reasoning === 'high'
+        ? anthropicText('claude-opus-5-5')
+        : undefined,
+  }),
+})
+```
+
+A prompt with `overrides: { reasoning: 'high' }` now runs on Claude Opus. Other turns keep the harness adapter.
+
+The `turn` has these fields:
+
+- `operationId`: the id of the operation that runs the turn.
+- `inputId`: the id of the input, when the turn has one.
+- `overrides`: the [overrides of the prompt](./turn-control#give-one-prompt-its-own-settings), when it has some.
+
+The session uses the picks like this:
+
+- `undefined` keeps the harness adapter.
+- If more than one plugin returns an adapter, the last plugin wins.
+- The `overrides.adapter` of the turn wins over every pick.
+- A keyed adapter gets the key of the user. See [Connect model providers](./provider-keys).
+
+If the picker does not need the turn, it can take no parameter.
+
 ## Let plugins work together
 
 Three ways, from simple to loose:
@@ -189,6 +276,7 @@ Set `lifetime: 'run'` to set a plugin up again for each turn.
 
 - A plugin that adds tools, prompts, commands, settings, and state to any harness.
 - Middleware that sees every model call, in the lead turn and in every agent.
+- A picker that chooses the model of each turn.
 - Plugins that share services, lists, and events without knowing each other.
 
 Next: see the [first-party plugins](./coding-agent) that turn a harness into a coding agent.

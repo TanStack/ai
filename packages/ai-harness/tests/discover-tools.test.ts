@@ -127,7 +127,15 @@ describe('startLoopbackReceiver', () => {
     const done = await fetch(`${receiver.redirectUri}?code=abc&state=s1`)
     expect(done.status).toBe(200)
     expect(await done.text()).toContain('signed in')
-    expect(await code).toBe('abc')
+    expect(await code).toEqual({ code: 'abc' })
+  })
+
+  it('returns the issuer the server sent with the code (RFC 9207)', async () => {
+    const receiver = await startLoopbackReceiver()
+    const code = receiver.waitForCode('s1')
+    const issuer = encodeURIComponent('https://mcp.linear.app')
+    await fetch(`${receiver.redirectUri}?code=abc&state=s1&iss=${issuer}`)
+    expect(await code).toEqual({ code: 'abc', iss: 'https://mcp.linear.app' })
   })
 
   it('refuses a callback with the wrong state', async () => {

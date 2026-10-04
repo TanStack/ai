@@ -7,37 +7,49 @@ import type { Cursor, SessionEvent } from './types'
 const MAX_EVENTS = 10_000
 
 /**
- * The ordered event stream of one session. Every operation publishes here.
- * Cursors are opaque to callers and increase with each event.
+ * The ordered event stream of one session. Every operation publishes here. A
+ * host without a log uses {@link SessionFeed}. A durable host uses a feed
+ * that keeps the events in the session log.
  */
-export class SessionFeed {
+export interface EventFeed {
+  publish: (operationId: string, event: StreamChunk) => void
+  /** The cursor of the newest event, or `'0'` for an empty feed. */
+  head: () => Cursor
+  /**
+   * Events after `from` (exclusive), then live events until `signal` aborts
+   * or the feed closes. Pass a `filter` to read one operation's events.
+   */
+  read: (options: {
+    from?: Cursor
+    signal?: AbortSignal
+    filter?: (entry: SessionEvent) => boolean
+    /** Stop after `until()` returns true and no buffered event is left. */
+    until?: () => boolean
+  }) => AsyncIterable<SessionEvent>
+  close: () => void
+}
+
+/**
+ * The in-memory {@link EventFeed}. Cursors are opaque to callers and increase
+ * with each event.
+ */
+export class SessionFeed implements EventFeed {
   private readonly entries: Array<SessionEvent> = []
   private sequence = 0
   private readonly waiters = new Set<() => void>()
   private closed = false
 
-  publish(operationId: string, event: StreamChunk): SessionEvent {
+  publish(operationId: string, event: StreamChunk): void {
     this.sequence += 1
-    const entry: SessionEvent = {
-      cursor: String(this.sequence),
-      operationId,
-      event,
-    }
-    this.entries.push(entry)
+    this.entries.push({ cursor: String(this.sequence), operationId, event })
     if (this.entries.length > MAX_EVENTS) this.entries.shift()
     this.wake()
-    return entry
   }
 
-  /** The cursor of the newest event, or `'0'` for an empty feed. */
   head(): Cursor {
     return String(this.sequence)
   }
 
-  /**
-   * Events after `from` (exclusive), then live events until `signal` aborts
-   * or the feed closes. Pass a `filter` to read one operation's events.
-   */
   async *read(options: {
     from?: Cursor
     signal?: AbortSignal

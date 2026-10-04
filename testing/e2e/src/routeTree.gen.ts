@@ -60,6 +60,7 @@ import { Route as ApiSandboxFilePersistenceRouteImport } from './routes/api.sand
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
 import { Route as ApiProviderToolDispatchWireRouteImport } from './routes/api.provider-tool-dispatch-wire'
 import { Route as ApiProviderSearchMetadataWireRouteImport } from './routes/api.provider-search-metadata-wire'
+import { Route as ApiPromptCacheWireRouteImport } from './routes/api.prompt-cache-wire'
 import { Route as ApiPortableSkillsWireRouteImport } from './routes/api.portable-skills-wire'
 import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persistence-durability'
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
@@ -81,6 +82,7 @@ import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.mu
 import { Route as ApiMoonshotUsageDetailsRouteImport } from './routes/api.moonshot-usage-details'
 import { Route as ApiMistralStrictToolNullWireRouteImport } from './routes/api.mistral-strict-tool-null-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
+import { Route as ApiMidConversationChangesWireRouteImport } from './routes/api.mid-conversation-changes-wire'
 import { Route as ApiMessageIdsRouteImport } from './routes/api.message-ids'
 import { Route as ApiMessageHistoryPagingRouteImport } from './routes/api.message-history-paging'
 import { Route as ApiMcpTypedTestRouteImport } from './routes/api.mcp-typed-test'
@@ -103,6 +105,7 @@ import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wi
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
+import { Route as ApiHarnessTurnOverridesRouteImport } from './routes/api.harness-turn-overrides'
 import { Route as ApiHarnessTestRouteImport } from './routes/api.harness-test'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
 import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
@@ -115,6 +118,7 @@ import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-tak
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
+import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
@@ -399,6 +403,11 @@ const ApiProviderSearchMetadataWireRoute =
     path: '/api/provider-search-metadata-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPromptCacheWireRoute = ApiPromptCacheWireRouteImport.update({
+  id: '/api/prompt-cache-wire',
+  path: '/api/prompt-cache-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPortableSkillsWireRoute = ApiPortableSkillsWireRouteImport.update({
   id: '/api/portable-skills-wire',
   path: '/api/portable-skills-wire',
@@ -514,6 +523,12 @@ const ApiMiddlewareTestRoute = ApiMiddlewareTestRouteImport.update({
   path: '/api/middleware-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMidConversationChangesWireRoute =
+  ApiMidConversationChangesWireRouteImport.update({
+    id: '/api/mid-conversation-changes-wire',
+    path: '/api/mid-conversation-changes-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiMessageIdsRoute = ApiMessageIdsRouteImport.update({
   id: '/api/message-ids',
   path: '/api/message-ids',
@@ -624,6 +639,11 @@ const ApiImageRoute = ApiImageRouteImport.update({
   path: '/api/image',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHarnessTurnOverridesRoute = ApiHarnessTurnOverridesRouteImport.update({
+  id: '/api/harness-turn-overrides',
+  path: '/api/harness-turn-overrides',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHarnessTestRoute = ApiHarnessTestRouteImport.update({
   id: '/api/harness-test',
   path: '/api/harness-test',
@@ -687,6 +707,12 @@ const ApiCompactionWireRoute = ApiCompactionWireRouteImport.update({
   path: '/api/compaction-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCloudflareBindingWireRoute =
+  ApiCloudflareBindingWireRouteImport.update({
+    id: '/api/cloudflare-binding-wire',
+    path: '/api/cloudflare-binding-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -840,6 +866,7 @@ export interface FileRoutesByFullPath {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -852,6 +879,7 @@ export interface FileRoutesByFullPath {
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-test': typeof ApiHarnessTestRoute
+  '/api/harness-turn-overrides': typeof ApiHarnessTurnOverridesRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -874,6 +902,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-typed-test': typeof ApiMcpTypedTestRoute
   '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
+  '/api/mid-conversation-changes-wire': typeof ApiMidConversationChangesWireRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
@@ -895,6 +924,7 @@ export interface FileRoutesByFullPath {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
+  '/api/prompt-cache-wire': typeof ApiPromptCacheWireRoute
   '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
@@ -968,6 +998,7 @@ export interface FileRoutesByTo {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -980,6 +1011,7 @@ export interface FileRoutesByTo {
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-test': typeof ApiHarnessTestRoute
+  '/api/harness-turn-overrides': typeof ApiHarnessTurnOverridesRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1002,6 +1034,7 @@ export interface FileRoutesByTo {
   '/api/mcp-typed-test': typeof ApiMcpTypedTestRoute
   '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
+  '/api/mid-conversation-changes-wire': typeof ApiMidConversationChangesWireRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
@@ -1023,6 +1056,7 @@ export interface FileRoutesByTo {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
+  '/api/prompt-cache-wire': typeof ApiPromptCacheWireRoute
   '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
@@ -1097,6 +1131,7 @@ export interface FileRoutesById {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -1109,6 +1144,7 @@ export interface FileRoutesById {
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/harness-test': typeof ApiHarnessTestRoute
+  '/api/harness-turn-overrides': typeof ApiHarnessTurnOverridesRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1131,6 +1167,7 @@ export interface FileRoutesById {
   '/api/mcp-typed-test': typeof ApiMcpTypedTestRoute
   '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
+  '/api/mid-conversation-changes-wire': typeof ApiMidConversationChangesWireRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/moonshot-usage-details': typeof ApiMoonshotUsageDetailsRoute
@@ -1152,6 +1189,7 @@ export interface FileRoutesById {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
+  '/api/prompt-cache-wire': typeof ApiPromptCacheWireRoute
   '/api/provider-search-metadata-wire': typeof ApiProviderSearchMetadataWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
@@ -1227,6 +1265,7 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
+    | '/api/cloudflare-binding-wire'
     | '/api/compaction-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1239,6 +1278,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-test'
+    | '/api/harness-turn-overrides'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -1261,6 +1301,7 @@ export interface FileRouteTypes {
     | '/api/mcp-typed-test'
     | '/api/message-history-paging'
     | '/api/message-ids'
+    | '/api/mid-conversation-changes-wire'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
     | '/api/moonshot-usage-details'
@@ -1282,6 +1323,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
+    | '/api/prompt-cache-wire'
     | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
@@ -1355,6 +1397,7 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
+    | '/api/cloudflare-binding-wire'
     | '/api/compaction-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1367,6 +1410,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-test'
+    | '/api/harness-turn-overrides'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -1389,6 +1433,7 @@ export interface FileRouteTypes {
     | '/api/mcp-typed-test'
     | '/api/message-history-paging'
     | '/api/message-ids'
+    | '/api/mid-conversation-changes-wire'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
     | '/api/moonshot-usage-details'
@@ -1410,6 +1455,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
+    | '/api/prompt-cache-wire'
     | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
@@ -1483,6 +1529,7 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
+    | '/api/cloudflare-binding-wire'
     | '/api/compaction-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1495,6 +1542,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/harness-test'
+    | '/api/harness-turn-overrides'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -1517,6 +1565,7 @@ export interface FileRouteTypes {
     | '/api/mcp-typed-test'
     | '/api/message-history-paging'
     | '/api/message-ids'
+    | '/api/mid-conversation-changes-wire'
     | '/api/middleware-test'
     | '/api/mistral-strict-tool-null-wire'
     | '/api/moonshot-usage-details'
@@ -1538,6 +1587,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/portable-skills-wire'
+    | '/api/prompt-cache-wire'
     | '/api/provider-search-metadata-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
@@ -1612,6 +1662,7 @@ export interface RootRouteChildren {
   ApiByokChatRoute: typeof ApiByokChatRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
@@ -1624,6 +1675,7 @@ export interface RootRouteChildren {
   ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
   ApiHarnessTestRoute: typeof ApiHarnessTestRoute
+  ApiHarnessTurnOverridesRoute: typeof ApiHarnessTurnOverridesRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
@@ -1646,6 +1698,7 @@ export interface RootRouteChildren {
   ApiMcpTypedTestRoute: typeof ApiMcpTypedTestRoute
   ApiMessageHistoryPagingRoute: typeof ApiMessageHistoryPagingRoute
   ApiMessageIdsRoute: typeof ApiMessageIdsRoute
+  ApiMidConversationChangesWireRoute: typeof ApiMidConversationChangesWireRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiMistralStrictToolNullWireRoute: typeof ApiMistralStrictToolNullWireRoute
   ApiMoonshotUsageDetailsRoute: typeof ApiMoonshotUsageDetailsRoute
@@ -1667,6 +1720,7 @@ export interface RootRouteChildren {
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiPersistenceDurabilityRoute: typeof ApiPersistenceDurabilityRoute
   ApiPortableSkillsWireRoute: typeof ApiPortableSkillsWireRoute
+  ApiPromptCacheWireRoute: typeof ApiPromptCacheWireRoute
   ApiProviderSearchMetadataWireRoute: typeof ApiProviderSearchMetadataWireRoute
   ApiProviderToolDispatchWireRoute: typeof ApiProviderToolDispatchWireRoute
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
@@ -2049,6 +2103,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProviderSearchMetadataWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/prompt-cache-wire': {
+      id: '/api/prompt-cache-wire'
+      path: '/api/prompt-cache-wire'
+      fullPath: '/api/prompt-cache-wire'
+      preLoaderRoute: typeof ApiPromptCacheWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/portable-skills-wire': {
       id: '/api/portable-skills-wire'
       path: '/api/portable-skills-wire'
@@ -2194,6 +2255,13 @@ declare module '@tanstack/react-router' {
       path: '/api/middleware-test'
       fullPath: '/api/middleware-test'
       preLoaderRoute: typeof ApiMiddlewareTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mid-conversation-changes-wire': {
+      id: '/api/mid-conversation-changes-wire'
+      path: '/api/mid-conversation-changes-wire'
+      fullPath: '/api/mid-conversation-changes-wire'
+      preLoaderRoute: typeof ApiMidConversationChangesWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/message-ids': {
@@ -2350,6 +2418,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/harness-turn-overrides': {
+      id: '/api/harness-turn-overrides'
+      path: '/api/harness-turn-overrides'
+      fullPath: '/api/harness-turn-overrides'
+      preLoaderRoute: typeof ApiHarnessTurnOverridesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/harness-test': {
       id: '/api/harness-test'
       path: '/api/harness-test'
@@ -2432,6 +2507,13 @@ declare module '@tanstack/react-router' {
       path: '/api/compaction-wire'
       fullPath: '/api/compaction-wire'
       preLoaderRoute: typeof ApiCompactionWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cloudflare-binding-wire': {
+      id: '/api/cloudflare-binding-wire'
+      path: '/api/cloudflare-binding-wire'
+      fullPath: '/api/cloudflare-binding-wire'
+      preLoaderRoute: typeof ApiCloudflareBindingWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -2682,6 +2764,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiByokChatRoute: ApiByokChatRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
@@ -2694,6 +2777,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
   ApiHarnessTestRoute: ApiHarnessTestRoute,
+  ApiHarnessTurnOverridesRoute: ApiHarnessTurnOverridesRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
@@ -2716,6 +2800,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpTypedTestRoute: ApiMcpTypedTestRoute,
   ApiMessageHistoryPagingRoute: ApiMessageHistoryPagingRoute,
   ApiMessageIdsRoute: ApiMessageIdsRoute,
+  ApiMidConversationChangesWireRoute: ApiMidConversationChangesWireRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiMistralStrictToolNullWireRoute: ApiMistralStrictToolNullWireRoute,
   ApiMoonshotUsageDetailsRoute: ApiMoonshotUsageDetailsRoute,
@@ -2737,6 +2822,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiPersistenceDurabilityRoute: ApiPersistenceDurabilityRoute,
   ApiPortableSkillsWireRoute: ApiPortableSkillsWireRoute,
+  ApiPromptCacheWireRoute: ApiPromptCacheWireRoute,
   ApiProviderSearchMetadataWireRoute: ApiProviderSearchMetadataWireRoute,
   ApiProviderToolDispatchWireRoute: ApiProviderToolDispatchWireRoute,
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,

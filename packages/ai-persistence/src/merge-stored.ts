@@ -2,7 +2,8 @@ import type { ModelMessage } from '@tanstack/ai'
 
 // Empty incoming keeps stored. Non-empty: the last incoming id that already
 // exists in stored is a cutoff (reload drops the old assistant after that
-// user). Same id is replaced in place. New ids and messages with no id are
+// user). Same id is replaced in place, but a stored mid-conversation record
+// stays when the incoming copy has none. New ids and messages with no id are
 // appended.
 export function mergeStoredMessages(
   stored: ReadonlyArray<ModelMessage>,
@@ -36,7 +37,10 @@ export function mergeStoredMessages(
     const id = message.id
     if (id) {
       storedIds.add(id)
-      merged.push(incomingById.get(id) ?? message)
+      const replacement = incomingById.get(id)
+      merged.push(
+        replacement ? keepStoredRecord(replacement, message) : message,
+      )
       continue
     }
     merged.push(message)
@@ -64,4 +68,17 @@ export function mergeStoredMessages(
   }
 
   return merged
+}
+
+// A client never sends the engine's mid-conversation record (UIMessages have
+// none), so keep the stored one. Without it, each turn starts a new start
+// point and the prompt cache breaks once per turn.
+function keepStoredRecord(
+  incoming: ModelMessage,
+  stored: ModelMessage,
+): ModelMessage {
+  if (incoming.midConversationChange || !stored.midConversationChange) {
+    return incoming
+  }
+  return { ...incoming, midConversationChange: stored.midConversationChange }
 }

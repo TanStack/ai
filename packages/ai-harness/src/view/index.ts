@@ -1,28 +1,57 @@
 // Browser-safe: runtime imports only from @tanstack/ai, @tanstack/store,
-// ../types, and ./reduce. Everything else is a type.
+// ../types, ../media-ref, and ./reduce. Everything else is a type.
 import { EventType } from '@tanstack/ai'
 import { createStore } from '@tanstack/store'
+import { mediaPart } from '../media-ref'
 import { HARNESS_EVENTS } from '../types'
 import {
   applyDescription,
   applyEvent,
   applySnapshot,
   emptyState,
+  keep,
   messagesFromTranscript,
   withNotice,
   withUserMessage,
 } from './reduce'
-import type { ModelMessage, RunAgentResumeItem } from '@tanstack/ai'
+import type {
+  ContentPart,
+  ModelMessage,
+  RunAgentResumeItem,
+} from '@tanstack/ai'
 import type { ReadonlyStore } from '@tanstack/store'
 import type { PluginEvent } from '../extensions'
 import type { SessionDescription, SessionSnapshot } from '../session'
-import type { Cursor, Receipt, SessionEvent } from '../types'
+import type {
+  Cursor,
+  MediaRecord,
+  Receipt,
+  SessionEvent,
+  UserInput,
+} from '../types'
 import type { ItemFactory } from './reduce'
-import type { Approval, SessionViewState, SignIn, ViewQuestion } from './types'
+import type {
+  Approval,
+  MediaPart,
+  SessionViewState,
+  SignIn,
+  ViewMessage,
+  ViewPart,
+  ViewQuestion,
+} from './types'
 
+export {
+  MEDIA_URL_PREFIX,
+  kindOf,
+  mediaIdOf,
+  mediaOfMessage,
+  mediaPart,
+} from '../media-ref'
+export type { MediaKind, MediaRecord } from '../types'
 export type {
   AgentPart,
   Approval,
+  MediaPart,
   NoticeKind,
   SessionViewState,
   SignIn,
@@ -35,10 +64,13 @@ export type {
   ViewQuestion,
 } from './types'
 
+/** Get a new media URL this long before the old one expires. */
+const URL_REFRESH_EARLY = 60_000
+
 /** A local `HarnessSession` and a remote `HarnessClient` both fit this. */
 export interface SessionViewSource {
-  prompt: (message: string) => unknown
-  steer: (message: string) => Promise<Receipt>
+  prompt: (message: UserInput) => unknown
+  steer: (message: UserInput) => Promise<Receipt>
   resolve: (resume: Array<RunAgentResumeItem>) => Promise<Receipt>
   cancel: (operationId?: string) => Promise<Receipt>
   answer: (questionId: string, value: unknown) => Promise<Receipt>
@@ -52,6 +84,10 @@ export interface SessionViewSource {
   snapshot: () => SessionSnapshot | Promise<SessionSnapshot>
   transcript: () => Promise<Array<ModelMessage>>
   describe: () => SessionDescription | Promise<SessionDescription>
+  /** A URL for a media file. Without it, media parts have no `url`. */
+  mediaUrl?: (id: string) => Promise<{ url?: string; expiresAt?: number }>
+  /** The bytes of a media file. Without it, `load()` rejects. */
+  loadMedia?: (id: string) => Promise<Uint8Array>
 }
 
 /** What `view.on(name, handler)` sends. */
@@ -80,8 +116,15 @@ export interface SessionView {
   store: ReadonlyStore<SessionViewState>
   /** Resolves when history, the first snapshot, and the description are in. */
   ready: Promise<void>
-  /** A `/command`, a prompt, or a steer while a turn runs. Empty text does nothing. */
-  send: (text: string) => Promise<void>
+  /**
+   * A `/command`, a prompt, or a steer while a turn runs. `attachments` are
+   * stored media files (from `upload` or `putMedia`) that go with the text.
+   * A `/command` ignores them. Empty text with no attachments does nothing.
+   */
+  send: (
+    text: string,
+    attachments?: ReadonlyArray<MediaRecord>,
+  ) => Promise<void>
   command: (name: string, input?: unknown) => Promise<void>
   setConfig: (key: string, value: unknown) => Promise<void>
   cancel: () => Promise<void>
@@ -99,8 +142,17 @@ export interface SessionView {
     key: K,
     handler: (value: ViewEventValue<K>) => void,
   ) => () => void
-  /** Stop reading events. Later actions throw. */
+  /** Stop reading events and getting new media URLs. Later actions throw. */
   dispose: () => void
+}
+
+/** What a line and its attachments send: plain text when there are none. */
+function userInput(line: string, attachments: ReadonlyArray<MediaRecord>) {
+  if (attachments.length === 0) return line
+  const files = attachments.map(mediaPart)
+  const input: Array<ContentPart> =
+    line === '' ? files : [{ type: 'text', content: line }, ...files]
+  return input
 }
 
 /** Events after which the snapshot can differ. */
@@ -170,12 +222,16 @@ export function createSessionView(source: SessionViewSource) {
   const decisions = new Map<string, boolean>()
   const chatTurns = new Set<string>()
   const agentNames = new Map<string, string>()
+  const mediaParts = new Map<string, MediaPart>()
+  const urlRefreshes = new Map<string, ReturnType<typeof setTimeout>>()
   let resolving = false
   let disposed = false
 
   const get = () => internal.state
   const commit = (next: SessionViewState) => {
-    if (!disposed && next !== internal.state) internal.setState(() => next)
+    if (disposed) return
+    const shown = withMediaActions(next)
+    if (shown !== internal.state) internal.setState(() => shown)
   }
   const emit = (key: string, value: unknown) => {
     const listeners = handlers.get(key) ?? []
@@ -203,6 +259,72 @@ export function createSessionView(source: SessionViewSource) {
       return
     }
     Promise.resolve(result).then(undefined, fail)
+  }
+
+  const fetchUrl = async (id: string) => {
+    if (!source.mediaUrl) return
+    try {
+      const { url, expiresAt } = await source.mediaUrl(id)
+      const part = mediaParts.get(id)
+      if (disposed || !part) return
+      if (url !== undefined) mediaParts.set(id, { ...part, url })
+      commit(get())
+      if (expiresAt === undefined) return
+      const left = expiresAt - Date.now()
+      // ponytail: at least half the time left, and at least a second, so a
+      // URL with a short life does not refresh in a loop.
+      const delay = Math.max(left - URL_REFRESH_EARLY, left / 2, 1000)
+      urlRefreshes.set(
+        id,
+        setTimeout(() => void fetchUrl(id), delay),
+      )
+    } catch (error) {
+      fail(error)
+    }
+  }
+  /** The view's own part for a media id: it loads from the source and gets a url once. */
+  const mediaActions = (part: MediaPart) => {
+    const known = mediaParts.get(part.id)
+    if (known) return known
+    const { id } = part
+    const shown: MediaPart = {
+      ...part,
+      load: () =>
+        source.loadMedia
+          ? source.loadMedia(id)
+          : Promise.reject(new Error('This session source cannot load media.')),
+    }
+    mediaParts.set(id, shown)
+    void fetchUrl(id)
+    return shown
+  }
+  const partsWithActions = (parts: Array<ViewPart>): Array<ViewPart> =>
+    keep(
+      parts,
+      parts.map((part) => {
+        if (part.type === 'media') return mediaActions(part)
+        if (part.type !== 'agent') return part
+        const inner = partsWithActions(part.parts)
+        return inner === part.parts ? part : { ...part, parts: inner }
+      }),
+    )
+  const messageWithActions = (message: ViewMessage) => {
+    if (message.role === 'assistant') {
+      const parts = partsWithActions(message.parts)
+      return parts === message.parts ? message : { ...message, parts }
+    }
+    if (message.role !== 'user' || !message.media) return message
+    const media = keep(message.media, message.media.map(mediaActions))
+    return media === message.media ? message : { ...message, media }
+  }
+  // ponytail: this walks every message on each commit. Track new media ids
+  // instead if a long session gets slow.
+  const withMediaActions = (state: SessionViewState) => {
+    const messages = keep(
+      state.messages,
+      state.messages.map(messageWithActions),
+    )
+    return messages === state.messages ? state : { ...state, messages }
   }
 
   const decide = (id: string, approved: boolean) => {
@@ -249,6 +371,7 @@ export function createSessionView(source: SessionViewSource) {
       id: question.questionId,
       message: question.message,
       ...(question.schema ? { schema: question.schema } : {}),
+      ...(question.secret ? { secret: true } : {}),
       answer: (value) => {
         alive()
         return source.answer(question.questionId, value)
@@ -335,7 +458,10 @@ export function createSessionView(source: SessionViewSource) {
         event.name === HARNESS_EVENTS.operationFinished &&
         chatTurns.delete(operationId)
       if (isTurnEnd) emit('turnEnd', { operationId })
-      if (event.name === HARNESS_EVENTS.configChanged) refreshDescription()
+      const isDescriptionChange =
+        event.name === HARNESS_EVENTS.configChanged ||
+        event.name === HARNESS_EVENTS.commandsChanged
+      if (isDescriptionChange) refreshDescription()
     }
     for (const signIn of after.signIns)
       if (!before.signIns.includes(signIn)) emit('signIn', signIn)
@@ -405,22 +531,23 @@ export function createSessionView(source: SessionViewSource) {
   const view: SessionView = {
     store,
     ready,
-    send: async (text) => {
+    send: async (text, attachments = []) => {
       alive()
       const line = text.trim()
-      if (line === '') return
+      if (line === '' && attachments.length === 0) return
       if (line.startsWith('/')) {
         const [name = '', ...rest] = line.slice(1).split(' ')
         const input = rest.join(' ').trim()
         settle(source.command(name, input === '' ? undefined : input))
         return
       }
-      commit(withUserMessage(get(), line))
+      commit(withUserMessage(get(), line, attachments))
+      const message = userInput(line, attachments)
       if (get().status === 'running') {
-        await source.steer(line).then(undefined, fail)
+        await source.steer(message).then(undefined, fail)
         return
       }
-      settle(source.prompt(line))
+      settle(source.prompt(message))
     },
     command: async (name, input) => {
       alive()
@@ -448,6 +575,8 @@ export function createSessionView(source: SessionViewSource) {
       commit({ ...get(), connection: 'closed' })
       disposed = true
       reader.abort()
+      for (const timer of urlRefreshes.values()) clearTimeout(timer)
+      urlRefreshes.clear()
     },
   }
   return view

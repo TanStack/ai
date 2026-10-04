@@ -1,7 +1,6 @@
 import type {
   OllamaChatRequest,
   OllamaChatRequestMessages,
-  OllamaChatRequestThinking_OpenAI,
   OllamaChatRequestTools,
   OllamaMessageThinking,
   OllamaMessageTools,
@@ -20,8 +19,7 @@ const OPT_OSS_LATEST = {
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking_OpenAI
+    OllamaChatRequestTools
 >
 
 const OPT_OSS_20b = {
@@ -36,8 +34,7 @@ const OPT_OSS_20b = {
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking_OpenAI
+    OllamaChatRequestTools
 >
 
 const OPT_OSS_120b = {
@@ -52,8 +49,7 @@ const OPT_OSS_120b = {
 } as const satisfies OllamaModelMeta<
   OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking_OpenAI
+    OllamaChatRequestTools
 >
 
 export const GPT_OSS_MODELS = [
@@ -77,16 +73,13 @@ export type GptOssChatModelProviderOptionsByName = {
   // Models with thinking and structured output support
   [OPT_OSS_LATEST.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking_OpenAI
+    OllamaChatRequestTools
   [OPT_OSS_20b.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking_OpenAI
+    OllamaChatRequestTools
   [OPT_OSS_120b.name]: OllamaChatRequest &
     OllamaChatRequestMessages<OllamaMessageTools & OllamaMessageThinking> &
-    OllamaChatRequestTools &
-    OllamaChatRequestThinking_OpenAI
+    OllamaChatRequestTools
 }
 
 export type GptOssModelInputModalitiesByName = {

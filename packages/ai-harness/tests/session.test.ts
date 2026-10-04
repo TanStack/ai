@@ -23,7 +23,8 @@ import {
   untilAborted,
 } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
-import type { SessionEvent } from '../src'
+import type { HarnessTurnOptions, Receipt, SessionEvent } from '../src'
+import type { Reply } from './helpers'
 
 function setup() {
   const persistence = memoryPersistence()
@@ -150,7 +151,7 @@ describe('chat turns', () => {
     await host.close()
   })
 
-  it('runs a steer that arrived too late as the next turn', async () => {
+  it('answers a steer that arrived after the last model call in the same turn', async () => {
     const { host } = setup()
     const first = gate()
     const { adapter, calls } = mockAdapter([
@@ -169,9 +170,15 @@ describe('chat turns', () => {
     const joined = session.prompt('and this', { busy: 'steer' })
     first.open()
 
-    await expect(a).resolves.toEqual({ text: 'one' })
-    await expect(joined).resolves.toEqual({ text: 'two' })
+    // One turn answers both messages: the joined prompt settles with it.
+    await expect(a).resolves.toEqual({ text: 'onetwo' })
+    await expect(joined).resolves.toEqual({ text: 'onetwo' })
     expect(messageTexts(calls[1]).at(-1)).toBe('and this')
+    expect(await session.settled((await joined.receipt).inputId)).toEqual({
+      inputId: (await joined.receipt).inputId,
+      outcome: 'completed',
+      operationId: a.id,
+    })
     await host.close()
   })
 
@@ -351,6 +358,33 @@ describe('agents', () => {
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
     await host.close()
   })
+
+  it('notes a failed background agent and wakes the session', async () => {
+    const failing = defineAgent({
+      name: 'failing',
+      description: 'Fails',
+      run: async () => {
+        throw new Error('no vendor')
+      },
+    })
+    const { host } = setup()
+    const { adapter, calls } = mockAdapter([() => text('sorry')])
+    const session = await host.open(
+      defineHarness({ name: 'test/wake-failed', adapter, agents: [failing] }),
+      { threadId: 't1' },
+    )
+
+    await expect(
+      session.agents.failing.start(undefined, { wake: true }),
+    ).rejects.toThrow('no vendor')
+    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    expect(messageTexts(calls[0]).slice(-2)).toEqual([
+      '[failing failed] no vendor',
+      'Background agent failing failed: [failing failed] no vendor',
+    ])
+    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await host.close()
+  })
 })
 
 describe('inbox', () => {
@@ -494,5 +528,261 @@ describe('plugins', () => {
     ).rejects.toThrow(
       'Duplicate tool "dup": first owner test/a, second owner test/b',
     )
+  })
+})
+
+describe('a waiting steer with an abort request, without a log', () => {
+  it('does not join, and settles aborted', async () => {
+    const started = gate()
+    const done = gate()
+    const wait = toolDefinition({ name: 'wait', description: 'Wait' }).server(
+      async () => {
+        started.open()
+        await done.opened
+        return 'waited'
+      },
+    )
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('wait', {}),
+      () => text('host answer'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({ name: 'test/steer-abort', adapter, tools: [wait] }),
+      { threadId: 't-abort' },
+    )
+
+    const turn = session.prompt('start')
+    await started.opened
+    const steer = session.prompt('stop me', {
+      busy: 'steer',
+      inputId: 'steer-1',
+    })
+    await steer.receipt
+    await session.cancel(steer.id)
+    done.open()
+
+    expect(await turn).toEqual({ text: 'host answer' })
+    expect(messageTexts(calls[1])).not.toContain('stop me')
+    expect(await session.settled('steer-1')).toMatchObject({
+      outcome: 'aborted',
+    })
+    expect(calls).toHaveLength(2)
+    await host.close()
+  })
+})
+
+describe('joins without a log', () => {
+  /** A session whose `wait` tool runs until `wait.done` opens. */
+  async function openJoins(
+    replies: Array<Reply>,
+    turn: HarnessTurnOptions,
+    persistence = memoryPersistence(),
+  ) {
+    const started = gate()
+    const done = gate()
+    const tool = toolDefinition({ name: 'wait', description: 'Wait' }).server(
+      async () => {
+        started.open()
+        await done.opened
+        return 'waited'
+      },
+    )
+    const { adapter, calls } = mockAdapter(replies)
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({ name: 'test/joins', adapter, tools: [tool], turn }),
+      { threadId: 't-joins' },
+    )
+    return { host, session, calls, wait: { started, done } }
+  }
+
+  it('refuses a cancel that lands while onJoin runs, and the steer joins', async () => {
+    const inJoin = gate()
+    const releaseJoin = gate()
+    const { host, session, calls, wait } = await openJoins(
+      [() => toolCall('wait', {}), () => text('host answer')],
+      {
+        onJoin: async () => {
+          inJoin.open()
+          await releaseJoin.opened
+          return undefined
+        },
+      },
+    )
+
+    const turn = session.prompt('start')
+    await wait.started.opened
+    const steer = session.prompt('stop me', { busy: 'steer', inputId: 's1' })
+    await steer.receipt
+    wait.done.open()
+    await inJoin.opened
+    const receipt = await session.cancel(steer.id)
+    releaseJoin.open()
+
+    expect(receipt).toMatchObject({ status: 'rejected', reason: 'not_running' })
+    expect(await steer).toEqual(await turn)
+    expect(messageTexts(calls[1]).at(-1)).toBe('stop me')
+    expect(await session.settled('s1')).toMatchObject({
+      outcome: 'completed',
+      operationId: turn.id,
+    })
+    await host.close()
+  })
+
+  it('refuses a cancel that lands after the late-join check', async () => {
+    const persistence = memoryPersistence()
+    const { runs } = persistence.stores
+    const inUpdate = gate()
+    const releaseUpdate = gate()
+    let isArmed = false
+    const update = runs.update.bind(runs)
+    runs.update = async (...args: Parameters<typeof runs.update>) => {
+      if (isArmed && args[1].status === 'running') {
+        isArmed = false
+        inUpdate.open()
+        await releaseUpdate.opened
+      }
+      return update(...args)
+    }
+    const release = gate()
+    const { host, session, calls } = await openJoins(
+      [after(release.opened, 'first answer'), () => text('late answer')],
+      {},
+      persistence,
+    )
+
+    const turn = session.prompt('first')
+    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    const late = session.prompt('late', { busy: 'steer', inputId: 'late' })
+    await late.receipt
+    isArmed = true
+    release.open()
+    // The turn decided to run the model again for the late steer.
+    await inUpdate.opened
+    const receipt = await session.cancel(late.id)
+    releaseUpdate.open()
+
+    expect(receipt).toMatchObject({ status: 'rejected', reason: 'not_running' })
+    expect(await turn).toEqual({ text: 'first answerlate answer' })
+    expect(calls).toHaveLength(2)
+    expect(messageTexts(calls[1]).at(-1)).toBe('late')
+    await host.close()
+  })
+
+  it('adds the onJoin messages after the joined ones, also when it saves before each call', async () => {
+    const { host, session, calls, wait } = await openJoins(
+      [() => toolCall('wait', {}), () => text('done')],
+      {
+        onModelError: () => undefined,
+        onJoin: () => ({ messages: [{ role: 'user', content: 'hook' }] }),
+      },
+    )
+
+    const turn = session.prompt('start')
+    await wait.started.opened
+    await session.prompt('more', { busy: 'steer' }).receipt
+    wait.done.open()
+
+    await turn
+    expect(messageTexts(calls[1]).slice(-2)).toEqual(['more', 'hook'])
+    await host.close()
+  })
+
+  it('fails the turn when onJoin throws, and runs the steer as its own turn', async () => {
+    const { host, session, calls, wait } = await openJoins(
+      [() => toolCall('wait', {}), () => text('steer answer')],
+      {
+        onJoin: () => {
+          throw new Error('hook broke')
+        },
+      },
+    )
+
+    const turn = session.prompt('start')
+    await wait.started.opened
+    const steer = session.prompt('more', { busy: 'steer', inputId: 's1' })
+    await steer.receipt
+    wait.done.open()
+
+    await expect(turn).rejects.toThrow('hook broke')
+    expect(await steer).toEqual({ text: 'steer answer' })
+    expect(messageTexts(calls[1])).toContain('more')
+    expect((await session.settled('s1')).operationId).not.toBe(turn.id)
+    await host.close()
+  })
+
+  it('adds nothing from onJoin to a turn cancelled while the hook runs', async () => {
+    const inJoin = gate()
+    const releaseJoin = gate()
+    const { host, session, calls, wait } = await openJoins(
+      [
+        () => toolCall('wait', {}),
+        () => text('cancelled answer'),
+        () => text('steer answer'),
+      ],
+      {
+        onJoin: async () => {
+          inJoin.open()
+          await releaseJoin.opened
+          return { messages: [{ role: 'user', content: 'hook' }] }
+        },
+      },
+    )
+
+    const turn = session.prompt('start')
+    await wait.started.opened
+    const steer = session.prompt('more', { busy: 'steer', inputId: 's1' })
+    await steer.receipt
+    wait.done.open()
+    await inJoin.opened
+    await turn.cancel()
+    releaseJoin.open()
+
+    await expect(turn).rejects.toThrow('Cancelled')
+    expect(await steer).toEqual({ text: 'steer answer' })
+    for (const call of calls) expect(messageTexts(call)).not.toContain('hook')
+    expect(messageTexts(calls.at(-1))).toContain('more')
+    expect((await session.settled('s1')).operationId).not.toBe(turn.id)
+    await host.close()
+  })
+
+  it('stops at a steer that a cancel reaches while canJoin runs', async () => {
+    let cancelled: Receipt | undefined
+    let aId = ''
+    let session: Awaited<ReturnType<typeof openJoins>>['session'] | undefined
+    const joins = await openJoins(
+      [
+        () => toolCall('wait', {}),
+        () => text('host answer'),
+        () => text('b answer'),
+      ],
+      {
+        canJoin: async ({ inputId }) => {
+          // The cancel of the earlier steer lands while canJoin runs for `b`.
+          if (inputId === 'b' && !cancelled) {
+            cancelled = await session?.cancel(aId)
+          }
+          return true
+        },
+      },
+    )
+    session = joins.session
+    const { host, calls, wait } = joins
+
+    const turn = session.prompt('start')
+    await wait.started.opened
+    const a = session.prompt('a', { busy: 'steer', inputId: 'a' })
+    aId = a.id
+    const b = session.prompt('b', { busy: 'steer', inputId: 'b' })
+    await Promise.all([a.receipt, b.receipt])
+    wait.done.open()
+    await turn
+
+    expect(cancelled?.status).toBe('accepted')
+    expect(messageTexts(calls[1])).not.toContain('a')
+    expect(await session.settled('a')).toMatchObject({ outcome: 'aborted' })
+    expect(await b).toEqual({ text: 'b answer' })
+    await host.close()
   })
 })

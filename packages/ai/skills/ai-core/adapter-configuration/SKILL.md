@@ -187,29 +187,21 @@ const messages = [
   { role: 'user' as const, content: 'Plan a database migration.' },
 ]
 
-// OpenAI: reasoning with effort and summary
+// Reasoning is one option on chat() for every provider. The types list only
+// the levels the model has; a runtime level moves to the nearest one.
+// OpenAI: sent as reasoning.effort with a summary
 const openaiStream = chat({
   adapter: openaiText('gpt-5.2'),
   messages,
-  modelOptions: {
-    reasoning: {
-      effort: 'high',
-      summary: 'auto',
-    },
-  },
+  reasoning: 'high',
 })
 
-// Anthropic: extended thinking with budget_tokens
+// Anthropic budget models: a thinking token budget. The adapter raises
+// max_tokens past the budget when needed.
 const anthropicStream = chat({
-  adapter: anthropicText('claude-sonnet-4-6'),
+  adapter: anthropicText('claude-haiku-4-5'),
   messages,
-  modelOptions: {
-    max_tokens: 16000,
-    thinking: {
-      type: 'enabled',
-      budget_tokens: 8000, // must be >= 1024 and < max_tokens
-    },
-  },
+  reasoning: { level: 'high', budgetTokens: 8000 },
 })
 
 // Anthropic: adaptive thinking (Sonnet 5, Fable 5, Opus 4.7+) — depth is
@@ -217,26 +209,18 @@ const anthropicStream = chat({
 const adaptiveStream = chat({
   adapter: anthropicText('claude-sonnet-5'),
   messages,
-  modelOptions: {
-    max_tokens: 16000,
-    thinking: {
-      type: 'adaptive',
-      display: 'summarized', // stream the reasoning text (default 'omitted')
-    },
-    output_config: { effort: 'high' }, // 'low' | 'medium' | 'high' | 'xhigh' | 'max'
-  },
+  modelOptions: { max_tokens: 16000 },
+  // Sent as adaptive thinking with output_config.effort. `summary: false`
+  // hides the thinking text.
+  reasoning: 'xhigh',
 })
 
 // Gemini: thinking config with budget or level
 const geminiStream = chat({
   adapter: geminiText('gemini-2.5-pro'),
   messages,
-  modelOptions: {
-    thinkingConfig: {
-      includeThoughts: true,
-      thinkingBudget: 4096,
-    },
-  },
+  // Gemini 2.5 thinks with a budget; Gemini 3 takes thinking levels.
+  reasoning: { level: 'medium', budgetTokens: 4096 },
 })
 ```
 

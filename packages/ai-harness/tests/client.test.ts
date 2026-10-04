@@ -64,6 +64,33 @@ describe('createHarnessClient', () => {
     await host.close()
   })
 
+  it('sends an inputId, so a retry gets the first receipt', async () => {
+    const { adapter, calls } = mockAdapter([() => text('once')])
+    const studio = defineHarness({ name: 'test/client-ids', adapter })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const handler = createHarnessHandler({
+      host,
+      harness: studio,
+      authorize: () => ({ id: 'u' }),
+    })
+    const client = createHarnessClient<typeof studio>({
+      url: 'http://local/api/harness',
+      threadId: 'thread-ids',
+      fetch: (input, init) => handler(new Request(input, init)),
+    })
+
+    const first = await client.prompt('hi', { inputId: 'req-1' })
+    const retry = await client.prompt('hi', { inputId: 'req-1' })
+    const steer = await client.steer('also', { inputId: 'req-2' })
+    const steerRetry = await client.steer('also', { inputId: 'req-2' })
+
+    expect(first).toMatchObject({ inputId: 'req-1', status: 'accepted' })
+    expect(retry).toEqual(first)
+    expect(steerRetry).toEqual(steer)
+    expect(calls.length).toBeLessThanOrEqual(2)
+    await host.close()
+  })
+
   it('throws on a refused request instead of retrying', async () => {
     const { adapter } = mockAdapter([])
     const studio = defineHarness({ name: 'test/client-denied', adapter })

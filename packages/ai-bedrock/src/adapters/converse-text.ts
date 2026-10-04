@@ -9,6 +9,10 @@ import {
   throwIfConverseStreamError,
 } from '../converse/stream-processor'
 import { buildConverseUsage } from '../converse/usage'
+import { converseThinking } from '../converse/reasoning'
+import { addPromptCachePoints } from '../converse/prompt-cache'
+import { BEDROCK_MODEL_REASONING } from '../model-reasoning'
+import type { BedrockModelReasoningByName } from '../model-reasoning'
 import {
   STRUCTURED_TOOL_NAME,
   buildStructuredToolConfig,
@@ -66,6 +70,12 @@ export interface BedrockConverseConfig extends BedrockClientConfig {}
  * so tests can subclass and inject canned Converse SDK shapes without a real
  * AWS request.
  */
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof BedrockModelReasoningByName
+    ? BedrockModelReasoningByName[TModel]
+    : never
+
 export class BedrockConverseTextAdapter<
   TModel extends BedrockConverseModels,
   // Constraint mirrors the chat adapter (text.ts): the base parameterises
@@ -90,7 +100,8 @@ export class BedrockConverseTextAdapter<
   unknown,
   // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the chat()
   // call site so users get `cachePoint` autocomplete.
-  BedrockSystemPromptMetadata
+  BedrockSystemPromptMetadata,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'bedrock-converse' as const
@@ -567,7 +578,19 @@ export class BedrockConverseTextAdapter<
     const modelOptions = options.modelOptions
     const temperature = modelOptions?.temperature
     const topP = modelOptions?.top_p
-    const maxTokens = modelOptions?.max_completion_tokens
+    // `chat({ reasoning })`: Claude's thinking fields. Budget thinking needs
+    // `maxTokens` above the budget, so a smaller or missing value grows.
+    const { additionalModelRequestFields, minMaxTokens } = converseThinking(
+      this.model,
+      options.reasoning,
+      BEDROCK_MODEL_REASONING[this.model],
+    )
+    const requestedMaxTokens = modelOptions?.max_completion_tokens
+    const maxTokens =
+      minMaxTokens !== undefined &&
+      (requestedMaxTokens == null || requestedMaxTokens < minMaxTokens)
+        ? minMaxTokens
+        : requestedMaxTokens
     const stop = modelOptions?.stop
     const stopSequences =
       stop == null ? undefined : Array.isArray(stop) ? stop : [stop]
@@ -585,13 +608,15 @@ export class BedrockConverseTextAdapter<
           }
         : undefined
 
-    return {
+    const input: ConverseCommandInput = {
       modelId: this.model,
       messages,
       ...(system.length > 0 && { system }),
       ...(toolConfig && { toolConfig }),
       ...(inferenceConfig && { inferenceConfig }),
+      ...(additionalModelRequestFields && { additionalModelRequestFields }),
     }
+    return addPromptCachePoints(this.model, input, options.promptCache)
   }
 }
 

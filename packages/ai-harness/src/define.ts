@@ -4,18 +4,101 @@ import type {
   AnyTextAdapter,
   AnyTool,
   InterruptDefinition,
+  KeyedAdapter,
+  ModelMessage,
+  PromptCacheOptions,
+  ReasoningOption,
+  SubagentRouterPick,
   SubagentsBag,
   SystemPrompt,
 } from '@tanstack/ai'
 import type { AnyAgent } from './agents'
+import type { MediaOptions } from './media'
 import type { HarnessPlugin } from './plugins'
-import type { BusyPolicy } from './types'
+import type { HarnessSession } from './session'
+import type { HarnessTurnOptions, RecoverHook } from './turn'
+import type { BusyPolicy, UserInput } from './types'
 
 /** The `subagents` option: the same as `chat({ subagents })`. */
 export type HarnessSubagents<TSubagents extends ReadonlyArray<AnyAgent>> = Omit<
   SubagentsBag<TSubagents>,
   'binding'
 >
+
+/**
+ * What `routing.router` gets: the fields of the `subagents.router` context,
+ * plus the harness fields of the turn.
+ */
+export interface HarnessRouterContext {
+  /** The model messages of the turn: the history, then the new user message. */
+  messages: Array<ModelMessage>
+  /**
+   * The root agents of this turn, in registration order: the harness
+   * `agents`, then the `agents` of session plugins, then of run plugins. An
+   * agent that is only in `subagents` is not in this list.
+   */
+  agents: ReadonlyArray<AnyAgent>
+  /** Aborted when the turn is cancelled. */
+  abortSignal?: AbortSignal
+  session: HarnessSession
+  /**
+   * The user input of the turn as sent: text, or content parts. `undefined`
+   * for a turn with no new user message.
+   */
+  input?: UserInput
+  /** The id of the turn operation. */
+  operationId: string
+  /** The id of the turn input, when the turn has one. */
+  inputId?: string
+  /** The main text adapter of the turn, with the user's keys bound. */
+  adapter: AnyTextAdapter
+}
+
+/**
+ * The `routing` option. The other fields mean the same as in `subagents`.
+ * `limits` defaults to `subagents.limits`. With `strategy: 'handoff'`, the
+ * main model answers after the agents, in the same turn, and it keeps its
+ * `subagents`.
+ */
+export interface HarnessRouting extends Pick<
+  SubagentsBag,
+  'order' | 'strategy' | 'limits' | 'sandbox'
+> {
+  /**
+   * Pick who answers the turn, with the picks of `subagents.router`:
+   * `'main'`, an agent name, a list of names, `{ names, order }`, or
+   * `{ steps }`. Give an agent with `inputSchema` its input with
+   * `{ name, input }`. A throw fails the turn.
+   */
+  router: (
+    ctx: HarnessRouterContext,
+  ) => SubagentRouterPick | Promise<SubagentRouterPick>
+}
+
+/**
+ * Limits for one input on a durable host (a host with `stores.log`). A host
+ * without a log does not read them.
+ */
+export interface HarnessDurability {
+  /**
+   * Total attempts for one input, the first run included. Each recovery after
+   * a crash is one more attempt. When no attempt is left, the input fails
+   * with code `'attempts_exhausted'`. Default 10.
+   */
+  maxAttempts?: number
+  /**
+   * Time from the first run of an input until it fails with code
+   * `'timeout'`, in milliseconds. Retries do not reset it. Default: no
+   * timeout.
+   */
+  timeoutMs?: number
+  /**
+   * Decide how an input that a crashed host left recovers: an input that
+   * never ran, and a turn whose lease expired. The context has the decision
+   * the harness takes by default. Return `undefined` to keep it.
+   */
+  recover?: RecoverHook
+}
 
 /**
  * What `defineHarness` takes. Where it overlaps with `chat()`, the option
@@ -30,8 +113,12 @@ export interface HarnessConfig<
   name: string
   /** What the harness does. Shown when another agent can call it. */
   description?: string
-  /** The main agent-loop model, the same as `chat({ adapter })`. */
-  adapter: TAdapter
+  /**
+   * The main agent-loop model, the same as `chat({ adapter })`. A
+   * `keyedAdapter(...)` is built for each turn with the user's own key: the
+   * key saved with `/connect <provider>`, else the provider's env var.
+   */
+  adapter: TAdapter | KeyedAdapter<TAdapter>
   systemPrompts?: Array<SystemPrompt>
   tools?: ReadonlyArray<AnyTool>
   /**
@@ -45,6 +132,19 @@ export interface HarnessConfig<
   /** When a turn stops calling the model. Defaults to `maxIterations(50)`. */
   agentLoopStrategy?: AgentLoopStrategy
   modelOptions?: TAdapter['~types']['providerOptions']
+  /**
+   * Automatic prompt caching for every session, the same as
+   * `chat({ promptCache })`. Default `'short'`. `'none'` turns it off. A
+   * `key` here is shared by all sessions, so usually leave it out: then each
+   * session uses its threadId as the key.
+   */
+  promptCache?: PromptCacheOptions
+  /**
+   * How hard the main model thinks on every turn, as the adapter gets it in
+   * `TextOptions`. Not set: no reasoning is sent, and the provider default
+   * applies. `overrides.reasoning` of a turn replaces it.
+   */
+  reasoning?: ReasoningOption
   interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
   /** Runtime context passed to middleware hooks and server tools. */
   context?: unknown
@@ -58,10 +158,26 @@ export interface HarnessConfig<
    * They are also registered in `session.agents`.
    */
   subagents?: HarnessSubagents<TSubagents>
+  /**
+   * A router for each new turn. It sends the turn to the main model, or to
+   * root agents: the harness `agents` and the `agents` of plugins. A resolve
+   * continues the turn it answers, so it does not call the router.
+   */
+  routing?: HarnessRouting
   /** Called once per session, so every session gets fresh plugin instances. */
   plugins?: () => ReadonlyArray<HarnessPlugin>
   /** What a `prompt` does while a chat turn runs. Default `'queue'`. */
   busy?: BusyPolicy
+  /** Attempt and time limits for each input on a durable host. */
+  durability?: HarnessDurability
+  /** Hooks that control a chat turn: retries, joins, and the end of a turn. */
+  turn?: HarnessTurnOptions
+  /**
+   * Files sent to a turn, and media agents make: the size limit, the kinds a
+   * user can send, the kinds the model reads, and an optional transcriber for
+   * audio the model cannot read.
+   */
+  media?: MediaOptions
   /** What clients may call. Nothing is exposed by default. */
   expose?: {
     agents?: ReadonlyArray<TAgents[number]['name'] | TSubagents[number]['name']>
@@ -101,7 +217,7 @@ export function isHarnessDefinition(value: unknown): value is AnyHarness {
 
 /**
  * Define a harness: a reusable, typed agent configuration. Use the same option
- * names as `chat()`, plus `agents`, `plugins`, `busy`, and `expose`.
+ * names as `chat()`, plus `agents`, `plugins`, `busy`, `expose`, and `media`.
  *
  * @example
  * ```ts

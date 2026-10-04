@@ -209,3 +209,155 @@ chat({
   messages: [{ role: 'user', content: 'Analyze this...' }]
 })
 ```
+
+## Add reasoning to your adapter
+
+`chat({ reasoning })` reaches an adapter as `options.reasoning`: a level, a `summary` flag, and an optional `budgetTokens`. To support it:
+
+1. Give each model its reasoning data as a `ModelReasoning`: a map from each level to the value your provider takes, and whether it takes a token budget.
+2. Declare the levels on the adapter type, so `chat()` checks them. The last type parameter of `BaseTextAdapter` and the `openai-base` adapters is `{ levels; budget }`.
+3. Turn the request into your provider's field. `resolveReasoning` clamps the level to the model and looks up the value.
+
+An adapter built on `@tanstack/openai-base` only needs `modelReasoning`. The base then sends `reasoning_effort` on Chat Completions, or `reasoning.effort` on Responses:
+
+```typescript
+import OpenAI from "openai";
+import { OpenAIBaseChatCompletionsTextAdapter } from "@tanstack/openai-base";
+import type {
+  DefaultMessageMetadataByModality,
+  Modality,
+  ModelReasoning,
+} from "@tanstack/ai";
+
+const MY_MODEL_REASONING: Record<string, ModelReasoning> = {
+  "my-model": {
+    map: { off: "none", minimal: null, low: "low", medium: "medium", high: "high" },
+    budget: false,
+  },
+};
+
+class MyTextAdapter extends OpenAIBaseChatCompletionsTextAdapter<
+  "my-model",
+  Record<string, unknown>,
+  ReadonlyArray<Modality>,
+  DefaultMessageMetadataByModality,
+  ReadonlyArray<string>,
+  { levels: "off" | "low" | "medium" | "high"; budget: false }
+> {
+  protected override modelReasoning(model: string) {
+    return MY_MODEL_REASONING[model];
+  }
+}
+
+export const myText = () =>
+  new MyTextAdapter(
+    "my-model",
+    "my-provider",
+    new OpenAI({ apiKey: process.env.MY_API_KEY, baseURL: "https://api.example.com/v1" }),
+  );
+```
+
+An adapter with another wire format calls `resolveReasoning` from `@tanstack/ai/adapter-internals` in its request code and sends the result its own way.
+
+Models added with `extendAdapter` take no `reasoning` option, because the adapter has no reasoning data for them.
+
+## Keep block order and mid-conversation changes
+
+Two optional fields reach your adapter. If your adapter ignores them, it sends the same request as before.
+
+### Send assistant blocks in their order
+
+A model can answer with thinking, a tool call, more thinking, then text. A `ModelMessage` keeps `thinking`, `content`, and `toolCalls` in separate fields. The optional `blockOrder` map says how they mix. `orderedAssistantBlocks` gives you the blocks in that order:
+
+```typescript
+import { orderedAssistantBlocks } from "@tanstack/ai";
+import type { ModelMessage } from "@tanstack/ai";
+
+type WireBlock =
+  | { type: "reasoning"; text: string; signature?: string }
+  | { type: "text"; text: string }
+  | { type: "call"; id: string; name: string; args: string };
+
+export function orderedWireBlocks(message: ModelMessage): Array<WireBlock> | undefined {
+  const blocks = orderedAssistantBlocks(message);
+  if (!blocks) return undefined;
+  return blocks.map((block): WireBlock => {
+    if (block.type === "thinking") {
+      return { type: "reasoning", text: block.thinking.content, signature: block.thinking.signature };
+    }
+    if (block.type === "text") return { type: "text", text: block.text };
+    return {
+      type: "call",
+      id: block.toolCall.id,
+      name: block.toolCall.function.name,
+      args: block.toolCall.function.arguments,
+    };
+  });
+}
+```
+
+- The function returns `undefined` when the message has no map, or when the map does not match the message. Then send your default order.
+- The library writes `blockOrder` only when the order is not the default. The default order is all thinking, then the text, then the tool calls.
+
+### Send mid-conversation changes
+
+Tools or system prompts can grow between model calls. If your provider has a mid-conversation channel, it can take the change inside the conversation. Then the cached start of the request stays the same. To support it:
+
+1. Set `midConversationChannels` on the adapter to the channels that your provider has: `{ tools, systemPrompts }`. Before each call, the `chat()` engine compares the lists. It passes the result as `options.midConversationChanges`.
+2. Resolve the change with `splitMidConversationChanges`. It gives the start lists and the changes by message index. It returns `undefined` when a name or a count does not match the current lists.
+3. Send the start lists at the top of the request. Send each change directly before the message at its index. A change at `options.messages.length` goes at the end.
+
+An adapter that extends the Responses adapter of `@tanstack/openai-base` only sets the field. The base then sends `additional_tools` and `developer` messages:
+
+```typescript
+import { OpenAIBaseResponsesTextAdapter } from "@tanstack/openai-base";
+
+export class MyResponsesAdapter extends OpenAIBaseResponsesTextAdapter<"my-model"> {
+  override readonly midConversationChannels = { tools: true, systemPrompts: true };
+}
+```
+
+An adapter with another wire format does the steps itself:
+
+```typescript
+import { splitMidConversationChanges } from "@tanstack/ai";
+import type { ModelMessage, TextOptions } from "@tanstack/ai";
+
+type WireTool = { name: string; description: string };
+type WireItem =
+  | { kind: "message"; message: ModelMessage }
+  | { kind: "change"; tools: Array<WireTool>; prompts: Array<string> };
+
+export function buildRequest(
+  options: TextOptions,
+  tools: Array<WireTool>,
+  prompts: Array<string>,
+) {
+  const changes = options.midConversationChanges;
+  const split = changes
+    ? splitMidConversationChanges({ changes, tools, systemPrompts: prompts })
+    : undefined;
+  if (!split) {
+    // No changes, or names that do not match: send the full lists.
+    const items = options.messages.map((message): WireItem => ({ kind: "message", message }));
+    return { tools, system: prompts, items };
+  }
+  const items: Array<WireItem> = [];
+  const pushChange = (index: number) => {
+    const change = split.at.get(index);
+    if (change) items.push({ kind: "change", tools: change.tools, prompts: change.systemPrompts });
+  };
+  options.messages.forEach((message, index) => {
+    pushChange(index);
+    items.push({ kind: "message", message });
+  });
+  pushChange(options.messages.length);
+  return { tools: split.startTools, system: split.startSystemPrompts, items };
+}
+```
+
+- `split.addedTools` lists every added tool, in change order. Use it if your provider also wants the added tools in its tool list. Claude takes them there with `defer_loading`.
+- A tool can keep its name and get a new definition. Take every definition from `options.tools`.
+- If your provider cannot add some kind of tool later (for example a hosted search tool), send the full tool list for that request. Keep the prompt changes in the conversation.
+
+See [Mid-Conversation Changes](./mid-conversation-changes) for how the library finds the changes.

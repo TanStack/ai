@@ -2,6 +2,8 @@ import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import {
   appendOutputSchemaInstruction,
   parseJsonFromAssistantText,
+  reasoningBudget,
+  resolveReasoning,
   structuredOutputCompleteChunk,
   structuredOutputStartChunk,
   toRunErrorRawEvent,
@@ -27,6 +29,7 @@ import { resolveInteractivePermission } from '../process/permissions'
 import { AsyncQueue } from '../stream/queue'
 import { translateOpencodeStream } from '../stream/translate'
 import { projectOpencodeWorkspace } from './projection'
+import { OPENCODE_MODEL_REASONING } from '../model-reasoning'
 import type { HostToolBridge, SandboxHandle } from '@tanstack/ai-sandbox'
 import type {
   StructuredOutputOptions,
@@ -35,7 +38,9 @@ import type {
 import type {
   DefaultMessageMetadataByModality,
   Modality,
+  ModelReasoning,
   AdapterYieldChunk,
+  ReasoningRequest,
   TextOptions,
 } from '@tanstack/ai'
 import type { OpencodeSessionHandle } from '../process/server'
@@ -46,6 +51,7 @@ import type {
 import type { OpencodeStreamEvent } from '../stream/sdk-types'
 import type { OpencodeModel } from '../model-meta'
 import type { OpencodeTextProviderOptions } from '../provider-options'
+import type { OpenCodeModelReasoningByName } from '../model-reasoning'
 
 const DEFAULT_WORKDIR = '/workspace'
 const DEFAULT_PORT = 4096
@@ -82,6 +88,49 @@ function splitModel(model: string): { providerID: string; modelID: string } {
   return { providerID: model.slice(0, slash), modelID: model.slice(slash + 1) }
 }
 
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof OpenCodeModelReasoningByName
+    ? OpenCodeModelReasoningByName[TModel]
+    : never
+
+/**
+ * OpenCode's per-model `options` for `chat({ reasoning })`, as its config docs
+ * show them: Claude takes `thinking` with a token budget (pi's table when the
+ * request sets none), other models take `reasoningEffort` and
+ * `reasoningSummary`.
+ */
+export function opencodeReasoningOptions(
+  modelID: string,
+  request: ReasoningRequest | undefined,
+  reasoning: ModelReasoning | undefined,
+): Record<string, unknown> | undefined {
+  const resolved = resolveReasoning(request, reasoning)
+  if (!resolved) return undefined
+  if (modelID.includes('claude')) {
+    if (resolved.level === 'off') return { thinking: { type: 'disabled' } }
+    return {
+      thinking: {
+        type: 'enabled',
+        budgetTokens: reasoningBudget({
+          level: resolved.level,
+          summary: resolved.summary,
+          ...(resolved.budgetTokens !== undefined
+            ? { budgetTokens: resolved.budgetTokens }
+            : {}),
+        }),
+      },
+    }
+  }
+  if (resolved.value === null) return undefined
+  return {
+    reasoningEffort: resolved.value,
+    ...(resolved.summary && resolved.level !== 'off'
+      ? { reasoningSummary: 'auto' }
+      : {}),
+  }
+}
+
 export class OpencodeTextAdapter<
   TModel extends OpencodeModel,
 > extends BaseTextAdapter<
@@ -91,7 +140,8 @@ export class OpencodeTextAdapter<
   DefaultMessageMetadataByModality,
   ReadonlyArray<string>,
   unknown,
-  never
+  never,
+  ResolveReasoning<TModel>
 > {
   readonly name = 'opencode' as const
 
@@ -281,20 +331,36 @@ export class OpencodeTextAdapter<
         { provider: 'opencode', model: this.model },
       )
 
-      const serverEnv = bridge
-        ? {
-            OPENCODE_CONFIG_CONTENT: JSON.stringify({
-              mcp: {
-                [bridge.name]: {
-                  type: 'remote',
-                  url: bridge.url,
-                  enabled: true,
-                  headers: { Authorization: `Bearer ${bridge.token}` },
-                },
-              },
-            }),
-          }
-        : undefined
+      // `chat({ reasoning })` goes on the model's config entry.
+      const reasoningOptions = opencodeReasoningOptions(
+        modelID,
+        options.reasoning,
+        OPENCODE_MODEL_REASONING[this.model],
+      )
+      const serverEnv =
+        bridge || reasoningOptions
+          ? {
+              OPENCODE_CONFIG_CONTENT: JSON.stringify({
+                ...(bridge && {
+                  mcp: {
+                    [bridge.name]: {
+                      type: 'remote',
+                      url: bridge.url,
+                      enabled: true,
+                      headers: { Authorization: `Bearer ${bridge.token}` },
+                    },
+                  },
+                }),
+                ...(reasoningOptions && {
+                  provider: {
+                    [providerID]: {
+                      models: { [modelID]: { options: reasoningOptions } },
+                    },
+                  },
+                }),
+              }),
+            }
+          : undefined
 
       server = await startOpencodeServerInSandbox(sandbox, {
         port: this.adapterConfig.port ?? DEFAULT_PORT,

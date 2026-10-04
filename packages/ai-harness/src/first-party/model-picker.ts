@@ -1,22 +1,28 @@
 import { defineCommand } from '../commands'
 import { configOption } from '../config'
 import { definePlugin } from '../plugins'
-import type { AnyTextAdapter } from '@tanstack/ai'
+import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
 
 /**
  * Switch the main model at the next turn with the `model` setting or the
- * `/model <name>` command.
+ * `/model <name>` command. A choice can be a `keyedAdapter(...)`: the
+ * session builds it for each turn with the user's key.
  *
  * @example
  * ```ts
  * modelPicker({
- *   choices: { fast: openaiText('gpt-5.6-luna'), smart: openaiText('gpt-5.6') },
- *   default: 'smart',
+ *   choices: {
+ *     fast: openaiText('gpt-5.6-luna'),
+ *     claude: keyedAdapter(anthropicByok, (key) =>
+ *       createAnthropicChat('claude-sonnet-4-5', key),
+ *     ),
+ *   },
+ *   default: 'fast',
  * })
  * ```
  */
 export function modelPicker(options: {
-  choices: Record<string, AnyTextAdapter>
+  choices: Record<string, AnyTextAdapter | KeyedAdapter<AnyTextAdapter>>
   default?: string
 }) {
   const names = Object.keys(options.choices)

@@ -3,6 +3,13 @@
 // logger plumbing without leaking those symbols to end users.
 
 export type { ResolvedCategories } from './logger/internal-logger'
+export {
+  DEFAULT_REASONING_BUDGETS,
+  reasoningBudget,
+  reasoningValue,
+  resolveReasoning,
+} from './reasoning'
+export type { ResolvedReasoning } from './reasoning'
 export { InternalLogger } from './logger/internal-logger'
 export type { Logger } from './logger/types'
 export { resolveDebugOption } from './logger/resolve'
@@ -60,3 +67,16 @@ export {
 export { tanstackMetadata } from './utilities/merge-metadata'
 export { isSpecTopLevelKey } from './utilities/spec-event-keys'
 export { REDACTED_THINKING_ID_PREFIX } from './utilities/reasoning-encrypted-value'
+export {
+  buildBlockOrder,
+  orderedAssistantBlocks,
+} from './utilities/block-order'
+export type {
+  BlockOrderEntry,
+  OrderedAssistantBlock,
+} from './utilities/block-order'
+export {
+  planMidConversationChanges,
+  promptHash,
+  splitMidConversationChanges,
+} from './utilities/mid-conversation'

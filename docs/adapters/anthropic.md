@@ -231,26 +231,9 @@ Anthropic's Messages API _requires_ `max_tokens` on every request, so the adapte
 
 One exception: structured output (`chat({ outputSchema })`) on models that use the non-streaming finalization path clamps this default to ~21K tokens. The Anthropic SDK rejects a non-streaming request whose `max_tokens` could exceed its 10-minute timeout, so the full ceiling can't be used there. Streaming chat is unaffected. To raise the structured-output ceiling toward a model's true max, stream the response.
 
-### Thinking (Extended Thinking)
+### Thinking
 
-Enable extended thinking with a token budget. This allows Claude to show its reasoning process, which is streamed as `thinking` chunks:
-
-```typescript ignore
-modelOptions: {
-  thinking: {
-    type: "enabled",
-    budget_tokens: 2048, // Maximum tokens for thinking
-  },
-}
-```
-
-**Note:** `budget_tokens` must be less than `modelOptions.max_tokens` — set `max_tokens` high enough to leave room for the visible response alongside the thinking budget, or the request is rejected.
-
-### Adaptive Thinking (Claude 4.6+, Sonnet 5, Fable 5)
-
-Newer Claude models use adaptive thinking — the model decides when and how
-much to think, and depth is tuned with `output_config.effort` instead of a
-token budget:
+Set how hard Claude thinks with `reasoning` on `chat()`. The adapter turns the level into the right thinking fields for the model:
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -259,48 +242,31 @@ import { anthropicText } from "@tanstack/ai-anthropic";
 const stream = chat({
   adapter: anthropicText("claude-sonnet-5"),
   messages: [{ role: "user", content: "Plan a database migration." }],
-  modelOptions: {
-    thinking: { type: "adaptive", display: "summarized" },
-    output_config: { effort: "xhigh" },
-    max_tokens: 64_000,
-  },
+  reasoning: "xhigh",
 });
 ```
 
-Per-model rules (enforced by the adapter's types):
+What the adapter sends for each kind of model:
 
-- **`claude-sonnet-5`, `claude-opus-4-8`, `claude-opus-4-7`** — adaptive
-  thinking with an explicit `{ type: "disabled" }` opt-out. The manual
-  `{ type: "enabled", budget_tokens }` shape is rejected with a 400, and
-  the sampling parameters (`temperature`, `top_p`, `top_k`) are not
-  accepted (on Sonnet 5 the API rejects non-default values; on Opus
-  4.7/4.8 the parameters are removed entirely).
-- **`claude-fable-5`** — thinking is always on. The only accepted explicit
-  config is `{ type: "adaptive" }` (both `disabled` and `budget_tokens`
-  return a 400), and sampling parameters are rejected.
-- **`claude-opus-4-6` / `claude-sonnet-4-6`** — accept
-  `{ type: "adaptive" }` alongside the deprecated
-  `{ type: "enabled", budget_tokens }` shape, and still accept sampling
-  parameters.
-- **`display`** defaults to `"omitted"` on Opus 4.7+ and the 5-generation
-  models — set `"summarized"` to stream the reasoning text.
-- **`effort`** accepts `"low" | "medium" | "high" | "xhigh" | "max"`;
-  `"xhigh"` is available on Claude Opus 4.7+, Claude Sonnet 5, and
-  Claude Fable 5.
-- **`output_config`** is accepted on Claude Opus 4.7, Opus 4.8, Sonnet 5,
-  Fable 5, Opus 5, Fable 5.1 and Opus 5.5. When you also pass an `outputSchema`, the
-  adapter adds `output_config.format` and keeps the `effort` you set.
+- **Claude 4.7 and later, Sonnet 5, Fable 5**: adaptive thinking, with the level as `output_config.effort`.
+- **Claude Opus 4.6 and Sonnet 4.6**: adaptive thinking, with the level as `effort`.
+- **Haiku 4.5, Sonnet 4.5, Opus 4.5, Opus 4.1**: thinking with a token budget. Set it with `reasoning: { level: "high", budgetTokens: 8000 }`. The adapter raises `max_tokens` when it is below the budget.
+- **`off`**: thinking disabled. `claude-fable-5` always thinks, so its types do not take `off`.
+
+The thinking text streams back as thinking parts. Pass `summary: false` to keep it hidden: `reasoning: { level: "high", summary: false }`. See [Reasoning](../chat/reasoning) for the levels and how a level the model does not have moves to the nearest one.
 
 ### Prompt Caching
 
-Cache prompts for better performance and reduced costs:
+`chat()` caches Claude prompts by default. It adds `cache_control` markers to the system prompt, the last tool, and the last user message. To send no markers, pass `promptCache: 'none'`. For the retention, the cache key, and the cost, see [Prompt Caching](../advanced/prompt-caching).
+
+To place a marker yourself, set `cache_control` in the `metadata` of a message part, a system prompt, or a tool. A marker of your own turns the automatic markers off for that request:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-6"),
+  adapter: anthropicText("claude-sonnet-5-5"),
   messages: [
     {
       role: "user",
@@ -319,6 +285,44 @@ const stream = chat({
   ],
 });
 ```
+
+`modelOptions.cache_control` asks Anthropic to place one marker for the whole request. It also turns the automatic markers off.
+
+#### Tools and prompts added during a conversation
+
+On some Claude models, a tool or a system prompt that you add between model calls goes into the conversation, not into `tools` or `system`. The marked start of the request stays the same, so Claude reads it from the cache.
+
+The models: `claude-opus-4-8`, `claude-opus-5`, `claude-opus-5-5`, `claude-fable-5`, and `claude-fable-5-1`.
+
+What the adapter sends on these models:
+
+- `system` keeps the system prompts of the first call, with their `cache_control`.
+- In a request with tools, the `anthropic-beta` header has `mid-conversation-tool-changes-2026-07-01`, and `tools` has one placeholder tool, `__tanstack_deferred_placeholder__`. The model must never call it. It keeps Anthropic's hidden setup for added tools inside the cached start.
+- An added tool goes to the end of `tools` with `defer_loading: true`. A `system` message lists it in a `tool_addition` block.
+- A system prompt that you add goes into a `system` message as a text block. The message comes directly before the next assistant message, or at the end of the messages.
+- With a provider tool such as `webSearchTool()` in the first call or in a change, `tools` is the full list and has no placeholder.
+
+The automatic tool marker goes on the last tool of the first call, not on the placeholder or an added tool. So the marked start does not move when a tool is added. A `cache_control` of your own still wins.
+
+The channels are on by default with Anthropic's own API. With a custom `baseURL`, a custom `fetch`, or a proxy in the `ANTHROPIC_BASE_URL` environment variable, they are off, and every request is the same as on a model outside the list. An adapter on your own client (`createAnthropicChatWithClient`, `anthropicVertexText`) has no channels. Set `midConversationChannels` to choose:
+
+- `false`: send the full lists on every call.
+- `true`: use the channels with a custom `baseURL`, `fetch`, or `ANTHROPIC_BASE_URL`. Set it only when that endpoint sends the request and the `anthropic-beta` header to Anthropic as they are.
+
+```typescript
+import { anthropicText } from "@tanstack/ai-anthropic";
+
+export const fullLists = anthropicText("claude-opus-5-5", {
+  midConversationChannels: false,
+});
+
+export const throughProxy = anthropicText("claude-opus-5-5", {
+  baseURL: "https://llm-proxy.example.com",
+  midConversationChannels: true,
+});
+```
+
+See [Mid-Conversation Changes](../advanced/mid-conversation-changes) for how the library finds the changes.
 
 ## Summarization
 

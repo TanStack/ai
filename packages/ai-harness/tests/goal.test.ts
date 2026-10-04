@@ -256,7 +256,7 @@ describe('goal', () => {
     await host.close()
   })
 
-  it('drops its queued turn when a late steer pauses the goal', async () => {
+  it('pauses, and queues no goal turn, when a late steer joins its turn', async () => {
     const hold = gate()
     const { host, session, calls } = await start({
       replies: [

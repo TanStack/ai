@@ -163,12 +163,34 @@ const dynamicTemperature: ChatMiddleware = {
 | `tools` | `Tool[]` | Available tools |
 | `metadata` | `Record<string, unknown>` | Request metadata |
 | `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
+| `reasoning` | `ReasoningRequest \| undefined` | How hard the model thinks at this call. See [Reasoning](../chat/reasoning#change-the-level-in-middleware). |
+| `promptCache` | `ResolvedPromptCache \| undefined` | The prompt cache of this call: its `retention` and `key`. See [Change the prompt cache of a call](#change-the-prompt-cache-of-a-call). |
 
 When multiple middleware define `onConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
 
 Return `providerMessages` when a transform must affect only the model call. For
 compatibility, returning `messages` also updates provider input unless the same
 result sets `providerMessages` explicitly.
+
+#### Change the prompt cache of a call
+
+A slow tool, such as a build or a test suite, can pause an agent run for more than 5 minutes. The short Claude cache ends 5 minutes after its last read. Return `promptCache` from `onConfig` to change the cache of the next model call, the same as `reasoning`:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const longCacheAfterTools: ChatMiddleware = {
+  name: "long-cache-after-tools",
+  onConfig: (ctx, config) => {
+    if (ctx.phase !== "beforeModel" || ctx.iteration === 0) return;
+    return { promptCache: { ...config.promptCache, retention: "long" } };
+  },
+};
+```
+
+- `config.promptCache` is the current value, with its `retention` and its `key`.
+- The returned value goes to the adapter on the next model call. It stays for the later calls until a middleware returns another value.
+- For the retention values and their cost, see [Prompt Caching](./prompt-caching#pick-the-retention).
 
 ### onStructuredOutputConfig
 
@@ -510,7 +532,7 @@ capability, then return those fields from `onConfig` when
 | --- | --- |
 | `onInterruptBoundary` | Nothing. It can only pause. |
 | `onInterruptResolution` | Pending-tool policy (`toolResume`) |
-| `onConfig` | `messages`, `systemPrompts`, `tools`, `modelOptions`, `metadata` |
+| `onConfig` | `messages`, `systemPrompts`, `tools`, `modelOptions`, `metadata`, `reasoning`, `promptCache` |
 
 The full resume order, plus an example that writes a user note into the
 system prompt, is in [Apply Answers](../interrupts/apply-answers).

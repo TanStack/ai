@@ -53,16 +53,13 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 chat({
   adapter: openaiText('gpt-5.5'),
   messages,
+  // Reasoning is a chat() option, sent as reasoning.effort with a summary
+  reasoning: 'high',
   modelOptions: {
     // Sampling
     temperature: 0.7,
     top_p: 0.9,
     max_output_tokens: 1000,
-    // Reasoning (effort levels: none, minimal, low, medium, high)
-    reasoning: {
-      effort: 'high',
-      summary: 'auto', // 'auto' | 'detailed'
-    },
     // Service tier
     service_tier: 'auto', // 'auto' | 'default' | 'flex' | 'priority'
     // Response storage

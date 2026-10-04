@@ -1,9 +1,12 @@
 import { EventType } from '@tanstack/ai'
 import {
+  ContentBlock,
   PROTOCOL_VERSION,
+  RequestError,
   agent,
   ndJsonStream,
 } from '@agentclientprotocol/sdk/experimental/v2'
+import { MediaError, kindOf, mediaPart } from '@tanstack/ai-harness'
 import type {
   AgentApp,
   AgentContext,
@@ -11,7 +14,12 @@ import type {
   SessionUpdate,
   Stream,
 } from '@agentclientprotocol/sdk/experimental/v2'
-import type { Interrupt, RunAgentResumeItem, StreamChunk } from '@tanstack/ai'
+import type {
+  ContentPart,
+  Interrupt,
+  RunAgentResumeItem,
+  StreamChunk,
+} from '@tanstack/ai'
 import type {
   AnyHarness,
   HarnessHost,
@@ -26,16 +34,89 @@ export interface AcpAgentOptions {
   version?: string
 }
 
-/** The text of an ACP prompt. Non-text blocks are skipped. */
-function promptText(
-  prompt: ReadonlyArray<{ type: string; text?: unknown }>,
-): string {
-  return prompt
-    .map((block) =>
-      block.type === 'text' && typeof block.text === 'string' ? block.text : '',
-    )
-    .filter((text) => text !== '')
-    .join('\n')
+function textPart(content: string) {
+  const part: ContentPart = { type: 'text', content }
+  return part
+}
+
+/** A text line that names a resource the prompt does not include. */
+function linkPart(uri: string) {
+  return textPart(`[resource link: ${uri}]`)
+}
+
+/** The last path segment of a URI, as a file name. */
+function fileName(uri: string) {
+  return uri.split('/').pop() || uri
+}
+
+/**
+ * Store the base64 `data` of a block in the media store of the session, and
+ * return the part that sends it. Throws a `MediaError` when the harness
+ * refuses the file.
+ */
+async function storedPart(
+  session: HarnessSession,
+  data: string,
+  info: { mimeType: string; name: string },
+) {
+  const bytes = Uint8Array.from(atob(data), (char) => char.charCodeAt(0))
+  return mediaPart(await session.putMedia(bytes, info))
+}
+
+/** One ACP prompt block as a content part, or `undefined` to skip it. */
+async function promptPart(session: HarnessSession, block: ContentBlock) {
+  // The SDK guards check the payload too, so a malformed block is skipped.
+  if (ContentBlock.isText(block)) {
+    return block.text === '' ? undefined : textPart(block.text)
+  }
+  if (ContentBlock.isImage(block)) {
+    return storedPart(session, block.data, {
+      mimeType: block.mimeType,
+      name: block.uri ? fileName(block.uri) : 'image',
+    })
+  }
+  if (ContentBlock.isAudio(block)) {
+    return storedPart(session, block.data, {
+      mimeType: block.mimeType,
+      name: 'audio',
+    })
+  }
+  // ponytail: a resource link is only named. The agent does not read it; the
+  // model can open it with its own tools.
+  if (ContentBlock.isResourceLink(block)) return linkPart(block.uri)
+  if (!ContentBlock.isResource(block)) return undefined
+  const { resource } = block
+  if ('text' in resource) {
+    return textPart(`[resource: ${resource.uri}]\n${resource.text}`)
+  }
+  const { mimeType } = resource
+  const isStored =
+    typeof mimeType === 'string' && kindOf(mimeType) !== undefined
+  if (!isStored) return linkPart(resource.uri)
+  return storedPart(session, resource.blob, {
+    mimeType,
+    name: fileName(resource.uri),
+  })
+}
+
+/**
+ * The turn input of an ACP prompt. Image and audio blocks, and embedded blobs
+ * of a type the harness stores, go to the media store of the session and
+ * become media parts. Embedded text and resource links become text. A prompt
+ * of only text is one string, as before.
+ */
+async function promptInput(
+  session: HarnessSession,
+  prompt: ReadonlyArray<ContentBlock>,
+) {
+  const blocks = await Promise.all(
+    prompt.map((block) => promptPart(session, block)),
+  )
+  const parts = blocks.filter((part) => part !== undefined)
+  const texts = parts.flatMap((part) =>
+    part.type === 'text' ? [part.content] : [],
+  )
+  return texts.length === parts.length ? texts.join('\n') : parts
 }
 
 /** One AG-UI chunk as an ACP session update, or `undefined` to skip it. */
@@ -87,6 +168,9 @@ const APPROVAL_OPTIONS = [
  * An ACP v2 agent backed by a harness. Each ACP session is one harness
  * session. Prompts follow the harness `busy` setting, tool approvals become
  * `session/request_permission` requests, and cancel cancels the running turn.
+ * Image, audio, and embedded resource blocks of a prompt go to the media
+ * store of the session. A file the harness refuses (too big, or a type it
+ * does not take) fails `session/prompt` with an invalid params error.
  *
  * ACP v2 is a draft, so this API is experimental too.
  */
@@ -197,7 +281,11 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
     .onRequest('initialize', () => ({
       protocolVersion: PROTOCOL_VERSION,
       info: { name: harness.name, version: options.version ?? '0.0.0' },
-      capabilities: {},
+      // Text and resource links are the baseline. Images, audio, and embedded
+      // resources go to the media store of the session.
+      capabilities: {
+        session: { prompt: { image: {}, audio: {}, embeddedContext: {} } },
+      },
     }))
     .onRequest('session/new', async () => {
       const sessionId = `acp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
@@ -210,7 +298,20 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
     })
     .onRequest('session/prompt', async ({ params, client }) => {
       const session = await sessionFor(params.sessionId)
-      const operation = session.prompt(promptText(params.prompt))
+      const input = await promptInput(session, params.prompt).catch(
+        (error: unknown) => {
+          // The editor sent a file the harness refuses, so the prompt is
+          // invalid: answer with the reason, not an internal error.
+          if (error instanceof MediaError) {
+            throw RequestError.invalidParams(
+              { status: error.status },
+              error.message,
+            )
+          }
+          throw error
+        },
+      )
+      const operation = session.prompt(input)
       void pump(client, params.sessionId, session, operation)
       return { messageId: operation.id }
     })

@@ -8,6 +8,8 @@ import type {
   AnyTool,
   Capability,
   CapabilityHandle,
+  KeyedAdapter,
+  ProviderKeys,
 } from '@tanstack/ai'
 import type {
   AgentInputOf,
@@ -16,7 +18,7 @@ import type {
   AgentResultOf,
   AnyAgent,
 } from './agents'
-import type { Operation } from './types'
+import type { Operation, TurnOverrides } from './types'
 import type { CredentialsAccess } from './auth'
 import type { AnyCommand, PluginSessionApi } from './commands'
 import type { ConfigOption } from './config'
@@ -55,7 +57,7 @@ export interface PluginContributions {
   agentMiddleware?: ReadonlyArray<AnyChatMiddleware>
   /** Middleware for the activities agents call (`ctx.generateImage`, ...). */
   generationMiddleware?: ReadonlyArray<AnyGenerationMiddleware>
-  /** Agents added to `session.agents`. */
+  /** Agents added to `session.agents`. `routing.router` can pick them. */
   agents?: ReadonlyArray<AnyAgent>
   /**
    * Agents the main model can call as tools, merged into the turn's
@@ -71,9 +73,15 @@ export interface PluginContributions {
   contribute?: ReadonlyArray<ExtensionItem>
   /**
    * Pick the main-loop adapter for the next turn, or return `undefined` to
-   * keep the harness adapter. The last plugin that returns one wins.
+   * keep the harness adapter. The last plugin that returns one wins. The
+   * session builds a `keyedAdapter(...)` with the user's key. `turn` is the
+   * turn that starts. Its `overrides.adapter` wins over every pick.
    */
-  adapter?: () => AnyTextAdapter | undefined
+  adapter?: (turn: {
+    operationId: string
+    inputId?: string
+    overrides?: TurnOverrides
+  }) => AnyTextAdapter | KeyedAdapter<AnyTextAdapter> | undefined
   /**
    * Tools found at run time, for example the tools of an MCP server the user
    * signed in to after the session opened. Called before each chat turn. A
@@ -160,8 +168,34 @@ export interface PluginServices {
   config: { get: (key: string) => unknown }
   state: <T>(plugin: string, initial: T) => PluginState<T>
   credentials: CredentialsAccess
+  keys: ProviderKeys
   session: PluginSessionApi
   agents: PluginAgentActions
+  /** Called after `ctx.commands` adds or removes a command. */
+  commandsChanged?: () => void
+}
+
+/**
+ * The commands of the session, for a plugin that adds and removes its own
+ * commands while the session runs, for example one command for each file in
+ * a folder. Commands that never change go in the `commands` of `setup`.
+ */
+export interface PluginCommands {
+  /** Is `name` a command of any plugin of this session? */
+  has: (name: string) => boolean
+  /**
+   * Add this plugin's command `name`, or replace it. A name that another
+   * plugin owns throws. Session views get the new list at once.
+   */
+  set: (name: string, command: AnyCommand) => void
+  /** Remove this plugin's command `name`. Another plugin's name does nothing. */
+  delete: (name: string) => void
+  /**
+   * Resolves when every plugin of the session is set up. Wait for it before
+   * `has` or `set`: during `setup`, the plugins after this one have not
+   * added their commands yet.
+   */
+  ready: Promise<void>
 }
 
 /** What a plugin's `setup` receives. */
@@ -201,7 +235,16 @@ export interface PluginSetupContext {
   config: { get: (key: string) => unknown }
   /** Credentials of the session's principal. */
   credentials: CredentialsAccess
+  /**
+   * Model provider keys of the session's principal: the key saved with
+   * `/connect <provider>`, else the provider's env var. Build a
+   * `keyedAdapter(...)` with `await ctx.keys.adapter(adapter)` just before
+   * the call. A missing key throws `AuthRequiredError`.
+   */
+  keys: ProviderKeys
   session: PluginSessionApi
+  /** Add and remove this plugin's commands while the session runs. */
+  commands: PluginCommands
 }
 
 export interface PluginDefinition {
@@ -264,7 +307,7 @@ export interface MountedPlugins {
   config: Map<string, { option: ConfigOption; owner: string }>
   /** Contributions to extension points, by point name. */
   extensions: Map<string, Array<{ value: unknown; owner: string }>>
-  adapters: Array<() => AnyTextAdapter | undefined>
+  adapters: Array<NonNullable<PluginContributions['adapter']>>
   discoverers: Array<{
     discover: () => ReadonlyArray<AnyTool> | Promise<ReadonlyArray<AnyTool>>
     owner: string
@@ -273,6 +316,8 @@ export interface MountedPlugins {
     prepare: NonNullable<PluginContributions['prepareTools']>
     owner: string
   }>
+  /** The `agents` of the plugins, in plugin order: root agents for routing. */
+  agents: Array<AnyAgent>
   /** Agents plugins give the main model, in plugin order. */
   subagents: Array<AnyAgent>
   /** Who contributed what, for `session.inspect()`. */
@@ -337,6 +382,11 @@ const NO_SERVICES: PluginServices = {
     set: unavailable('ctx.credentials'),
     delete: unavailable('ctx.credentials'),
     list: unavailable('ctx.credentials'),
+  },
+  keys: {
+    get: unavailable('ctx.keys'),
+    require: unavailable('ctx.keys'),
+    adapter: unavailable('ctx.keys'),
   },
   session: {
     threadId: '',
@@ -459,11 +509,18 @@ export async function mountPlugins(
   for (const [point, items] of env.inheritedExtensions ?? []) {
     extensions.set(point, [...items])
   }
-  const adapters: Array<() => AnyTextAdapter | undefined> = []
+  const adapters: MountedPlugins['adapters'] = []
   const discoverers: MountedPlugins['discoverers'] = []
   const preparers: MountedPlugins['preparers'] = []
+  const agents: Array<AnyAgent> = []
   const subagents: Array<AnyAgent> = []
   const services = env.services ?? NO_SERVICES
+  // `ctx.commands.ready`: resolves after the last plugin is set up. A failed
+  // mount leaves it pending, so no plugin acts on a session that never opens.
+  let markReady = () => {}
+  const ready = new Promise<void>((resolve) => (markReady = resolve))
+  const ownerOf = (name: string) =>
+    commands.get(name)?.owner ?? env.takenCommands?.get(name)?.owner
 
   try {
     for (const plugin of plugins) {
@@ -533,7 +590,27 @@ export async function mountPlugins(
         state: (initial) => services.state(plugin.name, initial),
         config: services.config,
         credentials: services.credentials,
+        keys: services.keys,
         session: services.session,
+        commands: {
+          has: (name) => ownerOf(name) !== undefined,
+          set: (name, command) => {
+            const owner = ownerOf(name)
+            if (owner !== undefined && owner !== plugin.name) {
+              throw new Error(
+                `Command "${name}" belongs to ${owner}. ${plugin.name} cannot replace it.`,
+              )
+            }
+            commands.set(name, { command, owner: plugin.name })
+            services.commandsChanged?.()
+          },
+          delete: (name) => {
+            if (commands.get(name)?.owner !== plugin.name) return
+            commands.delete(name)
+            services.commandsChanged?.()
+          },
+          ready,
+        },
       })
       for (const handle of plugin.provides ?? []) {
         if (!provided.has(handle)) {
@@ -608,6 +685,7 @@ export async function mountPlugins(
       }
       for (const agent of contributions.agents ?? []) {
         env.registry.add(agent, plugin.name)
+        agents.push(agent)
       }
       for (const agent of contributions.subagents ?? []) {
         env.registry.add(agent, plugin.name)
@@ -650,6 +728,7 @@ export async function mountPlugins(
         }
       : undefined
 
+  markReady()
   let disposed: Promise<void> | undefined
   return {
     tools: tools
@@ -665,6 +744,7 @@ export async function mountPlugins(
     adapters,
     discoverers,
     preparers,
+    agents,
     subagents,
     owners: {
       plugins: plugins.map((plugin) => ({

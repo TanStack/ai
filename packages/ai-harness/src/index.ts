@@ -4,8 +4,27 @@ export type {
   HarnessAgentsOf,
   HarnessConfig,
   HarnessDefinition,
+  HarnessDurability,
+  HarnessRouterContext,
+  HarnessRouting,
   HarnessSubagents,
 } from './define'
+
+export { durableTool } from './durable-tool'
+export type {
+  DurableToolContext,
+  DurableToolOptions,
+  ToolStep,
+} from './durable-tool'
+
+export { logMessageStore } from './log'
+export type { ProjectOptions, ProjectRecord, ReduceOptions } from './log'
+export type { LeaseOptions } from './resume'
+export type {
+  LeaseStore,
+  TurnLease,
+  TurnLeaseKey,
+} from '@tanstack/ai-persistence'
 
 export { definePlugin } from './plugins'
 export type {
@@ -16,6 +35,7 @@ export type {
   PluginPrompt,
   AgentGroup,
   PluginAgentActions,
+  PluginCommands,
   PluginSetupContext,
   PluginState,
 } from './plugins'
@@ -74,20 +94,50 @@ export type {
   SessionSnapshot,
 } from './session'
 
-export { HARNESS_EVENTS } from './types'
+export type {
+  FinishContext,
+  HarnessTurnOptions,
+  JoinCandidate,
+  JoinContext,
+  ModelErrorContext,
+  RecoverContext,
+  RecoverDecision,
+  RecoverHook,
+  TurnAdditions,
+} from './turn'
+export { isTransientModelError, retryTransientErrors } from './turn'
+
+export { HARNESS_EVENTS, InputRejectedError } from './types'
 export type {
   BusyPolicy,
   ChatTurnResult,
   Cursor,
   HarnessInput,
+  InputSettlement,
+  MediaKind,
+  MediaRecord,
   Operation,
   OperationKind,
   OperationStatus,
   Principal,
   Receipt,
   SessionEvent,
+  TurnOverrides,
   UserInput,
 } from './types'
+
+export {
+  MEDIA_URL_PREFIX,
+  isMediaRecord,
+  kindOf,
+  mediaIdOf,
+  mediaOfMessage,
+  mediaPart,
+  mimeTypeOf,
+} from './media-ref'
+
+export { MediaError } from './media'
+export type { MediaOptions } from './media'
 
 export {
   HARNESS_PROTOCOL_VERSION,

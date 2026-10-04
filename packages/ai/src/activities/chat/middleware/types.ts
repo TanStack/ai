@@ -8,6 +8,7 @@ import type {
   Interrupt,
   JSONSchema,
   ModelMessage,
+  ResolvedPromptCache,
   UIMessage,
   RunAgentResumeItem,
   StreamChunk,
@@ -17,6 +18,7 @@ import type {
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
 import type { ToolApprovalResolution } from '../../../interrupts'
+import type { ReasoningRequest } from '../../../reasoning'
 import type {
   GenericInterruptRequest,
   InterruptDefinition,
@@ -338,6 +340,13 @@ export interface ChatMiddlewareConfig {
   resumeToolState?: ChatResumeToolState | undefined
   metadata?: Record<string, unknown> | undefined
   modelOptions?: Record<string, unknown> | undefined
+  /** How hard the model thinks at this call. A middleware can set or change it. */
+  reasoning?: ReasoningRequest | undefined
+  /**
+   * The prompt cache of the next model call. A returned value stays until a
+   * middleware changes it.
+   */
+  promptCache?: ResolvedPromptCache | undefined
 }
 
 /**

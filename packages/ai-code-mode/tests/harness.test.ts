@@ -71,21 +71,26 @@ const textTurn = (content: string): Array<StreamChunk> => [
   },
 ]
 
-const codeTurn = (code: string): Array<StreamChunk> => [
+/** A model turn that calls one tool with `args`. */
+const callTurn = (toolName: string, args: unknown): Array<StreamChunk> => [
   { type: EventType.RUN_STARTED, runId: 'r', threadId: 't', timestamp: now() },
   {
     type: EventType.TOOL_CALL_START,
-    toolCallId: 'call-code',
-    toolCallName: 'execute_typescript',
+    toolCallId: `call-${toolName}`,
+    toolCallName: toolName,
     timestamp: now(),
   },
   {
     type: EventType.TOOL_CALL_ARGS,
-    toolCallId: 'call-code',
-    delta: JSON.stringify({ typescriptCode: code }),
+    toolCallId: `call-${toolName}`,
+    delta: JSON.stringify(args),
     timestamp: now(),
   },
-  { type: EventType.TOOL_CALL_END, toolCallId: 'call-code', timestamp: now() },
+  {
+    type: EventType.TOOL_CALL_END,
+    toolCallId: `call-${toolName}`,
+    timestamp: now(),
+  },
   {
     type: EventType.RUN_FINISHED,
     runId: 'r',
@@ -94,6 +99,9 @@ const codeTurn = (code: string): Array<StreamChunk> => [
     metadata: { tanstack: { finishReason: 'tool_calls' } },
   },
 ]
+
+const codeTurn = (code: string) =>
+  callTurn('execute_typescript', { typescriptCode: code })
 
 /**
  * A stand-in isolate: it records the bindings it got and, for any program,
@@ -250,6 +258,38 @@ describe('codeMode', () => {
     expect(JSON.stringify(calls[1].systemPrompts ?? [])).not.toContain(
       'execute_typescript',
     )
+    await host.close()
+  })
+
+  it('with lazy, lists only the tool names and gives signatures on discover_tools', async () => {
+    const { driver } = fakeDriver()
+    const { adapter, calls } = scripted([
+      callTurn('discover_tools', { toolNames: ['external_lookup'] }),
+      textTurn('found it'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/code-mode-lazy',
+        adapter,
+        tools: [tools.lookup, tools.remove],
+        plugins: () => [codeMode({ driver, lazy: true })],
+      }),
+      { threadId: 't' },
+    )
+    expect((await session.prompt('what can you call?')).text).toBe('found it')
+
+    expect(calls[0].tools.map((tool: { name: string }) => tool.name)).toEqual([
+      'remove',
+      'execute_typescript',
+      'discover_tools',
+    ])
+    // The prompt names the tool, but its input shape comes from discovery.
+    const prompts = JSON.stringify(calls[0].systemPrompts)
+    expect(prompts).toContain('Discoverable APIs')
+    expect(prompts).toContain('external_lookup')
+    expect(prompts).not.toContain('q: string')
+    expect(JSON.stringify(calls[1].messages)).toContain('q: string')
     await host.close()
   })
 

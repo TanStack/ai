@@ -1,16 +1,20 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
-import { mcpConnector } from '../src/connector'
 import {
-  approveSignIns,
-  authorizationUrlOf,
-  recorder,
-} from './connector-helpers'
+  HARNESS_EVENTS,
+  createHarnessHost,
+  defineHarness,
+} from '@tanstack/ai-harness'
+import { mcpConnector } from '../src/connector'
+import { approveSignIns, recorder } from './connector-helpers'
 import { startProtectedServer } from './protected-server'
 import type { Credential } from '@tanstack/ai-persistence'
-import type { HarnessSession, SessionEvent } from '@tanstack/ai-harness'
+import type {
+  HarnessHost,
+  HarnessSession,
+  SessionEvent,
+} from '@tanstack/ai-harness'
 
 const scope = { threadId: 't', userId: 'user-1' }
 const cleanups: Array<() => unknown> = []
@@ -18,8 +22,11 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
 
-async function setup(credential?: Credential) {
-  const server = await startProtectedServer()
+async function setup(
+  credential?: Credential,
+  serverOptions?: Parameters<typeof startProtectedServer>[0],
+) {
+  const server = await startProtectedServer(serverOptions)
   cleanups.push(() => server.close())
   const persistence = memoryPersistence()
   if (credential)
@@ -35,6 +42,19 @@ function connectorHarness(url: string, model: ReturnType<typeof recorder>) {
     name: 'test/connector',
     adapter: model.adapter,
     plugins: () => [mcpConnector({ id: 'demo', label: 'Demo', url })],
+  })
+}
+
+/** Open a session of {@link connectorHarness} for `user-1`. */
+function openDemo(
+  host: HarnessHost,
+  url: string,
+  model = recorder(),
+  threadId = 't',
+) {
+  return host.open(connectorHarness(url, model), {
+    threadId,
+    principal: { id: 'user-1' },
   })
 }
 
@@ -55,6 +75,13 @@ async function promptAndCollect(session: HarnessSession, text: string) {
   return seen
 }
 
+/** The values of the custom events named `name`, in order. */
+function customValues(seen: Array<SessionEvent>, name: string) {
+  return seen.flatMap(({ event }) =>
+    event.type === EventType.CUSTOM && event.name === name ? [event.value] : [],
+  )
+}
+
 describe('mcpConnector with a saved sign-in', () => {
   it('uses the saved token and client after a restart, without /connect', async () => {
     const { server, host } = await setup({
@@ -69,10 +96,7 @@ describe('mcpConnector with a saved sign-in', () => {
       },
     })
     const model = recorder('demo_echo')
-    const session = await host.open(connectorHarness(server.url, model), {
-      threadId: 't',
-      principal: { id: 'user-1' },
-    })
+    const session = await openDemo(host, server.url, model)
     await session.prompt('echo')
     expect(model.toolNames(0)).toEqual(['demo_echo'])
     expect(JSON.stringify(model.calls[1]?.messages)).toContain('echo: hi')
@@ -105,21 +129,19 @@ describe('mcpConnector with a saved sign-in', () => {
         client,
       })
       const model = recorder('demo_echo')
-      const session = await host.open(connectorHarness(server.url, model), {
-        threadId: 't',
-        principal: { id: 'user-1' },
-      })
+      const session = await openDemo(host, server.url, model)
       await session.prompt('echo')
       expect(model.toolNames(0)).toEqual(['demo_echo'])
       expect(
         server.seen.tokenRequests.map((form) => form.get('grant_type')),
       ).toEqual(['refresh_token'])
       expect(server.seen.registrations).toHaveLength(0)
+      // A sign-in saved without an issuer gets the issuer of this server.
       expect(await persistence.stores.credentials.get(scope, 'demo')).toEqual({
         type: 'oauth',
         accessToken: 'access-2',
         refreshToken: 'refresh-1',
-        client: { clientId: 'client-1', redirectUri },
+        client: { clientId: 'client-1', redirectUri, issuer: server.issuer },
       })
     },
   )
@@ -133,46 +155,86 @@ describe('mcpConnector with a saved sign-in', () => {
         refreshToken: 'revoked',
       },
       revoke: [],
+      // The server refused the refresh token, so it is deleted.
+      kept: null,
     },
     {
       failure: 'the server revokes a token that has no refresh token',
       credential: { type: 'oauth', accessToken: 'access-1' },
       revoke: ['access-1'],
+      kept: 'access-1',
     },
   ] satisfies Array<{
     failure: string
     credential: Credential
     revoke: Array<string>
+    kept: string | null
   }>)(
-    'drops the tools with a warning, and keeps the sign-in, when $failure',
-    async ({ credential, revoke }) => {
+    'drops the tools and asks the user to run /connect when $failure',
+    async ({ credential, revoke, kept }) => {
       const { server, persistence, host } = await setup(credential)
       for (const token of revoke) server.revoke(token)
       const model = recorder()
-      const session = await host.open(connectorHarness(server.url, model), {
-        threadId: 't',
-        principal: { id: 'user-1' },
-      })
+      const session = await openDemo(host, server.url, model)
       const seen = await promptAndCollect(session, 'hi')
       expect(model.toolNames(0)).toEqual([])
-      const warning = seen.find(
-        (entry) =>
-          entry.event.type === EventType.CUSTOM &&
-          entry.event.name === 'harness.plugin.warning',
+      expect(customValues(seen, 'harness.plugin.warning')).toEqual([
+        {
+          plugin: 'connector/demo',
+          message: 'Sign in to demo first. Run /connect demo.',
+        },
+      ])
+      // The notice has no URL: outside /connect, no browser sign-in starts.
+      expect(customValues(seen, HARNESS_EVENTS.authRequired)).toEqual([
+        { connector: 'demo' },
+      ])
+      // The same turn tells the model that the user must run /connect.
+      expect(JSON.stringify(model.calls[0]?.systemPrompts)).toContain(
+        'run /connect demo',
       )
-      expect(warning?.event).toMatchObject({
-        value: { plugin: 'connector/demo' },
-      })
-      // Outside /connect, the connector never starts a browser sign-in.
-      expect(
-        seen.filter((entry) => authorizationUrlOf(entry.event) !== undefined),
-      ).toEqual([])
-      // Only /disconnect signs the user out.
-      expect(
-        await persistence.stores.credentials.get(scope, 'demo'),
-      ).toMatchObject({ type: 'oauth', accessToken: credential.accessToken })
+      const saved = await persistence.stores.credentials.get(scope, 'demo')
+      expect(saved?.type === 'oauth' ? saved.accessToken : null).toBe(kept)
     },
   )
+
+  it('keeps the sign-in and a connection error when the network is down', async () => {
+    const { server, persistence, host } = await setup({
+      type: 'oauth',
+      accessToken: 'access-1',
+    })
+    const model = recorder()
+    const session = await host.open(
+      defineHarness({
+        name: 'test/offline',
+        adapter: model.adapter,
+        plugins: () => [
+          mcpConnector({
+            id: 'demo',
+            label: 'Demo',
+            url: server.url,
+            // Each request fails the way `fetch` fails without a network.
+            fetch: async () => {
+              throw new TypeError('fetch failed')
+            },
+          }),
+        ],
+      }),
+      { threadId: 't', principal: { id: 'user-1' } },
+    )
+    const seen = await promptAndCollect(session, 'hi')
+    expect(model.toolNames(0)).toEqual([])
+    expect(customValues(seen, 'harness.plugin.warning')).toEqual([
+      { plugin: 'connector/demo', message: 'Failed to connect to MCP server' },
+    ])
+    expect(customValues(seen, HARNESS_EVENTS.authRequired)).toEqual([])
+    expect(JSON.stringify(model.calls[0]?.systemPrompts ?? [])).not.toContain(
+      'is not connected',
+    )
+    expect(await persistence.stores.credentials.get(scope, 'demo')).toEqual({
+      type: 'oauth',
+      accessToken: 'access-1',
+    })
+  })
 })
 
 describe('mcpConnector /connect', () => {
@@ -223,27 +285,24 @@ describe('mcpConnector /connect', () => {
   })
 
   it.each([
-    { before: 'no earlier sign-in', earlier: undefined, kept: {} },
+    { before: 'no earlier sign-in', earlier: undefined },
     {
       before: 'an earlier sign-in',
-      earlier: { type: 'oauth', accessToken: 'old', refreshToken: 'refresh-0' },
-      kept: { refreshToken: 'refresh-0' },
+      // Maybe another account, with a larger scope. None of it may stay.
+      earlier: {
+        type: 'oauth',
+        accessToken: 'old',
+        refreshToken: 'refresh-0',
+        expiresAt: Date.now() + 3_600_000,
+        scopes: ['admin'],
+        client: { clientId: 'client-0', redirectUri: 'http://127.0.0.1:1/cb' },
+      },
     },
-  ] satisfies Array<{
-    before: string
-    earlier: Credential | undefined
-    kept: { refreshToken?: string }
-  }>)(
-    'saves a sign-in that gives no refresh token after $before',
-    async ({ earlier, kept }) => {
+  ] satisfies Array<{ before: string; earlier: Credential | undefined }>)(
+    'saves only the new sign-in, which gives no refresh token, after $before',
+    async ({ earlier }) => {
       const { persistence, host, server } = await setup(earlier)
-      const session = await host.open(
-        connectorHarness(server.url, recorder()),
-        {
-          threadId: 't',
-          principal: { id: 'user-1' },
-        },
-      )
+      const session = await openDemo(host, server.url)
       const browser = approveSignIns(session, 'code-2')
       cleanups.push(browser.stop)
 
@@ -251,35 +310,101 @@ describe('mcpConnector /connect', () => {
       expect(await persistence.stores.credentials.get(scope, 'demo')).toEqual({
         type: 'oauth',
         accessToken: 'access-1',
-        ...kept,
         client: {
           clientId: 'client-1',
           redirectUri: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\//),
+          issuer: server.issuer,
         },
       })
     },
   )
 
-  it('stays signed out when the sign-in fails', async () => {
-    const { persistence, host, server } = await setup()
+  it('saves the issuer, and signs in and refreshes without SEP-2352 warnings', async () => {
+    // The SDK prints its SEP-2352 warnings with console.warn.
+    const warn = vi.spyOn(console, 'warn')
+    cleanups.push(() => warn.mockRestore())
+    const { server, persistence, host } = await setup()
     const model = recorder()
-    const session = await host.open(connectorHarness(server.url, model), {
-      threadId: 't',
-      principal: { id: 'user-1' },
-    })
-    const browser = approveSignIns(session, 'wrong-code')
+    const session = await openDemo(host, server.url, model)
+    const browser = approveSignIns(session, 'code-1')
     cleanups.push(browser.stop)
+    expect(await session.command('connect:demo')).toBe('Connected to Demo.')
 
-    await expect(session.command('connect:demo')).rejects.toMatchObject({
-      code: 'invalid_grant',
-    })
-    expect(await persistence.stores.credentials.get(scope, 'demo')).toBeNull()
+    // The server stops taking the first token, so the next turn refreshes it.
+    server.revoke('access-1')
     await session.prompt('hi')
-    expect(JSON.stringify(model.calls[0]?.systemPrompts)).toContain(
-      'run /connect demo',
+    expect(model.toolNames(0)).toEqual(['demo_echo'])
+    expect(
+      server.seen.tokenRequests.map((form) => form.get('grant_type')),
+    ).toEqual(['authorization_code', 'refresh_token'])
+    expect(
+      await persistence.stores.credentials.get(scope, 'demo'),
+    ).toMatchObject({
+      accessToken: 'access-2',
+      refreshToken: 'refresh-1',
+      client: { clientId: 'client-1', issuer: server.issuer },
+    })
+    const warnings = warn.mock.calls.map(([message]) => String(message))
+    expect(warnings.filter((message) => message.includes('SEP-2352'))).toEqual(
+      [],
     )
-    expect(model.toolNames(0)).toEqual([])
   })
+
+  it('passes the iss of the callback on, for a server that sends one (RFC 9207)', async () => {
+    const { server, persistence, host } = await setup(undefined, {
+      issParameter: true,
+    })
+    const session = await openDemo(host, server.url, recorder())
+    const browser = approveSignIns(session, 'code-1', server.issuer)
+    cleanups.push(browser.stop)
+    expect(await session.command('connect:demo')).toBe('Connected to Demo.')
+    expect(
+      await persistence.stores.credentials.get(scope, 'demo'),
+    ).toMatchObject({ accessToken: 'access-1' })
+  })
+
+  it.each([
+    { before: 'no sign-in', earlier: undefined, tools: [], asks: true },
+    {
+      before: 'the earlier sign-in',
+      earlier: {
+        type: 'oauth',
+        accessToken: 'access-1',
+        refreshToken: 'refresh-1',
+        client: { clientId: 'client-1', redirectUri: 'http://127.0.0.1:1/cb' },
+      },
+      tools: ['demo_echo'],
+      asks: false,
+    },
+  ] satisfies Array<{
+    before: string
+    earlier: Credential | undefined
+    tools: Array<string>
+    asks: boolean
+  }>)(
+    'keeps $before when a new sign-in fails',
+    async ({ earlier, tools, asks }) => {
+      const { persistence, host, server } = await setup(earlier)
+      const model = recorder()
+      const session = await openDemo(host, server.url, model)
+      const browser = approveSignIns(session, 'wrong-code')
+      cleanups.push(browser.stop)
+
+      await expect(session.command('connect:demo')).rejects.toMatchObject({
+        code: 'invalid_grant',
+      })
+      expect(await persistence.stores.credentials.get(scope, 'demo')).toEqual(
+        earlier ?? null,
+      )
+      await session.prompt('hi')
+      expect(model.toolNames(0)).toEqual(tools)
+      expect(
+        JSON.stringify(model.calls[0]?.systemPrompts ?? []).includes(
+          'run /connect demo',
+        ),
+      ).toBe(asks)
+    },
+  )
 })
 
 describe('mcpConnector stored credential shapes', () => {
@@ -289,19 +414,13 @@ describe('mcpConnector stored credential shapes', () => {
       accessToken: 'access-1',
     })
     const model = recorder()
-    const session = await host.open(connectorHarness(server.url, model), {
-      threadId: 't',
-      principal: { id: 'user-1' },
-    })
+    const session = await openDemo(host, server.url, model)
     await session.prompt('one')
     await session.prompt('two')
     expect(model.toolNames(0)).toEqual(['demo_echo'])
     expect(model.toolNames(1)).toEqual(['demo_echo'])
 
-    const fresh = await host.open(connectorHarness(server.url, recorder()), {
-      threadId: 't2',
-      principal: { id: 'user-1' },
-    })
+    const fresh = await openDemo(host, server.url, recorder(), 't2')
     expect(await fresh.command('disconnect:demo')).toBe(
       'Disconnected from Demo.',
     )
@@ -315,13 +434,7 @@ describe('mcpConnector stored credential shapes', () => {
       refreshToken: 'refresh-1',
     })
     const model = recorder()
-    const session = await bare.host.open(
-      connectorHarness(bare.server.url, model),
-      {
-        threadId: 't',
-        principal: { id: 'user-1' },
-      },
-    )
+    const session = await openDemo(bare.host, bare.server.url, model)
     await session.prompt('hi')
     expect(model.toolNames(0)).toEqual(['demo_echo'])
     const saved = await bare.persistence.stores.credentials.get(scope, 'demo')
@@ -339,10 +452,7 @@ describe('mcpConnector stored credential shapes', () => {
       refreshToken: 'refresh-1',
       client: { clientId: 'client-1', clientSecret: 'secret-1' },
     })
-    const other = await withSecret.host.open(
-      connectorHarness(withSecret.server.url, recorder()),
-      { threadId: 't', principal: { id: 'user-1' } },
-    )
+    const other = await openDemo(withSecret.host, withSecret.server.url)
     await other.prompt('hi')
     expect(
       await withSecret.persistence.stores.credentials.get(scope, 'demo'),
@@ -358,10 +468,7 @@ describe('mcpConnector stored credential shapes', () => {
       value: 'not-oauth',
     })
     const model = recorder()
-    const session = await host.open(connectorHarness(server.url, model), {
-      threadId: 't',
-      principal: { id: 'user-1' },
-    })
+    const session = await openDemo(host, server.url, model)
     await session.prompt('hi')
     expect(model.toolNames(0)).toEqual([])
   })

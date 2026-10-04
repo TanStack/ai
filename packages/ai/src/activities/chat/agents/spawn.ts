@@ -26,6 +26,7 @@ import type {
   Tool,
   UIMessage,
 } from '../../../types'
+import { envProviderKeys } from '../../../byok/env-keys'
 import { createBoundActivities } from './bound'
 import { SubagentBudget } from './limits'
 import type { SubagentBinding } from './bound'
@@ -44,14 +45,21 @@ export const SUBAGENT_ERROR = EventType.SUBAGENT_ERROR
 
 export type SubagentOrder = 'parallel' | 'sequence'
 
+/**
+ * One agent in a router pick: its name, or its name and its input. An agent
+ * with `inputSchema` needs `{ name, input }`. The input is checked against
+ * the schema, and `run` reads it as `ctx.input`.
+ */
+export type SubagentPickName = string | { name: string; input?: unknown }
+
 export interface SubagentRouterPlan {
-  names: ReadonlyArray<string>
+  names: ReadonlyArray<SubagentPickName>
   /** Overrides `subagents.order` for this turn. */
   order?: SubagentOrder
 }
 
 export interface SubagentStep {
-  names: ReadonlyArray<string>
+  names: ReadonlyArray<SubagentPickName>
   /** Overrides `subagents.order` for this step. */
   order?: SubagentOrder
 }
@@ -62,10 +70,23 @@ export interface SubagentStepsPlan {
 
 export type SubagentRouterPick =
   | 'main'
-  | string
-  | ReadonlyArray<string>
+  | SubagentPickName
+  | ReadonlyArray<SubagentPickName>
   | SubagentRouterPlan
   | SubagentStepsPlan
+
+/**
+ * A router pick after `normalizeRouterPick`. Each step has plain names, and
+ * `inputs` holds the raw input of each name that has one. This is the plan
+ * on `SUBAGENT_STARTED` metadata.
+ */
+export interface RoutedPlan {
+  steps: ReadonlyArray<{
+    names: ReadonlyArray<string>
+    inputs?: Record<string, unknown>
+    order?: SubagentOrder
+  }>
+}
 
 export interface SubagentsBag<
   TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
@@ -114,7 +135,7 @@ export function createSubagentSink(): SubagentSink {
 /** One child to start, or a suspended child to continue. */
 export interface SpawnEntry {
   name: string
-  /** The checked tool input for an agent with `inputSchema`. */
+  /** The checked input of an agent with `inputSchema`, from a tool or a router. */
   input?: unknown
   resume?: {
     subagentRunId: string
@@ -240,7 +261,8 @@ function orAbort<T>(promise: Promise<T>, signal?: AbortSignal) {
 function agentByName(agents: ReadonlyArray<DefinedAgent>, name: string) {
   const agent = agents.find((entry) => entry.name === name)
   if (!agent) {
-    throw new Error(`Unknown subagent: ${name}`)
+    const names = agents.map((entry) => entry.name).join(', ')
+    throw new Error(`Unknown subagent: ${name}. The router can pick: ${names}.`)
   }
   return agent
 }
@@ -301,40 +323,56 @@ function assertOrder(order: SubagentOrder | undefined) {
   }
 }
 
+/** One step of a pick: plain names, plus the input of each name that has one. */
 function normalizeNames(
-  names: ReadonlyArray<string>,
+  picks: ReadonlyArray<SubagentPickName>,
   agents: ReadonlyArray<DefinedAgent>,
-): ReadonlyArray<string> {
-  if (names.length === 0) throw new Error(ROUTER_PICK_ERROR)
+) {
+  if (picks.length === 0) throw new Error(ROUTER_PICK_ERROR)
+  const names = picks.map((pick) =>
+    typeof pick === 'string' ? pick : pick.name,
+  )
   const hasMain = names.includes('main')
   if (hasMain && names.length > 1) {
     throw new Error('Do not mix main into a subagent list.')
   }
-  if (hasMain) return ['main']
+  if (hasMain) return { names: ['main'] }
   for (const name of names) agentByName(agents, name)
-  return [...names]
+  // ponytail: one input per name in a step. A name picked twice in one step
+  // keeps its last input. Key inputs by position if a router needs two.
+  let inputs: Record<string, unknown> | undefined
+  for (const pick of picks) {
+    if (typeof pick === 'string' || pick.input === undefined) continue
+    inputs = { ...inputs, [pick.name]: pick.input }
+  }
+  return inputs === undefined ? { names } : { names, inputs }
 }
 
-function isStringList(pick: SubagentRouterPick): pick is ReadonlyArray<string> {
+function isPickList(
+  pick: SubagentRouterPick,
+): pick is ReadonlyArray<SubagentPickName> {
   return Array.isArray(pick)
 }
 
 export function normalizeRouterPick(
   pick: SubagentRouterPick,
   agents: ReadonlyArray<DefinedAgent>,
-): { steps: ReadonlyArray<SubagentStep> } {
+) {
   if (pick === 'main' || typeof pick === 'string') {
-    return { steps: [{ names: normalizeNames([pick], agents) }] }
+    return { steps: [normalizeNames([pick], agents)] }
   }
-  if (isStringList(pick)) {
-    return { steps: [{ names: normalizeNames(pick, agents) }] }
+  if (isPickList(pick)) {
+    return { steps: [normalizeNames(pick, agents)] }
+  }
+  if ('name' in pick) {
+    return { steps: [normalizeNames([pick], agents)] }
   }
   if ('steps' in pick) {
     if (pick.steps.length === 0) throw new Error(ROUTER_PICK_ERROR)
     const steps = pick.steps.map((step) => {
       assertOrder(step.order)
       const names = normalizeNames(step.names, agents)
-      return step.order === undefined ? { names } : { names, order: step.order }
+      return step.order === undefined ? names : { ...names, order: step.order }
     })
     const flat = steps.flatMap((step) => step.names)
     if (flat.includes('main') && flat.length > 1) {
@@ -345,9 +383,7 @@ export function normalizeRouterPick(
   assertOrder(pick.order)
   const names = normalizeNames(pick.names, agents)
   return {
-    steps: [
-      pick.order === undefined ? { names } : { names, order: pick.order },
-    ],
+    steps: [pick.order === undefined ? names : { ...names, order: pick.order }],
   }
 }
 
@@ -480,8 +516,8 @@ function* valueResultChunks(
 }
 
 /**
- * Build the context `run` receives: the spawn input plus `forward` and the
- * bound activity functions.
+ * Build the context `run` receives: the spawn input plus `forward`, the
+ * provider keys, and the bound activity functions.
  */
 function runContext(
   agentName: string,
@@ -498,7 +534,9 @@ function runContext(
       subagentRunId: input.subagentRunId,
       ...(input.resume ? { resume: input.resume } : {}),
       abortController,
+      ...(binding?.promptCache ? { promptCache: binding.promptCache } : {}),
     },
+    keys: binding?.keys ?? envProviderKeys,
     ...createBoundActivities(agentName, input, abortController, binding),
   } satisfies SubagentRunContext
 }

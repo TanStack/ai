@@ -108,6 +108,46 @@ const provider = openaiCompatible({
 
 > Capabilities are enforced at the type level. If a provider rejects a feature at runtime (e.g. tools on a model that doesn't support them), declare that model with `createModel` and omit the unsupported feature so the types stop you from calling it.
 
+## Reasoning Models
+
+Reasoning models on OpenAI-compatible endpoints do not agree on the wire format. DeepSeek wants `thinking: { type }`, Qwen wants `enable_thinking`, and some servers reject the `developer` role. Tell the adapter what the provider expects with `compat`, and give each reasoning model its levels:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+
+const deepseek = openaiCompatible({
+  baseURL: "https://api.deepseek.com",
+  apiKey: process.env.DEEPSEEK_API_KEY!,
+  compat: {
+    thinkingFormat: "deepseek",
+    maxTokensField: "max_tokens",
+    requiresReasoningContentOnAssistantMessages: true,
+  },
+  models: [
+    {
+      name: "deepseek-v4-flash",
+      // Each level and the value the provider takes. `null`: no such level.
+      reasoning: { off: "none", minimal: null, medium: null, high: "high", max: "max" },
+    },
+    { name: "deepseek-chat", reasoning: false },
+  ],
+});
+
+const stream = chat({
+  adapter: deepseek("deepseek-v4-flash"),
+  messages: [{ role: "user", content: "Prove that the square root of 2 is irrational." }],
+  reasoning: "max",
+});
+```
+
+- `reasoning` on a model takes a level map, `true` for every level up to `high`, or `false` for a model that does not reason. The `reasoning` option on `chat()` is then typed to those levels.
+- `thinkingFormat` picks the request shape: `openai`, `deepseek`, `zai`, `qwen`, `qwen-chat-template`, `chat-template`, `baseten`, `openrouter`, `together`, `string-thinking`, or `ant-ling`.
+- `compat` on a model entry overrides the provider's `compat` for that model.
+- `requiresReasoningContentOnAssistantMessages` sends the earlier thinking back on each assistant turn, which DeepSeek needs.
+
+The [model catalog](../models/catalog) has the levels and `compat` for many providers, from the same data these fields use.
+
 ## Configuration
 
 `openaiCompatible` accepts every OpenAI SDK `ClientOptions` field besides `apiKey`/`baseURL` (which are required and promoted to the top level). The most useful are `defaultHeaders` and `defaultQuery`, for providers that need extra auth or routing parameters:

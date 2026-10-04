@@ -1,4 +1,5 @@
-import type { HarnessSession } from '@tanstack/ai-harness'
+import { attach } from './attach'
+import type { HarnessSession, UserInput } from '@tanstack/ai-harness'
 
 export const HELP_TEXT = [
   'Type a message and press Enter. While the agent works, a new message steers it.',
@@ -83,7 +84,9 @@ export type LineResult =
 
 /**
  * Handle one line of user input: a slash command, a steer while a turn runs,
- * or a new prompt. Used by the line mode, and by any UI that calls it.
+ * or a new prompt. Used by the line mode, and by any UI that calls it. A
+ * prompt or a steer sends each `@path` file (relative to the working folder)
+ * with it. A command and an answer do not.
  */
 export async function handleLine(
   session: HarnessSession,
@@ -93,9 +96,10 @@ export async function handleLine(
   if (text === '') return { type: 'notice', text: '' }
   const [question] = session.snapshot().pendingQuestions
   if (question) {
+    // A secret (a key) is the text as typed: `123456` stays a string.
     const receipt = await session.answer(
       question.questionId,
-      parseAnswer(text, question.schema),
+      question.secret ? text : parseAnswer(text, question.schema),
     )
     return {
       type: 'notice',
@@ -106,8 +110,18 @@ export async function handleLine(
     }
   }
   if (!text.startsWith('/')) {
-    if (session.snapshot().status === 'running') await session.steer(text)
-    else void session.prompt(text)
+    let input: UserInput
+    try {
+      input = await attach(session, text, { cwd: process.cwd() })
+    } catch (error) {
+      // A file that cannot go (a type it does not know, too big) stops the send.
+      return {
+        type: 'notice',
+        text: error instanceof Error ? error.message : String(error),
+      }
+    }
+    if (session.snapshot().status === 'running') await session.steer(input)
+    else void session.prompt(input)
     return { type: 'sent' }
   }
   const [name = '', ...rest] = text.slice(1).split(' ')

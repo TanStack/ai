@@ -62,13 +62,13 @@ Run the file with `npx tsx coder.ts`. Ask for a change. The agent reads files fr
 | Plugin | Adds |
 |---|---|
 | `permissions()` | Asks before risky tool calls. `/mode` switches between `default`, `plan` (read-only), `acceptEdits` (edits run without asking), and `bypass`. |
-| `workspaceTools({ root })` | `read_file`, `write_file`, `edit_file`, `list_files`, `grep`, and `bash`, confined to `root`. |
+| `workspaceTools({ root })` | `read_file`, `write_file`, `edit_file`, `list_files`, `grep`, and `bash`, in `root`. A path outside `root` is refused, or asks first with `outside: 'ask'`. |
 | `todos()` | A `todo_write` tool the model uses for multi-step work, and `/todos`. |
 | `modelPicker({ choices })` | `/model <name>` switches the model at the next turn. |
 | `projectInstructions({ root })` | Adds `AGENTS.md` and `CLAUDE.md` to the system prompt. |
 | `fileCommands({ dir })` | Each `.md` file becomes a slash command. `$ARGUMENTS` is replaced by what you type after it. |
 | `compact({ adapter })` | `/compact` replaces a long conversation with a summary. |
-| `usage()` | `/usage` shows the tokens of the session: the lead turn and every agent. |
+| `usage()` | `/usage` shows the tokens of the session: the lead turn and every agent. Its state also has `contextTokens`, the prompt size of the last lead call, for a context meter. |
 | `goal({ judge })` | `/goal <text>` keeps the agent working until a judge model says that the goal is met. See [Work until a goal is met](./goal). |
 
 ## Add your own rules
@@ -90,6 +90,22 @@ export const noDeploys = definePlugin({
 A trailing `*` matches every tool that starts with the text. The last matching rule wins.
 
 The workspace tools run on your machine with your permissions. Run code you do not trust in a sandbox.
+
+## Ask before the agent goes outside the workspace
+
+Now and then the agent needs a file from another project, but you do not want to open the whole disk. Pass `outside: 'ask'`:
+
+```ts group=harness-coding-agent
+export const askOutside = workspaceTools({
+  root: process.cwd(),
+  outside: 'ask',
+})
+```
+
+- A path outside `root` asks the user first. A yes allows that folder, and the folders in it, until the session ends.
+- `list_files` and `grep` take a `path`, so the agent can search an allowed folder.
+- `/mode bypass` allows every path without a question.
+- Without the option, a path outside `root` is refused.
 
 ## Hand work to Claude Code or Codex
 

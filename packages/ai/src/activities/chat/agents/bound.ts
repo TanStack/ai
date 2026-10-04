@@ -13,9 +13,10 @@ import { rerank } from '../../rerank/index'
 import { decide } from '../../evaluate/index'
 import type { GenerationMiddleware } from '../../middleware/types'
 import type { AnyChatMiddleware } from '../middleware/types'
-import type { RunAgentResumeItem } from '../../../types'
+import type { PromptCacheRetention, RunAgentResumeItem } from '../../../types'
 import type { SubagentRunInput } from './define-agent'
 import type { SubagentBudget } from './limits'
+import type { ProviderKeys } from '../../../byok/keyed'
 
 /**
  * The fields a child `chat()` needs, in one spread:
@@ -29,6 +30,8 @@ export interface SubagentForward {
   resume?: Array<RunAgentResumeItem>
   /** Aborts when the parent run or the subagent group stops. */
   abortController: AbortController
+  /** The prompt cache retention of the parent call, when it has one. */
+  promptCache?: PromptCacheRetention
 }
 
 /**
@@ -52,6 +55,17 @@ export interface SubagentBinding {
    * down, so limits hold across the whole tree.
    */
   budget?: SubagentBudget
+  /**
+   * The provider keys an agent reads as `ctx.keys`. A child's
+   * `ctx.chat({ subagents })` passes them down to its own children. Without
+   * them, `ctx.keys` reads each provider's `env` names.
+   */
+  keys?: ProviderKeys
+  /**
+   * The prompt cache retention of the parent call. A child's `ctx.chat()`
+   * uses it when the call gives no `promptCache`.
+   */
+  promptCache?: PromptCacheRetention
 }
 
 /**
@@ -122,15 +136,17 @@ export function createBoundActivities(
         subagentName: agentName,
         parentSubagentRunId: input.parentSubagentRunId,
         ...(input.resume ? { resume: input.resume } : {}),
+        ...(binding?.promptCache ? { promptCache: binding.promptCache } : {}),
         abortController,
         ...options,
-        // Nested children get the host middleware before their own, and share
-        // the tree budget.
+        // Nested children get the host middleware before their own, share
+        // the tree budget, and get the host keys unless the call sets its own.
         ...(options.subagents
           ? {
               subagents: {
                 ...options.subagents,
                 binding: {
+                  ...(binding?.keys ? { keys: binding.keys } : {}),
                   ...options.subagents.binding,
                   chatMiddleware: [
                     ...chatMiddleware,

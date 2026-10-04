@@ -17,6 +17,14 @@ export interface CodeModePluginOptions extends Omit<
    * no edits, no commands, nothing that asks first).
    */
   include?: (tool: CodeModeTool) => boolean
+  /**
+   * Make each tool that moves into code mode lazy. The prompt then lists only
+   * the tool names, and `lazyToolsConfig.includeDescription` adds part of
+   * each description. The model calls `discover_tools` for the signatures of
+   * the tools it needs, then calls them in `execute_typescript`. This saves
+   * tokens on each turn when there are many tools. Default `false`.
+   */
+  lazy?: boolean
 }
 
 /**
@@ -43,7 +51,8 @@ function isServerTool(tool: AnyTool): tool is CodeModeTool {
  *
  * Calls inside the isolate do not stop for approval, so by default only
  * tools that are safe to run without a question move into code mode. The
- * other tools stay normal tool calls.
+ * other tools stay normal tool calls. With `lazy: true`, the model gets only
+ * the names of the moved tools and asks `discover_tools` for the signatures.
  *
  * @example
  * ```ts
@@ -58,7 +67,7 @@ function isServerTool(tool: AnyTool): tool is CodeModeTool {
  * ```
  */
 export function codeMode(options: CodeModePluginOptions) {
-  const { include, ...config } = options
+  const { include, lazy = false, ...config } = options
   return definePlugin({
     name: 'tanstack/code-mode',
     setup: (ctx) => {
@@ -86,7 +95,9 @@ export function codeMode(options: CodeModePluginOptions) {
           const created = createCodeMode({
             ...config,
             tools: [...byIdentifier].map(([identifier, tool]) =>
-              identifier === tool.name ? tool : { ...tool, name: identifier },
+              identifier === tool.name && !lazy
+                ? tool
+                : { ...tool, name: identifier, ...(lazy ? { lazy } : {}) },
             ),
           })
           prompt = created.systemPrompt

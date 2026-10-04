@@ -9,12 +9,18 @@ import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { buildGeminiUsage } from '../usage'
+import { geminiThinkingConfig } from '../text/reasoning'
+import { GEMINI_MODEL_REASONING } from '../model-reasoning'
+import type { GeminiModelReasoningByName } from '../model-reasoning'
 import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
 } from '../utils'
-import { GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS } from '../model-meta'
+import {
+  GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS,
+  GEMINI_MODEL_INPUT_MODALITIES,
+} from '../model-meta'
 import type {
   GEMINI_MODELS,
   GeminiChatModelProviderOptionsByName,
@@ -33,7 +39,6 @@ import type {
   GoogleGenAI,
   GroundingMetadata,
   Part,
-  ThinkingLevel,
   VideoMetadata,
 } from '@google/genai'
 import type {
@@ -214,6 +219,12 @@ type ResolveInputModalities<TModel extends string> =
  * Resolve tool capabilities for a specific model.
  * If the model has explicit tools in the map, use those; otherwise use empty tuple.
  */
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof GeminiModelReasoningByName
+    ? GeminiModelReasoningByName[TModel]
+    : never
+
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GeminiChatModelToolCapabilitiesByName
     ? NonNullable<GeminiChatModelToolCapabilitiesByName[TModel]>
@@ -242,12 +253,15 @@ export class GeminiTextAdapter<
   TInputModalities,
   GeminiMessageMetadataByModality,
   TToolCapabilities,
-  GeminiToolCallMetadata
+  GeminiToolCallMetadata,
+  never,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   readonly name = 'gemini' as const
   // Consumes Gemini Files API references (geminiFiles()) as fileData.fileUri.
   override readonly supportsFileSources = true
+  override readonly inputModalities = GEMINI_MODEL_INPUT_MODALITIES[this.model]
 
   private readonly client: GoogleGenAI
 
@@ -1250,31 +1264,13 @@ export class GeminiTextAdapter<
   private mapCommonOptionsToGemini(
     options: TextOptions<GeminiTextProviderOptions>,
   ) {
-    // Separate `thinkingConfig` from the other model options so the loose
-    // local `thinkingLevel?: keyof typeof ThinkingLevel` type doesn't leak
-    // into the SDK config object via the `...modelOpts` spread — we re-add a
-    // properly-typed `ThinkingConfig` below.
-    const { thinkingConfig, ...modelOpts } = options.modelOptions ?? {}
-    // Build the thinkingConfig payload only when the caller actually supplied
-    // one. Our local `thinkingLevel` is typed as `keyof typeof ThinkingLevel`
-    // (string union) so users can pass plain strings; the SDK target is the
-    // `ThinkingLevel` enum, and every field is `field?: T` under EOPT — so we
-    // re-emit fields via conditional spreads.
-    const mappedThinkingConfig = thinkingConfig
-      ? {
-          ...(thinkingConfig.includeThoughts !== undefined && {
-            includeThoughts: thinkingConfig.includeThoughts,
-          }),
-          ...(thinkingConfig.thinkingBudget !== undefined && {
-            thinkingBudget: thinkingConfig.thinkingBudget,
-          }),
-          ...(thinkingConfig.thinkingLevel
-            ? {
-                thinkingLevel: thinkingConfig.thinkingLevel as ThinkingLevel,
-              }
-            : {}),
-        }
-      : undefined
+    const modelOpts = options.modelOptions ?? {}
+    // `chat({ reasoning })`, as this model's thinking config.
+    const mappedThinkingConfig = geminiThinkingConfig(
+      options.model,
+      options.reasoning,
+      GEMINI_MODEL_REASONING[options.model],
+    )
 
     const normalizedPrompts = normalizeSystemPrompts(options.systemPrompts)
     const systemInstruction =

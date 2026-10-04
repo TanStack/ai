@@ -95,7 +95,12 @@ export function authorizationUrlOf(event: StreamChunk) {
  * Act as the user's browser for `/connect`: approve each sign-in the session
  * asks for by calling its loopback redirect with `code` and the same `state`.
  */
-export function approveSignIns(session: HarnessSession, code: string) {
+export function approveSignIns(
+  session: HarnessSession,
+  code: string,
+  /** The `iss` the fake server sends back with the code (RFC 9207). */
+  iss?: string,
+) {
   const authorizationUrls: Array<URL> = []
   const controller = new AbortController()
   void (async () => {
@@ -107,6 +112,7 @@ export function approveSignIns(session: HarnessSession, code: string) {
         authorizationUrl.searchParams.get('redirect_uri') ?? '',
       )
       redirect.searchParams.set('code', code)
+      if (iss) redirect.searchParams.set('iss', iss)
       redirect.searchParams.set(
         'state',
         authorizationUrl.searchParams.get('state') ?? '',

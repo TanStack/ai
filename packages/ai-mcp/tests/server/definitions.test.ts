@@ -31,6 +31,19 @@ describe('resourceDefinition', () => {
     ).toEqual({ text: 'body' })
   })
 
+  it('gives the read function the variables parsed by argsSchema', async () => {
+    const resource = resourceDefinition({
+      name: 'user',
+      mimeType: 'text/plain',
+      uriTemplate: 'users://{id}',
+      argsSchema: z.object({ id: z.string().transform(Number) }),
+    }).read(async (uri, { id }) => ({ text: `${id + 1} ${uri.href}` }))
+
+    expect(
+      await resource.read(new URL('users://41'), { id: '41' }, { context: {} }),
+    ).toEqual({ text: '42 users://41' })
+  })
+
   it('throws when uri and uriTemplate are missing', () => {
     expect(() =>
       // @ts-expect-error A resource needs a uri or a uriTemplate.

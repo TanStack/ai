@@ -11,6 +11,7 @@ import type {
 } from '../../../types'
 import type { AnyClientTool } from '../tools/tool-definition'
 import type { BoundActivities, SubagentForward } from './bound'
+import type { ProviderKeys } from '../../../byok/keyed'
 
 /**
  * What the library knows about a child run before `run` starts.
@@ -20,8 +21,8 @@ export interface SubagentRunInput<
   TInput extends SchemaInput | undefined = any,
 > {
   /**
-   * The input the parent model wrote for this child, checked against
-   * `inputSchema`. `undefined` when the agent has no `inputSchema`.
+   * The input the parent model or the router gave this child, checked
+   * against `inputSchema`. `undefined` when the agent has no `inputSchema`.
    */
   input: TInput extends SchemaInput ? InferSchemaType<TInput> : undefined
   messages: Array<UIMessage | ModelMessage>
@@ -55,9 +56,14 @@ export interface SubagentRunInput<
  * - The activity functions (`ctx.chat`, `ctx.generateImage`, and the rest)
  *   take the same options as the plain functions and fill in the thread id,
  *   a run id, the abort signal, and any middleware a host adds.
+ * - `keys` finds provider keys. `await ctx.keys.adapter(adapter)` builds a
+ *   `keyedAdapter(...)`. A host sets the keys. Without a host, they come
+ *   from each provider's `env` names, and a missing key throws an error that
+ *   names the env var.
  */
 export type SubagentRunContext<TInput extends SchemaInput | undefined = any> =
-  SubagentRunInput<TInput> & BoundActivities & { forward: SubagentForward }
+  SubagentRunInput<TInput> &
+    BoundActivities & { forward: SubagentForward; keys: ProviderKeys }
 
 /**
  * What an agent makes. Informative: plugins use it to find an agent by the
@@ -110,9 +116,10 @@ export interface DefinedAgent<
   /** What this agent makes. See {@link AgentProduces}. */
   produces?: TProduces
   /**
-   * The input the parent model writes when it calls this agent's tool, such
-   * as a short brief. `run` reads it as `ctx.input`. Tool mode only: a
-   * `subagents.router` cannot start an agent that has `inputSchema`.
+   * The input this agent needs, such as a short brief. `run` reads it as
+   * `ctx.input`. In tool mode, the parent model writes it when it calls this
+   * agent's tool. A `subagents.router` gives it in its pick as
+   * `{ name, input }`. The input is checked against this schema first.
    */
   inputSchema?: TInput
   tools?: TTools

@@ -1,12 +1,14 @@
 import type {
   DefaultMessageMetadataByModality,
   JSONSchema,
+  MidConversationChannels,
   Modality,
   TextOptions,
   TokenUsage,
 } from '../../types'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
 import type { CapabilityHandle } from './middleware/capabilities'
+import type { ReasoningCapability } from '../../reasoning'
 
 /**
  * Configuration for adapter instances
@@ -72,6 +74,7 @@ export interface TextAdapter<
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
   TToolCallMetadata = unknown,
   TSystemPromptMetadata = never,
+  TReasoning extends ReasoningCapability = never,
 > {
   /** Discriminator for adapter kind */
   readonly kind: 'text'
@@ -99,6 +102,21 @@ export interface TextAdapter<
   readonly supportsFileSources?: boolean
 
   /**
+   * The input kinds the model reads, at runtime, from the provider's model
+   * metadata. `undefined` means not known. This mirrors the type-level
+   * `'~types'.inputModalities`, which has no runtime value.
+   */
+  readonly inputModalities?: ReadonlyArray<Modality>
+
+  /**
+   * The mid-conversation channels of the model: tools and system prompts
+   * added between model calls can go out with no change to the cached prompt
+   * prefix. `chat()` passes `TextOptions.midConversationChanges` only when a
+   * channel is on. `undefined` means no channels.
+   */
+  readonly midConversationChannels?: MidConversationChannels
+
+  /**
    * @internal Type-only properties for inference. Not assigned at runtime.
    */
   '~types': {
@@ -108,6 +126,13 @@ export interface TextAdapter<
     toolCapabilities: TToolCapabilities
     toolCallMetadata: TToolCallMetadata
     systemPromptMetadata: TSystemPromptMetadata
+    /**
+     * The model's reasoning levels, for `chat({ reasoning })`. `never`: the
+     * model does not reason (or the adapter does not map `reasoning`), and
+     * the option is a type error. Optional, so an adapter written before this
+     * key existed still type-checks (and gets no `reasoning` option).
+     */
+    reasoning?: TReasoning
   }
 
   /**
@@ -189,7 +214,7 @@ export interface TextAdapter<
  * A TextAdapter with any/unknown type parameters.
  * Useful as a constraint in generic functions and interfaces.
  */
-export type AnyTextAdapter = TextAdapter<any, any, any, any, any, any, any>
+export type AnyTextAdapter = TextAdapter<any, any, any, any, any, any, any, any>
 
 /**
  * Abstract base class for text adapters.
@@ -205,6 +230,7 @@ export abstract class BaseTextAdapter<
   TToolCapabilities extends ReadonlyArray<string> = ReadonlyArray<string>,
   TToolCallMetadata = unknown,
   TSystemPromptMetadata = never,
+  TReasoning extends ReasoningCapability = never,
 > implements TextAdapter<
   TModel,
   TProviderOptions,
@@ -212,13 +238,24 @@ export abstract class BaseTextAdapter<
   TMessageMetadataByModality,
   TToolCapabilities,
   TToolCallMetadata,
-  TSystemPromptMetadata
+  TSystemPromptMetadata,
+  TReasoning
 > {
   readonly kind = 'text' as const
   abstract readonly name: string
   readonly model: TModel
   readonly requires?: ReadonlyArray<CapabilityHandle> = undefined
   readonly supportsFileSources: boolean = false
+  /**
+   * Provider subclasses override this from their model metadata, for example
+   * `override readonly inputModalities = INPUT_BY_MODEL[this.model]`.
+   */
+  readonly inputModalities?: ReadonlyArray<Modality> = undefined
+  /**
+   * Provider subclasses override this from their model metadata, the same
+   * way as `inputModalities`. No channels by default.
+   */
+  readonly midConversationChannels?: MidConversationChannels = undefined
 
   // Type-only property - never assigned at runtime
   declare '~types': {
@@ -228,6 +265,7 @@ export abstract class BaseTextAdapter<
     toolCapabilities: TToolCapabilities
     toolCallMetadata: TToolCallMetadata
     systemPromptMetadata: TSystemPromptMetadata
+    reasoning: TReasoning
   }
 
   protected config: TextAdapterConfig

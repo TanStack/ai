@@ -345,13 +345,15 @@ describe('codingAgents', () => {
     const other = codingAgent('grok-build')
     const custom = codingAgent('acp')
     const { host, session } = await open({
+      // Two steps: tool calls in one step run at the same time, and the
+      // harness runs at most 3 subagents at once.
       leadSteps: [
         [
           ['claude_code', 'look'],
           ['codex', 'look'],
           ['grok', 'look'],
-          ['custom', 'look'],
         ],
+        [['custom', 'look']],
       ],
       agents: {
         claude_code: { adapter: claude.adapter },

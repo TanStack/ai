@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
+import { defineByokProvider } from '@tanstack/ai/byok'
 import {
   configOption,
   createHarnessHost,
@@ -8,6 +9,7 @@ import {
   defineHarness,
   definePlugin,
 } from '@tanstack/ai-harness'
+import { providerKeys } from '@tanstack/ai-harness/plugins'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { EXIT, parseCliArgs, runCli } from '../src'
 import { serve } from '../src/serve'
@@ -303,6 +305,62 @@ describe('plugin commands in line mode', () => {
     expect(stdout.text).toContain('tone changed.')
     expect(stdout.text).toContain('tone = "warm"')
     expect(stdout.text).toContain('/greet  Greet someone')
+  })
+})
+
+describe('secret answers in line mode', () => {
+  const acme = defineByokProvider({ id: 'acme', label: 'Acme' })
+
+  /** Run `/connect acme` and answer with `key`. Returns what was printed and saved. */
+  async function connect(
+    key: string,
+    stdin: (lines: Array<string>) => NodeJS.ReadStream,
+  ) {
+    const stdout = capture()
+    const persistence = memoryPersistence()
+    await runCli(
+      defineHarness({
+        name: 'test/secret',
+        adapter: scripted([]).adapter,
+        plugins: () => [providerKeys({ providers: [acme] })],
+      }),
+      {
+        argv: [],
+        stdin: stdin(['/connect acme\n', `${key}\n`, '/exit\n']),
+        stdout,
+        stderr: capture(),
+        persistence,
+      },
+    )
+    const saved = await persistence.stores.credentials.get(
+      { threadId: 'main' },
+      'acme',
+    )
+    return { printed: stdout.text, saved }
+  }
+
+  it('saves a pasted key as typed and never prints it', async () => {
+    const { printed, saved } = await connect('12345678', (lines) =>
+      stdinFrom(lines, { isTTY: false }),
+    )
+    expect(saved).toEqual({ type: 'api_key', value: '12345678' })
+    expect(printed).toContain('[? Paste your Acme API key]')
+    expect(printed).toContain('Connected to Acme (key ...5678).')
+    expect(printed).not.toContain('12345678')
+  })
+
+  it('hides typing in a terminal while the key question waits', async () => {
+    const rawModes: Array<boolean> = []
+    const { printed, saved } = await connect('sk-acme-x\u007fy-4321', (lines) =>
+      Object.assign(stdinFrom(lines, { isTTY: true }), {
+        setRawMode: (mode: boolean) => rawModes.push(mode),
+      }),
+    )
+    expect(rawModes).toEqual([true, false])
+    // Raw mode does not edit the line, so line mode applies the backspace.
+    expect(saved).toEqual({ type: 'api_key', value: 'sk-acme-y-4321' })
+    expect(printed).toContain('[? Paste your Acme API key (typing is hidden)]')
+    expect(printed).not.toContain('sk-acme')
   })
 })
 

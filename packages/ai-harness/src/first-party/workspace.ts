@@ -3,7 +3,7 @@ import { readFile, readdir, stat, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { toolDefinition } from '@tanstack/ai'
 import { definePlugin } from '../plugins'
-import { PermissionRules } from './permissions'
+import { PermissionRules, isYes } from './permissions'
 
 const MAX_OUTPUT = 20_000
 const MAX_READ_LINES = 2000
@@ -45,29 +45,92 @@ export function globToRegExp(glob: string): RegExp {
   return new RegExp(`^${pattern}$`)
 }
 
-/**
- * File and shell tools for a coding agent, confined to `root`: `read_file`,
- * `write_file`, `edit_file`, `list_files`, `grep`, and `bash`. Edits and
- * `bash` ask for approval through `permissions()`.
- *
- * These tools run on this machine with the host's authority. Use a sandbox
- * for code you do not trust.
- */
-export function workspaceTools(options: {
+export interface WorkspaceToolsOptions {
   root: string
   bashTimeoutMs?: number
-}) {
-  const root = resolve(options.root)
+  /**
+   * A path outside `root`. `'deny'` (default) refuses it. `'ask'` asks the
+   * user first, and a yes allows that folder, and the folders in it, for the
+   * rest of the session. The `bypass` mode of `permissions()` allows it
+   * without a question.
+   */
+  outside?: 'deny' | 'ask'
+}
 
-  const inRoot = (path: string): string => {
+/** What the tools need from the session for a path outside the workspace. */
+export interface OutsideAccess {
+  /** Ask the user a question, and resolve with the answer. */
+  ask: (message: string) => Promise<unknown>
+  /** The permission mode of the session, for example `'bypass'`. */
+  mode: () => unknown
+}
+
+/** Is `full` the folder `dir`, or a path in it? */
+function within(dir: string, full: string) {
+  return full === dir || full.startsWith(dir.endsWith(sep) ? dir : dir + sep)
+}
+
+/**
+ * The tools of {@link workspaceTools} for one session. `access` asks the user
+ * about a path outside the workspace when `options.outside` is `'ask'`.
+ */
+export function createWorkspaceTools(
+  options: WorkspaceToolsOptions,
+  access?: OutsideAccess,
+) {
+  const root = resolve(options.root)
+  // The outside folders the user allowed in this session, and the questions
+  // that wait for an answer, by folder, so parallel calls ask once.
+  const allowed: Array<string> = []
+  const asking = new Map<string, Promise<boolean>>()
+
+  /** Ask once about `folder`. A yes allows it for the session. */
+  const allow = (folder: string, message: string) => {
+    let answer = asking.get(folder)
+    if (!answer) {
+      answer = Promise.resolve(access?.ask(message)).then((reply) => {
+        asking.delete(folder)
+        if (isYes(reply)) allowed.push(folder)
+        return isYes(reply)
+      })
+      asking.set(folder, answer)
+    }
+    return answer
+  }
+
+  /**
+   * The full path of `path`, a file or a folder. A path outside the
+   * workspace is refused, or needs the user's yes for its folder.
+   */
+  const reach = async (path: string, tool: string, kind: 'file' | 'folder') => {
     const full = isAbsolute(path) ? resolve(path) : resolve(root, path)
-    if (full !== root && !full.startsWith(root + sep)) {
+    const isAllowed = [root, ...allowed].some((dir) => within(dir, full))
+    if (isAllowed) return full
+    if (options.outside !== 'ask' || !access) {
       throw new Error(`Path "${path}" is outside the workspace.`)
+    }
+    if (access.mode() === 'bypass') return full
+    const folder = kind === 'folder' ? full : dirname(full)
+    const yes = await allow(
+      folder,
+      `${tool} wants ${full}, outside the workspace (${root}). Allow ${folder} for this session? (y/n)`,
+    )
+    if (!yes) {
+      throw new Error(
+        `The user did not allow ${full}. It is outside the workspace.`,
+      )
     }
     return full
   }
+  /** A path for the model: from the workspace, or the full path outside it. */
   const shown = (full: string) =>
-    relative(root, full).split(sep).join('/') || '.'
+    (within(root, full) ? relative(root, full) || '.' : full)
+      .split(sep)
+      .join('/')
+
+  /** The path of `file` from the folder `base`, with `/`, for a glob. */
+  const fromBase = (base: string, file: string) =>
+    relative(base, file).split(sep).join('/')
 
   async function walk(dir: string, out: Array<string>): Promise<void> {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -95,7 +158,7 @@ export function workspaceTools(options: {
       },
       replay: 'safe',
     }).server(async (args: unknown) => {
-      const full = inRoot(stringArg(args, 'path'))
+      const full = await reach(stringArg(args, 'path'), 'read_file', 'file')
       const lines = (await readFile(full, 'utf8')).split('\n')
       const offset =
         isRecord(args) && typeof args.offset === 'number'
@@ -121,7 +184,7 @@ export function workspaceTools(options: {
         required: ['path', 'content'],
       },
     }).server(async (args: unknown) => {
-      const full = inRoot(stringArg(args, 'path'))
+      const full = await reach(stringArg(args, 'path'), 'write_file', 'file')
       await mkdir(dirname(full), { recursive: true })
       await writeFile(full, stringArg(args, 'content'), 'utf8')
       return `Wrote ${shown(full)}.`
@@ -141,7 +204,7 @@ export function workspaceTools(options: {
         required: ['path', 'old', 'new'],
       },
     }).server(async (args: unknown) => {
-      const full = inRoot(stringArg(args, 'path'))
+      const full = await reach(stringArg(args, 'path'), 'edit_file', 'file')
       const before = await readFile(full, 'utf8')
       const oldText = stringArg(args, 'old')
       const newText = stringArg(args, 'new')
@@ -159,41 +222,64 @@ export function workspaceTools(options: {
     toolDefinition({
       name: 'list_files',
       description:
-        'List files in the workspace, optionally matching a glob like `src/**/*.ts`.',
+        'List files in a folder (default: the workspace), optionally matching a glob like `src/**/*.ts`. The glob is from that folder.',
       inputSchema: {
         type: 'object',
-        properties: { pattern: { type: 'string' } },
+        properties: {
+          pattern: { type: 'string' },
+          path: {
+            type: 'string',
+            description: 'The folder. Default: the workspace',
+          },
+        },
       },
       replay: 'safe',
     }).server(async (args: unknown) => {
+      const base = await reach(
+        optionalString(args, 'path') ?? '.',
+        'list_files',
+        'folder',
+      )
       const pattern = optionalString(args, 'pattern')
       const files: Array<string> = []
-      await walk(root, files)
+      await walk(base, files)
       const regex = pattern ? globToRegExp(pattern) : undefined
       const listed = files
+        .filter((file) => !regex || regex.test(fromBase(base, file)))
         .map(shown)
-        .filter((file) => !regex || regex.test(file))
       return clip(listed.slice(0, 1000).join('\n') || 'No files.')
     }),
     toolDefinition({
       name: 'grep',
       description:
-        'Search file contents with a regular expression. Returns `file:line: text`.',
+        'Search file contents in a folder (default: the workspace) with a regular expression. Returns `file:line: text`.',
       inputSchema: {
         type: 'object',
-        properties: { pattern: { type: 'string' }, glob: { type: 'string' } },
+        properties: {
+          pattern: { type: 'string' },
+          glob: { type: 'string' },
+          path: {
+            type: 'string',
+            description: 'The folder. Default: the workspace',
+          },
+        },
         required: ['pattern'],
       },
       replay: 'safe',
     }).server(async (args: unknown) => {
       const regex = new RegExp(stringArg(args, 'pattern'))
+      const base = await reach(
+        optionalString(args, 'path') ?? '.',
+        'grep',
+        'folder',
+      )
       const glob = optionalString(args, 'glob')
       const fileFilter = glob ? globToRegExp(glob) : undefined
       const files: Array<string> = []
-      await walk(root, files)
+      await walk(base, files)
       const hits: Array<string> = []
       for (const file of files) {
-        if (fileFilter && !fileFilter.test(shown(file))) continue
+        if (fileFilter && !fileFilter.test(fromBase(base, file))) continue
         if ((await stat(file)).size > 1_000_000) continue
         const lines = (await readFile(file, 'utf8')).split('\n')
         lines.forEach((line, index) => {
@@ -236,40 +322,71 @@ export function workspaceTools(options: {
         }),
     ),
   ]
+  const prompt =
+    options.outside === 'ask'
+      ? `Your workspace is ${root}. Paths are relative to it. A path outside it asks the user first.`
+      : `Your workspace is ${root}. Paths are relative to it.`
+  return { tools, prompt }
+}
 
+/**
+ * File and shell tools for a coding agent, in `root`: `read_file`,
+ * `write_file`, `edit_file`, `list_files`, `grep`, and `bash`. Edits and
+ * `bash` ask for approval through `permissions()`. A path outside `root` is
+ * refused, or with `outside: 'ask'` the user is asked first.
+ *
+ * These tools run on this machine with the host's authority. Use a sandbox
+ * for code you do not trust.
+ *
+ * @example
+ * ```ts
+ * workspaceTools({ root: process.cwd(), outside: 'ask' })
+ * ```
+ */
+export function workspaceTools(options: WorkspaceToolsOptions) {
   return definePlugin({
     name: 'tanstack/workspace-tools',
-    setup: () => ({
-      tools,
-      prompts: [`Your workspace is ${root}. Paths are relative to it.`],
-      contribute: [
-        PermissionRules.item({
-          tool: 'read_file',
-          decision: 'allow',
-          kind: 'read',
-        }),
-        PermissionRules.item({
-          tool: 'list_files',
-          decision: 'allow',
-          kind: 'read',
-        }),
-        PermissionRules.item({ tool: 'grep', decision: 'allow', kind: 'read' }),
-        PermissionRules.item({
-          tool: 'write_file',
-          decision: 'ask',
-          kind: 'edit',
-        }),
-        PermissionRules.item({
-          tool: 'edit_file',
-          decision: 'ask',
-          kind: 'edit',
-        }),
-        PermissionRules.item({
-          tool: 'bash',
-          decision: 'ask',
-          kind: 'execute',
-        }),
-      ],
-    }),
+    setup: (ctx) => {
+      const { tools, prompt } = createWorkspaceTools(options, {
+        ask: (message) => ctx.session.ask({ message }),
+        mode: () => ctx.config.get('mode'),
+      })
+      return {
+        tools,
+        prompts: [prompt],
+        contribute: [
+          PermissionRules.item({
+            tool: 'read_file',
+            decision: 'allow',
+            kind: 'read',
+          }),
+          PermissionRules.item({
+            tool: 'list_files',
+            decision: 'allow',
+            kind: 'read',
+          }),
+          PermissionRules.item({
+            tool: 'grep',
+            decision: 'allow',
+            kind: 'read',
+          }),
+          PermissionRules.item({
+            tool: 'write_file',
+            decision: 'ask',
+            kind: 'edit',
+          }),
+          PermissionRules.item({
+            tool: 'edit_file',
+            decision: 'ask',
+            kind: 'edit',
+          }),
+          PermissionRules.item({
+            tool: 'bash',
+            decision: 'ask',
+            kind: 'execute',
+          }),
+        ],
+      }
+    },
   })
 }

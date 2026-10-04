@@ -7,11 +7,11 @@ import {
   startLoopbackReceiver,
 } from '@tanstack/ai-harness'
 import { createMCPClient } from './client'
+import { MCPConnectionError } from './errors'
 import type {
-  OAuthClientInformationMixed,
-  OAuthClientMetadata,
   OAuthClientProvider,
-  OAuthTokens,
+  OAuthDiscoveryState,
+  StoredOAuthClientInformation,
 } from '@modelcontextprotocol/client'
 import type { AnyTool } from '@tanstack/ai'
 import type { CredentialsAccess } from '@tanstack/ai-harness'
@@ -49,15 +49,17 @@ function credentialProvider(
   id: string,
   credentials: CredentialsAccess,
   options: {
-    redirectUri: string | undefined
+    redirectUri: string
     clientName: string
     scopes: ReadonlyArray<string> | undefined
     state?: string
     onRedirect?: (url: URL) => void
   },
-): OAuthClientProvider {
-  let client: OAuthClientInformationMixed | undefined
+) {
+  const { state } = options
+  let client: StoredOAuthClientInformation | undefined
   let verifier = ''
+  let discovery: OAuthDiscoveryState | undefined
   const stored = async () => {
     const credential = await credentials.get(id)
     return credential?.type === 'oauth' ? credential : undefined
@@ -66,35 +68,35 @@ function credentialProvider(
     get redirectUrl() {
       return options.redirectUri
     },
-    get clientMetadata(): OAuthClientMetadata {
+    get clientMetadata() {
       return {
         client_name: options.clientName,
-        redirect_uris: options.redirectUri ? [options.redirectUri] : [],
+        redirect_uris: [options.redirectUri],
         grant_types: ['authorization_code', 'refresh_token'],
         response_types: ['code'],
         token_endpoint_auth_method: 'none',
         ...(options.scopes?.length ? { scope: options.scopes.join(' ') } : {}),
       }
     },
-    ...(options.state ? { state: () => options.state ?? '' } : {}),
+    ...(state ? { state: () => state } : {}),
     clientInformation: async () => {
       if (client) return client
       // A new sign-in registers a client for its own loopback port.
       if (options.onRedirect) return undefined
       const saved = (await stored())?.client
-      return saved
-        ? {
-            client_id: saved.clientId,
-            ...(saved.clientSecret
-              ? { client_secret: saved.clientSecret }
-              : {}),
-          }
-        : undefined
+      if (!saved) return undefined
+      // Kept, so the tokens saved after a refresh keep this client.
+      client = {
+        client_id: saved.clientId,
+        ...(saved.clientSecret ? { client_secret: saved.clientSecret } : {}),
+        ...(saved.issuer ? { issuer: saved.issuer } : {}),
+      }
+      return client
     },
     saveClientInformation: (information) => {
       client = information
     },
-    tokens: async (): Promise<OAuthTokens | undefined> => {
+    tokens: async () => {
       if (options.onRedirect) return undefined
       const credential = await stored()
       if (!credential) return undefined
@@ -112,47 +114,44 @@ function credentialProvider(
               ),
             }
           : {}),
+        // The SDK checks that the tokens come from the same server (SEP-2352).
+        ...(credential.client?.issuer
+          ? { issuer: credential.client.issuer }
+          : {}),
       }
     },
     saveTokens: async (tokens) => {
-      const previous = await stored()
-      const information =
-        client ??
-        (previous?.client
-          ? {
-              client_id: previous.client.clientId,
-              client_secret: previous.client.clientSecret,
-            }
-          : undefined)
+      const information = client
+      // `auth()` reads or registers the client before it saves tokens.
+      if (!information) {
+        throw new Error('The MCP SDK saved OAuth tokens before the client.')
+      }
+      // A new sign-in replaces the old one, with all its tokens. On a
+      // refresh, the SDK passes the old refresh token itself.
       await credentials.set(id, {
         type: 'oauth',
         accessToken: tokens.access_token,
-        ...(tokens.refresh_token
-          ? { refreshToken: tokens.refresh_token }
-          : previous?.refreshToken
-            ? { refreshToken: previous.refreshToken }
-            : {}),
+        ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
         ...(tokens.expires_in
           ? { expiresAt: Date.now() + tokens.expires_in * 1000 }
           : {}),
         ...(tokens.scope ? { scopes: tokens.scope.split(' ') } : {}),
-        ...(information
-          ? {
-              client: {
-                clientId: information.client_id,
-                ...(information.client_secret
-                  ? { clientSecret: information.client_secret }
-                  : {}),
-                ...((options.redirectUri ?? previous?.client?.redirectUri)
-                  ? {
-                      redirectUri:
-                        options.redirectUri ?? previous?.client?.redirectUri,
-                    }
-                  : {}),
-              },
-            }
-          : {}),
+        client: {
+          clientId: information.client_id,
+          ...(information.client_secret
+            ? { clientSecret: information.client_secret }
+            : {}),
+          redirectUri: options.redirectUri,
+          issuer: information.issuer,
+        },
       })
+    },
+    // The SDK calls this with 'client' or 'tokens' when the server refuses
+    // the saved client or refresh token, for example a revoked refresh token.
+    // Both are in one saved credential, so either scope deletes it, and the
+    // user signs in again. A new sign-in keeps the old one until it works.
+    invalidateCredentials: async () => {
+      if (!options.onRedirect) await credentials.delete(id)
     },
     redirectToAuthorization: (url) => {
       // Outside `/connect`, a missing or revoked sign-in stops the tool.
@@ -163,7 +162,13 @@ function credentialProvider(
       verifier = value
     },
     codeVerifier: () => verifier,
-  }
+    // Kept like the code verifier: `/connect` checks that the code comes
+    // from the authorization server it found first (SEP-2352).
+    saveDiscoveryState: (value) => {
+      discovery = value
+    },
+    discoveryState: () => discovery,
+  } satisfies OAuthClientProvider
 }
 
 /**
@@ -224,22 +229,35 @@ export function mcpConnector(options: McpConnectorOptions) {
               (saved?.type === 'oauth'
                 ? saved.client?.redirectUri
                 : undefined) ?? 'http://127.0.0.1/callback'
-            client = await createMCPClient({
-              transport: {
-                type: 'http',
-                url,
-                authProvider: credentialProvider(id, ctx.credentials, {
-                  redirectUri,
-                  clientName,
-                  scopes: options.scopes,
-                }),
-                ...(options.fetch ? { fetch: options.fetch } : {}),
-              },
-              prefix,
-              needsApproval:
-                options.needsApproval ??
-                ((tool) => tool.annotations?.readOnlyHint !== true),
-            })
+            try {
+              client = await createMCPClient({
+                transport: {
+                  type: 'http',
+                  url,
+                  authProvider: credentialProvider(id, ctx.credentials, {
+                    redirectUri,
+                    clientName,
+                    scopes: options.scopes,
+                  }),
+                  ...(options.fetch ? { fetch: options.fetch } : {}),
+                },
+                prefix,
+                needsApproval:
+                  options.needsApproval ??
+                  ((tool) => tool.annotations?.readOnlyHint !== true),
+              })
+            } catch (error) {
+              // The server wants a new sign-in: ask the user to run /connect.
+              // Other failures, for example a server that is down, stay
+              // connection errors.
+              const needsSignIn =
+                error instanceof MCPConnectionError &&
+                error.cause instanceof AuthRequiredError
+              if (!needsSignIn) throw error
+              connected = false
+              ctx.session.authRequired({ connector: id })
+              throw error.cause
+            }
             tools = (await client.tools()) as ReadonlyArray<AnyTool>
           }
           return tools
@@ -263,18 +281,25 @@ export function mcpConnector(options: McpConnectorOptions) {
                     }),
                 })
                 const fetchFn = options.fetch ? { fetchFn: options.fetch } : {}
-                const first = await auth(provider, {
+                // A new sign-in has no tokens, so this always ends in a
+                // redirect to the browser.
+                await auth(provider, { serverUrl: url, ...fetchFn })
+                // The error names the service: a sign-in can end minutes later.
+                const { code, iss } = await receiver
+                  .waitForCode(state)
+                  .catch((error: unknown) => {
+                    throw new Error(
+                      `${label}: ${error instanceof Error ? error.message : String(error)}`,
+                    )
+                  })
+                // A server that sends `iss` (RFC 9207), such as Linear, gets
+                // it checked. Without it, the SDK refuses the code.
+                await auth(provider, {
                   serverUrl: url,
+                  authorizationCode: code,
+                  ...(iss ? { iss } : {}),
                   ...fetchFn,
                 })
-                if (first === 'REDIRECT') {
-                  const code = await receiver.waitForCode(state)
-                  await auth(provider, {
-                    serverUrl: url,
-                    authorizationCode: code,
-                    ...fetchFn,
-                  })
-                }
               } finally {
                 receiver.close()
               }

@@ -1702,6 +1702,62 @@ describe('StreamProcessor', () => {
       expect((thinkingParts[0] as any).stepId).toBe('step-b')
       expect((thinkingParts[0] as any).content).toBe('contentB')
     })
+
+    it('starts a new text part for text after a second thinking block', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.stepStarted('step-1'))
+      processor.processChunk(ev.reasoningContent('First thought'))
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent('A'))
+      processor.processChunk(ev.textEnd())
+      processor.processChunk(ev.stepStarted('step-2'))
+      processor.processChunk(ev.reasoningContent('Second thought'))
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent('B'))
+      processor.processChunk(ev.textEnd())
+      processor.processChunk(ev.runFinished('stop'))
+      processor.finalizeStream()
+
+      const parts = processor.getMessages()[0]!.parts
+      expect(
+        parts.map((part) =>
+          part.type === 'text' || part.type === 'thinking'
+            ? `${part.type}:${part.content}`
+            : part.type,
+        ),
+      ).toEqual([
+        'thinking:First thought',
+        'text:A',
+        'thinking:Second thought',
+        'text:B',
+      ])
+      expect(processor.getState().content).toBe('AB')
+    })
+
+    it('keeps one text part when reasoning of the same step arrives between text deltas', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.stepStarted('step-1'))
+      processor.processChunk(ev.reasoningContent('Thinking'))
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent('A'))
+      processor.processChunk(ev.reasoningContent(' more'))
+      processor.processChunk(ev.textContent('B'))
+      processor.processChunk(ev.textEnd())
+
+      const parts = processor.getMessages()[0]!.parts
+      expect(
+        parts.map((part) =>
+          part.type === 'text' || part.type === 'thinking'
+            ? `${part.type}:${part.content}`
+            : part.type,
+        ),
+      ).toEqual(['thinking:Thinking more', 'text:AB'])
+    })
   })
 
   // ==========================================================================

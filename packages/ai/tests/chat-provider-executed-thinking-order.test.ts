@@ -6,6 +6,7 @@ import {
 } from '../src/activities/chat/messages'
 import { StreamProcessor } from '../src/activities/chat/stream/processor'
 import { uiMessagesToWire } from '../src/utilities/ag-ui-wire'
+import { tanstackMetadata } from '../src/utilities/merge-metadata'
 import {
   chunk,
   clientTool,
@@ -122,9 +123,11 @@ describe('provider-executed tools interleaved with signed thinking', () => {
         {
           role: 'assistant',
           id: 'm1-segment-1',
-          content: 'Searching again.Done.',
+          content: 'Searching again.',
           toolCalls: ['srvtoolu_2'],
         },
+        // Text after a tool call gets its own row. Our server joins it back.
+        { role: 'assistant', id: 'm1-segment-2', content: 'Done.' },
       ])
 
       // Every anchor carries the metadata for its own tool calls.
@@ -135,7 +138,12 @@ describe('provider-executed tools interleaved with signed thinking', () => {
             (anchor.metadata as any)?.tanstack?.toolCallMetadata ?? {},
           ),
         ),
-      ).toEqual([['srvtoolu_1'], ['srvtoolu_2']])
+      ).toEqual([['srvtoolu_1'], ['srvtoolu_2'], []])
+      // Only the row split for the order continues a row. The row split for
+      // the provider tool keeps today's shape.
+      expect(
+        anchors.map((anchor) => tanstackMetadata(anchor)?.continues),
+      ).toEqual([undefined, undefined, 'm1-segment-1'])
 
       // The server-side converter attaches each reasoning message to the
       // anchor that follows it, so the model history keeps the signed order.
@@ -160,7 +168,7 @@ describe('provider-executed tools interleaved with signed thinking', () => {
       ])
     })
 
-    it('keeps a single anchor when thinking never follows a provider tool', () => {
+    it('starts an ordered row at thinking that follows a local tool call', () => {
       const uiMessage: UIMessage = {
         id: 'm1',
         role: 'assistant',
@@ -182,11 +190,20 @@ describe('provider-executed tools interleaved with signed thinking', () => {
 
       expect(wire.map((message) => message.role)).toEqual([
         'reasoning',
+        'assistant',
         'reasoning',
         'assistant',
       ])
-      expect(wire.filter((message) => message.role === 'assistant')).toEqual([
-        expect.objectContaining({ id: 'm1', content: 'Hello' }),
+      expect(
+        wire
+          .filter((message) => message.role === 'assistant')
+          .map((anchor) => ({
+            id: anchor.id,
+            continues: tanstackMetadata(anchor)?.continues,
+          })),
+      ).toEqual([
+        { id: 'm1', continues: undefined },
+        { id: 'm1-segment-1', continues: 'm1' },
       ])
     })
   })

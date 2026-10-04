@@ -24,11 +24,11 @@ describe('OpenAI per-model chat modelOptions gating', () => {
       chat({
         adapter: openaiText('gpt-5.2'),
         messages: [{ role: 'user', content: 'hi' }],
+        reasoning: { level: 'medium', summary: true },
         modelOptions: {
           background: false,
           service_tier: 'auto',
           verbosity: 'medium',
-          reasoning: { effort: 'medium', summary: 'auto' },
           text: { format: { type: 'text' } },
           tool_choice: 'auto',
           max_tool_calls: 5,
@@ -39,16 +39,23 @@ describe('OpenAI per-model chat modelOptions gating', () => {
       })
     })
 
-    it('rejects the computer-use-preview-only "concise" summary', () => {
+    it('takes reasoning only as the chat() option, not in modelOptions', () => {
       chat({
         adapter: openaiText('gpt-5.2'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
-          reasoning: {
-            // @ts-expect-error - 'concise' is only valid on computer-use-preview
-            summary: 'concise',
-          },
+          // @ts-expect-error - reasoning is the top-level `reasoning` option now
+          reasoning: { effort: 'low' },
         },
+      })
+    })
+
+    it('rejects a level the model does not have', () => {
+      chat({
+        adapter: openaiText('gpt-5.2'),
+        messages: [{ role: 'user', content: 'hi' }],
+        // @ts-expect-error - gpt-5.2 has no `max` level
+        reasoning: 'max',
       })
     })
 
@@ -69,8 +76,8 @@ describe('OpenAI per-model chat modelOptions gating', () => {
       chat({
         adapter: openaiText('gpt-5.2-pro'),
         messages: [{ role: 'user', content: 'hi' }],
+        reasoning: 'high',
         modelOptions: {
-          reasoning: { effort: 'high' },
           tool_choice: 'required',
           stream_options: { include_obfuscation: true },
           metadata: { run: '1' },
@@ -156,8 +163,8 @@ describe('OpenAI per-model chat modelOptions gating', () => {
       chat({
         adapter: openaiText('o3'),
         messages: [{ role: 'user', content: 'hi' }],
+        reasoning: 'high',
         modelOptions: {
-          reasoning: { effort: 'high', summary: 'auto' },
           metadata: { case: 'reasoning-only' },
         },
       })
@@ -192,18 +199,6 @@ describe('OpenAI per-model chat modelOptions gating', () => {
         modelOptions: {
           // @ts-expect-error - 'text' is not available on o3
           text: { format: { type: 'text' } },
-        },
-      })
-    })
-  })
-
-  describe('computer-use-preview — accepts "concise" reasoning summary', () => {
-    it('accepts the concise summary value', () => {
-      chat({
-        adapter: openaiText('computer-use-preview'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          reasoning: { summary: 'concise' },
         },
       })
     })
@@ -245,8 +240,8 @@ describe('OpenAI provider options shape assertions', () => {
   describe('gpt-5.2 — full feature set', () => {
     type Options = OpenAIChatModelProviderOptionsByName['gpt-5.2']
 
-    it('has reasoning', () => {
-      expectTypeOf<Options>().toHaveProperty('reasoning')
+    it('has no reasoning (it is the chat() option now)', () => {
+      expectTypeOf<Options>().not.toHaveProperty('reasoning')
     })
     it('has text (structured output)', () => {
       expectTypeOf<Options>().toHaveProperty('text')
@@ -265,8 +260,8 @@ describe('OpenAI provider options shape assertions', () => {
   describe('o3 — reasoning + metadata only', () => {
     type Options = OpenAIChatModelProviderOptionsByName['o3']
 
-    it('has reasoning', () => {
-      expectTypeOf<Options>().toHaveProperty('reasoning')
+    it('has no reasoning (it is the chat() option now)', () => {
+      expectTypeOf<Options>().not.toHaveProperty('reasoning')
     })
     it('has metadata', () => {
       expectTypeOf<Options>().toHaveProperty('metadata')

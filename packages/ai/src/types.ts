@@ -6,6 +6,7 @@ import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
 import type { CapabilityContext } from './activities/chat/middleware/capabilities'
 import type { InterruptSubmissionError } from './interrupts'
+import type { ReasoningRequest } from './reasoning'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
@@ -370,6 +371,59 @@ export type ConstrainedContent<
   | null
   | Array<ContentPartForInputModalitiesTypes<TInputModalitiesTypes>>
 
+/**
+ * One block of an assistant `ModelMessage`, in the order the model sent it.
+ * Each entry points into a field of the message. See `ModelMessage.blockOrder`.
+ */
+export type ModelMessageBlock =
+  | { type: 'thinking'; index: number }
+  | { type: 'text'; length: number }
+  | { type: 'tool-call'; id: string }
+
+/**
+ * The mid-conversation record that `chat()` saves on the first assistant
+ * message of a model call. It holds tool names and prompt hashes only, so it
+ * does not depend on a provider.
+ */
+export interface MidConversationChange {
+  /** A start point: the names of every tool. */
+  tools?: Array<string>
+  /** Tool names added since the last record. */
+  toolsAdded?: Array<string>
+  /** Short prompt hashes: every prompt on a start point, the added prompts otherwise. */
+  systemPrompts?: Array<string>
+}
+
+/**
+ * What changed in the tools and system prompts between model calls.
+ * `chat()` passes it in `TextOptions.midConversationChanges`.
+ */
+export interface MidConversationChanges {
+  /**
+   * The tool names of the start point, in start order, and how many entries
+   * at the front of `systemPrompts` belong to it.
+   */
+  start: { tools: Array<string>; systemPrompts: number }
+  /**
+   * Each change goes directly before `messages[before]`, or at the end when
+   * `before === messages.length`. `tools` are the added names.
+   * `systemPrompts` is how many of the next entries of `systemPrompts` it adds.
+   */
+  changes: Array<{
+    before: number
+    tools?: Array<string>
+    systemPrompts?: number
+  }>
+}
+
+/** The mid-conversation channels of a model. */
+export interface MidConversationChannels {
+  /** Added tools can go out without a change to the tools of the start point. */
+  tools: boolean
+  /** Added system prompts can go out as a message at their place. */
+  systemPrompts: boolean
+}
+
 export interface ModelMessage<
   TContent extends string | null | Array<ContentPart> =
     | string
@@ -387,8 +441,22 @@ export interface ModelMessage<
    * opaque data. See `ThinkingPart.signature` for the planned rename.
    */
   thinking?: Array<{ content: string; signature?: string; redacted?: boolean }>
+  /**
+   * The order of the blocks of an assistant message, when it is not the
+   * default order (all thinking, then the text, then the tool calls). Each
+   * entry points into `thinking`, into `content` (a string, by UTF-16 length),
+   * or into `toolCalls`. The library writes and reads this field. A reader
+   * that finds a map that does not match the message uses the default order.
+   */
+  blockOrder?: Array<ModelMessageBlock>
   /** Error reported by an AG-UI tool message. */
   error?: string
+  /**
+   * The tools and system prompts that changed before this assistant message.
+   * `chat()` writes it when the adapter has a mid-conversation channel.
+   * Providers ignore it: adapters read `TextOptions.midConversationChanges`.
+   */
+  midConversationChange?: MidConversationChange
   /** Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`. */
   metadata?: Record<string, any>
   /**
@@ -620,6 +688,12 @@ export interface TanStackMessageMetadata {
     errorMessage?: string
   }
   uiResources?: Array<UIResourcePart>
+  /**
+   * On an assistant wire row that exists only to keep the block order: the
+   * id of the assistant row before it. Our server joins the two rows into
+   * one message with a `blockOrder` map. See `uiMessagesToWire`.
+   */
+  continues?: string
 }
 
 /**
@@ -1082,6 +1156,26 @@ export interface AgentLoopState {
 export type AgentLoopStrategy = (state: AgentLoopState) => boolean
 
 /**
+ * How long the provider keeps the cached start of a request.
+ * `'none'` turns automatic prompt caching off.
+ */
+export type PromptCacheRetention = 'none' | 'short' | 'long'
+
+/**
+ * The `promptCache` option of `chat()`: a retention, or an object with a
+ * retention and a cache key.
+ */
+export type PromptCacheOptions =
+  | PromptCacheRetention
+  | { retention?: PromptCacheRetention; key?: string }
+
+/** What chat() gives the adapter. */
+export interface ResolvedPromptCache {
+  retention: PromptCacheRetention
+  key?: string
+}
+
+/**
  * Options passed into the SDK and further piped to the AI provider.
  */
 export interface TextOptions<
@@ -1136,6 +1230,13 @@ export interface TextOptions<
    */
   metadata?: Record<string, any> | undefined
   modelOptions?: TProviderOptionsForModel
+  /**
+   * How hard the model thinks, normalized by `chat()`. `undefined`: the user
+   * did not ask, so the adapter sends nothing and the provider default applies.
+   * The adapter clamps the level to the model's levels and writes its own
+   * wire field.
+   */
+  reasoning?: ReasoningRequest
   request?: Request | RequestInit
 
   /**
@@ -1203,6 +1304,19 @@ export interface TextOptions<
    * When provided, this will be used in RunStartedEvent and RunFinishedEvent.
    */
   threadId?: string
+  /**
+   * Automatic prompt caching for this request. `chat()` sets it. When it is
+   * absent, the adapter adds no automatic cache fields.
+   */
+  promptCache?: ResolvedPromptCache
+  /**
+   * The tools and system prompts that changed between model calls. The
+   * engine sets it only when `adapter.midConversationChannels` has a channel
+   * that is on. `tools` and `systemPrompts` stay the full current lists, so
+   * an adapter that ignores this field sends the same request as before.
+   * Adapters resolve it with `splitMidConversationChanges`.
+   */
+  midConversationChanges?: MidConversationChanges
   /**
    * Run ID for AG-UI protocol run correlation.
    * When provided, this will be used in RunStartedEvent and RunFinishedEvent.

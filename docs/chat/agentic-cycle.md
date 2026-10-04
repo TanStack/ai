@@ -264,3 +264,56 @@ export async function POST(request: Request) {
 ```
 
 Place this **before** `toolCacheMiddleware` so over-budget skips win over cache hits. See [`onShouldContinue`](../advanced/middleware#onshouldcontinue) for the hook contract.
+
+### Stop the loop from a tool (middleware recipe)
+
+Some tools end the work, for example a `final_answer` tool. After the model calls it, the model must not get another turn. Stop the loop with middleware:
+
+- **`onToolPhaseComplete`** sees every result of the turn.
+- **`onShouldContinue`** returns `false` to stop after the tool results.
+
+```typescript
+import {
+  chat,
+  toolDefinition,
+  toServerSentEventsResponse,
+  type ChatMiddleware,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod";
+
+const finalAnswer = toolDefinition({
+  name: "final_answer",
+  description: "Give the final answer to the user",
+  inputSchema: z.object({ answer: z.string() }),
+}).server(async ({ answer }) => ({ answer }));
+
+/** App-owned policy: stop when every result of a turn comes from a stop tool. */
+function stopAfter(toolNames: Array<string>): ChatMiddleware {
+  let stop = false;
+  return {
+    name: "stop-after-tool",
+    onToolPhaseComplete(_ctx, info) {
+      stop =
+        info.results.length > 0 &&
+        info.results.every((result) => toolNames.includes(result.toolName));
+    },
+    onShouldContinue() {
+      return stop ? false : undefined;
+    },
+  };
+}
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  const stream = chat({
+    adapter: openaiText("gpt-6.1-sol"),
+    messages,
+    tools: [finalAnswer],
+    middleware: [stopAfter(["final_answer"])],
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+A turn that also calls other tools goes on, so the model can still use their results.

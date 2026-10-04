@@ -179,7 +179,9 @@ const adapter = createBedrockText(
 
 ### Prompt caching
 
-Add a `cachePoint` to make a prompt prefix eligible for caching. Later requests can read matching tokens at the reduced cache rate. Bedrock bills cache misses at the standard input rate.
+`chat()` adds cache points for Claude models by default: one after the system prompt and one at the end of the last user message. Other models get no automatic cache point. To turn this off, pass `promptCache: 'none'`. For the retention and the cost, see [Prompt Caching](../advanced/prompt-caching).
+
+To choose the places yourself, set `metadata.cachePoint`. A cache point of your own turns the automatic cache points off for that request. Later requests can read matching tokens at the reduced cache rate. Bedrock bills cache misses at the standard input rate.
 
 Explicit prompt caching is model-dependent. Use `cachePoint` only with a model that AWS lists as supporting it. The minimum checkpoint size and the TTL options also vary by model.
 
@@ -229,7 +231,7 @@ Tools take the same metadata. Pass `metadata: { cachePoint: { type: 'default' } 
 
 ### Token usage
 
-`onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. When a request hits or writes a prompt cache, the cache counts arrive on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`. Bedrock counts only the uncached part of the input in `promptTokens`, so add the two cache counts to it to get the full input size.
+`onUsage` and `RUN_FINISHED.usage` report Bedrock's counts as `promptTokens`, `completionTokens`, and `totalTokens`. `promptTokens` is the full input size, cached tokens included. When a request hits or writes a prompt cache, the cache counts arrive on `promptTokensDetails.cachedTokens` and `promptTokensDetails.cacheWriteTokens`.
 
 ## Chat Completions API (`api: 'chat'`)
 

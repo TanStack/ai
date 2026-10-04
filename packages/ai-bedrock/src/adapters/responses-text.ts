@@ -1,6 +1,8 @@
 import OpenAI from 'openai'
 import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
 import { withBedrockDefaults } from '../utils/client'
+import { BEDROCK_MODEL_REASONING } from '../model-reasoning'
+import type { BedrockModelReasoningByName } from '../model-reasoning'
 import type { Modality } from '@tanstack/ai'
 import type { BedrockClientConfig } from '../utils/client'
 import type { BedrockMessageMetadataByModality } from '../message-types'
@@ -16,6 +18,12 @@ export interface BedrockResponsesConfig
   extends BedrockClientConfig, OpenAIBaseTextAdapterOptions {}
 
 export type { ExternalResponsesProviderOptions as BedrockResponsesProviderOptions } from '../text/responses-provider-options'
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof BedrockModelReasoningByName
+    ? BedrockModelReasoningByName[TModel]
+    : never
 
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof BedrockChatModelToolCapabilitiesByName
@@ -47,7 +55,8 @@ export class BedrockResponsesTextAdapter<
   TProviderOptions,
   TInputModalities,
   BedrockMessageMetadataByModality,
-  TToolCapabilities
+  TToolCapabilities,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   override readonly name = 'bedrock-responses' as const
@@ -61,6 +70,10 @@ export class BedrockResponsesTextAdapter<
       new OpenAI(withBedrockDefaults(config, 'mantle', model)),
       config,
     )
+  }
+
+  protected override modelReasoning(model: string) {
+    return BEDROCK_MODEL_REASONING[model]
   }
 }
 

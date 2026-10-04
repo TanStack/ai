@@ -180,6 +180,34 @@ describe('HTTP handler', () => {
     await host.close()
   })
 
+  it('answers a retried prompt with the same inputId with the first receipt', async () => {
+    const { handler, host, calls } = setup()
+    const control = async (input: unknown) =>
+      (
+        await handler(
+          new Request('http://x/api/harness/control', {
+            method: 'POST',
+            headers: { ...auth, 'content-type': 'application/json' },
+            body: JSON.stringify({ threadId: 'user-1-retry', input }),
+          }),
+        )
+      ).json()
+
+    const first = await control({ op: 'prompt', message: 'hi', inputId: 'c-1' })
+    const retry = await control({ op: 'prompt', message: 'hi', inputId: 'c-1' })
+
+    expect(first).toMatchObject({ inputId: 'c-1', status: 'accepted' })
+    expect(retry).toEqual(first)
+    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    expect(
+      await control({ op: 'prompt', message: 'another', inputId: 'c-1' }),
+    ).toMatchObject({ status: 'rejected', reason: 'conflict' })
+    expect(await control({ op: 'prompt', message: 'x', inputId: 7 })).toEqual({
+      error: 'Invalid input: inputId must be a string.',
+    })
+    await host.close()
+  })
+
   it('runs exposed agents from a client and refuses the others', async () => {
     const { handler, host } = setup()
     const control = async (input: unknown) =>

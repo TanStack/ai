@@ -1,13 +1,26 @@
 import { shortAnswer, signInText } from './session-view'
-import type { AgentPart, SessionViewState } from '@tanstack/ai-harness/view'
+import type {
+  AgentPart,
+  MediaPart,
+  SessionViewState,
+  ViewPart,
+} from '@tanstack/ai-harness/view'
 
 /**
  * Prints a session view as lines: streamed text as it grows, and one
  * bracketed line per tool call, child agent, notice, question, and sign-in.
  * Notices that line mode prints itself (command results, rejected inputs,
  * and UI notes) are skipped.
+ *
+ * Media parts print nothing here. `onMedia` gets each new media part of an
+ * assistant message once, from the lead or from a child at any depth.
+ * `hidesSecrets`: the input hides what the user types for a secret
+ * question, so its line says so.
  */
-export function createPrinter(write: (text: string) => unknown) {
+export function createPrinter(
+  write: (text: string) => unknown,
+  options: { onMedia?: (part: MediaPart) => void; hidesSecrets?: boolean } = {},
+) {
   const done = new Set<string>()
   const written = new Map<string, number>()
   // True while streamed text has no line break at its end yet.
@@ -57,6 +70,14 @@ export function createPrinter(write: (text: string) => unknown) {
     if (part.status === 'failed')
       once(`${key}:end`, `agent ${part.name} failed: ${part.error ?? ''}`)
   }
+  const media = (parts: ReadonlyArray<ViewPart>) => {
+    for (const part of parts) {
+      if (part.type === 'agent') media(part.parts)
+      if (part.type !== 'media' || done.has(`media:${part.id}`)) continue
+      done.add(`media:${part.id}`)
+      if (!marking) options.onMedia?.(part)
+    }
+  }
   const print = (state: SessionViewState) => {
     for (const message of state.messages) {
       if (message.role === 'notice') {
@@ -71,9 +92,17 @@ export function createPrinter(write: (text: string) => unknown) {
         if (part.type === 'tool-call') once(key, `tool ${part.name}`)
         if (part.type === 'agent') agent(key, part)
       })
+      media(message.parts)
     }
-    for (const question of state.questions)
-      once(`question:${question.id}`, `? ${question.message}`)
+    for (const question of state.questions) {
+      const isHidden = question.secret === true && options.hidesSecrets === true
+      once(
+        `question:${question.id}`,
+        isHidden
+          ? `? ${question.message} (typing is hidden)`
+          : `? ${question.message}`,
+      )
+    }
     for (const signIn of state.signIns)
       once(
         `sign-in:${signIn.connector}:${signIn.url ?? ''}`,

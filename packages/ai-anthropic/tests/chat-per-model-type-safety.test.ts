@@ -1,5 +1,6 @@
 /**
- * Per-model type-safety tests for Anthropic chat() modelOptions.
+ * Per-model type-safety tests for Anthropic chat() modelOptions and
+ * `reasoning`.
  *
  * Positive cases: each supported (model, option) pair compiles cleanly.
  * Negative cases: each unsupported option produces a `@ts-expect-error`.
@@ -19,7 +20,7 @@ beforeAll(() => {
 })
 
 describe('Anthropic per-model chat modelOptions gating', () => {
-  describe('claude-opus-4-6 — full superset (thinking + priority tier + all option groups)', () => {
+  describe('claude-opus-4-6 — priority tier + all option groups', () => {
     it('accepts every option group', () => {
       chat({
         adapter: anthropicText('claude-opus-4-6'),
@@ -30,19 +31,8 @@ describe('Anthropic per-model chat modelOptions gating', () => {
           mcp_servers: [],
           service_tier: 'auto',
           stop_sequences: ['STOP'],
-          thinking: { type: 'enabled', budget_tokens: 2048 },
           tool_choice: { type: 'auto' },
           top_k: 5,
-        },
-      })
-    })
-
-    it('accepts adaptive thinking (supported alongside the deprecated budget shape)', () => {
-      chat({
-        adapter: anthropicText('claude-opus-4-6'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          thinking: { type: 'adaptive', display: 'summarized' },
         },
       })
     })
@@ -57,15 +47,25 @@ describe('Anthropic per-model chat modelOptions gating', () => {
         },
       })
     })
+
+    it('rejects thinking in modelOptions (chat({ reasoning }) owns it)', () => {
+      chat({
+        adapter: anthropicText('claude-opus-4-6'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          // @ts-expect-error - thinking is set with `reasoning`
+          thinking: { type: 'enabled', budget_tokens: 2048 },
+        },
+      })
+    })
   })
 
-  describe('claude-haiku-4-5 — thinking + priority tier', () => {
-    it('accepts thinking + service_tier + tools options', () => {
+  describe('claude-haiku-4-5 — priority tier', () => {
+    it('accepts service_tier + tools options', () => {
       chat({
         adapter: anthropicText('claude-haiku-4-5'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
-          thinking: { type: 'enabled', budget_tokens: 1024 },
           service_tier: 'standard_only',
           tool_choice: { type: 'auto' },
         },
@@ -73,29 +73,16 @@ describe('Anthropic per-model chat modelOptions gating', () => {
     })
   })
 
-  describe('claude-opus-4-8 — adaptive thinking, no budget_tokens, no sampling', () => {
-    it('accepts adaptive thinking + output_config effort (incl. xhigh) + base options', () => {
+  describe('claude-opus-4-8 — no sampling', () => {
+    it('accepts the base options', () => {
       chat({
         adapter: anthropicText('claude-opus-4-8'),
         messages: [{ role: 'user', content: 'hi' }],
         modelOptions: {
-          thinking: { type: 'adaptive', display: 'summarized' },
-          output_config: { effort: 'xhigh' },
           service_tier: 'auto',
           stop_sequences: ['STOP'],
           tool_choice: { type: 'auto' },
           max_tokens: 2048,
-        },
-      })
-    })
-
-    it('rejects manual `budget_tokens` thinking', () => {
-      chat({
-        adapter: anthropicText('claude-opus-4-8'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          // @ts-expect-error - budget_tokens thinking returns a 400 on claude-opus-4-8
-          thinking: { type: 'enabled', budget_tokens: 2048 },
         },
       })
     })
@@ -112,43 +99,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
     })
   })
 
-  describe('claude-sonnet-5 — adaptive thinking, no budget_tokens, no sampling', () => {
-    it('accepts adaptive thinking + output_config effort (incl. xhigh) + base options', () => {
-      chat({
-        adapter: anthropicText('claude-sonnet-5'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          thinking: { type: 'adaptive', display: 'summarized' },
-          output_config: { effort: 'xhigh' },
-          service_tier: 'auto',
-          stop_sequences: ['STOP'],
-          tool_choice: { type: 'auto' },
-          max_tokens: 2048,
-        },
-      })
-    })
-
-    it('accepts explicit thinking opt-out', () => {
-      chat({
-        adapter: anthropicText('claude-sonnet-5'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          thinking: { type: 'disabled' },
-        },
-      })
-    })
-
-    it('rejects manual `budget_tokens` thinking', () => {
-      chat({
-        adapter: anthropicText('claude-sonnet-5'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          // @ts-expect-error - budget_tokens thinking returns a 400 on claude-sonnet-5
-          thinking: { type: 'enabled', budget_tokens: 2048 },
-        },
-      })
-    })
-
+  describe('claude-sonnet-5 — no sampling', () => {
     it('rejects sampling parameters', () => {
       chat({
         adapter: anthropicText('claude-sonnet-5'),
@@ -169,44 +120,7 @@ describe('Anthropic per-model chat modelOptions gating', () => {
     })
   })
 
-  describe('claude-fable-5 — thinking always on (adaptive-only), no sampling', () => {
-    it('accepts adaptive thinking + output_config effort (incl. xhigh) + base options', () => {
-      chat({
-        adapter: anthropicText('claude-fable-5'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          thinking: { type: 'adaptive', display: 'summarized' },
-          output_config: { effort: 'xhigh' },
-          service_tier: 'auto',
-          stop_sequences: ['STOP'],
-          tool_choice: { type: 'auto' },
-          max_tokens: 2048,
-        },
-      })
-    })
-
-    it('rejects explicit thinking opt-out (400 on claude-fable-5)', () => {
-      chat({
-        adapter: anthropicText('claude-fable-5'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          // @ts-expect-error - thinking cannot be disabled on claude-fable-5
-          thinking: { type: 'disabled' },
-        },
-      })
-    })
-
-    it('rejects manual `budget_tokens` thinking', () => {
-      chat({
-        adapter: anthropicText('claude-fable-5'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          // @ts-expect-error - budget_tokens thinking returns a 400 on claude-fable-5
-          thinking: { type: 'enabled', budget_tokens: 2048 },
-        },
-      })
-    })
-
+  describe('claude-fable-5 — no sampling', () => {
     it('rejects sampling parameters', () => {
       chat({
         adapter: anthropicText('claude-fable-5'),
@@ -227,20 +141,6 @@ describe('Anthropic per-model chat modelOptions gating', () => {
     })
   })
 
-  describe('claude-opus-5 — output_config effort', () => {
-    // The adapter writes `output_config.format` for this model and merges it
-    // over any caller-supplied `output_config`, so `effort` has to type-check.
-    it('accepts output_config effort', () => {
-      chat({
-        adapter: anthropicText('claude-opus-5'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          output_config: { effort: 'high' },
-        },
-      })
-    })
-  })
-
   describe('Model name type safety', () => {
     it('rejects unknown model names at the factory', () => {
       // @ts-expect-error - 'claude-fake-9000' is not a valid Anthropic chat model
@@ -249,13 +149,57 @@ describe('Anthropic per-model chat modelOptions gating', () => {
   })
 })
 
+describe('Anthropic per-model chat reasoning gating', () => {
+  it('budget models take a level, off, and budgetTokens', () => {
+    chat({
+      adapter: anthropicText('claude-haiku-4-5'),
+      messages: [{ role: 'user', content: 'hi' }],
+      reasoning: { level: 'low', budgetTokens: 2048, summary: true },
+    })
+    chat({
+      adapter: anthropicText('claude-haiku-4-5'),
+      messages: [{ role: 'user', content: 'hi' }],
+      reasoning: 'off',
+    })
+  })
+
+  it('adaptive-era models take effort levels up to max', () => {
+    chat({
+      adapter: anthropicText('claude-opus-4-8'),
+      messages: [{ role: 'user', content: 'hi' }],
+      reasoning: 'xhigh',
+    })
+    chat({
+      adapter: anthropicText('claude-opus-4-8'),
+      messages: [{ role: 'user', content: 'hi' }],
+      // @ts-expect-error - claude-opus-4-8 takes no token budget
+      reasoning: { level: 'high', budgetTokens: 2048 },
+    })
+  })
+
+  it('budget models stop at high', () => {
+    chat({
+      adapter: anthropicText('claude-haiku-4-5'),
+      messages: [{ role: 'user', content: 'hi' }],
+      // @ts-expect-error - claude-haiku-4-5 has no max level
+      reasoning: 'max',
+    })
+  })
+
+  it('claude-fable-5 cannot turn thinking off', () => {
+    chat({
+      adapter: anthropicText('claude-fable-5'),
+      messages: [{ role: 'user', content: 'hi' }],
+      // @ts-expect-error - thinking cannot be disabled on claude-fable-5
+      reasoning: 'off',
+    })
+  })
+})
+
 describe('Anthropic provider options shape assertions', () => {
   describe('claude-opus-4-6 — full feature set', () => {
     type Options = AnthropicChatModelProviderOptionsByName['claude-opus-4-6']
 
-    it('has thinking', () => {
-      expectTypeOf<Options>().toHaveProperty('thinking')
-    })
     it('has service_tier', () => {
       expectTypeOf<Options>().toHaveProperty('service_tier')
     })
@@ -271,15 +215,14 @@ describe('Anthropic provider options shape assertions', () => {
     it('has mcp_servers', () => {
       expectTypeOf<Options>().toHaveProperty('mcp_servers')
     })
+    it('has no thinking', () => {
+      expectTypeOf<Options>().not.toHaveProperty('thinking')
+    })
   })
 
-  describe('claude-sonnet-5 — adaptive thinking without sampling', () => {
+  describe('claude-sonnet-5 — no sampling', () => {
     type Options = AnthropicChatModelProviderOptionsByName['claude-sonnet-5']
 
-    it('has thinking and output_config', () => {
-      expectTypeOf<Options>().toHaveProperty('thinking')
-      expectTypeOf<Options>().toHaveProperty('output_config')
-    })
     it('has max_tokens but NOT temperature/top_p/top_k', () => {
       expectTypeOf<Options>().toHaveProperty('max_tokens')
       expectTypeOf<Options>().not.toHaveProperty('temperature')
@@ -288,26 +231,9 @@ describe('Anthropic provider options shape assertions', () => {
     })
   })
 
-  describe('claude-opus-5 — output_config alongside the schema', () => {
-    type Options = AnthropicChatModelProviderOptionsByName['claude-opus-5']
-
-    it('has output_config', () => {
-      expectTypeOf<Options>().toHaveProperty('output_config')
-    })
-  })
-
-  describe('claude-fable-5 — adaptive-only thinking without sampling', () => {
+  describe('claude-fable-5 — no sampling', () => {
     type Options = AnthropicChatModelProviderOptionsByName['claude-fable-5']
 
-    it('has thinking and output_config', () => {
-      expectTypeOf<Options>().toHaveProperty('thinking')
-      expectTypeOf<Options>().toHaveProperty('output_config')
-    })
-    it('thinking accepts only the adaptive shape', () => {
-      expectTypeOf<
-        NonNullable<Options['thinking']>['type']
-      >().toEqualTypeOf<'adaptive'>()
-    })
     it('has max_tokens but NOT temperature/top_p/top_k', () => {
       expectTypeOf<Options>().toHaveProperty('max_tokens')
       expectTypeOf<Options>().not.toHaveProperty('temperature')

@@ -58,6 +58,8 @@ export const assistant = defineHarness({
 
 `agents` are agents you run from code. Put an agent in `subagents` instead when the model must call it as a tool, the same as in `chat()`.
 
+To ship the harness to users with no `.env` file, let each user connect their own key. See [Connect model providers](./provider-keys).
+
 ## 2. Open a session
 
 A host runs sessions. Give it the stores from `@tanstack/ai-persistence`, then open a session for a conversation id.
@@ -122,7 +124,7 @@ const price = await session.agents.pricer.run({ vendor: 'acme' })
 console.log(price.cents)
 ```
 
-The session adds a short note about the result to the transcript. The model sees it on the next turn. To run the agent in the background and start a new turn when it is done, use `start`:
+The session adds a short note about the result, or the error, to the transcript. The model sees it on the next turn. To run the agent in the background and start a new turn when it finishes or fails, use `start`:
 
 ```ts group=harness-first
 session.agents.pricer.start({ vendor: 'globex' }, { wake: true })
@@ -165,11 +167,55 @@ If two plugins add a tool with the same name, `host.open` fails and names both p
 The host takes the same stores as `withPersistence`. Add an `inbox` store and the session also keeps the messages it accepted but did not start yet. When the session opens again, it runs them.
 
 - `messages`: the transcript. Required.
-- `runs`: the record of every turn and agent run.
+- `runs`: the record of every turn and agent run. When the host stops during a background agent run, the next session ends that run `failed` and notes it in the transcript.
 - `interrupts`: approvals that wait for a user.
 - `inbox`: accepted messages that did not run yet.
+- `metadata`: the session config, plugin state, and the interrupts that the last turn waits on. With it, `session.resolve` continues that turn after a restart, also a turn that a router sent to agents.
 
 `memoryPersistence()` has every store, but it keeps them in memory only. Write your own stores to keep data in your database. See [Build your own adapter](../persistence/build-your-own-adapter).
+
+## Prompt caching
+
+Every session caches the stable start of its requests by default, with its `threadId` as the cache key. To change the default for every session, set `promptCache` on the harness:
+
+```ts group=harness-first
+export const longCache = defineHarness({
+  name: 'acme/long-cache',
+  adapter: openaiText('gpt-6.1-sol'),
+  promptCache: 'long',
+})
+```
+
+To change it for one session, pass `promptCache` to `host.open`. The session value wins over the harness value:
+
+```ts group=harness-first
+const support = await host.open(assistant, {
+  threadId: 'thread-2',
+  promptCache: { key: 'acme-support' },
+})
+```
+
+If the `threadId` already has a live session, `host.open` returns that session with its first `promptCache` value. Agents in the session use the same retention. The `/usage` command of the [`usage()` plugin](./coding-agent#what-each-plugin-adds) shows cache reads and writes. For the options and the cost, see [Prompt Caching](../advanced/prompt-caching).
+
+To change it for one prompt, pass `overrides.promptCache`. See [Give one prompt its own settings](./turn-control#give-one-prompt-its-own-settings).
+
+## Set a reasoning level
+
+A harness sends no reasoning level by default, so the main model thinks at the default of its provider. To set a level for every turn, set `reasoning` on the harness:
+
+```ts group=harness-first
+export const careful = defineHarness({
+  name: 'acme/careful',
+  adapter: openaiText('gpt-6.1-sol'),
+  reasoning: 'medium',
+})
+```
+
+- `level`: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. A model that does not have the level gets the nearest level that it has.
+- `summary`: `true` streams the thinking text. `false` keeps it out of the stream.
+- `budgetTokens`: optional. A thinking token budget, for models that think with a budget.
+
+For the levels of each model, see [Reasoning](../chat/reasoning). To use another level for one prompt, pass `overrides.reasoning`. See [Give one prompt its own settings](./turn-control#give-one-prompt-its-own-settings).
 
 ## What you have now
 

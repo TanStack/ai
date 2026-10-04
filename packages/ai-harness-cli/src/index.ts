@@ -1,11 +1,17 @@
 import { createHarnessHost } from '@tanstack/ai-harness'
 import { createSessionView } from '@tanstack/ai-harness/view'
 import { USAGE, parseCliArgs } from './args'
+import { attach, defaultMediaDir } from './attach'
 import { runLines } from './lines'
 import { EXIT, runPrint } from './print'
 import { createToken, serve } from './serve'
-import type { AnyHarness, HarnessPersistence } from '@tanstack/ai-harness'
-import type { SessionView } from '@tanstack/ai-harness/view'
+import type {
+  AnyHarness,
+  HarnessPersistence,
+  HarnessSession,
+  UserInput,
+} from '@tanstack/ai-harness'
+import type { SessionView, SessionViewSource } from '@tanstack/ai-harness/view'
 
 export interface RunCliOptions {
   /** Where sessions keep state. Default: in memory. */
@@ -20,8 +26,41 @@ export interface RunCliOptions {
    * Your own screen for an interactive terminal, with any UI library. It gets
    * a ready session view and resolves when the user quits. Piped input and
    * the other modes (`--print`, `--acp`, `--mcp`, `--serve`, `--dashboard`) do not use it.
+   * `view.send(text)` sends each `@path` file in `text`, as line mode does.
    */
   ui?: (view: SessionView) => Promise<void> | void
+}
+
+/**
+ * The session for a `ui` view: a typed message or steer sends its `@path`
+ * files, as in line mode.
+ */
+function attachingSource(session: HarnessSession) {
+  const withFiles = (message: UserInput) =>
+    typeof message === 'string'
+      ? attach(session, message, { cwd: process.cwd() })
+      : Promise.resolve(message)
+  const source: SessionViewSource = {
+    // The view shows a failed operation from its events, so only a file that
+    // cannot go rejects here. It becomes an error notice in the view.
+    prompt: (message) =>
+      withFiles(message).then((input) => {
+        session.prompt(input).then(undefined, () => {})
+      }),
+    steer: async (message) => session.steer(await withFiles(message)),
+    resolve: (resume) => session.resolve(resume),
+    cancel: (operationId) => session.cancel(operationId),
+    answer: (questionId, value) => session.answer(questionId, value),
+    command: (name, input) => session.command(name, input),
+    setConfig: (key, value) => session.setConfig(key, value),
+    events: (options) => session.events(options),
+    snapshot: () => session.snapshot(),
+    transcript: () => session.transcript(),
+    describe: () => session.describe(),
+    mediaUrl: (id) => session.mediaUrl(id),
+    loadMedia: (id) => session.loadMedia(id),
+  }
+  return source
 }
 
 /**
@@ -88,6 +127,8 @@ export async function runCli(
         harness,
         threadId: args.thread,
         approvals,
+        // A local client can attach the files of the working folder by path.
+        filePaths: [process.cwd()],
       })
       // stdout carries only MCP messages. The server stops when stdin ends.
       const ended = new Promise<void>((resolve) => {
@@ -153,15 +194,18 @@ export async function runCli(
     }
 
     const session = await host.open(harness, { threadId: args.thread })
+    // Relative to the working folder, as a relative --media-dir is.
+    const mediaDir = args.mediaDir ?? defaultMediaDir(harness.name)
     if (args.print !== undefined) {
       return await runPrint(session, args.print, {
         output: args.output,
         stdout,
         stderr,
+        mediaDir,
       })
     }
     if (stdin.isTTY && options.ui) {
-      const view = createSessionView(session)
+      const view = createSessionView(attachingSource(session))
       try {
         await view.ready
         await options.ui(view)
@@ -171,6 +215,7 @@ export async function runCli(
     } else {
       await runLines(session, stdin, stdout, {
         openSignIns: Boolean(stdin.isTTY),
+        mediaDir,
       })
     }
     return EXIT.ok

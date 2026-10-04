@@ -1,3 +1,4 @@
+import type { Modality } from '@tanstack/ai'
 import type { MistralTextProviderOptions } from './text/text-provider-options'
 import type {
   CodestralEmbedProviderOptions,
@@ -321,6 +322,30 @@ export type MistralModelInputModalitiesByName = {
   [MISTRAL_SMALL_2503.name]: typeof MISTRAL_SMALL_2503.supports.input
   [CODESTRAL_2.name]: typeof CODESTRAL_2.supports.input
 }
+
+/**
+ * Runtime map from Mistral chat model name to its supported input modalities,
+ * for the text adapter's `inputModalities`. `satisfies` keeps it equal to
+ * {@link MistralModelInputModalitiesByName}. An unknown name gives `undefined`.
+ */
+export const MISTRAL_MODEL_INPUT_MODALITIES: Readonly<
+  Record<string, ReadonlyArray<Modality>>
+> = {
+  [MISTRAL_LARGE_LATEST.name]: MISTRAL_LARGE_LATEST.supports.input,
+  [MISTRAL_MEDIUM_LATEST.name]: MISTRAL_MEDIUM_LATEST.supports.input,
+  [MISTRAL_SMALL_LATEST.name]: MISTRAL_SMALL_LATEST.supports.input,
+  [MINISTRAL_8B_LATEST.name]: MINISTRAL_8B_LATEST.supports.input,
+  [MINISTRAL_3B_LATEST.name]: MINISTRAL_3B_LATEST.supports.input,
+  [CODESTRAL_LATEST.name]: CODESTRAL_LATEST.supports.input,
+  [PIXTRAL_LARGE_LATEST.name]: PIXTRAL_LARGE_LATEST.supports.input,
+  [PIXTRAL_12B_2409.name]: PIXTRAL_12B_2409.supports.input,
+  [MAGISTRAL_MEDIUM_LATEST.name]: MAGISTRAL_MEDIUM_LATEST.supports.input,
+  [MAGISTRAL_SMALL_LATEST.name]: MAGISTRAL_SMALL_LATEST.supports.input,
+  [OPEN_MISTRAL_NEMO.name]: OPEN_MISTRAL_NEMO.supports.input,
+  [MISTRAL_MEDIUM_3.name]: MISTRAL_MEDIUM_3.supports.input,
+  [MISTRAL_SMALL_2503.name]: MISTRAL_SMALL_2503.supports.input,
+  [CODESTRAL_2.name]: CODESTRAL_2.supports.input,
+} satisfies MistralModelInputModalitiesByName
 
 /**
  * Type-only map from Mistral chat model name to its provider options type.

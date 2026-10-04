@@ -79,6 +79,92 @@ function createTextStream(text: string) {
   })()
 }
 
+/** The raw events of one signed Anthropic thinking block. */
+function thinkingBlockEvents(
+  index: number,
+  thinking: string,
+  signature: string,
+) {
+  return [
+    {
+      type: 'content_block_start',
+      index,
+      content_block: { type: 'thinking', thinking: '' },
+    },
+    {
+      type: 'content_block_delta',
+      index,
+      delta: { type: 'thinking_delta', thinking },
+    },
+    {
+      type: 'content_block_delta',
+      index,
+      delta: { type: 'signature_delta', signature },
+    },
+    { type: 'content_block_stop', index },
+  ]
+}
+
+/** The raw events of one Anthropic `tool_use` block for `lookup_weather`. */
+function toolUseBlockEvents(index: number, id: string, location: string) {
+  return [
+    {
+      type: 'content_block_start',
+      index,
+      content_block: { type: 'tool_use', id, name: 'lookup_weather' },
+    },
+    {
+      type: 'content_block_delta',
+      index,
+      delta: {
+        type: 'input_json_delta',
+        partial_json: JSON.stringify({ location }),
+      },
+    },
+    { type: 'content_block_stop', index },
+  ]
+}
+
+/** The raw events of one Anthropic text block. */
+function textBlockEvents(index: number, text: string) {
+  return [
+    {
+      type: 'content_block_start',
+      index,
+      content_block: { type: 'text', text: '' },
+    },
+    {
+      type: 'content_block_delta',
+      index,
+      delta: { type: 'text_delta', text },
+    },
+    { type: 'content_block_stop', index },
+  ]
+}
+
+/**
+ * The reasoning events and the block starts of a stream, as labels. A
+ * reasoning message is named by its position among the REASONING_START events.
+ */
+function reasoningLifecycle(chunks: Array<AdapterYieldChunk>) {
+  const ids: Array<string> = []
+  return chunks.flatMap((chunk) => {
+    if (chunk.type === 'REASONING_START') {
+      ids.push(chunk.messageId)
+      return [`reasoning start ${ids.length - 1}`]
+    }
+    if (chunk.type === 'REASONING_MESSAGE_END') {
+      return [`reasoning message end ${ids.indexOf(chunk.messageId)}`]
+    }
+    if (chunk.type === 'REASONING_END') {
+      return [`reasoning end ${ids.indexOf(chunk.messageId)}`]
+    }
+    if (chunk.type === 'TOOL_CALL_START') return [`tool ${chunk.toolCallId}`]
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT') return [`text ${chunk.delta}`]
+    return []
+  })
+}
+
 describe('Anthropic client injection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -237,6 +323,7 @@ describe('Anthropic adapter option mapping', () => {
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
+      promptCache: 'none',
       messages: [{ role: 'user', content: 'Hi' }],
       systemPrompts: ['You are a helpful assistant.', 'Be concise.'],
     })) {
@@ -343,6 +430,7 @@ describe('Anthropic adapter option mapping', () => {
 
     for await (const _ of chat({
       adapter,
+      promptCache: 'none',
       messages: [{ role: 'user', content: 'Hi' }],
       systemPrompts: ['real system prompt'],
       modelOptions: {
@@ -420,7 +508,6 @@ describe('Anthropic adapter option mapping', () => {
       ],
       service_tier: 'standard_only',
       stop_sequences: ['</done>'],
-      thinking: { type: 'enabled', budget_tokens: 1500 },
       top_k: 5,
       max_tokens: 3000,
       temperature: 0.4,
@@ -432,6 +519,7 @@ describe('Anthropic adapter option mapping', () => {
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
+      promptCache: 'none',
       messages: [
         { role: 'user', content: 'What is the forecast?' },
         {
@@ -449,6 +537,7 @@ describe('Anthropic adapter option mapping', () => {
       ],
       tools: [weatherTool],
       modelOptions: providerOptions,
+      reasoning: { level: 'low', budgetTokens: 1500 },
     })) {
       chunks.push(chunk)
     }
@@ -464,7 +553,7 @@ describe('Anthropic adapter option mapping', () => {
       mcp_servers: providerOptions.mcp_servers,
       service_tier: providerOptions.service_tier,
       stop_sequences: providerOptions.stop_sequences,
-      thinking: providerOptions.thinking,
+      thinking: { type: 'enabled', budget_tokens: 1500 },
       top_k: providerOptions.top_k,
     })
     expect(payload.stream).toBe(true)
@@ -1030,6 +1119,7 @@ describe('Anthropic adapter option mapping', () => {
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
+      promptCache: 'none',
       messages: [
         { role: 'user', content: 'What is the weather in Berlin?' },
         {
@@ -1125,9 +1215,7 @@ describe('Anthropic adapter option mapping', () => {
         { role: 'user', content: 'What should I wear?' },
       ],
       tools: [weatherTool],
-      modelOptions: {
-        thinking: { type: 'enabled', budget_tokens: 1024 },
-      } satisfies AnthropicTextProviderOptions,
+      reasoning: { level: 'minimal', budgetTokens: 1024 },
     })) {
       chunks.push(chunk)
     }
@@ -1175,9 +1263,7 @@ describe('Anthropic adapter option mapping', () => {
         },
         { role: 'user', content: 'Continue.' },
       ],
-      modelOptions: {
-        thinking: { type: 'enabled', budget_tokens: 1024 },
-      } satisfies AnthropicTextProviderOptions,
+      reasoning: { level: 'minimal', budgetTokens: 1024 },
     })) {
       chunks.push(chunk)
     }
@@ -1276,9 +1362,7 @@ describe('Anthropic adapter option mapping', () => {
         },
       ],
       tools: [createBlockTool],
-      modelOptions: {
-        thinking: { type: 'enabled', budget_tokens: 1024 },
-      } satisfies AnthropicTextProviderOptions,
+      reasoning: { level: 'minimal', budgetTokens: 1024 },
     })) {
       // consume
     }
@@ -1349,6 +1433,7 @@ describe('Anthropic adapter option mapping', () => {
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
+      promptCache: 'none',
       messages: [
         { role: 'user', content: 'Weather in Berlin and Paris?' },
         {
@@ -1577,6 +1662,7 @@ describe('Anthropic adapter option mapping', () => {
     const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
+      promptCache: 'none',
       messages: [
         { role: 'user', content: 'Hello' },
         { role: 'assistant', content: '' }, // Empty assistant from failed request
@@ -2231,6 +2317,79 @@ describe('Anthropic stream processing', () => {
     expect(textStart).toBeDefined()
     expect(toolStart).toBeDefined()
     expect(toolStart?.parentMessageId).toBe(textStart?.messageId)
+  })
+
+  it('ends each thinking block before the next tool call starts', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      (async function* () {
+        yield* thinkingBlockEvents(0, 'Check Berlin first.', 'sig-1')
+        yield* toolUseBlockEvents(1, 'tool_1', 'Berlin')
+        yield* thinkingBlockEvents(2, 'Now Paris.', 'sig-2')
+        yield* toolUseBlockEvents(3, 'tool_2', 'Paris')
+        yield {
+          type: 'message_delta',
+          delta: { stop_reason: 'tool_use' },
+          usage: { output_tokens: 10 },
+        }
+        yield { type: 'message_stop' }
+      })(),
+    )
+
+    const chunks: AdapterYieldChunk[] = []
+    for await (const chunk of chat({
+      adapter: createAdapter('claude-opus-4-1'),
+      messages: [{ role: 'user', content: 'Weather in Berlin and Paris?' }],
+      tools: [weatherTool],
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(reasoningLifecycle(chunks)).toEqual([
+      'reasoning start 0',
+      'reasoning message end 0',
+      'reasoning end 0',
+      'tool tool_1',
+      'reasoning start 1',
+      'reasoning message end 1',
+      'reasoning end 1',
+      'tool tool_2',
+    ])
+  })
+
+  it('ends each thinking block before the next text starts', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      (async function* () {
+        yield* thinkingBlockEvents(0, 'First thought.', 'sig-1')
+        yield* textBlockEvents(1, 'A')
+        yield* thinkingBlockEvents(2, 'Second thought.', 'sig-2')
+        yield* textBlockEvents(3, 'B')
+        yield {
+          type: 'message_delta',
+          delta: { stop_reason: 'end_turn' },
+          usage: { output_tokens: 10 },
+        }
+        yield { type: 'message_stop' }
+      })(),
+    )
+
+    const chunks: AdapterYieldChunk[] = []
+    for await (const chunk of chat({
+      adapter: createAdapter('claude-opus-4-1'),
+      messages: [{ role: 'user', content: 'Think twice.' }],
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(reasoningLifecycle(chunks)).toEqual([
+      'reasoning start 0',
+      'reasoning message end 0',
+      'reasoning end 0',
+      'text A',
+      'reasoning start 1',
+      'reasoning message end 1',
+      'reasoning end 1',
+      'text B',
+    ])
   })
 })
 

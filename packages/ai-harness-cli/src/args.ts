@@ -13,12 +13,14 @@ export interface CliArgs {
   token?: string
   thread: string
   dashboard?: string
+  mediaDir?: string
 }
 
 export const USAGE = `Usage: <your-cli> [options]
 
 With no options in a terminal, starts the UI of this CLI, if it has one.
 Otherwise, and for piped input, reads one message or command per line.
+In a message, @path sends a file with it (@"my cat.png" for a path with spaces).
 
 Options:
   -p, --print <prompt>   Run one prompt, print the answer, and exit
@@ -32,6 +34,7 @@ Options:
       --token <token>    Bearer token for --serve (default: HARNESS_TOKEN, or a new random token)
       --thread <id>      Conversation id (default: main)
       --dashboard <url>  Connect to a dashboard (pairs on first use; set HARNESS_DASHBOARD_TOKEN to skip)
+      --media-dir <dir>  Save the media a turn makes here (default: ./<harness name>-media)
   -h, --help             Show this help
 
 Exit codes for --print: 0 done, 1 failed, 2 waiting for approval, 130 cancelled.`
@@ -53,6 +56,7 @@ export function parseCliArgs(argv: ReadonlyArray<string>): CliArgs {
       token: { type: 'string' },
       thread: { type: 'string' },
       dashboard: { type: 'string' },
+      'media-dir': { type: 'string' },
     },
     strict: true,
   })
@@ -77,5 +81,8 @@ export function parseCliArgs(argv: ReadonlyArray<string>): CliArgs {
     ...(values.token !== undefined ? { token: values.token } : {}),
     thread: values.thread ?? 'main',
     ...(values.dashboard !== undefined ? { dashboard: values.dashboard } : {}),
+    ...(values['media-dir'] !== undefined
+      ? { mediaDir: values['media-dir'] }
+      : {}),
   }
 }

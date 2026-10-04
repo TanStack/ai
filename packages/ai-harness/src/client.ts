@@ -1,5 +1,7 @@
 // Browser-safe: this module has type-only imports from the rest of the
-// package, so no server code (adapters, stores, secrets) reaches a client.
+// package, plus `media-ref`, which has type-only imports itself. So no server
+// code (adapters, stores, secrets) reaches a client.
+import { isMediaRecord } from './media-ref'
 import type { ModelMessage, RunAgentResumeItem } from '@tanstack/ai'
 import type { AgentInputOf } from './agents'
 import type { AnyHarness, HarnessAgentsOf } from './define'
@@ -8,10 +10,20 @@ import type {
   BusyPolicy,
   Cursor,
   HarnessInput,
+  MediaRecord,
   Receipt,
   SessionEvent,
   UserInput,
 } from './types'
+
+export {
+  MEDIA_URL_PREFIX,
+  kindOf,
+  mediaIdOf,
+  mediaOfMessage,
+  mediaPart,
+} from './media-ref'
+export type { MediaKind, MediaRecord } from './types'
 
 export interface HarnessClientOptions {
   /** The base URL of `createHarnessHandler`, for example `/api/harness`. */
@@ -37,12 +49,22 @@ export type ClientAgentHandles<THarness> = {
 }
 
 export interface HarnessClient<THarness extends AnyHarness> {
+  /**
+   * Send a prompt. `inputId` is an id you choose: a retry with the same id
+   * and message gets the first receipt and does not run again.
+   */
   prompt: (
     message: UserInput,
-    options?: { busy?: BusyPolicy },
+    options?: { busy?: BusyPolicy; inputId?: string },
   ) => Promise<Receipt>
-  steer: (message: UserInput) => Promise<Receipt>
-  followUp: (message: UserInput) => Promise<Receipt>
+  steer: (
+    message: UserInput,
+    options?: { inputId?: string },
+  ) => Promise<Receipt>
+  followUp: (
+    message: UserInput,
+    options?: { inputId?: string },
+  ) => Promise<Receipt>
   resolve: (resume: Array<RunAgentResumeItem>) => Promise<Receipt>
   cancel: (operationId?: string) => Promise<Receipt>
   agents: ClientAgentHandles<THarness>
@@ -68,6 +90,36 @@ export interface HarnessClient<THarness extends AnyHarness> {
   transcript: () => Promise<Array<ModelMessage>>
   /** The commands, settings, and tools of the session. */
   describe: () => Promise<SessionDescription>
+  /**
+   * Store a file in the media store of the thread. Send the record in a
+   * prompt with `mediaPart(record)`. Throws when the handler refuses the
+   * file, for example `413` for a file over the size limit.
+   */
+  upload: (
+    body: Blob | ArrayBuffer | Uint8Array,
+    info: { name: string; mimeType: string },
+  ) => Promise<MediaRecord>
+  /**
+   * A signed URL for a media file, for `<img>`, `<audio>`, or `<video>`. It
+   * stops working at `expiresAt` (epoch milliseconds). Ask again for a new one.
+   */
+  mediaUrl: (id: string) => Promise<{ url?: string; expiresAt?: number }>
+  /** The bytes of a media file. */
+  loadMedia: (id: string) => Promise<Uint8Array>
+}
+
+// The answer of `GET media-url`: a signed path, relative to the base URL.
+function isSignedPath(
+  value: unknown,
+): value is { path: string; expiresAt: number } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'path' in value &&
+    typeof value.path === 'string' &&
+    'expiresAt' in value &&
+    typeof value.expiresAt === 'number'
+  )
 }
 
 /**
@@ -85,6 +137,18 @@ export function createHarnessClient<THarness extends AnyHarness>(
       ? options.headers()
       : (options.headers ?? {})
 
+  // The handler answers a refusal with `{ error }`. Any other body falls
+  // back to the status text.
+  const failure = (action: string, response: Response, body: unknown) => {
+    const message =
+      typeof body === 'object' && body !== null && 'error' in body
+        ? String(body.error)
+        : response.statusText
+    return new Error(
+      `Harness ${action} failed (${response.status}): ${message}`,
+    )
+  }
+
   const send = async (input: HarnessInput): Promise<Receipt> => {
     const response = await doFetch(`${base}/control`, {
       method: 'POST',
@@ -92,28 +156,62 @@ export function createHarnessClient<THarness extends AnyHarness>(
       body: JSON.stringify({ threadId: options.threadId, input }),
     })
     const body: unknown = await response.json()
-    if (!response.ok) {
-      const message =
-        typeof body === 'object' && body !== null && 'error' in body
-          ? String(body.error)
-          : response.statusText
-      throw new Error(`Harness request failed (${response.status}): ${message}`)
-    }
+    if (!response.ok) throw failure('request', response, body)
     // The handler answers /control with a Receipt.
     return body as Receipt
   }
 
-  const read = async <T>(route: string) => {
-    const query = new URLSearchParams({ threadId: options.threadId })
+  const get = async (route: string, params: Record<string, string> = {}) => {
+    const query = new URLSearchParams({ threadId: options.threadId, ...params })
     const response = await doFetch(`${base}/${route}?${query}`, {
       headers: headers(),
     })
     if (!response.ok)
       throw new Error(`Harness ${route} failed (${response.status})`)
+    return response
+  }
+
+  const read = async <T>(route: string) =>
     // Each GET route answers with the type of the `HarnessClient` member
     // that reads it. That member type sets `T`.
-    return (await response.json()) as T
+    (await (await get(route)).json()) as T
+
+  const upload = async (
+    body: Blob | ArrayBuffer | Uint8Array,
+    info: { name: string; mimeType: string },
+  ) => {
+    const query = new URLSearchParams({
+      threadId: options.threadId,
+      name: info.name,
+    })
+    const response = await doFetch(`${base}/media?${query}`, {
+      method: 'POST',
+      headers: { 'Content-Type': info.mimeType, ...headers() },
+      // fetch refuses a view on a SharedArrayBuffer. ponytail: a Uint8Array
+      // is copied once; skip the copy when `body.buffer` is an ArrayBuffer
+      // if big uploads from bytes (not a Blob or File) ever matter.
+      body: body instanceof Uint8Array ? body.slice() : body,
+    })
+    if (!response.ok) {
+      // A proxy can refuse a big upload with a page, not JSON.
+      const refusal: unknown = await response.json().catch(() => undefined)
+      throw failure('upload', response, refusal)
+    }
+    const stored: unknown = await response.json()
+    if (!isMediaRecord(stored))
+      throw new Error('Harness upload failed: the answer is not a media record')
+    return stored
   }
+
+  const mediaUrl = async (id: string) => {
+    const body: unknown = await (await get('media-url', { id })).json()
+    if (!isSignedPath(body))
+      throw new Error('Harness media-url failed: the answer has no signed path')
+    return { url: `${base}/${body.path}`, expiresAt: body.expiresAt }
+  }
+
+  const loadMedia = async (id: string) =>
+    new Uint8Array(await (await get('media', { id })).arrayBuffer())
 
   async function* events(
     eventOptions: {
@@ -207,9 +305,20 @@ export function createHarnessClient<THarness extends AnyHarness>(
         op: 'prompt',
         message,
         ...(promptOptions?.busy ? { busy: promptOptions.busy } : {}),
+        ...(promptOptions?.inputId ? { inputId: promptOptions.inputId } : {}),
       }),
-    steer: (message) => send({ op: 'steer', message }),
-    followUp: (message) => send({ op: 'followUp', message }),
+    steer: (message, steerOptions) =>
+      send({
+        op: 'steer',
+        message,
+        ...(steerOptions?.inputId ? { inputId: steerOptions.inputId } : {}),
+      }),
+    followUp: (message, followOptions) =>
+      send({
+        op: 'followUp',
+        message,
+        ...(followOptions?.inputId ? { inputId: followOptions.inputId } : {}),
+      }),
     resolve: (resume) => send({ op: 'resolve', resume }),
     cancel: (operationId) =>
       send({ op: 'cancel', ...(operationId ? { operationId } : {}) }),
@@ -221,5 +330,8 @@ export function createHarnessClient<THarness extends AnyHarness>(
     snapshot: () => read('snapshot'),
     transcript: () => read('transcript'),
     describe: () => read('describe'),
+    upload,
+    mediaUrl,
+    loadMedia,
   }
 }

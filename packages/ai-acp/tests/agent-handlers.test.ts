@@ -4,7 +4,7 @@ import { client, ndJsonStream } from '@agentclientprotocol/sdk/experimental/v2'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { createAcpAgent, serveAcp, toSessionUpdate } from '../src/agent'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type { AnyTextAdapter, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type {
   ClientApp,
   SessionUpdate,
@@ -38,8 +38,14 @@ function model(): AnyTextAdapter {
     structuredOutput: async () => ({ data: {}, rawText: '{}' }),
     chatStream: (options: any) =>
       (async function* (): AsyncGenerator<StreamChunk> {
-        const last = options.messages.at(-1)
-        const said = typeof last?.content === 'string' ? last.content : ''
+        const last: ModelMessage | undefined = options.messages.at(-1)
+        // A prompt with an image comes as parts: read its text parts.
+        const said =
+          typeof last?.content === 'string'
+            ? last.content
+            : (last?.content ?? [])
+                .map((part) => (part.type === 'text' ? part.content : ''))
+                .join('')
         yield {
           type: EventType.RUN_STARTED,
           runId: 'r',

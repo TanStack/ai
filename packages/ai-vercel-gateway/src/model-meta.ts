@@ -460,8 +460,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -472,8 +470,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -484,8 +480,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -496,20 +490,13 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'alibaba/qwen-3.6-max-preview': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'alibaba/qwen3-235b-a22b-thinking': VercelGatewayCommonOptions &
     Pick<
@@ -518,8 +505,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -565,8 +550,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -587,8 +570,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -609,8 +590,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -632,52 +611,27 @@ export type VercelGatewayChatModelProviderOptionsByName = {
   'alibaba/qwen3-vl-thinking': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'alibaba/qwen3.5-flash': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'alibaba/qwen3.5-plus': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'alibaba/qwen3.6-27b': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'alibaba/qwen3.6-plus': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'alibaba/qwen3.7-flash': VercelGatewayCommonOptions &
     Pick<
@@ -686,8 +640,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -698,20 +650,13 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'alibaba/qwen3.7-plus': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'alibaba/qwen3.8-2.4t-a95b': VercelGatewayCommonOptions &
     Pick<
@@ -720,8 +665,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -732,8 +675,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -744,8 +685,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -756,8 +695,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -768,8 +705,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -780,8 +715,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -792,8 +725,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -804,8 +735,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -855,8 +784,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -867,8 +794,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -879,20 +804,13 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'anthropic/claude-opus-4': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'anthropic/claude-opus-4.5': VercelGatewayCommonOptions &
     Pick<
@@ -901,8 +819,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -913,8 +829,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -925,8 +839,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -937,8 +849,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -949,8 +859,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -960,8 +868,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -971,8 +877,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -982,8 +886,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -993,8 +895,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1005,8 +905,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1017,8 +915,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1029,8 +925,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1040,8 +934,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1051,8 +943,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1063,40 +953,23 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'bytedance/seed-1.6': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'bytedance/seed-1.8': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'bytedance/seed-2.1-turbo': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'cohere/command-a': VercelGatewayCommonOptions &
     Pick<
@@ -1111,12 +984,7 @@ export type VercelGatewayChatModelProviderOptionsByName = {
   'deepseek/deepseek-r1': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'deepseek/deepseek-v3.1': VercelGatewayCommonOptions &
     Pick<
@@ -1125,8 +993,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1137,30 +1003,18 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'deepseek/deepseek-v3.2': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'deepseek/deepseek-v3.2-thinking': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'deepseek/deepseek-v4-flash': VercelGatewayCommonOptions &
     Pick<
@@ -1169,8 +1023,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1181,8 +1033,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1193,8 +1043,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1205,8 +1053,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1217,8 +1063,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1229,20 +1073,13 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'fireworks/ember-1': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'fish-audio/s1': VercelGatewayCommonOptions
   'fish-audio/s2-pro': VercelGatewayCommonOptions
@@ -1255,20 +1092,13 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'google/gemini-2.5-flash-image': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'google/gemini-2.5-flash-lite': VercelGatewayCommonOptions &
     Pick<
@@ -1277,8 +1107,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1289,8 +1117,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1301,8 +1127,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1313,8 +1137,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1325,8 +1147,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1337,8 +1157,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1349,20 +1167,13 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'google/gemini-3.1-flash-lite-image': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'google/gemini-3.1-pro-preview': VercelGatewayCommonOptions &
     Pick<
@@ -1371,8 +1182,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1383,8 +1192,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1395,8 +1202,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1409,8 +1214,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1421,8 +1224,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1433,8 +1234,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1443,22 +1242,12 @@ export type VercelGatewayChatModelProviderOptionsByName = {
   'google/gemini-3.8-live': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'google/gemini-3.8-live-extended-thinking': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'google/gemini-omni-flash-preview': VercelGatewayCommonOptions &
     Pick<
@@ -1467,8 +1256,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1479,8 +1266,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1491,8 +1276,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1503,8 +1286,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1515,8 +1296,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1533,12 +1312,7 @@ export type VercelGatewayChatModelProviderOptionsByName = {
   'inclusionai/ling-3.0-flash': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'inclusionai/ling-3.0-flash-fin': VercelGatewayCommonOptions &
     Pick<
@@ -1547,60 +1321,33 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'inclusionai/ling-3.0-flash-sante': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'inclusionai/ling-3.0-flash-sante-free': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'inclusionai/ling-3.0-flash-vl': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'inclusionai/ling-3.1-flash': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'inclusionai/ling-3.1-flash-free': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'inference-net/schematron-v2-small': VercelGatewayCommonOptions &
     Pick<
@@ -1629,8 +1376,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1642,8 +1387,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1654,8 +1397,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1666,20 +1407,13 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'meta/llama-3.3-70b': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'meta/llama-4-maverick': VercelGatewayCommonOptions &
     Pick<
@@ -1688,8 +1422,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1700,8 +1432,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1712,8 +1442,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1724,8 +1452,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1736,8 +1462,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1748,8 +1472,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1760,8 +1482,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1772,8 +1492,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1784,8 +1502,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1796,8 +1512,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1808,8 +1522,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1820,8 +1532,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1832,8 +1542,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1844,8 +1552,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1856,8 +1562,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1868,8 +1572,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1925,8 +1627,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1972,8 +1672,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1984,8 +1682,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -1996,8 +1692,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2008,8 +1702,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2020,8 +1712,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2031,8 +1721,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2042,8 +1730,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2068,12 +1754,7 @@ export type VercelGatewayChatModelProviderOptionsByName = {
   'nvidia/nemotron-3-nano-30b-a3b': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'nvidia/nemotron-3-super-120b-a12b': VercelGatewayCommonOptions &
     Pick<
@@ -2082,8 +1763,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2094,8 +1773,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2106,8 +1783,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2118,20 +1793,13 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'nvidia/nemotron-nano-9b-v2': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'openai/gpt-3.5-turbo': VercelGatewayCommonOptions &
     Pick<
@@ -2251,8 +1919,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2262,8 +1928,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2273,8 +1937,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2284,8 +1946,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2295,8 +1955,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2306,20 +1964,13 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'openai/gpt-5-pro': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'openai/gpt-5.1-codex': VercelGatewayCommonOptions &
     Pick<
@@ -2328,8 +1979,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2340,8 +1989,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2352,8 +1999,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2364,8 +2009,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2376,8 +2019,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2388,8 +2029,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2400,8 +2039,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2412,8 +2049,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2424,8 +2059,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2436,8 +2069,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2448,8 +2079,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2460,8 +2089,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2472,8 +2099,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2484,8 +2109,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2496,8 +2119,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2508,8 +2129,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2520,8 +2139,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2532,8 +2149,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2543,8 +2158,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2555,8 +2168,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2567,8 +2178,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2578,8 +2187,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2590,8 +2197,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2601,8 +2206,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2613,8 +2216,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2624,8 +2225,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2635,8 +2234,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2646,8 +2243,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2658,8 +2253,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2670,8 +2263,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2682,8 +2273,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2694,8 +2283,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2706,8 +2293,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2718,8 +2303,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2735,8 +2318,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2747,8 +2328,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2759,8 +2338,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2771,8 +2348,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2784,22 +2359,12 @@ export type VercelGatewayChatModelProviderOptionsByName = {
   'openai/gpt-realtime-2': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'openai/gpt-realtime-2.1': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'openai/gpt-realtime-mini': VercelGatewayCommonOptions &
     Pick<
@@ -2813,8 +2378,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2824,8 +2387,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2835,8 +2396,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2846,8 +2405,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2858,8 +2415,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2869,8 +2424,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2880,8 +2433,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_tokens'
       | 'max_output_tokens'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2895,50 +2446,28 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'poolside/laguna-s-2.1': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'poolside/laguna-s-2.1-free': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'quiverai/arrow-2': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'quiverai/arrow-2-telos': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'sakana/fugu-max': VercelGatewayCommonOptions &
     Pick<
@@ -2947,8 +2476,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2959,8 +2486,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2971,8 +2496,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2983,8 +2506,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -2995,8 +2516,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3007,8 +2526,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3019,8 +2536,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3031,8 +2546,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3043,8 +2556,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3055,8 +2566,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3067,8 +2576,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3079,8 +2586,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3091,8 +2596,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3103,8 +2606,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3115,8 +2616,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3127,8 +2626,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3139,8 +2636,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3149,42 +2644,22 @@ export type VercelGatewayChatModelProviderOptionsByName = {
   'spacexai/grok-voice-think-fast-1.0': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'spacexai/grok-voice-think-fast-2.0': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'stealth/pixel-canary': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'stepfun/step-3.5-flash': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'stepfun/step-3.7-flash': VercelGatewayCommonOptions &
     Pick<
@@ -3193,8 +2668,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3205,8 +2678,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3242,20 +2713,13 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'tencent/hy4-preview': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'thinkingmachines/inkling': VercelGatewayCommonOptions &
     Pick<
@@ -3264,8 +2728,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3276,8 +2738,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3289,8 +2749,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3301,8 +2759,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3313,8 +2769,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3325,8 +2779,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3337,8 +2789,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3349,8 +2799,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3361,8 +2809,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3373,8 +2819,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3385,8 +2829,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3397,8 +2839,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3409,20 +2849,13 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'zai/glm-4.7-flashx': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'zai/glm-5': VercelGatewayCommonOptions &
     Pick<
@@ -3431,20 +2864,13 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
   'zai/glm-5-turbo': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
+      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
   'zai/glm-5.1': VercelGatewayCommonOptions &
     Pick<
@@ -3453,8 +2879,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3465,8 +2889,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3477,8 +2899,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3489,8 +2909,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3501,8 +2919,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3513,8 +2929,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3525,8 +2939,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >
@@ -3537,8 +2949,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'max_output_tokens'
       | 'temperature'
       | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
       | 'response_format'
       | 'structured_outputs'
     >

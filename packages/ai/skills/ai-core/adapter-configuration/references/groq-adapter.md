@@ -47,8 +47,7 @@ chat({
   adapter: groqText('llama-3.3-70b-versatile'),
   messages,
   modelOptions: {
-    // Reasoning
-    reasoning_effort: 'medium', // 'none' | 'default' | 'low' | 'medium' | 'high'
+    // How reasoning text comes back
     reasoning_format: 'parsed', // 'hidden' | 'raw' | 'parsed' (mutually exclusive with include_reasoning)
     include_reasoning: true, // mutually exclusive with reasoning_format
     // Response format
@@ -96,9 +95,9 @@ GROQ_API_KEY
 
 ## Gotchas
 
-- `reasoning_effort` and `reasoning_format` behave differently per model:
-  - qwen3 models: `'none'` disables reasoning, `'default'` or null enables it
-  - openai/gpt-oss models: `'low'`, `'medium'` (default), or `'high'`
+- Set the effort with `chat({ reasoning })` on a reasoning model; it goes out
+  as `reasoning_effort`. qwen3 only turns thinking on (`high`) or off (`off`),
+  and openai/gpt-oss takes `low`, `medium`, or `high`.
 - `include_reasoning` and `reasoning_format` are mutually exclusive.
 - Most models have `max_completion_tokens` of 8K-65K, not unlimited.
 - Groq specializes in inference speed; model selection is more limited

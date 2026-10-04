@@ -358,18 +358,71 @@ const stream = chat({
 
 ### Reasoning
 
-Enable reasoning for models that support it (e.g., GPT-5, O3). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
+Set how hard a reasoning model (GPT-5 and later, the o-series) thinks with `reasoning` on `chat()`:
 
-```typescript ignore
-modelOptions: {
-  reasoning: {
-    effort: "medium", // "none" | "minimal" | "low" | "medium" | "high"
-    summary: "detailed", // "auto" | "detailed" (optional)
-  },
-}
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.5"),
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  reasoning: "high",
+});
 ```
 
-When reasoning is enabled, the model's reasoning process is streamed separately from the response text and appears as a collapsible thinking section in the UI.
+The adapter sends the level as `reasoning.effort`, with `summary: "auto"` so the reasoning summary streams back as thinking parts. Pass `reasoning: { level: "high", summary: false }` to skip the summary. The types list only the levels the model has. See [Reasoning](../chat/reasoning).
+
+### Prompt caching
+
+`chat()` sends `prompt_cache_key` by default, set to the `threadId` that you pass. OpenAI uses the key to send requests with the same start to the same cache. With `promptCache: 'long'`, `chat()` also asks for the long retention. See [Prompt Caching](../advanced/prompt-caching).
+
+To use your own key, set it in `modelOptions`. Your value wins over the automatic one:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-6.1-sol"),
+  messages: [{ role: "user", content: "Hello!" }],
+  modelOptions: {
+    prompt_cache_key: "acme-support",
+  },
+});
+```
+
+`modelOptions.prompt_cache_retention` also wins over the automatic `prompt_cache_retention`.
+
+#### Tools and prompts added during a conversation
+
+On some models, a tool or a system prompt that you add between model calls goes into the conversation, not into `tools` or `instructions`. The start of the request stays the same, so OpenAI can read it from its prompt cache. The `prompt_cache_key` above does not change.
+
+The models: `gpt-5.4-mini`, `gpt-5.5`, `gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-6-astra`, `gpt-6-luna`, and `gpt-6-sol`. Other models, such as `gpt-6.1-sol`, always send the full lists.
+
+What the adapter sends on these models:
+
+- `tools` and `instructions` keep the tools and the system prompts of the first call.
+- An added tool goes into `input` as `{ type: "additional_tools", role: "developer", tools: [...] }`.
+- A system prompt that you add at the end of the list goes into `input` as a `developer` message, at its place in the conversation.
+- With a provider tool such as `webSearchTool()` in the first call or in a change, `tools` is the full list for that request.
+
+The channels are on by default with OpenAI's own API. With a custom `baseURL` or `fetch`, or a proxy in the `OPENAI_BASE_URL` environment variable, they are off, and every call sends the full lists. Set `midConversationChannels` to choose:
+
+- `false`: send the full lists on every call.
+- `true`: use the channels with a custom `baseURL`, `fetch`, or `OPENAI_BASE_URL`. Set it only when that endpoint sends the request to OpenAI as it is.
+
+```typescript
+import { openaiText } from "@tanstack/ai-openai";
+
+const fullLists = openaiText("gpt-6-astra", { midConversationChannels: false });
+const throughProxy = openaiText("gpt-6-astra", {
+  baseURL: "https://llm-proxy.example.com/v1",
+  midConversationChannels: true,
+});
+```
+
+See [Mid-Conversation Changes](../advanced/mid-conversation-changes) for how the library finds the changes.
 
 ## Summarization
 

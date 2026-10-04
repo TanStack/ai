@@ -73,7 +73,7 @@ const stream = chat({
 | `cwd`                  | Working directory for the harness session. Defaults to `process.cwd()`.                                                                       |
 | `sandboxMode`          | Codex sandbox: `'read-only'`, `'workspace-write'`, or `'danger-full-access'`. Default is `'workspace-write'` on local-process and Docker. Default is `'danger-full-access'` on Daytona and Cloudflare, because those providers cannot create a nested bubblewrap namespace. Isolation is then the outer VM plus `defineSandboxPolicy`. |
 | `approvalPolicy`       | Codex approval policy. Defaults to `'never'` — headless runs have no approval UI, so anything else can stall a turn.                           |
-| `modelReasoningEffort` | `'minimal'` \| `'low'` \| `'medium'` \| `'high'` \| `'xhigh'`.                                                                                 |
+| `modelReasoningEffort` | The default effort when a call sets no `reasoning`: `'minimal'` \| `'low'` \| `'medium'` \| `'high'`.                                  |
 | `skipGitRepoCheck`     | Skip the harness's git-repo safety check. Defaults to `true` (server adapters routinely point at scratch directories).                         |
 | `networkAccessEnabled` | Allow network access inside the `workspace-write` sandbox.                                                                                     |
 | `webSearchMode`        | `'disabled'` \| `'cached'` \| `'live'`.                                                                                                        |
@@ -86,8 +86,9 @@ const stream = chat({
 | `config`               | Extra `--config key=value` overrides passed to the Codex CLI (e.g. additional `mcp_servers` entries).                                          |
 
 Per-call overrides go through `modelOptions`: `sessionId`, `sandboxMode`,
-`approvalPolicy`, `modelReasoningEffort`, `workingDirectory`,
-`skipGitRepoCheck`, and `authMode`.
+`approvalPolicy`, `workingDirectory`, `skipGitRepoCheck`, and `authMode`.
+Set the effort per call with `reasoning` on `chat()`; the adapter sends it as
+`model_reasoning_effort`.
 
 ## Stateful Sessions
 

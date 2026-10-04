@@ -1,12 +1,14 @@
 import { OpenRouter } from '@openrouter/sdk'
 import {
   EventType,
+  buildBaseUsage,
   isFileSource,
   normalizeSystemPrompts,
   unsupportedFileSourceError,
 } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  resolveReasoning,
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
@@ -15,6 +17,9 @@ import { extractRequestOptions } from '../internal/request-options'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertFunctionToolToResponsesFormat } from '../internal/responses-tool-converter'
+import { OPENROUTER_MODEL_INPUT_MODALITIES } from '../model-meta'
+import { OPENROUTER_MODEL_REASONING } from '../model-reasoning'
+import { openRouterEffort } from '../internal/reasoning'
 import { isWebSearchTool } from '../tools/web-search-tool'
 import { isWebFetchTool } from '../tools/web-fetch-tool'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
@@ -26,8 +31,10 @@ import type {
   InputsUnion,
   OpenResponsesResult,
   OutputItems,
+  ReasoningEffort,
   ResponsesRequest,
   StreamEvents,
+  Usage,
 } from '@openrouter/sdk/models'
 import type {
   StructuredOutputOptions,
@@ -41,6 +48,7 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
+import type { OpenRouterModelReasoningByName } from '../model-reasoning'
 import type {
   OPENROUTER_CHAT_MODELS,
   OpenRouterChatModelToolCapabilitiesByName,
@@ -74,6 +82,12 @@ export type OpenRouterResponsesTextModels =
   (typeof OPENROUTER_CHAT_MODELS)[number]
 export type OpenRouterResponsesTextProviderOptions =
   ExternalResponsesProviderOptions
+
+/** The reasoning levels of a model, for `chat({ reasoning })`. `never`: none. */
+type ResolveReasoning<TModel extends string> =
+  TModel extends keyof OpenRouterModelReasoningByName
+    ? OpenRouterModelReasoningByName[TModel]
+    : never
 
 type ResolveInputModalities<TModel extends string> =
   TModel extends keyof OpenRouterModelInputModalitiesByName
@@ -112,10 +126,14 @@ export class OpenRouterResponsesTextAdapter<
   ResolveInputModalities<TModel>,
   OpenRouterMessageMetadataByModality,
   TToolCapabilities,
-  OpenRouterResponsesToolCallMetadata
+  OpenRouterResponsesToolCallMetadata,
+  never,
+  ResolveReasoning<TModel>
 > {
   override readonly kind = 'text' as const
   readonly name = 'openrouter-responses' as const
+  override readonly inputModalities =
+    OPENROUTER_MODEL_INPUT_MODALITIES[this.model]
 
   protected orClient: OpenRouter
 
@@ -269,10 +287,8 @@ export class OpenRouterResponsesTextAdapter<
       // OpenRouter override: pass nulls through unchanged.
       const transformed = this.transformStructuredOutput(parsed)
 
-      // Responses API reports usage as inputTokens/outputTokens (not the
-      // chat-completions promptTokens/completionTokens shape). Map to
-      // TokenUsage and attach OpenRouter cost when present — same contract
-      // as structuredOutputStream / processStreamChunks. Cost-only usage
+      // Same TokenUsage contract as structuredOutputStream /
+      // processStreamChunks (see buildResponsesUsage). Cost-only usage
       // (finite cost, no token fields) still forwards with zeroed tokens.
       const usage = response.usage
       const cost = extractUsageCost(usage)
@@ -285,14 +301,7 @@ export class OpenRouterResponsesTextAdapter<
       return {
         data: transformed,
         rawText,
-        ...(hasUsage && {
-          usage: {
-            promptTokens: usage.inputTokens ?? 0,
-            completionTokens: usage.outputTokens ?? 0,
-            totalTokens: usage.totalTokens ?? 0,
-            ...cost,
-          },
-        }),
+        ...(hasUsage && { usage: buildResponsesUsage(usage) }),
       }
     } catch (error: unknown) {
       chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
@@ -342,13 +351,7 @@ export class OpenRouterResponsesTextAdapter<
     let stepId: string | undefined
     let hasClosedReasoning = false
     let model: string = chatOptions.model
-    let usage:
-      | {
-          inputTokens?: number
-          outputTokens?: number
-          totalTokens?: number
-        }
-      | undefined
+    let usage: Usage | undefined
     let responseCompleted = false
 
     const closeReasoning = function* (this: {
@@ -679,14 +682,7 @@ export class OpenRouterResponsesTextAdapter<
         model,
         timestamp: Date.now(),
         finishReason: 'stop',
-        ...(usage && {
-          usage: {
-            promptTokens: usage.inputTokens ?? 0,
-            completionTokens: usage.outputTokens ?? 0,
-            totalTokens: usage.totalTokens ?? 0,
-            ...extractUsageCost(usage),
-          },
-        }),
+        ...(usage && { usage: buildResponsesUsage(usage) }),
       }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
@@ -1589,12 +1585,7 @@ export class OpenRouterResponsesTextAdapter<
             threadId: aguiState.threadId,
             model: model || options.model,
             timestamp: Date.now(),
-            usage: {
-              promptTokens: responseObj.usage?.inputTokens || 0,
-              completionTokens: responseObj.usage?.outputTokens || 0,
-              totalTokens: responseObj.usage?.totalTokens || 0,
-              ...extractUsageCost(responseObj.usage),
-            },
+            usage: buildResponsesUsage(responseObj.usage ?? {}),
             finishReason,
           }
           runFinishedEmitted = true
@@ -1727,6 +1718,15 @@ export class OpenRouterResponsesTextAdapter<
           )
         : undefined
 
+    // `chat({ reasoning })`: the effort, a summary so the thinking text
+    // streams back, and the token budget when the request sets one.
+    // `ReasoningEffort` is an open enum, so a newer value still goes out.
+    const resolved = resolveReasoning(
+      options.reasoning,
+      OPENROUTER_MODEL_REASONING[this.model],
+    )
+    const effort = openRouterEffort(resolved)
+
     const built: Pick<
       ResponsesRequest,
       | 'model'
@@ -1740,6 +1740,7 @@ export class OpenRouterResponsesTextAdapter<
       | 'toolChoice'
       | 'parallelToolCalls'
       | 'text'
+      | 'reasoning'
     > = {
       ...modelOptions,
       model: options.model + variantSuffix,
@@ -1757,6 +1758,18 @@ export class OpenRouterResponsesTextAdapter<
       ...(tools &&
         tools.length > 0 && {
           tools,
+        }),
+      ...(resolved &&
+        effort && {
+          reasoning: {
+            effort: effort as ReasoningEffort,
+            ...(resolved.summary && resolved.level !== 'off'
+              ? { summary: 'auto' as const }
+              : {}),
+            ...(resolved.budgetTokens !== undefined
+              ? { maxTokens: resolved.budgetTokens }
+              : {}),
+          },
         }),
       ...(combinedSchema && {
         // Merge onto any caller-supplied `text` (spread above via
@@ -2080,11 +2093,19 @@ function camelCaseResponseShape(
   }
   if (src.usage && typeof src.usage === 'object') {
     const u = src.usage as Record<string, unknown>
+    const inputDetails = u.input_tokens_details
+    const hasRawCachedTokens =
+      typeof inputDetails === 'object' &&
+      inputDetails !== null &&
+      'cached_tokens' in inputDetails
     out.usage = {
       ...u,
       ...('input_tokens' in u && { inputTokens: u.input_tokens }),
       ...('output_tokens' in u && { outputTokens: u.output_tokens }),
       ...('total_tokens' in u && { totalTokens: u.total_tokens }),
+      ...(hasRawCachedTokens && {
+        inputTokensDetails: { cachedTokens: inputDetails.cached_tokens },
+      }),
     }
   }
   if (Array.isArray(src.output)) {
@@ -2104,6 +2125,23 @@ function camelCaseOutputItem(
   const out: Record<string, unknown> = { ...src }
   if ('call_id' in src) out.callId = src.call_id
   return out
+}
+
+/**
+ * Map Responses API usage to TokenUsage, plus OpenRouter cost when present.
+ * `inputTokens` already includes cached tokens, so promptTokens stays the
+ * full input count. The fields are optional because the raw (UNKNOWN) stream
+ * fallback can leave them out.
+ */
+function buildResponsesUsage(usage: Partial<Usage>) {
+  const result = buildBaseUsage({
+    promptTokens: usage.inputTokens ?? 0,
+    completionTokens: usage.outputTokens ?? 0,
+    totalTokens: usage.totalTokens ?? 0,
+  })
+  const cachedTokens = usage.inputTokensDetails?.cachedTokens ?? 0
+  if (cachedTokens > 0) result.promptTokensDetails = { cachedTokens }
+  return { ...result, ...extractUsageCost(usage) }
 }
 
 /** Normalize an `error.code` to the string slot our RUN_ERROR event reads. */

@@ -33,10 +33,17 @@ describe('Gemini per-model chat modelOptions gating', () => {
           responseLogprobs: false,
           cachedContent: 'cachedContents/abc',
           responseMimeType: 'application/json',
-          thinkingConfig: {
-            includeThoughts: true,
-            thinkingBudget: 1024,
-          },
+        },
+      })
+    })
+
+    it('rejects thinkingConfig in modelOptions (chat({ reasoning }) owns it)', () => {
+      chat({
+        adapter: geminiText('gemini-3.1-pro-preview'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          // @ts-expect-error - thinking is set with `reasoning`
+          thinkingConfig: { includeThoughts: true },
         },
       })
     })
@@ -53,21 +60,7 @@ describe('Gemini per-model chat modelOptions gating', () => {
     })
   })
 
-  describe('gemini-3.1-flash-lite-preview — thinking (basic) + structured output, NO advanced thinking', () => {
-    it('accepts basic thinkingConfig (includeThoughts + thinkingBudget)', () => {
-      chat({
-        adapter: geminiText('gemini-3.1-flash-lite-preview'),
-        messages: [{ role: 'user', content: 'hi' }],
-        modelOptions: {
-          thinkingConfig: {
-            includeThoughts: true,
-            thinkingBudget: 512,
-          },
-          responseMimeType: 'application/json',
-        },
-      })
-    })
-
+  describe('gemini-3.1-flash-lite-preview — structured output', () => {
     it('accepts structured-output schema', () => {
       chat({
         adapter: geminiText('gemini-3.1-flash-lite-preview'),
@@ -79,8 +72,8 @@ describe('Gemini per-model chat modelOptions gating', () => {
     })
   })
 
-  describe('gemini-3.1-flash-lite — stable id, thinking + structured output', () => {
-    it('accepts base + thinking + structured-output options', () => {
+  describe('gemini-3.1-flash-lite — stable id, structured output', () => {
+    it('accepts base + structured-output options', () => {
       chat({
         adapter: geminiText('gemini-3.1-flash-lite'),
         messages: [{ role: 'user', content: 'hi' }],
@@ -89,10 +82,6 @@ describe('Gemini per-model chat modelOptions gating', () => {
           topK: 5,
           cachedContent: 'cachedContents/abc',
           responseMimeType: 'application/json',
-          thinkingConfig: {
-            includeThoughts: true,
-            thinkingBudget: 512,
-          },
         },
       })
     })
@@ -107,6 +96,41 @@ describe('Gemini per-model chat modelOptions gating', () => {
           // @ts-expect-error - cachedContent must use the `cachedContents/{name}` template
           cachedContent: 'not-a-cached-content-handle',
         },
+      })
+    })
+  })
+
+  describe('reasoning gating', () => {
+    it('Gemini 3 models take their thinking levels, with no budget', () => {
+      chat({
+        adapter: geminiText('gemini-3.1-pro-preview'),
+        messages: [{ role: 'user', content: 'hi' }],
+        reasoning: 'high',
+      })
+      chat({
+        adapter: geminiText('gemini-3.1-pro-preview'),
+        messages: [{ role: 'user', content: 'hi' }],
+        // @ts-expect-error - gemini-3.1-pro-preview has no minimal level
+        reasoning: 'minimal',
+      })
+      chat({
+        adapter: geminiText('gemini-3.1-pro-preview'),
+        messages: [{ role: 'user', content: 'hi' }],
+        // @ts-expect-error - gemini-3.1-pro-preview takes no token budget
+        reasoning: { level: 'low', budgetTokens: 1024 },
+      })
+    })
+
+    it('Gemini 2.5 models take off and a token budget', () => {
+      chat({
+        adapter: geminiText('gemini-2.5-pro'),
+        messages: [{ role: 'user', content: 'hi' }],
+        reasoning: { level: 'medium', budgetTokens: 4096 },
+      })
+      chat({
+        adapter: geminiText('gemini-2.5-flash'),
+        messages: [{ role: 'user', content: 'hi' }],
+        reasoning: 'off',
       })
     })
   })
@@ -129,12 +153,12 @@ describe('Gemini per-model chat modelOptions gating', () => {
 })
 
 describe('Gemini provider options shape assertions', () => {
-  describe('gemini-3.1-pro-preview — full feature set with thinking', () => {
+  describe('gemini-3.1-pro-preview — full feature set', () => {
     type Options =
       GeminiChatModelProviderOptionsByName['gemini-3.1-pro-preview']
 
-    it('has thinkingConfig', () => {
-      expectTypeOf<Options>().toHaveProperty('thinkingConfig')
+    it('has no thinkingConfig', () => {
+      expectTypeOf<Options>().not.toHaveProperty('thinkingConfig')
     })
     it('has responseMimeType (structured output)', () => {
       expectTypeOf<Options>().toHaveProperty('responseMimeType')
@@ -153,12 +177,12 @@ describe('Gemini provider options shape assertions', () => {
     })
   })
 
-  describe('gemini-3.1-flash-lite-preview — basic thinking only', () => {
+  describe('gemini-3.1-flash-lite-preview — structured output', () => {
     type Options =
       GeminiChatModelProviderOptionsByName['gemini-3.1-flash-lite-preview']
 
-    it('has thinkingConfig', () => {
-      expectTypeOf<Options>().toHaveProperty('thinkingConfig')
+    it('has no thinkingConfig', () => {
+      expectTypeOf<Options>().not.toHaveProperty('thinkingConfig')
     })
     it('has responseMimeType', () => {
       expectTypeOf<Options>().toHaveProperty('responseMimeType')
@@ -168,8 +192,8 @@ describe('Gemini provider options shape assertions', () => {
   describe('gemini-3.1-flash-lite — stable id mirrors the preview feature set', () => {
     type Options = GeminiChatModelProviderOptionsByName['gemini-3.1-flash-lite']
 
-    it('has thinkingConfig', () => {
-      expectTypeOf<Options>().toHaveProperty('thinkingConfig')
+    it('has no thinkingConfig', () => {
+      expectTypeOf<Options>().not.toHaveProperty('thinkingConfig')
     })
     it('has responseMimeType (structured output)', () => {
       expectTypeOf<Options>().toHaveProperty('responseMimeType')
