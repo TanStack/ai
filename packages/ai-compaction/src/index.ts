@@ -20,6 +20,12 @@ import {
 } from '@tanstack/ai'
 import { compactionRecord } from './record'
 import {
+  readSummary,
+  splitDetails,
+  summaryBody,
+  summaryContent,
+} from './summarizer'
+import {
   USAGE_NAMESPACE,
   countFromUsage,
   hashMessages,
@@ -33,9 +39,12 @@ import type {
   ModelMessage,
   TokenUsage,
 } from '@tanstack/ai'
+import type { SummarizeInput, Summarizer } from './summarizer'
 
 export { COMPACTION_RECORD_TYPE, projectCompaction } from './record'
 export type { CompactionRecord } from './record'
+export { conversationSummarizer } from './summarizer'
+export type { SummarizeInput, Summarizer } from './summarizer'
 
 /** CUSTOM stream event: compaction is about to run. */
 export const COMPACTION_STARTED_EVENT = 'compaction:started'
@@ -257,6 +266,8 @@ export interface CompactionContext {
   estimate: (message: ModelMessage) => number
   /** Report the usage of a model call the strategy made, for example a summary. */
   addUsage: (usage: TokenUsage) => void
+  /** Aborted when the run is cancelled. Pass it to a model call. */
+  signal?: AbortSignal
 }
 
 /**
@@ -423,38 +434,130 @@ export function evictOldest(
 }
 
 /**
+ * The start of the turn that holds index `cut`: its user message. When no
+ * user message comes after an earlier summary at index 0, the turn started
+ * before the summary. Then the cut is not a split turn: it returns `cut`, and
+ * one update call merges the messages into the summary.
+ */
+function turnStart(messages: ReadonlyArray<ModelMessage>, cut: number) {
+  let start = cut
+  // The walk stops at index 0 also when the summary has the role 'user'.
+  while (start > 0 && messages[start]?.role !== 'user') start -= 1
+  return start === 0 && readSummary(messages[0]) ? cut : start
+}
+
+/**
  * Drop the oldest messages and replace them with an LLM summary. Keeps the gist
  * of old turns at the cost of one summarization call. Wire `summarize` to
- * `summarize()` or any model call.
+ * {@link conversationSummarizer}, `summarize()`, or any model call.
+ *
+ * When the messages start with an earlier summary, `summarize` gets its text
+ * as `previousSummary`, so it can merge the new messages into it.
  */
 export function summarizeOldest(options: {
   /** Returns the summary text, or the text and the usage of its model call. */
-  summarize: (
-    messages: Array<ModelMessage>,
-  ) => Promise<string | { summary: string; usage?: TokenUsage }>
+  summarize: Summarizer
   /** Tokens of recent messages to keep verbatim. Default `floor(maxTokens/2)`. */
   keepRecentTokens?: number
   /** Role of the injected summary message. Default `'assistant'`. */
   summaryRole?: 'user' | 'assistant'
+  /**
+   * `'turn'`: when the kept tail starts inside a turn, summarize the history
+   * before the turn and the first part of the turn, in two parallel calls.
+   * When the user message of the turn comes right after an earlier summary,
+   * only the second call runs. When no user message comes after an earlier
+   * summary, the turn started before it: one update call runs, as with
+   * `'message'`. Default `'message'`.
+   */
+  cut?: 'message' | 'turn'
 }): CompactionStrategy {
   const strategy: CompactionStrategy = async (messages, ctx) => {
     const keep = options.keepRecentTokens ?? Math.floor(ctx.maxTokens / 2)
     const cut = splitAtRecent(messages, ctx.estimate, keep)
     if (cut <= 0) return null
-    const result = await options.summarize(messages.slice(0, cut))
-    if (typeof result !== 'string' && result.usage) ctx.addUsage(result.usage)
-    const summary = typeof result === 'string' ? result : result.summary
+    // Follows the signal of the run. When one call fails, it aborts the other
+    // call, so that call stops and adds no usage after the end event.
+    const controller = new AbortController()
+    const stop = () => controller.abort(ctx.signal?.reason)
+    if (ctx.signal?.aborted) stop()
+    ctx.signal?.addEventListener('abort', stop, { once: true })
+    const summarize = async (
+      part: Array<ModelMessage>,
+      input: SummarizeInput,
+    ) => {
+      try {
+        const result = await options.summarize(part, {
+          ...input,
+          signal: controller.signal,
+        })
+        if (typeof result === 'string') return result
+        if (result.usage) ctx.addUsage(result.usage)
+        return result.summary
+      } catch (error) {
+        controller.abort(error)
+        throw error
+      }
+    }
+    const earlier = readSummary(messages[0])
+    const start =
+      options.cut === 'turn' && messages[cut]?.role !== 'user'
+        ? turnStart(messages, cut)
+        : cut
+    const prefix = messages.slice(start, cut)
+    // With a turn prefix, an earlier summary right before the turn is the
+    // whole history. Keep its text, and make no history call.
+    const historyCall =
+      start > 0 && !(earlier && start === 1 && prefix.length > 0)
+    const previousDetails =
+      earlier?.details !== undefined ? { previousDetails: earlier.details } : {}
+    const [history, turn] = await Promise.all([
+      historyCall
+        ? summarize(messages.slice(0, start), {
+            ...(earlier ? { previousSummary: earlier.summary } : {}),
+            ...previousDetails,
+            ...(prefix.length > 0 ? { turnPrefixMessages: prefix } : {}),
+          })
+        : undefined,
+      prefix.length > 0
+        ? summarize(prefix, {
+            turnPrefix: true,
+            // With no history call, this call writes the details.
+            ...(historyCall
+              ? {}
+              : { turnPrefixMessages: prefix, ...previousDetails }),
+          })
+        : undefined,
+    ]).finally(() => ctx.signal?.removeEventListener('abort', stop))
+    let historyText = history
+    let turnText = turn
+    if (!historyCall && turn !== undefined) {
+      // The details of the turn-prefix call go with the history, before the
+      // turn context. When the call gives details, they replace the details
+      // of the earlier summary. Otherwise the earlier details stay.
+      const split = splitDetails(turn)
+      historyText = summaryBody(
+        earlier?.summary ?? '',
+        split.details ?? earlier?.details,
+      )
+      turnText = split.summary
+    }
+    const body = [
+      historyText,
+      turnText === undefined ? undefined : `## Turn context\n\n${turnText}`,
+    ]
+      .filter((part) => part !== undefined && part !== '')
+      .join('\n\n')
     return [
       {
         role: options.summaryRole ?? 'assistant',
-        content: `<untrusted-conversation-summary>\n${summary}\n</untrusted-conversation-summary>`,
+        content: summaryContent(body),
       },
       ...messages.slice(cut),
     ]
   }
   return identifyStrategy(
     strategy,
-    `summarize-oldest:${options.keepRecentTokens ?? 'half'}:${options.summaryRole ?? 'assistant'}`,
+    `summarize-oldest:${options.keepRecentTokens ?? 'half'}:${options.summaryRole ?? 'assistant'}${options.cut === 'turn' ? ':turn' : ''}`,
   )
 }
 
@@ -631,6 +734,7 @@ export function withCompaction(
       next = await strategy(messages, {
         maxTokens: options.maxTokens,
         estimate,
+        signal: ctx.signal,
         addUsage: (usage) => {
           spent.usage = sumUsage(spent.usage, usage)
         },
@@ -776,6 +880,7 @@ export function withCompaction(
         next = await strategy(workingMessages, {
           maxTokens: options.maxTokens,
           estimate,
+          signal: ctx.signal,
           addUsage: (usage) => {
             spent.usage = sumUsage(spent.usage, usage)
           },

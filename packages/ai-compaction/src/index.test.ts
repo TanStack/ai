@@ -6,6 +6,7 @@ import type {
   MetadataStore,
   ModelMessage,
   SummarizationResult,
+  TextOptions,
   TokenUsage,
   ToolCall,
 } from '@tanstack/ai'
@@ -14,6 +15,7 @@ import {
   provideLogRecords,
   provideMetadata,
 } from '@tanstack/ai'
+import { fakeText } from '@tanstack/ai/testing'
 import {
   COMPACTION_ENDED_EVENT,
   COMPACTION_RECORD_TYPE,
@@ -21,6 +23,7 @@ import {
   COMPACTION_STATE_EVENT,
   clearToolResults,
   composeStrategies,
+  conversationSummarizer,
   estimateMessageTokens,
   evictOldest,
   projectCompaction,
@@ -32,6 +35,8 @@ import type {
   CompactionInfo,
   CompactionMiddleware,
   CompactionStrategy,
+  SummarizeInput,
+  Summarizer,
 } from './index'
 
 interface RecordedCustom {
@@ -1755,6 +1760,34 @@ describe('after-turn check', () => {
     expect(appended).toEqual([])
   })
 
+  it('passes the abort signal of the run to the summary call', async () => {
+    const appended: Array<unknown> = []
+    const run = new AbortController()
+    const reason = new Error('stop')
+    let seen: unknown
+    const mw = withCompaction({
+      maxTokens: 1000,
+      contextWindow: 100,
+      countTokens: 'usage',
+      durable: true,
+      strategy: summarizeOldest({
+        summarize: async (_messages, input) => {
+          run.abort(reason)
+          seen = input.signal?.reason
+          return 'the gist'
+        },
+        keepRecentTokens: 50,
+      }),
+    })
+    const { ctx } = durableContext(appended)
+    ctx.signal = run.signal
+    await finishTurn(mw, ctx, 110)
+
+    expect(seen).toBe(reason)
+    // The run was aborted, so there is no record.
+    expect(appended).toEqual([])
+  })
+
   it('adds no onFinish hook without both durable: true and countTokens: usage', () => {
     expect(
       withCompaction({ maxTokens: 100, durable: true }).onFinish,
@@ -1766,5 +1799,553 @@ describe('after-turn check', () => {
         countTokens: 'usage',
       }).onFinish,
     ).toBeUndefined()
+  })
+})
+
+describe('summarizeOldest merge and turn cut', () => {
+  it('passes the earlier summary and its details to the callback', async () => {
+    const summarize = vi.fn<Summarizer>(async () => 'new summary')
+    const earlier: ModelMessage = {
+      role: 'assistant',
+      content:
+        '<untrusted-conversation-summary>\nold facts\n\n<compaction-details>\nfiles: a.ts\n</compaction-details>\n</untrusted-conversation-summary>',
+    }
+    const mw = withCompaction({
+      maxTokens: 100,
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+    })
+    const messages = [
+      earlier,
+      big('user'),
+      big('assistant'),
+      big('user'),
+      big('assistant'),
+    ]
+    await runOnConfig(mw, messages)
+
+    expect(summarize).toHaveBeenCalledOnce()
+    // The messages are the same as before, so an old callback still works.
+    expect(summarize.mock.calls[0]?.[0]).toEqual(messages.slice(0, 4))
+    expect(summarize.mock.calls[0]?.[1]).toMatchObject({
+      previousSummary: 'old facts',
+      previousDetails: 'files: a.ts',
+    })
+  })
+
+  it('reads the details back on the next compaction', async () => {
+    const seen: Array<SummarizeInput> = []
+    const summarize: Summarizer = async (_messages, input) => {
+      seen.push(input)
+      return 'gist\n\n<compaction-details>\nfiles: a.ts\n</compaction-details>'
+    }
+    const mw = withCompaction({
+      maxTokens: 100,
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+    })
+    const first = await runOnConfig(mw, [
+      big('user'),
+      big('assistant'),
+      big('user'),
+      big('assistant'),
+    ])
+    const compacted = first?.providerMessages ?? []
+    await runOnConfig(mw, [...compacted, big('user'), big('assistant')])
+
+    expect(seen[0]?.previousSummary).toBeUndefined()
+    expect(seen[1]).toMatchObject({
+      previousSummary: 'gist',
+      previousDetails: 'files: a.ts',
+    })
+  })
+
+  it('passes the abort signal of the run to the callback', async () => {
+    const controller = new AbortController()
+    const reason = new Error('stop')
+    let seen: unknown
+    const summarize = vi.fn<Summarizer>(async (_messages, input) => {
+      controller.abort(reason)
+      seen = input.signal?.reason
+      return 'the gist'
+    })
+    const mw = withCompaction({
+      maxTokens: 100,
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+    })
+    await runOnConfig(
+      mw,
+      [big('user'), big('assistant'), big('user'), big('assistant')],
+      recordingContext('beforeModel', { signal: controller.signal }).ctx,
+    )
+    expect(seen).toBe(reason)
+  })
+
+  it('adds :turn to the strategy key with cut: turn', async () => {
+    const keyOf = async (cut?: 'turn') => {
+      const mw = withCompaction({
+        maxTokens: 100,
+        strategy: summarizeOldest({
+          summarize: async () => 'the gist',
+          keepRecentTokens: 50,
+          cut,
+        }),
+      })
+      const { ctx, events } = recordingContext('beforeModel')
+      await runOnConfig(
+        mw,
+        [big('user'), big('assistant'), big('user'), big('assistant')],
+        ctx,
+      )
+      return events[0]?.value.strategyKey
+    }
+    expect(await keyOf()).toBe('summarize-oldest:50:assistant:maxTokens=100')
+    expect(await keyOf('turn')).toBe(
+      'summarize-oldest:50:assistant:turn:maxTokens=100',
+    )
+  })
+
+  it('summarizes a split turn in two parallel calls with cut: turn', async () => {
+    const seen: Array<{
+      messages: Array<ModelMessage>
+      input: SummarizeInput
+    }> = []
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const summarize: Summarizer = async (messages, input) => {
+      seen.push({ messages, input })
+      await gate
+      return input.turnPrefix ? 'prefix gist' : 'history gist'
+    }
+    const mw = withCompaction({
+      maxTokens: 100,
+      strategy: summarizeOldest({
+        summarize,
+        keepRecentTokens: 50,
+        cut: 'turn',
+      }),
+    })
+    const lastAnswer = big('assistant')
+    // The kept tail starts at the last answer, inside the turn of 'new task'.
+    const messages: Array<ModelMessage> = [
+      text('user', 'old question'),
+      text('assistant', 'old answer'),
+      text('user', 'new task'),
+      { role: 'assistant', content: 'x'.repeat(160), toolCalls: [call] },
+      { role: 'tool', content: 'x'.repeat(160), toolCallId: 't1' },
+      lastAnswer,
+    ]
+    const pending = runOnConfig(mw, messages)
+    // Both calls start before either one ends.
+    await vi.waitFor(() => expect(seen).toHaveLength(2))
+    release()
+    const result = await pending
+
+    expect(seen.map((item) => item.input.turnPrefix ?? false)).toEqual([
+      false,
+      true,
+    ])
+    expect(seen[0]?.messages.map((message) => message.content)).toEqual([
+      'old question',
+      'old answer',
+    ])
+    expect(seen[1]?.messages.map((message) => message.role)).toEqual([
+      'user',
+      'assistant',
+      'tool',
+    ])
+    expect(result?.providerMessages).toEqual([
+      {
+        role: 'assistant',
+        content:
+          '<untrusted-conversation-summary>\nhistory gist\n\n## Turn context\n\nprefix gist\n</untrusted-conversation-summary>',
+      },
+      lastAnswer,
+    ])
+  })
+
+  it('makes only the turn-prefix call when the turn starts right after the earlier summary', async () => {
+    const summarize = vi.fn<Summarizer>(async () => 'prefix gist')
+    const mw = withCompaction({
+      maxTokens: 100,
+      strategy: summarizeOldest({
+        summarize,
+        keepRecentTokens: 50,
+        cut: 'turn',
+      }),
+    })
+    const lastAnswer = big('assistant')
+    // The user message of the turn comes right after the summary.
+    const result = await runOnConfig(mw, [
+      {
+        role: 'assistant',
+        content:
+          '<untrusted-conversation-summary>\nold facts\n\n<compaction-details>\nfiles: a.ts\n</compaction-details>\n</untrusted-conversation-summary>',
+      },
+      text('user', 'new task'),
+      { role: 'assistant', content: 'x'.repeat(160), toolCalls: [call] },
+      { role: 'tool', content: 'x'.repeat(160), toolCallId: 't1' },
+      lastAnswer,
+    ])
+
+    expect(summarize).toHaveBeenCalledOnce()
+    expect(summarize.mock.calls[0]?.[1].turnPrefix).toBe(true)
+    expect(result?.providerMessages).toEqual([
+      {
+        role: 'assistant',
+        content:
+          '<untrusted-conversation-summary>\nold facts\n\n<compaction-details>\nfiles: a.ts\n</compaction-details>\n\n## Turn context\n\nprefix gist\n</untrusted-conversation-summary>',
+      },
+      lastAnswer,
+    ])
+  })
+
+  it.each(['assistant', 'user'] as const)(
+    'merges with one update call when no user message comes after the earlier summary (summary role %s)',
+    async (role) => {
+      const summarize = vi.fn<Summarizer>(async () => 'new gist')
+      const mw = withCompaction({
+        maxTokens: 100,
+        strategy: summarizeOldest({
+          summarize,
+          keepRecentTokens: 50,
+          summaryRole: role,
+          cut: 'turn',
+        }),
+      })
+      // One long agent turn: it started before the earlier summary.
+      const result = await runOnConfig(mw, [
+        { ...summaryOf('old facts'), role },
+        { role: 'assistant', content: 'x'.repeat(160), toolCalls: [call] },
+        { role: 'tool', content: 'x'.repeat(160), toolCallId: 't1' },
+        { role: 'assistant', content: 'x'.repeat(160), toolCalls: [call] },
+        { role: 'tool', content: 'x'.repeat(160), toolCallId: 't1' },
+        big('assistant'),
+      ])
+
+      expect(summarize).toHaveBeenCalledOnce()
+      expect(summarize.mock.calls[0]?.[1]).toMatchObject({
+        previousSummary: 'old facts',
+      })
+      expect(summarize.mock.calls[0]?.[1].turnPrefix).toBeUndefined()
+      expect(result?.providerMessages?.[0]?.content).toBe(
+        '<untrusted-conversation-summary>\nnew gist\n</untrusted-conversation-summary>',
+      )
+    },
+  )
+
+  it('aborts the other call when one call fails', async () => {
+    let prefixSignal: AbortSignal | undefined
+    const summarize: Summarizer = async (_messages, input) => {
+      if (!input.turnPrefix) throw new Error('history failed')
+      prefixSignal = input.signal
+      // Ends when the signal aborts, so no promise stays open.
+      await new Promise((resolve) => {
+        input.signal?.addEventListener('abort', resolve)
+      })
+      return 'prefix gist'
+    }
+    const mw = withCompaction({
+      maxTokens: 100,
+      strategy: summarizeOldest({
+        summarize,
+        keepRecentTokens: 50,
+        cut: 'turn',
+      }),
+    })
+    await expect(
+      runOnConfig(mw, [
+        text('user', 'old question'),
+        text('assistant', 'old answer'),
+        text('user', 'new task'),
+        { role: 'assistant', content: 'x'.repeat(160), toolCalls: [call] },
+        { role: 'tool', content: 'x'.repeat(160), toolCallId: 't1' },
+        big('assistant'),
+      ]),
+    ).rejects.toThrow('history failed')
+    expect(prefixSignal?.aborted).toBe(true)
+  })
+
+  it('does not split a turn when the cut is at a user message', async () => {
+    const summarize = vi.fn<Summarizer>(async () => 'the gist')
+    const mw = withCompaction({
+      maxTokens: 100,
+      strategy: summarizeOldest({
+        summarize,
+        keepRecentTokens: 50,
+        cut: 'turn',
+      }),
+    })
+    await runOnConfig(mw, [
+      big('assistant'),
+      big('user'),
+      big('assistant'),
+      big('user'),
+    ])
+    expect(summarize).toHaveBeenCalledOnce()
+    expect(summarize.mock.calls[0]?.[1].turnPrefix).toBeUndefined()
+  })
+})
+
+describe('conversationSummarizer', () => {
+  /** A fake model that answers `the summary` twice and keeps each request. */
+  function fakeSummaryModel() {
+    const requests: Array<TextOptions> = []
+    const fake = fakeText()
+    const answer = ({ request }: { request: TextOptions }) => {
+      requests.push(request)
+      return { text: 'the summary' }
+    }
+    // Two answers: a split turn makes a history call and a turn-prefix call.
+    fake.setResponses([answer, answer])
+    return { fake, requests }
+  }
+  type Details = (input: {
+    messages: Array<ModelMessage>
+    previousDetails?: string
+  }) => string | undefined
+  /** summarizeOldest with cut: turn and conversationSummarizer. */
+  const turnCut = (fake: ReturnType<typeof fakeText>, details: Details) =>
+    withCompaction({
+      maxTokens: 100,
+      strategy: summarizeOldest({
+        summarize: conversationSummarizer({ adapter: fake, details }),
+        keepRecentTokens: 50,
+        cut: 'turn',
+      }),
+    })
+  const toolTurn = (): Array<ModelMessage> => [
+    { role: 'assistant', content: 'x'.repeat(160), toolCalls: [call] },
+    { role: 'tool', content: 'x'.repeat(160), toolCallId: 't1' },
+  ]
+  const systemOf = (request: TextOptions | undefined) =>
+    JSON.stringify(request?.systemPrompts)
+  const userOf = (request: TextOptions | undefined) =>
+    JSON.stringify(request?.messages)
+
+  it('asks with the checkpoint sections and reports the usage', async () => {
+    const { fake, requests } = fakeSummaryModel()
+    const result = await conversationSummarizer({ adapter: fake })(
+      [text('user', 'fix the bug'), text('assistant', 'done')],
+      {},
+    )
+
+    expect(result).toEqual({
+      summary: 'the summary',
+      usage: expect.objectContaining({
+        promptTokens: expect.any(Number),
+        completionTokens: 3,
+      }),
+    })
+    for (const heading of [
+      '## Goal',
+      '## Constraints',
+      '## Progress',
+      '## Key decisions',
+      '## Next steps',
+      '## Critical context',
+    ]) {
+      expect(systemOf(requests[0])).toContain(heading)
+    }
+    expect(userOf(requests[0])).toContain('[User]: fix the bug')
+    expect(userOf(requests[0])).toContain('[Assistant]: done')
+  })
+
+  it('uses the update prompt and leaves the earlier summary out of the conversation', async () => {
+    const { fake, requests } = fakeSummaryModel()
+    const earlier: ModelMessage = {
+      role: 'assistant',
+      content:
+        '<untrusted-conversation-summary>\nold facts\n</untrusted-conversation-summary>',
+    }
+    await conversationSummarizer({ adapter: fake })(
+      [earlier, text('user', 'new step')],
+      { previousSummary: 'old facts' },
+    )
+
+    expect(systemOf(requests[0])).toContain('You update a checkpoint summary')
+    const content = userOf(requests[0])
+    expect(content).toContain(
+      '<previous-summary>\\nold facts\\n</previous-summary>',
+    )
+    expect(content.match(/old facts/g)).toHaveLength(1)
+    expect(content).toContain('[User]: new step')
+  })
+
+  it('uses the turn-prefix prompt for the first part of a turn', async () => {
+    const { fake, requests } = fakeSummaryModel()
+    await conversationSummarizer({ adapter: fake })(
+      [text('user', 'new task')],
+      { turnPrefix: true },
+    )
+    expect(systemOf(requests[0])).toContain(
+      'the first part of the current turn',
+    )
+  })
+
+  it('cuts each tool result to 2,000 characters, or to maxToolResultChars', async () => {
+    const tool: ModelMessage = {
+      role: 'tool',
+      content: 'y'.repeat(5000),
+      toolCallId: 't1',
+    }
+    const first = fakeSummaryModel()
+    await conversationSummarizer({ adapter: first.fake })([tool], {})
+    expect(userOf(first.requests[0])).toContain('y'.repeat(2000))
+    expect(userOf(first.requests[0])).not.toContain('y'.repeat(2001))
+
+    const second = fakeSummaryModel()
+    await conversationSummarizer({
+      adapter: second.fake,
+      maxToolResultChars: 10,
+    })([tool], {})
+    expect(userOf(second.requests[0])).toContain('y'.repeat(10))
+    expect(userOf(second.requests[0])).not.toContain('y'.repeat(11))
+  })
+
+  it('adds the details tag only when details returns text', async () => {
+    const withDetails = fakeSummaryModel()
+    const details = vi.fn(
+      ({ previousDetails }: { previousDetails?: string }) =>
+        previousDetails ? `${previousDetails}, b.ts` : 'a.ts',
+    )
+    const result = await conversationSummarizer({
+      adapter: withDetails.fake,
+      details,
+    })([text('user', 'edit b.ts')], {
+      previousSummary: 'old',
+      previousDetails: 'a.ts',
+    })
+    expect(result).toMatchObject({
+      summary:
+        'the summary\n\n<compaction-details>\na.ts, b.ts\n</compaction-details>',
+    })
+
+    const without = fakeSummaryModel()
+    const plain = await conversationSummarizer({
+      adapter: without.fake,
+      details: () => undefined,
+    })([text('user', 'hi')], {})
+    expect(plain).toMatchObject({ summary: 'the summary' })
+  })
+
+  it('gives details the new messages without the earlier summary', async () => {
+    const { fake } = fakeSummaryModel()
+    const details = vi.fn<Details>(() => undefined)
+    await conversationSummarizer({ adapter: fake, details })(
+      [summaryOf('old facts'), text('user', 'new step')],
+      { previousSummary: 'old facts' },
+    )
+    expect(details).toHaveBeenCalledWith({
+      messages: [text('user', 'new step')],
+    })
+  })
+
+  it('gives details the history and the turn prefix, and keeps the prefix out of the history prompt', async () => {
+    const { fake, requests } = fakeSummaryModel()
+    const details = vi.fn<Details>(() => 'files: a.ts')
+    const prefix = [text('user', 'new task'), ...toolTurn()]
+    const result = await runOnConfig(turnCut(fake, details), [
+      summaryOf('old facts'),
+      text('user', 'old question'),
+      text('assistant', 'old answer'),
+      ...prefix,
+      big('assistant'),
+    ])
+
+    expect(details).toHaveBeenCalledOnce()
+    expect(details.mock.calls[0]?.[0].messages).toEqual([
+      text('user', 'old question'),
+      text('assistant', 'old answer'),
+      ...prefix,
+    ])
+    const history = requests.find((request) =>
+      systemOf(request).includes('You update a checkpoint summary'),
+    )
+    expect(userOf(history)).toContain('[User]: old question')
+    expect(userOf(history)).not.toContain('new task')
+    expect(result?.providerMessages?.[0]?.content).toBe(
+      '<untrusted-conversation-summary>\nthe summary\n\n<compaction-details>\nfiles: a.ts\n</compaction-details>\n\n## Turn context\n\nthe summary\n</untrusted-conversation-summary>',
+    )
+  })
+
+  it('writes the details in the turn-prefix call when no history call runs', async () => {
+    const { fake, requests } = fakeSummaryModel()
+    const details = vi.fn<Details>(() => 'files: a.ts')
+    // The first compaction of one long turn: the turn starts at index 0.
+    const prefix = [text('user', 'new task'), ...toolTurn()]
+    const result = await runOnConfig(turnCut(fake, details), [
+      ...prefix,
+      big('assistant'),
+    ])
+
+    expect(requests).toHaveLength(1)
+    expect(details.mock.calls).toEqual([[{ messages: prefix }]])
+    expect(result?.providerMessages?.[0]?.content).toBe(
+      '<untrusted-conversation-summary>\n<compaction-details>\nfiles: a.ts\n</compaction-details>\n\n## Turn context\n\nthe summary\n</untrusted-conversation-summary>',
+    )
+  })
+
+  it('replaces the details of the earlier summary when the turn starts right after it', async () => {
+    const { fake, requests } = fakeSummaryModel()
+    const details = vi.fn<Details>(
+      ({ previousDetails }) => `${previousDetails}, b.ts`,
+    )
+    const prefix = [text('user', 'new task'), ...toolTurn()]
+    const result = await runOnConfig(turnCut(fake, details), [
+      {
+        role: 'assistant',
+        content:
+          '<untrusted-conversation-summary>\nold facts\n\n<compaction-details>\na.ts\n</compaction-details>\n</untrusted-conversation-summary>',
+      },
+      ...prefix,
+      big('assistant'),
+    ])
+
+    expect(requests).toHaveLength(1)
+    expect(details.mock.calls).toEqual([
+      [{ messages: prefix, previousDetails: 'a.ts' }],
+    ])
+    // One details tag, with the merged text of the hook.
+    expect(result?.providerMessages?.[0]?.content).toBe(
+      '<untrusted-conversation-summary>\nold facts\n\n<compaction-details>\na.ts, b.ts\n</compaction-details>\n\n## Turn context\n\nthe summary\n</untrusted-conversation-summary>',
+    )
+  })
+
+  it('follows the abort signal of the run', async () => {
+    // Already aborted: it throws the reason and makes no model request.
+    const early = fakeSummaryModel()
+    await expect(
+      conversationSummarizer({ adapter: early.fake })([text('user', 'hi')], {
+        signal: AbortSignal.abort(new Error('stop')),
+      }),
+    ).rejects.toThrow('stop')
+    expect(early.requests).toEqual([])
+
+    // A reason that is not an Error: it throws its own error.
+    await expect(
+      conversationSummarizer({ adapter: early.fake })([text('user', 'hi')], {
+        signal: AbortSignal.abort('stop'),
+      }),
+    ).rejects.toThrow('The summary was aborted.')
+
+    // Aborted during the call: the signal of the model request is aborted.
+    // chat() gives the adapter `request.signal`, not `abortController`.
+    const controller = new AbortController()
+    const late = fakeText()
+    let requestSignal: AbortSignal | null | undefined
+    late.setResponses([
+      ({ request }) => {
+        controller.abort(new Error('stop'))
+        requestSignal = request.request?.signal
+        return { text: 'the summary' }
+      },
+    ])
+    await expect(
+      conversationSummarizer({ adapter: late })([text('user', 'hi')], {
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow('stop')
+    expect(requestSignal?.aborted).toBe(true)
   })
 })
