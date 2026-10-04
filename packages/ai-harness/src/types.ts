@@ -91,10 +91,10 @@ export interface SessionEvent {
  * again. The same id with another payload is rejected with `'conflict'`.
  */
 export type HarnessInput = (
-  // `systemPreamble` prepends per-run system/developer messages (e.g. pod memory)
-  // ahead of the harness's own system prompts — additive; the agent author does
-  // nothing, the trigger attaches them.
-  | {
+// `systemPreamble` prepends per-run system/developer messages (e.g. pod memory)
+// ahead of the harness's own system prompts — additive; the agent author does
+// nothing, the trigger attaches them.
+| {
       op: 'prompt'
       message: UserInput
       busy?: BusyPolicy
