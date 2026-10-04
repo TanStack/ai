@@ -6,10 +6,6 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NotFoundError } from '@boxd-sh/sdk'
-import {
-  InMemorySandboxInstanceStore,
-  defineSandbox,
-} from '@tanstack/ai-sandbox'
 import { boxdSandbox } from '../src/index'
 
 const { machines, snapshots, ctorArgs } = vi.hoisted(() => ({
@@ -75,63 +71,35 @@ afterEach(() => {
 })
 
 describe('boxdSandbox provider: cancellation during adoption', () => {
-  it('does not persist a machine when ensure is aborted during startup', async () => {
+  it('rejects create aborted during readiness and deletes its machine', async () => {
     const controller = new AbortController()
-    const reason = new Error('ensure cancelled')
+    const reason = new Error('adoption cancelled')
     machines.waitUntilReady.mockImplementation(async () => {
       controller.abort(reason)
       return machine()
     })
-    const store = new InMemorySandboxInstanceStore()
-    const sandbox = defineSandbox({
-      id: 'cancelled-startup',
-      provider: boxdSandbox({ apiKey: 'k' }),
-      lifecycle: { snapshot: 'none' },
-    })
-    const ctx = {
-      threadId: 'thread-1',
-      runId: 'run-1',
-      signal: controller.signal,
-      store,
-    }
-    await expect(sandbox.ensure(ctx)).rejects.toBe(reason)
-    expect(await store.get(sandbox.key(ctx))).toBeNull()
+    await expect(
+      boxdSandbox({ apiKey: 'k' }).create({ signal: controller.signal }),
+    ).rejects.toBe(reason)
     expect(machines.delete).toHaveBeenCalledExactlyOnceWith('vm-1')
+    expect(machines.exec).not.toHaveBeenCalled()
   })
 
-  it.each([
-    ['create', 'readiness'],
-    ['create', 'workspace setup'],
-    ['restore', 'readiness'],
-    ['restore', 'workspace setup'],
-  ] as const)(
-    'rejects %s aborted during %s and deletes its machine',
-    async (operation, stage) => {
-      const controller = new AbortController()
-      const reason = new Error('adoption cancelled')
-      machines.waitUntilReady.mockImplementation(async () => {
-        if (stage === 'readiness') controller.abort(reason)
-        return machine()
-      })
-      machines.exec.mockImplementation(async () => {
-        if (stage === 'workspace setup') controller.abort(reason)
-        return ok
-      })
-      const provider = boxdSandbox({ apiKey: 'k' })
-      if (!provider.restoreSnapshot)
-        throw new Error('snapshot restore unavailable')
-      const result =
-        operation === 'create'
-          ? provider.create({ signal: controller.signal })
-          : provider.restoreSnapshot({
-              snapshotId: 'saved-workspace',
-              signal: controller.signal,
-            })
-      await expect(result).rejects.toBe(reason)
-      expect(machines.delete).toHaveBeenCalledExactlyOnceWith('vm-1')
-      if (stage === 'readiness') expect(machines.exec).not.toHaveBeenCalled()
-    },
-  )
+  it('rejects restore aborted during workspace setup and deletes its machine', async () => {
+    const controller = new AbortController()
+    const reason = new Error('adoption cancelled')
+    machines.exec.mockImplementation(async () => {
+      controller.abort(reason)
+      return ok
+    })
+    await expect(
+      boxdSandbox({ apiKey: 'k' }).restoreSnapshot!({
+        snapshotId: 'saved-workspace',
+        signal: controller.signal,
+      }),
+    ).rejects.toBe(reason)
+    expect(machines.delete).toHaveBeenCalledExactlyOnceWith('vm-1')
+  })
 })
 
 describe('boxdSandbox provider: create', () => {

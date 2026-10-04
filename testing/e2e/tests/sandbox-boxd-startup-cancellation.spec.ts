@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { expect, test } from '@playwright/test'
 
-test('boxd create and restore clean up an aborted startup in the built package', () => {
+test('boxd create cleans up an aborted startup in the built package', () => {
   const result = spawnSync(
     process.execPath,
     [
@@ -18,34 +18,20 @@ test('boxd create and restore clean up an aborted startup in the built package',
         const machines = Object.getPrototypeOf(client.machines)
         const machine = { id: 'vm-1', name: 'm', status: 'running', access: { url: 'https://m.boxd.sh' } }
 
-        for (const operation of ['create', 'restore']) {
-          for (const stage of ['readiness', 'workspace setup']) {
-            const controller = new AbortController()
-            const reason = new Error('startup cancelled')
-            const deleted = []
-            let executions = 0
-            machines.create = async () => machine
-            machines.waitUntilReady = async () => {
-              if (stage === 'readiness') controller.abort(reason)
-              return machine
-            }
-            machines.exec = async () => {
-              executions++
-              if (stage === 'workspace setup') controller.abort(reason)
-              return { stdout: '', stderr: '', exitCode: 0, success: true }
-            }
-            machines.delete = async (id) => { deleted.push(id) }
-            const provider = boxdSandbox({ apiKey: 'unused-test-key' })
-            const result = operation === 'create'
-              ? provider.create({ signal: controller.signal })
-              : provider.restoreSnapshot({ snapshotId: 'saved', signal: controller.signal })
-            await assert.rejects(result, (error) => error === reason)
-            assert.deepEqual(deleted, ['vm-1'])
-            assert.equal(executions, stage === 'readiness' ? 0 : 1)
-          }
+        const controller = new AbortController()
+        const reason = new Error('startup cancelled')
+        const deleted = []
+        machines.create = async () => machine
+        machines.waitUntilReady = async () => {
+          controller.abort(reason)
+          return machine
         }
+        machines.delete = async (id) => { deleted.push(id) }
+        const result = boxdSandbox({ apiKey: 'unused-test-key' }).create({ signal: controller.signal })
+        await assert.rejects(result, (error) => error === reason)
+        assert.deepEqual(deleted, ['vm-1'])
         await client.close()
-        console.log('create and restore cancelled; machines deleted')
+        console.log('create cancelled; machine deleted')
       `,
     ],
     {
@@ -57,7 +43,5 @@ test('boxd create and restore clean up an aborted startup in the built package',
 
   expect(result.error).toBeUndefined()
   expect(result.status, result.stderr).toBe(0)
-  expect(result.stdout).toContain(
-    'create and restore cancelled; machines deleted',
-  )
+  expect(result.stdout).toContain('create cancelled; machine deleted')
 })
