@@ -180,9 +180,6 @@ describe('OpenRouter adapter option mapping', () => {
   })
 
   it('sends function tools with strict: false and the schema as authored', async () => {
-    // OpenRouter serves OpenAI models through the upstream Responses API. An
-    // omitted `strict` there makes the provider force every optional field,
-    // so the adapter has to send `strict: false` explicitly.
     setupMockSdkClient([
       {
         id: 'chatcmpl-strict',

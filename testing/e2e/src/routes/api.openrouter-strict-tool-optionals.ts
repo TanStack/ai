@@ -147,10 +147,9 @@ function makeResponsesTextStream(): ReadableStream<Uint8Array> {
 
 /**
  * Drives both OpenRouter text adapters with a tool that has an optional
- * field. Chat Completions must send `strict: false`: OpenRouter serves OpenAI
- * models through the upstream Responses API, where an omitted `strict` forces
- * every optional field. The Responses adapter sends a strict, null-widened
- * schema and must strip the synthesized `null` before the tool runs.
+ * field. Chat Completions must send `strict: false`. The Responses adapter
+ * sends a strict, null-widened schema and must strip the synthesized `null`
+ * before the tool runs.
  */
 export const Route = createFileRoute('/api/openrouter-strict-tool-optionals')({
   server: {

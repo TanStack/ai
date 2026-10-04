@@ -52,10 +52,9 @@ export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
       name: tool.name,
       description: tool.description,
       parameters: inputSchema,
-      // The schema is sent as authored, so say so. OpenRouter serves OpenAI
-      // models through the upstream Responses API, where an omitted `strict`
-      // makes the provider normalize the schema to strict mode: every optional
-      // field becomes required and the model can no longer omit it.
+      // Sent explicitly for every model. Observed behaviour (#1542): with
+      // `strict` omitted, OpenAI models through OpenRouter treat the schema as
+      // strict, so every optional field becomes required.
       strict: false,
     },
     // Only present when supplied — additive and non-breaking.
