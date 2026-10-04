@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { EventType, toolDefinition } from '@tanstack/ai'
+import { EventType, getLogRecords, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, durableTool } from '../src'
 import { INTERRUPTED_TOOL_RESULT } from '../src/resume'
@@ -264,6 +264,64 @@ describe('host records of a tool batch', () => {
     expect(await recordsOf(persistence, 'app.state_write')).toEqual([])
     await first.host.close().catch(() => {})
     await next.host.close().catch(() => {})
+  })
+
+  it('keeps them staged when a middleware appends records in the batch', async () => {
+    const persistence = durablePersistence()
+    const appended = gate()
+    const audited = gate()
+    const note = durableTool(
+      noteDefinition,
+      async (_args, { append, abortSignal }) => {
+        append([{ type: 'app.state_write', name: 'x', value: 1 }])
+        appended.open()
+        // Still runs when the middleware appends.
+        return untilAborted(abortSignal)
+      },
+    )
+    const quick = toolDefinition({
+      name: 'quick',
+      description: 'Answer at once',
+    }).server(async () => {
+      await appended.opened
+      return 'ok'
+    })
+    // Appends a record when `quick` ends, while `note` still runs.
+    const audit: AnyChatMiddleware = {
+      name: 'test:audit',
+      onAfterToolCall: async (ctx, info) => {
+        if (info.toolCallId !== 'call-quick') return
+        await getLogRecords(ctx).append([{ type: 'app.audit' }])
+        audited.open()
+      },
+    }
+    const { adapter } = mockAdapter([
+      () =>
+        toolCalls([
+          { id: 'call-note', name: 'note' },
+          { id: 'call-quick', name: 'quick' },
+        ]),
+    ])
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/durable-tools-audit',
+        adapter,
+        tools: [note, quick],
+        middleware: [audit],
+      }),
+      { threadId: THREAD },
+    )
+    const turn = session.prompt('note and check', { inputId: 'audit-1' })
+    await audited.opened
+
+    expect(await recordsOf(persistence, 'app.audit')).toEqual([
+      { type: 'app.audit' },
+    ])
+    // The batch did not complete, so the staged record is not in the log.
+    expect(await recordsOf(persistence, 'app.state_write')).toEqual([])
+    await host.close().catch(() => {})
+    await Promise.resolve(turn).catch(() => {})
   })
 })
 

@@ -45,7 +45,6 @@ import type {
   AnyTextAdapter,
   AnyTool,
   Interrupt,
-  LogRecordsWriter,
   Modality,
   ModelMessage,
   PromptCacheOptions,
@@ -1681,22 +1680,24 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * On a durable host, each turn's chat run gets `LogRecordsCapability`. A
    * middleware, for example a durable compaction, appends host records with
    * it. They land in the log at once and fold, with the checks of
-   * `session.append`. Agent runs do not get it: a child writes to its own
-   * thread.
+   * `session.append`. The engine's new messages go in the same append, so a
+   * record that counts the tool results of the last phase lands after them.
+   * Agent runs do not get it: a child writes to its own thread.
    */
   private logRecords(): AnyChatMiddleware | undefined {
-    const { writer } = this
-    if (!writer) return undefined
-    const records: LogRecordsWriter = {
-      append: async (list) => {
-        checkHostRecords(list)
-        await writer.append(list)
-      },
-    }
+    const { engine } = this
+    if (!engine) return undefined
     return {
       name: 'harness:log-records',
       provides: [LogRecordsCapability],
-      setup: (ctx) => provideLogRecords(ctx, records),
+      setup: (ctx) =>
+        provideLogRecords(ctx, {
+          append: async (records) => {
+            checkHostRecords(records)
+            // The engine's live list, read at the time of the append.
+            await engine.appendRecords(ctx.messages, records)
+          },
+        }),
     }
   }
 

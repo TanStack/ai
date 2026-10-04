@@ -34,6 +34,16 @@ const project: ProjectOptions = {
         ...messages.slice(record.firstKept),
       ]
     }
+    // Like a durable compaction: `head` replaces the messages before `from`.
+    // A fold that does not have `from` messages yet skips it.
+    if (
+      record.type === 'app.compact-head' &&
+      Array.isArray(record.head) &&
+      typeof record.from === 'number' &&
+      record.from <= messages.length
+    ) {
+      return [...record.head, ...messages.slice(record.from)]
+    }
     return undefined
   },
 }
@@ -568,6 +578,35 @@ describe('LogRecordsCapability', () => {
     await host.close()
   })
 
+  it('keeps the saved reply when a record lands from onFinish', async () => {
+    const persistence = durablePersistence()
+    const { adapter } = mockAdapter([() => text('a1')])
+    const note: ChatMiddleware = {
+      name: 'test:note',
+      onFinish: async (ctx) => {
+        await getLogRecords(ctx).append([{ type: 'app.note' }])
+      },
+    }
+    const host = createHarnessHost({ persistence, project })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/log-records-note',
+        adapter,
+        middleware: [note],
+      }),
+      { threadId: THREAD },
+    )
+
+    await session.prompt('q1')
+
+    // The saved reply has its run id. The engine's copy has none, and it
+    // must not replace the saved one.
+    expect((await session.transcript()).at(-1)?.metadata).toMatchObject({
+      tanstack: { run: { id: expect.any(String) } },
+    })
+    await host.close()
+  })
+
   it('refuses a record type that the harness owns', async () => {
     let failure: unknown
     const bad: ChatMiddleware = {
@@ -736,6 +775,68 @@ describe('compaction-style host records from a middleware', () => {
       'q3',
       'a3',
     ])
+    await host.close()
+  })
+
+  it('lands a record from onConfig after a tool phase on its tool results', async () => {
+    const persistence = durablePersistence()
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up the weather',
+    }).server(async () => 'sunny')
+    // Two tool calls in one model call, so they run in one tool phase.
+    const bothCalls = () => [
+      ...toolCall('lookup', { city: 'Berlin' }, 'call-1').slice(0, -1),
+      ...toolCall('lookup', { city: 'Paris' }, 'call-2').slice(1),
+    ]
+    const { adapter, calls } = mockAdapter([
+      () => bothCalls(),
+      () => text('Both are sunny.'),
+    ])
+    // Like a durable compaction before the call after the tool phase: it
+    // clears the first result. The record counts the engine's messages, with
+    // tool results that the log does not have yet.
+    const clearFirst: ChatMiddleware = {
+      name: 'test:clear-first',
+      onConfig: async (ctx, config) => {
+        const [question, answer, first] = config.messages
+        if (ctx.phase !== 'beforeModel' || first?.role !== 'tool') return
+        await getLogRecords(ctx).append([
+          {
+            type: 'app.compact-head',
+            head: [question, answer, { ...first, content: '[cleared]' }],
+            from: 3,
+          },
+        ])
+      },
+    }
+    const host = createHarnessHost({ persistence, project })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/tool-phase-record',
+        adapter,
+        tools: [lookup],
+        middleware: [clearFirst],
+      }),
+      { threadId: THREAD },
+    )
+
+    await session.prompt('Weather in Berlin and Paris?')
+
+    // Each result once, and the first one cleared.
+    const results = (messages: ReadonlyArray<ModelMessage>) =>
+      messages
+        .filter((message) => message.role === 'tool')
+        .map((message) => [message.toolCallId, message.content])
+    const cleared = [
+      ['call-1', '[cleared]'],
+      ['call-2', 'sunny'],
+    ]
+    expect(results(calls[1].messages)).toEqual(cleared)
+    const transcript = await session.transcript()
+    expect(results(transcript)).toEqual(cleared)
+    expect(transcript.at(-1)?.content).toBe('Both are sunny.')
+    expect(await rebuild(persistence)).toEqual(transcript)
     await host.close()
   })
 })
