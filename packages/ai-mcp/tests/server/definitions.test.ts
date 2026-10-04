@@ -13,7 +13,9 @@ describe('resourceDefinition', () => {
       mimeType: 'text/markdown',
     }).read(async () => ({ text: 'hello' }))
 
-    expect(await resource.read()).toEqual({ text: 'hello' })
+    expect(
+      await resource.read(new URL('file:///readme.md'), {}, { context: {} }),
+    ).toEqual({ text: 'hello' })
   })
 
   it('accepts a uriTemplate when uri is missing', async () => {
@@ -24,11 +26,14 @@ describe('resourceDefinition', () => {
     }).read(async () => ({ text: 'body' }))
 
     expect(resource.uriTemplate).toBe('file:///{path}')
-    expect(await resource.read()).toEqual({ text: 'body' })
+    expect(
+      await resource.read(new URL('file:///a'), { path: 'a' }, { context: {} }),
+    ).toEqual({ text: 'body' })
   })
 
   it('throws when uri and uriTemplate are missing', () => {
     expect(() =>
+      // @ts-expect-error A resource needs a uri or a uriTemplate.
       resourceDefinition({
         name: 'file',
         mimeType: 'text/plain',
