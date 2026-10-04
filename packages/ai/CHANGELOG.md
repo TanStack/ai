@@ -1,5 +1,40 @@
 # @tanstack/ai
 
+## 0.64.0
+
+### Minor Changes
+
+- [#1578](https://github.com/TanStack/ai/pull/1578) [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9) - Run the server tools of one model turn at the same time. `chat()` used to run them one after another, so a turn with several slow tools took as long as all of them together.
+  - Every call is still prepared in call order (argument parse, input schema check, approval check, `onBeforeToolCall`). Then the server tools start together.
+  - `onBeforeToolCall` runs for every call before any tool of the turn starts. `onAfterToolCall` fires for each tool when it finishes. The model still gets the results in the order of its calls.
+  - If the run aborts before the tools start, no tool starts. Each call gets the error result "Operation aborted".
+  - If a tool or a hook throws, the other tools of the turn finish first. Then the error is thrown.
+  - `toolCacheMiddleware` no longer dedupes identical calls in one turn, because they run at the same time.
+  - Opt out with `chat({ toolExecution: 'sequential' })`.
+
+- [#1539](https://github.com/TanStack/ai/pull/1539) [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49) - `snapDuration` and `snapToDurationOption` accept seconds (`6`), a numeric string (`"6"`), a seconds template (`"6s"`), or a keyword the model lists (`"auto"`). `durationToSeconds` reads the numeric forms. Sora (`sora-2`, `sora-2-pro`) accepts `4 | 8 | 12`, `"4" | "8" | "12"`, or `"4s" | "8s" | "12s"` and sends `"4" | "8" | "12"`. Lovable Veo accepts the same three spellings for 4, 6, and 8 seconds.
+
+### Patch Changes
+
+- [#1579](https://github.com/TanStack/ai/pull/1579) [`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb) - Send Claude's thinking and tool errors back the way Claude sent them.
+  - A tool message with `error` now sends `tool_result.is_error: true`, so Claude sees that the tool failed.
+  - A `redacted_thinking` block is no longer dropped. It becomes a thinking part with `redacted: true`, an empty `content`, and the encrypted data in `signature`. The flag survives the stream, the UI messages, the wire, and stored threads, and the next request sends the block back as `{ type: 'redacted_thinking', data }`.
+  - On the AG-UI wire, a redacted block is its own reasoning message. Its id starts with `redacted_thinking-`, and the `REASONING_ENCRYPTED_VALUE` event's `entityId` points to that id. An AG-UI client keeps message ids, so it sends the block back as redacted data, not as a signature.
+  - A thinking block's signature now names its reasoning message in `entityId`, not the step. An AG-UI client attaches the signature to that message, so it can send it back.
+  - `ThinkingPart` and `ModelMessage['thinking']` have the new optional `redacted` field.
+
+- [#1595](https://github.com/TanStack/ai/pull/1595) [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824) - `createMCPServer` from `@tanstack/ai-mcp/server`:
+  - A resource `read(uri, variables, ctx)` now gets the requested URI, the template variables, and `ctx.context` (the `handle` context plus `authInfo`). A template resource can take `list(ctx)` for `resources/list`.
+  - `metadata._meta` on a tool definition is sent as the MCP tool `_meta`, so a tool can link an MCP Apps view with `_meta.ui.resourceUri`.
+  - New `sessions: 'stateless'` serves spec 2025 clients without a session store, so it works on Cloudflare Workers and other multi-instance hosts. It is now the default. In that mode, `ctx.context.requestInput` throws a clear error for a spec 2025 client, and `ctx.context.sample` uses the `sample` option. Set `sessions: 'memory'` to keep the old spec 2025 sessions. `serveMCPStdio` still uses `'memory'` when `sessions` is not set.
+  - New `onerror` option receives SDK transport and protocol errors, including the `serveMCPStdio` transport errors.
+  - Tool and prompt schemas are converted and compiled once at `createMCPServer`, not on every request.
+  - Output schemas are advertised from the output view, and tool results are parsed with the output schema, so a transform or pipe no longer fails the structured-content check. Async output schemas work. Output that fails its schema returns a tool error that names the tool. An output schema with a bare transform advertises no output schema.
+  - `createMCPClient({ server })` parses tool output the same way, and `readResource(uri, context)` takes a context for the resource.
+  - `MCPResourceContext`, `MCPResourceRead`, and `MCPResourceList` are exported. `resourceDefinition` accepts `list` only with `uriTemplate`.
+
+  `convertSchemaToJsonSchema` from `@tanstack/ai` takes a new `io: 'input' | 'output'` option.
+
 ## 0.63.0
 
 ### Minor Changes

@@ -29,6 +29,8 @@ For app-owned policies (for example tool-call budgets), see the [tool-call budge
 
 Caches tool call results based on tool name and arguments. When a tool is called with the same name and arguments as a previous call, the cached result is returned immediately without re-executing the tool.
 
+Identical calls in one model turn run at the same time, so both of them miss the cache. To let the second call use the first result, set `toolExecution: 'sequential'` on `chat()`.
+
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";

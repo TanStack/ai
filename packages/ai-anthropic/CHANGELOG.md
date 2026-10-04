@@ -1,5 +1,21 @@
 # @tanstack/ai-anthropic
 
+## 0.19.4
+
+### Patch Changes
+
+- [#1579](https://github.com/TanStack/ai/pull/1579) [`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb) - Send Claude's thinking and tool errors back the way Claude sent them.
+  - A tool message with `error` now sends `tool_result.is_error: true`, so Claude sees that the tool failed.
+  - A `redacted_thinking` block is no longer dropped. It becomes a thinking part with `redacted: true`, an empty `content`, and the encrypted data in `signature`. The flag survives the stream, the UI messages, the wire, and stored threads, and the next request sends the block back as `{ type: 'redacted_thinking', data }`.
+  - On the AG-UI wire, a redacted block is its own reasoning message. Its id starts with `redacted_thinking-`, and the `REASONING_ENCRYPTED_VALUE` event's `entityId` points to that id. An AG-UI client keeps message ids, so it sends the block back as redacted data, not as a signature.
+  - A thinking block's signature now names its reasoning message in `entityId`, not the step. An AG-UI client attaches the signature to that message, so it can send it back.
+  - `ThinkingPart` and `ModelMessage['thinking']` have the new optional `redacted` field.
+
+- [#1516](https://github.com/TanStack/ai/pull/1516) [`36e77d9`](https://github.com/TanStack/ai/commit/36e77d90f7a3e7b900abd9bfb099ce7f4d47d148) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb), [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824), [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9), [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49)]:
+  - @tanstack/ai@0.64.0
+
 ## 0.19.3
 
 ### Patch Changes

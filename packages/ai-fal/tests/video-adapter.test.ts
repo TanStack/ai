@@ -300,6 +300,8 @@ describe('Fal Video Adapter', () => {
         values: ['4s', '6s', '8s'],
       })
       expect(adapter.snapDuration(7)).toBe('6s')
+      expect(adapter.snapDuration('7s')).toBe('6s')
+      expect(adapter.snapDuration('auto')).toBeUndefined()
       expect(adapter.snapDuration(9)).toBe('8s')
     })
 

@@ -24,6 +24,19 @@ describe('convertSchemaToJsonSchema', () => {
     expect(result?.type).toBe('string')
   })
 
+  it('converts the output view when io is output', () => {
+    const schema = z.object({
+      n: z.string().transform(Number).pipe(z.number()),
+    })
+
+    expect(convertSchemaToJsonSchema(schema)?.properties?.n).toEqual({
+      type: 'string',
+    })
+    expect(
+      convertSchemaToJsonSchema(schema, { io: 'output' })?.properties?.n,
+    ).toEqual({ type: 'number' })
+  })
+
   it('should convert a simple number schema', () => {
     const schema = z.number()
     const result = convertSchemaToJsonSchema(schema)

@@ -1,10 +1,11 @@
 /**
- * Conservative `supports` blocks for newly synced native-provider models.
+ * `supports` blocks for newly synced native-provider models.
  *
- * The generator only writes facts it can see: input modalities from
- * OpenRouter, plus features inferred from `supported_parameters`.
- * It does not copy a reference model's tool list (computer_use, x_search,
- * google_search, …) onto every new id.
+ * Input modalities come from OpenRouter. Features come from
+ * `supported_parameters`. Server-tool lists are the current first-party
+ * vocabulary for that provider, written only when the catalog lists `tools`
+ * or `tool_choice`. Anthropic thinking flags follow the same parameter
+ * split as `buildAnthropicProviderOptionsType`.
  */
 
 export type SyncedProvider = 'openai' | 'anthropic' | 'gemini' | 'grok'
@@ -13,7 +14,45 @@ export interface ProviderSupportsInput {
   provider: SyncedProvider
   inputModalities: Array<string>
   supportedParameters?: Array<string>
+  reasoningMandatory?: boolean
 }
+
+const ANTHROPIC_SERVER_TOOLS = [
+  'web_search',
+  'web_fetch',
+  'code_execution',
+  'computer_use',
+  'bash',
+  'text_editor',
+  'memory',
+] as const
+
+const OPENAI_SERVER_TOOLS = [
+  'web_search',
+  'web_search_preview',
+  'file_search',
+  'image_generation',
+  'code_interpreter',
+  'mcp',
+  'computer_use',
+  'local_shell',
+  'shell',
+  'apply_patch',
+] as const
+
+const GEMINI_SERVER_TOOLS = [
+  'code_execution',
+  'file_search',
+  'google_search',
+  'url_context',
+] as const
+
+const GROK_SERVER_TOOLS = [
+  'web_search',
+  'x_search',
+  'file_search',
+  'mcp',
+] as const
 
 function hasParam(params: Array<string>, names: Array<string>): boolean {
   return names.some((name) => params.includes(name))
@@ -87,6 +126,38 @@ export function buildAnthropicProviderOptionsType(
   return parts.join(' & ')
 }
 
+function toolsLine(hasTools: boolean, tools: ReadonlyArray<string>): string {
+  return `    tools: ${hasTools ? quoteList([...tools]) : '[]'},`
+}
+
+/**
+ * Thinking flags for a new Anthropic model. Same split as
+ * `buildAnthropicProviderOptionsType`: mandatory or reasoning-without-sampling
+ * is adaptive-only, reasoning-plus-sampling keeps budget thinking too, and
+ * no reasoning param is budget thinking. `priority_tier` is on every current
+ * hand-written Claude entry that lists thinking flags.
+ */
+export function buildAnthropicSupportsFlags(input: {
+  supportedParameters?: Array<string>
+  reasoningMandatory?: boolean
+}): Array<string> {
+  const params = input.supportedParameters ?? []
+  const hasSampling = hasParam(params, ['temperature', 'top_p', 'top_k'])
+  const hasReasoning = hasParam(params, [
+    'include_reasoning',
+    'reasoning',
+    'reasoning_effort',
+  ])
+  const adaptiveOnly =
+    input.reasoningMandatory === true || (hasReasoning && !hasSampling)
+  const lines = [`    extended_thinking: ${adaptiveOnly ? 'false' : 'true'},`]
+  if (adaptiveOnly || hasReasoning) {
+    lines.push(`    adaptive_thinking: true,`)
+  }
+  lines.push(`    priority_tier: true,`)
+  return lines
+}
+
 export function buildProviderSupportsBody(
   input: ProviderSupportsInput,
 ): string {
@@ -113,11 +184,15 @@ export function buildProviderSupportsBody(
         `    output: ['text'],`,
         `    endpoints: ['chat', 'chat-completions'],`,
         `    features: ${quoteList(features)},`,
-        `    tools: [],`,
+        toolsLine(hasTools, OPENAI_SERVER_TOOLS),
       ].join('\n')
     }
     case 'anthropic':
-      return [`    input: ${inputList},`, `    tools: [],`].join('\n')
+      return [
+        `    input: ${inputList},`,
+        ...buildAnthropicSupportsFlags(input),
+        toolsLine(hasTools, ANTHROPIC_SERVER_TOOLS),
+      ].join('\n')
     case 'gemini': {
       const capabilities: Array<string> = []
       if (hasTools) capabilities.push('function_calling')
@@ -127,7 +202,7 @@ export function buildProviderSupportsBody(
       if (capabilities.length > 0) {
         lines.push(`    capabilities: ${quoteList(capabilities)},`)
       }
-      lines.push(`    tools: [],`)
+      lines.push(toolsLine(hasTools, GEMINI_SERVER_TOOLS))
       return lines.join('\n')
     }
     case 'grok': {
@@ -139,7 +214,7 @@ export function buildProviderSupportsBody(
       if (capabilities.length > 0) {
         lines.push(`    capabilities: ${quoteList(capabilities)},`)
       }
-      lines.push(`    tools: [],`)
+      lines.push(toolsLine(hasTools, GROK_SERVER_TOOLS))
       return lines.join('\n')
     }
   }

@@ -359,6 +359,12 @@ async function* readStreamLines(
       throw new StreamTruncatedError()
     }
   } finally {
+    try {
+      // Custom cancellation hooks must not delay errors or iterator return.
+      void reader.cancel().catch(() => {})
+    } catch {
+      // Preserve the original error if cancellation throws synchronously.
+    }
     reader.releaseLock()
   }
 }

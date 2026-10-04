@@ -1,5 +1,14 @@
 # @tanstack/ai-persistence
 
+## 0.7.2
+
+### Patch Changes
+
+- [#1590](https://github.com/TanStack/ai/pull/1590) [`0d5b2ea`](https://github.com/TanStack/ai/commit/0d5b2ea24fdac399cf3b9a7826c0fa93178b4d56) - Update the Redis guidance in the `ai-persistence/build-custom-adapter` skill: keep `runs` and `interrupts` indexes in sorted sets written by one Lua script together with the record, instead of advising against Redis for interrupts.
+
+- Updated dependencies [[`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb), [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824), [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9), [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49)]:
+  - @tanstack/ai@0.64.0
+
 ## 0.7.1
 
 ### Patch Changes

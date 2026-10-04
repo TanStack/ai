@@ -18,7 +18,8 @@ export interface ModelOption {
 }
 
 export const MODEL_OPTIONS: Array<ModelOption> = [
-  // OpenAI
+  // OpenAI. GPT-6 Astra is first because ChatGPT plan sign-in supports it.
+  { provider: 'openai', model: 'gpt-6-astra', label: 'OpenAI - GPT-6 Astra' },
   { provider: 'openai', model: 'gpt-5.6', label: 'OpenAI - GPT-5.6' },
   { provider: 'openai', model: 'gpt-5.6-sol', label: 'OpenAI - GPT-5.6 Sol' },
   {
