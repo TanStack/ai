@@ -71,6 +71,8 @@ Run the file with `npx tsx coder.ts`. Ask for a change. The agent reads files fr
 | `usage()` | `/usage` shows the tokens of the session: the lead turn and every agent. Its state also has `contextTokens`, the prompt size of the last lead call, for a context meter. |
 | `goal({ judge })` | `/goal <text>` keeps the agent working until a judge model says that the goal is met. See [Work until a goal is met](./goal). |
 
+To compact on its own before the context limit, see [Compact a harness session](./compaction).
+
 ## Add your own rules
 
 Tool plugins add permission rules to the `PermissionRules` extension point. Add your own for any tool:

@@ -99,33 +99,31 @@ Clients get a `harness.turn.retry` event for each retry. The text of the failed 
 
 ### Compact after a context overflow
 
-`onModelError` is a plain function, so you can write your own policy. This one handles a context overflow: it appends a compaction record, then retries once. Your host must have a `project` function that folds `app.compaction` records into the messages. See [Fold records into the model context](./session-log#fold-records-into-the-model-context).
+`onModelError` is a plain function, so you can write your own policy. For a context overflow, use the [compaction middleware](../advanced/compaction): call `compactNext`, then retry once.
 
 ```ts group=harness-turn-control
 import { isContextOverflow } from '@tanstack/ai'
+import { withCompaction } from '@tanstack/ai-compaction'
+
+const compaction = withCompaction({ maxTokens: 100_000, countTokens: 'usage' })
 
 const compacting = defineHarness({
   name: 'acme/compacting',
   adapter: openaiText('gpt-5.6'),
+  middleware: [compaction],
   turn: {
-    onModelError: async ({ session, error, retries }) => {
+    onModelError: ({ session, error, retries }) => {
       if (retries > 0 || !isContextOverflow({ error: error.message })) {
         return undefined
       }
-      await session.append([
-        {
-          type: 'app.compaction',
-          summary: 'Earlier messages were removed to fit the context.',
-          firstKept: -6,
-        },
-      ])
+      compaction.compactNext(session.threadId)
       return 'retry'
     },
   },
 })
 ```
 
-Here `firstKept: -6` keeps the last six messages. The `project` function in the linked page reads it with `messages.slice(record.firstKept)`, and `slice` counts a negative number from the end.
+The retried call compacts before it calls the model. To keep the compaction after a restart, see [Compact a harness session](./compaction).
 
 ## Choose which messages join a turn
 
