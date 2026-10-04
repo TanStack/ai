@@ -119,6 +119,7 @@ import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-tak
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
+import { Route as ApiCompactionDurableWireRouteImport } from './routes/api.compaction-durable-wire'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
@@ -713,6 +714,12 @@ const ApiCompactionWireRoute = ApiCompactionWireRouteImport.update({
   path: '/api/compaction-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCompactionDurableWireRoute =
+  ApiCompactionDurableWireRouteImport.update({
+    id: '/api/compaction-durable-wire',
+    path: '/api/compaction-durable-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCloudflareBindingWireRoute =
   ApiCloudflareBindingWireRouteImport.update({
     id: '/api/cloudflare-binding-wire',
@@ -873,6 +880,7 @@ export interface FileRoutesByFullPath {
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/compaction-durable-wire': typeof ApiCompactionDurableWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -1006,6 +1014,7 @@ export interface FileRoutesByTo {
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/compaction-durable-wire': typeof ApiCompactionDurableWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -1140,6 +1149,7 @@ export interface FileRoutesById {
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
+  '/api/compaction-durable-wire': typeof ApiCompactionDurableWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
@@ -1275,6 +1285,7 @@ export interface FileRouteTypes {
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/cloudflare-binding-wire'
+    | '/api/compaction-durable-wire'
     | '/api/compaction-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1408,6 +1419,7 @@ export interface FileRouteTypes {
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/cloudflare-binding-wire'
+    | '/api/compaction-durable-wire'
     | '/api/compaction-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1541,6 +1553,7 @@ export interface FileRouteTypes {
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/cloudflare-binding-wire'
+    | '/api/compaction-durable-wire'
     | '/api/compaction-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
@@ -1675,6 +1688,7 @@ export interface RootRouteChildren {
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
+  ApiCompactionDurableWireRoute: typeof ApiCompactionDurableWireRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
@@ -2529,6 +2543,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCompactionWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/compaction-durable-wire': {
+      id: '/api/compaction-durable-wire'
+      path: '/api/compaction-durable-wire'
+      fullPath: '/api/compaction-durable-wire'
+      preLoaderRoute: typeof ApiCompactionDurableWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cloudflare-binding-wire': {
       id: '/api/cloudflare-binding-wire'
       path: '/api/cloudflare-binding-wire'
@@ -2785,6 +2806,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
+  ApiCompactionDurableWireRoute: ApiCompactionDurableWireRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
