@@ -29,7 +29,7 @@ import type {
 import { envProviderKeys } from '../../../byok/env-keys'
 import { createBoundActivities } from './bound'
 import { SubagentBudget } from './limits'
-import type { SubagentBinding } from './bound'
+import type { AgentStep, SubagentBinding } from './bound'
 import type { SubagentLimits } from './limits'
 import type {
   DefinedAgent,
@@ -537,9 +537,13 @@ function runContext(
       ...(binding?.promptCache ? { promptCache: binding.promptCache } : {}),
     },
     keys: binding?.keys ?? envProviderKeys,
+    step: binding?.step ?? runEachTime,
     ...createBoundActivities(agentName, input, abortController, binding),
   } satisfies SubagentRunContext
 }
+
+/** The steps of an agent run that no host can run again: `fn` runs each time. */
+const runEachTime: AgentStep = { do: async (_name, fn) => fn() }
 
 export async function* spawnAgentStream(
   agent: DefinedAgent,
