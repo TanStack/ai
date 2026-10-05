@@ -43,7 +43,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "e2b": "^2.46.1"
+    "e2b": "^2.52.0"
   },
   "peerDependencies": {
     "@tanstack/ai-sandbox": "workspace:^"

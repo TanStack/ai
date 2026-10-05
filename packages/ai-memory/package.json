@@ -118,12 +118,12 @@
     }
   },
   "devDependencies": {
-    "@honcho-ai/sdk": "^2.1.1",
+    "@honcho-ai/sdk": "^2.5.1",
     "@tanstack/ai": "workspace:*",
-    "@vectorize-io/hindsight-client": "^0.6.1",
+    "@vectorize-io/hindsight-client": "^0.10.2",
     "@vitest/coverage-v8": "4.1.10",
-    "ioredis-mock": "^8.9.0",
-    "redis": "^4.7.0",
+    "ioredis-mock": "^8.13.1",
+    "redis": "^4.7.1",
     "vitest": "^4.1.10"
   }
 }

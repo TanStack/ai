@@ -11,9 +11,9 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@fal-ai/client": "1.11.0-alpha.2",
-    "@reactor-team/js-sdk": "^3.0.1",
-    "@sparkjsdev/spark": "^2.2.0",
+    "@fal-ai/client": "1.11.0-alpha.4",
+    "@reactor-team/js-sdk": "^3.0.2",
+    "@sparkjsdev/spark": "^2.3.1",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-byteplus": "workspace:*",
@@ -33,7 +33,7 @@
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "tailwindcss": "^4.1.18",
-    "three": "0.180.0"
+    "three": "0.186.1"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",

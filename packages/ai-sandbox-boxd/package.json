@@ -44,7 +44,7 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@boxd-sh/sdk": "^0.2.9"
+    "@boxd-sh/sdk": "^0.2.13"
   },
   "peerDependencies": {
     "@tanstack/ai-sandbox": "workspace:^"

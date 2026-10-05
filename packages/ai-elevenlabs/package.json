@@ -63,8 +63,8 @@
     "test:types": "tsc"
   },
   "dependencies": {
-    "@elevenlabs/client": "^1.25.0",
-    "@elevenlabs/elevenlabs-js": "^2.68.0",
+    "@elevenlabs/client": "^1.26.0",
+    "@elevenlabs/elevenlabs-js": "^2.70.0",
     "@tanstack/ai-utils": "workspace:^"
   },
   "peerDependencies": {

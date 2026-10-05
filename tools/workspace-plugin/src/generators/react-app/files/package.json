@@ -72,7 +72,7 @@
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "tailwindcss": "^4.1.18",
-    "zod": "^4.2.0"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",

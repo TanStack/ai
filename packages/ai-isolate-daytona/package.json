@@ -53,7 +53,7 @@
     "@tanstack/ai-code-mode": "workspace:^"
   },
   "devDependencies": {
-    "@daytona/sdk": "^0.192.0",
+    "@daytona/sdk": "^0.220.0",
     "@tanstack/ai-code-mode": "workspace:*",
     "@vitest/coverage-v8": "4.1.10"
   }
