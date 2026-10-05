@@ -17,7 +17,7 @@ import type { MediaOptions } from './media'
 import type { HarnessPlugin } from './plugins'
 import type { HarnessSession } from './session'
 import type { HarnessTurnOptions, RecoverHook } from './turn'
-import type { BusyPolicy, Principal, UserInput } from './types'
+import type { BusyPolicy, Principal, ThreadSettings, UserInput } from './types'
 
 /** The `subagents` option: the same as `chat({ subagents })`. */
 export type HarnessSubagents<TSubagents extends ReadonlyArray<AnyAgent>> = Omit<
@@ -125,6 +125,12 @@ export interface HarnessConfig<
    * turn that gets no model from any of them fails.
    */
   adapter?: TAdapter | KeyedAdapter<TAdapter>
+  /**
+   * Models a thread can pick by name with `session.configure({ model })`.
+   * The stored name picks the model of each turn, after `overrides.adapter`
+   * and before a plugin `adapter()`.
+   */
+  models?: Record<string, AnyTextAdapter | KeyedAdapter<AnyTextAdapter>>
   systemPrompts?: Array<SystemPrompt>
   tools?: ReadonlyArray<AnyTool>
   middleware?: ReadonlyArray<AnyChatMiddleware>
@@ -186,6 +192,14 @@ export interface HarnessConfig<
   /** What clients may call. Nothing is exposed by default. */
   expose?: {
     agents?: ReadonlyArray<TAgents[number]['name'] | TSubagents[number]['name']>
+    /**
+     * The thread settings a client may change with a `configure` input. An
+     * input with any other field is refused with `not_exposed`. Server code
+     * that calls `session.configure()` can change every field. `plugins` and
+     * `instructions` let a client turn off a plugin and write into the
+     * system prompt, so expose them only to clients you trust.
+     */
+    settings?: ReadonlyArray<keyof ThreadSettings>
   }
 }
 

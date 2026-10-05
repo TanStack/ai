@@ -119,12 +119,14 @@ export interface PluginAgentActions {
     <TAgent extends AnyAgent>(
       agent: TAgent,
       input?: AgentInputOf<TAgent>,
-      options?: { wake?: boolean },
+      /** See `AgentStartOptions`. */
+      options?: { wake?: boolean; resume?: boolean },
     ): Operation<AgentResultOf<TAgent>>
     (
       name: string,
       input?: unknown,
-      options?: { wake?: boolean },
+      /** See `AgentStartOptions`. */
+      options?: { wake?: boolean; resume?: boolean },
     ): Operation<unknown>
   }
   /**
@@ -342,7 +344,12 @@ export interface MountedPlugins {
       provides: Array<string>
     }>
     tools: Array<{ name: string; owner: string }>
+    /** The owner of each item of `prompts`, at the same index. */
     prompts: Array<{ id: string; owner: string }>
+    /** The owner of each item of `middleware`, at the same index. */
+    middleware: Array<string>
+    /** The owner of each item of `adapters`, at the same index. */
+    adapters: Array<string>
   }
   middleware: Array<AnyChatMiddleware>
   /** Chat middleware for every agent run. See `PluginContributions`. */
@@ -413,6 +420,7 @@ const NO_SERVICES: PluginServices = {
     ask: unavailable('ctx.session'),
     authRequired: unavailable('ctx.session'),
     setConfig: unavailable('ctx.session'),
+    settings: unavailable('ctx.session'),
   },
   agents: {
     run: unavailable('ctx.agents.run') as PluginAgentActions['run'],
@@ -516,6 +524,8 @@ export async function mountPlugins(
   }))
   const prompts: Array<Owned<PluginPrompt>> = []
   const middleware: Array<AnyChatMiddleware> = []
+  const middlewareOwners: Array<string> = []
+  const adapterOwners: Array<string> = []
   const agentMiddleware: Array<AnyChatMiddleware> = []
   const generationMiddleware: Array<AnyGenerationMiddleware> = []
   const commands = new Map<string, { command: AnyCommand; owner: string }>()
@@ -655,7 +665,10 @@ export async function mountPlugins(
         }
         prompts.push({ value: section, owner: plugin.name })
       })
-      middleware.push(...(contributions.middleware ?? []))
+      for (const item of contributions.middleware ?? []) {
+        middleware.push(item)
+        middlewareOwners.push(plugin.name)
+      }
       agentMiddleware.push(...(contributions.agentMiddleware ?? []))
       generationMiddleware.push(...(contributions.generationMiddleware ?? []))
       for (const [name, command] of Object.entries(
@@ -686,7 +699,10 @@ export async function mountPlugins(
         }
         items.push({ value: item.value, owner: plugin.name })
       }
-      if (contributions.adapter) adapters.push(contributions.adapter)
+      if (contributions.adapter) {
+        adapters.push(contributions.adapter)
+        adapterOwners.push(plugin.name)
+      }
       if (contributions.discoverTools) {
         discoverers.push({
           discover: contributions.discoverTools,
@@ -781,6 +797,8 @@ export async function mountPlugins(
         id: entry.value.id,
         owner: entry.owner,
       })),
+      middleware: middlewareOwners,
+      adapters: adapterOwners,
     },
     capabilityBridge,
     values,

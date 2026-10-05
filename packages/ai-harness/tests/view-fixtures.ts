@@ -1,4 +1,5 @@
 import { EventType } from '@tanstack/ai'
+import { emptyUsage } from '../src/usage'
 import type { StreamChunk } from '@tanstack/ai'
 import type { SessionEvent, SessionSnapshot } from '../src'
 
@@ -52,6 +53,7 @@ export function sessionSnapshot(
     pendingInterrupts: [],
     pendingQuestions: [],
     plugins: {},
+    usage: emptyUsage(),
     cursor: '0',
     ...over,
   }

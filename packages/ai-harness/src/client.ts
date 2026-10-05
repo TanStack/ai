@@ -13,6 +13,7 @@ import type {
   MediaRecord,
   Receipt,
   SessionEvent,
+  ThreadSettingsChange,
   UserInput,
 } from './types'
 
@@ -74,6 +75,13 @@ export interface HarnessClient<THarness extends AnyHarness> {
   command: (name: string, input?: unknown) => Promise<Receipt>
   /** Change a session setting. */
   setConfig: (key: string, value: unknown) => Promise<Receipt>
+  /** Change the stored settings of the thread. See `session.configure`. */
+  configure: (settings: ThreadSettingsChange) => Promise<Receipt>
+  /**
+   * Start a fresh model context from the next turn. The model sees `note`
+   * first, when you give one. The transcript keeps every message.
+   */
+  reset: (note?: string, options?: { inputId?: string }) => Promise<Receipt>
   /**
    * The session events from `from` (exclusive). Reconnects after a network
    * error and resumes from the last cursor. Ends when `signal` aborts.
@@ -326,6 +334,13 @@ export function createHarnessClient<THarness extends AnyHarness>(
     answer: (questionId, value) => send({ op: 'answer', questionId, value }),
     command: (name, input) => send({ op: 'command', name, input }),
     setConfig: (key, value) => send({ op: 'config', key, value }),
+    configure: (settings) => send({ op: 'configure', settings }),
+    reset: (note, resetOptions) =>
+      send({
+        op: 'reset',
+        ...(note !== undefined ? { note } : {}),
+        ...(resetOptions?.inputId ? { inputId: resetOptions.inputId } : {}),
+      }),
     events,
     snapshot: () => read('snapshot'),
     transcript: () => read('transcript'),
