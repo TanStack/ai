@@ -20,7 +20,10 @@ export interface FakeResponse {
   text?: string
   /** Thinking text, streamed before the answer. */
   thinking?: string
-  /** Tool calls. `id` defaults to `fake-call-<n>`. */
+  /**
+   * Tool calls. `id` defaults to `fake-call-<fake>-<call>-<index>`, unique
+   * across fakes.
+   */
   toolCalls?: Array<{ name: string; input?: unknown; id?: string }>
   /** Default: `'tool_calls'` when there are tool calls, else `'stop'`. */
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls'
@@ -63,6 +66,12 @@ export interface FakeTextOptions<
 
 const EMPTY_QUEUE = 'No more fake responses queued'
 const CHARS_PER_TOKEN = 4
+
+/**
+ * Numbers each fake, so two fakes in one process (for example two hosts in a
+ * restart test) never give the same tool-call id.
+ */
+let fakeCount = 0
 
 function estimateTokens(text: string) {
   return Math.ceil(text.length / CHARS_PER_TOKEN)
@@ -133,7 +142,9 @@ export class FakeTextAdapter<
   DefaultMessageMetadataByModality
 > {
   readonly name = 'fake'
-  override readonly inputModalities: ReadonlyArray<Modality> | undefined
+  // Optional, as on `TextAdapter`, so the fake is an adapter under
+  // `exactOptionalPropertyTypes` too.
+  declare readonly inputModalities?: ReadonlyArray<Modality>
   /** The context window from the options. */
   readonly contextWindow: number | undefined
   readonly state: FakeTextState = { callCount: 0 }
@@ -141,11 +152,12 @@ export class FakeTextAdapter<
   private queue: Array<FakeResponseStep> = []
   private readonly previousRequests = new Map<string, string>()
   private readonly options: FakeTextOptions<TModel, TInput>
+  private readonly instance = ++fakeCount
 
   constructor(model: TModel, options: FakeTextOptions<TModel, TInput>) {
     super({}, model)
     this.options = options
-    this.inputModalities = options.input
+    if (options.input) this.inputModalities = options.input
     this.contextWindow = options.contextWindow
   }
 
@@ -217,6 +229,8 @@ export class FakeTextAdapter<
       threadId,
       model,
       timestamp: Date.now(),
+      // As real adapters do: a continuation links to the run it resumes.
+      ...(options.parentRunId ? { parentRunId: options.parentRunId } : {}),
     }
     if (response.error !== undefined) {
       yield {
@@ -288,7 +302,9 @@ export class FakeTextAdapter<
 
     const toolCalls = response.toolCalls ?? []
     for (const [index, call] of toolCalls.entries()) {
-      const toolCallId = call.id ?? `fake-call-${this.state.callCount}-${index}`
+      const toolCallId =
+        call.id ??
+        `fake-call-${this.instance}-${this.state.callCount}-${index}`
       yield {
         type: EventType.TOOL_CALL_START,
         toolCallId,

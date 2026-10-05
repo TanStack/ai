@@ -247,6 +247,42 @@ describe('fakeText', () => {
     expect(result.data).toEqual({ city: 'Oslo' })
   })
 
+  it('stamps parentRunId on RUN_STARTED when the call has one', async () => {
+    const fake = fakeText()
+    fake.setResponses([{ text: 'One' }, { text: 'Two' }])
+
+    const child = await adapterEvents(
+      fake,
+      request(hi, { runId: 'run-2', parentRunId: 'run-1' }),
+    )
+    const top = await adapterEvents(fake, request(hi, { runId: 'run-3' }))
+
+    expect(child[0]).toMatchObject({
+      type: EventType.RUN_STARTED,
+      runId: 'run-2',
+      parentRunId: 'run-1',
+    })
+    expect(top[0]).not.toHaveProperty('parentRunId')
+  })
+
+  it('gives tool calls ids that differ between two fakes', async () => {
+    const first = fakeText()
+    const second = fakeText()
+    const call = { toolCalls: [{ name: 'weather', input: {} }] }
+    first.setResponses([call])
+    second.setResponses([call])
+
+    const ids = [
+      ...(await adapterEvents(first, request(hi))),
+      ...(await adapterEvents(second, request(hi))),
+    ].flatMap((event) =>
+      event.type === EventType.TOOL_CALL_START ? [event.toolCallId] : [],
+    )
+
+    expect(ids).toHaveLength(2)
+    expect(new Set(ids).size).toBe(2)
+  })
+
   it('keeps the model id and the context window', () => {
     const fake = fakeText({ model: 'tiny', contextWindow: 8_000 })
 
