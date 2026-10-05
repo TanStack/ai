@@ -188,6 +188,7 @@ export default async function globalSetup() {
 
   mock.mount('/api/v3', byteplusSeedanceMount())
   mock.mount('/api/v3', byteplusTTSMount())
+  mock.mount('/tts-synthesize', sixtydbTTSMount())
   mock.mount('/api/v3', byteplusASRMount())
 
   await mock.start()
@@ -1292,6 +1293,41 @@ function subtitleFor(textPrompt: string): {
     sentences.push({ text, start_time: start, end_time: cursor })
   }
   return { sentences, words }
+}
+
+function sixtydbTTSMount(): Mountable {
+  return {
+    async handleRequest(req, res): Promise<boolean> {
+      if (req.method !== 'POST') return false
+      const body = await readJsonRequestBody(req)
+      const audioConfig = asRecord(body?.audio_config)
+      if (
+        !body ||
+        typeof body.text !== 'string' ||
+        !body.text ||
+        typeof body.voice_id !== 'string' ||
+        !body.voice_id ||
+        audioConfig?.audio_encoding !== 'LINEAR16' ||
+        audioConfig.sample_rate_hertz !== 24000 ||
+        body.timestamp_type !== 'NONE' ||
+        typeof body.speed !== 'number' ||
+        body.speed < 0.5 ||
+        body.speed > 2
+      ) {
+        return rejectVoiceRequest(res, 'Invalid 60db synthesis request.')
+      }
+      res.setHeader('Content-Type', 'application/x-ndjson')
+      res.end(
+        JSON.stringify({
+          success: true,
+          encoding: 'LINEAR16',
+          sample_rate: 24000,
+          audio_base64: Buffer.alloc(32).toString('base64'),
+        }) + '\n',
+      )
+      return true
+    },
+  }
 }
 
 function byteplusTTSMount(): Mountable {

@@ -16,6 +16,7 @@ import {
   createGrokTranscription,
 } from '@tanstack/ai-grok'
 import { createGroqTranscription } from '@tanstack/ai-groq'
+import { createSixtyDBSpeech } from '@tanstack/ai-sixtydb'
 import {
   createElevenLabsAudio,
   createElevenLabsSpeech,
@@ -153,6 +154,12 @@ export function createTTSAdapter(
       createElevenLabsSpeech('eleven_multilingual_v2', DUMMY_KEY, {
         baseUrl: llmockBase(aimockPort),
         headers,
+      }),
+    sixtydb: () =>
+      createSixtyDBSpeech('tts', DUMMY_KEY, {
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+        voiceId: 'e2e-workspace-voice',
       }),
     // Seed Speech is a separate BytePlus product from Ark with its own key and
     // its own host, so this takes the bare mock base — the adapter appends
