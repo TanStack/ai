@@ -1,0 +1,112 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[harness-rejoin] ask my name",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "askName", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-rejoin] ask my name",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Hello, Otto."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-runid] deploy prod",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "deploy", "arguments": "{\"env\":\"prod\"}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-runid] deploy prod",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Deployed to prod."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-fast-resolve] deploy stage",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "deploy", "arguments": "{\"env\":\"stage\"}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-fast-resolve] deploy stage",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Deployed to stage."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-chatclient] deploy dev",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "deploy", "arguments": "{\"env\":\"dev\"}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-chatclient] deploy dev",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Deployed to dev."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-context] probe",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "probe", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-context] probe",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Probed the context."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-sender] who am i",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "whoami", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-sender] who am i",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "You are the sender."
+      }
+    }
+  ]
+}

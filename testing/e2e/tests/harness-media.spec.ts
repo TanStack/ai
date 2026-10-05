@@ -111,7 +111,8 @@ test.describe('harness media', () => {
       headers: { ...api.headers, 'content-type': 'application/json' },
       data: {
         threadId,
-        runId: 'client-run',
+        // The run id is also the input id, so each test needs its own.
+        runId: `media-run-${testId}`,
         messages: [
           {
             id: 'u1',
