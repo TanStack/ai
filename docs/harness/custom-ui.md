@@ -126,6 +126,7 @@ The conversation:
 What waits for the user:
 
 - `approvals`: tool calls that wait for a yes or a no.
+- `clientTools`: tool calls that run in your UI and wait for their output. See [Run a tool in the browser](#run-a-tool-in-the-browser).
 - `questions`: questions from a command or a plugin.
 - `signIns`: connectors that need a sign-in, with a `url` and a `userCode` when the connector gives them.
 
@@ -166,9 +167,10 @@ Answer what waits:
 
 - `approval.approve()` and `approval.reject()`: answer one approval. `view.approve(id)` and `view.reject(id)` do the same by id.
 - `view.approveAll()` and `view.rejectAll()`: answer all open approvals.
+- `call.resolve(output)` and `call.fail(message)`: answer one client tool call.
 - `question.answer(value)`: answers a question.
 
-If a turn waits for more than one approval, the turn continues after you answer all of them.
+If a turn waits for more than one approval or client tool, the turn continues after you answer all of them.
 
 ## 4. Listen for events
 
@@ -184,6 +186,7 @@ view.on('approval', (approval) => {
 Items that wait for the user:
 
 - `'approval'`: an approval. Call `approve()` or `reject()` on it.
+- `'clientTool'`: a client tool call. Call `resolve(output)` or `fail(message)` on it.
 - `'question'`: a question with a `message`, a `schema`, and `answer(value)`.
 - `'signIn'`: a connector that needs a sign-in, with `connector`, `url`, and `userCode`.
 
@@ -378,9 +381,75 @@ export function Chat() {
 - `reconnecting`: the connection dropped. The client connects again and continues after the last event.
 - `closed`: the view stopped reading events, for example after `view.dispose()`.
 
+## Run a tool in the browser
+
+Some tools must run where the user is, for example a tool that opens a screen of your app. The server cannot run them. Give the harness the tool with no `.server()` implementation. The turn then waits, and the view lists the call in `clientTools`. Your page runs the tool and sends the output.
+
+1. Put the tool in a file that the server and the browser both import:
+
+```ts group=harness-custom-ui-tools
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+export const openScreenInput = z.object({ route: z.string() })
+
+export const openScreen = toolDefinition({
+  name: 'openScreen',
+  description: 'Open a screen of the app for the user.',
+  inputSchema: openScreenInput,
+  outputSchema: z.object({ opened: z.boolean() }),
+})
+```
+
+2. On the server, give the tool to the harness:
+
+```ts group=harness-custom-ui-tools-server
+import { defineHarness } from '@tanstack/ai-harness'
+import { openaiText } from '@tanstack/ai-openai'
+import { openScreen } from './tools'
+
+export const assistant = defineHarness({
+  name: 'acme/assistant',
+  adapter: openaiText('gpt-5.6'),
+  tools: [openScreen],
+})
+```
+
+3. In the browser, run the tool when the view gets the call:
+
+```ts group=harness-custom-ui-tools-client
+import { createHarnessClient } from '@tanstack/ai-harness/client'
+import { createSessionView } from '@tanstack/ai-harness/view'
+import { openScreenInput } from './tools'
+
+const view = createSessionView(
+  createHarnessClient({ url: '/api/harness', threadId: 'user-1-thread' }),
+)
+
+view.on('clientTool', (call) => {
+  if (call.tool !== 'openScreen') return
+  const input = openScreenInput.safeParse(call.args)
+  if (!input.success) {
+    call.fail('The route is not a string.')
+    return
+  }
+  history.pushState({}, '', input.data.route)
+  call.resolve({ opened: true })
+})
+```
+
+A client tool call has:
+
+- `tool` and `args`: the tool name and the input that the model gave.
+- `resolve(output)`: sends the output. The model gets it as the tool result.
+- `fail(message)`: sends a failure. The model sees that the tool failed with `message`.
+
+A turn can wait for approvals and client tools at the same time. When each item has an answer, the view sends all the answers together. Then the turn continues. To show the calls in a component, read `state.clientTools` with `useSelector`, the same as `approvals`.
+
 ## What you have now
 
 - A terminal screen in about 20 lines, with no event loop and no reducer.
 - The same view in a web app, on a harness that runs on a server.
+- Tools that run in the browser, with their output sent back from the view.
 - Actions, typed events, and plugin state that work with any UI library.
 - Images, audio, and video from the session, with URLs that the view keeps valid.

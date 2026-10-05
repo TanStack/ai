@@ -719,7 +719,7 @@
           "label": "Build a Sandbox Adapter",
           "to": "persistence/build-a-sandbox-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Store Reference",
@@ -891,13 +891,13 @@
           "label": "Build your first harness",
           "to": "harness/overview",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Connect clients",
           "to": "harness/connect",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-09-29"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Send and show media",
@@ -908,7 +908,7 @@
           "label": "Run in the terminal",
           "to": "harness/cli",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-09-29"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Durable sessions",
@@ -920,7 +920,7 @@
           "label": "Send inputs safely",
           "to": "harness/inputs",
           "addedAt": "2026-09-30",
-          "updatedAt": "2026-10-01"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Run side effects once",
@@ -938,7 +938,7 @@
           "label": "Control how a turn ends",
           "to": "harness/turn-control",
           "addedAt": "2026-10-01",
-          "updatedAt": "2026-10-03"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Compact a long session",
@@ -954,7 +954,7 @@
           "label": "Write a plugin",
           "to": "harness/plugins",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Build a coding agent",
@@ -971,7 +971,13 @@
         {
           "label": "Auth and connectors",
           "to": "harness/auth",
-          "addedAt": "2026-09-26"
+          "addedAt": "2026-09-26",
+          "updatedAt": "2026-10-05"
+        },
+        {
+          "label": "Share a thread between people",
+          "to": "harness/shared-threads",
+          "addedAt": "2026-10-05"
         },
         {
           "label": "Use MCP servers",
@@ -1010,7 +1016,7 @@
           "label": "Build your own UI",
           "to": "harness/custom-ui",
           "addedAt": "2026-09-28",
-          "updatedAt": "2026-09-29"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Run agents from a harness",
@@ -1050,7 +1056,7 @@
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-09-24"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Harnesses",
@@ -1191,6 +1197,11 @@
           "to": "sandbox/cloudflare",
           "addedAt": "2026-06-29",
           "updatedAt": "2026-08-20"
+        },
+        {
+          "label": "Build a Provider",
+          "to": "sandbox/build-a-provider",
+          "addedAt": "2026-10-05"
         }
       ]
     },

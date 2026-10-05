@@ -281,3 +281,5 @@ painful to find by hand:
 - [Events](../sandbox/events) covers what a stored transcript holds, and how to trim it.
 - [Durable Runs Explained](../sandbox/durable-runs) is the same subject in plain language with
   no code, if the postures above felt abrupt.
+- [Build a Sandbox Provider](../sandbox/build-a-provider) runs the same journal, takeover,
+  and reaper suites against a provider that you write.

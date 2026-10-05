@@ -70,6 +70,36 @@ Line mode reads one message or command per line and waits for each turn. It work
 | 2 | The turn waits for an approval. |
 | 130 | The turn was cancelled. |
 
+## Use your own host and user
+
+By default, the CLI builds its own host in memory and opens sessions with no user. Your server already has a durable host with leases, recovery, and stores, and each person has their own credentials. Give the CLI that host and the user:
+
+```ts group=harness-cli-host
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { runCli } from '@tanstack/ai-harness-cli'
+import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { openaiText } from '@tanstack/ai-openai'
+
+const assistant = defineHarness({
+  name: 'acme/assistant',
+  adapter: openaiText('gpt-5.6'),
+})
+
+const { runs, metadata, credentials } = memoryPersistence().stores
+const host = createHarnessHost({
+  persistence: { stores: { log: memoryLogStore(), runs, metadata, credentials } },
+})
+
+process.exitCode = await runCli(assistant, { host, principal: { id: 'ada' } })
+await host.close()
+```
+
+- You own the host, so the CLI does not close it. Close it yourself when `runCli` returns. Without `host`, the CLI builds a host and closes it.
+- Give `host` or `persistence`, not both. With both, `runCli` writes `Give runCli a host or persistence, not both.` and returns code 1.
+- Line mode, `-p`, and your own `ui` open the session as `principal`, so `/connect` saves keys for that user.
+- `--serve` gives the same principal to each request with the token.
+- `--acp`, `--mcp`, and `--dashboard` open their sessions without the principal.
+
 ## Commands in line mode
 
 For the session:
@@ -141,6 +171,7 @@ For a full Ink screen with approvals, questions, sign-ins, and child agents, cop
 ## What you have now
 
 - One entry file that runs your harness as a terminal app, a script step, an editor agent, an MCP server, or an HTTP server.
+- A CLI that uses your durable host and runs as your user.
 - Your own terminal screen on the same session, with any TUI library.
 - Files that you send with `@path`, and a folder with the media that your agents make.
 
