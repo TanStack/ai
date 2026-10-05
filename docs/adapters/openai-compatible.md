@@ -167,6 +167,7 @@ Any provider implementing the OpenAI Chat Completions API works. Common ones are
 | Z.AI (GLM) | `https://api.z.ai/api/paas/v4` | `glm-4.6` |
 | Upstage (Solar) | `https://api.upstage.ai/v1` | `solar-pro4`, `solar-mini` |
 | Liner | `https://platform.liner.com/api/v1` | `liner-mark-1.0` |
+| Opper | `https://api.opper.ai/v3/compat` | `claude-sonnet-5-5` |
 | Baseten | `https://inference.baseten.co/v1` | model-dependent |
 | Hugging Face (router) | `https://router.huggingface.co/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | NVIDIA NIM | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.3-70b-instruct` |
