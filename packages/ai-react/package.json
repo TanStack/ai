@@ -69,7 +69,7 @@
   ],
   "dependencies": {
     "@tanstack/ai-client": "workspace:^",
-    "@tanstack/markdown": "^0.0.13"
+    "@tanstack/markdown": "^0.0.16"
   },
   "peerDependencies": {
     "@mcp-ui/client": "^7",
