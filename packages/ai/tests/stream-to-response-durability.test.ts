@@ -258,6 +258,94 @@ describe('toServerSentEventsResponse with durability', () => {
     expect(batchSizes.reduce((sum, size) => sum + size, 0)).toBe(6)
   })
 
+  /**
+   * Ms until 'a' reaches the reader while the model is still busy after it, or
+   * `Infinity` when 'a' is still held after 1s. 'a' sits in a batch of 32 that
+   * only 1 chunk filled, so only the batch wait can send it before the run ends.
+   */
+  async function msUntilFirstText(
+    runId: string,
+    options: { batchWaitMs?: number } = {},
+  ): Promise<number> {
+    let releaseModel = (): void => undefined
+    const modelThinking = new Promise<void>((resolve) => {
+      releaseModel = resolve
+    })
+    const stream: AsyncIterable<StreamChunk> = {
+      async *[Symbol.asyncIterator]() {
+        yield ev.textContent('a')
+        await modelThinking
+        yield ev.textContent('b')
+        yield ev.runFinished('stop')
+      },
+    }
+    const startedAt = Date.now()
+    const response = toServerSentEventsResponse(stream, {
+      durability: {
+        adapter: memoryStream(
+          new Request(`https://example.test/api/chat?runId=${runId}`, {
+            method: 'POST',
+          }),
+        ),
+        ...options,
+      },
+    })
+    if (!response.body) throw new Error('Expected a response body')
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let body = ''
+    const readUntilA = async (): Promise<number> => {
+      while (!body.includes('"delta":"a"')) {
+        const result = await reader.read()
+        if (result.done) throw new Error('Stream ended before "a"')
+        body += decoder.decode(result.value)
+      }
+      return Date.now() - startedAt
+    }
+
+    const elapsed = await Promise.race([
+      readUntilA(),
+      new Promise<number>((resolve) =>
+        setTimeout(() => resolve(Infinity), 1000),
+      ),
+    ])
+    releaseModel()
+    for (;;) {
+      const result = await reader.read()
+      if (result.done) break
+    }
+    return elapsed
+  }
+
+  it('delivers a buffered chunk while the producer waits for the next one', async () => {
+    expect(await msUntilFirstText('live-while-idle')).toBeLessThan(1000)
+  })
+
+  it('holds a buffered chunk for batchWaitMs', async () => {
+    const elapsed = await msUntilFirstText('live-wait-300', {
+      batchWaitMs: 300,
+    })
+
+    expect(elapsed).toBeGreaterThanOrEqual(250)
+    expect(elapsed).toBeLessThan(1000)
+  })
+
+  it('rejects an invalid batchWaitMs', () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=response-bad-wait', {
+        method: 'POST',
+      }),
+    )
+    const { stream } = fiveChunkStream()
+    for (const batchWaitMs of [-1, NaN, Infinity, 2_147_483_648]) {
+      expect(() =>
+        toServerSentEventsResponse(stream, {
+          durability: { adapter: durability, batchWaitMs },
+        }),
+      ).toThrow(/Invalid durability batchWaitMs/)
+    }
+  })
+
   it('rejects a non-positive-integer batch size', () => {
     const durability = memoryStream(
       new Request('https://example.test/api/chat?runId=response-bad-batch', {
