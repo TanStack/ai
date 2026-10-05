@@ -602,6 +602,49 @@ function runFinished(): AdapterYieldChunk {
 }
 
 describe('durability producer robustness', () => {
+  it('ends with RUN_ERROR when a timed flush fails while the model is still busy', async () => {
+    const log = memoryStream(
+      new Request('https://example.test/api/chat?runId=timed-flush-fails', {
+        method: 'POST',
+      }),
+    )
+    let appends = 0
+    const durability: StreamDurability<string> = {
+      ...log,
+      // Append 1 is the run-accepted marker. Append 2 is the timed flush of
+      // 'a', made while the model has not sent its next chunk.
+      append: (chunks) => {
+        appends += 1
+        return appends === 2
+          ? Promise.reject(new Error('log write failed'))
+          : log.append(chunks)
+      },
+    }
+    const stream: AsyncIterable<StreamChunk> = {
+      async *[Symbol.asyncIterator]() {
+        yield ev.textContent('a')
+        // The model never sends another chunk.
+        await new Promise(() => undefined)
+      },
+    }
+
+    const outcome = await Promise.race([
+      readBody(
+        toServerSentEventsResponse(stream, {
+          durability: { adapter: durability },
+        }),
+      ),
+      new Promise<'hung'>((resolve) => setTimeout(() => resolve('hung'), 1000)),
+    ])
+    if (outcome === 'hung') throw new Error('The response never ended')
+
+    const events = parseSseEvents(outcome)
+    expect(field(events.at(-1)!, 'type')).toBe(EventType.RUN_ERROR)
+    const logged: Array<StreamChunk> = []
+    for await (const { chunk } of log.read('-1')) logged.push(chunk)
+    expect(logged.at(-1)?.type).toBe(EventType.RUN_ERROR)
+  })
+
   it('flushes buffered chunks to the durable log before the terminal on abort', async () => {
     const durability = memoryStream(
       new Request('https://example.test/api/chat?runId=h1-abort', {

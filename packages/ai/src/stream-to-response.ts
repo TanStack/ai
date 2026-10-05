@@ -565,9 +565,11 @@ export function durableStreamSource<TOffset extends string>(
       // Iterated by hand, not with `for await`, so the batch can flush while
       // the next chunk is still pending. The `finally` does what `for await`
       // would: close the producer on an early exit, but not after it finished
-      // or threw.
+      // or threw. After a failed timed flush it closes it in the background.
       const iterator = stream[Symbol.asyncIterator]()
       let iteratorFinished = false
+      // A timed flush failed while `next` was still pending.
+      let pullPending = false
       let flushBy = 0
       try {
         for (;;) {
@@ -576,7 +578,12 @@ export function durableStreamSource<TOffset extends string>(
             batch.length > 0 &&
             !(await settlesWithin(next, flushBy - Date.now()))
           ) {
-            yield* flush()
+            try {
+              yield* flush()
+            } catch (error) {
+              pullPending = true
+              throw error
+            }
           }
           let result: IteratorResult<StreamChunk>
           try {
@@ -600,7 +607,20 @@ export function durableStreamSource<TOffset extends string>(
           }
         }
       } finally {
-        if (!iteratorFinished) await iterator.return?.()
+        if (pullPending) {
+          // An async generator runs `return()` only after its pending pull,
+          // so awaiting it here waits for the model's next chunk, maybe
+          // forever. Close it in the background: the failure path below must
+          // persist RUN_ERROR now, and a failure is never a detach, so nothing
+          // below needs the producer's `onAbort` chain to finish first.
+          Promise.resolve(iterator.return?.()).catch((error: unknown) => {
+            logger?.errors('closing the producer after a failed flush failed', {
+              error,
+            })
+          })
+        } else if (!iteratorFinished) {
+          await iterator.return?.()
+        }
       }
       if (!isAborted(abortController.signal)) yield* flush()
     } catch (error) {
