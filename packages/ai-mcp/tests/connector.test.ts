@@ -154,6 +154,52 @@ describe('mcpConnector', () => {
     ).toBeNull()
   })
 
+  it('keeps one sign-in per sender in a shared thread', async () => {
+    const protectedServer = await startProtectedServer()
+    cleanups.push(() => protectedServer.close())
+    const model = recorder()
+    const persistence = memoryPersistence()
+    const host = createHarnessHost({ persistence })
+    cleanups.push(() => host.close())
+    const alice = { id: 'alice' }
+    const bob = { id: 'bob' }
+    const session = await host.open(
+      defineHarness({
+        name: 'test/mcp-connector-shared',
+        adapter: model.adapter,
+        plugins: () => [
+          mcpConnector({ id: 'demo', label: 'Demo', url: protectedServer.url }),
+        ],
+      }),
+      { threadId: 't', principal: alice },
+    )
+    const browser = approveSignIns(session, 'code-1')
+    cleanups.push(browser.stop)
+    const savedFor = (userId: string) =>
+      persistence.stores.credentials.get({ threadId: 't', userId }, 'demo')
+
+    await session.command('connect:demo', undefined, { principal: bob })
+    expect(await savedFor('bob')).not.toBeNull()
+    expect(await savedFor('alice')).toBeNull()
+
+    await session.prompt('hi', { principal: bob })
+    await session.prompt('hi', { principal: alice })
+    await session.prompt('hi', { principal: bob })
+    // Only bob signed in, so only his turns get the server tools.
+    expect(model.toolNames(0)).toEqual(['demo_echo'])
+    expect(model.toolNames(1)).toEqual([])
+    expect(JSON.stringify(model.calls[1]?.systemPrompts)).toContain(
+      'run /connect demo',
+    )
+    expect(model.toolNames(2)).toEqual(['demo_echo'])
+
+    // Alice signs in for her own turns.
+    await session.command('connect:demo', undefined, { principal: alice })
+    await session.prompt('hi', { principal: alice })
+    expect(await savedFor('alice')).not.toBeNull()
+    expect(model.toolNames(3)).toEqual(['demo_echo'])
+  })
+
   it('tells the model to ask for /connect before sign-in', async () => {
     const model = recorder()
     const host = createHarnessHost({ persistence: memoryPersistence() })
