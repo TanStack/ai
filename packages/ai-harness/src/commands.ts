@@ -1,7 +1,13 @@
 import type { InferSchemaType, ModelMessage, SchemaInput } from '@tanstack/ai'
 import type { CredentialsAccess } from './auth'
 import type { SessionSnapshot } from './session'
-import type { ChatTurnResult, Operation, Principal, Receipt } from './types'
+import type {
+  ChatTurnResult,
+  Operation,
+  Principal,
+  Receipt,
+  ThreadSettings,
+} from './types'
 
 /** A question a command asks the user. The host renders it from the schema. */
 export interface Question<TSchema extends SchemaInput | undefined = undefined> {
@@ -57,6 +63,12 @@ export interface PluginSessionApi {
   }) => void
   /** Change a session setting, the same as a client. Applies at the next turn. */
   setConfig: (key: string, value: unknown) => Promise<Receipt>
+  /**
+   * The stored settings of the thread (`session.configure`). Read them at
+   * each call, for example the working folder `cwd`: a change applies from
+   * the next turn.
+   */
+  settings: () => ThreadSettings
 }
 
 /** What a command handler receives besides its input. */

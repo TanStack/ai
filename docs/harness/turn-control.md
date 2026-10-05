@@ -226,6 +226,8 @@ The session keeps the overrides in memory only. The session log does not store t
 - After a restart, recovery runs an unfinished turn with the harness settings.
 - A second prompt with the same `inputId` and message is a duplicate, also when its overrides are different.
 
+To keep a model or instructions for every turn of a thread, also after a restart, store them with `session.configure`. See [Store settings per thread](./thread-settings).
+
 ## What you have now
 
 - A turn that goes back to work until the job is done, with a limit.

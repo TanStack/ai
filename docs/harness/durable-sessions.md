@@ -67,7 +67,7 @@ When a host opens the thread and finds a turn whose lease expired, it checks the
 
 An input that was stored but never ran, runs now. See [Send inputs safely](./inputs) to read how an input ended.
 
-A background agent does not run again, because it has no checkpoints. When its lease expired, the next host:
+A background agent that you started with `resume: true` runs again on the next host. See [Keep a background agent going after a crash](./subagents#keep-a-background-agent-going-after-a-crash). For any other background agent, when its lease expired, the next host:
 
 1. Ends the run `failed`, with the message `The host stopped during this agent run.`
 2. Adds a note about the failure to the transcript.

@@ -10,7 +10,7 @@ import type {
   UIMessage,
 } from '../../../types'
 import type { AnyClientTool } from '../tools/tool-definition'
-import type { BoundActivities, SubagentForward } from './bound'
+import type { AgentStep, BoundActivities, SubagentForward } from './bound'
 import type { ProviderKeys } from '../../../byok/keyed'
 
 /**
@@ -60,10 +60,16 @@ export interface SubagentRunInput<
  *   `keyedAdapter(...)`. A host sets the keys. Without a host, they come
  *   from each provider's `env` names, and a missing key throws an error that
  *   names the env var.
+ * - `step.do(name, fn)` keeps a side effect from running twice when a host
+ *   runs the agent again after a crash. See {@link AgentStep}.
  */
 export type SubagentRunContext<TInput extends SchemaInput | undefined = any> =
   SubagentRunInput<TInput> &
-    BoundActivities & { forward: SubagentForward; keys: ProviderKeys }
+    BoundActivities & {
+      forward: SubagentForward
+      keys: ProviderKeys
+      step: AgentStep
+    }
 
 /**
  * What an agent makes. Informative: plugins use it to find an agent by the

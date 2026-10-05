@@ -284,6 +284,83 @@ async function agentRestart(
 }
 
 /**
+ * A background agent with `resume: true` on a durable host that stops. Its
+ * step runs on the first host only, then the agent waits there. The next
+ * host takes over, runs the agent again without the step, and the agent
+ * finishes and wakes the thread.
+ */
+async function agentResume(
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  const { runs, metadata } = memoryPersistence().stores
+  const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+  let attempts = 0
+  let charges = 0
+  const stepper = defineAgent({
+    name: 'stepper',
+    description: 'Charges once, then waits on the first host',
+    run: async (ctx) => {
+      attempts += 1
+      await ctx.step.do('charge', async () => {
+        charges += 1
+        return 'charged'
+      })
+      if (attempts === 1) {
+        // The first host stops before the agent ends.
+        await new Promise<void>((resolve) =>
+          ctx.abortSignal?.addEventListener('abort', () => resolve()),
+        )
+        return 'stopped'
+      }
+      return 'charged once'
+    },
+  })
+  const harness = defineHarness({
+    name: 'e2e/harness-resume',
+    adapter: openai(),
+    agents: [stepper],
+  })
+  const stopped = createHarnessHost({
+    persistence,
+    lease: { ttlMs: 50, renewMs: 60_000 },
+  })
+  const next = createHarnessHost({ persistence })
+  try {
+    const first = await stopped.open(harness, { threadId: 'e2e-resume' })
+    first.agents.stepper.start(undefined, { wake: true, resume: true })
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    const session = await next.open(harness, { threadId: 'e2e-resume' })
+    // Only the text of chat turns: the wake turn writes it.
+    const chats = new Set<string>()
+    let text = ''
+    for await (const { event, operationId } of session.events({ from: '0' })) {
+      if (event.type !== 'CUSTOM' && event.type !== 'TEXT_MESSAGE_CONTENT')
+        continue
+      if (
+        event.type === 'CUSTOM' &&
+        event.name === HARNESS_EVENTS.operationStarted &&
+        (event.value as { kind?: string } | undefined)?.kind === 'chat'
+      )
+        chats.add(operationId)
+      if (!chats.has(operationId)) continue
+      if (event.type === 'TEXT_MESSAGE_CONTENT') text += event.delta
+      if (
+        event.type === 'CUSTOM' &&
+        event.name === HARNESS_EVENTS.operationFinished &&
+        text !== ''
+      )
+        break
+    }
+    return { attempts, charges, text }
+  } finally {
+    await next.close()
+    // The first host sees the writes of the second host, and stops.
+    await stopped.close().catch(() => {})
+  }
+}
+
+/**
  * Harness session. The main model and the agent are real OpenAI adapters
  * against aimock.
  *
@@ -728,6 +805,9 @@ export const Route = createFileRoute('/api/harness-test')({
           }
           if (body.scenario === 'agent-restart') {
             return Response.json(await agentRestart(openai))
+          }
+          if (body.scenario === 'agent-resume') {
+            return Response.json(await agentResume(openai))
           }
           if (body.scenario === 'routing') {
             return Response.json(await routingTurns(host, openai))

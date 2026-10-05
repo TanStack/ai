@@ -50,6 +50,7 @@ export {
 } from './chat/agents/define-agent'
 export type {
   BoundActivities,
+  AgentStep,
   SubagentBinding,
   SubagentForward,
 } from './chat/agents/bound'

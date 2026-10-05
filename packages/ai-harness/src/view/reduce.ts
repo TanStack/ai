@@ -142,6 +142,13 @@ function userMedia(message: ModelMessage) {
   })
 }
 
+/** The notice for a `session.reset()`: the model starts again from here. */
+function resetNotice(note: unknown) {
+  return typeof note === 'string'
+    ? `The context was reset. The model starts from this note: ${note}`
+    : 'The context was reset. The model sees only what comes after this.'
+}
+
 /** Add a notice line at the end of the messages. */
 export function withNotice(
   state: SessionViewState,
@@ -476,6 +483,8 @@ export function applyEvent(
       'rejected',
       `Not accepted: ${String(value.reason ?? 'unknown reason')}`,
     )
+  if (event.name === HARNESS_EVENTS.reset)
+    return withNotice(state, 'info', resetNotice(value.note))
   if (
     event.name === HARNESS_EVENTS.authRequired &&
     typeof value.connector === 'string'
@@ -690,6 +699,17 @@ export function messagesFromTranscript(
   const result: Array<ViewMessage> = []
   messages.forEach((message, index) => {
     const id = message.id ?? `history-${index}`
+    // The marker of a `session.reset()` shows as a notice, not a message.
+    const reset = recordOf(message.metadata?.harness).reset
+    if (message.role === 'user' && isRecord(reset)) {
+      result.push({
+        id,
+        role: 'notice',
+        kind: 'info',
+        text: resetNotice(reset.note),
+      })
+      return
+    }
     if (message.role === 'user') {
       const media = userMedia(message)
       result.push({

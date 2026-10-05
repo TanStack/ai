@@ -626,7 +626,7 @@ describe('engine message store', () => {
     ])
   })
 
-  it('lets an engine save that changes older messages win', async () => {
+  it('lets an engine save that changes older messages win, and keeps a later host message', async () => {
     const { writer, engine } = await engineOnLog()
     await engine.loadThread(THREAD)
     await engine.saveThread(THREAD, [user('u1', 'one'), assistant('a1', 'two')])
@@ -634,7 +634,10 @@ describe('engine message store', () => {
 
     await engine.saveThread(THREAD, [assistant('s', 'engine summary')])
 
-    expect(writer.state.messages).toEqual([assistant('s', 'engine summary')])
+    expect(writer.state.messages).toEqual([
+      assistant('s', 'engine summary'),
+      { role: 'user', content: '[signal] late' },
+    ])
   })
 
   it('commits the engine list before a model call and changes it only for a host record', async () => {

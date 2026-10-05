@@ -42,6 +42,7 @@ console.log(receipt.status) // 'accepted' or 'queued'
 - The same id and the same message: you get the first input's operation, and the model is not called again.
 - The same id and another message: the receipt has `status: 'rejected'` and `reason: 'conflict'`, and `await turn` rejects with `InputRejectedError`.
 - `steer`, `followUp`, and `resolve` take `{ inputId }` too.
+- [`configure`](./thread-settings) and [`reset`](./fork-and-reset#reset-with-a-handoff-note) are inputs too. They take `{ inputId }` and run once per id.
 
 ## Retry from the client
 
@@ -78,6 +79,8 @@ if (settlement.outcome === 'failed') {
 - `failed`: the turn failed. `error.code` is set for a limit.
 - `aborted`: someone cancelled the turn.
 - `interrupted`: the turn waits for human input. The `resolve` that answers it is a new input.
+
+If the turn fails after an approved tool ran (for example, the next model call fails), the interrupt is used up, and the tool does not run again. Its result stays in the transcript. To go on, send a new message. If a resume stopped before its tool ran, the interrupt stays open, and you can resolve it again.
 
 A client gets the same answer as a `harness.input.settled` event:
 

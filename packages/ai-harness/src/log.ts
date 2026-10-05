@@ -1,5 +1,6 @@
 import { EventType } from '@tanstack/ai'
 import { LogConflictError } from '@tanstack/ai-persistence'
+import { addUsage, emptyUsage, isSessionUsage } from './usage'
 import { isRecord } from './utils'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type {
@@ -16,6 +17,7 @@ import type {
   InputSettlement,
   SessionEvent,
 } from './types'
+import type { SessionUsage, UsageCall } from './usage'
 
 /** The records the harness writes to a session log. */
 export type HarnessRecord =
@@ -58,6 +60,7 @@ export type HarnessRecord =
       name: string
       value: unknown
     }
+  | ({ type: 'harness.usage' } & UsageCall)
 
 const HARNESS_RECORD_TYPES = new Set<string>([
   'harness.event',
@@ -71,6 +74,7 @@ const HARNESS_RECORD_TYPES = new Set<string>([
   'harness.tool.result',
   'harness.tool.started',
   'harness.tool.step',
+  'harness.usage',
 ])
 
 // The harness wrote every record of these types, so the fields are its own.
@@ -129,6 +133,8 @@ export interface LogState {
   started: Map<string, { name: string; replay: 'safe' | 'never' }>
   /** By {@link stepKey}. */
   steps: Map<string, unknown>
+  /** The usage of every model call of the thread. */
+  usage: SessionUsage
 }
 
 export function emptyLogState() {
@@ -139,6 +145,7 @@ export function emptyLogState() {
     toolResults: new Map(),
     started: new Map(),
     steps: new Map(),
+    usage: emptyUsage(),
   }
   return state
 }
@@ -287,6 +294,9 @@ export function foldEntry(
     case 'harness.tool.step':
       state.steps.set(stepKey(record.toolCallId, record.name), record.value)
       return
+    case 'harness.usage':
+      addUsage(state.usage, record)
+      return
   }
 }
 
@@ -388,6 +398,7 @@ function serialize(state: SharedLogState, versions: CheckpointVersions) {
         toolResults: [...session.toolResults.entries()],
         started: [...session.started.entries()],
         steps: [...session.steps.entries()],
+        usage: session.usage,
       },
     ]),
     reduced: state.reduced ?? null,
@@ -421,6 +432,8 @@ function parseSession(value: unknown, seq: number) {
         : [],
     ),
     steps: new Map(steps as Array<[string, unknown]>),
+    // A checkpoint from before usage totals has none.
+    usage: isSessionUsage(value.usage) ? value.usage : emptyUsage(),
   }
   return session
 }
@@ -1064,17 +1077,19 @@ export function engineMessageStore(options: {
    *   between a tool call and its result.
    * - A host record rewrote the fold (a compaction): the engine's new
    *   messages go after the rewritten fold.
-   * - The engine changed older messages itself (a compaction middleware):
-   *   `list` wins.
+   * - The engine changed older messages itself (a compaction middleware, or
+   *   the run tags of `withPersistence` at the end of a turn): `list` wins,
+   *   and host messages that the fold added after `base` stay after it.
    */
   const rebase = (base: Array<ModelMessage>, list: Array<ModelMessage>) => {
     const current = writer.state.messages
-    const isEngineExtension = commonPrefix(base, list) === base.length
-    if (!isEngineExtension) return list
-    const added = list.slice(base.length)
     const isFoldExtension = commonPrefix(base, current) === base.length
+    const hostAdded = isFoldExtension ? current.slice(base.length) : []
+    const isEngineExtension = commonPrefix(base, list) === base.length
+    if (!isEngineExtension) return [...list, ...hostAdded]
+    const added = list.slice(base.length)
     return isFoldExtension
-      ? [...base, ...added, ...current.slice(base.length)]
+      ? [...base, ...added, ...hostAdded]
       : [...current, ...added]
   }
   const engine = {

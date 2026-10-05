@@ -28,6 +28,9 @@ import type { AnyTextAdapter, ModelMessage } from '@tanstack/ai'
  *   overflow error, then `compactNext` and one retry: 4 calls.
  * - `parallel-tools`: the model calls 4 tools in one phase. Before the next
  *   call, `clearToolResults()` clears the oldest result and keeps 3: 2 calls.
+ * - `empty-summary-overflow`: like `error-overflow`, but the summary is empty.
+ *   The compaction fails, the history stays, and with `continueOnError` the
+ *   retry overflows again, so the turn fails with the overflow error: 4 calls.
  *
  * Each case then opens a second host on the same log and returns its
  * transcript, so the spec can check that a rebuild gives the same context.
@@ -45,6 +48,7 @@ type Case =
   | 'error-overflow'
   | 'turn-control'
   | 'parallel-tools'
+  | 'empty-summary-overflow'
 type Step = { text: string } | { error: string } | { tools: number }
 
 const SCRIPTS: Record<Case, Array<Step>> = {
@@ -66,6 +70,12 @@ const SCRIPTS: Record<Case, Array<Step>> = {
     { text: 'fits now' },
   ],
   'parallel-tools': [{ tools: 4 }, { text: 'All parts read.' }],
+  'empty-summary-overflow': [
+    { text: 'First response.' },
+    { error: OVERFLOW },
+    { text: '' },
+    { error: OVERFLOW },
+  ],
 }
 
 const PROMPTS: Record<Case, Array<string>> = {
@@ -73,6 +83,7 @@ const PROMPTS: Record<Case, Array<string>> = {
   'error-overflow': [LONG_PROMPT, LONG_PROMPT],
   'turn-control': ['first question OLD_DETAIL', 'second question'],
   'parallel-tools': ['Read parts 1 to 4.'],
+  'empty-summary-overflow': [LONG_PROMPT, LONG_PROMPT],
 }
 
 /** Each result is about 500 tokens, so 4 of them are over `maxTokens`. */
@@ -90,7 +101,8 @@ function caseOf(body: unknown): Case | undefined {
   return value === 'silent-overflow' ||
     value === 'error-overflow' ||
     value === 'turn-control' ||
-    value === 'parallel-tools'
+    value === 'parallel-tools' ||
+    value === 'empty-summary-overflow'
     ? value
     : undefined
 }
@@ -262,7 +274,18 @@ function compactionFor(testCase: Case, adapter: AnyTextAdapter) {
     auto: false,
     durable: true,
     strategy: summarizeOldest({ summarize, keepRecentTokens: 20_000 }),
+    // A failed compaction sends the list as it is, so the retry fails with
+    // the overflow error and not with an emptied context.
+    ...(testCase === 'empty-summary-overflow' ? { continueOnError: true } : {}),
   })
+}
+
+/** The reasons of the compaction records in the log of the thread. */
+async function recordReasons(log: ReturnType<typeof memoryLogStore>) {
+  const entries = await log.read(THREAD, { after: 0 })
+  return entries
+    .filter((entry) => entry.record.type === COMPACTION_RECORD_TYPE)
+    .map((entry) => entry.record.reason)
 }
 
 export const Route = createFileRoute('/api/compaction-durable-wire')({
@@ -311,6 +334,9 @@ export const Route = createFileRoute('/api/compaction-durable-wire')({
           return Response.json({
             ok: false,
             error: error instanceof Error ? error.message : String(error),
+            calls: bodies.length,
+            records: await recordReasons(persistence.stores.log),
+            lastRequest: bodies.at(-1),
           })
         } finally {
           await first.close()
@@ -326,16 +352,13 @@ export const Route = createFileRoute('/api/compaction-durable-wire')({
           await second.close()
         }
 
-        const entries = await persistence.stores.log.read(THREAD, { after: 0 })
         return Response.json({
           ok: true,
           calls: bodies.length,
           texts,
           transcript,
           rebuilt,
-          records: entries
-            .filter((entry) => entry.record.type === COMPACTION_RECORD_TYPE)
-            .map((entry) => entry.record.reason),
+          records: await recordReasons(persistence.stores.log),
           lastRequest: bodies.at(-1),
         })
       },

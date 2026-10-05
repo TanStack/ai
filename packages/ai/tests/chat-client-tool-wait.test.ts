@@ -214,10 +214,10 @@ describe('client-tool wait lifecycle', () => {
       }),
     )
 
+    // The client runs the tool, so the server records no execute_tool span.
     expect(fakeTracer.spans.map((span) => span.name)).toEqual([
       'chat test-model',
       'chat test-model #0',
-      'execute_tool ask_client',
     ])
     expect(fakeTracer.spans.every((span) => span.ended)).toBe(true)
     expect(

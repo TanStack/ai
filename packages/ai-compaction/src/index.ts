@@ -490,9 +490,16 @@ export function summarizeOldest(options: {
           ...input,
           signal: controller.signal,
         })
-        if (typeof result === 'string') return result
-        if (result.usage) ctx.addUsage(result.usage)
-        return result.summary
+        const summary = typeof result === 'string' ? result : result.summary
+        if (typeof result !== 'string' && result.usage) {
+          ctx.addUsage(result.usage)
+        }
+        // An empty summary would replace the history with nothing. Fail the
+        // compaction instead, so the history stays as it is.
+        if (summary.trim() === '') {
+          throw new Error('The summarizer returned an empty summary.')
+        }
+        return summary
       } catch (error) {
         controller.abort(error)
         throw error

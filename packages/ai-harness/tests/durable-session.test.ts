@@ -578,6 +578,68 @@ describe('LogRecordsCapability', () => {
     await host.close()
   })
 
+  it('keeps a record from the last model call of a turn with a tool phase', async () => {
+    const persistence = durablePersistence()
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up the weather',
+    }).server(async () => 'sunny')
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('lookup', { city: 'Berlin' }, 'call-1'),
+      () => text('It is sunny.'),
+      () => text('a2'),
+    ])
+    let sent = false
+    // Like a state write of the app while the last model call streams.
+    const signal: ChatMiddleware = {
+      name: 'test:signal-in-last-call',
+      onChunk: async (ctx, chunk) => {
+        if (sent || chunk.type !== EventType.TEXT_MESSAGE_CONTENT) return
+        sent = true
+        await getLogRecords(ctx).append([
+          { type: 'app.signal', text: '[signal] saved' },
+        ])
+      },
+    }
+    const host = createHarnessHost({ persistence, project })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/log-records-tool-phase',
+        adapter,
+        tools: [lookup],
+        middleware: [signal],
+      }),
+      { threadId: THREAD },
+    )
+
+    await session.prompt('Weather in Berlin?')
+
+    // The end of the turn tags the run on older messages. The signal must
+    // stay in the fold, and a rebuild must give the same messages.
+    const transcript = await session.transcript()
+    expect(transcript.map((message) => message.content)).toContain(
+      '[signal] saved',
+    )
+    const entries = await persistence.stores.log.read(THREAD, { after: 0 })
+    expect(entries.some((entry) => entry.record.type === 'app.signal')).toBe(
+      true,
+    )
+    const rebuilt = sessionOf(
+      await loadLogState({
+        store: persistence.stores.log,
+        logId: THREAD,
+        project,
+      }),
+      THREAD,
+    )
+    expect(rebuilt.messages).toEqual(transcript)
+
+    // The next turn's model call gets it too.
+    await session.prompt('q2')
+    expect(messageTexts(calls[2])).toContain('[signal] saved')
+    await host.close()
+  })
+
   it('keeps the saved reply when a record lands from onFinish', async () => {
     const persistence = durablePersistence()
     const { adapter } = mockAdapter([() => text('a1')])

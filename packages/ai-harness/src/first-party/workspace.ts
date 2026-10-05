@@ -63,6 +63,11 @@ export interface OutsideAccess {
   ask: (message: string) => Promise<unknown>
   /** The permission mode of the session, for example `'bypass'`. */
   mode: () => unknown
+  /**
+   * The working folder of the thread, from `root` (the `cwd` setting of
+   * `session.configure`). Relative paths start there. Read at each call.
+   */
+  cwd?: () => string | undefined
 }
 
 /** Is `full` the folder `dir`, or a path in it? */
@@ -83,6 +88,11 @@ export function createWorkspaceTools(
   // that wait for an answer, by folder, so parallel calls ask once.
   const allowed: Array<string> = []
   const asking = new Map<string, Promise<boolean>>()
+  /** The working folder: `root`, or the thread's `cwd` in it. */
+  const here = () => {
+    const cwd = access?.cwd?.()
+    return cwd ? resolve(root, cwd) : root
+  }
 
   /** Ask once about `folder`. A yes allows it for the session. */
   const allow = (folder: string, message: string) => {
@@ -103,7 +113,7 @@ export function createWorkspaceTools(
    * workspace is refused, or needs the user's yes for its folder.
    */
   const reach = async (path: string, tool: string, kind: 'file' | 'folder') => {
-    const full = isAbsolute(path) ? resolve(path) : resolve(root, path)
+    const full = isAbsolute(path) ? resolve(path) : resolve(here(), path)
     const isAllowed = [root, ...allowed].some((dir) => within(dir, full))
     if (isAllowed) return full
     if (options.outside !== 'ask' || !access) {
@@ -300,27 +310,28 @@ export function createWorkspaceTools(
         required: ['command'],
       },
       replay: 'never',
-    }).server(
-      (args: unknown) =>
-        new Promise<string>((done) => {
-          exec(
-            stringArg(args, 'command'),
-            {
-              cwd: root,
-              timeout: options.bashTimeoutMs ?? 120_000,
-              maxBuffer: 10 * 1024 * 1024,
-            },
-            (error, stdout, stderr) => {
-              const code = error && 'code' in error ? error.code : 0
-              done(
-                clip(
-                  `exit code: ${String(code ?? 0)}\n${stdout}${stderr ? `\nstderr:\n${stderr}` : ''}`,
-                ),
-              )
-            },
-          )
-        }),
-    ),
+    }).server(async (args: unknown) => {
+      // The shell runs in the working folder, so it must be in the workspace.
+      const cwd = await reach('.', 'bash', 'folder')
+      return new Promise<string>((done) => {
+        exec(
+          stringArg(args, 'command'),
+          {
+            cwd,
+            timeout: options.bashTimeoutMs ?? 120_000,
+            maxBuffer: 10 * 1024 * 1024,
+          },
+          (error, stdout, stderr) => {
+            const code = error && 'code' in error ? error.code : 0
+            done(
+              clip(
+                `exit code: ${String(code ?? 0)}\n${stdout}${stderr ? `\nstderr:\n${stderr}` : ''}`,
+              ),
+            )
+          },
+        )
+      })
+    }),
   ]
   const prompt =
     options.outside === 'ask'
@@ -347,13 +358,22 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
   return definePlugin({
     name: 'tanstack/workspace-tools',
     setup: (ctx) => {
+      // The working folder is the thread's `cwd` setting, read at each call.
+      const cwd = () => ctx.session.settings().cwd
       const { tools, prompt } = createWorkspaceTools(options, {
         ask: (message) => ctx.session.ask({ message }),
         mode: () => ctx.config.get('mode'),
+        cwd,
       })
+      const folder = () => {
+        const dir = cwd()
+        return dir
+          ? ` The working folder of this thread is ${resolve(options.root, dir)}. Relative paths start there.`
+          : ''
+      }
       return {
         tools,
-        prompts: [prompt],
+        prompts: [() => prompt + folder()],
         contribute: [
           PermissionRules.item({
             tool: 'read_file',
