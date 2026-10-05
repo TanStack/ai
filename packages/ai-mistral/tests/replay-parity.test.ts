@@ -557,11 +557,13 @@ describe('Mistral replay parity', () => {
 })
 
 describe('Mistral empty terminal tool arguments', () => {
+  // No input runs as {} (issue #265). The adapter fails on whitespace-only
+  // arguments before the input check.
   it.each([
-    { withSchema: true, raw: '' },
-    { withSchema: true, raw: '   ' },
-    { withSchema: false, raw: '' },
-  ])('keeps empty raw input: %j', async ({ withSchema, raw }) => {
+    { withSchema: true, raw: '', runs: 1 },
+    { withSchema: true, raw: '   ', runs: 0 },
+    { withSchema: false, raw: '', runs: 1 },
+  ])('keeps empty raw input: %j', async ({ withSchema, raw, runs }) => {
     let requests = 0
     let executions = 0
     vi.stubGlobal('fetch', async () => {
@@ -622,7 +624,7 @@ describe('Mistral empty terminal tool arguments', () => {
       ],
     }))
       chunks.push(chunk)
-    expect(executions).toBe(withSchema ? 0 : 1)
+    expect(executions).toBe(runs)
     expect(
       chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')?.metadata?.tanstack
         ?.args,

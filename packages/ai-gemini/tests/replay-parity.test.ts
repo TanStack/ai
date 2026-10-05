@@ -444,7 +444,8 @@ describe('Gemini replay parity', () => {
         (request: Parameters<GoogleGenAI['interactions']['create']>[0]) =>
           sdk.interactions.create(request),
       )
-      for (const raw of ['', '  ', '{"value":']) {
+      // No input runs as {} (issue #265), so '' and '  ' are not in this list.
+      for (const raw of ['{"value":']) {
         const events = [
           {
             event_type: 'interaction.created',
@@ -619,6 +620,11 @@ describe('Gemini replay parity', () => {
             expect(execute).toHaveBeenCalledTimes(1)
             expect(execute.mock.calls[0]?.[0]).toEqual(value)
             expect(validate).toHaveBeenCalledTimes(1)
+          } else if (value === null) {
+            // A null that the schema rejects runs as {} (issue #265).
+            if (client)
+              expect(JSON.stringify(chunks)).toContain('client_tool_call')
+            else expect(execute.mock.calls[0]?.[0]).toEqual({})
           } else {
             expect(execute).not.toHaveBeenCalled()
             expect(JSON.stringify(chunks)).not.toContain('client_tool_call')

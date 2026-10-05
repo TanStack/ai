@@ -329,7 +329,8 @@ describe('OpenAI replay parity', () => {
   it.each([false, true])(
     'rejects raw wrong-type and malformed inputs before dispatch for Responses=%s',
     async (responses) => {
-      for (const raw of ['7', 'false', 'null', '\"text\"', '[1]', '{\"n\":']) {
+      // A literal null runs as {} (issue #265), so it is not in this list.
+      for (const raw of ['7', 'false', '\"text\"', '[1]', '{\"n\":']) {
         for (const client of [false, true]) {
           const item = {
             type: 'function_call',

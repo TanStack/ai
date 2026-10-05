@@ -113,16 +113,9 @@ describe('Ollama replay parity', () => {
   it.each([false, true])(
     'rejects invalid raw input before server or client dispatch for doneOnly=%s',
     async (doneOnly) => {
-      for (const raw of [
-        '7',
-        'false',
-        'null',
-        '"value"',
-        '[1]',
-        '{"n":',
-        '',
-        '  ',
-      ]) {
+      // No input or a literal null runs as {} (issue #265), so they are not
+      // in this list.
+      for (const raw of ['7', 'false', '"value"', '[1]', '{"n":']) {
         for (const client of [false, true]) {
           const mock = sdk(
             doneOnly
