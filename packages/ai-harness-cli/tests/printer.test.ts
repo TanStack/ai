@@ -8,6 +8,7 @@ const base: SessionViewState = {
   connection: 'open',
   messages: [],
   approvals: [],
+  clientTools: [],
   questions: [],
   signIns: [],
   agents: [],

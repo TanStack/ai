@@ -7,15 +7,27 @@ import { EXIT, runPrint } from './print'
 import { createToken, serve } from './serve'
 import type {
   AnyHarness,
+  HarnessHost,
   HarnessPersistence,
   HarnessSession,
+  Principal,
   UserInput,
 } from '@tanstack/ai-harness'
 import type { SessionView, SessionViewSource } from '@tanstack/ai-harness/view'
 
 export interface RunCliOptions {
-  /** Where sessions keep state. Default: in memory. */
+  /** Where sessions keep state. Default: in memory. Do not set it with `host`. */
   persistence?: HarnessPersistence
+  /**
+   * Your own host, so the CLI keeps its hooks: leases, recovery, and stores.
+   * You own it: the CLI does not close it. Do not set it with `persistence`.
+   */
+  host?: HarnessHost
+  /**
+   * Who uses the CLI. Sessions open as this principal, so credentials and
+   * provider keys are theirs. `--serve` authorizes each request as them.
+   */
+  principal?: Principal
   /** Default: `process.argv.slice(2)`. */
   argv?: ReadonlyArray<string>
   stdin?: NodeJS.ReadStream
@@ -95,9 +107,16 @@ export async function runCli(
     return EXIT.ok
   }
 
-  const host = createHarnessHost(
-    options.persistence ? { persistence: options.persistence } : {},
-  )
+  if (options.host && options.persistence) {
+    stderr.write('Give runCli a host or persistence, not both.\n')
+    return EXIT.failed
+  }
+  const host =
+    options.host ??
+    createHarnessHost(
+      options.persistence ? { persistence: options.persistence } : {},
+    )
+  const { principal } = options
   const approvals = args.yes ? 'auto' : 'ask'
   try {
     if (args.acp) {
@@ -182,6 +201,7 @@ export async function runCli(
         token,
         threadId: args.thread,
         approvals,
+        ...(principal ? { principal } : {}),
       })
       stderr.write(`Serving ${harness.name} at ${server.url}\n`)
       if (!args.token && !env.HARNESS_TOKEN) stderr.write(`Token: ${token}\n`)
@@ -193,7 +213,10 @@ export async function runCli(
       return EXIT.ok
     }
 
-    const session = await host.open(harness, { threadId: args.thread })
+    const session = await host.open(harness, {
+      threadId: args.thread,
+      ...(principal ? { principal } : {}),
+    })
     // Relative to the working folder, as a relative --media-dir is.
     const mediaDir = args.mediaDir ?? defaultMediaDir(harness.name)
     if (args.print !== undefined) {
@@ -223,7 +246,8 @@ export async function runCli(
     stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
     return EXIT.failed
   } finally {
-    await host.close()
+    // A host the caller gave stays open: the caller owns it.
+    if (!options.host) await host.close()
   }
 }
 
