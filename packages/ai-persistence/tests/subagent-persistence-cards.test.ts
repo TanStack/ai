@@ -441,4 +441,56 @@ describe('subagent run recorder', () => {
     expect(second).toContain('second thread notes')
     expect(second).not.toContain('first thread notes')
   })
+
+  it('restores the cancellation reason on a zero-output child card', async () => {
+    const persistence = memoryPersistence()
+    const { stores } = persistence
+    if (!stores.messages || !stores.runs) {
+      throw new Error('memory persistence has message and run stores')
+    }
+    const recorder = createSubagentRunRecorder({
+      messages: stores.messages,
+      runs: stores.runs,
+      intervalMs: 0,
+    })
+
+    await recorder.start({
+      threadId: 'desk',
+      runId: 'parent-run',
+      messages: [{ id: 'user-1', role: 'user', content: 'Research this' }],
+    })
+    await recorder.chunk({
+      threadId: 'desk',
+      runId: 'parent-run',
+      chunk: {
+        type: EventType.SUBAGENT_STARTED,
+        subagentRunId: 'child-run',
+        name: 'researcher',
+        timestamp: t,
+      },
+    })
+    await recorder.chunk({
+      threadId: 'desk',
+      runId: 'parent-run',
+      chunk: {
+        type: EventType.SUBAGENT_ERROR,
+        subagentRunId: 'child-run',
+        message: 'Subagent stopped',
+        code: 'cancelled',
+        timestamp: t,
+      },
+    })
+    await recorder.abort({
+      threadId: 'desk',
+      runId: 'parent-run',
+      error: Object.assign(new Error('Aborted'), { name: 'AbortError' }),
+    })
+
+    expect((await stores.runs.get('child-run'))?.status).toBe('aborted')
+    const card = cardOf((await loadDesk(persistence)).messages)
+    expect(card.subagent).toMatchObject({
+      status: 'error',
+      error: { message: 'Subagent stopped', code: 'cancelled' },
+    })
+  })
 })

@@ -414,7 +414,7 @@ See [Sandboxes](../sandbox/overview) for `withSandbox` and `lifecycle.reuse`.
 
 ## Client
 
-The nested `type: 'subagent'` part and `useChat().subagents[i]` are the same live object. Call `stop()` on either one. The client sets that child to error and aborts the current parent run. Later events for that id, and for its nested children, are ignored.
+The nested `type: 'subagent'` part and `useChat().subagents[i]` are the same live object. Call `stop()` on either one. The client sets that child to error with `error.code: 'cancelled'` and aborts the current parent run. Later events for that id, and for its nested children, are ignored.
 
 `part.subagent.messages` holds everything the child did:
 

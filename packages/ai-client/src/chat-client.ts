@@ -3210,11 +3210,12 @@ export class ChatClient<
       type: EventType.SUBAGENT_ERROR,
       subagentRunId: id,
       message: 'Stopped',
+      code: 'cancelled',
       timestamp: Date.now(),
     })
     this.syncSubagentHandles()
     handle.status = 'error'
-    handle.error = { message: 'Stopped' }
+    handle.error = { message: 'Stopped', code: 'cancelled' }
     this.abortController?.abort()
   }
 

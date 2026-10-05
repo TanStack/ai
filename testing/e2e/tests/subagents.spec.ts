@@ -14,7 +14,7 @@ async function run(page: Page) {
 
 function open(
   page: Page,
-  scenario: 'route' | 'approval' | 'tool' | 'brief',
+  scenario: 'route' | 'approval' | 'tool' | 'brief' | 'cancel',
   testId: string,
   aimockPort: number,
 ) {
@@ -130,6 +130,25 @@ test.describe('subagents', () => {
     // transcript instead would get no reply.
     await expect(page.getByTestId('card-researcher')).toContainText(
       'text:Squids have three hearts and blue blood.',
+    )
+  })
+
+  test('stopping a child exposes a typed cancellation error', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await open(page, 'cancel', testId, aimockPort)
+    await run(page)
+
+    await expect(page.getByTestId('card-status-researcher')).toHaveText(
+      'running',
+    )
+    await page.getByTestId('stop').click()
+
+    await expect(page.getByTestId('card-status-researcher')).toHaveText('error')
+    await expect(page.getByTestId('card-error-code-researcher')).toHaveText(
+      'cancelled',
     )
   })
 })

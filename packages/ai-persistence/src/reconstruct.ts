@@ -326,6 +326,7 @@ async function childCard(
     }
   }
   const failed = child.status === 'failed' || child.status === 'aborted'
+  const error = child.error ?? info?.error
   const interruptIds = pending
     .filter((record) => record.payload.subagentRunId === subagentRunId)
     .map((record) => record.interruptId)
@@ -350,7 +351,7 @@ async function childCard(
       ...(interruptIds.length > 0 && { interruptIds }),
       ...(info?.metadata !== undefined && { metadata: info.metadata }),
       messages,
-      ...(failed && child.error ? { error: child.error } : {}),
+      ...(failed && error ? { error } : {}),
     },
   }
 }

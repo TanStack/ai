@@ -291,7 +291,42 @@ describe('chat({ subagents }) router spawn', () => {
     )
     expect(
       chunks.find((chunk) => chunk.type === 'SUBAGENT_ERROR'),
-    ).toMatchObject({ type: 'SUBAGENT_ERROR', message: 'Stopped' })
+    ).toMatchObject({
+      type: 'SUBAGENT_ERROR',
+      message: 'Stopped',
+      code: 'cancelled',
+    })
+  })
+
+  it('marks a child AbortError as cancelled', async () => {
+    const researcher = defineAgent({
+      name: 'researcher',
+      description: 'Looks up facts',
+      run() {
+        throw Object.assign(new Error('Request aborted'), {
+          name: 'AbortError',
+        })
+      },
+    })
+    const chunks = await collectChunks(
+      chat({
+        adapter: parentAdapter().adapter,
+        messages: [{ role: 'user', content: 'Go' }],
+        subagents: {
+          agents: [researcher],
+          strategy: 'exclusive',
+          router: () => 'researcher',
+        },
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(
+      chunks.find((chunk) => chunk.type === 'SUBAGENT_ERROR'),
+    ).toMatchObject({
+      type: 'SUBAGENT_ERROR',
+      message: 'Stopped',
+      code: 'cancelled',
+    })
   })
 
   it('lets the router override bag order with a sequence plan', async () => {

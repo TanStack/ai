@@ -169,6 +169,7 @@ function stoppedEvent(subagentRunId: string) {
     type: SUBAGENT_ERROR,
     subagentRunId,
     message: 'Stopped',
+    code: 'cancelled',
     timestamp: Date.now(),
   } satisfies SubagentErrorEvent
 }
@@ -507,14 +508,16 @@ export async function* spawnAgentStream(
       timestamp: Date.now(),
     } satisfies SubagentFinishedEvent
   } catch (error) {
+    const stopped = isAbortError(error, ctx.abortSignal)
     yield {
       type: SUBAGENT_ERROR,
       subagentRunId: id,
-      message: isAbortError(error, ctx.abortSignal)
+      message: stopped
         ? 'Stopped'
         : error instanceof Error
           ? error.message
           : String(error),
+      ...(stopped ? { code: 'cancelled' } : {}),
       timestamp: Date.now(),
     } satisfies SubagentErrorEvent
   } finally {

@@ -127,14 +127,14 @@ describe('ChatClient subagents', () => {
     expect(handle).toBe(part.subagent)
     handle?.stop?.()
     expect(handle?.status).toBe('error')
-    expect(handle?.error).toEqual({ message: 'Stopped' })
+    expect(handle?.error).toEqual({ message: 'Stopped', code: 'cancelled' })
 
     release()
     await sendPromise
 
     expect(handle).toBe(part.subagent)
     expect(handle?.status).toBe('error')
-    expect(handle?.error).toEqual({ message: 'Stopped' })
+    expect(handle?.error).toEqual({ message: 'Stopped', code: 'cancelled' })
     expect(part.subagent.status).toBe('error')
     expect(handle?.messages).toEqual([])
   })
@@ -186,7 +186,7 @@ describe('ChatClient subagents', () => {
     await sendPromise
 
     expect(handle?.status).toBe('error')
-    expect(handle?.error).toEqual({ message: 'Stopped' })
+    expect(handle?.error).toEqual({ message: 'Stopped', code: 'cancelled' })
     expect(handle?.messages[0]?.parts).toEqual([
       { type: 'text', content: 'partial' },
     ])
