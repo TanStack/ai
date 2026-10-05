@@ -4,7 +4,7 @@ import type { StreamChunk } from '@tanstack/ai'
 import type { AnyAgent } from './agents'
 import type { AnyHarness } from './define'
 import type { HarnessSession, SessionSnapshot } from './session'
-import type { Cursor, HarnessInput, Receipt } from './types'
+import type { Cursor, HarnessInput, Principal, Receipt } from './types'
 
 /** The session-tier protocol version. Sent in `subscribe` and `hello`. */
 export const HARNESS_PROTOCOL_VERSION = 1
@@ -114,19 +114,31 @@ export function parseControlFrame(data: string): ControlFrame {
 
 /**
  * Apply a client input to a session. Only agents in `expose.agents` can run
- * from a client. Resolves to the receipt.
+ * from a client. Resolves to the receipt. `principal` is who sent the input,
+ * from your `authorize`, never from the input itself. A chat input runs with
+ * its credentials.
  */
 export async function applyInput(
   harness: AnyHarness,
   session: HarnessSession,
   input: HarnessInput,
+  principal?: Principal,
 ): Promise<Receipt> {
-  const id = input.inputId === undefined ? {} : { inputId: input.inputId }
+  const id = {
+    ...(input.inputId === undefined ? {} : { inputId: input.inputId }),
+    ...(principal ? { principal } : {}),
+  }
+  const sent = {
+    ...id,
+    ...('context' in input && input.context !== undefined
+      ? { context: input.context }
+      : {}),
+  }
   switch (input.op) {
     case 'prompt': {
       const operation = session.prompt(input.message, {
         ...(input.busy ? { busy: input.busy } : {}),
-        ...id,
+        ...sent,
       })
       // Nobody may await a turn a client started. Its receipt is the answer.
       operation.then(
@@ -136,15 +148,19 @@ export async function applyInput(
       return operation.receipt
     }
     case 'steer':
-      return session.steer(input.message, id)
+      return session.steer(input.message, sent)
     case 'followUp':
-      return session.followUp(input.message, id)
+      return session.followUp(input.message, sent)
     case 'resolve':
       return session.resolve(input.resume, id)
     case 'cancel':
       return session.cancel(input.operationId)
     case 'command': {
-      const operation = session.command(input.name, input.input)
+      const operation = session.command(
+        input.name,
+        input.input,
+        principal ? { principal } : undefined,
+      )
       operation.then(
         () => {},
         () => {},

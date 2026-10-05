@@ -27,6 +27,8 @@ const TERMINAL: ReadonlySet<OperationStatus> = new Set([
 /** The session-side implementation of {@link Operation}. */
 export class OperationImpl<TResult> implements Operation<TResult> {
   readonly id: string
+  /** The feed head when the operation was made. Its events come after it. */
+  readonly startedCursor: Cursor
   readonly abortController = new AbortController()
   readonly receipt: Promise<Receipt>
   private current: OperationStatus = 'accepted'
@@ -46,6 +48,7 @@ export class OperationImpl<TResult> implements Operation<TResult> {
     id?: string,
   ) {
     this.id = id ?? createOperationId(kind)
+    this.startedCursor = feed.head()
     this.receipt = new Promise<Receipt>((resolve) => {
       this.settleReceipt = resolve
     })

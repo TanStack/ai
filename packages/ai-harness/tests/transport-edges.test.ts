@@ -94,7 +94,7 @@ describe('HTTP handler edges', () => {
     expect(await statusOf('events?threadId=someone-else')).toBe(403)
     expect(await statusOf('snapshot')).toBe(400)
     expect(await statusOf('nowhere')).toBe(404)
-    expect(await statusOf('run', { method: 'GET' })).toBe(404)
+    expect(await statusOf('run', { method: 'GET' })).toBe(400)
 
     const control = (body: string) =>
       statusOf('control', { method: 'POST', body })
@@ -175,9 +175,11 @@ describe('HTTP handler edges', () => {
     })
     expect(nothing.status).toBe(409)
 
+    // Each AG-UI request has its own runId.
     const resumed = await call('run', {
       method: 'POST',
       body: runBody('user-1-resume', {
+        runId: 'client-run-2',
         resume: [
           { interruptId: interrupt.id, status: 'resolved', payload: true },
         ],

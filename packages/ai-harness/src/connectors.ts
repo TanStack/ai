@@ -18,9 +18,13 @@ export interface OAuthConnectorOptions {
   login?: 'loopback' | 'device'
   /**
    * The tools of this service. Call `token()` inside a tool: it returns a
-   * fresh access token, or pauses with `auth_required` before sign-in.
+   * fresh access token, or fails with `auth_required` before sign-in. With
+   * `token({ wait: true })`, the turn waits for the sign-in and the tool
+   * runs again after it (see `CredentialsAccess.require`).
    */
-  tools?: (token: () => Promise<string>) => ReadonlyArray<AnyTool>
+  tools?: (
+    token: (options?: { wait?: boolean }) => Promise<string>,
+  ) => ReadonlyArray<AnyTool>
   /** Test hook for the token endpoint. */
   fetch?: typeof fetch
 }
@@ -45,8 +49,10 @@ export function oauthConnector(options: OAuthConnectorOptions) {
   return definePlugin({
     name: `connector/${id}`,
     setup: (ctx) => {
-      const token = async (): Promise<string> => {
-        let credential = await ctx.credentials.require(id)
+      const token = async (tokenOptions?: {
+        wait?: boolean
+      }): Promise<string> => {
+        let credential = await ctx.credentials.require(id, tokenOptions)
         if (credential.type === 'api_key') return credential.value
         if (isExpired(credential) && credential.refreshToken) {
           credential = await refreshCredential(oauth, credential, options.fetch)
@@ -60,7 +66,8 @@ export function oauthConnector(options: OAuthConnectorOptions) {
         commands: {
           [`connect:${id}`]: defineCommand({
             description: `Sign in to ${label}`,
-            run: async () => {
+            // The sign-in belongs to the user who runs the command.
+            run: async (_input, { credentials }) => {
               const credential =
                 options.login === 'device'
                   ? await deviceLogin(oauth, {
@@ -77,14 +84,14 @@ export function oauthConnector(options: OAuthConnectorOptions) {
                         ctx.session.authRequired({ connector: id, url }),
                       ...(options.fetch ? { fetch: options.fetch } : {}),
                     })
-              await ctx.credentials.set(id, credential)
+              await credentials.set(id, credential)
               return `Connected to ${label}.`
             },
           }),
           [`disconnect:${id}`]: defineCommand({
             description: `Sign out of ${label}`,
-            run: async () => {
-              await ctx.credentials.delete(id)
+            run: async (_input, { credentials }) => {
+              await credentials.delete(id)
               return `Disconnected from ${label}.`
             },
           }),

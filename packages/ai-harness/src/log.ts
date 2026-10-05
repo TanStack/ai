@@ -25,7 +25,7 @@ export type HarnessRecord =
       type: 'harness.input'
       inputId: string
       input: HarnessInput
-      principal?: { id: string }
+      principal?: { id: string; tenantId?: string }
       at: number
     }
   | {
@@ -102,7 +102,7 @@ export interface ProjectOptions {
 export interface InputState {
   inputId: string
   input: HarnessInput
-  principal?: { id: string }
+  principal?: { id: string; tenantId?: string }
   at: number
   status: 'pending' | 'applied' | 'joined' | 'rejected' | 'settled'
   operationId?: string

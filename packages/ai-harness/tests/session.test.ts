@@ -413,52 +413,98 @@ describe('inbox', () => {
 })
 
 describe('plugins', () => {
-  it('keeps session plugins across turns and sets up run plugins per turn', async () => {
+  // 'run' is the old name of 'turn', and still works.
+  it.each(['turn', 'run'] as const)(
+    'keeps session plugins across turns and sets up %s plugins per turn',
+    async (lifetime) => {
+      const { host } = setup()
+      const log: Array<string> = []
+      const sessionPlugin = definePlugin({
+        name: 'test/session',
+        setup: async ({ resources }) => {
+          await resources.acquire(
+            () => log.push('session:open'),
+            () => log.push('session:close'),
+          )
+          return { prompts: ['Session prompt.'] }
+        },
+      })
+      const runPlugin = definePlugin({
+        name: 'test/run',
+        lifetime,
+        setup: async ({ resources }) => {
+          await resources.acquire(
+            () => log.push('run:open'),
+            () => log.push('run:close'),
+          )
+        },
+      })
+      const { adapter, calls } = mockAdapter([() => text('a'), () => text('b')])
+      const session = await host.open(
+        defineHarness({
+          name: 'test/plugins',
+          adapter,
+          plugins: () => [sessionPlugin, runPlugin],
+        }),
+        { threadId: 't1' },
+      )
+
+      await session.prompt('one')
+      await session.prompt('two')
+      await session.close()
+
+      expect(log).toEqual([
+        'session:open',
+        'run:open',
+        'run:close',
+        'run:open',
+        'run:close',
+        'session:close',
+      ])
+      expect(JSON.stringify(calls[0].systemPrompts)).toContain(
+        'Session prompt.',
+      )
+    },
+  )
+
+  it('runs a harness without an adapter on the model a plugin picks', async () => {
     const { host } = setup()
-    const log: Array<string> = []
-    const sessionPlugin = definePlugin({
-      name: 'test/session',
-      setup: async ({ resources }) => {
-        await resources.acquire(
-          () => log.push('session:open'),
-          () => log.push('session:close'),
-        )
-        return { prompts: ['Session prompt.'] }
-      },
+    const { adapter, calls } = mockAdapter([() => text('picked')])
+    const picker = definePlugin({
+      name: 'test/picker',
+      setup: () => ({ adapter: () => adapter }),
     })
-    const runPlugin = definePlugin({
-      name: 'test/run',
-      lifetime: 'run',
-      setup: async ({ resources }) => {
-        await resources.acquire(
-          () => log.push('run:open'),
-          () => log.push('run:close'),
-        )
-      },
-    })
-    const { adapter, calls } = mockAdapter([() => text('a'), () => text('b')])
     const session = await host.open(
-      defineHarness({
-        name: 'test/plugins',
-        adapter,
-        plugins: () => [sessionPlugin, runPlugin],
-      }),
+      defineHarness({ name: 'test/no-adapter', plugins: () => [picker] }),
       { threadId: 't1' },
     )
 
-    await session.prompt('one')
-    await session.prompt('two')
-    await session.close()
+    expect((await session.prompt('hi')).text).toBe('picked')
+    expect(calls).toHaveLength(1)
+    await host.close()
+  })
 
-    expect(log).toEqual([
-      'session:open',
-      'run:open',
-      'run:close',
-      'run:open',
-      'run:close',
-      'session:close',
-    ])
-    expect(JSON.stringify(calls[0].systemPrompts)).toContain('Session prompt.')
+  it('fails the turn when nothing gives it a model', async () => {
+    const { host } = setup()
+    const session = await host.open(defineHarness({ name: 'test/no-model' }), {
+      threadId: 't1',
+    })
+
+    const turn = session.prompt('hi', { inputId: 'in-1' })
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of turn.stream()) chunks.push(chunk)
+
+    const message =
+      'This turn has no model. Set `adapter` in defineHarness, return one from a plugin `adapter()`, or pass `overrides.adapter` to the turn.'
+    await expect(turn).rejects.toThrow(message)
+    expect(chunks).toContainEqual(
+      expect.objectContaining({ type: EventType.RUN_ERROR, message }),
+    )
+    expect(await session.settled('in-1')).toMatchObject({
+      outcome: 'failed',
+      error: { message },
+    })
+    await host.close()
   })
 
   it('gives plugin tools to the model and plugin capabilities to middleware', async () => {

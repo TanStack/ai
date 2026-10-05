@@ -462,7 +462,9 @@ describe('turn overrides: plugin adapter picker', () => {
     const turn = session.prompt('go', { inputId: 'in-7', overrides })
 
     expect(await turn).toEqual({ text: 'turn' })
-    expect(seen).toEqual([{ operationId: turn.id, inputId: 'in-7', overrides }])
+    expect(seen).toEqual([
+      { operationId: turn.id, inputId: 'in-7', message: 'go', overrides },
+    ])
     expect(picked.calls).toHaveLength(0)
     expect(calls).toHaveLength(0)
     await host.close()

@@ -15,6 +15,13 @@ import type { UserInput } from './types'
 export interface HarnessTextOptions {
   /** The host that runs the inner sessions. Default: a memory host. */
   host?: HarnessHost
+  /**
+   * The kinds the inner model reads. Default: the list of the harness
+   * `adapter`. Set it for a harness whose plugin picks the model, or that
+   * has a `keyedAdapter`: neither list is known until a turn runs.
+   * `media.accepts` narrows it.
+   */
+  inputModalities?: ReadonlyArray<Modality>
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -29,15 +36,18 @@ function lastUserInput(messages: ReadonlyArray<ModelMessage>) {
 
 /**
  * What a harness reads: text, plus the kinds its session sends the model
- * (the adapter's list narrowed by `media.accepts`). `undefined` when neither
- * is known, so the outer harness sends every kind.
+ * (`modalities`, else the adapter's list, narrowed by `media.accepts`).
+ * `undefined` when neither is known, so the outer harness sends every kind.
  */
-function inputsOf(harness: AnyHarness) {
+function inputsOf(
+  harness: AnyHarness,
+  modalities: ReadonlyArray<Modality> | undefined,
+) {
   // ponytail: the harness adapter only. A plugin that picks another model at
-  // runtime is not seen here. A keyedAdapter has no model until a turn
-  // builds it, so it has no `inputModalities` and every kind is sent.
+  // runtime is not seen here, so the caller says it with `inputModalities`.
+  // A keyedAdapter has no model until a turn builds it, so it has no list.
   const kinds = acceptedKinds(
-    harness.adapter.inputModalities,
+    modalities ?? harness.adapter?.inputModalities,
     harness.media?.accepts,
   )
   if (kinds === undefined) return undefined
@@ -197,8 +207,9 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
  * last user message with its content parts (images, audio, video,
  * documents). The outer chat sees the inner turn's text and reasoning.
  *
- * `inputModalities` is what the harness reads: its adapter's list narrowed
- * by `media.accepts`. It is `undefined` for a remote harness.
+ * `inputModalities` is what the harness reads: the `inputModalities`
+ * option, else its adapter's list, narrowed by `media.accepts`. It is
+ * `undefined` for a remote harness.
  *
  * @example
  * ```ts
@@ -221,7 +232,7 @@ export function harnessText(
     kind: 'text',
     name: 'harness',
     model: harness.name,
-    inputModalities: inputsOf(harness),
+    inputModalities: inputsOf(harness, options.inputModalities),
     '~types': TYPES,
     chatStream: (chatOptions) =>
       (async function* (): AsyncGenerator<StreamChunk> {

@@ -25,7 +25,7 @@ describe('plugin subagents', () => {
     })
     const fromRun = definePlugin({
       name: 'test/run-agents',
-      lifetime: 'run',
+      lifetime: 'turn',
       setup: () => ({ subagents: [agentNamed('writer', 'wrote')] }),
     })
     const { adapter, calls } = mockAdapter([

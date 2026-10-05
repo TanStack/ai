@@ -121,14 +121,14 @@ describe('plugin agentMiddleware', () => {
     await host.close()
   })
 
-  it('runs for a run-lifetime plugin too', async () => {
+  it('runs for a turn-lifetime plugin too', async () => {
     const { runs, middleware } = recordRuns()
     const { host, session } = await open(
       defineHarness({
         name: 'test/agent-middleware',
         adapter: leadCalling('helper'),
         subagents: { agents: [textAgent('helper')] },
-        plugins: () => [agentPlugin(middleware, 'run')],
+        plugins: () => [agentPlugin(middleware, 'turn')],
       }),
     )
 

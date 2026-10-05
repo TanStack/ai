@@ -1,6 +1,6 @@
 // Browser-safe: runtime imports only from @tanstack/ai, @tanstack/store,
 // ../types, ../media-ref, and ./reduce. Everything else is a type.
-import { EventType } from '@tanstack/ai'
+import { EventType, readUnopenedInterruptBinding } from '@tanstack/ai'
 import { createStore } from '@tanstack/store'
 import { mediaPart } from '../media-ref'
 import { HARNESS_EVENTS } from '../types'
@@ -32,6 +32,7 @@ import type {
 import type { ItemFactory } from './reduce'
 import type {
   Approval,
+  ClientToolCall,
   MediaPart,
   SessionViewState,
   SignIn,
@@ -51,6 +52,7 @@ export type { MediaKind, MediaRecord } from '../types'
 export type {
   AgentPart,
   Approval,
+  ClientToolCall,
   MediaPart,
   NoticeKind,
   SessionViewState,
@@ -93,6 +95,7 @@ export interface SessionViewSource {
 /** What `view.on(name, handler)` sends. */
 export interface SessionViewEvents {
   approval: Approval
+  clientTool: ClientToolCall
   question: ViewQuestion
   signIn: SignIn
   toolCall: { id: string; name: string }
@@ -219,7 +222,8 @@ export function createSessionView(source: SessionViewSource) {
   const store = createStore(() => internal.state)
   const reader = new AbortController()
   const handlers = new Map<string, Set<(value: unknown) => void>>()
-  const decisions = new Map<string, boolean>()
+  /** The answer to each open approval and client tool, by interrupt id. */
+  const decisions = new Map<string, RunAgentResumeItem>()
   const chatTurns = new Set<string>()
   const agentNames = new Map<string, string>()
   const mediaParts = new Map<string, MediaPart>()
@@ -327,22 +331,27 @@ export function createSessionView(source: SessionViewSource) {
     return messages === state.messages ? state : { ...state, messages }
   }
 
-  const decide = (id: string, approved: boolean) => {
+  /**
+   * Keep the answer to an item of `open`. One resume must answer every open
+   * interrupt, so it goes when each approval and client tool has an answer.
+   */
+  const answer = (
+    open: ReadonlyArray<{ id: string }>,
+    entry: RunAgentResumeItem,
+  ) => {
     alive()
-    const open = get().approvals
+    const id = entry.interruptId
     const isDecided =
       resolving || decisions.has(id) || !open.some((item) => item.id === id)
     if (isDecided) return
-    decisions.set(id, approved)
-    if (!open.every((item) => decisions.has(item.id))) return
-    const resume: Array<RunAgentResumeItem> = open.map((item) => ({
-      interruptId: item.id,
-      status: 'resolved',
-      payload: decisions.get(item.id),
-    }))
+    decisions.set(id, entry)
+    const { approvals, clientTools } = get()
+    const waiting = [...approvals, ...clientTools]
+    const resume = waiting.flatMap((item) => decisions.get(item.id) ?? [])
+    if (resume.length < waiting.length) return
     decisions.clear()
     resolving = true
-    commit({ ...get(), approvals: [] })
+    commit({ ...get(), approvals: [], clientTools: [] })
     void source
       .resolve(resume)
       .then(undefined, fail)
@@ -351,6 +360,12 @@ export function createSessionView(source: SessionViewSource) {
         refreshSnapshot()
       })
   }
+  const decide = (id: string, approved: boolean) =>
+    answer(get().approvals, {
+      interruptId: id,
+      status: 'resolved',
+      payload: approved,
+    })
   const decideAll = (approved: boolean) => {
     alive()
     const open = get().approvals
@@ -367,6 +382,34 @@ export function createSessionView(source: SessionViewSource) {
       approve: () => decide(interrupt.id, true),
       reject: () => decide(interrupt.id, false),
     }),
+    clientTool: (interrupt, call) => {
+      const binding = readUnopenedInterruptBinding(interrupt)
+      const open = () => get().clientTools
+      return {
+        id: interrupt.id,
+        ...(interrupt.toolCallId ? { toolCallId: interrupt.toolCallId } : {}),
+        tool:
+          call?.name ??
+          (binding?.kind === 'client-tool-execution'
+            ? binding.toolName
+            : 'tool'),
+        args: call?.args ?? interrupt.metadata?.input,
+        resolve: (output) =>
+          answer(open(), {
+            interruptId: interrupt.id,
+            status: 'resolved',
+            payload: output,
+          }),
+        // The output-error form the chat engine reads for a failed client tool.
+        fail: (message) =>
+          answer(open(), {
+            interruptId: interrupt.id,
+            status: 'resolved',
+            payload: { error: message },
+            metadata: { tanstack: { state: 'output-error' } },
+          }),
+      }
+    },
     question: (question) => ({
       id: question.questionId,
       message: question.message,
@@ -385,6 +428,10 @@ export function createSessionView(source: SessionViewSource) {
     commit(next)
     for (const approval of next.approvals)
       if (!before.approvals.includes(approval)) emit('approval', approval)
+    for (const call of next.clientTools)
+      if (!before.clientTools.includes(call)) emit('clientTool', call)
+    for (const signIn of next.signIns)
+      if (!before.signIns.includes(signIn)) emit('signIn', signIn)
     for (const question of next.questions)
       if (!before.questions.includes(question)) emit('question', question)
   }

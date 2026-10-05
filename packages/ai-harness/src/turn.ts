@@ -1,7 +1,7 @@
 import type { ModelMessage } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { HarnessSession } from './session'
-import type { HarnessInput, UserInput } from './types'
+import type { HarnessInput, Principal, UserInput } from './types'
 
 /** What recovery does with one input. */
 export type RecoverDecision =
@@ -69,6 +69,16 @@ export interface FinishContext {
 export interface JoinCandidate {
   inputId: string
   message: UserInput
+  /**
+   * Who sent the input. A joined input runs with the credentials of the
+   * turn's sender, so refuse a join from another person when that matters.
+   */
+  principal?: Principal
+  /**
+   * Who sent the running turn. Compare it with `principal` to keep one
+   * person's message out of another person's turn.
+   */
+  turnPrincipal?: Principal
 }
 
 /** What `turn.onJoin` gets. */

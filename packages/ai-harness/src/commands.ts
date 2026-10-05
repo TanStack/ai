@@ -1,4 +1,5 @@
 import type { InferSchemaType, ModelMessage, SchemaInput } from '@tanstack/ai'
+import type { CredentialsAccess } from './auth'
 import type { SessionSnapshot } from './session'
 import type { ChatTurnResult, Operation, Principal, Receipt } from './types'
 
@@ -21,6 +22,12 @@ export type AnswerOf<TSchema> = TSchema extends SchemaInput
 /** The parts of the session a plugin can use. */
 export interface PluginSessionApi {
   threadId: string
+  /**
+   * Who sent the input of the running chat turn. Outside a turn: the
+   * principal that opened the session. In a command's `run` context: who
+   * runs the command. Code that runs after its turn ends (a background
+   * agent's tool) gets the sender of the turn that runs at that time.
+   */
   principal: Principal | undefined
   snapshot: () => SessionSnapshot
   /**
@@ -55,7 +62,15 @@ export interface PluginSessionApi {
 /** What a command handler receives besides its input. */
 export interface CommandContext {
   signal: AbortSignal
+  /** The session, for the user who runs the command: `session.prompt` runs as that user. */
   session: PluginSessionApi
+  /** Who runs the command. Default: the principal that opened the session. */
+  principal?: Principal
+  /**
+   * The credentials of the user who runs the command. Save a sign-in here,
+   * so it belongs to that user.
+   */
+  credentials: CredentialsAccess
 }
 
 /** A user action: a slash command, a button, a dashboard action. Not a model tool. */

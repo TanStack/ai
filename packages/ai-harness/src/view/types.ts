@@ -75,6 +75,21 @@ export interface Approval {
   reject: () => void
 }
 
+/**
+ * A client tool call: a tool with no server implementation. The UI runs the
+ * tool and sends its output. The turn waits for it.
+ */
+export interface ClientToolCall {
+  id: string
+  toolCallId?: string
+  tool: string
+  args: unknown
+  /** Send the tool's output. */
+  resolve: (output: unknown) => void
+  /** Send a failure. The model sees that the tool failed with `message`. */
+  fail: (message: string) => void
+}
+
 /** A question from a command or a plugin. */
 export interface ViewQuestion {
   id: string
@@ -115,6 +130,8 @@ export interface SessionViewState {
   connection: 'open' | 'reconnecting' | 'closed'
   messages: Array<ViewMessage>
   approvals: Array<Approval>
+  /** Client tool calls that wait for their output from the UI. */
+  clientTools: Array<ClientToolCall>
   questions: Array<ViewQuestion>
   signIns: Array<SignIn>
   /** Background agents that run now. */

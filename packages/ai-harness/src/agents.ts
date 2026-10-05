@@ -84,7 +84,7 @@ export class AgentRegistry implements AgentRegistryView {
     return this.list().find((agent) => agent.produces === query.produces)
   }
 
-  /** A copy for one chat turn, so run plugins can add agents for that turn only. */
+  /** A copy for one chat turn, so turn plugins can add agents for that turn only. */
   fork(): AgentRegistry {
     const copy = new AgentRegistry()
     for (const [name, entry] of this.agents) copy.agents.set(name, entry)

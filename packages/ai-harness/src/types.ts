@@ -89,11 +89,16 @@ export interface SessionEvent {
  * `inputId` is an optional id that the caller chooses. A second input with the
  * same id and the same payload gets the first input's receipt and does not run
  * again. The same id with another payload is rejected with `'conflict'`.
+ *
+ * `context` is JSON data the client sends with a message, for example the
+ * screen the user is on. It is stored with the input, so a turn that runs
+ * again after a restart sees the same value. It is client data: do not trust
+ * it. Who sent the input is the principal from `authorize`, not a field here.
  */
 export type HarnessInput = (
-  | { op: 'prompt'; message: UserInput; busy?: BusyPolicy }
-  | { op: 'steer'; message: UserInput }
-  | { op: 'followUp'; message: UserInput }
+  | { op: 'prompt'; message: UserInput; busy?: BusyPolicy; context?: unknown }
+  | { op: 'steer'; message: UserInput; context?: unknown }
+  | { op: 'followUp'; message: UserInput; context?: unknown }
   | { op: 'resolve'; resume: Array<RunAgentResumeItem> }
   | { op: 'agent'; agent: string; input?: unknown; detached?: boolean }
   | { op: 'cancel'; operationId?: string }
@@ -143,6 +148,30 @@ function rejectionMessage(reason: string | undefined) {
 export interface Principal {
   id: string
   name?: string
+  /**
+   * The organization of the principal. The credential scope gets it, so two
+   * organizations' credentials for one user stay apart.
+   */
+  tenantId?: string
+}
+
+/**
+ * A chat turn as plugins and the router see it: the input that started it,
+ * and who sent it.
+ */
+export interface TurnInfo {
+  /** The id of the turn operation. */
+  operationId: string
+  /** The id of the turn input, when the turn has one. */
+  inputId?: string
+  /** The user message of the input. `undefined` for a resolve. */
+  message?: UserInput
+  /** The `context` of the input. Client data: do not trust it. */
+  context?: unknown
+  /** Who sent the input. Default: the principal that opened the session. */
+  principal?: Principal
+  /** The settings of this turn only. Not kept after a restart. */
+  overrides?: TurnOverrides
 }
 
 /** What a chat turn operation resolves to. */
