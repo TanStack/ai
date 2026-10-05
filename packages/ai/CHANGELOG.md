@@ -1,5 +1,13 @@
 # @tanstack/ai
 
+## 0.64.1
+
+### Patch Changes
+
+- [#1620](https://github.com/TanStack/ai/pull/1620) [`4c57d04`](https://github.com/TanStack/ai/commit/4c57d04f0f5dd98e176386f3208b68daf9e7d929) - Stream durable responses live again. With `durability` set, a chunk waited in the append batch until 32 chunks arrived or the run finished, so a short reply showed up all at once at the end. Now the batch also flushes when the model sends no new chunk for 50ms. You do not need `batch: 1` for live text any more. `batch` stays the largest number of chunks in one append.
+
+  Set the wait with the new `batchWaitMs` option on `durability` (`toServerSentEventsResponse`, `toHttpResponse`) and on `toWebSocketStream` / `toWebSocketResponse`. A higher value means fewer writes to the log but slower live text. `0` appends every chunk on its own.
+
 ## 0.64.0
 
 ### Minor Changes

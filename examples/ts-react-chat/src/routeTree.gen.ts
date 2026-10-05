@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppStudioRouteImport } from './routes/app-studio'
 import { Route as CapabilityDemoRouteImport } from './routes/capability-demo'
 import { Route as CompactionRouteImport } from './routes/compaction'
+import { Route as DurablePersistenceRouteImport } from './routes/durable-persistence'
 import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
 import { Route as GenericInterruptsRouteImport } from './routes/generic-interrupts'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
@@ -38,6 +39,7 @@ import { Route as ApiAppStudioForkRouteImport } from './routes/api.app-studio-fo
 import { Route as ApiArtifactsRouteImport } from './routes/api.artifacts'
 import { Route as ApiCapabilityDemoRouteImport } from './routes/api.capability-demo'
 import { Route as ApiCompactionRouteImport } from './routes/api.compaction'
+import { Route as ApiDurablePersistenceRouteImport } from './routes/api.durable-persistence'
 import { Route as ApiGenericInterruptsRouteImport } from './routes/api.generic-interrupts'
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
 import { Route as ApiImageToolReproRouteImport } from './routes/api.image-tool-repro'
@@ -102,6 +104,11 @@ const CapabilityDemoRoute = CapabilityDemoRouteImport.update({
 const CompactionRoute = CompactionRouteImport.update({
   id: '/compaction',
   path: '/compaction',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DurablePersistenceRoute = DurablePersistenceRouteImport.update({
+  id: '/durable-persistence',
+  path: '/durable-persistence',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GenerationHooksRoute = GenerationHooksRouteImport.update({
@@ -227,6 +234,11 @@ const ApiCapabilityDemoRoute = ApiCapabilityDemoRouteImport.update({
 const ApiCompactionRoute = ApiCompactionRouteImport.update({
   id: '/api/compaction',
   path: '/api/compaction',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDurablePersistenceRoute = ApiDurablePersistenceRouteImport.update({
+  id: '/api/durable-persistence',
+  path: '/api/durable-persistence',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGenericInterruptsRoute = ApiGenericInterruptsRouteImport.update({
@@ -466,6 +478,7 @@ export interface FileRoutesByFullPath {
   '/app-studio': typeof AppStudioRoute
   '/capability-demo': typeof CapabilityDemoRoute
   '/compaction': typeof CompactionRoute
+  '/durable-persistence': typeof DurablePersistenceRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/generic-interrupts': typeof GenericInterruptsRoute
   '/image-gen': typeof ImageGenRoute
@@ -491,6 +504,7 @@ export interface FileRoutesByFullPath {
   '/api/artifacts': typeof ApiArtifactsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/compaction': typeof ApiCompactionRoute
+  '/api/durable-persistence': typeof ApiDurablePersistenceRoute
   '/api/generic-interrupts': typeof ApiGenericInterruptsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
@@ -542,6 +556,7 @@ export interface FileRoutesByTo {
   '/app-studio': typeof AppStudioRoute
   '/capability-demo': typeof CapabilityDemoRoute
   '/compaction': typeof CompactionRoute
+  '/durable-persistence': typeof DurablePersistenceRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/generic-interrupts': typeof GenericInterruptsRoute
   '/image-gen': typeof ImageGenRoute
@@ -567,6 +582,7 @@ export interface FileRoutesByTo {
   '/api/artifacts': typeof ApiArtifactsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/compaction': typeof ApiCompactionRoute
+  '/api/durable-persistence': typeof ApiDurablePersistenceRoute
   '/api/generic-interrupts': typeof ApiGenericInterruptsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
@@ -619,6 +635,7 @@ export interface FileRoutesById {
   '/app-studio': typeof AppStudioRoute
   '/capability-demo': typeof CapabilityDemoRoute
   '/compaction': typeof CompactionRoute
+  '/durable-persistence': typeof DurablePersistenceRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/generic-interrupts': typeof GenericInterruptsRoute
   '/image-gen': typeof ImageGenRoute
@@ -644,6 +661,7 @@ export interface FileRoutesById {
   '/api/artifacts': typeof ApiArtifactsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/compaction': typeof ApiCompactionRoute
+  '/api/durable-persistence': typeof ApiDurablePersistenceRoute
   '/api/generic-interrupts': typeof ApiGenericInterruptsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
@@ -697,6 +715,7 @@ export interface FileRouteTypes {
     | '/app-studio'
     | '/capability-demo'
     | '/compaction'
+    | '/durable-persistence'
     | '/generation-hooks'
     | '/generic-interrupts'
     | '/image-gen'
@@ -722,6 +741,7 @@ export interface FileRouteTypes {
     | '/api/artifacts'
     | '/api/capability-demo'
     | '/api/compaction'
+    | '/api/durable-persistence'
     | '/api/generic-interrupts'
     | '/api/image-gen'
     | '/api/image-tool-repro'
@@ -773,6 +793,7 @@ export interface FileRouteTypes {
     | '/app-studio'
     | '/capability-demo'
     | '/compaction'
+    | '/durable-persistence'
     | '/generation-hooks'
     | '/generic-interrupts'
     | '/image-gen'
@@ -798,6 +819,7 @@ export interface FileRouteTypes {
     | '/api/artifacts'
     | '/api/capability-demo'
     | '/api/compaction'
+    | '/api/durable-persistence'
     | '/api/generic-interrupts'
     | '/api/image-gen'
     | '/api/image-tool-repro'
@@ -849,6 +871,7 @@ export interface FileRouteTypes {
     | '/app-studio'
     | '/capability-demo'
     | '/compaction'
+    | '/durable-persistence'
     | '/generation-hooks'
     | '/generic-interrupts'
     | '/image-gen'
@@ -874,6 +897,7 @@ export interface FileRouteTypes {
     | '/api/artifacts'
     | '/api/capability-demo'
     | '/api/compaction'
+    | '/api/durable-persistence'
     | '/api/generic-interrupts'
     | '/api/image-gen'
     | '/api/image-tool-repro'
@@ -926,6 +950,7 @@ export interface RootRouteChildren {
   AppStudioRoute: typeof AppStudioRoute
   CapabilityDemoRoute: typeof CapabilityDemoRoute
   CompactionRoute: typeof CompactionRoute
+  DurablePersistenceRoute: typeof DurablePersistenceRoute
   GenerationHooksRoute: typeof GenerationHooksRoute
   GenericInterruptsRoute: typeof GenericInterruptsRoute
   ImageGenRoute: typeof ImageGenRoute
@@ -951,6 +976,7 @@ export interface RootRouteChildren {
   ApiArtifactsRoute: typeof ApiArtifactsRoute
   ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
   ApiCompactionRoute: typeof ApiCompactionRoute
+  ApiDurablePersistenceRoute: typeof ApiDurablePersistenceRoute
   ApiGenericInterruptsRoute: typeof ApiGenericInterruptsRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiImageToolReproRoute: typeof ApiImageToolReproRoute
@@ -1025,6 +1051,13 @@ declare module '@tanstack/react-router' {
       path: '/compaction'
       fullPath: '/compaction'
       preLoaderRoute: typeof CompactionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/durable-persistence': {
+      id: '/durable-persistence'
+      path: '/durable-persistence'
+      fullPath: '/durable-persistence'
+      preLoaderRoute: typeof DurablePersistenceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/generation-hooks': {
@@ -1200,6 +1233,13 @@ declare module '@tanstack/react-router' {
       path: '/api/compaction'
       fullPath: '/api/compaction'
       preLoaderRoute: typeof ApiCompactionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/durable-persistence': {
+      id: '/api/durable-persistence'
+      path: '/api/durable-persistence'
+      fullPath: '/api/durable-persistence'
+      preLoaderRoute: typeof ApiDurablePersistenceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/generic-interrupts': {
@@ -1536,6 +1576,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppStudioRoute: AppStudioRoute,
   CapabilityDemoRoute: CapabilityDemoRoute,
   CompactionRoute: CompactionRoute,
+  DurablePersistenceRoute: DurablePersistenceRoute,
   GenerationHooksRoute: GenerationHooksRoute,
   GenericInterruptsRoute: GenericInterruptsRoute,
   ImageGenRoute: ImageGenRoute,
@@ -1561,6 +1602,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiArtifactsRoute: ApiArtifactsRoute,
   ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
   ApiCompactionRoute: ApiCompactionRoute,
+  ApiDurablePersistenceRoute: ApiDurablePersistenceRoute,
   ApiGenericInterruptsRoute: ApiGenericInterruptsRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiImageToolReproRoute: ApiImageToolReproRoute,
