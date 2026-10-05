@@ -338,6 +338,48 @@ describe('dispose stops a late hydration from opening a tail', () => {
     client.dispose()
   })
 
+  it('a re-attach while hydration is in flight reuses that GET', async () => {
+    // React Strict Mode runs mount effects twice in dev: attach, detach, attach,
+    // all before the first hydrate GET returns. That must stay one GET, and its
+    // result must still paint the re-attached view.
+    let releaseHydration: (() => void) | undefined
+    const gate = new Promise<void>((resolve) => {
+      releaseHydration = resolve
+    })
+    const hydrate = vi.fn(async () => {
+      await gate
+      return {
+        messages: [
+          {
+            id: 'u1',
+            role: 'user' as const,
+            parts: [{ type: 'text' as const, content: 'hi' }],
+          },
+        ],
+        activeRun: null,
+        interrupts: null,
+      }
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun: async function* () {},
+      hydrate,
+    }
+
+    const client = mountedChatClient({
+      threadId: 't1',
+      connection,
+      persistence: true,
+    })
+    client.detach()
+    client.attach()
+    releaseHydration?.()
+
+    await vi.waitFor(() => expect(client.getMessages()).toHaveLength(1))
+    expect(hydrate).toHaveBeenCalledTimes(1)
+    client.dispose()
+  })
+
   it('still joins the run when hydration resolves before dispose', async () => {
     // The guard must not break the ordinary path it protects.
     const joinRun = vi.fn(async function* () {

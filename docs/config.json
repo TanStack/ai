@@ -608,7 +608,7 @@
           "label": "Advanced",
           "to": "resumable-streams/advanced",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "WebSockets",
