@@ -914,7 +914,7 @@
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Send inputs safely",
@@ -941,9 +941,19 @@
           "updatedAt": "2026-10-05"
         },
         {
+          "label": "Store settings per thread",
+          "to": "harness/thread-settings",
+          "addedAt": "2026-10-05"
+        },
+        {
           "label": "Compact a long session",
           "to": "harness/compaction",
           "addedAt": "2026-10-03"
+        },
+        {
+          "label": "Fork and reset a thread",
+          "to": "harness/fork-and-reset",
+          "addedAt": "2026-10-05"
         },
         {
           "label": "Share one log between sessions",
@@ -977,6 +987,11 @@
         {
           "label": "Share a thread between people",
           "to": "harness/shared-threads",
+          "addedAt": "2026-10-05"
+        },
+        {
+          "label": "Track usage and cost",
+          "to": "harness/usage",
           "addedAt": "2026-10-05"
         },
         {
@@ -1022,7 +1037,7 @@
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-09-26",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Deploy a harness",

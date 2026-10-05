@@ -67,6 +67,64 @@ To track usage or apply a policy in each of these runs, see [Middleware in every
 
 The harness saves the images, audio, and video that these agents make, and the UI shows them. See [Media that agents make](./media#media-that-agents-make).
 
+## Keep a background agent going after a crash
+
+A background agent can work for a long time. When its host stops, for example in a deploy, the next host fails the run. Start it with `resume: true`, and the next host runs it again instead:
+
+```ts group=harness-subagents
+// Your own services.
+async function startExport(customer: string) {
+  return `export-${customer}`
+}
+async function importInto(region: string, exportId: string) {
+  return `${exportId} is in ${region}`
+}
+
+const migrator = defineAgent({
+  name: 'migrator',
+  description: 'Moves the data of one customer to the new region',
+  inputSchema: z.object({ customer: z.string() }),
+  run: async (ctx) => {
+    // Each side effect is a step. A finished step does not run again.
+    const exportId = await ctx.step.do('export', () => startExport(ctx.input.customer))
+    await ctx.step.do('import', () => importInto('eu-west', exportId))
+    return ctx.chat({
+      adapter: openaiText('gpt-5.6'),
+      messages: [{ role: 'user', content: `Write a short report about ${exportId}.` }],
+      stream: false,
+    })
+  },
+})
+
+export const migrations = definePlugin({
+  name: 'acme/migrations',
+  setup: (ctx) => ({
+    agents: [migrator],
+    commands: {
+      migrate: defineCommand({
+        description: 'Move one customer',
+        input: z.object({ customer: z.string() }),
+        run: ({ customer }) => {
+          ctx.agents.start(migrator, { customer }, { resume: true, wake: true })
+          return `Moving ${customer}.`
+        },
+      }),
+    },
+  }),
+})
+```
+
+1. Give the host a session log (`stores.log`). See [Durable sessions](./durable-sessions). Without a log, `start` with `resume: true` throws.
+2. Put each side effect in `ctx.step.do(name, fn)`. The agent code runs again from its start, and a finished step returns its stored value.
+3. Give each step a name that is the same on every run, and return a JSON value from `fn`.
+
+What the next host does:
+
+- It runs the agent again with the same input. Its `ctx.chat` calls continue from the saved transcript, and its finished tool calls do not run again.
+- A step runs at least once. A host can stop after `fn` ran and before the log stored its value. Then the next run calls `fn` again.
+- After `durability.maxAttempts` runs (default 10), the run ends `failed` with the code `attempts_exhausted`.
+- `host.close()` cancels the run. Only a host that stops without a close (a crash or a kill) leaves the run for the next host.
+
 ## Route a turn to an agent
 
 Your harness has a writer and a pricer, but the main model answers every turn. Add `routing.router` to send a turn to the agent that can answer it. The router runs at the start of each new turn: a `prompt`, a `followUp`, or the wake turn of a background agent.
@@ -181,6 +239,7 @@ See [subagent limits](../chat/subagents) for what each limit does.
 ## What you have now
 
 - Commands and plugins that start typed agents, alone or in groups.
+- Background agents that continue on the next host after a crash, with steps that do not run twice.
 - A router that sends each turn to the right agent, and gives each agent its input.
 - Harnesses that call other harnesses as tools.
 - A tree of children that stays within limits.
