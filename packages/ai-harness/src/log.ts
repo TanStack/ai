@@ -1064,17 +1064,19 @@ export function engineMessageStore(options: {
    *   between a tool call and its result.
    * - A host record rewrote the fold (a compaction): the engine's new
    *   messages go after the rewritten fold.
-   * - The engine changed older messages itself (a compaction middleware):
-   *   `list` wins.
+   * - The engine changed older messages itself (a compaction middleware, or
+   *   the run tags of `withPersistence` at the end of a turn): `list` wins,
+   *   and host messages that the fold added after `base` stay after it.
    */
   const rebase = (base: Array<ModelMessage>, list: Array<ModelMessage>) => {
     const current = writer.state.messages
-    const isEngineExtension = commonPrefix(base, list) === base.length
-    if (!isEngineExtension) return list
-    const added = list.slice(base.length)
     const isFoldExtension = commonPrefix(base, current) === base.length
+    const hostAdded = isFoldExtension ? current.slice(base.length) : []
+    const isEngineExtension = commonPrefix(base, list) === base.length
+    if (!isEngineExtension) return [...list, ...hostAdded]
+    const added = list.slice(base.length)
     return isFoldExtension
-      ? [...base, ...added, ...current.slice(base.length)]
+      ? [...base, ...added, ...hostAdded]
       : [...current, ...added]
   }
   const engine = {
