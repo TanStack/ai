@@ -1,3 +1,4 @@
+import { GENERATED_BEDROCK_MODELS } from '../model-catalog.generated'
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { withBedrockDefaults } from '../utils/client'
@@ -60,6 +61,10 @@ export class BedrockTextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'bedrock' as const
+  override readonly provider: string
+  override readonly inputModalities: ReadonlyArray<Modality> =
+    GENERATED_BEDROCK_MODELS.find((entry) => entry.id === this.model)
+      ?.input ?? ['text']
 
   constructor(config: BedrockTextConfig, model: TModel) {
     // No `forced` -> honors config.endpoint ('runtime' default, 'mantle' allowed).
@@ -69,6 +74,7 @@ export class BedrockTextAdapter<
       new OpenAI(withBedrockDefaults(config, undefined, model)),
       config,
     )
+    this.provider = 'amazon-bedrock'
   }
 
   protected override modelReasoning(model: string) {

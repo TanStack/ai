@@ -44,7 +44,9 @@ export const handler = createHarnessHandler({
 The handler answers these paths under your route:
 
 - `GET capabilities`: the AG-UI capabilities, with the agents in `expose.agents`.
-- `POST run`: standard AG-UI. One request runs one prompt and streams it as SSE. Any AG-UI client works. The prompt keeps every content part of the last user message, for example an image.
+- `POST run`: standard AG-UI. One request runs one prompt and streams it as SSE. The prompt keeps every content part of the last user message, for example an image. `useChat` works with it. See [Use it from useChat](#use-it-from-usechat).
+- `GET run?threadId=`: the saved messages, the running turn, and the waiting approvals, for a `useChat` that loads the thread after a reload.
+- `GET run?runId=`: the turn with that run id as SSE, from its first event. A reloaded `useChat` joins a running turn with it.
 - `GET events?threadId=`: every event of the session as SSE. Each event id is a cursor, so a reconnect with `Last-Event-ID` continues where it stopped.
 - `POST control`: send `{ threadId, input }`, for example `{ op: 'prompt', message }`. You get a receipt back.
 - `GET snapshot?threadId=`: the status, running operations, and waiting approvals.
@@ -75,6 +77,110 @@ for await (const entry of client.events()) {
 `events()` reconnects after a network error and continues from the last cursor. A second tab, a phone, or a reload all see the same session.
 
 To upload files and show the media that your agents make, read [Send and show media](./media).
+
+## Use it from useChat
+
+Your app already uses `useChat`. You want the same chat screen on a harness, with approvals, tools that run in the browser, and the thread after a reload. Point `useChat` at the `run` path of the handler.
+
+1. Put the tools in a file that the server and the browser both import:
+
+```ts group=harness-connect-tools
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+export const deploy = toolDefinition({
+  name: 'deploy',
+  description: 'Deploy the app. A person must approve it.',
+  needsApproval: true,
+  inputSchema: z.object({ env: z.string() }),
+  outputSchema: z.object({ ok: z.boolean() }),
+})
+```
+
+2. On the server, give the harness the tool with its implementation:
+
+```ts group=harness-connect-tools-server
+import { defineHarness } from '@tanstack/ai-harness'
+import { openaiText } from '@tanstack/ai-openai'
+import { deploy } from './tools'
+
+export const deployer = defineHarness({
+  name: 'acme/deployer',
+  adapter: openaiText('gpt-5.6'),
+  tools: [
+    deploy.server(async () => {
+      // Your deploy code runs here.
+      return { ok: true }
+    }),
+  ],
+})
+```
+
+Serve `deployer` with `createHarnessHandler`, as in [Serve the session over HTTP](#serve-the-session-over-http).
+
+3. In the browser, give `useChat` the same tool definitions:
+
+```tsx group=harness-connect-tools-client
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { deploy } from './tools'
+
+export function Chat() {
+  const { messages, interrupts, sendMessage } = useChat({
+    threadId: 'user-1-thread',
+    connection: fetchServerSentEvents('/api/harness/run'),
+    tools: [deploy.client()] as const,
+    // The input's context: tools and plugins read it.
+    forwardedProps: { page: '/releases' },
+  })
+
+  return (
+    <>
+      <p>{messages.length} messages</p>
+      {interrupts.map((interrupt) =>
+        interrupt.kind === 'tool-approval' ? (
+          <button
+            key={interrupt.id}
+            onClick={() => interrupt.resolveInterrupt(true)}
+          >
+            Approve {interrupt.toolName}
+          </button>
+        ) : null,
+      )}
+      <button onClick={() => sendMessage('Deploy to staging.')}>Deploy</button>
+    </>
+  )
+}
+```
+
+The approval reaches the harness, and the tool runs on the server. What else `POST run` does for `useChat`:
+
+- Each turn runs as the `runId` of its request. A retry with the same `runId` runs once. The same `runId` with another message gets `409`.
+- A tool with only a `.client()` implementation runs in the browser, and the same turn gets its result.
+- A question from `ctx.session.ask` arrives on the stream of the turn that waits for it.
+- The `forwardedProps` of the request are the input's [context](./inputs#send-context-with-a-message).
+- With `persistence: true`, `useChat` loads the thread from `GET run?threadId=`.
+- If a turn still runs after a reload, `useChat` joins it with `GET run?runId=`. The turn shows from its first event, and its answer continues to stream.
+- With more than one server, send `GET run?runId=` to the server that runs the turn. Only that server has the live events of the turn.
+
+To keep the thread after a reload, set `persistence: true` in `useChat`:
+
+```tsx group=harness-connect-tools-client
+export function ReloadableChat() {
+  const { messages } = useChat({
+    threadId: 'user-1-thread',
+    connection: fetchServerSentEvents('/api/harness/run'),
+    tools: [deploy.client()] as const,
+    persistence: true,
+  })
+  return <p>{messages.length} messages</p>
+}
+```
+
+The join has these rules:
+
+- `canAccess` decides who can join, the same as for every other path.
+- The turn must run on the host that answers the request. On another host, the join gets `404`.
+- A turn that ended gives the events that the session still keeps, and then the stream ends.
 
 ## Use a WebSocket
 
@@ -120,9 +226,12 @@ const stream = chat({
 
 Each outer thread gets its own inner session, so the harness keeps its own history. The inner session gets every content part of the last user message, so images and files go through too.
 
+If a plugin picks the model of the harness, the harness has no adapter to read its input kinds from. Pass them with `harnessText(assistant, { host, inputModalities: ['text', 'image'] })`.
+
 ## What you have now
 
 - One handler that serves standard AG-UI and the session stream.
+- A `useChat` screen on the harness, with approvals, tools that run in the browser, and a reload that joins the running turn.
 - A typed web client that reconnects and resumes from a cursor.
 - A WebSocket, an ACP agent for editors, and a harness you can call from `chat()`.
 

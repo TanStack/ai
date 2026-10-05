@@ -214,7 +214,11 @@ describe('client-tool wait lifecycle', () => {
       }),
     )
 
-    expect(fakeTracer.spans).toHaveLength(2)
+    expect(fakeTracer.spans.map((span) => span.name)).toEqual([
+      'chat test-model',
+      'chat test-model #0',
+      'execute_tool ask_client',
+    ])
     expect(fakeTracer.spans.every((span) => span.ended)).toBe(true)
     expect(
       fakeMeter.records.filter(

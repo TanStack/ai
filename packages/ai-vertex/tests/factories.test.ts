@@ -48,6 +48,8 @@ describe('vertex factories', () => {
     const adapter = vertexText('gemini-3.7-flash', auth)
 
     expect(adapter.name).toBe('gemini')
+    expect(adapter.provider).toBe('google-vertex')
+    expect(adapter.api).toBe('google-vertex')
     expect(adapter.model).toBe('gemini-3.7-flash')
     expect(mocks.constructorSpy).toHaveBeenCalledExactlyOnceWith({
       project: 'my-project',

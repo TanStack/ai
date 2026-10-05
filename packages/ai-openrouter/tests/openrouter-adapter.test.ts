@@ -179,6 +179,47 @@ describe('OpenRouter adapter option mapping', () => {
     expect(serialized).toHaveProperty('tool_choice', 'auto')
   })
 
+  it('sends function tools with strict: false and the schema as authored', async () => {
+    setupMockSdkClient([
+      {
+        id: 'chatcmpl-strict',
+        model: 'openai/gpt-4o-mini',
+        choices: [{ delta: { content: 'ok' }, finishReason: 'stop' }],
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      },
+    ])
+    const inputSchema = {
+      type: 'object',
+      properties: {
+        guitar: { type: 'string' },
+        strings: { type: 'array', items: { type: 'string' }, minItems: 1 },
+      },
+      required: ['guitar'],
+    }
+
+    for await (const _ of chat({
+      adapter: createAdapter(),
+      messages: [{ role: 'user', content: 'Hello' }],
+      tools: [
+        { name: 'recommend_guitar', description: 'Recommend', inputSchema },
+      ],
+    })) {
+      // drain
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const serialized = ChatRequest$outboundSchema.parse(rawParams.chatRequest)
+    expect(serialized.tools?.[0]).toEqual({
+      type: 'function',
+      function: {
+        name: 'recommend_guitar',
+        description: 'Recommend',
+        parameters: inputSchema,
+        strict: false,
+      },
+    })
+  })
+
   it('prepends mixed string + object-form systemPrompts as a role:system message and drops foreign metadata', async () => {
     const streamChunks = [
       {

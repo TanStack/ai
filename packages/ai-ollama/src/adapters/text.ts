@@ -6,6 +6,7 @@ import {
 } from '@tanstack/ai'
 import {
   resolveReasoning,
+  tanstackMetadata,
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
@@ -142,6 +143,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'ollama' as const
+  override readonly api = 'ollama' as const
 
   private readonly client: Ollama
 
@@ -167,9 +169,10 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
   async *chatStream(
     options: TextOptions<ResolveModelOptions<TModel>>,
   ): AsyncIterable<AdapterYieldChunk> {
-    const mappedOptions = this.mapCommonOptionsToOllama(options)
     const { logger } = options
+    const source = { provider: 'ollama', api: this.api, model: options.model }
     try {
+      const mappedOptions = this.mapCommonOptionsToOllama(options)
       logger.request(
         `activity=chat provider=ollama model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: 'ollama', model: this.model },
@@ -178,7 +181,19 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         ...mappedOptions,
         stream: true,
       })
-      yield* this.processOllamaStreamChunks(response, options, logger)
+      for await (const chunk of this.processOllamaStreamChunks(
+        response,
+        options,
+        logger,
+      )) {
+        yield {
+          ...chunk,
+          metadata: {
+            ...chunk.metadata,
+            tanstack: { ...tanstackMetadata(chunk), source },
+          },
+        }
+      }
     } catch (error: unknown) {
       const errorPayload = toRunErrorPayload(
         error,
@@ -191,6 +206,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       })
       yield {
         type: EventType.RUN_ERROR,
+        metadata: { tanstack: { source } },
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
@@ -318,16 +334,15 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         }
 
         // Serialize arguments to a string for the TOOL_CALL_ARGS event
-        let parsedInput: unknown = {}
+        let parsedInput: unknown
         const argsStr =
           typeof actualToolCall.function.arguments === 'string'
             ? actualToolCall.function.arguments
             : JSON.stringify(actualToolCall.function.arguments)
         try {
-          const parsed = JSON.parse(argsStr)
-          parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+          parsedInput = JSON.parse(argsStr)
         } catch {
-          parsedInput = actualToolCall.function.arguments
+          parsedInput = undefined
         }
 
         // Emit TOOL_CALL_ARGS with full args (Ollama doesn't stream args incrementally)
@@ -348,7 +363,8 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           toolName: actualToolCall.function.name || '',
           model: chunk.model,
           timestamp: Date.now(),
-          input: parsedInput,
+          args: argsStr,
+          ...(parsedInput !== undefined && { input: parsedInput }),
         })
 
         return events

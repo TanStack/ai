@@ -473,10 +473,16 @@ describe('first-party plugin edges', () => {
       defineHarness({ name: 'test/todos', adapter, plugins: () => [todos()] }),
       { threadId: 't' },
     )
+    const before = session.snapshot().plugins
     await session.prompt('plan')
     expect(JSON.stringify(calls[1].messages)).toContain(
+      'Input validation failed for tool todo_write: /todos/0/status: must be equal to one of the allowed values',
+    )
+    expect(JSON.stringify(calls[1].messages)).not.toContain(
       'Each todo needs text and a status.',
     )
+    expect(session.snapshot().plugins).toEqual(before)
+    expect(await session.command('todos')).toBe('The todo list is empty.')
     await session.prompt('clear')
     expect(JSON.stringify(calls[3].messages)).toContain(
       'The todo list is empty.',

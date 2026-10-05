@@ -253,11 +253,9 @@ export class BytePlusTextAdapter<
    * The gate is `emitsEncryptedContent(this.model)` — the model being called
    * now, not the provenance of the history. That guarantees a signature is
    * never sent to a model that has no `encrypted_content` concept. It does
-   * NOT identify who produced the signature: `ModelMessage` carries no
-   * provider field, so a foreign signature (e.g. an Anthropic thinking
-   * signature in replayed cross-provider history) WILL be forwarded when the
-   * current model is a thinking-summary model. No shape guard is attempted —
-   * the blob is opaque and Ark is the only party that can validate it.
+   * Replay removes signatures from foreign provider, API, or model history.
+   * History without a source uses the same-source path. The remaining blob
+   * is opaque, and Ark is the only party that can validate it.
    *
    * Absence is never an error: a live probe confirmed Ark accepts a turn whose
    * assistant message omits `encrypted_content`.

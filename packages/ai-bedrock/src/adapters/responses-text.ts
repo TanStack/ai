@@ -1,3 +1,4 @@
+import { GENERATED_BEDROCK_MODELS } from '../model-catalog.generated'
 import OpenAI from 'openai'
 import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
 import { withBedrockDefaults } from '../utils/client'
@@ -60,6 +61,10 @@ export class BedrockResponsesTextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'bedrock-responses' as const
+  override readonly provider: string
+  override readonly inputModalities: ReadonlyArray<Modality> =
+    GENERATED_BEDROCK_MODELS.find((entry) => entry.id === this.model)
+      ?.input ?? ['text']
 
   constructor(config: BedrockResponsesConfig, model: TModel) {
     // Responses is mantle-only — force the mantle base URL (an explicit
@@ -70,6 +75,7 @@ export class BedrockResponsesTextAdapter<
       new OpenAI(withBedrockDefaults(config, 'mantle', model)),
       config,
     )
+    this.provider = 'amazon-bedrock'
   }
 
   protected override modelReasoning(model: string) {

@@ -81,58 +81,175 @@ function withRunId(message: ModelMessage, runId: string): ModelMessage {
   }
 }
 
-function sameChildText(stored: string, incoming: string) {
-  if (stored === '' || incoming === '') return false
-  if (stored === incoming) return true
-  const blocks = stored.split('\n\n').filter((block) => block.includes(':\n'))
-  if (blocks.length === 0) return false
-  return blocks.every((block) => incoming.includes(block))
+export function subagentHostRunId(metadata: unknown) {
+  if (
+    metadata === null ||
+    typeof metadata !== 'object' ||
+    !Object.hasOwn(metadata, 'tanstack:subagentHost')
+  )
+    return
+  const marker = Reflect.get(metadata, 'tanstack:subagentHost')
+  if (marker === null || typeof marker !== 'object' || Array.isArray(marker))
+    return
+  if (
+    Object.keys(marker).length !== 2 ||
+    !Object.hasOwn(marker, 'version') ||
+    !Object.hasOwn(marker, 'runId')
+  )
+    return
+  const runId = Reflect.get(marker, 'runId')
+  return Reflect.get(marker, 'version') === 1 &&
+    typeof runId === 'string' &&
+    runId !== ''
+    ? runId
+    : undefined
 }
 
-// A live client mints its own assistant id. The stored row uses
-// `assistant:${runId}`. When the client sends the turn again, copy `runId`
-// onto the new row so the cards still rebuild.
+function hasHostMarker(metadata: unknown) {
+  return (
+    metadata !== null &&
+    typeof metadata === 'object' &&
+    Object.hasOwn(metadata, 'tanstack:subagentHost')
+  )
+}
+
+function hostScopeMatches(metadata: unknown, runId: string) {
+  const generic = readModelRunIdFromMetadata(metadata)
+  return (
+    (generic === undefined || generic === runId) &&
+    (!hasHostMarker(metadata) || subagentHostRunId(metadata) === runId)
+  )
+}
+
+function precedingUserId<T extends { id?: string; role: string }>(
+  messages: ReadonlyArray<T>,
+  index: number,
+) {
+  return messages.slice(0, index).findLast((message) => message.role === 'user')
+    ?.id
+}
+
+export function selectSubagentHost<
+  T extends { id?: string; role: string; metadata?: unknown },
+>(
+  messages: ReadonlyArray<T>,
+  runId: string,
+  text: (message: T) => string,
+  summaries: ReadonlyArray<string>,
+): number {
+  const marked = messages.flatMap((message, index) =>
+    message.role === 'assistant' &&
+    hostScopeMatches(message.metadata, runId) &&
+    subagentHostRunId(message.metadata) === runId
+      ? [index]
+      : [],
+  )
+  if (marked.length === 1) return marked[0] ?? -1
+  if (marked.length > 1) return -1
+  const scoped = messages.flatMap((message, index) =>
+    message.role === 'assistant' &&
+    readModelRunIdFromMetadata(message.metadata) === runId
+      ? [index]
+      : [],
+  )
+  const segments = new Set(
+    scoped.map((index) => precedingUserId(messages, index)),
+  )
+  if (segments.size !== 1 || segments.has(undefined)) return -1
+  const legacy = scoped.filter((index) => {
+    const message = messages[index]
+    if (
+      !message ||
+      hasHostMarker(message.metadata) ||
+      !hostScopeMatches(message.metadata, runId)
+    )
+      return false
+    return summaries.some(
+      (summary) => summary !== '' && text(message) === summary,
+    )
+  })
+  if (legacy.length !== 1) return -1
+  const index = legacy[0]
+  if (index === undefined) return -1
+  const candidate = messages[index]
+  if (!candidate) return -1
+  const hasIndependentAnchor =
+    candidate.id === assistantId(runId) ||
+    scoped.some((other) => other !== index)
+  return hasIndependentAnchor ? index : -1
+}
+
+function unusedHostId(messages: ReadonlyArray<ModelMessage>, runId: string) {
+  const base = assistantId(runId)
+  let id = base
+  for (
+    let attempt = 1;
+    messages.some((message) => message.id === id);
+    attempt++
+  )
+    id = base + ':' + attempt
+  return id
+}
+
+function readModelRunIdFromMetadata(metadata: unknown) {
+  if (metadata === null || typeof metadata !== 'object') return
+  const tanstack = Reflect.get(metadata, 'tanstack')
+  if (tanstack === null || typeof tanstack !== 'object') return
+  const runId = Reflect.get(tanstack, 'runId')
+  return typeof runId === 'string' && runId !== '' ? runId : undefined
+}
+
+function withHost(message: ModelMessage, runId: string): ModelMessage {
+  const next = withRunId(message, runId)
+  return {
+    ...next,
+    metadata: {
+      ...next.metadata,
+      'tanstack:subagentHost': { version: 1, runId },
+    },
+  }
+}
+
 function keepSubagentRunIds(
   stored: ReadonlyArray<ModelMessage>,
   merged: Array<ModelMessage>,
+  summariesByRun: ReadonlyMap<string, ReadonlyArray<string>>,
 ) {
-  const dropped = stored.filter((message) => {
-    const runId = readModelRunId(message)
-    if (runId === undefined) return false
-    return !merged.some(
-      (item) => item.id !== undefined && item.id === message.id,
+  const runIds = new Set(
+    stored.flatMap((message) => {
+      const runId =
+        subagentHostRunId(message.metadata) ?? readModelRunId(message)
+      return runId === undefined ? [] : [runId]
+    }),
+  )
+  for (const runId of runIds) {
+    const summaries = summariesByRun.get(runId) ?? []
+    const previousIndex = selectSubagentHost(
+      stored,
+      runId,
+      messageText,
+      summaries,
     )
-  })
-  // The user message before a message, as the turn it answers.
-  const turnOf = (list: ReadonlyArray<ModelMessage>, index: number) =>
-    list.slice(0, index).findLast((message) => message.role === 'user')?.id
-  const used = new Set<number>()
-  for (const previous of dropped) {
-    const runId = readModelRunId(previous)
-    if (runId === undefined) continue
-    if (merged.some((message) => readModelRunId(message) === runId)) continue
-    const previousText = messageText(previous)
-    const previousTurn = turnOf(stored, stored.indexOf(previous))
-    const index = merged.findIndex((message, messageIndex) => {
-      if (used.has(messageIndex)) return false
-      if (message.role !== 'assistant') return false
-      if (readModelRunId(message) !== undefined) return false
-      // No child text yet (a child waits for approval): match the first
-      // assistant reply to the same user message.
-      if (previousText === '') {
-        return (
-          previousTurn !== undefined &&
-          turnOf(merged, messageIndex) === previousTurn &&
-          merged[messageIndex - 1]?.role === 'user'
-        )
-      }
-      return sameChildText(previousText, messageText(message))
-    })
-    if (index === -1) continue
-    const host = merged[index]
-    if (!host) continue
-    used.add(index)
-    merged[index] = withRunId(host, runId)
+    const previous = stored[previousIndex]
+    if (!previous || merged.some((message) => message.id === previous.id))
+      continue
+    if (selectSubagentHost(merged, runId, messageText, summaries) !== -1)
+      continue
+    const turn = precedingUserId(stored, previousIndex)
+    if (turn === undefined) continue
+    const forms = new Set([messageText(previous), ...summaries])
+    const candidates = merged.flatMap((message, index) =>
+      message.role === 'assistant' &&
+      hostScopeMatches(message.metadata, runId) &&
+      precedingUserId(merged, index) === turn &&
+      forms.has(messageText(message))
+        ? [index]
+        : [],
+    )
+    if (candidates.length !== 1) continue
+    const index = candidates[0]
+    if (index !== undefined && merged[index])
+      merged[index] = withHost(merged[index], runId)
   }
   return merged
 }
@@ -277,21 +394,34 @@ export function createSubagentRunRecorder(stores: {
       .join('\n\n')
     const stored = await loadMessages(threadId)
     // A resume updates the message of the run that started the child.
-    const index = stored.findIndex(
-      (message) => readModelRunId(message) === runId,
-    )
+    const index = selectSubagentHost(stored, runId, messageText, [
+      content,
+      notes
+        .map((note) => childText(note.processor.getMessages()))
+        .filter(Boolean)
+        .join('\n\n'),
+    ])
     const host = stored[index]
     if (host) {
+      const otherMessages = stored.filter((_, position) => position !== index)
+      const id =
+        host.id != null &&
+        !otherMessages.some((message) => message.id === host.id)
+          ? host.id
+          : unusedHostId(otherMessages, runId)
       const next = [...stored]
-      next[index] = { ...host, content }
+      next[index] = withHost({ ...host, id, content }, runId)
       await stores.messages.saveThread(threadId, next)
       return
     }
     const assistant: ModelMessage = {
-      id: assistantId(runId),
+      id: unusedHostId(stored, runId),
       role: 'assistant',
       content,
-      metadata: { tanstack: { runId } },
+      metadata: {
+        tanstack: { runId },
+        'tanstack:subagentHost': { version: 1, runId },
+      },
     }
     await stores.messages.saveThread(threadId, [...stored, assistant])
   }
@@ -479,9 +609,40 @@ export function createSubagentRunRecorder(stores: {
       const incoming = convertMessagesToModelMessages([...input.messages])
       const stored = await loadMessages(input.threadId)
       const merged = mergeStoredMessages(stored, incoming)
+      const summariesByRun = new Map<string, ReadonlyArray<string>>()
+      const parentIds = new Set(
+        stored.flatMap((message) => {
+          const id = readModelRunId(message)
+          return id === undefined ? [] : [id]
+        }),
+      )
+      for (const parentId of parentIds) {
+        const blocks: Array<{ name: string; text: string }> = []
+        for (const child of (await stores.runs?.listByParentRun?.(parentId)) ??
+          []) {
+          const transcript = await loadMessages(child.threadId)
+          if (storedSubagentInfo(transcript)?.parentToolCallId !== undefined)
+            continue
+          blocks.push({
+            name:
+              child.name ?? storedSubagentInfo(transcript)?.name ?? 'subagent',
+            text: childText(modelMessagesToUIMessages(transcript)),
+          })
+        }
+        summariesByRun.set(parentId, [
+          blocks
+            .filter((block) => block.text !== '')
+            .map((block) => block.name + ':\n' + block.text)
+            .join('\n\n'),
+          blocks
+            .map((block) => block.text)
+            .filter(Boolean)
+            .join('\n\n'),
+        ])
+      }
       await stores.messages.saveThread(
         input.threadId,
-        keepSubagentRunIds(stored, merged),
+        keepSubagentRunIds(stored, merged, summariesByRun),
       )
     },
 

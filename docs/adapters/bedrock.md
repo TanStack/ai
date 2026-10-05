@@ -358,6 +358,18 @@ The adapter ships with a hand-seeded snapshot catalog (`src/model-catalog.genera
 
 For the full list of models and which API endpoints they support, see the [AWS API compatibility matrix](https://docs.aws.amazon.com/bedrock/latest/userguide/models-api-compatibility.html).
 
+## Replay thinking and tool results
+
+A Claude conversation with thinking and tools needs its signed thinking on the next request. Converse preserves the reasoning text, signature, and order before the matching `toolUse` blocks.
+
+Readable `reasoningText.signature` replay applies to Claude models. Same-source redacted encrypted reasoning can replay for other Converse models that support it. Foreign history drops redacted thinking and signatures, and converts readable thinking to text.
+
+Keep assistant metadata and reasoning parts when you save history. Converse records source provider `amazon-bedrock` and API `bedrock-converse-stream`. The Chat Completions and Responses adapters use `openai-completions` and `openai-responses` API identities.
+
+Converse tool results preserve images as image blocks and send `status: 'error'` for tool errors. With a text-only model, image results use a text placeholder. The Chat Completions path places supported tool-result images in a following user message.
+
+An AWS HTTP request ID is a transport ID. It does not become `responseId`. See [Read the provider response identity](../chat/stream-events#read-the-provider-response-identity).
+
 ## Supported Capabilities
 
 - Streaming chat completions

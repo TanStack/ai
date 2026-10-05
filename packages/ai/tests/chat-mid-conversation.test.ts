@@ -96,6 +96,76 @@ const addToolB = (config: ChatMiddlewareConfig, iteration: number) =>
     : undefined
 
 describe('chat() mid-conversation changes', () => {
+  it('remaps a system boundary after synthetic results and omitted failed rows', async () => {
+    let executions = 0
+    const mock = createMockAdapter({ iterations: [answer('done')] })
+    const adapter: AnyTextAdapter = {
+      ...mock.adapter,
+      midConversationChannels: ON,
+    }
+    const history: Array<ModelMessage> = [
+      {
+        role: 'assistant',
+        content: null,
+        toolCalls: [
+          {
+            id: 'orphan',
+            type: 'function',
+            function: { name: 'a', arguments: '{}' },
+          },
+        ],
+        midConversationChange: {
+          tools: ['a'],
+          systemPrompts: [promptHash('A')],
+        },
+      },
+      {
+        role: 'assistant',
+        content: 'partial',
+        metadata: { tanstack: { stopReason: 'error' } },
+        midConversationChange: {
+          toolsAdded: ['b'],
+          systemPrompts: [promptHash('B')],
+        },
+      },
+      {
+        role: 'assistant',
+        content: 'aborted',
+        metadata: { tanstack: { stopReason: 'aborted' } },
+        midConversationChange: {
+          toolsAdded: ['c'],
+          systemPrompts: [promptHash('C')],
+        },
+      },
+      { role: 'user', content: 'retry' },
+    ]
+    await collectChunks(
+      chat({
+        adapter,
+        messages: history,
+        tools: [
+          serverTool('a', () => {
+            executions++
+            return {}
+          }),
+          serverTool('b', () => ({})),
+          serverTool('c', () => ({})),
+        ],
+        systemPrompts: ['A', 'B', 'C'],
+      }),
+    )
+    expect(mock.calls[0]?.messages.map((message) => message.role)).toEqual([
+      'assistant',
+      'tool',
+      'user',
+    ])
+    expect(mock.calls[0]?.midConversationChanges).toEqual({
+      start: { tools: ['a'], systemPrompts: 1 },
+      changes: [{ before: 2, tools: ['b', 'c'], systemPrompts: 2 }],
+    })
+    expect(history[1]?.content).toBe('partial')
+    expect(executions).toBe(0)
+  })
   it.each<[string, MidConversationChannels | undefined]>([
     ['has no channels', undefined],
     ['has both channels off', { tools: false, systemPrompts: false }],

@@ -382,7 +382,7 @@ export interface InboxEntry {
   inputId: string
   threadId: string
   /** Who sent it, from the host's `authorize`. */
-  principal?: { id: string }
+  principal?: { id: string; tenantId?: string }
   /** The input itself. Storage holds it as-is. The harness validates it. */
   input: unknown
   status: InboxStatus

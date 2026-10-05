@@ -86,6 +86,26 @@ describe('harnessText media', () => {
     expect(harnessText(studio).inputModalities).toEqual(expected)
   })
 
+  it('reads the inputModalities option, for a harness without an adapter', () => {
+    const plain = defineHarness({ name: 'test/no-adapter' })
+    const studio = defineHarness({
+      name: 'test/picked',
+      adapter: innerAdapter(['text', 'image', 'audio']).adapter,
+      media: { accepts: ['image', 'audio'] },
+    })
+
+    expect(harnessText(plain).inputModalities).toBe(undefined)
+    expect(
+      harnessText(plain, { inputModalities: ['text', 'image'] })
+        .inputModalities,
+    ).toEqual(['text', 'image'])
+    // The option wins over the adapter list, and media.accepts narrows it.
+    expect(
+      harnessText(studio, { inputModalities: ['text', 'image', 'video'] })
+        .inputModalities,
+    ).toEqual(['text', 'image'])
+  })
+
   it('does not know what a remote harness reads', () => {
     expect(harnessText({ url: 'http://remote.test' }).inputModalities).toBe(
       undefined,

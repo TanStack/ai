@@ -74,6 +74,8 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'bytedance/seed-1.8',
   'bytedance/seed-2.1-turbo',
   'cohere/command-a',
+  'convaiinnovations/laya',
+  'convaiinnovations/laya-free',
   'deepseek/deepseek-r1',
   'deepseek/deepseek-v3.1',
   'deepseek/deepseek-v3.1-terminus',
@@ -85,6 +87,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'deepseek/deepseek-v4-pro',
   'deepseek/deepseek-v4-pro-0813',
   'deepseek/deepseek-v4.1-flash',
+  'deepseek/deepseek-v4.1-flash-fast',
   'fireworks/ember-1',
   'fish-audio/s1',
   'fish-audio/s2-pro',
@@ -141,6 +144,13 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'meta/muse-spark-1.2-contributor',
   'meta/muse-spark-1.3',
   'meta/muse-spark-1.3-contributor',
+  'microsoft/mai-transcribe-1.5',
+  'microsoft/mai-transcribe-2',
+  'microsoft/mai-transcribe-2-streaming',
+  'microsoft/mai-voice-2',
+  'microsoft/mai-voice-2-flash',
+  'microsoft/mai-voice-2.1',
+  'microsoft/mai-voice-2.1-flash',
   'minimax/minimax-m2',
   'minimax/minimax-m2.1',
   'minimax/minimax-m2.1-lightning',
@@ -275,7 +285,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'spacexai/grok-tts',
   'spacexai/grok-voice-think-fast-1.0',
   'spacexai/grok-voice-think-fast-2.0',
-  'stealth/pixel-canary',
   'stepfun/step-3.5-flash',
   'stepfun/step-3.7-flash',
   'stepfun/step-5-preview',
@@ -321,6 +330,7 @@ export const VERCEL_GATEWAY_PROVIDERS = [
   'bfl',
   'bytedance',
   'cohere',
+  'convaiinnovations',
   'deepseek',
   'fireworks',
   'fish-audio',
@@ -333,6 +343,7 @@ export const VERCEL_GATEWAY_PROVIDERS = [
   'liquid',
   'meituan',
   'meta',
+  'microsoft',
   'minimax',
   'mistral',
   'mixedbread',
@@ -347,7 +358,6 @@ export const VERCEL_GATEWAY_PROVIDERS = [
   'recraft',
   'sakana',
   'spacexai',
-  'stealth',
   'stepfun',
   'tencent',
   'thinkingmachines',
@@ -981,6 +991,8 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'response_format'
       | 'structured_outputs'
     >
+  'convaiinnovations/laya': VercelGatewayCommonOptions
+  'convaiinnovations/laya-free': VercelGatewayCommonOptions
   'deepseek/deepseek-r1': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -1067,6 +1079,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'structured_outputs'
     >
   'deepseek/deepseek-v4.1-flash': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'response_format'
+      | 'structured_outputs'
+    >
+  'deepseek/deepseek-v4.1-flash-fast': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       | 'max_tokens'
@@ -1495,6 +1517,13 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'response_format'
       | 'structured_outputs'
     >
+  'microsoft/mai-transcribe-1.5': VercelGatewayCommonOptions
+  'microsoft/mai-transcribe-2': VercelGatewayCommonOptions
+  'microsoft/mai-transcribe-2-streaming': VercelGatewayCommonOptions
+  'microsoft/mai-voice-2': VercelGatewayCommonOptions
+  'microsoft/mai-voice-2-flash': VercelGatewayCommonOptions
+  'microsoft/mai-voice-2.1': VercelGatewayCommonOptions
+  'microsoft/mai-voice-2.1-flash': VercelGatewayCommonOptions
   'minimax/minimax-m2': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -2651,11 +2680,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       VercelGatewayBaseOptions,
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
     >
-  'stealth/pixel-canary': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
   'stepfun/step-3.5-flash': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -3015,6 +3039,8 @@ export type VercelGatewayModelInputModalitiesByName = {
   'bytedance/seed-1.8': readonly ['text', 'image']
   'bytedance/seed-2.1-turbo': readonly ['text', 'image', 'video']
   'cohere/command-a': readonly ['text']
+  'convaiinnovations/laya': readonly ['text']
+  'convaiinnovations/laya-free': readonly ['text']
   'deepseek/deepseek-r1': readonly ['text']
   'deepseek/deepseek-v3.1': readonly ['text']
   'deepseek/deepseek-v3.1-terminus': readonly ['text']
@@ -3026,6 +3052,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'deepseek/deepseek-v4-pro': readonly ['text']
   'deepseek/deepseek-v4-pro-0813': readonly ['text']
   'deepseek/deepseek-v4.1-flash': readonly ['text', 'image']
+  'deepseek/deepseek-v4.1-flash-fast': readonly ['text', 'image']
   'fireworks/ember-1': readonly ['text', 'image']
   'fish-audio/s1': readonly ['text']
   'fish-audio/s2-pro': readonly ['text']
@@ -3092,6 +3119,13 @@ export type VercelGatewayModelInputModalitiesByName = {
   'meta/muse-spark-1.2-contributor': readonly ['text', 'image', 'document']
   'meta/muse-spark-1.3': readonly ['text', 'image', 'document']
   'meta/muse-spark-1.3-contributor': readonly ['text', 'image', 'document']
+  'microsoft/mai-transcribe-1.5': readonly ['text', 'audio']
+  'microsoft/mai-transcribe-2': readonly ['text', 'audio']
+  'microsoft/mai-transcribe-2-streaming': readonly ['text', 'audio']
+  'microsoft/mai-voice-2': readonly ['text']
+  'microsoft/mai-voice-2-flash': readonly ['text']
+  'microsoft/mai-voice-2.1': readonly ['text']
+  'microsoft/mai-voice-2.1-flash': readonly ['text']
   'minimax/minimax-m2': readonly ['text']
   'minimax/minimax-m2.1': readonly ['text']
   'minimax/minimax-m2.1-lightning': readonly ['text']
@@ -3235,7 +3269,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'spacexai/grok-tts': readonly ['text']
   'spacexai/grok-voice-think-fast-1.0': readonly ['text', 'audio']
   'spacexai/grok-voice-think-fast-2.0': readonly ['text', 'audio']
-  'stealth/pixel-canary': readonly ['text', 'image']
   'stepfun/step-3.5-flash': readonly ['text', 'image']
   'stepfun/step-3.7-flash': readonly ['text', 'image']
   'stepfun/step-5-preview': readonly ['text', 'image']

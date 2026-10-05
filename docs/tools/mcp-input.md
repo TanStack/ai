@@ -195,6 +195,10 @@ The pause and the resume work on spec 2026. On spec 2025, the server asks the cl
 
 ## A tool error
 
+MCP tools use the same final input validation as other tools in `chat()`. Raw JSON Schema arguments can be coerced before the tool runs. Invalid arguments produce a tool error without a call to the MCP server.
+
+On resume, the input response and the tool arguments have different roles. The response reaches `ctx.inputResponse`. The final tool arguments still pass through middleware and schema validation. See [Validate input before execution](./tools#validate-input-before-execution).
+
 If the thrown value is a plain `Error`, the result is a tool error. The run does not pause.
 
 `chat()` pauses only for this shape:

@@ -91,7 +91,53 @@ const inputSchema: JSONSchema = {
 };
 ```
 
-> **Note:** When using JSON Schema, TypeScript infers `unknown` for input/output types (it cannot derive types from a JSON Schema at compile time), so you must narrow or cast `args` before use. Zod schemas are recommended for full type safety.
+> **Note:** JSON Schema input and output types are `unknown`. Narrow the values before use. Standard Schema libraries such as Zod provide inferred types.
+
+### Validate input before execution
+
+A model can send arguments that do not match your tool. `chat()` validates the final input after `onBeforeToolCall` middleware. Invalid input becomes a tool error that the model can read. The tool does not execute.
+
+Raw JSON Schema input uses schema-guided coercion. For example, a number field can accept `"5"` and pass `5` to the tool. Missing required fields and values that still fail the schema produce an error.
+
+```typescript
+import { chat, toolDefinition } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const double = toolDefinition({
+  name: 'double',
+  description: 'Double a number',
+  inputSchema: {
+    type: 'object',
+    properties: { value: { type: 'number' } },
+    required: ['value'],
+    additionalProperties: false,
+  },
+}).server((input) => {
+  if (
+    typeof input !== 'object' || input === null ||
+    !('value' in input) || typeof input.value !== 'number'
+  ) {
+    throw new Error('Expected a number in value')
+  }
+  return input.value * 2
+})
+
+for await (const chunk of chat({
+  adapter: openaiText('gpt-5.5'),
+  messages: [{ role: 'user', content: 'Double 5 with the double tool' }],
+  tools: [double],
+})) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') console.log(chunk.delta)
+}
+```
+
+Standard Schema validates the authored input first and preserves its transformed output. If that fails, coercion needs a safe Standard JSON Schema **input** export. The converted value must then pass the authored validator. Without that export, the original validation error is returned.
+
+Each accepted execution boundary uses one successful authored transform. A failed first check can still require a second authored check after coercion.
+
+The execution input can differ from the provider's raw JSON. Validation and middleware do not rewrite the provider's saved arguments. A human's approved argument edit can update history. See [Tool Approval](../interrupts/tool-approval).
+
+Empty or whitespace-only arguments fail for a tool with an input schema. Valid JSON values such as `null`, arrays, and numbers are checked against that schema. Malformed JSON produces a tool error.
 
 > **Tip:** Type safety from Zod schemas extends beyond tool execution. When you pass `.client()` tools to `useChat`, a check on `part.name` narrows `part.input` and `part.output`. See [Type-safe tool call events](../chat/stream-events#type-safe-tool-call-events).
 
@@ -421,7 +467,7 @@ const runTests = toolDefinition({
 }).server(async () => ({ passed: true }))
 
 const stream = chat({
-  adapter: openaiText('gpt-6.1-sol'),
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Fix the bug, then run the tests.' }],
   tools: [writeFile, runTests],
   toolExecution: 'sequential',

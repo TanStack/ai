@@ -1,13 +1,15 @@
 import { expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { defineAgent } from '@tanstack/ai'
-import { defineHarness } from '../src'
+import { defineHarness, definePlugin } from '../src'
 import { mockAdapter } from './helpers'
+import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
 import type {
   HarnessConfig,
   HarnessInput,
   HarnessSession,
   Operation,
+  PluginLifetime,
   Receipt,
   RecoverHook,
 } from '../src'
@@ -73,6 +75,17 @@ it('describes how an input ended', () => {
   expectTypeOf<InputSettlement['error']>().toEqualTypeOf<
     { message: string; code?: string } | undefined
   >()
+})
+
+it('takes a harness without an adapter, and turn plugins', () => {
+  const picked = defineHarness({
+    name: 'test/no-adapter',
+    plugins: () => [definePlugin({ name: 'test/turn', lifetime: 'turn' })],
+  })
+  expectTypeOf(picked.adapter).toEqualTypeOf<
+    AnyTextAdapter | KeyedAdapter<AnyTextAdapter> | undefined
+  >()
+  expectTypeOf<PluginLifetime>().toEqualTypeOf<'session' | 'turn' | 'run'>()
 })
 
 it('takes attempt and time limits on the harness', () => {

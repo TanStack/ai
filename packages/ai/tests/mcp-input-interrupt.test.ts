@@ -5,17 +5,23 @@ import { EventType } from '../src/types'
 import { collectChunks, createMockAdapter, ev, serverTool } from './test-utils'
 import type { StreamChunk, ToolExecutionContext } from '../src/types'
 
-function inputRequiredThrow(kind: 'form' | 'sampling', request: unknown) {
+function inputRequiredThrow(
+  kind: 'form' | 'sampling',
+  request: unknown,
+  reason?: string,
+) {
   return {
     name: 'MCPInputRequiredError',
     kind,
     request,
+    ...(reason !== undefined ? { reason } : {}),
   }
 }
 
 async function runInputRequiredChat(
   kind: 'form' | 'sampling',
   request: unknown,
+  reason?: string,
 ) {
   const { adapter, calls } = createMockAdapter({
     iterations: [
@@ -41,7 +47,7 @@ async function runInputRequiredChat(
       messages: [{ role: 'user', content: 'Ask' }],
       tools: [
         serverTool('askInput', () => {
-          throw inputRequiredThrow(kind, request)
+          throw inputRequiredThrow(kind, request, reason)
         }),
       ],
     }) as AsyncIterable<StreamChunk>,
@@ -95,6 +101,29 @@ describe('MCP input interrupt', () => {
       kind: 'generic',
       interruptId: 'mcp_input_call_1',
       generation: 0,
+    })
+  })
+
+  it('uses the reason the thrown shape gives', async () => {
+    const request = { connector: 'github' }
+    const finished = await runInputRequiredChat(
+      'form',
+      request,
+      'auth_required',
+    )
+
+    expect(finished?.outcome).toMatchObject({
+      type: 'interrupt',
+      interrupts: [
+        {
+          id: 'mcp_input_call_1',
+          reason: 'auth_required',
+          toolCallId: 'call_1',
+          metadata: {
+            'tanstack:interruptPayload': { kind: 'form', request },
+          },
+        },
+      ],
     })
   })
 

@@ -158,7 +158,7 @@ export const withClock = defineHarness({
 })
 ```
 
-`plugins` is a function, so every session gets its own plugin instances. Set `lifetime: 'run'` on a plugin to set it up again for each turn.
+`plugins` is a function, so every session gets its own plugin instances. Set `lifetime: 'turn'` on a plugin to set it up again for each turn.
 
 If two plugins add a tool with the same name, `host.open` fails and names both plugins.
 

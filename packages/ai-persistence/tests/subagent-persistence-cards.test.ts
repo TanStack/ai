@@ -317,8 +317,6 @@ describe('persisted subagent cards', () => {
     expect(execute).toHaveBeenCalledWith({ path: 'a' }, expect.anything())
 
     // The approval is resolved and main's reply is stored once.
-    // ponytail: the reloaded card is not rebuilt on this path. Main's
-    // persistence merge drops the interrupted run's host row. Open question.
     const finished = await loadDesk(persistence)
     expect(finished.interrupts).toBeNull()
     const texts = finished.messages
@@ -441,4 +439,491 @@ describe('subagent run recorder', () => {
     expect(second).toContain('second thread notes')
     expect(second).not.toContain('first thread notes')
   })
+})
+
+describe('host ownership collisions', () => {
+  it.each(['foreign', 'malformed'])(
+    'does not replace a %s client host marker',
+    async (kind) => {
+      const { stores } = memoryPersistence()
+      const recorder = createSubagentRunRecorder({
+        messages: stores.messages,
+        runs: stores.runs,
+        intervalMs: 0,
+      })
+      const original: ModelMessage = {
+        id: 'assistant:run-1',
+        role: 'assistant',
+        content: 'writer:\nNotes',
+        metadata: {
+          tanstack: { runId: 'run-1' },
+          'tanstack:subagentHost': { version: 1, runId: 'run-1' },
+        },
+      }
+      const user: ModelMessage = { id: 'u1', role: 'user', content: 'Research' }
+      await stores.messages.saveThread('desk', [user, original])
+      const marker =
+        kind === 'foreign'
+          ? { version: 1, runId: 'foreign-run' }
+          : { version: 2, runId: 'run-1' }
+      const incoming: ModelMessage = {
+        id: 'client-host',
+        role: 'assistant',
+        content: original.content,
+        metadata: { 'tanstack:subagentHost': marker },
+      }
+      await recorder.start({
+        threadId: 'desk',
+        runId: 'run-2',
+        messages: [user, incoming],
+      })
+      const saved = await stores.messages.loadThread('desk')
+      const client = saved.find((message) => message.id === 'client-host')
+      expect(client?.metadata).toEqual(incoming.metadata)
+      expect(incoming.metadata).toEqual({ 'tanstack:subagentHost': marker })
+    },
+  )
+  it('does not overwrite an ordinary reply while a child streams', async () => {
+    const { stores } = memoryPersistence()
+    const recorder = createSubagentRunRecorder({
+      messages: stores.messages,
+      runs: stores.runs,
+      intervalMs: 0,
+    })
+    const main: ModelMessage = {
+      id: 'assistant:r1',
+      role: 'assistant',
+      content: 'All clean.',
+      metadata: { tanstack: { runId: 'r1' } },
+    }
+    await recorder.start({
+      threadId: 'desk',
+      runId: 'r1',
+      messages: [{ id: 'u1', role: 'user', content: 'Research' }, main],
+    })
+    await recorder.chunk({
+      threadId: 'desk',
+      runId: 'r1',
+      chunk: {
+        type: EventType.SUBAGENT_STARTED,
+        subagentRunId: 'child',
+        name: 'writer',
+        timestamp: t,
+      },
+    })
+    await recorder.chunk({
+      threadId: 'desk',
+      runId: 'r1',
+      chunk: {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'note',
+        delta: 'Notes',
+        subagentRunId: 'child',
+        timestamp: t,
+      },
+    })
+    const saved = await stores.messages.loadThread('desk')
+    expect(saved.find((message) => message.id === main.id)).toEqual(main)
+    const host = saved.find(
+      (message) => message.id !== main.id && message.role === 'assistant',
+    )
+    expect(host?.content).toBe('writer:\nNotes')
+    expect(host?.metadata).toMatchObject({
+      'tanstack:subagentHost': { version: 1, runId: 'r1' },
+    })
+    expect(new Set(saved.map((message) => message.id)).size).toBe(saved.length)
+  })
+})
+
+describe('handoff host ID collision', () => {
+  it('keeps an occupied canonical reply and creates one distinct marked host', async () => {
+    const persistence = memoryPersistence()
+    const ordinary: ModelMessage = {
+      id: 'assistant:run-1',
+      role: 'assistant',
+      content: 'Ordinary before.',
+      metadata: { tanstack: { runId: 'run-1' } },
+    }
+    const child = defineAgent({
+      name: 'writer',
+      description: 'Writes notes',
+      run: async function* () {
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'note',
+          delta: 'Notes',
+          timestamp: t,
+        }
+      },
+    })
+    const main = scriptedAdapter([
+      [
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'main',
+          role: 'assistant',
+          timestamp: t,
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'main',
+          delta: 'All clean.',
+          timestamp: t,
+        },
+        { type: EventType.TEXT_MESSAGE_END, messageId: 'main', timestamp: t },
+      ],
+    ])
+    await collect(
+      chat({
+        adapter: main,
+        threadId: 'desk',
+        runId: 'run-1',
+        messages: [{ id: 'u1', role: 'user', content: 'Research' }, ordinary],
+        middleware: [withPersistence(persistence)],
+        subagents: {
+          agents: [child],
+          router: () => 'writer',
+          strategy: 'handoff',
+        },
+      }),
+    )
+    const stored = await persistence.stores.messages.loadThread('desk')
+    expect(stored.find((message) => message.id === ordinary.id)).toEqual(
+      ordinary,
+    )
+    expect(new Set(stored.map((message) => message.id)).size).toBe(
+      stored.length,
+    )
+    const marked = stored.filter(
+      (message) =>
+        message.metadata &&
+        Object.hasOwn(message.metadata, 'tanstack:subagentHost'),
+    )
+    expect(marked).toHaveLength(1)
+    expect(marked[0]?.id).not.toBe(ordinary.id)
+    const desk = await loadDesk(persistence)
+    expect(
+      desk.messages
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'subagent'),
+    ).toHaveLength(1)
+    expect(
+      desk.messages
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'text'),
+    ).toEqual(
+      expect.arrayContaining([
+        { type: 'text', content: 'Ordinary before.' },
+        { type: 'text', content: 'All clean.' },
+      ]),
+    )
+  })
+})
+
+describe('marked handoff host preservation', () => {
+  it('transfers a proved host to only its same-turn client replacement', async () => {
+    const { stores } = memoryPersistence()
+    const user: ModelMessage = { id: 'user', role: 'user', content: 'Research' }
+    const original: ModelMessage = {
+      id: 'original-host',
+      role: 'assistant',
+      content: 'writer:\nNotes.',
+      metadata: {
+        tanstack: { runId: 'run-1' },
+        'tanstack:subagentHost': { version: 1, runId: 'run-1' },
+      },
+    }
+    await stores.messages.saveThread('desk', [user, original])
+    const ordinary: ModelMessage = {
+      id: 'ordinary',
+      role: 'assistant',
+      content: 'Ordinary reply.',
+      metadata: { audit: 'ordinary' },
+    }
+    const replacement: ModelMessage = {
+      id: 'client-host',
+      role: 'assistant',
+      content: original.content,
+      metadata: { audit: 'client' },
+    }
+    const incoming = [user, ordinary, replacement]
+    const before = JSON.stringify(incoming)
+    const recorder = createSubagentRunRecorder({
+      messages: stores.messages,
+      ...(stores.runs ? { runs: stores.runs } : {}),
+      intervalMs: 0,
+    })
+    await recorder.start({
+      threadId: 'desk',
+      runId: 'run-1',
+      messages: incoming,
+    })
+    const saved = await stores.messages.loadThread('desk')
+    expect(saved.filter((message) => message.id === ordinary.id)).toEqual([
+      ordinary,
+    ])
+    expect(saved.some((message) => message.id === original.id)).toBe(false)
+    const marked = saved.filter(
+      (message) =>
+        message.metadata &&
+        Object.hasOwn(message.metadata, 'tanstack:subagentHost'),
+    )
+    expect(marked).toEqual([
+      {
+        ...replacement,
+        metadata: {
+          audit: 'client',
+          tanstack: { runId: 'run-1' },
+          'tanstack:subagentHost': { version: 1, runId: 'run-1' },
+        },
+      },
+    ])
+    expect(JSON.stringify(incoming)).toBe(before)
+  })
+
+  it.each([false, true])(
+    'gives the streaming recorder an unused host ID with missing ID %s',
+    async (missingId) => {
+      const { stores } = memoryPersistence()
+      const ordinary: ModelMessage = {
+        id: 'assistant:run-1',
+        role: 'assistant',
+        content: 'Ordinary reply.',
+        metadata: { audit: 'ordinary' },
+      }
+      const occupiedSuffix: ModelMessage = {
+        id: 'assistant:run-1:1',
+        role: 'assistant',
+        content: 'Another ordinary reply.',
+      }
+      const metadata = {
+        tanstack: { runId: 'run-1', responseId: 'original-response' },
+        'tanstack:subagentHost': { version: 1, runId: 'run-1' },
+        audit: 'host',
+      }
+      const host: ModelMessage = {
+        ...(!missingId ? { id: ordinary.id } : {}),
+        role: 'assistant',
+        content: 'Old notes.',
+        metadata,
+      }
+      await stores.messages.saveThread('desk', [ordinary, occupiedSuffix, host])
+      const recorder = createSubagentRunRecorder({
+        messages: stores.messages,
+        ...(stores.runs ? { runs: stores.runs } : {}),
+        intervalMs: 0,
+      })
+      await recorder.chunk({
+        threadId: 'desk',
+        runId: 'run-1',
+        chunk: {
+          type: EventType.SUBAGENT_STARTED,
+          subagentRunId: 'child',
+          name: 'writer',
+          timestamp: t,
+        },
+      })
+      await recorder.chunk({
+        threadId: 'desk',
+        runId: 'run-1',
+        chunk: {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          subagentRunId: 'child',
+          messageId: 'notes',
+          delta: 'New notes.',
+          timestamp: t,
+        },
+      })
+      const saved = await stores.messages.loadThread('desk')
+      expect(saved.filter((message) => message.id === ordinary.id)).toEqual([
+        ordinary,
+      ])
+      expect(
+        saved.filter((message) => message.id === occupiedSuffix.id),
+      ).toEqual([occupiedSuffix])
+      const marked = saved.filter(
+        (message) =>
+          message.metadata &&
+          Object.hasOwn(message.metadata, 'tanstack:subagentHost'),
+      )
+      expect(marked).toHaveLength(1)
+      expect(marked[0]).toMatchObject({
+        id: 'assistant:run-1:2',
+        content: 'writer:\nNew notes.',
+        metadata,
+      })
+      expect(new Set(saved.map((message) => message.id)).size).toBe(
+        saved.length,
+      )
+    },
+  )
+
+  it('gives an explicitly duplicated host ID an unused ID in public chat', async () => {
+    const ordinary: ModelMessage = {
+      id: 'assistant:run-1',
+      role: 'assistant',
+      content: 'Ordinary reply.',
+    }
+    const occupiedSuffix: ModelMessage = {
+      id: 'assistant:run-1:1',
+      role: 'assistant',
+      content: 'Another ordinary reply.',
+    }
+    const host: ModelMessage = {
+      id: ordinary.id,
+      role: 'assistant',
+      content: 'Old child notes.',
+      metadata: {
+        tanstack: { runId: 'run-1' },
+        'tanstack:subagentHost': { version: 1, runId: 'run-1' },
+      },
+    }
+    const observed: Array<ModelMessage> = []
+    const main: AnyTextAdapter = {
+      ...scriptedAdapter([]),
+      chatStream(options) {
+        observed.push(...options.messages)
+        return (async function* () {
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'main',
+            delta: 'Done.',
+            timestamp: t,
+          }
+        })()
+      },
+    }
+    const child = defineAgent({
+      name: 'writer',
+      description: 'Writes notes',
+      run: async function* () {
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'note',
+          delta: 'New notes.',
+          timestamp: t,
+        }
+      },
+    })
+    await collect(
+      chat({
+        adapter: main,
+        threadId: 'desk',
+        runId: 'run-1',
+        messages: [
+          { id: 'user', role: 'user', content: 'Research' },
+          ordinary,
+          occupiedSuffix,
+          host,
+        ],
+        subagents: {
+          agents: [child],
+          router: () => 'writer',
+          strategy: 'handoff',
+        },
+      }),
+    )
+    expect(observed.filter((message) => message.id === ordinary.id)).toEqual([
+      ordinary,
+    ])
+    expect(
+      observed.filter((message) => message.id === occupiedSuffix.id),
+    ).toEqual([occupiedSuffix])
+    const marked = observed.filter(
+      (message) =>
+        message.metadata &&
+        Object.hasOwn(message.metadata, 'tanstack:subagentHost'),
+    )
+    expect(marked).toHaveLength(1)
+    expect(marked[0]?.id).toBe('assistant:run-1:2')
+    expect(marked[0]?.content).toBe('New notes.')
+    expect(new Set(observed.map((message) => message.id)).size).toBe(
+      observed.length,
+    )
+  })
+
+  it.each([false, true])(
+    'preserves host metadata and collision safety with missing ID %s',
+    async (missingId) => {
+      const persistence = memoryPersistence()
+      const metadata = {
+        tanstack: {
+          runId: 'run-1',
+          source: {
+            provider: 'anthropic',
+            api: 'anthropic-messages',
+            model: 'requested-model',
+          },
+          responseId: 'genuine-response',
+        },
+        'tanstack:subagentHost': { version: 1, runId: 'run-1' },
+        audit: 'keep-me',
+      }
+      const host: ModelMessage = {
+        ...(!missingId ? { id: 'marked-host' } : {}),
+        role: 'assistant',
+        content: 'Old notes',
+        metadata,
+      }
+      const ordinary: ModelMessage = {
+        id: 'assistant:run-1',
+        role: 'assistant',
+        content: 'Ordinary before.',
+        metadata: { tanstack: { runId: 'run-1' } },
+      }
+      const child = defineAgent({
+        name: 'writer',
+        description: 'Writes notes',
+        run: async function* () {
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'note',
+            delta: 'Notes',
+            timestamp: t,
+          }
+        },
+      })
+      const main = scriptedAdapter([
+        [
+          {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'main',
+            delta: 'All clean.',
+            timestamp: t,
+          },
+        ],
+      ])
+      await collect(
+        chat({
+          adapter: main,
+          threadId: 'desk',
+          runId: 'run-1',
+          messages: [
+            { id: 'u1', role: 'user', content: 'Research' },
+            ordinary,
+            host,
+          ],
+          middleware: [withPersistence(persistence)],
+          subagents: {
+            agents: [child],
+            router: () => 'writer',
+            strategy: 'handoff',
+          },
+        }),
+      )
+      const saved = await persistence.stores.messages.loadThread('desk')
+      expect(saved.find((message) => message.id === ordinary.id)).toEqual(
+        ordinary,
+      )
+      const marked = saved.filter(
+        (message) =>
+          message.metadata &&
+          Object.hasOwn(message.metadata, 'tanstack:subagentHost'),
+      )
+      expect(marked).toHaveLength(1)
+      expect(marked[0]?.metadata).toEqual(metadata)
+      expect(marked[0]?.id).not.toBe(ordinary.id)
+      expect(metadata.audit).toBe('keep-me')
+    },
+  )
 })

@@ -109,15 +109,75 @@ A message that arrives while the model writes its final answer still gets an ans
 
 Waiting `steer` inputs join before each model call, in the order they arrived. They join as a prefix: the join stops at the first input that has an abort request, or that `turn.canJoin` refuses. The inputs after it wait.
 
-- A `busy: 'steer'` prompt has its own operation. To stop it before it joins, call `joined.cancel()` or `session.cancel(joined.id)`. It does not join, and it settles `aborted` when the running turn ends.
-- A `session.steer` input has no operation of its own. The `operationId` of its receipt is the running turn, so a cancel with that id cancels the turn.
+- The `operationId` in the receipt of a `busy: 'steer'` prompt or a `session.steer` input is the running turn. A cancel with that id cancels the turn.
+- A `busy: 'steer'` prompt also has its own operation, `joined`. To stop it before it joins, call `joined.cancel()` or `session.cancel(joined.id)`. It does not join, and it settles `aborted` when the running turn ends.
 - The session rejects a cancel that comes after the join started, with `reason: 'not_running'`.
 - A refused or late input runs as its own turn after the running one.
 
 To choose which inputs join, or to add records when they join, see [Choose which messages join a turn](./turn-control#choose-which-messages-join-a-turn).
+
+## Send context with a message
+
+Your tools often need to know what the user looks at: the open record, the page, or the locale. Send it as the `context` of the input. The session stores it with the input, so a turn that runs again after a restart gets the same value.
+
+On the server, a tool reads it from its tool context:
+
+```ts group=harness-inputs
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const openRecord = toolDefinition({
+  name: 'openRecord',
+  description: 'Read the id of the record that the user has open',
+  inputSchema: z.object({}),
+}).server(async (_input, toolContext) => {
+  const context = toolContext?.context
+  const recordId =
+    typeof context === 'object' && context !== null && 'recordId' in context
+      ? String(context.recordId)
+      : 'none'
+  return { recordId }
+})
+
+const records = defineHarness({
+  name: 'acme/records',
+  adapter: openaiText('gpt-5.6'),
+  tools: [openRecord],
+})
+const recordSession = await host.open(records, { threadId: 'user-1-records' })
+
+await recordSession.prompt('Summarize the record I have open.', {
+  context: { recordId: 'inv-42' },
+})
+```
+
+`prompt`, `steer`, and `followUp` take `context`. A client sends it in a `control` input:
+
+```ts group=harness-inputs-client
+await fetch('/api/harness/control', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    threadId: 'user-1-thread',
+    input: {
+      op: 'prompt',
+      message: 'Summarize the record I have open.',
+      context: { recordId: 'inv-42' },
+    },
+  }),
+})
+```
+
+On `POST run`, the AG-UI `forwardedProps` of the request are the `context`, for example `useChat({ forwardedProps })`. See [Connect clients to a harness](./connect).
+
+- The `context` is part of the input for the `inputId` check. An input with the same id and another `context` gets `'conflict'`.
+- When `HarnessConfig.context` and the input `context` are both plain objects, tools get them merged, and the harness value wins for a key in both. In all other cases, tools get the harness value. If the harness has no value, tools get the input value.
+- Plugins and the router get it as `turn.context`. See [Pick the model of a turn](./plugins#pick-the-model-of-a-turn).
+- The `context` is client data, so do not trust it. Who sent the input is the principal from `authorize`. See [Share a thread](./shared-threads).
 
 ## What you have now
 
 - Retries that never run a prompt twice.
 - The outcome of each input by its id, also after a restart.
 - Messages that join a running turn in order.
+- Context from the client that tools read, also after a restart.

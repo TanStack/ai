@@ -10,7 +10,15 @@ import {
   getGeminiProviderToolKind,
   getGeminiProviderToolMetadata,
 } from '../../tools/gemini-provider-tool'
-import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
+import {
+  assertUniqueToolNames,
+  sanitizeUnicode,
+  sanitizeJsonArguments,
+} from '@tanstack/ai/adapter-internals'
+import {
+  prepareGeminiMessagesForReplay,
+  withGeminiSource,
+} from '../../adapters/text'
 import { interactionsThinking } from '../../text/reasoning'
 import { GEMINI_MODEL_REASONING } from '../../model-reasoning'
 import type { GeminiModelReasoningByName } from '../../model-reasoning'
@@ -92,11 +100,8 @@ type GeminiInteractionsRequestBody = Omit<
 
 type ToolCallState = {
   name: string
-  // Accumulated args as a parsed object. Kept here in object form so a
-  // garbled delta can't corrupt previously-merged fragments (the prior
-  // string-then-reparse pipeline replaced the whole accumulator on any
-  // parse failure). Stringified only when emitting AG-UI events.
-  args: Record<string, unknown>
+  // Partial values are only a preview. Terminal input uses the raw buffer.
+  args: unknown
   index: number
   started: boolean
   ended: boolean
@@ -198,6 +203,8 @@ export class GeminiTextInteractionsAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'gemini-text-interactions' as const
+  override readonly api = 'google-interactions'
+  override readonly provider: string
   // Consumes Gemini Files API references (geminiFiles()) as content `uri`s.
   override readonly supportsFileSources = true
 
@@ -220,10 +227,30 @@ export class GeminiTextInteractionsAdapter<
 
   constructor(config: GeminiTextInteractionsConfig, model: TModel) {
     super({}, model)
+    this.provider =
+      config.vertexai === true || config.enterprise === true
+        ? 'google-vertex'
+        : 'google'
     this.client = createGeminiClient(config)
   }
 
   async *chatStream(
+    options: TextOptions<GeminiTextInteractionsProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.model,
+    }
+    const prepared = {
+      ...options,
+      messages: prepareGeminiMessagesForReplay(options.messages, source),
+    }
+    for await (const chunk of this.chatStreamRequest(prepared))
+      yield withGeminiSource(chunk, source)
+  }
+
+  private async *chatStreamRequest(
     options: TextOptions<GeminiTextInteractionsProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     const runId = options.runId ?? generateId(this.name)
@@ -397,6 +424,11 @@ export class GeminiTextInteractionsAdapter<
 
     const baseRequest = buildInteractionsRequest({
       ...chatOptions,
+      messages: prepareGeminiMessagesForReplay(chatOptions.messages, {
+        provider: this.provider,
+        api: this.api,
+        model: chatOptions.model,
+      }),
       modelOptions: {
         ...chatOptions.modelOptions,
         previous_interaction_id: effectivePreviousInteractionId,
@@ -445,7 +477,12 @@ export class GeminiTextInteractionsAdapter<
         throw new Error(jsonContentParseError(rawText, 'structured output'))
       }
 
-      return { data: parsed, rawText }
+      return {
+        data: parsed,
+        rawText,
+        ...(result.id && { responseId: result.id }),
+        ...(result.model && { model: result.model }),
+      }
     } catch (error) {
       logger.errors('gemini-text-interactions.structuredOutput fatal', {
         error,
@@ -463,6 +500,27 @@ export class GeminiTextInteractionsAdapter<
   }
 
   async *structuredOutputStream(
+    options: StructuredOutputOptions<GeminiTextInteractionsProviderOptions>,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.chatOptions.model,
+    }
+    for await (const chunk of this.structuredOutputRequestStream({
+      ...options,
+      chatOptions: {
+        ...options.chatOptions,
+        messages: prepareGeminiMessagesForReplay(
+          options.chatOptions.messages,
+          source,
+        ),
+      },
+    }))
+      yield withGeminiSource(chunk, source)
+  }
+
+  private async *structuredOutputRequestStream(
     options: StructuredOutputOptions<GeminiTextInteractionsProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
@@ -678,7 +736,10 @@ function buildInteractionsRequest(
     model: options.model,
     input,
     previous_interaction_id: modelOpts?.previous_interaction_id,
-    system_instruction: systemInstruction,
+    system_instruction:
+      systemInstruction === undefined
+        ? undefined
+        : sanitizeUnicode(systemInstruction),
     tools: convertToolsToInteractionsFormat(options.tools),
     generation_config: hasGenerationConfig ? generationConfig : undefined,
     store: modelOpts?.store,
@@ -789,7 +850,8 @@ function convertMessagesToInteractionsInput(
 function serializeToolResultContent(
   content: ModelMessage['content'] | undefined,
 ): string {
-  if (typeof content === 'string') return content
+  if (typeof content === 'string')
+    return sanitizeJsonArguments(sanitizeUnicode(content))
   if (content === null || content === undefined) {
     throw new Error(
       'Gemini Interactions adapter: tool message has no content. The Interactions API requires a string `result` on function_result steps — return a string from your tool implementation (encode JSON/multimodal output yourself).',
@@ -815,7 +877,7 @@ function messageToContentBlocks(msg: ModelMessage): Array<ContentBlock> {
     msg.content &&
     msg.role !== 'tool'
   ) {
-    blocks.push({ type: 'text', text: msg.content })
+    blocks.push({ type: 'text', text: sanitizeUnicode(msg.content) })
   }
 
   return blocks
@@ -913,7 +975,7 @@ function validateMime<T extends string>(
 
 function contentPartToBlock(part: ContentPart): ContentBlock {
   if (part.type === 'text') {
-    return { type: 'text', text: part.content }
+    return { type: 'text', text: sanitizeUnicode(part.content) }
   }
   // A Gemini Files API handle maps to the `uri` field (isData stays false),
   // same as a public URL. `fileReferenceFor` checks the issuer against
@@ -1123,6 +1185,7 @@ async function* translateInteractionEvents(
   let hasEmittedTextMessageStart = false
   let textAccumulated = ''
   let interactionId: string | undefined
+  let reportedModel: string | undefined
   let sawFunctionCall = false
   const toolCalls = new Map<string, ToolCallState>()
   let nextToolIndex = 0
@@ -1177,13 +1240,22 @@ async function* translateInteractionEvents(
     for (const [toolCallId, state] of toolCalls) {
       if (state.ended) continue
       state.ended = true
+      const rawArgs =
+        argStringByToolCallId.get(toolCallId) ?? JSON.stringify(state.args)
+      let input: unknown
+      try {
+        input = JSON.parse(rawArgs)
+      } catch {
+        input = undefined
+      }
       yield {
         type: EventType.TOOL_CALL_END,
         toolCallId,
         toolName: state.name,
         model,
         timestamp,
-        input: state.args,
+        args: rawArgs,
+        ...(input !== undefined && { input }),
       }
     }
     if (hasEmittedTextMessageStart) {
@@ -1202,6 +1274,12 @@ async function* translateInteractionEvents(
       hasEmittedRunStarted = true
       yield {
         type: EventType.RUN_STARTED,
+        metadata: {
+          tanstack: {
+            ...(interactionId && { responseId: interactionId }),
+            ...(reportedModel && { model: reportedModel }),
+          },
+        },
         runId,
         threadId,
         model,
@@ -1216,6 +1294,7 @@ async function* translateInteractionEvents(
     switch (event.event_type) {
       case 'interaction.created': {
         interactionId = event.interaction.id
+        if (event.interaction.model) reportedModel = event.interaction.model
         yield* emitRunStartedIfNeeded()
         break
       }
@@ -1230,25 +1309,22 @@ async function* translateInteractionEvents(
             sawFunctionCall = true
             const toolCallId = step.id
             indexToToolCallId.set(index, toolCallId)
-            // `step.arguments` is required on FunctionCallStep but may
-            // be an empty `{}` placeholder when streaming, where the
-            // real args arrive as `arguments_delta` events. Treat both
-            // uniformly: stash whatever we got, stringify once.
+            // Keep the initial snapshot separate from streamed JSON.
+            // The first argument delta starts the authoritative text.
             const initialArgs = step.arguments
             const state: ToolCallState = {
               name: step.name,
-              args: { ...initialArgs },
+              args: initialArgs,
               index: nextToolIndex++,
               started: true,
               ended: false,
             }
             toolCalls.set(toolCallId, state)
-            argStringByToolCallId.set(
-              toolCallId,
+            const hasInitialArgs =
+              initialArgs === null ||
+              typeof initialArgs !== 'object' ||
+              Array.isArray(initialArgs) ||
               Object.keys(initialArgs).length > 0
-                ? JSON.stringify(initialArgs)
-                : '',
-            )
             yield {
               type: EventType.TOOL_CALL_START,
               toolCallId,
@@ -1262,7 +1338,7 @@ async function* translateInteractionEvents(
               timestamp,
               index: state.index,
             }
-            if (Object.keys(initialArgs).length > 0) {
+            if (hasInitialArgs) {
               const argsJson = JSON.stringify(initialArgs)
               yield {
                 type: EventType.TOOL_CALL_ARGS,
@@ -1504,8 +1580,8 @@ async function* translateInteractionEvents(
               break
             }
             const state = toolCalls.get(toolCallId)
-            if (!state) break
-            const fragment = delta.arguments ?? ''
+            if (!state || typeof delta.arguments !== 'string') break
+            const fragment = delta.arguments
             const buffer =
               (argStringByToolCallId.get(toolCallId) ?? '') + fragment
             argStringByToolCallId.set(toolCallId, buffer)
@@ -1618,13 +1694,23 @@ async function* translateInteractionEvents(
           const state = toolCalls.get(toolCallId)
           if (state && !state.ended) {
             state.ended = true
+            const rawArgs =
+              argStringByToolCallId.get(toolCallId) ??
+              JSON.stringify(state.args)
+            let input: unknown
+            try {
+              input = JSON.parse(rawArgs)
+            } catch {
+              input = undefined
+            }
             yield {
               type: EventType.TOOL_CALL_END,
               toolCallId,
               toolName: state.name,
               model,
               timestamp,
-              input: state.args,
+              args: rawArgs,
+              ...(input !== undefined && { input }),
             }
           }
           indexToToolCallId.delete(event.index)
@@ -1637,6 +1723,7 @@ async function* translateInteractionEvents(
       }
 
       case 'interaction.completed': {
+        if (event.interaction.model) reportedModel = event.interaction.model
         if (event.interaction.id) {
           interactionId = event.interaction.id
         }
@@ -1681,6 +1768,12 @@ async function* translateInteractionEvents(
 
         yield {
           type: EventType.RUN_FINISHED,
+          metadata: {
+            tanstack: {
+              ...(interactionId && { responseId: interactionId }),
+              ...(reportedModel && { model: reportedModel }),
+            },
+          },
           runId,
           threadId,
           model,
@@ -1776,7 +1869,12 @@ function sanitizeToolParameters(schema: unknown): unknown {
     if (key === 'required' && Array.isArray(value) && value.length === 0) {
       continue
     }
-    out[key] = sanitizeToolParameters(value)
+    Object.defineProperty(out, key, {
+      value: sanitizeToolParameters(value),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
   }
   return out
 }

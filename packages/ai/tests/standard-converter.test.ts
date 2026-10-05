@@ -1,14 +1,242 @@
-﻿import { type } from 'arktype'
+import { type } from 'arktype'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { validateToolInput } from '../src/activities/chat/tools/input-validation'
+import type { StandardSchemaV1 } from '@standard-schema/spec'
 import {
   convertSchemaToJsonSchema,
+  convertSchemaForStructuredOutput,
   isStandardJSONSchema,
   isStandardSchema,
   parseWithStandardSchema,
   validateWithStandardSchema,
 } from '../src/activities/chat/tools/schema-converter'
 import type { JSONSchema } from '../src/types'
+
+describe('JSON keys in schemas', () => {
+  it.each(['input', 'output'] as const)(
+    'keeps Standard Schema %s root keys without changing its prototype',
+    (io) => {
+      const raw =
+        '{"type":"object","__proto__":{"description":"authored"},"constructor":"authored","properties":{"name":{"type":"string"}}}'
+      const exported: JSONSchema = JSON.parse(raw)
+      const schema = {
+        '~standard': {
+          version: 1 as const,
+          vendor: 'own-keys',
+          jsonSchema: { input: () => exported, output: () => exported },
+        },
+      }
+      const result = convertSchemaToJsonSchema(schema, { io })
+      expect(result).toBeDefined()
+      if (!result) throw new Error('Expected the exported schema')
+      expect(Object.hasOwn(result, '__proto__')).toBe(true)
+      expect(Object.getPrototypeOf(result)).toBe(Object.prototype)
+      expect(JSON.stringify(result)).toContain(
+        '"__proto__":{"description":"authored"}',
+      )
+      expect(JSON.stringify(exported)).toBe(raw)
+    },
+  )
+
+  it('records optional own keys in the structured-output widening map', () => {
+    const raw =
+      '{"type":"object","properties":{"__proto__":{"type":"string"},"constructor":{"type":["string","null"]},"nested":{"type":"object","properties":{"__proto__":{"type":"string"}},"required":[]}},"required":[]}'
+    const input: JSONSchema = JSON.parse(raw)
+    const result = convertSchemaForStructuredOutput(input)
+    expect(
+      Object.hasOwn(result.nullWideningMap?.properties ?? {}, '__proto__'),
+    ).toBe(true)
+    expect(result.nullWideningMap?.properties?.['__proto__']).toEqual({
+      widened: true,
+    })
+    expect(
+      result.nullWideningMap?.properties?.nested?.properties?.['__proto__'],
+    ).toEqual({ widened: true })
+    expect(Object.getPrototypeOf(result.nullWideningMap?.properties)).toBe(
+      Object.prototype,
+    )
+    expect(JSON.stringify(input)).toBe(raw)
+  })
+})
+
+describe('Standard Schema tool input', () => {
+  it('keeps the authored transform on first success', async () => {
+    const schema = z.string().transform((value) => `parsed:${value}`)
+    expect(await validateToolInput(schema, '2', 'check')).toBe('parsed:2')
+  })
+
+  it('coerces the exported input before retrying the authored transform', async () => {
+    const schema = z.number().transform((value) => `parsed:${value}`)
+    expect(await validateToolInput(schema, '2', 'check')).toBe('parsed:2')
+  })
+
+  it('does not bypass an authored refinement', async () => {
+    const schema = z
+      .number()
+      .refine((value) => value % 2 === 0, 'Use an even number')
+    const first = await schema['~standard'].validate('3')
+    await expect(
+      validateToolInput(schema, '3', 'check'),
+    ).rejects.toHaveProperty('issues', first.issues)
+  })
+
+  it('retains original issues when exported coercion fails', async () => {
+    const issues = [{ message: 'Authored number failure', path: ['count'] }]
+    const schema = {
+      '~standard': {
+        version: 1 as const,
+        vendor: 'failed-coercion',
+        validate: () => ({ issues }),
+        jsonSchema: { input: () => ({ type: 'number' }), output: () => ({}) },
+      },
+    }
+    await expect(
+      validateToolInput(schema, 'wrong', 'check'),
+    ).rejects.toHaveProperty('issues', issues)
+    await expect(validateToolInput(schema, 'wrong', 'check')).rejects.toThrow(
+      'Authored number failure',
+    )
+  })
+
+  it('does not format accepted input before authored validation', async () => {
+    let formattingCalls = 0
+    const received = {
+      count: 2,
+      toJSON: () => {
+        formattingCalls++
+        return {}
+      },
+    }
+    const schema: StandardSchemaV1 = {
+      '~standard': {
+        version: 1,
+        vendor: 'exact-input',
+        validate: (value) => ({ value }),
+      },
+    }
+    expect(await validateToolInput(schema, received, 'check')).toBe(received)
+    expect(formattingCalls).toBe(0)
+  })
+
+  it('retains the original issues when no input exporter exists', async () => {
+    const schema: StandardSchemaV1 = {
+      '~standard': {
+        version: 1,
+        vendor: 'validator-only',
+        validate: () => ({
+          issues: [{ message: 'Authored failure', path: ['count'] }],
+        }),
+      },
+    }
+    await expect(
+      validateToolInput(schema, '2', 'check'),
+    ).rejects.toHaveProperty('issues', [
+      { message: 'Authored failure', path: ['count'] },
+    ])
+  })
+
+  it('uses the input exporter and never the output exporter', async () => {
+    const schema = {
+      '~standard': {
+        version: 1 as const,
+        vendor: 'different-views',
+        validate: (value: unknown) =>
+          typeof value === 'number'
+            ? { value: `parsed:${value}` }
+            : { issues: [{ message: 'Expected a number' }] },
+        jsonSchema: {
+          input: () => ({ type: 'number' }),
+          output: () => {
+            throw new Error('Output export must not run')
+          },
+        },
+      },
+    }
+    expect(await validateToolInput(schema, '2', 'check')).toBe('parsed:2')
+  })
+
+  it('retains authored issues when the input cannot be exported safely', async () => {
+    const schema = {
+      '~standard': {
+        version: 1 as const,
+        vendor: 'unexportable-input',
+        validate: () => ({ issues: [{ message: 'Authored failure' }] }),
+        jsonSchema: {
+          input: () => {
+            throw new Error('Cannot export input')
+          },
+          output: () => ({ type: 'number' }),
+        },
+      },
+    }
+    await expect(
+      validateToolInput(schema, '2', 'check'),
+    ).rejects.toHaveProperty('issues', [{ message: 'Authored failure' }])
+  })
+
+  it('supports async authored validation', async () => {
+    const schema: StandardSchemaV1 = {
+      '~standard': {
+        version: 1,
+        vendor: 'async-validator',
+        validate: async (value) => ({ value: { parsed: value } }),
+      },
+    }
+    expect(await validateToolInput(schema, 'input', 'check')).toEqual({
+      parsed: 'input',
+    })
+  })
+
+  it.each([new Map([['count', 2]]), new Set([2]), 2n, () => 2])(
+    'keeps opaque accepted input intact: %#',
+    async (received) => {
+      let checked: unknown
+      const schema: StandardSchemaV1 = {
+        '~standard': {
+          version: 1,
+          vendor: 'opaque-validator',
+          validate: (value) => {
+            checked = value
+            return { value }
+          },
+        },
+      }
+      expect(await validateToolInput(schema, received, 'check')).toBe(received)
+      expect(checked).toBe(received)
+    },
+  )
+
+  it('retains authored issues when arguments cannot be serialized', async () => {
+    const received: Array<unknown> = []
+    received.push(received)
+    const schema: StandardSchemaV1 = {
+      '~standard': {
+        version: 1,
+        vendor: 'opaque-validator',
+        validate: () => ({ issues: [{ message: 'Authored failure' }] }),
+      },
+    }
+    await expect(
+      validateToolInput(schema, received, 'check'),
+    ).rejects.toHaveProperty('issues', [{ message: 'Authored failure' }])
+  })
+
+  it('does not remove authored input property names', async () => {
+    const received = { constructor: 'tool-data', prototype: 'tool-data' }
+    const schema: StandardSchemaV1 = {
+      '~standard': {
+        version: 1,
+        vendor: 'authored-keys',
+        validate: (value) => ({ value }),
+      },
+    }
+    expect(await validateToolInput(schema, received, 'check')).toEqual({
+      constructor: 'tool-data',
+      prototype: 'tool-data',
+    })
+  })
+})
 
 describe('convertSchemaToJsonSchema', () => {
   it('should return undefined for undefined schema', () => {

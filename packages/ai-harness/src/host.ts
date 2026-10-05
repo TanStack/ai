@@ -127,6 +127,28 @@ export interface HarnessHost<TLogState = unknown> {
 
 let warned = false
 
+/** How each host finds the open session of a chat turn. Not public API. */
+const turnFinders = new WeakMap<
+  object,
+  (harness: string, operationId: string) => Promise<HarnessSession | undefined>
+>()
+
+/**
+ * @internal The open session of `harness` in `host` that has the chat turn
+ * `operationId`, running or ended. A turn's events live in the host that runs
+ * it, so the handler joins a run through this.
+ */
+export function sessionOfTurn(
+  host: HarnessHost,
+  harness: AnyHarness,
+  operationId: string,
+): Promise<HarnessSession | undefined> {
+  return (
+    turnFinders.get(host)?.(harness.name, operationId) ??
+    Promise.resolve(undefined)
+  )
+}
+
 /** Throw a clear error for a durable store set that cannot work. */
 function checkDurableStores(persistence: HarnessPersistence) {
   const { stores } = persistence
@@ -225,7 +247,7 @@ export function createHarnessHost<TLogState = undefined>(
   const sessions = new Map<string, Promise<HarnessSession>>()
   const hostId = `host-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 
-  return {
+  const host: HarnessHost<TLogState> = {
     open(harness, { threadId, principal, logId: openLogId, promptCache }) {
       const key = `${harness.name}\u0000${threadId}`
       let session = sessions.get(key)
@@ -281,4 +303,13 @@ export function createHarnessHost<TLogState = undefined>(
     },
     logState: (logId) => resolved.get(logId)?.state.reduced,
   }
+  turnFinders.set(host, async (name, operationId) => {
+    for (const [key, opening] of sessions) {
+      if (!key.startsWith(`${name}\u0000`)) continue
+      const session = await opening.catch(() => undefined)
+      if (session?.operation(operationId)?.kind === 'chat') return session
+    }
+    return undefined
+  })
+  return host
 }

@@ -189,38 +189,88 @@ export const usageByAgent = definePlugin({
 
 ## Pick the model of a turn
 
-Some turns need another model: a hard plan needs a strong model, and a short reply does not. Return an `adapter` picker from `setup`. The session calls it when each turn starts, with that turn:
+Some turns need another model: a short question does not need your strongest model, and an organization can allow only some models. Return an `adapter` picker from `setup`. When each turn starts, the session calls it with the message, context, and sender of that turn:
 
 ```ts group=harness-plugins
 import { anthropicText } from '@tanstack/ai-anthropic'
 
-export const strongForHardTurns = definePlugin({
-  name: 'acme/strong-for-hard-turns',
+export const cheapForShortTurns = definePlugin({
+  name: 'acme/cheap-for-short-turns',
   setup: () => ({
     adapter: (turn) =>
-      turn.overrides?.reasoning === 'high'
-        ? anthropicText('claude-opus-5-5')
-        : undefined,
+      typeof turn.message === 'string' && turn.message.length < 200
+        ? anthropicText('claude-haiku-4-5')
+        : anthropicText('claude-sonnet-5-5'),
   }),
 })
 ```
 
-A prompt with `overrides: { reasoning: 'high' }` now runs on Claude Opus. Other turns keep the harness adapter.
+A short message now runs on Claude Haiku, and a long one on Claude Sonnet.
 
 The `turn` has these fields:
 
-- `operationId`: the id of the operation that runs the turn.
-- `inputId`: the id of the input, when the turn has one.
-- `overrides`: the [overrides of the prompt](./turn-control#give-one-prompt-its-own-settings), when it has some.
+| Field | What it is |
+| --- | --- |
+| `operationId` | The id of the operation that runs the turn. |
+| `inputId` | The id of the input, when the turn has one. |
+| `message` | The user message of the input. `undefined` for a resolve. |
+| `context` | The [context of the input](./inputs#send-context-with-a-message). It is client data, so do not trust it. |
+| `principal` | Who sent the input. See [Share a thread](./shared-threads). |
+| `overrides` | The [overrides of the prompt](./turn-control#give-one-prompt-its-own-settings), when it has some. |
 
 The session uses the picks like this:
 
 - `undefined` keeps the harness adapter.
 - If more than one plugin returns an adapter, the last plugin wins.
 - The `overrides.adapter` of the turn wins over every pick.
-- A keyed adapter gets the key of the user. See [Connect model providers](./provider-keys).
+- A keyed adapter gets the key of the sender. See [Connect model providers](./provider-keys).
 
 If the picker does not need the turn, it can take no parameter.
+
+### Read the model from your data
+
+The picker is synchronous. To read a database first, give the plugin `lifetime: 'turn'`. The session then runs its `setup` for each turn and gives it the same turn as `ctx.turn`. An async `setup` can read the model from your data:
+
+```ts group=harness-plugins
+// Your lookup, for example a database query.
+async function planOf(tenantId: string | undefined) {
+  return tenantId === 'acme' ? 'strong' : 'fast'
+}
+
+export const modelOfTheOrg = definePlugin({
+  name: 'acme/model-of-the-org',
+  lifetime: 'turn',
+  setup: async (ctx) => {
+    const plan = await planOf(ctx.turn?.principal?.tenantId)
+    const adapter =
+      plan === 'strong'
+        ? anthropicText('claude-sonnet-5-5')
+        : anthropicText('claude-haiku-4-5')
+    return { adapter: () => adapter }
+  },
+})
+```
+
+A plugin with the default lifetime has no turn at setup, so its `ctx.turn` is `undefined`.
+
+### Leave out the harness model
+
+When a plugin picks the model of every turn, `defineHarness` needs no `adapter`:
+
+```ts group=harness-plugins
+import { defineHarness } from '@tanstack/ai-harness'
+
+export const assistant = defineHarness({
+  name: 'acme/assistant',
+  plugins: () => [modelOfTheOrg],
+})
+```
+
+If no plugin picks a model and the turn has no `overrides.adapter`, the turn fails with this error:
+
+```text
+This turn has no model. Set `adapter` in defineHarness, return one from a plugin `adapter()`, or pass `overrides.adapter` to the turn.
+```
 
 ## Let plugins work together
 
@@ -266,7 +316,7 @@ Read `ctx.collect` at run time (in a command, a tool, or a middleware hook). Dur
 
 Open resources with `ctx.resources.acquire(open, close)`. They close when the session closes, newest first. If a later plugin fails in `setup`, every plugin set up so far is cleaned up, and no model request is sent.
 
-Set `lifetime: 'run'` to set a plugin up again for each turn.
+Set `lifetime: 'turn'` to set a plugin up again for each turn.
 
 ## See the plan
 
@@ -276,7 +326,7 @@ Set `lifetime: 'run'` to set a plugin up again for each turn.
 
 - A plugin that adds tools, prompts, commands, settings, and state to any harness.
 - Middleware that sees every model call, in the lead turn and in every agent.
-- A picker that chooses the model of each turn.
+- A picker that chooses the model of each turn from its message, context, and sender.
 - Plugins that share services, lists, and events without knowing each other.
 
 Next: see the [first-party plugins](./coding-agent) that turn a harness into a coding agent.

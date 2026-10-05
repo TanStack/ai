@@ -1,3 +1,4 @@
+import { GENERATED_BEDROCK_MODELS } from '../model-catalog.generated'
 import { EventType, convertSchemaToJsonSchema } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
@@ -105,6 +106,11 @@ export class BedrockConverseTextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'bedrock-converse' as const
+  override readonly api = 'bedrock-converse-stream'
+  override readonly provider = 'amazon-bedrock'
+  override readonly inputModalities: ReadonlyArray<Modality> =
+    GENERATED_BEDROCK_MODELS.find((entry) => entry.id === this.model)
+      ?.input ?? ['text']
   private clientPromise?: Promise<BedrockRuntimeClient>
   private readonly clientConfig: BedrockConverseConfig
 
@@ -223,7 +229,15 @@ export class BedrockConverseTextAdapter<
   ): Promise<AsyncIterable<ConverseStreamOutput>> {
     const { ConverseStreamCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
-    const res = await client.send(new ConverseStreamCommand(input))
+    const command = new ConverseStreamCommand(input)
+    command.middlewareStack.add(
+      (next) => async (args) => {
+        this.restoreDocumentInputs(args.request, input)
+        return next(args)
+      },
+      { step: 'build', name: 'tanstackDocumentInputs', priority: 'high' },
+    )
+    const res = await client.send(command)
     if (!res.stream) {
       throw new Error('Bedrock Converse: empty stream response')
     }
@@ -235,7 +249,120 @@ export class BedrockConverseTextAdapter<
   ): Promise<ConverseCommandOutput> {
     const { ConverseCommand } = await this.importBedrockRuntime()
     const client = await this.getClient()
-    return client.send(new ConverseCommand(input))
+    const command = new ConverseCommand(input)
+    command.middlewareStack.add(
+      (next) => async (args) => {
+        this.restoreDocumentInputs(args.request, input)
+        return next(args)
+      },
+      { step: 'build', name: 'tanstackDocumentInputs', priority: 'high' },
+    )
+    return client.send(command)
+  }
+
+  private restoreDocumentInputs(
+    request: unknown,
+    input: ConverseCommandInput,
+  ): void {
+    if (
+      typeof request !== 'object' ||
+      request === null ||
+      !('body' in request) ||
+      typeof request.body !== 'string'
+    )
+      return
+    const body: unknown = JSON.parse(request.body)
+    if (
+      typeof body !== 'object' ||
+      body === null ||
+      !('messages' in body) ||
+      !Array.isArray(body.messages)
+    )
+      return
+    let changed = false
+    const restore = (
+      target: unknown,
+      key: 'input' | 'json',
+      value: unknown,
+    ) => {
+      if (value === undefined || typeof target !== 'object' || target === null)
+        return
+      const previous = key in target ? Reflect.get(target, key) : undefined
+      if (
+        Object.hasOwn(target, key) &&
+        JSON.stringify(previous) === JSON.stringify(value)
+      )
+        return
+      Object.defineProperty(target, key, {
+        value,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      })
+      changed = true
+    }
+    for (const [messageIndex, message] of (input.messages ?? []).entries()) {
+      const wireMessage: unknown = body.messages[messageIndex]
+      if (
+        typeof wireMessage !== 'object' ||
+        wireMessage === null ||
+        !('content' in wireMessage) ||
+        !Array.isArray(wireMessage.content)
+      )
+        continue
+      for (const [blockIndex, block] of (message.content ?? []).entries()) {
+        const wireBlock: unknown = wireMessage.content[blockIndex]
+        if (typeof wireBlock !== 'object' || wireBlock === null) continue
+        if (block.toolUse && 'toolUse' in wireBlock)
+          restore(wireBlock.toolUse, 'input', block.toolUse.input)
+        if (!block.toolResult || !('toolResult' in wireBlock)) continue
+        const wireResult = wireBlock.toolResult
+        if (
+          typeof wireResult !== 'object' ||
+          wireResult === null ||
+          !('content' in wireResult) ||
+          !Array.isArray(wireResult.content)
+        )
+          continue
+        for (const [resultIndex, result] of (
+          block.toolResult.content ?? []
+        ).entries())
+          if ('json' in result)
+            restore(wireResult.content[resultIndex], 'json', result.json)
+      }
+    }
+    if (
+      'toolConfig' in body &&
+      typeof body.toolConfig === 'object' &&
+      body.toolConfig !== null &&
+      'tools' in body.toolConfig &&
+      Array.isArray(body.toolConfig.tools)
+    ) {
+      for (const [index, tool] of (input.toolConfig?.tools ?? []).entries()) {
+        if (
+          !('toolSpec' in tool) ||
+          !tool.toolSpec?.inputSchema ||
+          !('json' in tool.toolSpec.inputSchema)
+        )
+          continue
+        const wireTool: unknown = body.toolConfig.tools[index]
+        if (
+          typeof wireTool !== 'object' ||
+          wireTool === null ||
+          !('toolSpec' in wireTool)
+        )
+          continue
+        const wireSpec = wireTool.toolSpec
+        if (
+          typeof wireSpec !== 'object' ||
+          wireSpec === null ||
+          !('inputSchema' in wireSpec)
+        )
+          continue
+        restore(wireSpec.inputSchema, 'json', tool.toolSpec.inputSchema.json)
+      }
+    }
+    if (changed) request.body = JSON.stringify(body)
   }
 
   // ---------------------------------------------------------------------------
@@ -252,11 +379,31 @@ export class BedrockConverseTextAdapter<
       )
       const input = this.buildInput(options)
       const stream = await this.sendStream(input)
-      yield* processConverseStream(stream, () => this.generateId(), {
-        threadId: options.threadId,
-        parentRunId: options.parentRunId,
-        model: options.model,
-      })
+      for await (const chunk of processConverseStream(
+        stream,
+        () => this.generateId(),
+        {
+          threadId: options.threadId,
+          parentRunId: options.parentRunId,
+          model: options.model,
+        },
+      )) {
+        yield chunk.type === EventType.RUN_STARTED ||
+        chunk.type === EventType.RUN_FINISHED
+          ? {
+              ...chunk,
+              metadata: {
+                tanstack: {
+                  source: {
+                    provider: this.provider,
+                    api: this.api,
+                    model: options.model,
+                  },
+                },
+              },
+            }
+          : chunk
+      }
     } catch (error: unknown) {
       const errorPayload = toRunErrorPayload(
         error,
@@ -270,6 +417,15 @@ export class BedrockConverseTextAdapter<
       // `exactOptionalPropertyTypes` (AG-UI's `RunErrorEvent.code` is optional).
       yield {
         type: EventType.RUN_ERROR,
+        metadata: {
+          tanstack: {
+            source: {
+              provider: this.provider,
+              api: this.api,
+              model: options.model,
+            },
+          },
+        },
         model: options.model,
         timestamp: Date.now(),
         message: errorPayload.message,
@@ -366,6 +522,15 @@ export class BedrockConverseTextAdapter<
           hasEmittedRunStarted = true
           yield {
             type: EventType.RUN_STARTED,
+            metadata: {
+              tanstack: {
+                source: {
+                  provider: this.provider,
+                  api: this.api,
+                  model: chatOptions.model,
+                },
+              },
+            },
             runId,
             threadId,
             model: chatOptions.model,
@@ -433,6 +598,15 @@ export class BedrockConverseTextAdapter<
         hasEmittedRunStarted = true
         yield {
           type: EventType.RUN_STARTED,
+          metadata: {
+            tanstack: {
+              source: {
+                provider: this.provider,
+                api: this.api,
+                model: chatOptions.model,
+              },
+            },
+          },
           runId,
           threadId,
           model: chatOptions.model,
@@ -453,6 +627,15 @@ export class BedrockConverseTextAdapter<
       if (accumulatedRaw.length === 0) {
         yield {
           type: EventType.RUN_ERROR,
+          metadata: {
+            tanstack: {
+              source: {
+                provider: this.provider,
+                api: this.api,
+                model: chatOptions.model,
+              },
+            },
+          },
           runId,
           model: chatOptions.model,
           timestamp: Date.now(),
@@ -472,6 +655,15 @@ export class BedrockConverseTextAdapter<
       } catch {
         yield {
           type: EventType.RUN_ERROR,
+          metadata: {
+            tanstack: {
+              source: {
+                provider: this.provider,
+                api: this.api,
+                model: chatOptions.model,
+              },
+            },
+          },
           runId,
           model: chatOptions.model,
           timestamp: Date.now(),
@@ -498,6 +690,15 @@ export class BedrockConverseTextAdapter<
 
       yield {
         type: EventType.RUN_FINISHED,
+        metadata: {
+          tanstack: {
+            source: {
+              provider: this.provider,
+              api: this.api,
+              model: chatOptions.model,
+            },
+          },
+        },
         runId,
         threadId,
         model: chatOptions.model,
@@ -510,6 +711,15 @@ export class BedrockConverseTextAdapter<
         hasEmittedRunStarted = true
         yield {
           type: EventType.RUN_STARTED,
+          metadata: {
+            tanstack: {
+              source: {
+                provider: this.provider,
+                api: this.api,
+                model: chatOptions.model,
+              },
+            },
+          },
           runId,
           threadId,
           model: chatOptions.model,
@@ -527,6 +737,15 @@ export class BedrockConverseTextAdapter<
       })
       yield {
         type: EventType.RUN_ERROR,
+        metadata: {
+          tanstack: {
+            source: {
+              provider: this.provider,
+              api: this.api,
+              model: chatOptions.model,
+            },
+          },
+        },
         runId,
         model: chatOptions.model,
         timestamp: Date.now(),
@@ -565,6 +784,11 @@ export class BedrockConverseTextAdapter<
     const { system, messages } = toConverseMessages(
       options.messages,
       options.systemPrompts,
+      {
+        model: options.model,
+        provider: this.provider,
+        inputModalities: this.inputModalities,
+      },
     )
 
     const toolConfig = options.tools

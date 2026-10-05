@@ -2,6 +2,51 @@ import { describe, expect, it } from 'vitest'
 import { transformNullsToUndefined, undoNullWidening } from '../src/transforms'
 import type { NullWideningMap } from '../src/transforms'
 
+describe('own JSON keys', () => {
+  it('retains own keys at the root, in nested objects, and in array items', () => {
+    const raw =
+      '{"__proto__":{"kept":1,"omit":null},"constructor":"kept","nested":{"__proto__":"nested","omit":null},"items":[{"__proto__":"array","omit":null}]}'
+    const input = JSON.parse(raw)
+    const result = transformNullsToUndefined(input)
+    expect(JSON.stringify(result)).toBe(
+      '{"__proto__":{"kept":1},"constructor":"kept","nested":{"__proto__":"nested"},"items":[{"__proto__":"array"}]}',
+    )
+    for (const object of [result, result.nested, result.items[0]]) {
+      expect(Object.hasOwn(object, '__proto__')).toBe(true)
+      expect(Object.getPrototypeOf(object)).toBe(Object.prototype)
+      expect(
+        Object.getOwnPropertyDescriptor(object, '__proto__')?.enumerable,
+      ).toBe(true)
+    }
+    expect(JSON.stringify(input)).toBe(raw)
+  })
+
+  it('uses only own widening entries and keeps genuine nullable values', () => {
+    const properties: NonNullable<NullWideningMap['properties']> =
+      Object.create({ inherited: { widened: true } })
+    Object.defineProperty(properties, '__proto__', {
+      value: { properties: { optional: { widened: true } } },
+      enumerable: true,
+    })
+    properties.optional = { widened: true }
+    properties.items = {
+      items: { properties: { optional: { widened: true } } },
+    }
+    const raw =
+      '{"__proto__":{"optional":null,"nullable":null},"constructor":null,"inherited":null,"optional":null,"nullable":null,"items":[{"__proto__":"array","optional":null,"nullable":null}]}'
+    const input = JSON.parse(raw)
+    const result = undoNullWidening(input, { properties })
+    expect(JSON.stringify(result)).toBe(
+      '{"__proto__":{"nullable":null},"constructor":null,"inherited":null,"nullable":null,"items":[{"__proto__":"array","nullable":null}]}',
+    )
+    for (const object of [result, result.items[0]]) {
+      expect(Object.hasOwn(object, '__proto__')).toBe(true)
+      expect(Object.getPrototypeOf(object)).toBe(Object.prototype)
+    }
+    expect(JSON.stringify(input)).toBe(raw)
+  })
+})
+
 describe('transformNullsToUndefined', () => {
   it('should convert null values to undefined', () => {
     const result = transformNullsToUndefined({ a: null, b: 'hello' })

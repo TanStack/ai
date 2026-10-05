@@ -436,6 +436,9 @@ const boxd = boxdSandbox({
   100 GB disk.
 - **Working directory:** the portable root `/workspace` maps to
   `/home/boxd/workspace`. Override with `workdir`.
+- **Cancellation:** if you abort create or snapshot restore during startup,
+  the provider tries to delete the new machine after the current SDK call
+  finishes.
 - **Processes:** `spawn()` opens a streaming exec with separate stdout and
   stderr and a writable stdin. `kill()` signals the process group inside the
   machine and verifies that it is gone, so `killableProcesses` is measured,
@@ -553,6 +556,9 @@ if (caps.snapshots) {
 Use the flags to write provider-agnostic code: branch on the capability rather
 than the concrete provider, and your sandbox definition keeps working when you
 swap one provider for another.
+
+To run sandboxes on a platform that is not in this list, write your own provider.
+See [Build a Sandbox Provider](./build-a-provider).
 
 ### `killableProcesses` across the bundled providers
 

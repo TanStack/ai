@@ -14,7 +14,7 @@ import type {
   StoredOAuthClientInformation,
 } from '@modelcontextprotocol/client'
 import type { AnyTool } from '@tanstack/ai'
-import type { CredentialsAccess } from '@tanstack/ai-harness'
+import type { CredentialsAccess, Principal } from '@tanstack/ai-harness'
 import type { MCPClient } from './client'
 import type { MCPClientOptions } from './types'
 
@@ -179,6 +179,13 @@ function credentialProvider(
   } satisfies OAuthClientProvider
 }
 
+/** The MCP sign-in of one sender, with its client and tools once found. */
+interface Connection {
+  connected: boolean
+  client?: MCPClient
+  tools?: ReadonlyArray<AnyTool>
+}
+
 /**
  * A plugin that signs the user in to a remote MCP server (for example Notion
  * or Linear) and gives the model its tools, the way Claude Code connects to
@@ -203,33 +210,53 @@ export function mcpConnector(options: McpConnectorOptions) {
   return definePlugin({
     name: `connector/${id}`,
     setup: async (ctx) => {
-      let connected = (await ctx.credentials.get(id)) !== null
-      let client: MCPClient | undefined
-      let tools: ReadonlyArray<AnyTool> | undefined
-      const reset = async () => {
-        tools = undefined
-        const open = client
-        client = undefined
-        await open?.close().catch(() => {})
+      // One sign-in per sender: in a shared thread, one person's sign-in,
+      // client, and tools never serve another person's turn.
+      const connections = new Map<string, Connection>()
+      const keyOf = (principal: Principal | undefined) =>
+        principal
+          ? JSON.stringify([principal.tenantId ?? null, principal.id])
+          : ''
+      const close = async (connection: Connection | undefined) => {
+        await connection?.client?.close().catch(() => {})
+      }
+      /** Set the sign-in of `principal`, and drop its old client and tools. */
+      const signedIn = async (
+        principal: Principal | undefined,
+        connected: boolean,
+      ) => {
+        const key = keyOf(principal)
+        const old = connections.get(key)
+        connections.set(key, { connected })
+        await close(old)
       }
       await ctx.resources.acquire(
         () => undefined,
-        () => reset(),
+        () => Promise.all([...connections.values()].map(close)),
       )
 
       return {
         prompts: [
           {
             id: `connector/${id}:status`,
+            // Read after `discoverTools`, which finds the sender's state.
             text: () =>
-              connected
+              connections.get(keyOf(ctx.session.principal))?.connected
                 ? ''
                 : `${label} is not connected. If the user asks for ${label}, tell them to run /connect ${id}.`,
           },
         ],
+        // Runs in a turn, so `ctx.session.principal` and `ctx.credentials`
+        // are the turn's sender.
         discoverTools: async () => {
-          if (!connected) return []
-          if (!tools) {
+          const key = keyOf(ctx.session.principal)
+          let connection = connections.get(key)
+          if (!connection) {
+            connection = { connected: (await ctx.credentials.get(id)) !== null }
+            connections.set(key, connection)
+          }
+          if (!connection.connected) return []
+          if (!connection.tools) {
             // The SDK only refreshes tokens for a client with a redirect URL.
             // Without one it treats the client as machine-to-machine. A new
             // browser sign-in still happens only through /connect.
@@ -239,7 +266,7 @@ export function mcpConnector(options: McpConnectorOptions) {
                 ? saved.client?.redirectUri
                 : undefined) ?? 'http://127.0.0.1/callback'
             try {
-              client = await createMCPClient({
+              connection.client = await createMCPClient({
                 transport: {
                   type: 'http',
                   url,
@@ -265,22 +292,24 @@ export function mcpConnector(options: McpConnectorOptions) {
                 error instanceof MCPConnectionError &&
                 error.cause instanceof AuthRequiredError
               if (!needsSignIn) throw error
-              connected = false
+              connection.connected = false
               ctx.session.authRequired({ connector: id })
               throw error.cause
             }
-            tools = (await client.tools()) as ReadonlyArray<AnyTool>
+            connection.tools =
+              (await connection.client.tools()) as ReadonlyArray<AnyTool>
           }
-          return tools
+          return connection.tools
         },
         commands: {
           [`connect:${id}`]: defineCommand({
             description: `Sign in to ${label}`,
-            run: async () => {
+            // The sign-in belongs to the user who runs the command.
+            run: async (_input, { credentials, principal }) => {
               const receiver = await startLoopbackReceiver()
               const state = randomBytes(16).toString('base64url')
               try {
-                const provider = credentialProvider(id, ctx.credentials, {
+                const provider = credentialProvider(id, credentials, {
                   redirectUri: receiver.redirectUri,
                   clientName,
                   scopes: options.scopes,
@@ -314,17 +343,15 @@ export function mcpConnector(options: McpConnectorOptions) {
               } finally {
                 receiver.close()
               }
-              connected = true
-              await reset()
+              await signedIn(principal, true)
               return `Connected to ${label}.`
             },
           }),
           [`disconnect:${id}`]: defineCommand({
             description: `Sign out of ${label}`,
-            run: async () => {
-              await ctx.credentials.delete(id)
-              connected = false
-              await reset()
+            run: async (_input, { credentials, principal }) => {
+              await credentials.delete(id)
+              await signedIn(principal, false)
               return `Disconnected from ${label}.`
             },
           }),

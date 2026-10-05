@@ -9,6 +9,9 @@ import {
   orderedAssistantBlocks,
   splitMidConversationChanges,
   toRunErrorRawEvent,
+  transformMessagesForReplay,
+  sanitizeUnicode,
+  sanitizeJsonArguments,
 } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
@@ -29,7 +32,7 @@ import { buildAnthropicUsage } from '../usage'
 import {
   createAnthropicClient,
   generateId,
-  getAnthropicApiKeyFromEnv,
+  resolveAnthropicCredentials,
 } from '../utils/client'
 import {
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
@@ -302,6 +305,12 @@ interface AnthropicMidConversationSystemMessage {
  * Configuration for Anthropic text adapter
  */
 export interface AnthropicTextConfig extends AnthropicClientConfig {
+  /** Add the Claude Code identity and OAuth headers. */
+  oauth?: boolean
+  /** Replay ordinary thinking without a signature. The default is false. */
+  allowEmptySignature?: boolean
+  /** Identify a gateway separately from the direct Anthropic API. */
+  provider?: string
   /**
    * The mid-conversation channels (the
    * `mid-conversation-tool-changes-2026-07-01` beta and mid-conversation
@@ -321,6 +330,9 @@ export type AnthropicTextAdapterConfig =
       client: AnthropicMessagesClient
       /** See {@link AnthropicTextConfig.midConversationChannels}. */
       midConversationChannels?: boolean
+      oauth?: boolean
+      allowEmptySignature?: boolean
+      provider?: string
     }
 
 /**
@@ -411,6 +423,8 @@ export class AnthropicTextAdapter<
 > {
   override readonly kind = 'text' as const
   readonly name = 'anthropic' as const
+  override readonly api = 'anthropic-messages'
+  override readonly provider: string
   // Consumes `file_id` sources issued by anthropicFiles() (Files API beta).
   override readonly supportsFileSources = true
   override readonly inputModalities =
@@ -421,13 +435,51 @@ export class AnthropicTextAdapter<
     | undefined = undefined
 
   private readonly client: SdkAnthropicMessagesClient
+  private readonly oauth: boolean
+  private readonly allowEmptySignature: boolean
+  private readonly tokenAuthentication: boolean
+  private readonly oauthHeaders = new Headers({
+    'user-agent': 'claude-cli/2.1.280',
+    'x-app': 'cli',
+  })
 
   constructor(config: AnthropicTextAdapterConfig, model: TModel) {
     super({}, model)
+    this.provider = config.provider ?? this.name
+    const credentials =
+      'client' in config
+        ? undefined
+        : resolveAnthropicCredentials(config, config.oauth)
+    this.oauth = config.oauth ?? credentials?.oauth ?? false
+    this.tokenAuthentication = Boolean(credentials?.authToken) || this.oauth
+    if (!('client' in config)) {
+      for (const [name, value] of Object.entries(config.defaultHeaders ?? {})) {
+        if (
+          value != null &&
+          (name.toLowerCase() === 'x-app' ||
+            name.toLowerCase() === 'user-agent' ||
+            name.toLowerCase() === 'anthropic-beta')
+        )
+          this.oauthHeaders.set(name, value)
+      }
+    }
+    this.allowEmptySignature = config.allowEmptySignature ?? false
     this.client =
       'client' in config
         ? asSdkAnthropicMessagesClient(config.client)
-        : createAnthropicClient(config)
+        : createAnthropicClient(
+            {
+              ...config,
+              ...(this.oauth && {
+                defaultHeaders: {
+                  'user-agent': 'claude-cli/2.1.280',
+                  'x-app': 'cli',
+                  ...config.defaultHeaders,
+                },
+              }),
+            },
+            this.oauth,
+          )
     // On by default only on Anthropic's own API: a proxy, a gateway, Vertex,
     // or Bedrock (a `baseURL`, a `fetch`, an injected client, or the SDK's
     // ANTHROPIC_BASE_URL env var) may not pass the changes. The option wins.
@@ -468,6 +520,15 @@ export class AnthropicTextAdapter<
           (tool) => tool.name === DEFERRED_TOOL_PLACEHOLDER.name,
         ),
       )
+      const requestBetas = this.oauth
+        ? [
+            ...new Set<AnthropicBeta>([
+              'claude-code-20250219',
+              'oauth-2025-04-20',
+              ...(betas ?? []),
+            ]),
+          ]
+        : betas
 
       // `client.beta.messages` is Anthropic's permanent staging surface, not a
       // sunset path: it's a superset of `client.messages` that additionally
@@ -479,11 +540,11 @@ export class AnthropicTextAdapter<
         {
           ...requestParams,
           stream: true,
-          ...(betas && { betas }),
+          ...(requestBetas && { betas: requestBetas }),
         },
         {
           signal: options.request?.signal,
-          headers: options.request?.headers,
+          headers: this.requestHeaders(options.request?.headers, requestBetas),
         },
       )
 
@@ -512,6 +573,15 @@ export class AnthropicTextAdapter<
         error: {
           message: err.message || 'Unknown error occurred',
           code: err.code || String(err.status),
+        },
+        metadata: {
+          tanstack: {
+            source: {
+              provider: this.provider,
+              api: this.api,
+              model: options.model,
+            },
+          },
         },
       }
     }
@@ -559,6 +629,15 @@ export class AnthropicTextAdapter<
         requestParams,
         messagesHaveFileSource(chatOptions.messages),
       )
+      const requestBetas = this.oauth
+        ? [
+            ...new Set<AnthropicBeta>([
+              'claude-code-20250219',
+              'oauth-2025-04-20',
+              ...(betas ?? []),
+            ]),
+          ]
+        : betas
       // Make non-streaming request with tool_choice forced to our structured output tool
       const response = await this.client.beta.messages.create(
         {
@@ -566,11 +645,14 @@ export class AnthropicTextAdapter<
           stream: false,
           tools: [structuredOutputTool],
           tool_choice: { type: 'tool', name: 'structured_output' },
-          ...(betas && { betas }),
+          ...(requestBetas && { betas: requestBetas }),
         },
         {
           signal: chatOptions.request?.signal,
-          headers: chatOptions.request?.headers,
+          headers: this.requestHeaders(
+            chatOptions.request?.headers,
+            requestBetas,
+          ),
         },
       )
 
@@ -609,6 +691,8 @@ export class AnthropicTextAdapter<
         data: parsed,
         rawText,
         usage: buildAnthropicUsage(response.usage),
+        responseId: response.id,
+        model: response.model,
       }
     } catch (error: unknown) {
       const err = error as Error
@@ -622,12 +706,94 @@ export class AnthropicTextAdapter<
     }
   }
 
+  private requestHeaders(
+    headers: HeadersInit | undefined,
+    betas: Array<AnthropicBeta> | undefined,
+  ) {
+    if (!this.tokenAuthentication) return headers
+    const requestHeaders = new Headers(
+      this.oauth ? this.oauthHeaders : undefined,
+    )
+    new Headers(headers).forEach((value, name) =>
+      requestHeaders.set(name, value),
+    )
+    if (this.oauth) {
+      const configured = (requestHeaders.get('anthropic-beta') ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+      requestHeaders.set(
+        'anthropic-beta',
+        [...new Set([...(betas ?? []), ...configured])].join(','),
+      )
+    }
+    return { ...Object.fromEntries(requestHeaders), 'x-api-key': null }
+  }
+
   private mapCommonOptionsToAnthropic(
     options: TextOptions<AnthropicTextProviderOptions>,
     { stream = true }: { stream?: boolean } = {},
   ) {
     const modelOptions = options.modelOptions
 
+    const replay = transformMessagesForReplay(
+      options.messages,
+      {
+        provider: this.provider,
+        api: this.api,
+        model: options.model,
+      },
+      (id, { attempt }) => {
+        const clean = id.replace(/[^a-zA-Z0-9_-]/g, '_')
+        const suffix = attempt === 0 ? '' : `_${attempt}`
+        return clean.slice(0, 64 - suffix.length) + suffix
+      },
+    )
+    const originalChanges = options.midConversationChanges?.changes ?? []
+    const mappedChanges = originalChanges.map((change) => ({
+      ...change,
+      before: replay.boundaryMap[change.before] ?? change.before,
+    }))
+    const grouped = new Map<number, (typeof mappedChanges)[number]>()
+    for (const change of mappedChanges) {
+      const previous = grouped.get(change.before)
+      grouped.set(
+        change.before,
+        previous
+          ? {
+              before: change.before,
+              ...(previous.tools || change.tools
+                ? {
+                    tools: [...(previous.tools ?? []), ...(change.tools ?? [])],
+                  }
+                : {}),
+              ...(previous.systemPrompts !== undefined ||
+              change.systemPrompts !== undefined
+                ? {
+                    systemPrompts:
+                      (previous.systemPrompts ?? 0) +
+                      (change.systemPrompts ?? 0),
+                  }
+                : {}),
+            }
+          : change,
+      )
+    }
+    const uniqueOriginalBoundaries =
+      new Set(originalChanges.map((change) => change.before)).size ===
+      originalChanges.length
+    options = {
+      ...options,
+      messages: replay.messages,
+      ...(options.midConversationChanges && {
+        midConversationChanges: {
+          ...options.midConversationChanges,
+          changes: uniqueOriginalBoundaries
+            ? [...grouped.values()]
+            : mappedChanges,
+        },
+      }),
+    }
     const mid = this.midConversationRequest(options)
     const formattedMessages = this.formatMessages(
       options.messages,
@@ -731,16 +897,25 @@ export class AnthropicTextAdapter<
         normalizeSystemPrompts<AnthropicSystemPromptMetadata>(
           options.systemPrompts,
         )
-      if (normalized.length === 0) return undefined
-      return normalized.map(
+      if (normalized.length === 0 && !this.oauth) return undefined
+      const blocks = normalized.map(
         (p): TextBlockParam => ({
           type: 'text',
-          text: p.content,
+          text: sanitizeUnicode(p.content),
           ...(p.metadata?.cache_control && {
             cache_control: p.metadata.cache_control,
           }),
         }),
       )
+      return this.oauth
+        ? [
+            {
+              type: 'text',
+              text: "You are Claude Code, Anthropic's official CLI for Claude.",
+            },
+            ...blocks,
+          ]
+        : blocks
     })()
     // Wire engine-threaded outputSchema into Messages `output_config.format`
     // alongside any `tools` so the model emits tool calls during the agent
@@ -846,7 +1021,10 @@ export class AnthropicTextAdapter<
       const content: AnthropicMidConversationSystemMessage['content'] = [
         ...(channels.systemPrompts
           ? change.systemPrompts.map(
-              (p): TextBlockParam => ({ type: 'text', text: p.content }),
+              (p): TextBlockParam => ({
+                type: 'text',
+                text: sanitizeUnicode(p.content),
+              }),
             )
           : []),
         ...(toolMode
@@ -900,7 +1078,7 @@ export class AnthropicTextAdapter<
         const metadata = part.metadata as AnthropicTextMetadata | undefined
         return {
           type: 'text',
-          text: part.content,
+          text: sanitizeUnicode(part.content),
           ...metadata,
         }
       }
@@ -1024,7 +1202,7 @@ export class AnthropicTextAdapter<
                     this.convertContentPartToAnthropic(part),
                   )
                 : typeof toolContent === 'string'
-                  ? toolContent
+                  ? sanitizeUnicode(toolContent)
                   : '',
               ...(message.error !== undefined && { is_error: true }),
             },
@@ -1045,7 +1223,10 @@ export class AnthropicTextAdapter<
           } else if (block.type === 'tool-call') {
             this.appendToolCallBlocks(contentBlocks, block.toolCall)
           } else {
-            contentBlocks.push({ type: 'text', text: block.text })
+            contentBlocks.push({
+              type: 'text',
+              text: sanitizeUnicode(block.text),
+            })
           }
         }
         formattedMessages.push({
@@ -1065,7 +1246,7 @@ export class AnthropicTextAdapter<
             typeof message.content === 'string' ? message.content : ''
           const textBlock: TextBlockParam = {
             type: 'text',
-            text: content,
+            text: sanitizeUnicode(content),
           }
           contentBlocks.push(textBlock)
         }
@@ -1093,7 +1274,7 @@ export class AnthropicTextAdapter<
         } else if (message.content) {
           contentBlocks.push({
             type: 'text',
-            text: message.content,
+            text: sanitizeUnicode(message.content),
           })
         }
 
@@ -1119,7 +1300,7 @@ export class AnthropicTextAdapter<
         role: 'user',
         content:
           typeof message.content === 'string'
-            ? message.content
+            ? sanitizeUnicode(message.content)
             : message.content
               ? message.content.map((c) =>
                   this.convertContentPartToAnthropic(c),
@@ -1146,8 +1327,13 @@ export class AnthropicTextAdapter<
     if (!thinkingParts?.length) return
 
     for (const thinking of thinkingParts) {
-      if (!thinking.signature) continue
+      if (
+        !thinking.signature &&
+        (thinking.redacted || !this.allowEmptySignature)
+      )
+        continue
       if (thinking.redacted) {
+        if (!thinking.signature) continue
         contentBlocks.push({
           type: 'redacted_thinking',
           data: thinking.signature,
@@ -1156,8 +1342,8 @@ export class AnthropicTextAdapter<
       }
       const block: ThinkingBlockParam = {
         type: 'thinking',
-        thinking: thinking.content,
-        signature: thinking.signature,
+        thinking: sanitizeUnicode(thinking.content),
+        signature: thinking.signature ?? '',
       }
       contentBlocks.push(block)
     }
@@ -1171,11 +1357,11 @@ export class AnthropicTextAdapter<
     let parsedInput: unknown = {}
     try {
       const parsed = toolCall.function.arguments
-        ? JSON.parse(toolCall.function.arguments)
+        ? JSON.parse(sanitizeJsonArguments(toolCall.function.arguments))
         : {}
       parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
     } catch {
-      parsedInput = toolCall.function.arguments
+      parsedInput = sanitizeUnicode(toolCall.function.arguments)
     }
 
     // Provider-executed server tools (e.g. web_search) replay as the
@@ -1274,13 +1460,25 @@ export class AnthropicTextAdapter<
     genId: () => string,
     logger: InternalLogger,
   ): AsyncIterable<AdapterYieldChunk> {
-    const model = options.model
+    let model = options.model
+    let responseId: string | undefined
+    const source = {
+      provider: this.provider,
+      api: this.api,
+      model: options.model,
+    }
     let accumulatedContent = ''
     let accumulatedThinking = ''
     let accumulatedSignature = ''
     const toolCallsMap = new Map<
       number,
-      { id: string; name: string; input: string; started: boolean }
+      {
+        id: string
+        name: string
+        input: string
+        started: boolean
+        hasInputDelta: boolean
+      }
     >()
     let currentToolIndex = -1
     // Server-side tools share the `input_json_delta` wire format with client
@@ -1312,6 +1510,10 @@ export class AnthropicTextAdapter<
 
     try {
       for await (const event of stream) {
+        if (event.type === 'message_start') {
+          responseId = event.message.id
+          model = event.message.model
+        }
         logger.provider(`provider=anthropic type=${event.type}`, {
           chunk: event,
         })
@@ -1325,6 +1527,7 @@ export class AnthropicTextAdapter<
             model,
             timestamp: Date.now(),
             parentRunId: options.parentRunId,
+            metadata: { tanstack: { source } },
           }
         }
 
@@ -1335,8 +1538,9 @@ export class AnthropicTextAdapter<
             toolCallsMap.set(currentToolIndex, {
               id: event.content_block.id,
               name: event.content_block.name,
-              input: '',
+              input: JSON.stringify(event.content_block.input) ?? '',
               started: false,
+              hasInputDelta: false,
             })
           } else if (event.content_block.type === 'server_tool_use') {
             currentServerTool = {
@@ -1609,6 +1813,10 @@ export class AnthropicTextAdapter<
                   }
                 }
 
+                if (!existing.hasInputDelta) {
+                  existing.input = ''
+                  existing.hasInputDelta = true
+                }
                 existing.input += event.delta.partial_json
 
                 yield {
@@ -1691,12 +1899,11 @@ export class AnthropicTextAdapter<
               }
 
               // Emit TOOL_CALL_END
-              let parsedInput: unknown = {}
+              let parsedInput: unknown
               try {
-                const parsed = existing.input ? JSON.parse(existing.input) : {}
-                parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+                parsedInput = JSON.parse(existing.input)
               } catch {
-                parsedInput = {}
+                // Keep invalid JSON so validation can reject the call.
               }
 
               yield {
@@ -1706,7 +1913,8 @@ export class AnthropicTextAdapter<
                 toolName: existing.name,
                 model,
                 timestamp: Date.now(),
-                input: parsedInput,
+                args: existing.input,
+                ...(parsedInput === undefined ? {} : { input: parsedInput }),
               }
 
               // Reset so a new TEXT_MESSAGE_START is emitted if text follows tool calls
@@ -1771,6 +1979,7 @@ export class AnthropicTextAdapter<
           if (!hasEmittedRunFinished) {
             yield {
               type: EventType.RUN_FINISHED,
+              ...(responseId !== undefined && { responseId }),
               runId,
               threadId,
               model,
@@ -1803,6 +2012,7 @@ export class AnthropicTextAdapter<
               case 'tool_use': {
                 yield {
                   type: EventType.RUN_FINISHED,
+                  ...(responseId !== undefined && { responseId }),
                   runId,
                   threadId,
                   model,
@@ -1857,6 +2067,7 @@ export class AnthropicTextAdapter<
                 // shape is identical.
                 yield {
                   type: EventType.RUN_FINISHED,
+                  ...(responseId !== undefined && { responseId }),
                   runId,
                   threadId,
                   model,
@@ -1880,6 +2091,7 @@ export class AnthropicTextAdapter<
       yield {
         type: EventType.RUN_ERROR,
         model,
+        metadata: { tanstack: { source } },
         timestamp: Date.now(),
         message: err.message || 'Unknown error occurred',
         code: err.code || String(err.status),
@@ -1935,12 +2147,11 @@ export function createAnthropicChatWithClient<
  */
 export function anthropicText<TModel extends (typeof ANTHROPIC_MODELS)[number]>(
   model: TModel,
-  config?: Omit<AnthropicTextConfig, 'apiKey'>,
+  config?: AnthropicTextConfig,
 ): AnthropicTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
   ResolveInputModalities<TModel>
 > {
-  const apiKey = getAnthropicApiKeyFromEnv()
-  return createAnthropicChat(model, apiKey, config)
+  return new AnthropicTextAdapter(config ?? {}, model)
 }

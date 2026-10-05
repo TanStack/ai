@@ -539,7 +539,18 @@ system prompt, is in [Apply Answers](../interrupts/apply-answers).
 
 ### onBeforeToolCall
 
-Called before each tool executes. The first middleware that returns a non-void decision short-circuits — remaining middleware are skipped for that tool call.
+Called before final input validation and tool execution. The first middleware that returns a non-void decision skips the remaining middleware for that call.
+
+The normal input path is:
+
+1. Parse the provider's raw JSON arguments.
+2. Run `onBeforeToolCall` with the parsed input.
+3. Validate the final input against the tool's schema.
+4. Execute the server tool, or emit the validated client execution descriptor.
+
+`transformArgs` replaces the input for the final check. A validation error becomes a tool error. The tool does not execute, and no client execution descriptor is emitted.
+
+An approval request can show a checked preview before this path. That preview does not replace the raw input for the final check. Outstanding or denied approvals do not run `onBeforeToolCall` or dispatch the tool. Approved `editedArgs` remain raw until middleware and final validation run. See [Tool Approval](../interrupts/tool-approval).
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";
@@ -582,7 +593,7 @@ The `hookCtx` provides:
 |-------|------|-------------|
 | `toolCall` | `ToolCall` | Raw tool call object |
 | `tool` | `Tool \| undefined` | Resolved tool definition |
-| `args` | `unknown` | Parsed arguments |
+| `args` | `unknown` | Parsed raw input, before final schema validation |
 | `toolName` | `string` | Tool name |
 | `toolCallId` | `string` | Tool call ID |
 

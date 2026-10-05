@@ -36,6 +36,7 @@ import { Route as DevtoolsRouteARouteImport } from './routes/devtools-route-a'
 import { Route as DevtoolsMemoryRouteImport } from './routes/devtools-memory'
 import { Route as DevtoolsGenerationHooksRouteImport } from './routes/devtools-generation-hooks'
 import { Route as DevtoolsChatRouteImport } from './routes/devtools-chat'
+import { Route as ClientMountHydrateRouteImport } from './routes/client-mount-hydrate'
 import { Route as ChatClientStreamProcessingRouteImport } from './routes/chat-client-stream-processing'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
 import { Route as ByokRouteImport } from './routes/byok'
@@ -68,6 +69,7 @@ import { Route as ApiOtelTranscriptionRouteImport } from './routes/api.otel-tran
 import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
 import { Route as ApiOpenrouterStreamOptionsWireRouteImport } from './routes/api.openrouter-stream-options-wire'
+import { Route as ApiOpenrouterStrictToolOptionalsRouteImport } from './routes/api.openrouter-strict-tool-optionals'
 import { Route as ApiOpenrouterRetryCodesRouteImport } from './routes/api.openrouter-retry-codes'
 import { Route as ApiOpenrouterReasoningWireRouteImport } from './routes/api.openrouter-reasoning-wire'
 import { Route as ApiOpenrouterJsonObjectWireRouteImport } from './routes/api.openrouter-json-object-wire'
@@ -76,6 +78,7 @@ import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-u
 import { Route as ApiOpenaiStrictToolNullWireRouteImport } from './routes/api.openai-strict-tool-null-wire'
 import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.openai-shell-skills-wire'
 import { Route as ApiOpenaiImage25ModelsRouteImport } from './routes/api.openai-image-2-5-models'
+import { Route as ApiOpenaiMalformedToolArgumentsRouteImport } from './routes/api.openai-malformed-tool-arguments'
 import { Route as ApiOpenaiCompletedResponseTextRouteImport } from './routes/api.openai-completed-response-text'
 import { Route as ApiNonStreamingRunErrorRouteImport } from './routes/api.non-streaming-run-error'
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
@@ -279,6 +282,11 @@ const DevtoolsChatRoute = DevtoolsChatRouteImport.update({
   path: '/devtools-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientMountHydrateRoute = ClientMountHydrateRouteImport.update({
+  id: '/client-mount-hydrate',
+  path: '/client-mount-hydrate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ChatClientStreamProcessingRoute =
   ChatClientStreamProcessingRouteImport.update({
     id: '/chat-client-stream-processing',
@@ -448,6 +456,12 @@ const ApiOpenrouterStreamOptionsWireRoute =
     path: '/api/openrouter-stream-options-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenrouterStrictToolOptionalsRoute =
+  ApiOpenrouterStrictToolOptionalsRouteImport.update({
+    id: '/api/openrouter-strict-tool-optionals',
+    path: '/api/openrouter-strict-tool-optionals',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenrouterRetryCodesRoute = ApiOpenrouterRetryCodesRouteImport.update({
   id: '/api/openrouter-retry-codes',
   path: '/api/openrouter-retry-codes',
@@ -492,6 +506,12 @@ const ApiOpenaiImage25ModelsRoute = ApiOpenaiImage25ModelsRouteImport.update({
   path: '/api/openai-image-2-5-models',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOpenaiMalformedToolArgumentsRoute =
+  ApiOpenaiMalformedToolArgumentsRouteImport.update({
+    id: '/api/openai-malformed-tool-arguments',
+    path: '/api/openai-malformed-tool-arguments',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenaiCompletedResponseTextRoute =
   ApiOpenaiCompletedResponseTextRouteImport.update({
     id: '/api/openai-completed-response-text',
@@ -838,6 +858,7 @@ export interface FileRoutesByFullPath {
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
+  '/client-mount-hydrate': typeof ClientMountHydrateRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-memory': typeof DevtoolsMemoryRoute
@@ -925,6 +946,7 @@ export interface FileRoutesByFullPath {
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
+  '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
@@ -933,6 +955,7 @@ export interface FileRoutesByFullPath {
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
   '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
+  '/api/openrouter-strict-tool-optionals': typeof ApiOpenrouterStrictToolOptionalsRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -972,6 +995,7 @@ export interface FileRoutesByTo {
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
+  '/client-mount-hydrate': typeof ClientMountHydrateRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-memory': typeof DevtoolsMemoryRoute
@@ -1059,6 +1083,7 @@ export interface FileRoutesByTo {
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
+  '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
@@ -1067,6 +1092,7 @@ export interface FileRoutesByTo {
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
   '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
+  '/api/openrouter-strict-tool-optionals': typeof ApiOpenrouterStrictToolOptionalsRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -1107,6 +1133,7 @@ export interface FileRoutesById {
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
+  '/client-mount-hydrate': typeof ClientMountHydrateRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-memory': typeof DevtoolsMemoryRoute
@@ -1194,6 +1221,7 @@ export interface FileRoutesById {
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
+  '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-strict-tool-null-wire': typeof ApiOpenaiStrictToolNullWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
@@ -1202,6 +1230,7 @@ export interface FileRoutesById {
   '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-retry-codes': typeof ApiOpenrouterRetryCodesRoute
   '/api/openrouter-stream-options-wire': typeof ApiOpenrouterStreamOptionsWireRoute
+  '/api/openrouter-strict-tool-optionals': typeof ApiOpenrouterStrictToolOptionalsRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -1243,6 +1272,7 @@ export interface FileRouteTypes {
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
+    | '/client-mount-hydrate'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-memory'
@@ -1330,6 +1360,7 @@ export interface FileRouteTypes {
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
     | '/api/openai-image-2-5-models'
+    | '/api/openai-malformed-tool-arguments'
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
@@ -1338,6 +1369,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-retry-codes'
     | '/api/openrouter-stream-options-wire'
+    | '/api/openrouter-strict-tool-optionals'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1377,6 +1409,7 @@ export interface FileRouteTypes {
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
+    | '/client-mount-hydrate'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-memory'
@@ -1464,6 +1497,7 @@ export interface FileRouteTypes {
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
     | '/api/openai-image-2-5-models'
+    | '/api/openai-malformed-tool-arguments'
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
@@ -1472,6 +1506,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-retry-codes'
     | '/api/openrouter-stream-options-wire'
+    | '/api/openrouter-strict-tool-optionals'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1511,6 +1546,7 @@ export interface FileRouteTypes {
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
+    | '/client-mount-hydrate'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-memory'
@@ -1598,6 +1634,7 @@ export interface FileRouteTypes {
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
     | '/api/openai-image-2-5-models'
+    | '/api/openai-malformed-tool-arguments'
     | '/api/openai-shell-skills-wire'
     | '/api/openai-strict-tool-null-wire'
     | '/api/openai-usage-details'
@@ -1606,6 +1643,7 @@ export interface FileRouteTypes {
     | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-retry-codes'
     | '/api/openrouter-stream-options-wire'
+    | '/api/openrouter-strict-tool-optionals'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1646,6 +1684,7 @@ export interface RootRouteChildren {
   ByokRoute: typeof ByokRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
   ChatClientStreamProcessingRoute: typeof ChatClientStreamProcessingRoute
+  ClientMountHydrateRoute: typeof ClientMountHydrateRoute
   DevtoolsChatRoute: typeof DevtoolsChatRoute
   DevtoolsGenerationHooksRoute: typeof DevtoolsGenerationHooksRoute
   DevtoolsMemoryRoute: typeof DevtoolsMemoryRoute
@@ -1733,6 +1772,7 @@ export interface RootRouteChildren {
   ApiNonStreamingRunErrorRoute: typeof ApiNonStreamingRunErrorRoute
   ApiOpenaiCompletedResponseTextRoute: typeof ApiOpenaiCompletedResponseTextRoute
   ApiOpenaiImage25ModelsRoute: typeof ApiOpenaiImage25ModelsRoute
+  ApiOpenaiMalformedToolArgumentsRoute: typeof ApiOpenaiMalformedToolArgumentsRoute
   ApiOpenaiShellSkillsWireRoute: typeof ApiOpenaiShellSkillsWireRoute
   ApiOpenaiStrictToolNullWireRoute: typeof ApiOpenaiStrictToolNullWireRoute
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
@@ -1741,6 +1781,7 @@ export interface RootRouteChildren {
   ApiOpenrouterReasoningWireRoute: typeof ApiOpenrouterReasoningWireRoute
   ApiOpenrouterRetryCodesRoute: typeof ApiOpenrouterRetryCodesRoute
   ApiOpenrouterStreamOptionsWireRoute: typeof ApiOpenrouterStreamOptionsWireRoute
+  ApiOpenrouterStrictToolOptionalsRoute: typeof ApiOpenrouterStrictToolOptionalsRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiOtelMediaRoute: typeof ApiOtelMediaRoute
   ApiOtelTranscriptionRoute: typeof ApiOtelTranscriptionRoute
@@ -1960,6 +2001,13 @@ declare module '@tanstack/react-router' {
       path: '/devtools-chat'
       fullPath: '/devtools-chat'
       preLoaderRoute: typeof DevtoolsChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/client-mount-hydrate': {
+      id: '/client-mount-hydrate'
+      path: '/client-mount-hydrate'
+      fullPath: '/client-mount-hydrate'
+      preLoaderRoute: typeof ClientMountHydrateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chat-client-stream-processing': {
@@ -2186,6 +2234,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenrouterStreamOptionsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openrouter-strict-tool-optionals': {
+      id: '/api/openrouter-strict-tool-optionals'
+      path: '/api/openrouter-strict-tool-optionals'
+      fullPath: '/api/openrouter-strict-tool-optionals'
+      preLoaderRoute: typeof ApiOpenrouterStrictToolOptionalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openrouter-retry-codes': {
       id: '/api/openrouter-retry-codes'
       path: '/api/openrouter-retry-codes'
@@ -2240,6 +2295,13 @@ declare module '@tanstack/react-router' {
       path: '/api/openai-image-2-5-models'
       fullPath: '/api/openai-image-2-5-models'
       preLoaderRoute: typeof ApiOpenaiImage25ModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openai-malformed-tool-arguments': {
+      id: '/api/openai-malformed-tool-arguments'
+      path: '/api/openai-malformed-tool-arguments'
+      fullPath: '/api/openai-malformed-tool-arguments'
+      preLoaderRoute: typeof ApiOpenaiMalformedToolArgumentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/openai-completed-response-text': {
@@ -2763,6 +2825,7 @@ const rootRouteChildren: RootRouteChildren = {
   ByokRoute: ByokRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
   ChatClientStreamProcessingRoute: ChatClientStreamProcessingRoute,
+  ClientMountHydrateRoute: ClientMountHydrateRoute,
   DevtoolsChatRoute: DevtoolsChatRoute,
   DevtoolsGenerationHooksRoute: DevtoolsGenerationHooksRoute,
   DevtoolsMemoryRoute: DevtoolsMemoryRoute,
@@ -2851,6 +2914,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiNonStreamingRunErrorRoute: ApiNonStreamingRunErrorRoute,
   ApiOpenaiCompletedResponseTextRoute: ApiOpenaiCompletedResponseTextRoute,
   ApiOpenaiImage25ModelsRoute: ApiOpenaiImage25ModelsRoute,
+  ApiOpenaiMalformedToolArgumentsRoute: ApiOpenaiMalformedToolArgumentsRoute,
   ApiOpenaiShellSkillsWireRoute: ApiOpenaiShellSkillsWireRoute,
   ApiOpenaiStrictToolNullWireRoute: ApiOpenaiStrictToolNullWireRoute,
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
@@ -2859,6 +2923,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenrouterReasoningWireRoute: ApiOpenrouterReasoningWireRoute,
   ApiOpenrouterRetryCodesRoute: ApiOpenrouterRetryCodesRoute,
   ApiOpenrouterStreamOptionsWireRoute: ApiOpenrouterStreamOptionsWireRoute,
+  ApiOpenrouterStrictToolOptionalsRoute: ApiOpenrouterStrictToolOptionalsRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiOtelMediaRoute: ApiOtelMediaRoute,
   ApiOtelTranscriptionRoute: ApiOtelTranscriptionRoute,

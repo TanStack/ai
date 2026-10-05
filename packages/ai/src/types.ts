@@ -655,9 +655,19 @@ export type MessagePart<TData = unknown> =
  * Shape of `metadata.tanstack` on a message.
  * `createdAt` is an ISO-8601 string.
  */
+/** Provider, wire API, and requested model of an assistant message. */
+export interface MessageSource {
+  provider: string
+  api: string
+  model: string
+}
+
 export interface TanStackMessageMetadata {
   createdAt?: string
   model?: string
+  source?: MessageSource
+  stopReason?: 'error' | 'aborted'
+  responseId?: string
   /** Parent chat run that produced this assistant message. */
   runId?: string
   /**
@@ -700,7 +710,9 @@ export interface TanStackMessageMetadata {
  * Shape of `metadata.tanstack` on run events.
  */
 export interface TanStackRunMetadata {
+  source?: MessageSource
   model?: string
+  responseId?: string
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover
@@ -1463,6 +1475,8 @@ export interface RunFinishedEvent extends Pick<
   usage?: Array<SpecTokenUsage> | TokenUsage
   /** Restored on the client from `metadata.tanstack`. */
   model?: string
+  /** Provider generation ID. Restored from `metadata.tanstack`. */
+  responseId?: string
   /** Restored on the client from `metadata.tanstack`. */
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>

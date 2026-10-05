@@ -32,6 +32,7 @@ import type { OpenAICompatibleCompat } from './quirks'
 
 /** One model's reasoning and request quirks, from its `models` entry and the provider. */
 export interface CompatibleModelConfig {
+  input?: ReadonlyArray<Modality>
   /** `false`: the model does not reason. `true`: no level map. Or its level map. */
   reasoning?: boolean | ReasoningMap
   compat?: OpenAICompatibleCompat
@@ -68,6 +69,7 @@ export class OpenAICompatibleChatAdapter<
   TReasoning
 > {
   override readonly kind = 'text' as const
+  override readonly inputModalities: ReadonlyArray<Modality>
   readonly maxTokensKey = 'max_tokens'
   private readonly compat: OpenAICompatibleCompat | undefined
   private readonly reasoning: ModelReasoning | undefined
@@ -81,6 +83,7 @@ export class OpenAICompatibleChatAdapter<
   ) {
     super(model, name, client, options)
     this.compat = config.compat
+    this.inputModalities = config.input ?? ['text', 'image']
     this.reasoning = modelReasoning(config.reasoning)
   }
 
@@ -196,6 +199,7 @@ export class OpenAICompatibleResponsesAdapter<
   TToolCapabilities
 > {
   override readonly kind = 'text' as const
+  override readonly inputModalities: ReadonlyArray<Modality>
   readonly maxTokensKey = 'max_output_tokens'
   private readonly compat: OpenAICompatibleCompat | undefined
 
@@ -208,6 +212,7 @@ export class OpenAICompatibleResponsesAdapter<
   ) {
     super(model, name, client, options)
     this.compat = config.compat
+    this.inputModalities = config.input ?? ['text', 'image']
   }
 
   /** The request, plus the prompt cache fields for `chat({ promptCache })`. */

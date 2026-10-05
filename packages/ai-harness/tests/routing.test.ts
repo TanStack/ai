@@ -243,7 +243,7 @@ describe('routing.router', () => {
         }),
         definePlugin({
           name: 'test/run-agents',
-          lifetime: 'run',
+          lifetime: 'turn',
           setup: () => ({ agents: [seo.agent] }),
         }),
       ],
@@ -513,7 +513,7 @@ describe('routing.router', () => {
       plugins: () => [
         definePlugin({
           name: 'test/run-cleaner',
-          lifetime: 'run',
+          lifetime: 'turn',
           // A new agent object on each mount, with the same name.
           setup: () => ({ agents: [make()] }),
         }),

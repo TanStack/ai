@@ -122,6 +122,7 @@ export type {
   Principal,
   Receipt,
   SessionEvent,
+  TurnInfo,
   TurnOverrides,
   UserInput,
 } from './types'

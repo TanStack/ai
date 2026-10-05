@@ -23,11 +23,24 @@ export class AuthRequiredError extends Error {
   }
 }
 
-/** Credentials of the session's principal, as plugins see them. */
+/**
+ * Credentials of the running turn's sender (outside a turn, of the session's
+ * principal), as plugins see them.
+ */
 export interface CredentialsAccess {
   get: (id: string) => Promise<Credential | null>
-  /** Like `get`, but throws {@link AuthRequiredError} when the credential is missing. */
-  require: (id: string) => Promise<Credential>
+  /**
+   * Like `get`, but throws {@link AuthRequiredError} when the credential is
+   * missing. With `wait: true`, a tool of a chat turn waits for the sign-in
+   * instead: the turn stops with an interrupt with the reason
+   * `'auth_required'`. When the credential is saved (for example by
+   * `connect:<id>`), the turn goes on and the tool runs again. Cancel the
+   * interrupt to fail the tool. `wait` is for a tool of the running chat
+   * turn. Do not pass it elsewhere (a command, a background agent, a hook):
+   * the credentials of a command never wait, and outside a chat turn `wait`
+   * does nothing.
+   */
+  require: (id: string, options?: { wait?: boolean }) => Promise<Credential>
   set: (id: string, credential: Credential) => Promise<void>
   delete: (id: string) => Promise<void>
   list: () => Promise<
@@ -35,24 +48,88 @@ export interface CredentialsAccess {
   >
 }
 
-/** Scope credentials to one principal and thread. */
+/**
+ * What a session adds to `credentialsFor`: `canWait` says if a `require`
+ * with `wait` can stop the turn now, and `onSet` runs after each save.
+ */
+export interface CredentialHooks {
+  canWait?: (id: string) => boolean
+  onSet?: (id: string) => Promise<void>
+}
+
+/**
+ * The error that chat() reads as "stop the turn for input" (the shape of
+ * `MCPInputRequiredError`), with the reason `'auth_required'`.
+ */
+function signInRequired(error: AuthRequiredError) {
+  return Object.assign(new Error(error.message), {
+    name: 'MCPInputRequiredError',
+    kind: 'form' as const,
+    reason: 'auth_required',
+    request: {
+      connector: error.connector,
+      ...(error.url ? { url: error.url } : {}),
+    },
+  })
+}
+
+/**
+ * The tenant scope of a user scope: the same tenant, no user. A credential
+ * saved there belongs to every user of the tenant.
+ */
+const tenantOf = ({ userId, ...tenant }: Scope): Scope | undefined =>
+  userId === undefined ? undefined : tenant
+
+/**
+ * Scope credentials to one principal and thread. A function `scope` is read
+ * at each call, so the scope can follow the sender of the running turn.
+ *
+ * A read finds the user's own credential first, then the tenant's (saved
+ * without a `userId`). A save or a delete changes the user's own only.
+ */
 export function credentialsFor(
   store: CredentialStore,
-  scope: Scope,
+  scope: Scope | (() => Scope),
   onMissing: (error: AuthRequiredError) => void,
+  hooks?: CredentialHooks,
 ): CredentialsAccess {
+  const scopeNow = typeof scope === 'function' ? scope : () => scope
+  // ponytail: a refreshed tenant OAuth token is saved for the user, so each
+  // user keeps a copy. A provider that rotates refresh tokens would need a
+  // save for the whole tenant to share one token.
+  const get = async (id: string) => {
+    const user = scopeNow()
+    const own = await store.get(user, id)
+    if (own) return own
+    const tenant = tenantOf(user)
+    return tenant ? store.get(tenant, id) : null
+  }
   return {
-    get: (id) => store.get(scope, id),
-    require: async (id) => {
-      const credential = await store.get(scope, id)
+    get,
+    require: async (id, options) => {
+      const credential = await get(id)
       if (credential) return credential
       const error = new AuthRequiredError(id)
       onMissing(error)
+      if (options?.wait && hooks?.canWait?.(id)) throw signInRequired(error)
       throw error
     },
-    set: (id, credential) => store.set(scope, id, credential),
-    delete: (id) => store.delete(scope, id),
-    list: () => store.list(scope),
+    set: async (id, credential) => {
+      await store.set(scopeNow(), id, credential)
+      await hooks?.onSet?.(id)
+    },
+    delete: (id) => store.delete(scopeNow(), id),
+    list: async () => {
+      const user = scopeNow()
+      const tenant = tenantOf(user)
+      const own = await store.list(user)
+      if (!tenant) return own
+      const shared = await store.list(tenant)
+      return [
+        ...own,
+        ...shared.filter((item) => !own.some((o) => o.id === item.id)),
+      ]
+    },
   }
 }
 

@@ -13,6 +13,15 @@ export const STOP_CLIENT_TOOL_MESSAGE = 'Wait until Stop'
  * Server-side tool definitions (for tools that execute on the server)
  */
 export const serverTools = {
+  measure_replay: toolDefinition({
+    name: 'measure_replay',
+    description: 'Measure a checked count',
+    inputSchema: z.object({ count: z.number().finite() }),
+  }).server(async (input, context) => {
+    context?.emitCustomEvent('replay:executed', { input })
+    return JSON.stringify(input)
+  }),
+
   read_server_context: toolDefinition({
     name: 'read_server_context',
     description: 'Read the typed runtime context provided by the server',
@@ -230,6 +239,15 @@ export const processOrder = toolDefinition({
 
 // Available test scenarios (UI list with id/label/category)
 export const SCENARIO_LIST = [
+  ...[
+    'replay-server-valid',
+    'replay-server-coercible',
+    'replay-server-rejected',
+    'replay-client-valid',
+    'replay-client-coercible',
+    'replay-client-rejected',
+  ].map((id) => ({ id, label: id, category: 'basic' })),
+
   { id: 'text-only', label: 'Text Only (No Tools)', category: 'basic' },
   { id: 'server-tool-single', label: 'Single Server Tool', category: 'basic' },
   { id: 'client-tool-single', label: 'Single Client Tool', category: 'basic' },
@@ -371,6 +389,15 @@ export const SCENARIO_LIST = [
  */
 export function getToolsForScenario(scenario: string) {
   switch (scenario) {
+    case 'replay-server-valid':
+    case 'replay-server-coercible':
+    case 'replay-server-rejected':
+      return [serverTools.measure_replay]
+    case 'replay-client-valid':
+    case 'replay-client-coercible':
+    case 'replay-client-rejected':
+      return [clientToolDefinitions.show_notification]
+
     case 'text-only':
       return []
 

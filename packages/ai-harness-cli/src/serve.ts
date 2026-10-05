@@ -4,7 +4,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { createHarnessHandler } from '@tanstack/ai-harness'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
-import type { AnyHarness, HarnessHost } from '@tanstack/ai-harness'
+import type { AnyHarness, HarnessHost, Principal } from '@tanstack/ai-harness'
 
 export interface ServeOptions {
   host: HarnessHost
@@ -17,6 +17,8 @@ export interface ServeOptions {
   threadId?: string
   /** How `/mcp` handles tool calls that need approval. Default `'ask'`. */
   approvals?: 'ask' | 'auto'
+  /** Who a request with the token is. Default `{ id: 'cli' }`. */
+  principal?: Principal
 }
 
 /** The MCP server for `/mcp`, or `undefined` without `@tanstack/ai-mcp`. */
@@ -84,10 +86,11 @@ export async function serve(
 ): Promise<{ url: string; close: () => Promise<void> }> {
   const isAllowed = (request: Request) =>
     sameToken(request.headers.get('authorization'), options.token)
+  const principal = options.principal ?? { id: 'cli' }
   const handler = createHarnessHandler({
     host: options.host,
     harness: options.harness,
-    authorize: (request) => (isAllowed(request) ? { id: 'cli' } : null),
+    authorize: (request) => (isAllowed(request) ? principal : null),
   })
   const mcp = await mcpServer(options)
   const route = (request: Request) => {

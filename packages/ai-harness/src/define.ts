@@ -17,7 +17,7 @@ import type { MediaOptions } from './media'
 import type { HarnessPlugin } from './plugins'
 import type { HarnessSession } from './session'
 import type { HarnessTurnOptions, RecoverHook } from './turn'
-import type { BusyPolicy, UserInput } from './types'
+import type { BusyPolicy, Principal, UserInput } from './types'
 
 /** The `subagents` option: the same as `chat({ subagents })`. */
 export type HarnessSubagents<TSubagents extends ReadonlyArray<AnyAgent>> = Omit<
@@ -34,7 +34,7 @@ export interface HarnessRouterContext {
   messages: Array<ModelMessage>
   /**
    * The root agents of this turn, in registration order: the harness
-   * `agents`, then the `agents` of session plugins, then of run plugins. An
+   * `agents`, then the `agents` of session plugins, then of turn plugins. An
    * agent that is only in `subagents` is not in this list.
    */
   agents: ReadonlyArray<AnyAgent>
@@ -50,6 +50,10 @@ export interface HarnessRouterContext {
   operationId: string
   /** The id of the turn input, when the turn has one. */
   inputId?: string
+  /** Who sent the turn input. Default: the principal that opened the session. */
+  principal?: Principal
+  /** The `context` of the turn input. Client data: do not trust it. */
+  context?: unknown
   /** The main text adapter of the turn, with the user's keys bound. */
   adapter: AnyTextAdapter
 }
@@ -117,8 +121,10 @@ export interface HarnessConfig<
    * The main agent-loop model, the same as `chat({ adapter })`. A
    * `keyedAdapter(...)` is built for each turn with the user's own key: the
    * key saved with `/connect <provider>`, else the provider's env var.
+   * Leave it out when a plugin `adapter()` picks the model of every turn. A
+   * turn that gets no model from any of them fails.
    */
-  adapter: TAdapter | KeyedAdapter<TAdapter>
+  adapter?: TAdapter | KeyedAdapter<TAdapter>
   systemPrompts?: Array<SystemPrompt>
   tools?: ReadonlyArray<AnyTool>
   /**
@@ -146,7 +152,14 @@ export interface HarnessConfig<
    */
   reasoning?: ReasoningOption
   interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
-  /** Runtime context passed to middleware hooks and server tools. */
+  /**
+   * Runtime context passed to middleware hooks and server tools. When this
+   * and the `context` of a turn input are both plain objects, a turn gets
+   * both merged, and this value wins for a key in both, so a client cannot
+   * replace a server value. Otherwise a turn gets this value when it is set,
+   * else the input's. A plain-object (or absent) context also gets the live
+   * `threadId` and `runId`, which win over both.
+   */
   context?: unknown
   /**
    * Typed agents the session can run from code, commands, plugins, and
@@ -230,7 +243,7 @@ export function isHarnessDefinition(value: unknown): value is AnyHarness {
  * ```
  */
 export function defineHarness<
-  TAdapter extends AnyTextAdapter,
+  TAdapter extends AnyTextAdapter = AnyTextAdapter,
   const TAgents extends ReadonlyArray<AnyAgent> = readonly [],
   const TSubagents extends ReadonlyArray<AnyAgent> = readonly [],
 >(

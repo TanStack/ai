@@ -18,7 +18,7 @@ import type {
   AgentResultOf,
   AnyAgent,
 } from './agents'
-import type { Operation, TurnOverrides } from './types'
+import type { Operation, TurnInfo } from './types'
 import type { CredentialsAccess } from './auth'
 import type { AnyCommand, PluginSessionApi } from './commands'
 import type { ConfigOption } from './config'
@@ -28,9 +28,10 @@ import type { ExtensionItem, ExtensionPoint, PluginEvent } from './extensions'
  * How long a plugin's `setup` result and resources live:
  * - `session` (default): from session open to session close. Resources such
  *   as an index, a watcher, or an LSP server stay up across turns.
- * - `run`: set up for each chat turn, disposed when that turn ends.
+ * - `turn`: set up for each chat turn, disposed when that turn ends.
+ * - `run`: deprecated, the old name of `turn`. It works the same.
  */
-export type PluginLifetime = 'session' | 'run'
+export type PluginLifetime = 'session' | 'turn' | 'run'
 
 /**
  * A prompt a plugin contributes. `id` must be unique in the session. A
@@ -75,13 +76,12 @@ export interface PluginContributions {
    * Pick the main-loop adapter for the next turn, or return `undefined` to
    * keep the harness adapter. The last plugin that returns one wins. The
    * session builds a `keyedAdapter(...)` with the user's key. `turn` is the
-   * turn that starts. Its `overrides.adapter` wins over every pick.
+   * turn that starts: its input, context, and sender. Its
+   * `overrides.adapter` wins over every pick.
    */
-  adapter?: (turn: {
-    operationId: string
-    inputId?: string
-    overrides?: TurnOverrides
-  }) => AnyTextAdapter | KeyedAdapter<AnyTextAdapter> | undefined
+  adapter?: (
+    turn: TurnInfo,
+  ) => AnyTextAdapter | KeyedAdapter<AnyTextAdapter> | undefined
   /**
    * Tools found at run time, for example the tools of an MCP server the user
    * signed in to after the session opened. Called before each chat turn. A
@@ -233,10 +233,17 @@ export interface PluginSetupContext {
   state: <T>(initial: T) => PluginState<T>
   /** Session settings. A change applies at the next turn. */
   config: { get: (key: string) => unknown }
-  /** Credentials of the session's principal. */
+  /**
+   * Credentials of the running turn's sender. Outside a turn: of the
+   * principal that opened the session. They are read at each call, so code
+   * that runs after its turn ends (a tool of a background agent) gets the
+   * sender of the turn that runs at that time. There, use the keys of the
+   * agent run (`ctx.keys` in the agent) and, in a command, the `credentials`
+   * of its `run` context.
+   */
   credentials: CredentialsAccess
   /**
-   * Model provider keys of the session's principal: the key saved with
+   * Model provider keys of the same principal as `credentials`: the key saved with
    * `/connect <provider>`, else the provider's env var. Build a
    * `keyedAdapter(...)` with `await ctx.keys.adapter(adapter)` just before
    * the call. A missing key throws `AuthRequiredError`.
@@ -245,6 +252,12 @@ export interface PluginSetupContext {
   session: PluginSessionApi
   /** Add and remove this plugin's commands while the session runs. */
   commands: PluginCommands
+  /**
+   * The turn this plugin is set up for: its input, context, and sender. Set
+   * only for a plugin with `lifetime: 'turn'`. A session plugin has no turn
+   * at setup.
+   */
+  turn?: TurnInfo
 }
 
 export interface PluginDefinition {
@@ -365,6 +378,8 @@ export interface MountEnvironment {
   >
   /** Session services. Tests of the mount alone can leave them out. */
   services?: PluginServices
+  /** The turn of a run mount. Plugins read it as `ctx.turn`. */
+  turn?: TurnInfo
 }
 
 const unavailable = (what: string) => () => {
@@ -611,6 +626,7 @@ export async function mountPlugins(
           },
           ready,
         },
+        ...(env.turn ? { turn: env.turn } : {}),
       })
       for (const handle of plugin.provides ?? []) {
         if (!provided.has(handle)) {

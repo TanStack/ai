@@ -49,6 +49,11 @@ function modelConfig(
     typeof entry === 'object' && 'compat' in entry ? entry.compat : undefined
   const merged = compat || ownCompat ? { ...compat, ...ownCompat } : undefined
   return {
+    ...(typeof entry === 'object' &&
+    'input' in entry &&
+    entry.input !== undefined
+      ? { input: entry.input }
+      : {}),
     ...(own?.reasoning !== undefined ? { reasoning: own.reasoning } : {}),
     ...(merged ? { compat: merged } : {}),
   }

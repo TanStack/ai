@@ -150,6 +150,71 @@ describe('createSessionView', () => {
     await host.close()
   })
 
+  it('keeps a rejected approval visible and lets the view retry it', async () => {
+    const { host, session, view } = await openView([
+      () => toolCall('remove', {}, 'view-retry'),
+      () => text('Removed after retry.'),
+    ])
+    await view.send('remove')
+    await vi.waitFor(() => expect(view.store.get().approvals).toHaveLength(1))
+    const id = view.store.get().approvals[0]?.id
+    const receipt = await session.resolve([
+      { interruptId: 'wrong', status: 'resolved', payload: true },
+    ])
+    await expect(session.operation(receipt.operationId ?? '')).rejects.toThrow()
+    await vi.waitFor(() =>
+      expect(view.store.get().approvals.map((item) => item.id)).toEqual([id]),
+    )
+    view.approveAll()
+    await vi.waitFor(() => expect(view.store.get().approvals).toEqual([]))
+    await vi.waitFor(() =>
+      expect(JSON.stringify(view.store.get().messages)).toContain(
+        'Removed after retry.',
+      ),
+    )
+    view.dispose()
+    await host.close()
+  })
+
+  it('reserves approval actions during a running resolve and restores them after failure', async () => {
+    const hold = gate()
+    const { host, session, view, calls } = await openView([
+      () => toolCall('remove', {}, 'slow-approval'),
+      () =>
+        (async function* () {
+          await hold.opened
+          throw new Error('provider failed before commit')
+        })(),
+      () => text('Retried approval.'),
+    ])
+    const errors: Array<string> = []
+    view.on('error', (message) => errors.push(message))
+    await view.send('remove')
+    await vi.waitFor(() => expect(view.store.get().approvals).toHaveLength(1))
+    const id = view.store.get().approvals[0]?.id
+    const resolve = vi.spyOn(session, 'resolve')
+    view.approveAll()
+    await vi.waitFor(() => expect(calls).toHaveLength(2))
+    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(view.store.get().approvals).toEqual([])
+    view.approveAll()
+    expect(resolve).toHaveBeenCalledTimes(1)
+    hold.open()
+    await vi.waitFor(() => expect(errors.length).toBeGreaterThan(0))
+    await vi.waitFor(() =>
+      expect(view.store.get().approvals.map((item) => item.id)).toEqual([id]),
+    )
+    view.approveAll()
+    await vi.waitFor(() =>
+      expect(JSON.stringify(view.store.get().messages)).toContain(
+        'Retried approval.',
+      ),
+    )
+    expect(resolve).toHaveBeenCalledTimes(2)
+    view.dispose()
+    await host.close()
+  })
+
   it('runs commands, shows their text, and follows plugin state and events', async () => {
     const { host, view } = await openView([])
     const pinged: Array<number> = []

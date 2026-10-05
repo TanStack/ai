@@ -37,7 +37,8 @@ test.describe('harness protocol', () => {
       },
       data: {
         threadId: `protocol-${testId}`,
-        runId: 'client-run',
+        // The run id is also the input id, so each test needs its own.
+        runId: `client-run-${testId}`,
         messages: [
           { id: 'u1', role: 'user', content: '[harness-protocol] hello' },
         ],
@@ -58,6 +59,10 @@ test.describe('harness protocol', () => {
       .map((event) => event.delta)
       .join('')
     expect(answer).toBe('Hello over the harness protocol.')
+    // The turn runs as the run id the client sent.
+    expect(events.find((event) => event.type === 'RUN_STARTED').runId).toBe(
+      `client-run-${testId}`,
+    )
     expect(events.at(-1).name).toBe('harness.operation.finished')
   })
 

@@ -364,6 +364,140 @@ describe('secret answers in line mode', () => {
   })
 })
 
+describe('a host and a principal', () => {
+  const acme = defineByokProvider({ id: 'acme', label: 'Acme' })
+
+  it('uses the given host, leaves it open, and saves keys for the principal', async () => {
+    const persistence = memoryPersistence()
+    const host = createHarnessHost({ persistence })
+    const close = vi.spyOn(host, 'close')
+    const code = await runCli(
+      defineHarness({
+        name: 'test/host',
+        adapter: scripted([]).adapter,
+        plugins: () => [providerKeys({ providers: [acme] })],
+      }),
+      {
+        argv: [],
+        stdin: stdinFrom(['/connect acme\n', 'sk-ada\n', '/exit\n'], {
+          isTTY: false,
+        }),
+        stdout: capture(),
+        stderr: capture(),
+        host,
+        principal: { id: 'ada' },
+      },
+    )
+    expect(code).toBe(EXIT.ok)
+    expect(close).not.toHaveBeenCalled()
+    const saved = (userId?: string) =>
+      persistence.stores.credentials.get(
+        { threadId: 'main', ...(userId ? { userId } : {}) },
+        'acme',
+      )
+    expect(await saved('ada')).toEqual({ type: 'api_key', value: 'sk-ada' })
+    expect(await saved()).toBeNull()
+    await host.close()
+  })
+
+  it('opens the session as the principal', async () => {
+    const { adapter } = scripted([textTurn('ok')])
+    const seen: Array<string | undefined> = []
+    const code = await runCli(
+      defineHarness({
+        name: 'test/principal',
+        adapter,
+        plugins: () => [
+          definePlugin({
+            name: 'test/whoami',
+            setup: (ctx) => void seen.push(ctx.session.principal?.id),
+          }),
+        ],
+      }),
+      {
+        argv: ['-p', 'hi'],
+        stdout: capture(),
+        stderr: capture(),
+        persistence: memoryPersistence(),
+        principal: { id: 'ada' },
+      },
+    )
+    expect(code).toBe(EXIT.ok)
+    expect(seen).toEqual(['ada'])
+  })
+
+  it('refuses a host and persistence together', async () => {
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const stderr = capture()
+    const code = await runCli(
+      defineHarness({ name: 'test/both', adapter: scripted([]).adapter }),
+      {
+        argv: ['-p', 'hi'],
+        stdout: capture(),
+        stderr,
+        host,
+        persistence: memoryPersistence(),
+      },
+    )
+    expect(code).toBe(EXIT.failed)
+    expect(stderr.text).toContain('host or persistence')
+    await host.close()
+  })
+
+  it('serves as the principal', async () => {
+    const persistence = memoryPersistence()
+    const host = createHarnessHost({ persistence })
+    const server = await serve({
+      host,
+      harness: defineHarness({
+        name: 'test/serve-principal',
+        adapter: scripted([]).adapter,
+        plugins: () => [providerKeys({ providers: [acme] })],
+      }),
+      port: 0,
+      hostname: '127.0.0.1',
+      token: 'secret',
+      principal: { id: 'ada' },
+    })
+    try {
+      const control = (input: unknown) =>
+        fetch(`${server.url}/control`, {
+          method: 'POST',
+          headers: {
+            authorization: 'Bearer secret',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ threadId: 't', input }),
+        })
+      await control({ op: 'command', name: 'connect:acme' })
+      const question = await vi.waitFor(async () => {
+        const snapshot = await fetch(`${server.url}/snapshot?threadId=t`, {
+          headers: { authorization: 'Bearer secret' },
+        })
+        const [pending] = (await snapshot.json()).pendingQuestions
+        expect(pending).toBeDefined()
+        return pending
+      })
+      await control({
+        op: 'answer',
+        questionId: question.questionId,
+        value: 'sk-ada',
+      })
+      await vi.waitFor(async () =>
+        expect(
+          await persistence.stores.credentials.get(
+            { threadId: 't', userId: 'ada' },
+            'acme',
+          ),
+        ).toEqual({ type: 'api_key', value: 'sk-ada' }),
+      )
+    } finally {
+      await server.close()
+      await host.close()
+    }
+  })
+})
+
 describe('serve mode', () => {
   it('serves the session protocol and requires the token', async () => {
     const { adapter } = scripted([textTurn('served')])

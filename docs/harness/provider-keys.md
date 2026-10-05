@@ -12,7 +12,7 @@ keywords:
   - keyedAdapter
 ---
 
-You ship your harness to users: a CLI that they install, a desktop app, or a hosted app with accounts. `openaiText('gpt-6-astra')` reads `OPENAI_API_KEY` from the environment. Your users do not have your `.env` file, and they do not start your app from a terminal with a key set.
+You ship your harness to users: a CLI that they install, a desktop app, or a hosted app with accounts. `openaiText('gpt-5.5')` reads `OPENAI_API_KEY` from the environment. Your users do not have your `.env` file, and they do not start your app from a terminal with a key set.
 
 With `providerKeys`, each user runs `/connect openai` in your app and pastes their own key. The harness saves the key for that user and uses it for every turn.
 
@@ -27,7 +27,7 @@ import { anthropicByok } from '@tanstack/ai-anthropic/byok'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import { openaiByok } from '@tanstack/ai-openai/byok'
 
-const gpt = keyedAdapter(openaiByok, (key) => createOpenaiChat('gpt-6-astra', key))
+const gpt = keyedAdapter(openaiByok, (key) => createOpenaiChat('gpt-5.5', key))
 const claude = keyedAdapter(anthropicByok, (key) => createAnthropicChat('claude-sonnet-5', key))
 ```
 
@@ -127,6 +127,27 @@ After `/connect openai`, send the message again.
 - No credential store: the keys stay in memory until the process stops.
 
 Encrypt the keys at rest in a real store.
+
+## Use an Anthropic token
+
+Your keyed adapter factory receives the credential stored for that user. For an OAuth token, pass it as `authToken` and select OAuth:
+
+```ts
+import { keyedAdapter } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { anthropicByok } from '@tanstack/ai-anthropic/byok'
+
+const tokenAdapter = keyedAdapter(anthropicByok, (token) =>
+  anthropicText('claude-sonnet-5-5', {
+    authToken: token,
+    oauth: true,
+  }),
+)
+```
+
+Use that adapter in the same harness setup shown above. Its explicit token takes precedence over environment credentials. `providerKeys` stores the supplied credential. The adapter factory selects its authentication mode.
+
+For a Bearer token that does not use OAuth, omit `oauth: true`. See [Bearer and OAuth tokens](../adapters/anthropic#bearer-and-oauth-tokens) for token detection and environment precedence.
 
 ## The env var still works
 

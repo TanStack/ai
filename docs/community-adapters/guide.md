@@ -189,6 +189,44 @@ Adapters are implemented per capability, so only implement what your provider su
 
 Refer to the [OpenAI adapter](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/adapters/text.ts) for a complete, end-to-end implementation example.
 
+### Preserve history and response identity
+
+A user can switch to your adapter with history from another provider. Declare the text adapter's identity so replay can detect that history:
+
+- `name`: the adapter name.
+- `provider`: an optional provider identity. It defaults to `name`.
+- `api`: an optional wire API identity. It defaults to the adapter kind.
+
+Use the actual API selected for each call. Adapters with several APIs must apply replay after that selection. The requested logical model belongs in `source.model`. A mapped deployment does not change it.
+
+Core cleans failed and orphan history before the adapter call. This also removes results that belong to dropped failed call batches. Your adapter applies source-sensitive replay and the target API's tool-ID rules.
+
+The internal adapter helper is available through the existing adapter subpath:
+
+```typescript
+import { hashToolCallId, transformMessagesForReplay } from '@tanstack/ai/adapter-internals'
+import type { ModelMessage } from '@tanstack/ai'
+
+export function prepareMessages(messages: ReadonlyArray<ModelMessage>, model: string) {
+  return transformMessagesForReplay(messages, {
+    provider: 'example-provider',
+    api: 'example-messages',
+    model,
+  }, (id, { attempt }) => {
+    const normalized = id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64)
+    return attempt === 0
+      ? normalized
+      : normalized.slice(0, 40) + '_' + hashToolCallId(id) + '_' + attempt
+  }).messages
+}
+```
+
+That example API permits letters, digits, underscores, and hyphens in IDs. Its maximum length is 64. The `attempt` value handles collisions. Use your API's rules.
+
+Replay operates on a request copy. Keep saved messages and raw tool arguments intact. Preserve thinking and tool block order when your provider supports them.
+
+Emit the provider's genuine generation ID as terminal `responseId`, and its reported model as `model`. Omit either field when the provider does not supply it. `chat()` moves these fields into `metadata.tanstack`.
+
 ### 8. Publish and submit a PR
 
 Once your adapter is complete:

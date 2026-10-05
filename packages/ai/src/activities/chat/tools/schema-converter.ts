@@ -20,7 +20,12 @@ function toJsonSchema(obj: object): JSONSchema {
   const result: JSONSchema = {}
   for (const [key, value] of Object.entries(obj)) {
     if (key === '$schema') continue // not needed by LLM providers
-    result[key] = value
+    Object.defineProperty(result, key, {
+      value,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
   }
   return result
 }
@@ -190,10 +195,15 @@ function makeStructuredOutputCompatible(
       }
 
       if (widenedHere || childMap) {
-        propertyMaps[propName] = {
-          ...(childMap ?? {}),
-          ...(widenedHere ? { widened: true } : {}),
-        }
+        Object.defineProperty(propertyMaps, propName, {
+          value: {
+            ...(childMap ?? {}),
+            ...(widenedHere ? { widened: true } : {}),
+          },
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        })
       }
     }
 

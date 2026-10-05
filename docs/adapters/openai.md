@@ -2,12 +2,11 @@
 title: OpenAI
 id: openai-adapter
 order: 1
-description: "Use OpenAI models with TanStack AI — GPT-4o, GPT-5, DALL-E image generation, TTS, and Whisper transcription via @tanstack/ai-openai."
+description: "Use OpenAI models with TanStack AI: GPT-5.5 chat, image generation, speech, and transcription through @tanstack/ai-openai."
 keywords:
   - tanstack ai
   - openai
-  - gpt-4o
-  - gpt-5
+  - gpt-5.5
   - dall-e
   - whisper
   - openai tts
@@ -15,7 +14,7 @@ keywords:
   - chatgpt
 ---
 
-The OpenAI adapter provides access to OpenAI's models, including GPT-4o, GPT-5, image generation (DALL-E), text-to-speech (TTS), and audio transcription (Whisper).
+Use the OpenAI adapter for GPT-5.5 chat, image generation, speech, and audio transcription.
 
 > Using a third-party provider that speaks the OpenAI API (DeepSeek, Moonshot/Kimi, Together, Fireworks, a local LM Studio/vLLM server, …)? See the [OpenAI-Compatible Adapter](./openai-compatible) for a generic `openaiCompatible({ baseURL, apiKey, models })` factory.
 
@@ -41,7 +40,7 @@ import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -66,7 +65,7 @@ import { chat } from "@tanstack/ai";
 import { openaiChatCompletions } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiChatCompletions("gpt-5.2"),
+  adapter: openaiChatCompletions("gpt-5.5"),
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
@@ -77,7 +76,7 @@ With an explicit API key:
 import { chat } from "@tanstack/ai";
 import { createOpenaiChatCompletions } from "@tanstack/ai-openai";
 
-const adapter = createOpenaiChatCompletions("gpt-5.2", process.env.OPENAI_API_KEY!, {
+const adapter = createOpenaiChatCompletions("gpt-5.5", process.env.OPENAI_API_KEY!, {
   // organization, baseURL, headers — all optional
 });
 
@@ -87,7 +86,61 @@ const stream = chat({
 });
 ```
 
-Both adapters work identically with [Structured Outputs](../structured-outputs/overview) — including `stream: true` — and accept the same `modelOptions` (temperature, top_p, max_tokens, stop, …). The reasoning section below applies to `openaiText`; `openaiChatCompletions` accepts `modelOptions.reasoning.effort` but cannot stream summary text.
+Both adapters support [Structured Outputs](../structured-outputs/overview), including `stream: true`. Their `modelOptions` follow the selected API. The reasoning section below applies to `openaiText`. `openaiChatCompletions` cannot stream reasoning summary text.
+
+## Azure OpenAI
+
+Use `azureOpenaiText` when your OpenAI model runs on Azure. The adapter uses Azure's Responses API and `api-key` authentication.
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { azureOpenaiText } from '@tanstack/ai-openai'
+
+const stream = chat({
+  adapter: azureOpenaiText('gpt-5.5', {
+    resourceName: 'my-resource',
+    apiKey: process.env.AZURE_OPENAI_API_KEY,
+    apiVersion: 'v1',
+    deploymentNameMap: { 'gpt-5.5': 'production-chat' },
+  }),
+  messages: [{ role: 'user', content: 'Hello!' }],
+})
+
+for await (const chunk of stream) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') console.log(chunk.delta)
+}
+```
+
+The requested model stays `gpt-5.5` in `metadata.tanstack.source.model`. Azure receives `production-chat` as the deployment. A provider-reported response model is stored separately in `metadata.tanstack.model`.
+
+You can configure Azure through the environment:
+
+```sh
+AZURE_OPENAI_API_KEY=your-key
+AZURE_OPENAI_RESOURCE_NAME=my-resource
+AZURE_OPENAI_API_VERSION=v1
+AZURE_OPENAI_DEPLOYMENT_NAME_MAP=gpt-5.5=production-chat
+```
+
+Endpoint selection uses this order:
+
+1. Explicit `baseURL`.
+2. Explicit `resourceName`.
+3. `AZURE_OPENAI_BASE_URL`.
+4. `AZURE_OPENAI_RESOURCE_NAME`.
+
+Azure resource URLs use `/openai/v1`. A custom proxy URL keeps its configured path. Provide an endpoint or resource name. The adapter cannot infer one.
+
+An explicit `apiKey` overrides `AZURE_OPENAI_API_KEY`. `apiVersion` overrides `AZURE_OPENAI_API_VERSION`. The default is `v1`.
+
+Deployment selection uses this order:
+
+1. `deploymentName`.
+2. The model's entry in `deploymentNameMap`, when that map is supplied.
+3. The environment map, when no explicit map is supplied.
+4. The requested model.
+
+An explicit map does not merge with the environment map. Azure's source provider and API are both `azure-openai-responses`.
 
 ## Basic Usage - Custom API Key
 
@@ -95,7 +148,7 @@ Both adapters work identically with [Structured Outputs](../structured-outputs/o
 import { chat } from "@tanstack/ai";
 import { createOpenaiChat } from "@tanstack/ai-openai";
 
-const adapter = createOpenaiChat("gpt-5.2", process.env.OPENAI_API_KEY!, {
+const adapter = createOpenaiChat("gpt-5.5", process.env.OPENAI_API_KEY!, {
   // ... your config options
 });
 
@@ -226,7 +279,7 @@ export async function POST(request: Request) {
   if (!apiKey) return byokMissing(openaiByok);
 
   const stream = chat({
-    adapter: createOpenaiChat("gpt-6-astra", apiKey),
+    adapter: createOpenaiChat("gpt-5.5", apiKey),
     messages: params.messages,
     threadId: params.threadId,
     runId: params.runId,
@@ -259,7 +312,7 @@ const config: Omit<OpenAITextConfig, "apiKey"> = {
   baseURL: "https://api.openai.com/v1", // Optional, for custom endpoints
 };
 
-const adapter = createOpenaiChat("gpt-5.2", process.env.OPENAI_API_KEY!, config);
+const adapter = createOpenaiChat("gpt-5.5", process.env.OPENAI_API_KEY!, config);
 ```
 
 ### Tools that cannot use strict mode
@@ -277,7 +330,7 @@ To get strict mode back, change the schema so that the reason goes away. If you 
 ```typescript
 import { createOpenaiChat } from "@tanstack/ai-openai";
 
-const adapter = createOpenaiChat("gpt-6-astra", process.env.OPENAI_API_KEY!, {
+const adapter = createOpenaiChat("gpt-5.5", process.env.OPENAI_API_KEY!, {
   strictFallbackWarning: false,
 });
 ```
@@ -294,7 +347,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
   });
 
@@ -326,7 +379,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     tools: [getWeather],
   });
@@ -344,7 +397,7 @@ import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     temperature: 0.7,
@@ -384,7 +437,7 @@ import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
-  adapter: openaiText("gpt-6.1-sol"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Hello!" }],
   modelOptions: {
     prompt_cache_key: "acme-support",
@@ -398,7 +451,7 @@ const stream = chat({
 
 On some models, a tool or a system prompt that you add between model calls goes into the conversation, not into `tools` or `instructions`. The start of the request stays the same, so OpenAI can read it from its prompt cache. The `prompt_cache_key` above does not change.
 
-The models: `gpt-5.4-mini`, `gpt-5.5`, `gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-6-astra`, `gpt-6-luna`, and `gpt-6-sol`. Other models, such as `gpt-6.1-sol`, always send the full lists.
+`gpt-5.5` supports these channels. For other models, see `OPENAI_MODEL_MID_CONVERSATION_CHANNELS` in the [local capability catalog](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/model-meta.ts). Models outside that catalog send the full lists.
 
 What the adapter sends on these models:
 
@@ -415,8 +468,8 @@ The channels are on by default with OpenAI's own API. With a custom `baseURL` or
 ```typescript
 import { openaiText } from "@tanstack/ai-openai";
 
-const fullLists = openaiText("gpt-6-astra", { midConversationChannels: false });
-const throughProxy = openaiText("gpt-6-astra", {
+const fullLists = openaiText("gpt-5.5", { midConversationChannels: false });
+const throughProxy = openaiText("gpt-5.5", {
   baseURL: "https://llm-proxy.example.com/v1",
   midConversationChannels: true,
 });
@@ -433,7 +486,7 @@ import { summarize } from "@tanstack/ai";
 import { openaiSummarize } from "@tanstack/ai-openai";
 
 const result = await summarize({
-  adapter: openaiSummarize("gpt-5-mini"),
+  adapter: openaiSummarize("gpt-5.5"),
   text: "Your long text to summarize...",
   maxLength: 100,
   style: "concise", // "concise" | "bullet-points" | "paragraph"
@@ -631,7 +684,7 @@ Creates an OpenAI text adapter against the Responses API (`/v1/responses`) using
 
 **Parameters:**
 
-- `model` - OpenAI chat model id (e.g. `"gpt-5.2"`, `"gpt-4o-mini"`)
+- `model` - OpenAI chat model ID, such as `"gpt-5.5"`.
 - `config?.organization` - Organization ID (optional)
 - `config?.baseURL` - Custom base URL (optional)
 
@@ -698,7 +751,7 @@ import { openaiText } from "@tanstack/ai-openai";
 import { webSearchTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "What's new in AI this week?" }],
   tools: [webSearchTool({ type: "web_search" })],
 });
@@ -718,7 +771,7 @@ import { openaiText } from "@tanstack/ai-openai";
 import { webSearchPreviewTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Latest news about TypeScript" }],
   tools: [
     webSearchPreviewTool({
@@ -749,7 +802,7 @@ import { openaiText } from "@tanstack/ai-openai";
 import { fileSearchTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "What does the handbook say about PTO?" }],
   tools: [
     fileSearchTool({
@@ -774,7 +827,7 @@ import { openaiText } from "@tanstack/ai-openai";
 import { imageGenerationTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Draw a logo for my app" }],
   tools: [
     imageGenerationTool({
@@ -799,7 +852,7 @@ import { openaiText } from "@tanstack/ai-openai";
 import { codeInterpreterTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Analyse this CSV and plot a chart" }],
   tools: [
     codeInterpreterTool({ type: "code_interpreter", container: { type: "auto" } }),
@@ -821,7 +874,7 @@ import { openaiText } from "@tanstack/ai-openai";
 import { mcpTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "List my GitHub issues" }],
   tools: [
     mcpTool({
@@ -873,7 +926,7 @@ import { openaiText } from "@tanstack/ai-openai";
 import { localShellTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.6"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Run the test suite and summarise failures" }],
   tools: [localShellTool()],
 });
@@ -905,7 +958,7 @@ import { openaiText } from "@tanstack/ai-openai";
 import { shellTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.6"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Count lines in all JS files" }],
   tools: [shellTool({ environment: { type: "local" } })],
 });
@@ -956,7 +1009,7 @@ export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
-    adapter: openaiText("gpt-5.2"),
+    adapter: openaiText("gpt-5.5"),
     messages,
     tools: [
       shellTool({
@@ -989,7 +1042,7 @@ import { openaiText } from "@tanstack/ai-openai";
 import { applyPatchTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.6"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Fix the import paths in src/index.ts" }],
   tools: [applyPatchTool()],
 });
@@ -1031,7 +1084,7 @@ import { openaiText } from "@tanstack/ai-openai";
 import { customTool } from "@tanstack/ai-openai/tools";
 
 const stream = chat({
-  adapter: openaiText("gpt-5.2"),
+  adapter: openaiText("gpt-5.5"),
   messages: [{ role: "user", content: "Look up order #1234" }],
   tools: [
     customTool({

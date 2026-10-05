@@ -1,0 +1,171 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[replay-server-valid] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Validate the tool input.",
+        "toolCalls": [
+          {
+            "name": "measure_replay",
+            "arguments": "{\"count\":2}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-server-valid] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Validation finished."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-server-coercible] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Validate the tool input.",
+        "toolCalls": [
+          {
+            "name": "measure_replay",
+            "arguments": "{\"count\":\"3\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-server-coercible] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Validation finished."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-server-rejected] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Validate the tool input.",
+        "toolCalls": [
+          {
+            "name": "measure_replay",
+            "arguments": "{\"count\":{}}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-server-rejected] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Validation finished."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-client-valid] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Validate the tool input.",
+        "toolCalls": [
+          {
+            "name": "show_notification",
+            "arguments": "{\"message\":\"hello\",\"type\":\"info\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-client-valid] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Validation finished."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-client-coercible] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Validate the tool input.",
+        "toolCalls": [
+          {
+            "name": "show_notification",
+            "arguments": "{\"message\":7,\"type\":\"info\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-client-coercible] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Validation finished."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-client-rejected] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Validate the tool input.",
+        "toolCalls": [
+          {
+            "name": "show_notification",
+            "arguments": "{\"message\":{},\"type\":\"info\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-client-rejected] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Validation finished."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-validation-resume] check",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "check_resume",
+            "arguments": "{\"count\":1}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-validation-resume] check",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Resume finished."
+      }
+    }
+  ]
+}

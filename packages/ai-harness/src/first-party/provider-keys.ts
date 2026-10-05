@@ -98,10 +98,13 @@ export function providerKeys(options: {
     name: 'tanstack/provider-keys',
     setup: async (ctx) => {
       const state = ctx.state<ProviderKeysState>({ providers: [] })
-      /** Check every provider, keep the result for UIs, and return the `/keys` lines. */
-      const refresh = async () => {
+      /**
+       * Check every provider, keep the result for UIs, and return the `/keys`
+       * lines. A command passes the credentials of the user who runs it.
+       */
+      const refresh = async (credentials = ctx.credentials) => {
         const described = await Promise.all(
-          providers.map((provider) => describeKey(ctx.credentials, provider)),
+          providers.map((provider) => describeKey(credentials, provider)),
         )
         await state.update(() => ({
           providers: described.map((entry) => entry.status),
@@ -129,28 +132,29 @@ export function providerKeys(options: {
         keys: defineCommand({
           description:
             'Show the model providers and where their keys come from',
-          run: refresh,
+          run: (_input, { credentials }) => refresh(credentials),
         }),
       }
       for (const provider of providers) {
         const { id, label } = provider
         commands[`connect:${id}`] = defineCommand({
           description: `Connect ${label} with your own key`,
-          run: async (_input, { signal }) => {
+          // The key belongs to the user who runs the command.
+          run: async (_input, { signal, credentials }) => {
             const key = (await readKey(provider, signal)).trim()
             if (key === '') {
               throw new Error(`No ${label} key was given. Nothing was saved.`)
             }
-            await ctx.credentials.set(id, { type: 'api_key', value: key })
-            await refresh()
+            await credentials.set(id, { type: 'api_key', value: key })
+            await refresh(credentials)
             return `Connected to ${label} (key ...${maskKey(key)}).`
           },
         })
         commands[`disconnect:${id}`] = defineCommand({
           description: `Remove your ${label} key`,
-          run: async () => {
-            await ctx.credentials.delete(id)
-            await refresh()
+          run: async (_input, { credentials }) => {
+            await credentials.delete(id)
+            await refresh(credentials)
             return `Disconnected from ${label}.`
           },
         })

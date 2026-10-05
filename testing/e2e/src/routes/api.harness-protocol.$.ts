@@ -14,6 +14,7 @@ import {
 import { todos } from '@tanstack/ai-harness/plugins'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
+import { askName, deploy, probe, whoami } from '@/lib/harness-protocol-tools'
 import { createImageAdapter } from '@/lib/media-providers'
 import { createTextAdapter } from '@/lib/providers'
 
@@ -77,6 +78,13 @@ function handlerFor(request: Request) {
     name: 'e2e/protocol',
     adapter,
     ...(turn ? { turn } : {}),
+    tools: [
+      deploy.server(async ({ env }) => ({ deployed: env })),
+      // The input's context, from `forwardedProps` on POST run.
+      probe.server(async (_input, toolContext) => ({
+        context: toolContext?.context ?? null,
+      })),
+    ],
     subagents: { agents: [painter] },
     agents: [
       defineAgent({
@@ -89,6 +97,31 @@ function handlerFor(request: Request) {
     expose: { agents: ['echo'] },
     plugins: () => [
       todos(),
+      // The sender of the running turn, as plugins see it.
+      definePlugin({
+        name: 'e2e/whoami',
+        setup: (ctx) => ({
+          tools: [
+            whoami.server(async () => ({
+              id: ctx.session.principal?.id ?? null,
+            })),
+          ],
+        }),
+      }),
+      // A tool that waits for an answer, so a turn stays running.
+      definePlugin({
+        name: 'e2e/ask',
+        setup: (ctx) => ({
+          tools: [
+            askName.server(async () => ({
+              name: await ctx.session.ask({
+                message: 'What is your name?',
+                schema: z.string(),
+              }),
+            })),
+          ],
+        }),
+      }),
       definePlugin({
         name: 'e2e/settings',
         setup: () => ({
@@ -111,10 +144,13 @@ function handlerFor(request: Request) {
   return createHarnessHandler({
     host: request.headers.get('x-harness-durable') === '1' ? durableHost : host,
     harness,
-    authorize: (req) =>
-      req.headers.get('authorization') === 'Bearer e2e-token'
-        ? { id: 'e2e' }
-        : null,
+    // Two users, so a test can share one thread between them.
+    authorize: (req) => {
+      const token = req.headers.get('authorization')
+      if (token === 'Bearer e2e-token') return { id: 'e2e' }
+      if (token === 'Bearer e2e-token-bob') return { id: 'bob' }
+      return null
+    },
     // Each request makes a new handler, so a fixed secret keeps a signed URL
     // working on the next request.
     mediaSecret: 'e2e-media-secret',

@@ -129,6 +129,27 @@ function pendingOf(fixture: ReturnType<typeof approvalFixture>) {
 }
 
 describe('validateInterruptResumeBatch', () => {
+  it('keeps approved edits raw for the final middleware and input boundary', async () => {
+    const fixture = approvalFixture()
+    const result = await validateInterruptResumeBatch(
+      baseInput(pendingOf(fixture), [
+        {
+          interruptId: fixture.binding.interruptId,
+          status: 'resolved',
+          payload: {
+            approved: true,
+            editedArgs: { cents: '200' },
+            payload: { note: 'ok' },
+          },
+        },
+      ]),
+    )
+    expect(result.errors).toEqual([])
+    expect(result.resumeToolState?.approvals?.get('call-1')).toMatchObject({
+      approved: true,
+      editedArgs: { cents: '200' },
+    })
+  })
   it('preserves successful client-tool resume state', async () => {
     const fixture = clientToolFixture()
     const result = await validateInterruptResumeBatch({

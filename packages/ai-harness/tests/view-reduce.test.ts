@@ -27,6 +27,14 @@ const factory: ItemFactory = {
     approve: () => {},
     reject: () => {},
   }),
+  clientTool: (interrupt, call) => ({
+    id: interrupt.id,
+    ...(interrupt.toolCallId ? { toolCallId: interrupt.toolCallId } : {}),
+    tool: call?.name ?? 'tool',
+    args: call?.args,
+    resolve: () => {},
+    fail: () => {},
+  }),
   question: (question) => ({
     id: question.questionId,
     message: question.message,
@@ -391,6 +399,71 @@ describe('view reducer', () => {
       factory,
     )
     expect(again).toBe(first)
+  })
+
+  it('reads a client tool interrupt as a client tool, not an approval', () => {
+    const withCall = fold([
+      at({
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'c1',
+        toolCallName: 'openScreen',
+      }),
+      at({ type: EventType.TOOL_CALL_END, toolCallId: 'c1' }),
+    ])
+    const waiting = sessionSnapshot({
+      status: 'requires_action',
+      pendingInterrupts: [
+        {
+          id: 'client_tool_c1',
+          reason: 'tanstack:client_tool_execution',
+          toolCallId: 'c1',
+          metadata: {
+            'tanstack:interruptBinding': {
+              v: 1,
+              kind: 'client-tool-execution',
+              interruptId: 'client_tool_c1',
+              toolName: 'openScreen',
+              toolCallId: 'c1',
+              outputSchemaHash: 'out',
+              responseSchemaHash: 'response',
+            },
+          },
+        },
+      ],
+    })
+    const first = applySnapshot(withCall, waiting, factory)
+    expect(first.approvals).toEqual([])
+    expect(first.clientTools).toMatchObject([
+      { id: 'client_tool_c1', toolCallId: 'c1', tool: 'openScreen' },
+    ])
+    // The call runs in the UI. It does not wait for a yes or no.
+    expect(assistantParts(first)[0]).toMatchObject({ status: 'running' })
+    expect(applySnapshot(first, waiting, factory)).toBe(first)
+  })
+
+  it('reads a sign-in interrupt as a sign-in, not an approval', () => {
+    const waiting = sessionSnapshot({
+      status: 'requires_action',
+      pendingInterrupts: [
+        {
+          id: 'mcp_input_c1',
+          reason: 'auth_required',
+          toolCallId: 'c1',
+          metadata: {
+            'tanstack:interruptPayload': {
+              kind: 'form',
+              request: { connector: 'github', url: 'https://example.test/a' },
+            },
+          },
+        },
+      ],
+    })
+    const first = applySnapshot(emptyState(), waiting, factory)
+    expect(first.approvals).toEqual([])
+    expect(first.signIns).toEqual([
+      { connector: 'github', url: 'https://example.test/a' },
+    ])
+    expect(applySnapshot(first, waiting, factory)).toBe(first)
   })
 
   it('builds messages from a saved transcript', () => {

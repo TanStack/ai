@@ -1,9 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { InputRejectedError, createHarnessHost, defineHarness } from '../src'
-import { gate, messageTexts, mockAdapter, text, untilAborted } from './helpers'
+import {
+  gate,
+  messageTexts,
+  mockAdapter,
+  text,
+  toolCall,
+  untilAborted,
+} from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
-import type { LogRecord } from '@tanstack/ai-persistence'
+import type { LeaseStore, LogRecord } from '@tanstack/ai-persistence'
 import type { HarnessDurability } from '../src'
 import type { Reply } from './helpers'
 
@@ -511,5 +520,343 @@ describe('settled() without a log', () => {
       'knows no chat input',
     )
     await host.close()
+  })
+})
+
+describe('durable approval recovery', () => {
+  it('keeps approval after a resume time limit and allows a later retry', async () => {
+    const stores = memoryPersistence().stores
+    const persistence = {
+      stores: {
+        log: memoryLogStore(),
+        runs: stores.runs,
+        metadata: stores.metadata,
+        interrupts: stores.interrupts,
+      },
+    }
+    const execute = vi.fn(async () => 'removed')
+    const tool = toolDefinition({
+      name: 'remove',
+      description: 'Remove',
+      needsApproval: true,
+    }).server(execute)
+    const main = mockAdapter([
+      () => toolCall('remove', {}, 'timeout-approval'),
+      untilAborted(),
+      () => text('Recovered.'),
+    ])
+    const config = defineHarness({
+      name: 'approval-timeout',
+      adapter: main.adapter,
+      tools: [tool],
+      durability: { timeoutMs: 30 },
+    })
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(config, { threadId: THREAD })
+    const initial = await session.prompt('remove')
+    const approval = initial.interrupts?.[0]
+    if (!approval) throw new Error('The turn did not stop for approval.')
+    const receipt = await session.resolve([
+      { interruptId: approval.id, status: 'resolved', payload: true },
+    ])
+    await expect(session.operation(receipt.operationId ?? '')).rejects.toThrow(
+      'time limit',
+    )
+    expect(await session.settled(receipt.inputId)).toMatchObject({
+      outcome: 'failed',
+      error: { code: 'timeout' },
+    })
+    expect(session.snapshot().pendingInterrupts.map((item) => item.id)).toEqual(
+      [approval.id],
+    )
+    expect((await stores.interrupts.get(approval.id))?.status).toBe('pending')
+    await host.close()
+    const next = createHarnessHost({ persistence })
+    const reopened = await next.open(config, { threadId: THREAD })
+    const retry = await reopened.resolve([
+      { interruptId: approval.id, status: 'resolved', payload: true },
+    ])
+    await expect(reopened.operation(retry.operationId ?? '')).resolves.toEqual({
+      text: 'Recovered.',
+    })
+    expect(reopened.snapshot().pendingInterrupts).toEqual([])
+    await next.close()
+  })
+
+  it.each(['applied', 'lease'])(
+    'keeps approval after an early %s failure',
+    async (kind) => {
+      const stores = memoryPersistence().stores
+      const log = memoryLogStore()
+      const leases: LeaseStore = {
+        acquire: vi.fn(async () => {}),
+        renew: vi.fn(async () => {}),
+        release: vi.fn(async () => {}),
+        isAlive: async () => false,
+      }
+      const persistence = {
+        stores: {
+          runs: stores.runs,
+          metadata: stores.metadata,
+          interrupts: stores.interrupts,
+          log,
+          leases,
+        },
+      }
+      const execute = vi.fn(async () => 'removed')
+      const tool = toolDefinition({
+        name: 'remove',
+        description: 'Remove',
+        needsApproval: true,
+      }).server(execute)
+      const main = mockAdapter([
+        () => toolCall('remove', {}, 'early-call'),
+        () => text('Done.'),
+      ])
+      const config = defineHarness({
+        name: 'early-approval',
+        adapter: main.adapter,
+        tools: [tool],
+      })
+      const host = createHarnessHost({ persistence })
+      const session = await host.open(config, { threadId: THREAD })
+      const result = await session.prompt('remove')
+      const approval = result.interrupts?.[0]
+      if (!approval) throw new Error('The turn did not stop for approval.')
+      const append = log.append.bind(log)
+      const write = vi
+        .spyOn(log, 'append')
+        .mockImplementation(async (thread, seq, records) => {
+          if (
+            kind === 'applied' &&
+            records.some((record) => record.type === 'harness.input.applied')
+          )
+            throw new Error('applied write failed')
+          await append(thread, seq, records)
+        })
+      const lease = vi.spyOn(leases, 'acquire')
+      if (kind === 'lease')
+        lease.mockRejectedValueOnce(new Error('lease acquire failed'))
+      const receipt = await session.resolve([
+        { interruptId: approval.id, status: 'resolved', payload: true },
+      ])
+      await expect(
+        session.operation(receipt.operationId ?? ''),
+      ).rejects.toThrow()
+      expect(
+        session.snapshot().pendingInterrupts.map((item) => item.id),
+      ).toEqual([approval.id])
+      expect(execute).not.toHaveBeenCalled()
+      write.mockRestore()
+      lease.mockRestore()
+      await host.close()
+      const next = createHarnessHost({ persistence })
+      const reopened = await next.open(config, { threadId: THREAD })
+      if (kind === 'lease') await reopened.settled(receipt.inputId)
+      // An applied lease failure can be retried by durable recovery itself.
+      if (reopened.snapshot().pendingInterrupts.length > 0) {
+        const retry = await reopened.resolve([
+          { interruptId: approval.id, status: 'resolved', payload: true },
+        ])
+        await reopened.operation(retry.operationId ?? '')
+      }
+      expect(execute).toHaveBeenCalledTimes(1)
+      expect(reopened.snapshot().pendingInterrupts).toEqual([])
+      await next.close()
+    },
+  )
+
+  it.each([false, true])(
+    'replays an applied resolve after a crash (interrupt store: %s)',
+    async (withStore) => {
+      const stores = memoryPersistence().stores
+      const log = memoryLogStore()
+      const persistence = {
+        stores: {
+          runs: stores.runs,
+          metadata: stores.metadata,
+          ...(withStore ? { interrupts: stores.interrupts } : {}),
+          log,
+        },
+      }
+      const execute = vi.fn(async () => 'removed')
+      const tool = toolDefinition({
+        name: 'remove',
+        description: 'Remove',
+        needsApproval: true,
+        inputSchema: z.object({ path: z.string() }),
+      }).server(execute)
+      const firstAdapter = mockAdapter([
+        () => toolCall('remove', { path: 'a.txt' }, 'crash-call'),
+      ])
+      const first = createHarnessHost({ persistence })
+      const firstSession = await first.open(
+        defineHarness({
+          name: 'crash-approval',
+          adapter: firstAdapter.adapter,
+          tools: [tool],
+        }),
+        { threadId: THREAD },
+      )
+      const result = await firstSession.prompt('remove')
+      const approval = result.interrupts?.[0]
+      if (!approval) throw new Error('The turn did not stop for approval.')
+      await first.close()
+      const entries = await log.read(THREAD)
+      await log.append(THREAD, entries.length + 1, [
+        {
+          type: 'harness.input',
+          inputId: 'resume-crash',
+          input: {
+            op: 'resolve',
+            resume: [
+              { interruptId: approval.id, status: 'resolved', payload: true },
+            ],
+          },
+          at: Date.now(),
+        },
+        {
+          type: 'harness.input.applied',
+          inputId: 'resume-crash',
+          operationId: 'resume-stopped',
+          attempt: 1,
+        },
+      ])
+      await stores.runs.createOrResume({
+        runId: 'resume-stopped',
+        threadId: THREAD,
+        startedAt: Date.now() - 60000,
+      })
+      await stores.runs.update('resume-stopped', {
+        leaseExpiresAt: Date.now() - 1000,
+        leaseOwner: 'gone',
+      })
+      const nextAdapter = mockAdapter([() => text('Recovered approval.')])
+      const next = createHarnessHost({ persistence })
+      const session = await next.open(
+        defineHarness({
+          name: 'crash-approval',
+          adapter: nextAdapter.adapter,
+          tools: [tool],
+        }),
+        { threadId: THREAD },
+      )
+      expect(await session.settled('resume-crash')).toMatchObject({
+        outcome: 'completed',
+      })
+      expect(execute).toHaveBeenCalledExactlyOnceWith(
+        { path: 'a.txt' },
+        expect.anything(),
+      )
+      expect(nextAdapter.calls).toHaveLength(1)
+      expect(session.snapshot().pendingInterrupts).toEqual([])
+      await next.close()
+    },
+  )
+
+  it.each([false, true])(
+    'does not revive a consumed approval after a delete failure (interrupt store: %s)',
+    async (withStore) => {
+      const stores = memoryPersistence().stores
+      const log = memoryLogStore()
+      const persistence = {
+        stores: {
+          runs: stores.runs,
+          metadata: stores.metadata,
+          ...(withStore ? { interrupts: stores.interrupts } : {}),
+          log,
+        },
+      }
+      const execute = vi.fn(async () => 'removed')
+      const tool = toolDefinition({
+        name: 'remove',
+        description: 'Remove',
+        needsApproval: true,
+      }).server(execute)
+      const adapter = mockAdapter([
+        () => toolCall('remove', {}, 'consumed-call'),
+        () => text('Done.'),
+      ])
+      const host = createHarnessHost({ persistence })
+      const config = defineHarness({
+        name: 'consumed-approval',
+        adapter: adapter.adapter,
+        tools: [tool],
+      })
+      const session = await host.open(config, { threadId: THREAD })
+      const result = await session.prompt('remove')
+      const approval = result.interrupts?.[0]
+      if (!approval) throw new Error('The turn did not stop for approval.')
+      const cached = await stores.metadata.get('harness:interrupted', THREAD)
+      const deletion = vi
+        .spyOn(stores.metadata, 'delete')
+        .mockRejectedValueOnce(new Error('metadata delete failed'))
+      const receipt = await session.resolve([
+        { interruptId: approval.id, status: 'resolved', payload: true },
+      ])
+      await session.operation(receipt.operationId ?? '')
+      deletion.mockRestore()
+      expect(session.snapshot().pendingInterrupts).toEqual([])
+      await host.close()
+      await stores.metadata.set('harness:interrupted', THREAD, cached)
+      const next = createHarnessHost({ persistence })
+      const reopened = await next.open(config, { threadId: THREAD })
+      expect(reopened.snapshot().pendingInterrupts).toEqual([])
+      expect(
+        await reopened.resolve([
+          { interruptId: approval.id, status: 'resolved', payload: true },
+        ]),
+      ).toMatchObject({ status: 'rejected', reason: 'no_pending_interrupts' })
+      expect(execute).toHaveBeenCalledTimes(1)
+      await next.close()
+    },
+  )
+})
+
+describe('metadata-only approval consumption', () => {
+  it('keeps a consumed approval cleared after one metadata delete failure', async () => {
+    const stores = memoryPersistence().stores
+    const persistence = {
+      stores: {
+        messages: stores.messages,
+        runs: stores.runs,
+        metadata: stores.metadata,
+      },
+    }
+    const execute = vi.fn(async () => 'removed')
+    const tool = toolDefinition({
+      name: 'remove',
+      description: 'Remove',
+      needsApproval: true,
+    }).server(execute)
+    const main = mockAdapter([
+      () => toolCall('remove', {}, 'metadata-only-call'),
+      () => text('Done.'),
+    ])
+    const config = defineHarness({
+      name: 'metadata-only-approval',
+      adapter: main.adapter,
+      tools: [tool],
+    })
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(config, { threadId: THREAD })
+    const initial = await session.prompt('remove')
+    const approval = initial.interrupts?.[0]
+    if (!approval) throw new Error('The approval is missing.')
+    const deletion = vi
+      .spyOn(stores.metadata, 'delete')
+      .mockRejectedValueOnce(new Error('delete unavailable'))
+    const receipt = await session.resolve([
+      { interruptId: approval.id, status: 'resolved', payload: true },
+    ])
+    await session.operation(receipt.operationId ?? '')
+    deletion.mockRestore()
+    expect(session.snapshot().pendingInterrupts).toEqual([])
+    await host.close()
+    const next = createHarnessHost({ persistence })
+    const reopened = await next.open(config, { threadId: THREAD })
+    expect(reopened.snapshot().pendingInterrupts).toEqual([])
+    expect(execute).toHaveBeenCalledTimes(1)
+    await next.close()
   })
 })

@@ -1,4 +1,4 @@
-import { EventType } from '@tanstack/ai'
+import { EventType, readUnopenedInterruptBinding } from '@tanstack/ai'
 import { isMediaRecord, mediaIdOf, mediaOfMessage } from '../media-ref'
 import { HARNESS_EVENTS } from '../types'
 import type { Interrupt, ModelMessage, StreamChunk } from '@tanstack/ai'
@@ -7,6 +7,7 @@ import type { SessionEvent } from '../types'
 import type {
   AgentPart,
   Approval,
+  ClientToolCall,
   MediaPart,
   NoticeKind,
   SessionViewState,
@@ -35,6 +36,10 @@ const TURN_EVENTS: ReadonlySet<string> = new Set([
 /** Makes the items that carry actions. The view owns the actions. */
 export interface ItemFactory {
   approval: (interrupt: Interrupt, call: ToolCallPart | undefined) => Approval
+  clientTool: (
+    interrupt: Interrupt,
+    call: ToolCallPart | undefined,
+  ) => ClientToolCall
   question: (
     question: SessionSnapshot['pendingQuestions'][number],
   ) => ViewQuestion
@@ -48,6 +53,7 @@ export function emptyState(): SessionViewState {
     connection: 'open',
     messages: [],
     approvals: [],
+    clientTools: [],
     questions: [],
     signIns: [],
     agents: [],
@@ -542,10 +548,30 @@ export function keep<T>(old: Array<T>, next: Array<T>): Array<T> {
     : next
 }
 
+/** The turn waits for the output of a client tool, not for a yes or no. */
+const isClientTool = (interrupt: Interrupt) =>
+  readUnopenedInterruptBinding(interrupt)?.kind === 'client-tool-execution'
+
 /**
- * Take status, approvals, questions, and background agents from a snapshot.
- * Plugin state is taken only for the first snapshot. Later changes come as
- * `STATE_SNAPSHOT` events. Returns `state` when nothing changes.
+ * The sign-in a turn waits for, from `credentials.require(id, { wait: true })`.
+ * The connector's `connect:<id>` command answers it, not a yes or no.
+ */
+function signInOf(interrupt: Interrupt): SignIn | undefined {
+  if (interrupt.reason !== 'auth_required') return undefined
+  const payload = recordOf(interrupt.metadata?.['tanstack:interruptPayload'])
+  const request = recordOf(payload.request)
+  if (typeof request.connector !== 'string') return undefined
+  return {
+    connector: request.connector,
+    ...(typeof request.url === 'string' ? { url: request.url } : {}),
+  }
+}
+
+/**
+ * Take status, approvals, client tools, questions, and background agents
+ * from a snapshot. Plugin state is taken only for the first snapshot. Later
+ * changes come as `STATE_SNAPSHOT` events. Returns `state` when nothing
+ * changes.
  */
 export function applySnapshot(
   state: SessionViewState,
@@ -555,15 +581,39 @@ export function applySnapshot(
 ): SessionViewState {
   const approvals = keep(
     state.approvals,
-    snapshot.pendingInterrupts.map(
-      (interrupt) =>
-        state.approvals.find((item) => item.id === interrupt.id) ??
-        factory.approval(
-          interrupt,
-          findToolCall(state.messages, interrupt.toolCallId),
-        ),
-    ),
+    snapshot.pendingInterrupts
+      .filter((interrupt) => !isClientTool(interrupt) && !signInOf(interrupt))
+      .map(
+        (interrupt) =>
+          state.approvals.find((item) => item.id === interrupt.id) ??
+          factory.approval(
+            interrupt,
+            findToolCall(state.messages, interrupt.toolCallId),
+          ),
+      ),
   )
+  const clientTools = keep(
+    state.clientTools,
+    snapshot.pendingInterrupts
+      .filter(isClientTool)
+      .map(
+        (interrupt) =>
+          state.clientTools.find((item) => item.id === interrupt.id) ??
+          factory.clientTool(
+            interrupt,
+            findToolCall(state.messages, interrupt.toolCallId),
+          ),
+      ),
+  )
+  // In the snapshot too, so a sign-in that a turn waits for shows after a reload.
+  const newSignIns = snapshot.pendingInterrupts
+    .flatMap((interrupt) => signInOf(interrupt) ?? [])
+    .filter(
+      (signIn) =>
+        !state.signIns.some((item) => item.connector === signIn.connector),
+    )
+  const signIns =
+    newSignIns.length > 0 ? [...state.signIns, ...newSignIns] : state.signIns
   const questions = keep(
     state.questions,
     snapshot.pendingQuestions.map(
@@ -594,6 +644,8 @@ export function applySnapshot(
     snapshot.status === state.status &&
     snapshot.queuedTurns === state.queuedTurns &&
     approvals === state.approvals &&
+    clientTools === state.clientTools &&
+    signIns === state.signIns &&
     questions === state.questions &&
     agents === state.agents &&
     messages === state.messages &&
@@ -605,6 +657,8 @@ export function applySnapshot(
     status: snapshot.status,
     queuedTurns: snapshot.queuedTurns,
     approvals,
+    clientTools,
+    signIns,
     questions,
     agents,
     messages,

@@ -3,9 +3,14 @@ import {
   chatParamsFromRequestBody,
   convertMessagesToModelMessages,
   isContentPart,
+  modelMessagesToUIMessages,
+  readInterruptBinding,
+  resolveResumeRunId,
   toServerSentEventsResponse,
+  toServerSentEventsStream,
 } from '@tanstack/ai'
 import { parseRangeHeader, resolveBlobRange } from '@tanstack/ai-persistence'
+import { sessionOfTurn } from './host'
 import { MediaError } from './media'
 import { base64url } from './oauth'
 import {
@@ -70,6 +75,12 @@ const MEDIA_HEADERS = {
 }
 
 const encoder = new TextEncoder()
+
+const SSE_HEADERS = {
+  'Content-Type': 'text/event-stream',
+  'Cache-Control': 'no-cache',
+  Connection: 'keep-alive',
+}
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -154,8 +165,18 @@ async function mediaResponse(
  * these paths:
  *
  * - `GET  .../capabilities`: the AG-UI capabilities document.
- * - `POST .../run`: standard AG-UI. One request is one prompt, streamed as SSE.
- *   The prompt keeps every content part of the last user message.
+ * - `POST .../run`: standard AG-UI. One request is one prompt (or one
+ *   `resume`), streamed as SSE. The turn runs as the request's `runId`, and a
+ *   retry with the same `runId` runs once. The prompt keeps every content
+ *   part of the last user message, and its `forwardedProps` are the input's
+ *   `context`.
+ * - `GET  .../run?threadId=`: the transcript, the running turn, and the
+ *   waiting interrupts, as the `ChatHydrationResult` that a `ChatClient` with
+ *   `persistence` reads.
+ * - `GET  .../run?runId=` (or `X-Run-Id`): the chat turn with that run id, as
+ *   SSE from its start, so a reloaded `ChatClient` joins it. Each event id is
+ *   a cursor, so `Last-Event-ID` resumes it. 404 for a turn this host does
+ *   not run.
  * - `GET  .../events?threadId=&from=`: the session stream as SSE. Each event id
  *   is a cursor, so `Last-Event-ID` resumes it.
  * - `POST .../control`: `{ threadId, input }`. Returns the receipt.
@@ -171,6 +192,9 @@ async function mediaResponse(
  * - `GET  .../media?threadId=&id=[&exp=&sig=]`: the bytes, with `Range`
  *   support. A signed request needs no `authorize`, and a bad or expired
  *   signature is 403.
+ *
+ * Each chat input runs as the principal that `authorize` returned for its
+ * request, not as the one that opened the session first.
  */
 export function createHarnessHandler(
   options: HarnessHandlerOptions,
@@ -227,6 +251,48 @@ export function createHarnessHandler(
     return mediaResponse(request, await host.open(harness, { threadId }), id)
   }
 
+  /**
+   * Stream the chat turn `runId` from its start: the `joinRun` of a
+   * ChatClient after a reload. Each event has its cursor as `id`, so
+   * `Last-Event-ID` resumes after it. A turn that ended gives the events the
+   * feed still has.
+   */
+  const joinTurn = async (
+    request: Request,
+    principal: Principal,
+    runId: string,
+  ) => {
+    const session = await sessionOfTurn(host, harness, runId)
+    const turn = session?.operation(runId)
+    if (!session || !turn) return json({ error: 'unknown run' }, 404)
+    if (!(await canAccess(principal, session.threadId))) {
+      return json({ error: 'forbidden' }, 403)
+    }
+    // `offset=-1` is the start. A reconnect sends the last cursor it saw.
+    const offset = new URL(request.url).searchParams.get('offset')
+    const resumeFrom =
+      request.headers.get('Last-Event-ID') ?? (offset === '-1' ? null : offset)
+    const startedCursor = session
+      .snapshot()
+      .activeOperations.find((item) => item.id === runId)?.startedCursor
+    const from = resumeFrom ?? startedCursor ?? '0'
+    const reader = new AbortController()
+    const events = turn.events({ from, signal: reader.signal })
+    const cursors: Array<string> = []
+    async function* chunks() {
+      for await (const entry of events) {
+        cursors.push(entry.cursor)
+        yield entry.event
+      }
+    }
+    return new Response(
+      toServerSentEventsStream(chunks(), reader, (_chunk, index) =>
+        cursors.at(index),
+      ),
+      { headers: SSE_HEADERS },
+    )
+  }
+
   return async (request) => {
     const url = new URL(request.url)
     const route = url.pathname.split('/').at(-1)
@@ -249,8 +315,12 @@ export function createHarnessHandler(
         const message = lastUserInput(params.messages)
         const session = await openFor(principal, params.threadId)
         if (!session) return json({ error: 'forbidden' }, 403)
+        // The turn runs as the request's run id, so an AG-UI client matches
+        // its events and interrupts. The run id is the input id too, so a
+        // retried request runs once. It runs as this request's principal.
+        const ids = { inputId: params.runId, runId: params.runId, principal }
         if (params.resume && params.resume.length > 0) {
-          const receipt = await session.resolve(params.resume)
+          const receipt = await session.resolve(params.resume, ids)
           if (receipt.status === 'rejected' || !receipt.operationId) {
             return json({ error: receipt.reason ?? 'rejected' }, 409)
           }
@@ -267,7 +337,18 @@ export function createHarnessHandler(
         }
         if (message === undefined)
           return json({ error: 'no user message' }, 400)
-        const operation = session.prompt(message)
+        // AG-UI `forwardedProps` are the input's context.
+        const { forwardedProps } = params
+        const operation = session.prompt(message, {
+          ...ids,
+          ...(Object.keys(forwardedProps).length > 0
+            ? { context: forwardedProps }
+            : {}),
+        })
+        const receipt = await operation.receipt
+        if (receipt.status === 'rejected') {
+          return json({ error: receipt.reason ?? 'rejected' }, 409)
+        }
         const reader = new AbortController()
         return toServerSentEventsResponse(
           operation.stream({ signal: reader.signal }),
@@ -275,6 +356,17 @@ export function createHarnessHandler(
             abortController: reader,
           },
         )
+      }
+
+      if (request.method === 'GET' && route === 'run') {
+        // The `joinRun` of a ChatClient after a reload names the run only.
+        const runId = resolveResumeRunId(request)
+        if (runId) return await joinTurn(request, principal, runId)
+        const threadId = url.searchParams.get('threadId')
+        if (!threadId) return json({ error: 'threadId is required' }, 400)
+        const session = await openFor(principal, threadId)
+        if (!session) return json({ error: 'forbidden' }, 403)
+        return json(await hydration(session))
       }
 
       if (request.method === 'GET' && route === 'events') {
@@ -308,13 +400,7 @@ export function createHarnessHandler(
             }
           },
         })
-        return new Response(body, {
-          headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            Connection: 'keep-alive',
-          },
-        })
+        return new Response(body, { headers: SSE_HEADERS })
       }
 
       if (request.method === 'POST' && route === 'control') {
@@ -334,7 +420,7 @@ export function createHarnessHandler(
         )
         const session = await openFor(principal, threadId)
         if (!session) return json({ error: 'forbidden' }, 403)
-        return json(await applyInput(harness, session, input))
+        return json(await applyInput(harness, session, input, principal))
       }
 
       if (
@@ -401,6 +487,30 @@ export function createHarnessHandler(
       return failed(error)
     }
     return json({ error: 'not found' }, 404)
+  }
+}
+
+/**
+ * What a `ChatClient` with `persistence` reads when it loads a thread (a
+ * `ChatHydrationResult`): the transcript, the running chat turn (the client
+ * joins it with `GET run?runId=`), and the interrupts that the last turn
+ * waits for.
+ */
+async function hydration(session: HarnessSession) {
+  const { pendingInterrupts, activeOperations } = session.snapshot()
+  const [first] = pendingInterrupts
+  const runId = first
+    ? readInterruptBinding(first)?.interruptedRunId
+    : undefined
+  const running = activeOperations.find(
+    (item) =>
+      item.kind === 'chat' &&
+      session.operation(item.id)?.status() === 'running',
+  )
+  return {
+    messages: modelMessagesToUIMessages(await session.transcript()),
+    activeRun: running ? { runId: running.id } : null,
+    interrupts: runId ? { runId, pending: pendingInterrupts } : null,
   }
 }
 
@@ -487,7 +597,12 @@ export function handleHarnessSocket(options: HarnessSocketOptions): void {
           send({ type: 'harness.snapshot', snapshot: session.snapshot() })
           return
         }
-        const receipt = await applyInput(harness, session, frame.input)
+        const receipt = await applyInput(
+          harness,
+          session,
+          frame.input,
+          principal,
+        )
         send({
           type: 'harness.receipt',
           requestId: frame.requestId,

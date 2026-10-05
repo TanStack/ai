@@ -195,9 +195,13 @@ export class OpenAITextAdapter<
     const { tools: baseTools, ...baseRequest } = super.mapOptionsToRequest(
       options,
     )
-    // Only tools from `options.tools`, as before: the base also keeps a
-    // `modelOptions.tools`, which this adapter has never sent.
-    const tools = options.tools?.length ? baseTools : undefined
+    const tools = options.tools?.length
+      ? baseTools
+      : options.messages.some(
+            (message) => message.role === 'tool' || !!message.toolCalls?.length,
+          )
+        ? []
+        : undefined
 
     // `chat({ promptCache })` fields go first, so a value the caller set in
     // `modelOptions` (already on `baseRequest`) wins.
@@ -208,7 +212,7 @@ export class OpenAITextAdapter<
     const request: Omit<ResponseCreateParams, 'stream'> = {
       ...promptCacheFields,
       ...baseRequest,
-      ...(tools && tools.length > 0 && { tools }),
+      ...(tools !== undefined && { tools }),
     }
 
     // Reasoning models 400 on `temperature`/`top_p`. Callers (and the summarize

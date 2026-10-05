@@ -1,5 +1,5 @@
 /**
- * Resources one plugin owns for one lifetime (a session or a run).
+ * Resources one plugin owns for one lifetime (a session or a turn).
  *
  * - `acquire(open, close)` registers `close` only after `open` succeeds.
  * - If the scope closes while `open` is still running, the late resource is

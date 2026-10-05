@@ -458,15 +458,20 @@ function messageMetadata(
 ): MetadataRecord | undefined {
   const base: MetadataRecord = { ...(msg.metadata ?? {}) }
   const previousTanstack = tanstackMetadata(msg)
-  const tanstack: TanStackMessageMetadata = {}
-  if (previousTanstack?.model !== undefined)
-    tanstack.model = previousTanstack.model
-  if (previousTanstack?.runId !== undefined)
-    tanstack.runId = previousTanstack.runId
-  if (previousTanstack?.run?.id !== undefined)
-    tanstack.run = { id: previousTanstack.run.id }
-  if (previousTanstack?.signature !== undefined)
-    tanstack.signature = previousTanstack.signature
+  const tanstack: TanStackMessageMetadata = { ...previousTanstack }
+  if (tanstack.run) {
+    tanstack.run = { ...tanstack.run }
+    delete tanstack.run.startedAt
+    delete tanstack.run.finishedAt
+  }
+  // Rebuild fields that describe the current wire row from its parts.
+  delete tanstack.createdAt
+  delete tanstack.continues
+  delete tanstack.structuredOutput
+  delete tanstack.toolCallMetadata
+  delete tanstack.toolResult
+  delete tanstack.toolResultOutcome
+  delete tanstack.uiResources
   const createdAt = coerceCreatedAt(msg.createdAt)
   if (createdAt !== undefined) tanstack.createdAt = createdAt.toISOString()
 
