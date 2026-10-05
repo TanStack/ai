@@ -126,9 +126,15 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
       const runId = options.runId ?? 'runtime-context-run'
       const threadId = options.threadId ?? 'runtime-context-thread'
       const messageId = `${runId}-message`
-      const toolResultCount = options.messages.filter(
-        (message) => message.role === 'tool',
-      ).length
+      // Count only this turn's results. Replay gives an unanswered call from
+      // an earlier turn a "No result provided" result, and a new user turn
+      // must still call the tool again.
+      const lastUserIndex = options.messages
+        .map((message) => message.role)
+        .lastIndexOf('user')
+      const toolResultCount = options.messages
+        .slice(lastUserIndex + 1)
+        .filter((message) => message.role === 'tool').length
       const hasToolResult = toolResultCount > 0
       const retryClientTool =
         scenario === 'invalid-client-tool-retry' && toolResultCount === 1
