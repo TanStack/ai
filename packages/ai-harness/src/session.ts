@@ -267,6 +267,8 @@ interface QueuedTurn {
   resume?: Array<RunAgentResumeItem>
   /** A resolve: the interrupted turn it answers. */
   answers?: InterruptedTurn
+  /** A `resume` input: the interrupted run it continues. */
+  parentRunId?: string
   inputId?: string
   /** The settings of this one turn. Kept in memory only, not in the log. */
   overrides?: TurnOverrides
@@ -2750,7 +2752,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           ? await this.userMessage(turn.message)
           : undefined
       let resume = turn.resume
-      let parentRunId = turn.answers?.runId
+      let parentRunId = turn.answers?.runId ?? turn.parentRunId
       const { chatPersistence, checkpoint } = this
       if (!chatPersistence || !checkpoint) {
         throw new Error('The session is not open yet.')
