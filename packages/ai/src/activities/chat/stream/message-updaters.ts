@@ -82,7 +82,9 @@ export function updateToolCallPart(
     const metadata = toolCall.metadata ?? existing?.metadata
     // Same for the parsed input: it's supplied once at completion, so
     // subsequent arg-less updates (approval, etc.) must not drop it.
-    const input = toolCall.input ?? existing?.input
+    const input = Object.prototype.hasOwnProperty.call(toolCall, 'input')
+      ? toolCall.input
+      : existing?.input
 
     const toolCallPart: ToolCallPart = {
       type: 'tool-call',
@@ -452,6 +454,8 @@ export function updateThinkingPart(
   stepId: string,
   content: string,
   signature?: string,
+  redactedUpdate = false,
+  stepOrder: Array<string> = [],
 ): Array<UIMessage> {
   return messages.map((msg) => {
     if (msg.id !== messageId) {
@@ -483,14 +487,19 @@ export function updateThinkingPart(
     // Keep the signature the hydrated part already had when this update does
     // not carry one; losing it would strip the provider's encrypted reasoning
     // from a message that is about to be sent back.
-    const nextSignature = signature ?? adopted?.signature
+    const existing = parts[thinkingPartIndex]
+    const previous = existing?.type === 'thinking' ? existing : adopted
+    const nextSignature = signature ?? previous?.signature
     // A hydrated part has no stepId to carry the redacted marker, so it keeps
     // its own flag.
-    const redacted = isRedactedThinkingId(stepId) || adopted?.redacted === true
+    const redacted =
+      redactedUpdate ||
+      isRedactedThinkingId(stepId) ||
+      previous?.redacted === true
 
     const thinkingPart: ThinkingPart = {
       type: 'thinking',
-      content,
+      content: redacted ? '' : content,
       stepId,
       ...(nextSignature && { signature: nextSignature }),
       ...(redacted && { redacted: true }),
@@ -500,8 +509,18 @@ export function updateThinkingPart(
       // Update existing thinking part for this step
       parts[thinkingPartIndex] = thinkingPart
     } else {
-      // Add new thinking part at the end (preserve natural streaming order)
-      parts.push(thinkingPart)
+      const rank = stepOrder.indexOf(stepId)
+      const following =
+        rank < 0
+          ? -1
+          : parts.findIndex(
+              (part) =>
+                part.type === 'thinking' &&
+                part.stepId !== undefined &&
+                stepOrder.indexOf(part.stepId) > rank,
+            )
+      if (following < 0) parts.push(thinkingPart)
+      else parts.splice(following, 0, thinkingPart)
     }
 
     return { ...msg, parts }

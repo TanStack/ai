@@ -65,6 +65,18 @@ export {
   structuredOutputStartChunk,
 } from './utilities/structured-output-events'
 export { tanstackMetadata } from './utilities/merge-metadata'
+export {
+  transformMessagesForReplay,
+  hashToolCallId,
+} from './utilities/replay-messages'
+export type {
+  ReplayMessages,
+  ReplayToolIdRule,
+} from './utilities/replay-messages'
+export {
+  sanitizeUnicode,
+  sanitizeJsonArguments,
+} from './utilities/sanitize-unicode'
 export { isSpecTopLevelKey } from './utilities/spec-event-keys'
 export { REDACTED_THINKING_ID_PREFIX } from './utilities/reasoning-encrypted-value'
 export {

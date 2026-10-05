@@ -1,3 +1,4 @@
+import { isToolInputJsonLossless } from '../../utilities/tool-call-arguments'
 /**
  * Text Activity
  *
@@ -55,6 +56,7 @@ import { buildBlockOrder } from '../../utilities/block-order'
 import type { BlockOrderEntry } from '../../utilities/block-order'
 import { assertMessagesFileSourceSupport } from '../../utilities/content-source'
 import { planMidConversationChanges } from '../../utilities/mid-conversation'
+import { transformMessagesForReplay } from '../../utilities/replay-messages'
 import { normalizeSystemPrompts } from '../../system-prompts'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
@@ -151,6 +153,7 @@ import type {
   StructuredOutputCompleteEvent,
   StructuredOutputPart,
   StructuredOutputStream,
+  TanStackMessageMetadata,
   TextMessageContentEvent,
   TextOptions,
   ToolCall,
@@ -928,12 +931,24 @@ class TextEngine<
    */
   private pendingMidConversationChange: MidConversationChange | undefined =
     undefined
-  private currentThinkingContent = ''
-  private currentThinkingSignature = ''
-  private currentThinkingRedacted = false
+  private readonly thinkingBlocks = new Map<
+    string,
+    {
+      content: string
+      signature: string
+      redacted: boolean
+      part: Extract<TurnPart, { type: 'thinking' }>
+    }
+  >()
+  private readonly reasoningStepAliases = new Map<string, string>()
+  private currentThinkingStepId: string | undefined
+  private pendingReasoningMessageId: string | undefined
+  private pendingThinkingStepId: string | undefined
   private eventOptions?: Record<string, unknown> | undefined
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
+  private currentCallMetadata: TanStackMessageMetadata = {}
+  private structuredCallMetadata: TanStackMessageMetadata = {}
   private readonly streamedToolErrorResults = new Map<string, ToolResult>()
   private deferredToolCallRunFinishedChunks: Array<StreamChunk> = []
   /** The model terminal is held until afterModel can choose an interrupt. */
@@ -1343,6 +1358,8 @@ class TextEngine<
         this.middlewareRunner.runOnStart(this.middlewareCtx),
       )
 
+      yield* this.checkCompletedResumedClientTools()
+
       if (this.earlyTermination) {
         yield* this.emitSuccessfulEarlyTermination()
         if (!this.terminalHookCalled) {
@@ -1419,6 +1436,7 @@ class TextEngine<
               yield* this.emitBoundaryInterrupts(
                 'afterModel',
                 this.finishedEvent ?? this.createSyntheticFinishedEvent(),
+                this.toolCallManager.getToolCalls(),
               )
             ) {
               this.setToolPhase('wait')
@@ -1589,15 +1607,24 @@ class TextEngine<
   }
 
   private async beginIteration(): Promise<void> {
+    this.currentCallMetadata = {
+      source: {
+        provider: this.adapter.provider ?? this.adapter.name,
+        api: this.adapter.api ?? this.adapter.kind,
+        model: this.params.model,
+      },
+    }
     this.currentMessageId = this.createId('msg')
     this.currentMessageCreatedAt = new Date()
     this.streamIdentityCaptured = false
     this.accumulatedContent = ''
     this.accumulatedThinking = []
     this.turnParts = []
-    this.currentThinkingContent = ''
-    this.currentThinkingSignature = ''
-    this.currentThinkingRedacted = false
+    this.thinkingBlocks.clear()
+    this.reasoningStepAliases.clear()
+    this.currentThinkingStepId = undefined
+    this.pendingReasoningMessageId = undefined
+    this.pendingThinkingStepId = undefined
 
     this.finishedEvent = null
     this.streamedToolErrorResults.clear()
@@ -1684,10 +1711,57 @@ class TextEngine<
           })
         : undefined
     this.pendingMidConversationChange = midConversation?.record
+    // The adapter chooses the actual wire API before source-sensitive replay.
+    const replay = transformMessagesForReplay(this.providerMessages)
+    if (midConversation) {
+      const originalChanges = midConversation.changes.changes
+      const mappedChanges = originalChanges.map((change) => ({
+        ...change,
+        before: replay.boundaryMap[change.before] ?? replay.messages.length,
+      }))
+      const grouped = new Map<number, (typeof mappedChanges)[number]>()
+      for (const change of mappedChanges) {
+        const previous = grouped.get(change.before)
+        grouped.set(
+          change.before,
+          previous
+            ? {
+                before: change.before,
+                ...(previous.tools || change.tools
+                  ? {
+                      tools: [
+                        ...(previous.tools ?? []),
+                        ...(change.tools ?? []),
+                      ],
+                    }
+                  : {}),
+                ...(previous.systemPrompts !== undefined ||
+                change.systemPrompts !== undefined
+                  ? {
+                      systemPrompts:
+                        (previous.systemPrompts ?? 0) +
+                        (change.systemPrompts ?? 0),
+                    }
+                  : {}),
+              }
+            : change,
+        )
+      }
+      // Only cleanup-created collisions merge. Invalid original duplicates stay invalid.
+      const uniqueOriginalBoundaries =
+        new Set(originalChanges.map((change) => change.before)).size ===
+        originalChanges.length
+      midConversation.changes = {
+        ...midConversation.changes,
+        changes: uniqueOriginalBoundaries
+          ? [...grouped.values()]
+          : mappedChanges,
+      }
+    }
 
-    for await (const raw of this.adapter.chatStream({
+    for await (const adapterChunk of this.adapter.chatStream({
       model: this.params.model,
-      messages: this.providerMessages,
+      messages: replay.messages,
       tools: toolsWithJsonSchemas,
       metadata,
       request: this.effectiveRequest,
@@ -1708,6 +1782,7 @@ class TextEngine<
       approvals: adapterApprovals,
       ...(combinedSchema ? { outputSchema: combinedSchema } : {}),
     })) {
+      const raw = this.withCallMetadata(adapterChunk, this.currentCallMetadata)
       if (this.isCancelled()) {
         break
       }
@@ -1885,7 +1960,7 @@ class TextEngine<
         this.handleRunErrorEvent(chunk)
         break
       case 'STEP_STARTED':
-        this.handleStepStartedEvent()
+        this.handleStepStartedEvent(chunk)
         break
       case 'STEP_FINISHED':
         this.handleStepFinishedEvent(chunk)
@@ -1899,8 +1974,10 @@ class TextEngine<
         this.handleReasoningEncryptedValueEvent(chunk)
         break
 
-      case 'REASONING_START':
       case 'REASONING_MESSAGE_START':
+        this.handleReasoningMessageStartEvent(chunk)
+        break
+      case 'REASONING_START':
       case 'REASONING_MESSAGE_END':
       case 'REASONING_END':
         // No special handling needed
@@ -1911,6 +1988,42 @@ class TextEngine<
         // - no special handling needed in chat activity
         break
     }
+  }
+
+  private withCallMetadata(
+    chunk: AdapterYieldChunk,
+    metadata: TanStackMessageMetadata,
+  ) {
+    if ('subagentRunId' in chunk && typeof chunk.subagentRunId === 'string')
+      return chunk
+    const incoming = tanstackMetadata(chunk)
+    if (incoming?.source !== undefined) metadata.source = incoming.source
+    if (incoming?.stopReason !== undefined)
+      metadata.stopReason = incoming.stopReason
+    if (
+      chunk.type === EventType.RUN_STARTED ||
+      chunk.type === EventType.RUN_FINISHED
+    ) {
+      metadata.runId = chunk.runId
+    }
+    if (chunk.type === EventType.RUN_FINISHED) {
+      const model = chunk.model ?? incoming?.model
+      const responseId = chunk.responseId ?? incoming?.responseId
+      if (model !== undefined) metadata.model = model
+      if (responseId !== undefined) metadata.responseId = responseId
+    }
+    if (chunk.type === EventType.RUN_ERROR) {
+      metadata.stopReason ??= 'error'
+    }
+    const merged = withTanstackMetadata(chunk, {
+      ...metadata,
+      ...(incoming ?? {}),
+      ...(metadata.source !== undefined ? { source: metadata.source } : {}),
+      ...(metadata.stopReason !== undefined
+        ? { stopReason: metadata.stopReason }
+        : {}),
+    })
+    return { ...chunk, metadata: merged.metadata }
   }
 
   // ===========================
@@ -2010,6 +2123,24 @@ class TextEngine<
   private handleToolCallEndEvent(chunk: ToolCallEndEvent): void {
     this.toolCallManager.completeToolCall(chunk)
     const end = chunk as AdapterYieldChunk
+    const call = this.toolCallManager
+      .getToolCalls()
+      .find((candidate) => candidate.id === chunk.toolCallId)
+    if (call) {
+      end.args = call.function.arguments
+      end.metadata = withTanstackMetadata(end, {
+        args: call.function.arguments,
+      }).metadata
+      try {
+        const projection: unknown = JSON.parse(call.function.arguments)
+        if (isToolInputJsonLossless(projection)) end.input = projection
+        else delete end.input
+      } catch {
+        delete end.input
+      }
+      const metadata = tanstackMetadata(end)
+      if (metadata) delete metadata.input
+    }
     const state = end.state ?? tanstackMetadata(end)?.state
     if (state !== 'output-error' || end.result === undefined) return
     this.handleToolCallResultEvent({
@@ -2080,67 +2211,99 @@ class TextEngine<
   }
 
   private finalizeCurrentThinkingStep(): void {
-    if (this.currentThinkingContent || this.currentThinkingSignature) {
+    this.accumulatedThinking = []
+    for (const block of this.thinkingBlocks.values()) {
+      block.part.index = -1
+      if (!block.content && !block.signature) continue
+      block.part.index = this.accumulatedThinking.length
       this.accumulatedThinking.push({
-        content: this.currentThinkingContent,
-        ...(this.currentThinkingSignature && {
-          signature: this.currentThinkingSignature,
-        }),
-        ...(this.currentThinkingRedacted && { redacted: true }),
+        content: block.redacted ? '' : block.content,
+        ...(block.signature && { signature: block.signature }),
+        ...(block.redacted && { redacted: true }),
       })
-      if (this.turnParts) {
-        const placeholder = [...this.turnParts]
-          .reverse()
-          .find(
-            (part): part is Extract<TurnPart, { type: 'thinking' }> =>
-              part.type === 'thinking' && part.index === -1,
-          )
-        const index = this.accumulatedThinking.length - 1
-        if (placeholder) {
-          placeholder.index = index
-        } else {
-          this.turnParts.push({ type: 'thinking', index })
-        }
+    }
+    if (this.turnParts)
+      this.turnParts = this.turnParts.filter(
+        (part) => part.type !== 'thinking' || part.index >= 0,
+      )
+  }
+
+  private thinkingBlock(id?: string) {
+    const key =
+      (id && this.reasoningStepAliases.get(id)) ??
+      (id && this.thinkingBlocks.has(id) ? id : undefined) ??
+      this.currentThinkingStepId ??
+      id ??
+      this.createId('thinking')
+    let block = this.thinkingBlocks.get(key)
+    if (!block) {
+      const part: Extract<TurnPart, { type: 'thinking' }> = {
+        type: 'thinking',
+        index: -1,
       }
-      this.currentThinkingContent = ''
-      this.currentThinkingSignature = ''
-      this.currentThinkingRedacted = false
+      block = {
+        content: '',
+        signature: '',
+        redacted: isRedactedThinkingId(key),
+        part,
+      }
+      this.thinkingBlocks.set(key, block)
+      this.turnParts?.push(part)
+    }
+    this.currentThinkingStepId = key
+    if (id && (id === key || this.pendingReasoningMessageId === id))
+      this.reasoningStepAliases.set(id, key)
+    return block
+  }
+
+  private handleReasoningMessageStartEvent(
+    chunk: Extract<AdapterYieldChunk, { type: 'REASONING_MESSAGE_START' }>,
+  ): void {
+    if (typeof chunk.messageId !== 'string') return
+    const known = this.reasoningStepAliases.get(chunk.messageId)
+    if (known) {
+      this.currentThinkingStepId = known
+      if (this.pendingThinkingStepId === known)
+        this.pendingThinkingStepId = undefined
+      return
+    }
+    if (this.pendingThinkingStepId) {
+      this.reasoningStepAliases.set(chunk.messageId, this.pendingThinkingStepId)
+      this.currentThinkingStepId = this.pendingThinkingStepId
+      this.pendingThinkingStepId = undefined
+    } else {
+      this.pendingReasoningMessageId = chunk.messageId
+      this.currentThinkingStepId = undefined
     }
   }
 
-  /**
-   * Record where the current thinking step sits among this turn's parts. A
-   * step is finalized only when the next step starts (or the turn ends), by
-   * which time later tool calls have already arrived, so the position has to
-   * be noted when the step's first content or signature shows up.
-   */
-  private noteThinkingStepPosition(): void {
-    if (
-      this.turnParts &&
-      this.currentThinkingContent === '' &&
-      this.currentThinkingSignature === ''
-    ) {
-      this.turnParts.push({ type: 'thinking', index: -1 })
-    }
+  private handleStepStartedEvent(
+    chunk: Extract<AdapterYieldChunk, { type: 'STEP_STARTED' }>,
+  ): void {
+    const id = chunk.stepName || chunk.stepId || this.createId('thinking')
+    this.currentThinkingStepId = id
+    this.reasoningStepAliases.set(id, id)
+    if (chunk.stepId) this.reasoningStepAliases.set(chunk.stepId, id)
+    if (this.pendingReasoningMessageId) {
+      this.reasoningStepAliases.set(this.pendingReasoningMessageId, id)
+      this.pendingReasoningMessageId = undefined
+    } else this.pendingThinkingStepId = id
+    this.thinkingBlock(id)
   }
 
-  private handleStepStartedEvent(): void {
-    this.finalizeCurrentThinkingStep()
-  }
-
-  private handleStepFinishedEvent(chunk: AdapterYieldChunk): void {
-    if (typeof chunk.signature === 'string' && chunk.signature !== '') {
-      this.noteThinkingStepPosition()
-      this.currentThinkingSignature = chunk.signature
-      this.currentThinkingRedacted = isRedactedThinkingId(chunk.stepId)
-    }
+  private handleStepFinishedEvent(
+    chunk: Extract<AdapterYieldChunk, { type: 'STEP_FINISHED' }>,
+  ): void {
+    if (typeof chunk.signature !== 'string' || chunk.signature === '') return
+    const block = this.thinkingBlock(chunk.stepId ?? chunk.stepName)
+    if (!block.redacted) block.signature = chunk.signature
   }
 
   private handleReasoningMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
   ): void {
-    this.noteThinkingStepPosition()
-    this.currentThinkingContent += chunk.delta
+    const block = this.thinkingBlock(chunk.messageId)
+    if (!block.redacted) block.content += chunk.delta
   }
 
   private handleReasoningEncryptedValueEvent(
@@ -2150,19 +2313,26 @@ class TextEngine<
       const call = this.messages
         .flatMap((message) => message.toolCalls ?? [])
         .find((toolCall) => toolCall.id === chunk.entityId)
-      if (call) {
+      if (call)
         call.metadata = {
           ...(call.metadata != null && typeof call.metadata === 'object'
             ? call.metadata
             : {}),
           thoughtSignature: chunk.encryptedValue,
         }
-      }
       return
     }
-    this.noteThinkingStepPosition()
-    this.currentThinkingSignature = chunk.encryptedValue
-    this.currentThinkingRedacted = isRedactedThinkingId(chunk.entityId)
+    const extra = chunk as AdapterYieldChunk
+    const redacted =
+      isRedactedThinkingId(extra.stepId) || isRedactedThinkingId(chunk.entityId)
+    const block = this.thinkingBlock(chunk.entityId)
+    if (block.redacted && !redacted) return
+    if (redacted) {
+      block.redacted = true
+      block.content = ''
+      block.signature = ''
+    }
+    block.signature = chunk.encryptedValue
   }
 
   /**
@@ -2304,7 +2474,19 @@ class TextEngine<
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
+    const rawEdits = this.captureApprovedArgumentEdits(pendingToolCalls)
     const executionResult = yield* this.drainToolCallGenerator(generator)
+    this.retainApprovedArgumentEdits(
+      [
+        ...executionResult.results
+          .filter((entry) => entry.state !== 'output-error')
+          .map((entry) => entry.toolCallId),
+        ...executionResult.needsClientExecution.map(
+          (entry) => entry.toolCallId,
+        ),
+      ],
+      rawEdits,
+    )
 
     // Check if middleware aborted during pending tool execution
     if (this.isMiddlewareAborted()) {
@@ -2493,7 +2675,19 @@ class TextEngine<
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
+    const rawEdits = this.captureApprovedArgumentEdits(toolCalls)
     const executionResult = yield* this.drainToolCallGenerator(generator)
+    this.retainApprovedArgumentEdits(
+      [
+        ...executionResult.results
+          .filter((entry) => entry.state !== 'output-error')
+          .map((entry) => entry.toolCallId),
+        ...executionResult.needsClientExecution.map(
+          (entry) => entry.toolCallId,
+        ),
+      ],
+      rawEdits,
+    )
 
     this.middlewareCtx.phase = 'afterTools'
 
@@ -2731,6 +2925,7 @@ class TextEngine<
       return {
         role: 'assistant',
         content: segment.text || null,
+        metadata: { tanstack: { ...this.currentCallMetadata } },
         ...(segmentCalls.length > 0 && { toolCalls: segmentCalls }),
         id:
           id === undefined
@@ -2789,6 +2984,7 @@ class TextEngine<
         {
           role: 'assistant' as const,
           content: this.accumulatedContent || null,
+          metadata: { tanstack: { ...this.currentCallMetadata } },
           toolCalls,
           id: this.currentMessageId ?? undefined,
           createdAt: this.currentMessageCreatedAt ?? undefined,
@@ -2853,7 +3049,12 @@ class TextEngine<
       const existing = messages[existingStructuredIndex]
       if (existing) {
         messages[existingStructuredIndex] = {
-          ...existing,
+          ...withTanstackMetadata(
+            existing,
+            this.finalStructuredOutput?.nativeCombined
+              ? this.currentCallMetadata
+              : this.structuredCallMetadata,
+          ),
           content: raw || existing.content,
           structuredOutput,
         }
@@ -2863,6 +3064,13 @@ class TextEngine<
         messages.push({
           role: 'assistant',
           content: this.accumulatedContent || raw || null,
+          metadata: {
+            tanstack: {
+              ...(nativeCombined
+                ? this.currentCallMetadata
+                : this.structuredCallMetadata),
+            },
+          },
           id: structuredId,
           createdAt:
             this.currentMessageCreatedAt ??
@@ -2888,6 +3096,7 @@ class TextEngine<
             {
               role: 'assistant',
               content: this.accumulatedContent || null,
+              metadata: { tanstack: { ...this.currentCallMetadata } },
               id,
               createdAt,
               ...(thinking ? { thinking } : {}),
@@ -2901,6 +3110,7 @@ class TextEngine<
         messages.push({
           role: 'assistant',
           content: raw || null,
+          metadata: { tanstack: { ...this.structuredCallMetadata } },
           id: structuredId,
           createdAt: this.structuredOutputMessageCreatedAt ?? new Date(),
           structuredOutput,
@@ -3431,7 +3641,15 @@ class TextEngine<
         this.addAssistantTextMessageForInterrupt()
       }
     }
-    const actionable = this.getBoundaryActionableToolRequests(toolCalls)
+    const actionable = yield* this.runWhileYielding(
+      this.getBoundaryActionableToolRequests(toolCalls),
+    )
+    for (const chunk of this.buildToolResultChunks(
+      actionable.results,
+      finishEvent,
+    )) {
+      yield* this.pipeThroughMiddleware(chunk)
+    }
     yield* this.emitActionableInterruptBoundary(
       finishEvent,
       actionable.approvals,
@@ -3472,51 +3690,79 @@ class TextEngine<
     )
   }
 
-  private getBoundaryActionableToolRequests(
+  private async getBoundaryActionableToolRequests(
     toolCalls: ReadonlyArray<ToolCall>,
-  ): {
+  ): Promise<{
     approvals: Array<ApprovalRequest>
     clientRequests: Array<ClientToolRequest>
-  } {
+    results: Array<ToolResult>
+  }> {
     const { approvals, clientToolResults } = this.collectClientState()
-    const approvalRequests: Array<ApprovalRequest> = []
-    const clientRequests: Array<ClientToolRequest> = []
-    for (const toolCall of toolCalls) {
-      // Provider-executed calls are complete; never surface them as client work.
-      if (isProviderExecutedToolCall(toolCall)) continue
+    const pendingCalls = toolCalls.filter((toolCall) => {
+      if (isProviderExecutedToolCall(toolCall)) return false
       const tool = this.resolveExecutableTools([toolCall]).find(
         (candidate) => candidate.name === toolCall.function.name,
-      ) as RuntimeToolWithApproval | undefined
-      if (!tool) continue
-      let input: unknown = {}
-      try {
-        const parsed = JSON.parse(toolCall.function.arguments.trim() || '{}')
-        input = parsed && typeof parsed === 'object' ? parsed : {}
-      } catch {
-        input = {}
-      }
-      const approvalId = `approval_${toolCall.id}`
-      if (tool.needsApproval && !approvals.has(approvalId)) {
-        approvalRequests.push({
-          toolCallId: toolCall.id,
-          toolName: toolCall.function.name,
-          input,
-          approvalId,
-        })
-      } else if (
-        !tool.execute &&
-        !clientToolResults.has(toolCall.id) &&
-        !this.resumeClientToolErrors.has(toolCall.id) &&
-        !this.resumeCancelledToolCallIds.has(toolCall.id)
-      ) {
-        clientRequests.push({
-          toolCallId: toolCall.id,
-          toolName: toolCall.function.name,
-          input,
-        })
+      )
+      if (
+        !tool ||
+        clientToolResults.has(toolCall.id) ||
+        this.resumeClientToolErrors.has(toolCall.id) ||
+        this.resumeCancelledToolCallIds.has(toolCall.id)
+      )
+        return false
+      if (!tool.execute) return true
+      const resolution =
+        approvals.get(toolCall.id) ?? approvals.get(`approval_${toolCall.id}`)
+      return (
+        tool.needsApproval === true &&
+        (resolution === undefined ||
+          resolution === false ||
+          (typeof resolution === 'object' && !resolution.approved))
+      )
+    })
+    // Reuse the final execution boundary for previews and client descriptors.
+    // Approved server tools stay in the ordinary execution phase.
+    const generator = executeToolCalls(
+      pendingCalls,
+      this.resolveExecutableTools(pendingCalls),
+      approvals,
+      clientToolResults,
+      undefined,
+      {
+        onBeforeToolCall: (toolCall, tool, args) =>
+          this.middlewareRunner.runOnBeforeToolCall(this.middlewareCtx, {
+            toolCall,
+            tool,
+            args,
+            toolName: toolCall.function.name,
+            toolCallId: toolCall.id,
+          }),
+        onAfterToolCall: (info) =>
+          this.middlewareRunner.runOnAfterToolCall(this.middlewareCtx, info),
+      },
+      this.middlewareCtx.context,
+      this.toolAbortSignal,
+    )
+    const rawEdits = this.captureApprovedArgumentEdits(pendingCalls)
+    while (true) {
+      const next = await generator.next()
+      if (next.done) {
+        this.retainApprovedArgumentEdits(
+          [
+            ...next.value.results
+              .filter((entry) => entry.state !== 'output-error')
+              .map((entry) => entry.toolCallId),
+            ...next.value.needsClientExecution.map((entry) => entry.toolCallId),
+          ],
+          rawEdits,
+        )
+        return {
+          approvals: next.value.needsApproval,
+          clientRequests: next.value.needsClientExecution,
+          results: next.value.results,
+        }
       }
     }
-    return { approvals: approvalRequests, clientRequests }
   }
 
   private completeEphemeralInterruptBindings(chunk: StreamChunk): StreamChunk {
@@ -3563,6 +3809,7 @@ class TextEngine<
     results: Array<ToolResult>,
     _finishEvent: RunFinishedEvent,
     argsMap?: Map<string, string>,
+    replaceExisting = false,
   ): Array<AdapterYieldChunk> {
     const chunks: Array<AdapterYieldChunk> = []
 
@@ -3644,18 +3891,19 @@ class TextEngine<
         }
       })
       const isDeniedResult = result.outcome === 'denied'
-      const existingToolResultIdx = isDeniedResult
-        ? this.messages.findIndex(
-            (message) =>
-              message.role === 'tool' &&
-              message.toolCallId === result.toolCallId,
-          )
-        : -1
+      const existingToolResultIdx =
+        isDeniedResult || replaceExisting
+          ? this.messages.findIndex(
+              (message) =>
+                message.role === 'tool' &&
+                message.toolCallId === result.toolCallId,
+            )
+          : -1
       const resultMessageIdx =
         existingToolResultIdx >= 0 ? existingToolResultIdx : placeholderIdx
 
-      // Only a denied result keeps the old message's fields. A replaced
-      // pendingExecution placeholder must not leak into the real result.
+      // Denied and checked resumed results keep the existing row's metadata.
+      // A pendingExecution placeholder must not leak into the real result.
       const existingToolMessage =
         existingToolResultIdx >= 0
           ? this.messages[existingToolResultIdx]
@@ -3741,8 +3989,40 @@ class TextEngine<
 
     const pending: Array<ToolCall> = []
 
+    // A later user or assistant closes the previous execution batch.
+    // Old orphan calls remain in history for request-local replay cleanup.
+    const activeCallIds = new Set<string>()
+    let assistantId: string | undefined
+    for (const message of this.messages) {
+      if (message.role === 'tool') continue
+      const segmentSuffix =
+        assistantId === undefined || message.id === undefined
+          ? undefined
+          : message.id.slice(assistantId.length)
+      const sameAssistant =
+        message.role === 'assistant' &&
+        assistantId !== undefined &&
+        message.id?.startsWith(assistantId) &&
+        /^-segment-[1-9]\d*$/.test(segmentSuffix ?? '')
+      if (!sameAssistant) {
+        activeCallIds.clear()
+        assistantId = message.role === 'assistant' ? message.id : undefined
+      }
+      const stopReason = tanstackMetadata(message)?.stopReason
+      if (
+        message.role === 'assistant' &&
+        stopReason !== 'error' &&
+        stopReason !== 'aborted'
+      ) {
+        for (const call of message.toolCalls ?? []) activeCallIds.add(call.id)
+      }
+    }
+    const { approvals } = this.collectClientState()
+
     for (const message of this.messages) {
       if (message.role === 'assistant' && message.toolCalls) {
+        const stopReason = tanstackMetadata(message)?.stopReason
+        if (stopReason === 'error' || stopReason === 'aborted') continue
         for (const toolCall of message.toolCalls) {
           // Provider-executed tool calls (e.g. Anthropic `web_search`) were
           // already run by the provider; they carry no client result, so they
@@ -3751,7 +4031,16 @@ class TextEngine<
           if (isProviderExecutedToolCall(toolCall)) {
             continue
           }
-          if (!completedToolIds.has(toolCall.id)) {
+          const explicitlyResumed =
+            approvals.has(toolCall.id) ||
+            approvals.has(`approval_${toolCall.id}`) ||
+            this.resumeClientToolResults.has(toolCall.id) ||
+            this.resumeClientToolErrors.has(toolCall.id) ||
+            this.resumeCancelledToolCallIds.has(toolCall.id)
+          if (
+            !completedToolIds.has(toolCall.id) &&
+            (activeCallIds.has(toolCall.id) || explicitlyResumed)
+          ) {
             pending.push(toolCall)
           }
         }
@@ -3807,6 +4096,76 @@ class TextEngine<
       }
     }
     return pending
+  }
+
+  /** Check resumed client calls whose UI result already makes them look complete. */
+  private async *checkCompletedResumedClientTools(): AsyncGenerator<
+    StreamChunk,
+    void,
+    void
+  > {
+    const pendingIds = new Set(
+      this.getPendingToolCallsFromMessages().map((call) => call.id),
+    )
+    const completedCalls: Array<ToolCall> = []
+    const resumedIds = new Set([
+      ...this.resumeClientToolResults.keys(),
+      ...this.resumeClientToolErrors.keys(),
+    ])
+    for (const id of resumedIds) {
+      if (pendingIds.has(id)) continue
+      const call = this.findToolCallInMessages(id)
+      if (!call) continue
+      const tool = this.tools.find(
+        (candidate) => candidate.name === call.function.name,
+      )
+      if (tool && !tool.execute && !isProviderExecutedToolCall(call))
+        completedCalls.push(call)
+    }
+    if (completedCalls.length === 0) return
+    const { approvals, clientToolResults } = this.collectClientState()
+    const rawEdits = this.captureApprovedArgumentEdits(completedCalls)
+    const result = yield* this.drainToolCallGenerator(
+      executeToolCalls(
+        completedCalls,
+        this.resolveExecutableTools(completedCalls),
+        approvals,
+        clientToolResults,
+        undefined,
+        {
+          onBeforeToolCall: (toolCall, tool, args) =>
+            this.middlewareRunner.runOnBeforeToolCall(this.middlewareCtx, {
+              toolCall,
+              tool,
+              args,
+              toolName: toolCall.function.name,
+              toolCallId: toolCall.id,
+            }),
+          onAfterToolCall: (info) =>
+            this.middlewareRunner.runOnAfterToolCall(this.middlewareCtx, info),
+        },
+        this.middlewareCtx.context,
+        this.toolAbortSignal,
+        {
+          clientToolErrors: this.resumeClientToolErrors,
+          cancelledToolCallIds: this.resumeCancelledToolCallIds,
+        },
+      ),
+    )
+    this.retainApprovedArgumentEdits(
+      result.results
+        .filter((entry) => entry.state !== 'output-error')
+        .map((entry) => entry.toolCallId),
+      rawEdits,
+    )
+    for (const chunk of this.buildToolResultChunks(
+      result.results,
+      this.createSyntheticFinishedEvent(),
+      undefined,
+      true,
+    )) {
+      yield* this.pipeThroughMiddleware(chunk)
+    }
   }
 
   private createSyntheticFinishedEvent(
@@ -4042,7 +4401,7 @@ class TextEngine<
     const structuredCallOptions = {
       chatOptions: {
         model: this.params.model,
-        messages: this.providerMessages,
+        messages: transformMessagesForReplay(this.providerMessages).messages,
         metadata: postOnConfig.metadata,
         modelOptions: postOnConfig.modelOptions,
         ...(postOnConfig.reasoning
@@ -4064,6 +4423,13 @@ class TextEngine<
     // attach it as `finalizationError.cause` (the RUN_ERROR wire shape only
     // carries `message` and `code`, losing stack/cause/provider properties).
     let fallbackAdapterError: unknown = undefined
+    this.structuredCallMetadata = {
+      source: {
+        provider: this.adapter.provider ?? this.adapter.name,
+        api: this.adapter.api ?? this.adapter.kind,
+        model: structuredCallOptions.chatOptions.model,
+      },
+    }
     const providerStream = this.adapter.structuredOutputStream
       ? this.adapter.structuredOutputStream(structuredCallOptions)
       : fallbackStructuredOutputStream(
@@ -4137,7 +4503,7 @@ class TextEngine<
       }
 
       {
-        const chunk = raw
+        const chunk = this.withCallMetadata(raw, this.structuredCallMetadata)
         // Detect adapter-emitted structured-output.start so we don't duplicate
         if (
           !startEmitted &&
@@ -4619,10 +4985,14 @@ class TextEngine<
       toolsByCallId.set(toolCall.id, tool)
       let input: unknown = {}
       try {
-        const parsed = JSON.parse(toolCall.function.arguments.trim() || '{}')
-        input = parsed && typeof parsed === 'object' ? parsed : {}
+        input = JSON.parse(
+          toolCall.function.arguments.trim() ||
+            (tool.inputSchema === undefined ? '{}' : ''),
+        )
       } catch {
-        input = {}
+        throw new Error(
+          `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`,
+        )
       }
       toolInputs.set(toolCall.id, input)
       if (
@@ -4643,7 +5013,7 @@ class TextEngine<
         approvalRequests.push({
           toolCallId: toolCall.id,
           toolName: toolCall.function.name,
-          input: toolInputs.get(toolCall.id) ?? {},
+          input: toolInputs.get(toolCall.id),
           approvalId: `approval_${toolCall.id}`,
         })
       }
@@ -4659,7 +5029,7 @@ class TextEngine<
         clientRequests.push({
           toolCallId: toolCall.id,
           toolName: toolCall.function.name,
-          input: toolInputs.get(toolCall.id) ?? {},
+          input: toolInputs.get(toolCall.id),
         })
       }
     }
@@ -5015,7 +5385,10 @@ class TextEngine<
   private applyMiddlewareConfig(config: ChatMiddlewareConfig): void {
     this.applyResumeToolState(config.resumeToolState)
     this.messages = config.messages
-    this.providerMessages = config.providerMessages ?? config.messages
+    this.providerMessages =
+      config.providerMessages === undefined
+        ? this.messages
+        : config.providerMessages
     this.systemPrompts = config.systemPrompts
     assertUniqueToolNames(config.tools)
     this.tools = config.tools
@@ -5033,6 +5406,150 @@ class TextEngine<
     this.middlewareCtx.hasTools = this.tools.length > 0
     this.middlewareCtx.toolNames = this.tools.map((t) => t.name)
     this.middlewareCtx.modelOptions = config.modelOptions
+  }
+
+  /** Copy only lossless JSON raw edits. Opaque execution inputs stay untouched. */
+  private captureApprovedArgumentEdits(
+    calls: ReadonlyArray<ToolCall>,
+  ): Map<ToolCall, unknown> {
+    const unsupported = Symbol('unsupported')
+    const copy = (value: unknown, ancestors = new Set<object>()): unknown => {
+      if (
+        value === null ||
+        typeof value === 'string' ||
+        typeof value === 'boolean'
+      )
+        return value
+      if (typeof value === 'number')
+        return Number.isFinite(value) && !Object.is(value, -0)
+          ? value
+          : unsupported
+      if (typeof value !== 'object' || ancestors.has(value)) return unsupported
+      const array = Array.isArray(value)
+      const prototype = Object.getPrototypeOf(value)
+      if (
+        array
+          ? prototype !== Array.prototype
+          : prototype !== Object.prototype && prototype !== null
+      )
+        return unsupported
+      const properties = Object.getOwnPropertyDescriptors(value)
+      const keys = Reflect.ownKeys(properties)
+      if (array && keys.length !== properties.length?.value + 1)
+        return unsupported
+      ancestors.add(value)
+      const result: Record<string, unknown> | Array<unknown> = array
+        ? []
+        : Object.create(null)
+      for (const key of keys) {
+        if (array && key === 'length') continue
+        const property = typeof key === 'string' ? properties[key] : undefined
+        if (
+          !property ||
+          !property.enumerable ||
+          !('value' in property) ||
+          (array && !/^(0|[1-9]\d*)$/.test(String(key)))
+        )
+          return unsupported
+        const copied = copy(property.value, ancestors)
+        if (copied === unsupported) return unsupported
+        Object.defineProperty(result, key, {
+          value: copied,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        })
+      }
+      ancestors.delete(value)
+      return result
+    }
+    const snapshots = new Map<ToolCall, unknown>()
+    for (const call of calls) {
+      const resolution =
+        this.resumeApprovals.get(call.id) ??
+        this.resumeApprovals.get(`approval_${call.id}`) ??
+        this.initialApprovals.get(call.id) ??
+        this.initialApprovals.get(`approval_${call.id}`)
+      if (
+        typeof resolution !== 'object' ||
+        !resolution.approved ||
+        resolution.editedArgs === undefined
+      )
+        continue
+      try {
+        const snapshot = copy(resolution.editedArgs)
+        if (snapshot !== unsupported) {
+          const historyCalls = this.messages.flatMap((message) =>
+            message.role === 'assistant' ? (message.toolCalls ?? []) : [],
+          )
+          const selected = historyCalls.includes(call)
+            ? call
+            : historyCalls
+                .slice()
+                .reverse()
+                .find(
+                  (candidate) =>
+                    candidate.id === call.id &&
+                    candidate.function.name === call.function.name &&
+                    candidate.function.arguments === call.function.arguments,
+                )
+          if (selected) snapshots.set(selected, snapshot)
+        }
+      } catch {
+        // An opaque value can execute without changing its JSON history.
+      }
+    }
+    return snapshots
+  }
+
+  /** Keep checked raw edits in the selected history occurrence. */
+  private retainApprovedArgumentEdits(
+    checkedIds: Array<string>,
+    snapshots: Map<ToolCall, unknown>,
+  ): void {
+    const selectedIds = new Set(checkedIds)
+    const historyCalls = this.messages.flatMap((message) =>
+      message.role === 'assistant' ? (message.toolCalls ?? []) : [],
+    )
+    const update = (messages: Array<ModelMessage>): Array<ModelMessage> => {
+      const selected = new Map<ToolCall, unknown>()
+      const calls = messages.flatMap((message) =>
+        message.role === 'assistant' ? (message.toolCalls ?? []) : [],
+      )
+      for (const [call, snapshot] of snapshots) {
+        if (!selectedIds.has(call.id)) continue
+        if (calls.includes(call)) {
+          selected.set(call, snapshot)
+          continue
+        }
+        const sameCall = (candidate: ToolCall) =>
+          candidate.id === call.id &&
+          candidate.function.name === call.function.name &&
+          candidate.function.arguments === call.function.arguments
+        const occurrence = historyCalls.filter(sameCall).indexOf(call)
+        const equivalent = calls.filter(sameCall)[occurrence]
+        if (equivalent) selected.set(equivalent, snapshot)
+      }
+      return messages.map((message) => {
+        if (message.role !== 'assistant' || !message.toolCalls) return message
+        let changed = false
+        const toolCalls = message.toolCalls.map((call) => {
+          if (!selected.has(call)) return call
+          const argumentsJson = JSON.stringify(selected.get(call))
+          if (argumentsJson === undefined) return call
+          if (argumentsJson === call.function.arguments) return call
+          changed = true
+          return {
+            ...call,
+            function: { ...call.function, arguments: argumentsJson },
+          }
+        })
+        return changed ? { ...message, toolCalls } : message
+      })
+    }
+    this.messages = update(this.messages)
+    this.providerMessages = update(this.providerMessages)
+    this.middlewareCtx.messages = this.messages
   }
 
   private setToolPhase(phase: ToolPhaseResult): void {
@@ -5865,6 +6382,47 @@ async function* runRoutedSubagents(
 
     const strategy = bag.strategy ?? 'exclusive'
     if (strategy === 'handoff') {
+      const markedHosts = turnMessages.filter((message) => {
+        const metadata = message.metadata
+        if (
+          message.role !== 'assistant' ||
+          metadata === null ||
+          typeof metadata !== 'object' ||
+          !Object.hasOwn(metadata, 'tanstack:subagentHost')
+        )
+          return false
+        const marker = Reflect.get(metadata, 'tanstack:subagentHost')
+        if (
+          marker === null ||
+          typeof marker !== 'object' ||
+          Array.isArray(marker) ||
+          Object.keys(marker).length !== 2 ||
+          !Object.hasOwn(marker, 'version') ||
+          !Object.hasOwn(marker, 'runId')
+        )
+          return false
+        const tanstack = Reflect.get(metadata, 'tanstack')
+        const genericRunId =
+          tanstack !== null && typeof tanstack === 'object'
+            ? Reflect.get(tanstack, 'runId')
+            : undefined
+        return (
+          Reflect.get(marker, 'version') === 1 &&
+          Reflect.get(marker, 'runId') === runId &&
+          (genericRunId === undefined || genericRunId === runId)
+        )
+      })
+      const existingHost = markedHosts.length === 1 ? markedHosts[0] : undefined
+      const hostBaseId = subagentHostMessageId(runId)
+      let hostId = existingHost?.id ?? hostBaseId
+      for (
+        let attempt = 1;
+        turnMessages.some(
+          (message) => message !== existingHost && message.id === hostId,
+        );
+        attempt++
+      )
+        hostId = hostBaseId + ':' + attempt
       const childText = stepTexts.join('\n\n')
       // The children are done. Commit their answers and settle their records
       // before main runs. Main's own persistence takes over from here.
@@ -5878,14 +6436,18 @@ async function* runRoutedSubagents(
             subagents: undefined,
             ...(turn && { resume: turn.rest }),
             messages: [
-              ...turnMessages,
+              ...turnMessages.filter((message) => message !== existingHost),
               {
                 // Same id as the recorder's parent row, so the stored thread
                 // keeps one host message for the cards.
-                id: subagentHostMessageId(runId),
+                id: hostId,
                 role: 'assistant',
                 content: childText || 'Subagent finished.',
-                metadata: { tanstack: { runId } },
+                metadata: {
+                  ...existingHost?.metadata,
+                  tanstack: { ...existingHost?.metadata?.tanstack, runId },
+                  'tanstack:subagentHost': { version: 1, runId },
+                },
               },
             ],
           },
@@ -6298,7 +6860,10 @@ async function* fallbackStructuredOutputStream(
     type: EventType.RUN_FINISHED,
     runId,
     threadId,
-    model,
+    model: result.model ?? model,
+    ...(result.responseId !== undefined
+      ? { responseId: result.responseId }
+      : {}),
     timestamp: Date.now(),
     finishReason: 'stop',
     // Forward adapter-reported token usage so consumers reading

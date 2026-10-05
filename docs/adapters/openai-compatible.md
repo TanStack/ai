@@ -63,7 +63,24 @@ const stream = chat({
 });
 ```
 
-`deepseek("deepseek-reasoner")` is valid; `deepseek("gpt-4o")` is a type error — only declared models are accepted.
+`deepseek("deepseek-reasoner")` is valid. `deepseek("gpt-5.5")` is a type error. Only declared models are accepted.
+
+## Replay and stream errors
+
+Your provider can receive history from a different model or API. The configured `name` identifies the source provider. Chat Completions uses the `openai-completions` API identity. A compatible Responses adapter uses `openai-responses`.
+
+Keep the assistant's `metadata.tanstack.source` when you save history. The target adapter removes foreign signatures and remaps tool IDs together with their results. See [Keep saved history when you switch](../advanced/runtime-adapter-switching#keep-saved-history-when-you-switch).
+
+The Chat Completions adapter handles tool history and output as follows:
+
+- With tool history and no active tools, it sends `tools: []`.
+- Tool-result text stays in the tool message. Supported images follow in a user message.
+- Image-only results use `(see attached image)`. An empty result uses `(no tool output)`.
+- A text-only model receives an image-omission placeholder without the images.
+
+`delta.content` can be a string, `null`, or absent. An object or array produces `RUN_ERROR`. Unknown finish reasons also produce `RUN_ERROR` with `Provider finish_reason: <reason>`.
+
+Outgoing text removes lone UTF-16 surrogates. These are broken halves of a Unicode character. Valid pairs, such as emoji, stay intact.
 
 ## One-Shot Usage
 
@@ -179,7 +196,7 @@ import { openaiCompatible } from "@tanstack/ai-openai/compatible";
 const provider = openaiCompatible({
   baseURL: "https://my-resource.openai.azure.com/openai/v1",
   apiKey: process.env.AZURE_OPENAI_API_KEY!,
-  models: ["gpt-4o"],
+  models: ["gpt-5.5"],
   api: "responses", // default is "chat-completions"
 });
 ```
@@ -201,7 +218,7 @@ Any provider implementing the OpenAI Chat Completions API works. Common ones are
 | Cerebras | `https://api.cerebras.ai/v1` | `llama-3.3-70b` |
 | DeepInfra | `https://api.deepinfra.com/v1/openai` | `meta-llama/Llama-3.3-70B-Instruct` |
 | Perplexity | `https://api.perplexity.ai` | `sonar`, `sonar-pro` |
-| Requesty | `https://router.requesty.ai/v1` | `openai/gpt-4o-mini` |
+| Requesty | `https://router.requesty.ai/v1` | `openai/gpt-5.5` |
 | Mistral | `https://api.mistral.ai/v1` | `mistral-large-latest` |
 | Nebius | `https://api.studio.nebius.ai/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | Z.AI (GLM) | `https://api.z.ai/api/paas/v4` | `glm-4.6` |
@@ -272,22 +289,19 @@ const litellm = openaiCompatible({
 
 ## Azure OpenAI
 
-Azure uses a resource-scoped URL and a separate API-version. Use the `/openai/v1` endpoint with `defaultQuery` for the version and `defaultHeaders` for the `api-key` header:
+Use `azureOpenaiText` for Azure's Responses API. It configures the `api-key` header, endpoint, API version, and deployment mapping:
 
 ```typescript
-import { openaiCompatible } from "@tanstack/ai-openai/compatible";
+import { azureOpenaiText } from '@tanstack/ai-openai'
 
-const azure = openaiCompatible({
-  name: "azure",
-  baseURL: "https://YOUR_RESOURCE.openai.azure.com/openai/v1",
-  apiKey: process.env.AZURE_OPENAI_API_KEY!, // also sent as Bearer; Azure accepts the api-key header below
-  models: ["gpt-4o"], // your Azure deployment name
-  defaultQuery: { "api-version": "2026-01-01-preview" },
-  defaultHeaders: { "api-key": process.env.AZURE_OPENAI_API_KEY! },
-});
+const azure = azureOpenaiText('gpt-5.5', {
+  resourceName: 'my-resource',
+  apiKey: process.env.AZURE_OPENAI_API_KEY,
+  deploymentName: 'production-chat',
+})
 ```
 
-> Confirm the current `api-version` and endpoint shape in Azure's documentation — Azure's API surface evolves independently of OpenAI's.
+See [Azure OpenAI](./openai#azure-openai) for environment variables and configuration precedence.
 
 ## Example: With Tools
 

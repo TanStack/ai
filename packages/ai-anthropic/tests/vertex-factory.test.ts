@@ -50,6 +50,8 @@ describe('anthropicVertexText', () => {
 
     expect(adapter.name).toBe('anthropic')
     expect(adapter.model).toBe('claude-sonnet-5')
+    expect(adapter.api).toBe('anthropic-messages')
+    expect(adapter.provider).toBe('google-vertex')
     expect(mocks.constructorSpy).toHaveBeenCalledExactlyOnceWith({
       projectId: 'my-project',
       region: 'europe-west1',

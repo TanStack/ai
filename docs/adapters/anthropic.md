@@ -71,6 +71,59 @@ const config: Omit<AnthropicTextConfig, "apiKey"> = {
 const adapter = createAnthropicChat("claude-sonnet-4-6", process.env.ANTHROPIC_API_KEY!, config);
 ```
 
+## Bearer and OAuth tokens
+
+Use `authToken` for a Bearer token. The adapter sends `Authorization: Bearer` and omits `x-api-key`:
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+
+const stream = chat({
+  adapter: anthropicText('claude-sonnet-5-5', {
+    authToken: process.env.ANTHROPIC_AUTH_TOKEN,
+  }),
+  messages: [{ role: 'user', content: 'Hello!' }],
+})
+
+for await (const chunk of stream) {
+  if (chunk.type === 'TEXT_MESSAGE_CONTENT') console.log(chunk.delta)
+}
+```
+
+Without explicit credentials, the adapter reads the environment in this order:
+
+1. `ANTHROPIC_AUTH_TOKEN`.
+2. `ANTHROPIC_OAUTH_TOKEN`.
+3. `ANTHROPIC_API_KEY`.
+
+Explicit `authToken` or `apiKey` takes precedence over environment credentials. When both explicit values exist, `authToken` takes precedence.
+
+OAuth tokens containing `sk-ant-oat` are detected automatically. An environment `ANTHROPIC_OAUTH_TOKEN` also selects OAuth when `ANTHROPIC_AUTH_TOKEN` is absent. Set `oauth: true` to select OAuth explicitly.
+
+OAuth requests include the Claude Code identity system block, CLI identity headers, and the `claude-code-20250219` and `oauth-2025-04-20` betas. A Bearer token alone does not select OAuth. An injected SDK client owns its credentials. Adapter OAuth options still control the request identity.
+
+## Replay unsigned gateway thinking
+
+Some Anthropic-protocol gateways return readable thinking without a signature. Enable replay for those replies with `allowEmptySignature`:
+
+```typescript
+import { anthropicText } from '@tanstack/ai-anthropic'
+
+const gateway = anthropicText('claude-sonnet-5-5', {
+  baseURL: 'https://gateway.example.com',
+  apiKey: process.env.GATEWAY_API_KEY,
+  provider: 'my-anthropic-gateway',
+  allowEmptySignature: true,
+})
+
+console.log(gateway.provider)
+```
+
+`allowEmptySignature` defaults to `false`. It permits ordinary unsigned thinking for matching-source history. Redacted thinking still requires its provider data. Foreign history uses the normal replay rules.
+
+Set `provider` to identify the gateway separately from direct Anthropic. Source matching compares the provider, API, and requested model. See [Keep saved history when you switch](../advanced/runtime-adapter-switching#keep-saved-history-when-you-switch).
+
 ## Claude on Vertex
 
 Use `@tanstack/ai-anthropic/vertex` when Claude must run on Vertex AI. That

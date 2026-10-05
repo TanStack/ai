@@ -64,6 +64,51 @@ const collectChunks = async (stream: AsyncIterable<AdapterYieldChunk>) => {
 
 const testLogger = resolveDebugOption(false)
 
+describe('JSON keys in Interactions schemas', () => {
+  it('keeps nested own keys in SDK parameters while removing empty required arrays', async () => {
+    const raw =
+      '{"type":"object","__proto__":{"description":"root"},"properties":{"__proto__":{"type":"object","properties":{"constructor":{"type":"string"}},"required":[]},"items":{"type":"array","items":{"type":"object","properties":{"__proto__":{"type":"string"}},"required":[]}}},"required":[]}'
+    const inputSchema = JSON.parse(raw)
+    mocks.interactionsCreateSpy.mockResolvedValue(
+      mkStream([
+        {
+          event_type: 'interaction.created',
+          interaction: { id: 'own-keys', status: 'in_progress' },
+        },
+        {
+          event_type: 'interaction.completed',
+          interaction: { id: 'own-keys', status: 'completed' },
+        },
+      ]),
+    )
+    await collectChunks(
+      chat({
+        adapter: createAdapter(),
+        messages: [{ role: 'user', content: 'Go' }],
+        tools: [{ name: 'inspect', description: 'Inspect', inputSchema }],
+      }),
+    )
+    const parameters =
+      mocks.interactionsCreateSpy.mock.calls[0]?.[0].tools[0].parameters
+    expect(parameters).toBeDefined()
+    for (const object of [
+      parameters,
+      parameters.properties,
+      parameters.properties.items.items.properties,
+    ]) {
+      expect(Object.hasOwn(object, '__proto__')).toBe(true)
+      expect(
+        Object.getOwnPropertyDescriptor(object, '__proto__')?.enumerable,
+      ).toBe(true)
+      expect(Object.getPrototypeOf(object)).toBe(Object.prototype)
+    }
+    expect(parameters).not.toHaveProperty('required')
+    expect(parameters.properties['__proto__']).not.toHaveProperty('required')
+    expect(parameters.properties.items.items).not.toHaveProperty('required')
+    expect(JSON.stringify(inputSchema)).toBe(raw)
+  })
+})
+
 const fooJsonSchema = {
   type: 'object',
   properties: { foo: { type: 'string' } },
@@ -563,11 +608,8 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(endEvent.input).toEqual({ location: 'Berlin', unit: 'celsius' })
   })
 
-  it('preserves the last good args when the arguments stream truncates mid-fragment', async () => {
-    // If the stream ends after an incomplete fragment, the tool input must
-    // retain whatever was parsed so far rather than being reset to `{}` — a
-    // strict JSON.parse would throw on the partial buffer and lose the
-    // already-merged keys.
+  it('keeps malformed terminal arguments raw without a repaired execution input', async () => {
+    // Partial values can appear during streaming. They are not final input.
     mocks.interactionsCreateSpy.mockResolvedValue(
       mkStream([
         {
@@ -604,17 +646,18 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     const adapter = createAdapter()
     const chunks = await collectChunks(
-      chat({
-        adapter,
+      adapter.chatStream({
+        logger: resolveDebugOption(false),
+        model: adapter.model,
         messages: [{ role: 'user', content: 'Weather in London?' }],
         tools: [{ name: 'lookup_weather', description: 'Return the weather' }],
       }),
     )
 
-    // No parse-failure RUN_ERROR, and the completed key survives truncation.
     expect(chunks.find((c) => c.type === 'RUN_ERROR')).toBeUndefined()
-    const endEvent = chunks.find((c) => c.type === 'TOOL_CALL_END') as any
-    expect(endEvent.input).toEqual({ city: 'London' })
+    const endEvent = chunks.find((c) => c.type === 'TOOL_CALL_END')
+    expect(endEvent).toMatchObject({ args: '{"city":"London","unit":' })
+    expect(endEvent).not.toHaveProperty('input')
   })
 
   it('translates thought_summary deltas into REASONING events', async () => {

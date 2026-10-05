@@ -3,7 +3,47 @@ import {
   isStrictModeCompatible,
   makeStructuredOutputCompatible,
   makeStructuredOutputCompatibleWithMap,
+  stripUnsupportedFormats,
 } from '../src/utils/schema-converter'
+
+describe('JSON keys in strict schemas', () => {
+  it('keeps own schema keys through recursive format cleanup', () => {
+    const raw =
+      '{"type":"object","properties":{"__proto__":{"type":"string","format":"uri"},"constructor":{"type":"array","items":{"type":"object","properties":{"__proto__":{"type":"string","format":"uuid"}}}}}}'
+    const input = JSON.parse(raw)
+    const result = stripUnsupportedFormats(input)
+    expect(Object.hasOwn(result.properties, '__proto__')).toBe(true)
+    expect(result.properties['__proto__']).toEqual({ type: 'string' })
+    expect(
+      Object.hasOwn(
+        result.properties.constructor.items.properties,
+        '__proto__',
+      ),
+    ).toBe(true)
+    expect(Object.getPrototypeOf(result.properties)).toBe(Object.prototype)
+    expect(
+      Object.getOwnPropertyDescriptor(result.properties, '__proto__')
+        ?.enumerable,
+    ).toBe(true)
+    expect(JSON.stringify(input)).toBe(raw)
+  })
+  it('records optional own keys without changing the widening-map prototype', () => {
+    const raw =
+      '{"type":"object","properties":{"__proto__":{"type":"string"},"constructor":{"type":["string","null"]}},"required":[]}'
+    const input = JSON.parse(raw)
+    const result = makeStructuredOutputCompatibleWithMap(input, [])
+    expect(
+      Object.hasOwn(result.nullWideningMap?.properties ?? {}, '__proto__'),
+    ).toBe(true)
+    expect(result.nullWideningMap?.properties?.['__proto__']).toEqual({
+      widened: true,
+    })
+    expect(Object.getPrototypeOf(result.nullWideningMap?.properties)).toBe(
+      Object.prototype,
+    )
+    expect(JSON.stringify(input)).toBe(raw)
+  })
+})
 
 describe('makeStructuredOutputCompatible', () => {
   it('should add additionalProperties: false to object schemas', () => {

@@ -122,11 +122,10 @@ export class GrokTextAdapter<
   protected override mapOptionsToRequest(
     options: TextOptions<TProviderOptions>,
   ): Omit<ResponseCreateParams, 'stream'> {
-    const { tools: _baseTools, ...request } = super.mapOptionsToRequest({
+    const { tools: baseTools, ...request } = super.mapOptionsToRequest({
       ...options,
       tools: undefined,
     })
-    void _baseTools
 
     const tools = options.tools
       ? convertToolsToProviderFormat(options.tools)
@@ -140,6 +139,7 @@ export class GrokTextAdapter<
       include: request.include ?? ['reasoning.encrypted_content'],
       ...(tools &&
         tools.length > 0 && { tools: tools as ResponseCreateParams['tools'] }),
+      ...(!tools?.length && baseTools?.length === 0 && { tools: [] }),
     }
   }
 }

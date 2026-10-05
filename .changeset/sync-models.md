@@ -1,6 +1,4 @@
 ---
-'@tanstack/ai-anthropic': patch
-'@tanstack/ai-openai': patch
 '@tanstack/ai-openrouter': patch
 '@tanstack/ai-vercel-gateway': patch
 ---

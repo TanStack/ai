@@ -19,31 +19,107 @@ Learn how to build interfaces where users can switch between LLM providers at ru
 With TanStack AI, the model is passed directly to the adapter factory function. This gives you full type safety and autocomplete at the point of definition:
 
 ```typescript
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 
-type Provider = 'openai' | 'anthropic'
-
-// Define adapters with their models - autocomplete works here!
+// Each factory retains its model's option types.
 const adapters = {
-  anthropic: () => anthropicText('claude-sonnet-4-6'),  // ✅ Autocomplete!
-  openai: () => openaiText('gpt-5.5'),  // ✅ Autocomplete!
+  anthropic: () => anthropicText('claude-sonnet-5-5'),
+  openai: () => openaiText('gpt-5.5'),
 }
 
-async function handleRequest(request: Request) {
-  // In your request handler:
-  const body = await request.json()
-  const provider: Provider = body.forwardedProps?.provider || 'openai'
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+  const provider = params.forwardedProps.provider === 'anthropic' ? 'anthropic' : 'openai'
 
   const stream = chat({
     adapter: adapters[provider](),
-    messages: body.messages,
+    messages: params.messages,
   })
+  return toServerSentEventsResponse(stream)
 }
 ```
 
-## Why This Works
+## Keep saved history when you switch
+
+A conversation can contain replies from several providers. Keep each message's metadata when you save or send the history. `chat()` records the source under `metadata.tanstack.source`:
+
+```json
+{
+  "provider": "openai",
+  "api": "openai-responses",
+  "model": "gpt-5.5"
+}
+```
+
+The provider, wire API, and requested model must all match for same-source replay. `metadata.tanstack.model` holds the provider-reported response model when available. It can differ from the requested model.
+
+For foreign history, the target adapter converts readable thinking to text and drops foreign signatures and redacted thinking. It also remaps tool call IDs and their results together. Messages without source metadata receive the same-source treatment.
+
+Core prepares a request copy of the history:
+
+- Failed or aborted assistant messages and their associated tool results are omitted.
+- Unanswered tool calls receive an error result: `No result provided`.
+- System messages between a tool call and its results move after the results.
+
+These changes leave your saved transcript intact. A transport disconnect alone does not mark a provider reply as failed.
+
+Subagent cards use a separate view of the saved transcript. A host message holds the routed subagents' answers. The card view removes only a host that it can identify. Ordinary assistant text and ambiguous messages stay. A new host uses an unused ID, so existing replies stay.
+
+Gemini replays saved thinking and ordered tool history through its supported wire fields. This also applies to same-source and source-free history with thinking. Ordinary history without these parts retains its request shape.
+
+Use the existing request parser on the server to retain message metadata:
+
+```typescript
+import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { openaiText } from '@tanstack/ai-openai'
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+  const adapter = params.forwardedProps.provider === 'anthropic'
+    ? anthropicText('claude-sonnet-5-5')
+    : openaiText('gpt-5.5')
+
+  return toServerSentEventsResponse(chat({
+    adapter,
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+  }))
+}
+```
+
+Send the selected provider from the client:
+
+```tsx
+import { useState } from 'react'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+
+export function ProviderChat() {
+  const [provider, setProvider] = useState('openai')
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    forwardedProps: { provider },
+  })
+
+  return (
+    <>
+      <select aria-label="Provider" value={provider} onChange={(event) => setProvider(event.target.value)}>
+        <option value="openai">OpenAI</option>
+        <option value="anthropic">Anthropic</option>
+      </select>
+      <button onClick={() => sendMessage('Continue our conversation')}>Continue</button>
+      <p>{messages.length} messages in this conversation</p>
+    </>
+  )
+}
+```
+
+The next request uses the selected provider with the same conversation history.
+
+## Adapter model types
 
 Each adapter factory function accepts a model name as its first argument and returns a fully typed adapter:
 
@@ -70,7 +146,7 @@ Here's a complete example showing a multi-provider chat API:
 
 ```typescript ignore
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
+import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
@@ -80,8 +156,8 @@ type Provider = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 
 // Define adapters with their models
 const adapters = {
-  anthropic: () => anthropicText('claude-sonnet-4-6'),
-  gemini: () => geminiText('gemini-3-flash-preview'),
+  anthropic: () => anthropicText('claude-sonnet-5-5'),
+  gemini: () => geminiText('gemini-3.8-flash'),
   ollama: () => ollamaText('mistral:7b'),
   openai: () => openaiText('gpt-5.5'),
 }
@@ -91,17 +167,14 @@ export const Route = createFileRoute('/api/chat')({
     handlers: {
       POST: async ({ request }) => {
         const abortController = new AbortController()
-        const body = await request.json()
-        // `forwardedProps` is the AG-UI field set by `useChat({ forwardedProps })`.
-        // The legacy `body.data.provider` access still works (mirrored on the
-        // wire for backward compatibility) but `forwardedProps` is preferred.
-        const provider: Provider = body.forwardedProps?.provider || 'openai'
+        const params = await chatParamsFromRequest(request)
+        const selected = params.forwardedProps.provider
+        const provider: Provider = selected === 'anthropic' || selected === 'gemini' || selected === 'ollama'
+          ? selected : 'openai'
 
         const stream = chat({
           adapter: adapters[provider](),
-          tools: [...],
-          systemPrompts: [...],
-          messages: body.messages,
+          messages: params.messages,
           abortController,
         })
 
@@ -157,8 +230,8 @@ import { anthropicSummarize } from '@tanstack/ai-anthropic'
 type SummarizeProvider = 'openai' | 'anthropic'
 
 const summarizeAdapters: Record<SummarizeProvider, () => ReturnType<typeof openaiSummarize | typeof anthropicSummarize>> = {
-  openai: () => openaiSummarize('gpt-5.4-mini'),
-  anthropic: () => anthropicSummarize('claude-sonnet-4-6'),
+  openai: () => openaiSummarize('gpt-5.5'),
+  anthropic: () => anthropicSummarize('claude-sonnet-5-5'),
 }
 
 export async function POST(request: Request) {
@@ -179,62 +252,51 @@ export async function POST(request: Request) {
 
 ## Migration from Switch Statements
 
-If you have existing code using switch statements, here's how to migrate:
+You can replace a provider switch with a map of adapter factories. Both forms keep the model on its adapter.
 
 ### Before
 
-```typescript ignore
-let adapter
-let model
+```typescript
+import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { openaiText } from '@tanstack/ai-openai'
 
-switch (provider) {
-  case 'anthropic':
-    adapter = anthropicText()
-    model = 'claude-sonnet-4-6'
-    break
-  case 'openai':
-  default:
-    adapter = openaiText()
-    model = 'gpt-5.5'
-    break
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+  let adapter
+  switch (params.forwardedProps.provider) {
+    case 'anthropic':
+      adapter = anthropicText('claude-sonnet-5-5')
+      break
+    default:
+      adapter = openaiText('gpt-5.5')
+      break
+  }
+
+  return toServerSentEventsResponse(chat({ adapter, messages: params.messages }))
 }
-
-const stream = chat({
-  adapter: adapter as any,
-  model: model as any,
-  messages,
-})
 ```
 
 ### After
 
 ```typescript
-import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 
-type AfterProvider = 'openai' | 'anthropic'
-
 const adapters = {
-  anthropic: () => anthropicText('claude-sonnet-4-6'),
+  anthropic: () => anthropicText('claude-sonnet-5-5'),
   openai: () => openaiText('gpt-5.5'),
 }
 
 export async function POST(request: Request) {
-  const body = await request.json()
-  const provider: AfterProvider = body.forwardedProps?.provider ?? 'openai'
-
-  const stream = chat({
+  const params = await chatParamsFromRequest(request)
+  const provider = params.forwardedProps.provider === 'anthropic' ? 'anthropic' : 'openai'
+  return toServerSentEventsResponse(chat({
     adapter: adapters[provider](),
-    messages: body.messages,
-  })
-
-  return toServerSentEventsResponse(stream)
+    messages: params.messages,
+  }))
 }
 ```
 
-The key changes:
-
-1. Replace the switch statement with an object of factory functions
-2. Each factory function creates an adapter with the model included
-3. No more `as any` casts - full type safety!
+Each factory retains the selected model's types. The map lets you add a provider in one place.

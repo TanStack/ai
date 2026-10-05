@@ -5,6 +5,7 @@ import type { StreamChunk } from '../types'
 import type { AdapterYieldChunk } from './adapter-yield-chunk'
 import { tanstackMetadata } from './merge-metadata'
 import { normalizeStreamChunk } from './normalize-stream-chunk'
+import { restoreInboundChunk } from './restore-inbound-chunk'
 import { isSpecTopLevelKey } from './spec-event-keys'
 
 function assertSpec(chunk: { type: string }) {
@@ -36,6 +37,41 @@ function normalizeOne(chunk: AdapterYieldChunk) {
 }
 
 describe('normalizeStreamChunk', () => {
+  it('keeps generation identity in canonical metadata and restores it after JSON', () => {
+    const metadata = {
+      app: 'value',
+      tanstack: {
+        model: 'resolved',
+        source: { provider: 'custom', api: 'chat', model: 'requested' },
+      },
+    }
+    const wire = normalizeOne({
+      type: EventType.RUN_FINISHED,
+      threadId: 'thread-1',
+      runId: 'run-1',
+      model: 'resolved',
+      responseId: 'response-1',
+      metadata,
+    })
+    expect(wire).toEqual({
+      type: EventType.RUN_FINISHED,
+      threadId: 'thread-1',
+      runId: 'run-1',
+      metadata: {
+        app: 'value',
+        tanstack: {
+          model: 'resolved',
+          responseId: 'response-1',
+          source: { provider: 'custom', api: 'chat', model: 'requested' },
+        },
+      },
+    })
+    const restored = restoreInboundChunk(JSON.parse(JSON.stringify(wire)))
+    expect(restored).toMatchObject({
+      responseId: 'response-1',
+      model: 'resolved',
+    })
+  })
   it('maps RUN_FINISHED TokenUsage onto spec usage[] and leftover metadata', () => {
     const chunk = {
       type: EventType.RUN_FINISHED,

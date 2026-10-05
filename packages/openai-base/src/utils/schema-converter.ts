@@ -44,7 +44,12 @@ export function stripUnsupportedFormats(node: any): any {
     ) {
       continue
     }
-    out[key] = stripUnsupportedFormats(value)
+    Object.defineProperty(out, key, {
+      value: stripUnsupportedFormats(value),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
   }
   return out
 }
@@ -453,10 +458,15 @@ function coerceStrictSchema(
 
       properties[propName] = prop
       if (childMap || widenedHere) {
-        propertyMaps[propName] = {
-          ...(childMap ?? {}),
-          ...(widenedHere ? { widened: true } : {}),
-        }
+        Object.defineProperty(propertyMaps, propName, {
+          value: {
+            ...(childMap ?? {}),
+            ...(widenedHere ? { widened: true } : {}),
+          },
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        })
       }
     }
 

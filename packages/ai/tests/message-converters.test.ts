@@ -2978,3 +2978,44 @@ describe('Message Converters', () => {
     })
   })
 })
+
+describe('assistant replay metadata preservation', () => {
+  it('drops only run timings and keeps supported metadata without changing UI history', () => {
+    const message: UIMessage = {
+      id: 'metadata-row',
+      role: 'assistant',
+      parts: [{ type: 'text', content: 'Hi' }],
+      metadata: {
+        caller: 'keep',
+        tanstack: {
+          run: { id: 'run', startedAt: 1, finishedAt: 2 },
+          source: {
+            provider: 'anthropic',
+            api: 'anthropic-messages',
+            model: 'claude-sonnet-5',
+          },
+          responseId: 'response',
+          model: 'actual-model',
+          stopReason: 'end_turn',
+        },
+      },
+    }
+    const before = structuredClone(message)
+    const [result] = uiMessageToModelMessages(message)
+    expect(result?.metadata).toEqual({
+      caller: 'keep',
+      tanstack: {
+        run: { id: 'run' },
+        source: {
+          provider: 'anthropic',
+          api: 'anthropic-messages',
+          model: 'claude-sonnet-5',
+        },
+        responseId: 'response',
+        model: 'actual-model',
+        stopReason: 'end_turn',
+      },
+    })
+    expect(message).toEqual(before)
+  })
+})

@@ -38,6 +38,8 @@ describe('mistralVertexText', () => {
     })
 
     expect(adapter.name).toBe('mistral')
+    expect(adapter.provider).toBe('google-vertex')
+    expect(adapter.api).toBe('mistral-conversations')
     expect(adapter.model).toBe('mistral-medium-3')
   })
 

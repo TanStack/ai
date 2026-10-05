@@ -160,7 +160,7 @@
           "label": "Stream Events",
           "to": "chat/stream-events",
           "addedAt": "2026-08-26",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-04"
         },
         {
           "label": "Subagents",
@@ -242,7 +242,7 @@
           "label": "Tools",
           "to": "tools/tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-04"
         },
         {
           "label": "Server Tools",
@@ -307,7 +307,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-04"
         },
         {
           "label": "Built-in Middleware",
@@ -468,7 +468,7 @@
           "label": "Tool Approval",
           "to": "interrupts/tool-approval",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Multiple Interrupts",
@@ -531,7 +531,7 @@
           "label": "MCP Client Input",
           "to": "tools/mcp-input",
           "addedAt": "2026-09-22",
-          "updatedAt": "2026-09-25"
+          "updatedAt": "2026-10-04"
         },
         {
           "label": "MCP Apps",
@@ -966,7 +966,7 @@
           "label": "Connect model providers",
           "to": "harness/provider-keys",
           "addedAt": "2026-09-29",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-04"
         },
         {
           "label": "Auth and connectors",
@@ -1279,7 +1279,7 @@
           "label": "Runtime Adapter Switching",
           "to": "advanced/runtime-adapter-switching",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-10-05"
         },
         {
           "label": "Tree-Shaking",
@@ -1325,13 +1325,13 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-04"
         },
         {
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-04"
         },
         {
           "label": "Google Gemini",
@@ -1367,7 +1367,7 @@
           "label": "Mistral",
           "to": "adapters/mistral",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-09-03"
+          "updatedAt": "2026-10-04"
         },
         {
           "label": "Cohere",
@@ -1436,7 +1436,7 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-04"
         },
         {
           "label": "LLM Gateway",
@@ -1484,7 +1484,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-04"
         },
         {
           "label": "BytePlus",
@@ -1503,7 +1503,7 @@
           "label": "Community Adapters Guide",
           "to": "community-adapters/guide",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-30"
+          "updatedAt": "2026-10-04"
         },
         {
           "label": "Decart",

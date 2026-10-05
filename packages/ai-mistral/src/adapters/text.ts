@@ -11,7 +11,14 @@ import { makeMistralStructuredOutputCompatibleWithMap } from '../utils/schema-co
 import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
 import { MISTRAL_MODEL_INPUT_MODALITIES } from '../model-meta'
 import { MISTRAL_MODEL_REASONING } from '../model-reasoning'
-import { resolveReasoning } from '@tanstack/ai/adapter-internals'
+import {
+  resolveReasoning,
+  transformMessagesForReplay,
+  hashToolCallId,
+  sanitizeUnicode,
+  sanitizeJsonArguments,
+  orderedAssistantBlocks,
+} from '@tanstack/ai/adapter-internals'
 import type { MistralModelReasoningByName } from '../model-reasoning'
 import type {
   ContentPart,
@@ -36,6 +43,7 @@ import type {
 import type { Mistral } from '@mistralai/mistralai'
 import type {
   ChatCompletionStreamRequest,
+  AssistantMessage,
   ReasoningEffort,
 } from '@mistralai/mistralai/models/components'
 import type {
@@ -44,7 +52,6 @@ import type {
 } from '../text/text-provider-options'
 import type {
   ChatCompletionContentPart,
-  ChatCompletionMessageParam,
   MistralImageMetadata,
   MistralMessageMetadataByModality,
 } from '../message-types'
@@ -70,7 +77,7 @@ function parseToolCallInput(
   },
   normalizeToolInput: ToolInputNormalizer,
 ): unknown {
-  if (!toolCall.arguments) return {}
+  if (!toolCall.arguments) return undefined
   try {
     return normalizeToolInput(toolCall.name, JSON.parse(toolCall.arguments))
   } catch (cause) {
@@ -252,6 +259,8 @@ export class MistralTextAdapter<
   ResolveReasoning<TModel>
 > {
   readonly name = 'mistral' as const
+  override readonly api = 'mistral-conversations' as const
+  override readonly provider: string
   override readonly inputModalities = MISTRAL_MODEL_INPUT_MODALITIES[this.model]
 
   private readonly client: Mistral
@@ -264,12 +273,15 @@ export class MistralTextAdapter<
     // the SDK's Zod schemas reject partial tool-call argument deltas.
     this.client = createMistralClient(config)
     this.rawConfig = config
+    this.provider =
+      config.getAccessToken && config.resolveRequestUrl
+        ? 'google-vertex'
+        : this.name
   }
 
   async *chatStream(
     options: TextOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
-    const requestParams = this.mapTextOptionsToMistral(options)
     const timestamp = Date.now()
 
     const aguiState = {
@@ -281,12 +293,32 @@ export class MistralTextAdapter<
     }
 
     try {
+      const requestParams = this.mapTextOptionsToMistral(options)
       const body = {
         ...this.toWireBody(requestParams),
         ...mistralPromptCacheKey(options.promptCache),
       }
       const stream = this.fetchRawMistralStream(body, this.rawConfig)
-      yield* this.processMistralStreamChunks(stream, options, aguiState)
+      for await (const chunk of this.processMistralStreamChunks(
+        stream,
+        options,
+        aguiState,
+      )) {
+        yield chunk.type === 'RUN_STARTED' || chunk.type === 'RUN_ERROR'
+          ? {
+              ...chunk,
+              metadata: {
+                tanstack: {
+                  source: {
+                    provider: this.provider,
+                    api: this.api,
+                    model: options.model,
+                  },
+                },
+              },
+            }
+          : chunk
+      }
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
 
@@ -296,6 +328,15 @@ export class MistralTextAdapter<
           type: 'RUN_STARTED',
           runId: aguiState.runId,
           threadId: aguiState.threadId,
+          metadata: {
+            tanstack: {
+              source: {
+                provider: this.provider,
+                api: this.api,
+                model: options.model,
+              },
+            },
+          },
           model: options.model,
           timestamp,
         })
@@ -303,6 +344,15 @@ export class MistralTextAdapter<
 
       yield asChunk({
         type: 'RUN_ERROR',
+        metadata: {
+          tanstack: {
+            source: {
+              provider: this.provider,
+              api: this.api,
+              model: options.model,
+            },
+          },
+        },
         runId: aguiState.runId,
         model: options.model,
         timestamp,
@@ -364,6 +414,8 @@ export class MistralTextAdapter<
     const usage = response.usage
     return {
       data: undoNullWidening(parsed, nullWideningMap),
+      ...(response.id && { responseId: response.id }),
+      ...(response.model && { model: response.model }),
       rawText: textContent,
       ...(usage && {
         usage: {
@@ -397,6 +449,7 @@ export class MistralTextAdapter<
     let hasEmittedToolCall = false
     let hasEmittedRunFinished = false
     let lastChunkModel = options.model
+    let responseId: string | undefined
     const normalizeToolInput = createToolInputNormalizer(options.tools)
 
     // Reasoning lifecycle (magistral-* models stream `thinking` content
@@ -412,6 +465,7 @@ export class MistralTextAdapter<
         id: string
         name: string
         arguments: string
+        hasArguments: boolean
         started: boolean
         ended: boolean
       }
@@ -419,7 +473,8 @@ export class MistralTextAdapter<
 
     try {
       for await (const chunk of stream) {
-        lastChunkModel = chunk.model || options.model
+        lastChunkModel = chunk.model || lastChunkModel
+        if (chunk.id) responseId = chunk.id
         const choice = chunk.choices?.[0]
         if (!choice) continue
 
@@ -533,6 +588,7 @@ export class MistralTextAdapter<
                 id: toolCallDelta.id || '',
                 name: toolCallDelta.function?.name || '',
                 arguments: '',
+                hasArguments: false,
                 started: false,
                 ended: false,
               }
@@ -553,6 +609,7 @@ export class MistralTextAdapter<
                   : JSON.stringify(rawArgs)
 
             if (argsDelta !== undefined) {
+              toolCall.hasArguments = true
               toolCall.arguments += argsDelta
             }
 
@@ -619,7 +676,10 @@ export class MistralTextAdapter<
                 toolName: toolCall.name,
                 model: chunkModel,
                 timestamp,
-                input: parsedInput,
+                ...(toolCall.hasArguments ? { args: toolCall.arguments } : {}),
+                ...(toolCall.hasArguments && parsedInput !== undefined
+                  ? { input: parsedInput }
+                  : {}),
               })
             }
           }
@@ -664,6 +724,7 @@ export class MistralTextAdapter<
           hasEmittedRunFinished = true
           yield asChunk({
             type: 'RUN_FINISHED',
+            ...(responseId && { responseId }),
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: chunkModel,
@@ -702,6 +763,7 @@ export class MistralTextAdapter<
         }
         for (const [, toolCall] of toolCallsInProgress) {
           if (toolCall.started && !toolCall.ended) {
+            const parsedInput = parseToolCallInput(toolCall, normalizeToolInput)
             toolCall.ended = true
             hasEmittedToolCall = true
             yield asChunk({
@@ -711,7 +773,10 @@ export class MistralTextAdapter<
               toolName: toolCall.name,
               model: lastChunkModel,
               timestamp,
-              input: parseToolCallInput(toolCall, normalizeToolInput),
+              ...(toolCall.hasArguments ? { args: toolCall.arguments } : {}),
+              ...(toolCall.hasArguments && parsedInput !== undefined
+                ? { input: parsedInput }
+                : {}),
             })
           }
         }
@@ -727,6 +792,7 @@ export class MistralTextAdapter<
         hasEmittedRunFinished = true
         yield asChunk({
           type: 'RUN_FINISHED',
+          ...(responseId && { responseId }),
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: lastChunkModel,
@@ -767,18 +833,15 @@ export class MistralTextAdapter<
       for (const [, toolCall] of toolCallsInProgress) {
         if (toolCall.started && !toolCall.ended) {
           toolCall.ended = true
-          // Best-effort parse for the partial args; if invalid, surface
-          // empty input rather than throwing inside the cleanup path.
-          let partialInput: unknown = {}
+          let partialInput: unknown
           try {
-            partialInput = toolCall.arguments
-              ? normalizeToolInput(
-                  toolCall.name,
-                  JSON.parse(toolCall.arguments),
-                )
-              : {}
+            if (toolCall.hasArguments)
+              partialInput = normalizeToolInput(
+                toolCall.name,
+                JSON.parse(toolCall.arguments),
+              )
           } catch {
-            partialInput = {}
+            // Keep the raw JSON so failed input stays visible in history.
           }
           yield asChunk({
             type: 'TOOL_CALL_END',
@@ -787,7 +850,8 @@ export class MistralTextAdapter<
             toolName: toolCall.name,
             model: lastChunkModel,
             timestamp,
-            input: partialInput,
+            ...(toolCall.hasArguments ? { args: toolCall.arguments } : {}),
+            ...(partialInput === undefined ? {} : { input: partialInput }),
           })
         }
       }
@@ -1003,16 +1067,28 @@ export class MistralTextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    const messages: Array<ChatCompletionMessageParam> = []
+    const replay = transformMessagesForReplay(
+      options.messages,
+      { provider: this.provider, api: this.api, model: options.model },
+      (id, { attempt }) => {
+        const normalized = id.replace(/[^a-zA-Z0-9]/g, '')
+        if (attempt === 0 && normalized.length === 9) return normalized
+        const seed = normalized || id
+        return hashToolCallId(attempt === 0 ? seed : `${seed}:${attempt}`)
+          .replace(/[^a-zA-Z0-9]/g, '')
+          .slice(0, 9)
+      },
+    )
+    const messages: ChatCompletionStreamRequest['messages'] = []
 
     if (options.systemPrompts && options.systemPrompts.length > 0) {
       messages.push({
         role: 'system',
-        content: options.systemPrompts.join('\n'),
+        content: sanitizeUnicode(options.systemPrompts.join('\n')),
       })
     }
 
-    for (const message of options.messages) {
+    for (const message of replay.messages) {
       messages.push(this.convertMessageToMistral(message))
     }
 
@@ -1064,19 +1140,51 @@ export class MistralTextAdapter<
    */
   private convertMessageToMistral(
     message: ModelMessage,
-  ): ChatCompletionMessageParam {
+  ): ChatCompletionStreamRequest['messages'][number] {
     if (message.role === 'tool') {
-      if (!message.toolCallId) {
+      if (!message.toolCallId)
         throw new Error('Missing toolCallId for tool message')
+      const stringText =
+        typeof message.content === 'string'
+          ? sanitizeUnicode(message.content)
+          : undefined
+      if (stringText?.trim() && message.error === undefined) {
+        return {
+          role: 'tool',
+          toolCallId: message.toolCallId,
+          content: stringText,
+        }
       }
-      return {
-        role: 'tool',
-        toolCallId: message.toolCallId,
-        content:
-          typeof message.content === 'string'
-            ? message.content
-            : JSON.stringify(message.content),
-      }
+      const parts = this.normalizeContent(message.content)
+      const text = parts
+        .filter((part) => part.type === 'text')
+        .map((part) => sanitizeUnicode(part.content))
+        .join('\n')
+        .trim()
+      const hasImages = parts.some((part) => part.type === 'image')
+      const supportsImages = this.inputModalities?.includes('image') ?? false
+      const prefix = message.error !== undefined ? '[tool error] ' : ''
+      const toolText = text
+        ? prefix +
+          text +
+          (hasImages && !supportsImages
+            ? '\n[tool image omitted: model does not support images]'
+            : '')
+        : hasImages
+          ? prefix +
+            (supportsImages
+              ? '(see attached image)'
+              : '(image omitted: model does not support images)')
+          : prefix + '(no tool output)'
+      const content = [
+        { type: 'text' as const, text: toolText },
+        ...(supportsImages
+          ? parts
+              .filter((part) => part.type === 'image')
+              .map((part) => this.convertContentPartToMistral(part))
+          : []),
+      ]
+      return { role: 'tool', toolCallId: message.toolCallId, content }
     }
 
     if (message.role === 'assistant') {
@@ -1087,14 +1195,14 @@ export class MistralTextAdapter<
           name: tc.function.name,
           arguments:
             typeof tc.function.arguments === 'string'
-              ? tc.function.arguments
-              : JSON.stringify(tc.function.arguments),
+              ? sanitizeJsonArguments(tc.function.arguments)
+              : sanitizeJsonArguments(JSON.stringify(tc.function.arguments)),
         },
       }))
 
       return {
         role: 'assistant',
-        content: this.extractTextContent(message.content),
+        content: this.assistantContent(message),
         ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
       }
     }
@@ -1104,7 +1212,7 @@ export class MistralTextAdapter<
     if (contentParts.length === 1 && contentParts[0]?.type === 'text') {
       return {
         role: 'user',
-        content: contentParts[0].content,
+        content: sanitizeUnicode(contentParts[0].content),
       }
     }
 
@@ -1118,15 +1226,50 @@ export class MistralTextAdapter<
     }
   }
 
-  /**
-   * Converts a ContentPart to a Mistral content part. Returns undefined for
-   * unsupported part types.
-   */
+  /** Keep supported thinking and text blocks in their stored order. */
+  private assistantContent(message: ModelMessage): AssistantMessage['content'] {
+    if (!message.thinking?.length)
+      return this.extractTextContent(message.content)
+    const blocks = orderedAssistantBlocks(message) ?? [
+      ...message.thinking.map((thinking) => ({
+        type: 'thinking' as const,
+        thinking,
+      })),
+      { type: 'text' as const, text: this.extractTextContent(message.content) },
+    ]
+    const content: Extract<
+      NonNullable<
+        Extract<
+          ChatCompletionStreamRequest['messages'][number],
+          { role: 'assistant' }
+        >['content']
+      >,
+      Array<unknown>
+    > = []
+    for (const block of blocks) {
+      if (block.type === 'text')
+        content.push({ type: 'text', text: sanitizeUnicode(block.text) })
+      else if (
+        block.type === 'thinking' &&
+        !block.thinking.redacted &&
+        block.thinking.content.trim()
+      ) {
+        content.push({
+          type: 'thinking',
+          thinking: [
+            { type: 'text', text: sanitizeUnicode(block.thinking.content) },
+          ],
+        })
+      }
+    }
+    return content
+  }
+
   private convertContentPartToMistral(
     part: ContentPart,
   ): ChatCompletionContentPart {
     if (part.type === 'text') {
-      return { type: 'text', text: part.content }
+      return { type: 'text', text: sanitizeUnicode(part.content) }
     }
 
     if (part.type === 'image') {
@@ -1182,10 +1325,10 @@ export class MistralTextAdapter<
     content: string | null | undefined | Array<ContentPart>,
   ): string {
     if (content === null || content === undefined) return ''
-    if (typeof content === 'string') return content
+    if (typeof content === 'string') return sanitizeUnicode(content)
     return content
       .filter((p) => p.type === 'text')
-      .map((p) => p.content)
+      .map((p) => sanitizeUnicode(p.content))
       .join('')
   }
 }
@@ -1198,7 +1341,13 @@ function messageToWire(msg: ChatCompletionStreamRequest['messages'][number]) {
     return {
       role: 'tool',
       tool_call_id: msg.toolCallId,
-      content: msg.content,
+      content: Array.isArray(msg.content)
+        ? msg.content.map((part) =>
+            part.type === 'image_url'
+              ? { type: 'image_url', image_url: part.imageUrl }
+              : part,
+          )
+        : msg.content,
       ...(msg.name !== undefined ? { name: msg.name } : {}),
     }
   }

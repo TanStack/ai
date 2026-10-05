@@ -603,6 +603,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * copy, so a resolve after a restart continues the turn too.
    */
   private interrupted: InterruptedTurn | undefined
+  private activeResume = false
   private plugins: ReadonlyArray<HarnessPlugin> = []
   private sessionPlugins: MountedPlugins | undefined
   private closing: Promise<void> | undefined
@@ -1193,7 +1194,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     // A client answers on RUN_FINISHED, while the interrupted turn still
     // ends. The resolve runs right after it.
     const isEnding = this.activeTurn?.id === answers.runId
-    if (this.activeTurn && !isEnding) {
+    if (
+      (this.activeTurn && !isEnding) ||
+      this.queue.some((turn) => turn.answers?.runId === answers.runId)
+    ) {
       this.reject(inputId, 'busy')
       return { inputId, status: 'rejected', reason: 'busy' }
     }
@@ -1205,7 +1209,6 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       if (connector && entry.status === 'cancelled')
         this.declinedSignIns.add(connector)
     }
-    this.interrupted = undefined
     const operation = this.createTurnOperation(runId)
     this.bindTurn(inputId, operation)
     // The turn goes on with the context its input sent.
@@ -1219,13 +1222,6 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }
     if (isEnding) this.queue.unshift(turn)
     else this.enqueueTurn(turn)
-    // The stored copy goes too, so a restart does not offer this turn again.
-    // A failed delete is a warning: the resolve runs anyway.
-    await this.persistence.stores.metadata
-      ?.delete(INTERRUPTED, this.threadId)
-      .catch((error: unknown) =>
-        this.warn(operation, 'harness:interrupts', error),
-      )
     return this.keep({ inputId, status: 'accepted', operationId: operation.id })
   }
 
@@ -1274,6 +1270,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           operationId: target.id,
         })
       }
+      await this.refreshTurnInterrupts(target)
       target.fail('cancelled', new Error('Cancelled before it started.'))
       this.publishFinished(target)
     } else {
@@ -1352,7 +1349,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       })),
       // A steer that waits to join the running turn waits too.
       queuedTurns: this.queue.length + this.steerQueue.length,
-      pendingInterrupts: this.interrupted?.interrupts ?? [],
+      pendingInterrupts:
+        this.activeResume && !this.activeTurn?.isSettled()
+          ? []
+          : (this.interrupted?.interrupts ?? []),
       pendingQuestions: [...this.questions.entries()].map(
         ([questionId, question]) => ({
           questionId,
@@ -1608,6 +1608,199 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       this.threadId,
     )
     if (isInterruptedTurn(stored)) this.interrupted = stored
+    await this.refreshInterrupted()
+  }
+
+  /** Keep the snapshot in line with the committed interrupt records. */
+  private async refreshInterrupted(
+    observed?: InterruptedTurn,
+    consumed = false,
+    persist = true,
+  ): Promise<void> {
+    const previous = observed ?? this.interrupted
+    const store = this.persistence.stores.interrupts
+    let next = previous
+    if (store) {
+      const pending = await store.listPending(this.threadId)
+      const owned = pending.filter((record) => {
+        const payload = record.payload
+        const metadata = isRecord(payload.metadata)
+          ? payload.metadata
+          : undefined
+        return (
+          previous?.interrupts.some((item) => item.id === record.interruptId) ||
+          typeof payload.toolCallId === 'string' ||
+          metadata?.kind === 'approval' ||
+          metadata?.kind === 'client_tool' ||
+          (metadata !== undefined && 'tanstack:interruptBinding' in metadata) ||
+          typeof payload.id !== 'string' ||
+          typeof payload.reason !== 'string' ||
+          typeof payload.message !== 'string'
+        )
+      })
+      if (new Set(owned.map((record) => record.runId)).size > 1) {
+        throw new Error('Pending interrupts belong to more than one run.')
+      }
+      const runId = owned.at(-1)?.runId
+      const records = owned.filter((record) => record.runId === runId)
+      const interrupts: Array<Interrupt> = []
+      for (const record of records) {
+        const payload = record.payload
+        if (
+          payload.id !== record.interruptId ||
+          record.threadId !== this.threadId ||
+          typeof payload.reason !== 'string' ||
+          typeof payload.message !== 'string'
+        ) {
+          throw new Error('The stored interrupt descriptor is invalid.')
+        }
+        interrupts.push({
+          ...payload,
+          id: payload.id,
+          reason: payload.reason,
+          message: payload.message,
+        })
+      }
+      const savedInput = [...(this.writer?.state.inputs.values() ?? [])].find(
+        (input) => input.operationId === runId,
+      )
+      const context =
+        previous !== undefined && previous.runId === runId
+          ? previous.context
+          : savedInput && 'context' in savedInput.input
+            ? savedInput.input.context
+            : undefined
+      next =
+        runId && interrupts.length > 0
+          ? {
+              runId,
+              interrupts,
+              ...(previous !== undefined &&
+              previous.runId === runId &&
+              previous.routed
+                ? { routed: previous.routed }
+                : {}),
+              ...storedPrincipal(
+                previous !== undefined && previous.runId === runId
+                  ? previous.principal
+                  : savedInput?.principal,
+              ),
+              ...(context !== undefined ? { context } : {}),
+            }
+          : undefined
+    } else if (consumed && observed === undefined) {
+      next = undefined
+    } else if (observed === undefined && this.writer && this.log) {
+      let after = 0
+      for (;;) {
+        const entries = await this.log.store.read(this.logId, {
+          after,
+          limit: 256,
+        })
+        for (const { seq, record } of entries) {
+          after = seq
+          if (
+            (record.thread ?? this.logId) !== this.threadId ||
+            record.type !== 'harness.event' ||
+            !isRecord(record.event)
+          )
+            continue
+          const event = record.event
+          if (
+            event.type !== EventType.RUN_FINISHED ||
+            event.subagentRunId ||
+            typeof record.operationId !== 'string'
+          )
+            continue
+          if (
+            isRecord(event.outcome) &&
+            event.outcome.type === 'interrupt' &&
+            Array.isArray(event.outcome.interrupts)
+          ) {
+            const interrupts: Array<Interrupt> = []
+            for (const item of event.outcome.interrupts) {
+              if (
+                !isRecord(item) ||
+                typeof item.id !== 'string' ||
+                typeof item.reason !== 'string' ||
+                typeof item.message !== 'string'
+              ) {
+                throw new Error('The logged interrupt descriptor is invalid.')
+              }
+              interrupts.push({
+                ...item,
+                id: item.id,
+                reason: item.reason,
+                message: item.message,
+              })
+            }
+            const savedInput = [
+              ...(this.writer?.state.inputs.values() ?? []),
+            ].find((input) => input.operationId === record.operationId)
+            const context =
+              previous !== undefined && previous.runId === record.operationId
+                ? previous.context
+                : savedInput && 'context' in savedInput.input
+                  ? savedInput.input.context
+                  : undefined
+            next = {
+              runId: record.operationId,
+              interrupts,
+              ...(previous !== undefined &&
+              previous.runId === record.operationId &&
+              previous.routed
+                ? { routed: previous.routed }
+                : {}),
+              ...storedPrincipal(
+                previous !== undefined && previous.runId === record.operationId
+                  ? previous.principal
+                  : savedInput?.principal,
+              ),
+              ...(context !== undefined ? { context } : {}),
+            }
+          } else if (
+            (await this.persistence.stores.runs?.get(record.operationId))
+              ?.status === 'completed'
+          )
+            next = undefined
+        }
+        if (entries.length < 256) break
+      }
+    }
+    this.interrupted = next
+    if (!persist) return
+    if (next)
+      await this.persistence.stores.metadata?.set(
+        INTERRUPTED,
+        this.threadId,
+        next,
+      )
+    else if (previous !== undefined) {
+      try {
+        await this.persistence.stores.metadata?.delete(
+          INTERRUPTED,
+          this.threadId,
+        )
+      } catch (error) {
+        if (!consumed || observed !== undefined) throw error
+        await this.persistence.stores.metadata?.set(
+          INTERRUPTED,
+          this.threadId,
+          null,
+        )
+      }
+    }
+  }
+
+  /** Refresh even when a turn failed before its main try block. */
+  private async refreshTurnInterrupts(
+    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
+    observed?: InterruptedTurn,
+    consumed = false,
+  ): Promise<void> {
+    await this.refreshInterrupted(observed, consumed).catch((error: unknown) =>
+      this.warn(operation, 'harness:interrupts', error),
+    )
   }
 
   /**
@@ -1878,6 +2071,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   close(): Promise<void> {
     this.closing ??= (async () => {
       for (const turn of this.queue.splice(0)) {
+        await this.refreshTurnInterrupts(turn.operation)
         turn.operation.fail('cancelled', new Error('Session closed.'))
       }
       const running = [...this.operations.values()].filter(
@@ -1929,8 +2123,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     const next = this.queue.shift()
     if (!next) return
     this.activeTurn = next.operation
+    this.activeResume = next.resume !== undefined
     this.turnPrincipal = next.principal
     void this.runTurn(next).finally(() => {
+      this.activeResume = false
       this.activeTurn = undefined
       this.turnPrincipal = undefined
       this.drain()
@@ -2384,11 +2580,21 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     operation.setStatus('running')
     // A new turn may ask for a sign-in the user cancelled before.
     if (!turn.answers) this.declinedSignIns.clear()
+    try {
+      await this.refreshInterrupted(undefined, false, false)
+    } catch (error) {
+      this.warn(operation, 'harness:interrupts', error)
+      operation.fail('failed', error)
+      this.publishFinished(operation)
+      this.requeueWaitingSteers()
+      return
+    }
     if (turn.inputId) {
       try {
         await this.applied(turn.inputId, operation.id)
       } catch (error) {
         // The log refused the write, so the session stops.
+        await this.refreshTurnInterrupts(operation)
         operation.fail('failed', this.logFailure ?? error)
         this.publishFinished(operation)
         this.requeueWaitingSteers()
@@ -2399,6 +2605,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     try {
       releaseLease = await this.holdLease(turn.inputId, operation)
     } catch (error) {
+      await this.refreshTurnInterrupts(operation)
       operation.fail('failed', error)
       this.publishFinished(operation)
       this.requeueWaitingSteers()
@@ -2922,6 +3129,26 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     if (isResumeRefused && turn.answers) {
       await this.keepInterrupted(operation, turn.answers)
     }
+    const observedInterrupts =
+      interrupts && interrupts.length > 0
+        ? {
+            ...(this.interrupted?.runId === operation.id
+              ? this.interrupted
+              : {}),
+            runId: operation.id,
+            interrupts,
+            ...storedPrincipal(sender),
+            ...(turn.context !== undefined ? { context: turn.context } : {}),
+          }
+        : undefined
+    await this.refreshTurnInterrupts(
+      operation,
+      observedInterrupts,
+      turn.resume !== undefined &&
+        failure === undefined &&
+        !isResumeRefused &&
+        !operation.abortController.signal.aborted,
+    )
     if (this.logFailure) {
       if (releaseLease) await releaseLease()
       operation.fail('failed', this.logFailure)
@@ -3746,7 +3973,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         },
       })
     }
-    if (!newest) return
+    if (!newest || this.interrupted) return
     await repairTranscript({
       messages: this.messages,
       threadId: newest.threadId,
@@ -3943,6 +4170,60 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         await ended({
           outcome: decision.outcome,
           ...(decision.error ? { error: decision.error } : {}),
+        })
+        continue
+      }
+      if (input.input.op === 'resolve') {
+        const store = this.persistence.stores.interrupts
+        const records = store
+          ? await Promise.all(
+              input.input.resume.map((item) => store.get(item.interruptId)),
+            )
+          : []
+        const consumed =
+          records.length > 0 &&
+          records.every(
+            (record) =>
+              record !== null &&
+              record.threadId === this.threadId &&
+              record.status !== 'pending',
+          )
+        const newPhase =
+          this.interrupted && this.interrupted.runId === operationId
+        if (
+          consumed ||
+          newPhase ||
+          (!this.interrupted && run?.status === 'completed')
+        ) {
+          await ended({
+            outcome: this.interrupted ? 'interrupted' : 'completed',
+          })
+          continue
+        }
+        if (!this.interrupted) {
+          await ended({
+            outcome: 'failed',
+            error: { message: 'The interrupted turn is no longer available.' },
+          })
+          continue
+        }
+        const operation = this.createTurnOperation()
+        this.bindTurn(input.inputId, operation)
+        this.feed.publish(
+          operation.id,
+          customEvent(HARNESS_EVENTS.operationResumed, {
+            operationId: operation.id,
+            ...(operationId ? { resumedFrom: operationId } : {}),
+          }),
+        )
+        this.enqueueTurn({
+          operation,
+          inputId: input.inputId,
+          resume: input.input.resume,
+          parentRunId: this.interrupted.runId,
+          ...(this.interrupted.routed
+            ? { routed: this.interrupted.routed }
+            : {}),
         })
         continue
       }

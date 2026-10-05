@@ -591,3 +591,178 @@ describe('Grok adapters', () => {
     })
   })
 })
+
+describe('inherited SDK replay contract', () => {
+  const wrapperModel = 'grok-4.3'
+  async function wireAdapter() {
+    const actual = await vi.importActual<typeof import('openai')>('openai')
+    const bodies: Array<Record<string, unknown>> = []
+    const headers: Array<Headers> = []
+    const fetcher: typeof fetch = async (input, init) => {
+      const request = new Request(input, init)
+      headers.push(request.headers)
+      bodies.push(JSON.parse(await request.text()))
+      const event = {
+        type: 'response.completed',
+        response: {
+          id: 'generation-real',
+          model: 'reported-model',
+          status: 'completed',
+          output: [],
+        },
+      }
+      return new Response(
+        'data: ' + JSON.stringify(event) + '\n\ndata: [DONE]\n\n',
+        { headers: { 'content-type': 'text/event-stream' } },
+      )
+    }
+    const adapter = createGrokText('grok-4.3', 'key')
+    Object.assign(adapter, {
+      client: new actual.default({
+        apiKey: 'key',
+        baseURL: 'https://wrapper.invalid/v1',
+        fetch: fetcher,
+      }),
+    })
+    return { adapter, bodies, headers }
+  }
+
+  it.each([false, true])(
+    'keeps the full ordinary SDK body for sameSource=%s',
+    async (sameSource) => {
+      const mock = await wireAdapter()
+      const messages: Array<import('@tanstack/ai').ModelMessage> = [
+        { role: 'user', content: 'Hello' },
+        {
+          role: 'assistant',
+          content: 'Prior',
+          ...(sameSource && {
+            metadata: {
+              tanstack: {
+                source: {
+                  provider: 'grok',
+                  api: 'openai-responses',
+                  model: wrapperModel,
+                },
+              },
+            },
+          }),
+        },
+      ]
+      const original = JSON.stringify(messages)
+      const chunks = []
+      for await (const chunk of mock.adapter.chatStream({
+        logger: resolveDebugOption(false),
+        model: wrapperModel,
+        messages,
+        systemPrompts: ['System'],
+        modelOptions: {
+          temperature: 0.2,
+          top_p: 0.7,
+          store: false,
+          include: [],
+        },
+        request: { headers: { 'x-request': 'kept' } },
+      }))
+        chunks.push(chunk)
+      expect(mock.bodies).toEqual([
+        {
+          temperature: 0.2,
+          top_p: 0.7,
+          store: false,
+          include: [],
+          model: wrapperModel,
+          instructions: 'System',
+          input: [
+            {
+              type: 'message',
+              role: 'user',
+              content: [{ type: 'input_text', text: 'Hello' }],
+            },
+            { type: 'message', role: 'assistant', content: 'Prior' },
+          ],
+          stream: true,
+        },
+      ])
+      expect(mock.headers[0]?.get('x-request')).toBe('kept')
+      expect(chunks[0]).toMatchObject({
+        metadata: {
+          tanstack: {
+            source: {
+              provider: 'grok',
+              api: 'openai-responses',
+              model: wrapperModel,
+            },
+          },
+        },
+      })
+      expect(chunks.at(-1)).toMatchObject({
+        responseId: 'generation-real',
+        model: 'reported-model',
+      })
+      expect(JSON.stringify(messages)).toBe(original)
+    },
+  )
+
+  it('keeps an explicit xAI search tool with historical function calls', async () => {
+    const mock = await wireAdapter()
+    const messages: Array<import('@tanstack/ai').ModelMessage> = [
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [
+          {
+            id: 'prior-call',
+            type: 'function',
+            function: { name: 'inspect', arguments: '{}' },
+          },
+        ],
+      },
+      { role: 'tool', toolCallId: 'prior-call', content: 'done' },
+    ]
+    for await (const _chunk of mock.adapter.chatStream({
+      logger: resolveDebugOption(false),
+      model: wrapperModel,
+      messages,
+      tools: [grokWebSearchTool()],
+    })) {
+    }
+    expect(mock.bodies[0]?.tools).toEqual([{ type: 'web_search' }])
+  })
+
+  it('prepares foreign history before wrapper hooks and keeps tools[]', async () => {
+    const mock = await wireAdapter()
+    const messages: Array<import('@tanstack/ai').ModelMessage> = [
+      {
+        role: 'assistant',
+        content: 'Visible',
+        thinking: [{ content: 'Readable', signature: 'foreign-opaque' }],
+        metadata: {
+          tanstack: {
+            source: { provider: 'foreign', api: 'foreign', model: 'foreign' },
+          },
+        },
+        toolCalls: [
+          {
+            id: 'call|fc/item',
+            type: 'function',
+            function: { name: 'inspect', arguments: '{}' },
+          },
+        ],
+      },
+      { role: 'tool', toolCallId: 'call|fc/item', content: 'done' },
+    ]
+    const original = JSON.stringify(messages)
+    for await (const _chunk of mock.adapter.chatStream({
+      logger: resolveDebugOption(false),
+      model: wrapperModel,
+      messages,
+    })) {
+    }
+    expect(mock.bodies[0]?.tools).toEqual([])
+    expect(JSON.stringify(mock.bodies)).toContain('Readable')
+    expect(JSON.stringify(mock.bodies)).not.toContain('foreign-opaque')
+    expect(JSON.stringify(mock.bodies)).not.toContain('call|fc/item')
+    expect(JSON.stringify(messages)).toBe(original)
+  })
+})

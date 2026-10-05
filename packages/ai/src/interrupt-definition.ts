@@ -345,7 +345,13 @@ function schemaJson(schema: unknown, name: string): CanonicalSchemaJson {
     }
     const converted: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(exported)) {
-      if (key !== '$schema') converted[key] = value
+      if (key === '$schema') continue
+      Object.defineProperty(converted, key, {
+        value,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      })
     }
     const canonicalJson = canonicalInterruptJson(converted)
     return { json: converted, canonicalJson }

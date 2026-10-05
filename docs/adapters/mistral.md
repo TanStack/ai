@@ -434,6 +434,14 @@ Creates a Mistral text adapter with an explicit API key.
 
 **Returns:** A Mistral text adapter instance.
 
+## Images in tool results
+
+A tool can return an image for a model that accepts image input. Mistral keeps the text and image URL blocks together in the tool message's content.
+
+Image-only results use `(see attached image)` as the tool text. Empty results use `(no tool output)`. A text-only model receives an image-omission placeholder without the image blocks.
+
+Keep tool-result content as content parts when you save history. JSON text that contains base64 image data is still text. See [Tool Definition](../tools/tools#tool-definition).
+
 ## Limitations
 
 - **Embeddings**: Use the [Mistral SDK](https://github.com/mistralai/client-ts) directly for `mistral-embed`.

@@ -194,7 +194,7 @@ Now the decision carries a payload, and approval can also replace the arguments:
 interrupt.resolveInterrupt(true, { payload: { note: 'Reviewed' } })
 
 // Approve, but replace the arguments first. editedArgs is a full replacement,
-// not a merge, and is validated against the tool's inputSchema.
+// not a merge. Final validation runs after onBeforeToolCall middleware.
 interrupt.resolveInterrupt(true, {
   editedArgs: { amount: 12, recipient: 'Ada' },
   payload: { note: 'Capped to policy' },
@@ -206,7 +206,32 @@ interrupt.resolveInterrupt(false, { payload: { reason: 'Too large' } })
 
 Only approval accepts `editedArgs`. Without an `approvalSchema` the boolean
 shorthand `resolveInterrupt(true)` / `resolveInterrupt(false)` is all you need.
-The server re-validates the whole decision before it runs the tool.
+The server validates the decision batch before it resumes the tools. Approved arguments remain raw until `onBeforeToolCall` and the final input check.
+
+### Resume with the same tool
+
+Keep the same approval-required tool registered for the approval run and the client-output run. Resume checks bind each answer to its tool call, tool name, interrupt, and current phase. An invalid batch does not dispatch tools.
+
+If the harness rejects a resume response, the pending interrupts remain available for a valid retry. A logged host without an `InterruptStore` keeps its existing empty-batch behavior: it presents the same pending approvals and executes no tools. With persisted pending interrupts, an empty batch is rejected. Submit the complete pending batch with valid entries and bindings.
+
+The final input path is:
+
+1. Apply approved `editedArgs` as a full raw replacement.
+2. Run `onBeforeToolCall` middleware.
+3. Validate the final input against `inputSchema`.
+4. Execute the server tool or emit the client execution descriptor.
+
+If final validation fails, the model receives a tool error. No execution descriptor is emitted. Outstanding or denied approvals do not run the tool middleware.
+
+Standard Schema first checks the raw input after middleware. If that check fails, a safe input schema export can allow coercion and another authored check. Each accepted execution boundary uses one successful authored transform. A later client-output phase starts from the saved raw edit, rather than transforming an earlier transformed value again. This does not guarantee exactly-once external side effects across crashes.
+
+JSON-compatible approved edits update the existing tool call's saved arguments. These edits survive a later client-output resume. This is a user edit to history. Provider replay leaves saved arguments unchanged.
+
+Saved arguments use JSON. Opaque values, such as class instances with private state, cannot use that history path. A direct server call can execute an accepted opaque input without rewriting its transcript.
+
+In ephemeral mode, the caller supplies trusted history and the resume phase. Structural checks do not prove that an earlier approval occurred. Durable mode also checks the stored resolved approval. See [Durable Tools](../harness/durable-tools).
+
+Durable resume supports older same-run client-output phases when their saved approval and tool bindings match. Cross-run phases also need trusted approval context saved with the interrupt. Without that context, the server rejects the resume and keeps the client phase pending. A malformed context is rejected in both cases.
 
 ## Consume the decision on the server
 

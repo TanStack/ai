@@ -29,35 +29,9 @@ export function throwIfConverseStreamError(ev: ConverseStreamOutput): void {
   }
 }
 
-/**
- * Maps a Bedrock Converse `ConverseStreamOutput` event stream to the TanStack
- * AG-UI `StreamChunk` lifecycle, following `openai-base`'s `processStreamChunks`
- * lifecycle shape so the activity layer / agent loop behave identically across
- * providers. (Reasoning surfaces only the message-level events —
- * `REASONING_MESSAGE_START/CONTENT/END` — which is all the core accumulator
- * consumes; the `REASONING_START`/`REASONING_END`/`STEP_*` boundary events
- * openai-base also emits are no-ops in the engine and are not reproduced here.)
- *
- * Lifecycle ownership matches openai-base: this processor emits the full
- * success-path lifecycle itself — `RUN_STARTED` lazily before the first event,
- * `TEXT_MESSAGE_*` / `TOOL_CALL_*` / `REASONING_MESSAGE_*` for content, and a
- * single terminal `RUN_FINISHED` once the iterator is exhausted (so the trailing
- * `metadata` usage event is folded into the finish event regardless of arrival
- * order). The calling adapter only owns the catch/`RUN_ERROR` path — so any
- * in-band Converse error event (see `throwIfConverseStreamError`) is thrown to
- * surface there rather than ending the stream as a clean truncated success.
- *
- * Converse streams tool-call arguments as partial-JSON string fragments inside
- * `contentBlockDelta.delta.toolUse.input`; each fragment is emitted as a
- * `TOOL_CALL_ARGS` `delta`, mirroring OpenAI's `function.arguments` deltas.
- *
- * @param stream - The Converse event stream from `ConverseStreamCommand`.
- * @param newMessageId - Factory for fresh ids — run, thread, message, and
- *   tool-call ids (the adapter passes `() => this.generateId()`).
- * @param lifecycle - Incoming run lifecycle ids, threaded onto the emitted
- *   `RUN_STARTED`/`RUN_FINISHED` so the chat path matches every sibling adapter
- *   (openai-base reuses `options.threadId`/`parentRunId`). Defaults preserve the
- *   previous behaviour (fresh `threadId`, no `parentRunId`).
+/** Map Converse blocks to run, text, reasoning, and tool events.
+ * Keep signatures and encrypted bytes separate for each contentBlockIndex.
+ * Finish after trailing usage events. The adapter handles thrown errors.
  */
 export async function* processConverseStream(
   stream: AsyncIterable<ConverseStreamOutput>,
@@ -76,15 +50,31 @@ export async function* processConverseStream(
   let hasEmittedTextMessageStart = false
 
   // Reasoning lifecycle
-  let reasoningMessageId: string | undefined
-  let hasClosedReasoning = false
+  const reasoningByIndex = new Map<
+    number,
+    {
+      id: string
+      text: string
+      signature: string
+      bytes: Array<Uint8Array>
+      redacted: boolean
+      closed: boolean
+      encrypted?: string
+    }
+  >()
 
   // Tool-call lifecycle, keyed by Converse contentBlockIndex. Converse opens a
   // tool-use block with `contentBlockStart`, streams arg fragments via
   // `contentBlockDelta`, and closes it with `contentBlockStop`.
   const toolCallsByIndex = new Map<
     number,
-    { id: string; name: string; started: boolean }
+    {
+      id: string
+      name: string
+      started: boolean
+      arguments: string
+      hasArguments: boolean
+    }
   >()
 
   // Usage + finish-reason are captured during iteration and folded into the
@@ -109,12 +99,50 @@ export async function* processConverseStream(
 
   // Close an open reasoning message before text/tool content begins, mirroring
   // openai-base which always emits REASONING_MESSAGE_END before TEXT_MESSAGE_START.
-  function* closeReasoning(): Generator<AdapterYieldChunk> {
-    if (reasoningMessageId && !hasClosedReasoning) {
-      hasClosedReasoning = true
+  function* encryptedReasoning(index: number): Generator<AdapterYieldChunk> {
+    const reasoning = reasoningByIndex.get(index)
+    if (!reasoning) return
+    const encrypted = reasoning.redacted
+      ? Buffer.concat(reasoning.bytes).toString('base64')
+      : reasoning.signature
+    if (!encrypted || encrypted === reasoning.encrypted) return
+    reasoning.encrypted = encrypted
+    yield {
+      type: EventType.REASONING_ENCRYPTED_VALUE,
+      entityId: reasoning.id,
+      subtype: 'message',
+      encryptedValue: encrypted,
+      ...(reasoning.redacted && {
+        stepId: reasoning.id.startsWith('redacted_thinking-')
+          ? reasoning.id
+          : 'redacted_thinking-' + reasoning.id,
+      }),
+      timestamp: Date.now(),
+    }
+  }
+
+  function* closeReasoning(index?: number): Generator<AdapterYieldChunk> {
+    for (const [blockIndex, reasoning] of reasoningByIndex) {
+      if (index !== undefined && index !== blockIndex) continue
+      yield* encryptedReasoning(blockIndex)
+      if (reasoning.closed) continue
+      reasoning.closed = true
+      yield {
+        type: EventType.STEP_FINISHED,
+        stepId: reasoning.id,
+        stepName: reasoning.id,
+        delta: '',
+        content: reasoning.text,
+        timestamp: Date.now(),
+      }
       yield {
         type: EventType.REASONING_MESSAGE_END,
-        messageId: reasoningMessageId,
+        messageId: reasoning.id,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.REASONING_END,
+        messageId: reasoning.id,
         timestamp: Date.now(),
       }
     }
@@ -141,10 +169,13 @@ export async function* processConverseStream(
           id,
           name,
           started: true,
+          arguments: '',
+          hasArguments: false,
         })
         yield {
           type: EventType.TOOL_CALL_START,
           toolCallId: id,
+          parentMessageId: messageId,
           toolCallName: name,
           toolName: name,
           timestamp: Date.now(),
@@ -163,6 +194,8 @@ export async function* processConverseStream(
       if (delta && 'toolUse' in delta && delta.toolUse?.input !== undefined) {
         const toolCall = toolCallsByIndex.get(index)
         if (toolCall?.started) {
+          toolCall.arguments += delta.toolUse.input
+          toolCall.hasArguments = true
           yield {
             type: EventType.TOOL_CALL_ARGS,
             toolCallId: toolCall.id,
@@ -173,28 +206,66 @@ export async function* processConverseStream(
         continue
       }
 
-      // Reasoning content.
-      if (
-        delta &&
-        'reasoningContent' in delta &&
-        delta.reasoningContent &&
-        'text' in delta.reasoningContent &&
-        delta.reasoningContent.text !== undefined
-      ) {
-        if (!reasoningMessageId) {
-          reasoningMessageId = newMessageId()
+      if (delta && 'reasoningContent' in delta && delta.reasoningContent) {
+        const fragment = delta.reasoningContent
+        let reasoning = reasoningByIndex.get(index)
+        if (!reasoning) {
+          const redacted =
+            'redactedContent' in fragment &&
+            (fragment.redactedContent?.length ?? 0) > 0
+          reasoning = {
+            id: (redacted ? 'redacted_thinking-' : '') + newMessageId(),
+            text: '',
+            signature: '',
+            bytes: [],
+            redacted,
+            closed: false,
+          }
+          reasoningByIndex.set(index, reasoning)
+          yield {
+            type: EventType.STEP_STARTED,
+            stepId: reasoning.id,
+            stepName: reasoning.id,
+            stepType: 'thinking',
+            timestamp: Date.now(),
+          }
           yield {
             type: EventType.REASONING_MESSAGE_START,
-            messageId: reasoningMessageId,
+            messageId: reasoning.id,
             role: 'reasoning',
             timestamp: Date.now(),
           }
         }
-        yield {
-          type: EventType.REASONING_MESSAGE_CONTENT,
-          messageId: reasoningMessageId,
-          delta: delta.reasoningContent.text,
-          timestamp: Date.now(),
+        if (
+          !reasoning.redacted &&
+          'text' in fragment &&
+          fragment.text !== undefined
+        ) {
+          reasoning.text += fragment.text
+          yield {
+            type: EventType.REASONING_MESSAGE_CONTENT,
+            messageId: reasoning.id,
+            delta: fragment.text,
+            timestamp: Date.now(),
+          }
+        }
+        if (
+          !reasoning.redacted &&
+          'signature' in fragment &&
+          fragment.signature !== undefined
+        )
+          reasoning.signature += fragment.signature
+        if (
+          'redactedContent' in fragment &&
+          fragment.redactedContent &&
+          fragment.redactedContent.length > 0
+        ) {
+          if (!reasoning.redacted) reasoning.encrypted = undefined
+          reasoning.redacted = true
+          reasoning.text = ''
+          reasoning.signature = ''
+          reasoning.bytes.push(fragment.redactedContent)
+          yield* encryptedReasoning(index)
         }
         continue
       }
@@ -225,11 +296,13 @@ export async function* processConverseStream(
 
     if ('contentBlockStop' in ev) {
       const stopIndex = ev.contentBlockStop?.contentBlockIndex ?? 0
+      yield* closeReasoning(stopIndex)
       const toolCall = toolCallsByIndex.get(stopIndex)
       if (toolCall?.started) {
         yield {
           type: EventType.TOOL_CALL_END,
           toolCallId: toolCall.id,
+          ...(toolCall.hasArguments && { args: toolCall.arguments }),
           toolCallName: toolCall.name,
           toolName: toolCall.name,
           timestamp: Date.now(),
@@ -272,6 +345,7 @@ export async function* processConverseStream(
     yield {
       type: EventType.TOOL_CALL_END,
       toolCallId: toolCall.id,
+      ...(toolCall.hasArguments && { args: toolCall.arguments }),
       toolCallName: toolCall.name,
       toolName: toolCall.name,
       timestamp: Date.now(),

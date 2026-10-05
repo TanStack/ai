@@ -200,6 +200,98 @@ describe('mcpConnector', () => {
     expect(model.toolNames(3)).toEqual(['demo_echo'])
   })
 
+
+  it('keeps colliding sender names separate in one shared thread', async () => {
+    const protectedServer = await startProtectedServer()
+    cleanups.push(() => protectedServer.close())
+    const first = { tenantId: 'a', id: 'b:c' }
+    const second = { tenantId: 'a:b', id: 'c' }
+    const persistence = memoryPersistence()
+    for (const [principal, accessToken] of [
+      [first, 'first-token'],
+      [second, 'second-token'],
+    ] as const) {
+      await persistence.stores.credentials.set(
+        { threadId: 't', tenantId: principal.tenantId, userId: principal.id },
+        'demo',
+        {
+          type: 'oauth',
+          accessToken,
+          client: {
+            clientId: 'client-1',
+            redirectUri: 'http://127.0.0.1/callback',
+            issuer: protectedServer.issuer,
+          },
+        },
+      )
+    }
+    const initialized: Array<string> = []
+    const toolLists: Array<string> = []
+    const fetchForSender: typeof fetch = async (input, init) => {
+      const request = new Request(input, init)
+      const token = request.headers.get('authorization')?.replace(/^Bearer /, '')
+      const raw = request.method === 'POST' ? await request.clone().text() : ''
+      const body: unknown = raw ? JSON.parse(raw) : undefined
+      const method =
+        typeof body === 'object' && body !== null && 'method' in body
+          ? body.method
+          : undefined
+      if (method === 'initialize') initialized.push(token ?? '')
+      if (method === 'tools/list') toolLists.push(token ?? '')
+      if (token) request.headers.set('authorization', 'Bearer access-1')
+      const response = await fetch(request)
+      if (method !== 'tools/list' || !response.ok) return response
+      const result: unknown = await response.json()
+      if (
+        typeof result !== 'object' ||
+        result === null ||
+        !('result' in result) ||
+        typeof result.result !== 'object' ||
+        result.result === null ||
+        !('tools' in result.result) ||
+        !Array.isArray(result.result.tools)
+      ) {
+        throw new Error('The MCP server did not return tools.')
+      }
+      for (const tool of result.result.tools) {
+        if (typeof tool !== 'object' || tool === null || !('name' in tool)) {
+          throw new Error('The MCP server returned an invalid tool.')
+        }
+        tool.name = token === 'first-token' ? 'first_echo' : 'second_echo'
+      }
+      return new Response(JSON.stringify(result), {
+        status: response.status,
+        headers: response.headers,
+      })
+    }
+    const model = recorder()
+    const host = createHarnessHost({ persistence })
+    cleanups.push(() => host.close())
+    const session = await host.open(
+      defineHarness({
+        name: 'test/mcp-connector-colliding-senders',
+        adapter: model.adapter,
+        plugins: () => [
+          mcpConnector({
+            id: 'demo',
+            label: 'Demo',
+            url: protectedServer.url,
+            fetch: fetchForSender,
+          }),
+        ],
+      }),
+      { threadId: 't', principal: first },
+    )
+    await session.prompt('first', { principal: first })
+    await session.prompt('second', { principal: second })
+    await session.prompt('first again', { principal: first })
+    expect(model.toolNames(0)).toEqual(['demo_first_echo'])
+    expect(model.toolNames(1)).toEqual(['demo_second_echo'])
+    expect(model.toolNames(2)).toEqual(['demo_first_echo'])
+    expect(initialized).toEqual(['first-token', 'second-token'])
+    expect(toolLists).toEqual(['first-token', 'second-token'])
+  })
+
   it('tells the model to ask for /connect before sign-in', async () => {
     const model = recorder()
     const host = createHarnessHost({ persistence: memoryPersistence() })

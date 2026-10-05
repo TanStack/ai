@@ -1,0 +1,51 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[replay-parity] first",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "reasoning": "I will look up the guitar.",
+        "toolCalls": [
+          {
+            "id": "foreign-call:with/slash",
+            "name": "lookup_replay",
+            "arguments": "{\"query\":\"guitar\"}"
+          }
+        ],
+        "reasoningSignature": "opaque-first-signature",
+        "redactedThinking": ["AAH/"]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-parity] first",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "First replay answer."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-parity] second"
+      },
+      "response": {
+        "content": "Second replay answer."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[replay-parity] failed"
+      },
+      "response": {
+        "error": {
+          "message": "provider failed",
+          "type": "server_error"
+        },
+        "status": 503
+      }
+    }
+  ]
+}

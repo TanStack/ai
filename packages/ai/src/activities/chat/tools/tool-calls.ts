@@ -1,7 +1,9 @@
+import { reconcileToolCallArguments } from '../../../utilities/tool-call-arguments'
 import { normalizeToolResult } from '../../../utilities/tool-result'
 import { tanstackMetadata } from '../../../utilities/merge-metadata'
 import { isProviderExecutedToolCall } from '../../../utilities/provider-executed'
 import { mergeStreams } from '../../../utilities/merge-streams'
+import { validateToolInput } from './input-validation'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import {
   StandardSchemaValidationError,
@@ -344,10 +346,21 @@ export class ToolCallManager<
   completeToolCall(event: ToolCallEndEvent): void {
     for (const toolCall of this.toolCallsMap.values()) {
       if (toolCall.id !== event.toolCallId) continue
-      if (event.input === undefined) return
-      const normalized =
-        event.input && typeof event.input === 'object' ? event.input : {}
-      toolCall.function.arguments = JSON.stringify(normalized)
+      const extra = event as AdapterYieldChunk
+      const metadata = tanstackMetadata(extra)
+      const storedArgs =
+        metadata && 'args' in metadata ? metadata.args : undefined
+      const snapshot = typeof extra.args === 'string' ? extra.args : storedArgs
+      let raw: string | undefined =
+        typeof snapshot === 'string' ? snapshot : toolCall.function.arguments
+      if (typeof snapshot !== 'string' && event.input !== undefined) {
+        try {
+          JSON.parse(raw)
+        } catch {
+          raw = undefined
+        }
+      }
+      toolCall.function.arguments = reconcileToolCallArguments(raw, event.input)
       return
     }
   }
@@ -393,32 +406,20 @@ export class ToolCallManager<
       let toolOutput: unknown
       if (tool?.execute) {
         try {
-          // Parse arguments (normalize null/non-object to {} for empty tool_use blocks)
+          // Keep the parsed value so the schema can check its type.
           let args: unknown
           try {
-            const argsString = toolCall.function.arguments.trim() || '{}'
-            const parsed = JSON.parse(argsString)
-            args = parsed && typeof parsed === 'object' ? parsed : {}
+            const argsString =
+              toolCall.function.arguments.trim() ||
+              (tool.inputSchema === undefined ? '{}' : '')
+            args = JSON.parse(argsString)
           } catch (parseError) {
             throw new Error(
               `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`,
             )
           }
 
-          // Validate input against inputSchema (for Standard Schema compliant schemas)
-          if (tool.inputSchema && isStandardSchema(tool.inputSchema)) {
-            try {
-              args = parseWithStandardSchema(tool.inputSchema, args)
-            } catch (validationError: unknown) {
-              const message =
-                validationError instanceof Error
-                  ? validationError.message
-                  : 'Validation failed'
-              throw new Error(
-                `Input validation failed for tool ${tool.name}: ${message}`,
-              )
-            }
-          }
+          args = await validateToolInput(tool.inputSchema, args, tool.name)
 
           // Execute the tool
           const executionContext = {
@@ -672,11 +673,11 @@ async function applyBeforeToolCallDecision(
     return { proceed: true, input }
   }
 
-  if (decision.type === 'abort') {
+  if (decision?.type === 'abort') {
     throw new MiddlewareAbortError(decision.reason || 'Aborted by middleware')
   }
 
-  if (decision.type === 'skip') {
+  if (decision?.type === 'skip') {
     const skipResult = decision.result
     results.push({
       toolCallId: toolCall.id,
@@ -1078,12 +1079,12 @@ export async function* executeToolCalls<TContext = unknown>(
 
     // Parse arguments
     let input: unknown = {}
-    const argsStr = toolCall.function.arguments.trim() || '{}'
-    if (argsStr) {
+    const argsStr =
+      toolCall.function.arguments.trim() ||
+      (tool.inputSchema === undefined ? '{}' : '')
+    if (argsStr || tool.inputSchema !== undefined) {
       try {
-        const parsed = JSON.parse(argsStr)
-        // Normalize null/non-object to {} (e.g. Anthropic empty tool_use blocks)
-        input = parsed && typeof parsed === 'object' ? parsed : {}
+        input = JSON.parse(argsStr)
       } catch {
         results.push({
           toolCallId: toolCall.id,
@@ -1098,27 +1099,84 @@ export async function* executeToolCalls<TContext = unknown>(
       }
     }
 
-    // Validate input against inputSchema (for Standard Schema compliant schemas)
-    if (tool.inputSchema && isStandardSchema(tool.inputSchema)) {
+    const resolution = tool.needsApproval
+      ? approvalResolution(approvals, toolCall.id)
+      : undefined
+    const needsPreview = tool.needsApproval && resolution === undefined
+    if (
+      tool.needsApproval &&
+      resolution !== undefined &&
+      !isApproved(resolution)
+    ) {
+      results.push({
+        toolCallId: toolCall.id,
+        toolName,
+        result:
+          resumeState?.deniedToolResults?.get(toolCall.id) ??
+          deniedApprovalResult(resolution),
+        input,
+        state: 'output-error',
+        outcome: 'denied',
+      })
+      continue
+    }
+    const editedInput =
+      resolution === undefined ? undefined : editedApprovalArgs(resolution)
+    if (editedInput !== undefined) input = editedInput
+
+    // Middleware receives parsed input. The schema checks its final edits.
+    if (!needsPreview && middlewareHooks) {
+      let decision: Awaited<ReturnType<typeof applyBeforeToolCallDecision>>
       try {
-        input = parseWithStandardSchema(tool.inputSchema, input)
-      } catch (validationError: unknown) {
-        const message =
-          validationError instanceof Error
-            ? validationError.message
-            : 'Validation failed'
-        results.push({
-          toolCallId: toolCall.id,
-          toolName,
-          result: {
-            error: `Input validation failed for tool ${tool.name}: ${message}`,
-          },
-          // raw parse may have failed validation — still attach best-effort input
+        decision = await applyBeforeToolCallDecision(
+          toolCall,
+          tool,
           input,
-          state: 'output-error',
-        })
-        continue
+          toolName,
+          middlewareHooks,
+          results,
+        )
+      } catch (error) {
+        failures.push(error)
+        break
       }
+      if (!decision.proceed) continue
+      input = decision.input
+    }
+    try {
+      input = await validateToolInput(tool.inputSchema, input, tool.name)
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Validation failed'
+      results.push({
+        toolCallId: toolCall.id,
+        toolName,
+        result: { error: message },
+        input,
+        state: 'output-error',
+      })
+      if (!needsPreview) {
+        await middlewareHooks?.onAfterToolCall?.({
+          toolCall,
+          tool,
+          toolName,
+          toolCallId: toolCall.id,
+          ok: false,
+          duration: 0,
+          error,
+        })
+      }
+      continue
+    }
+    if (needsPreview) {
+      // This checked preview is not stored as the next execution's raw input.
+      needsApproval.push({
+        toolCallId: toolCall.id,
+        toolName,
+        input,
+        approvalId: `approval_${toolCall.id}`,
+      })
+      continue
     }
 
     // Create a ToolExecutionContext for this tool call with event emission
@@ -1149,140 +1207,27 @@ export async function* executeToolCalls<TContext = unknown>(
       },
     } as ToolExecutionContext<TContext>
 
-    // CASE 1: Client-side tool (no execute function)
     if (!tool.execute) {
-      // Check if tool needs approval
-      if (tool.needsApproval) {
-        const approvalId = `approval_${toolCall.id}`
-        const resolution = approvalResolution(approvals, toolCall.id)
-
-        // Check if approval decision exists
-        if (resolution !== undefined) {
-          const approved = isApproved(resolution)
-
-          if (approved) {
-            input = editedApprovalArgs(resolution) ?? input
-            // Approved - check if client has executed
-            const clientError = resumeState?.clientToolErrors?.get(toolCall.id)
-            if (clientResults.has(toolCall.id) || clientError !== undefined) {
-              results.push(
-                await buildClientToolResult(
-                  toolCall.id,
-                  toolName,
-                  tool,
-                  clientResults.get(toolCall.id),
-                  input,
-                  clientError,
-                ),
-              )
-            } else {
-              // Approved but not executed yet - request client execution
-              needsClientExecution.push({
-                toolCallId: toolCall.id,
-                toolName,
-                input,
-              })
-            }
-          } else {
-            // User declined
-            results.push({
-              toolCallId: toolCall.id,
-              toolName,
-              result:
-                resumeState?.deniedToolResults?.get(toolCall.id) ??
-                deniedApprovalResult(resolution),
-              input,
-              state: 'output-error',
-              outcome: 'denied',
-            })
-          }
-        } else {
-          // Need approval first
-          needsApproval.push({
-            toolCallId: toolCall.id,
-            toolName: toolCall.function.name,
-            input,
-            approvalId,
-          })
-        }
-      } else {
-        // No approval needed - check if client has executed
-        const clientError = resumeState?.clientToolErrors?.get(toolCall.id)
-        if (clientResults.has(toolCall.id) || clientError !== undefined) {
-          results.push(
-            await buildClientToolResult(
-              toolCall.id,
-              toolName,
-              tool,
-              clientResults.get(toolCall.id),
-              input,
-              clientError,
-            ),
-          )
-        } else {
-          // Request client execution
-          needsClientExecution.push({
-            toolCallId: toolCall.id,
+      const clientError = resumeState?.clientToolErrors?.get(toolCall.id)
+      if (clientResults.has(toolCall.id) || clientError !== undefined) {
+        results.push(
+          await buildClientToolResult(
+            toolCall.id,
             toolName,
+            tool,
+            clientResults.get(toolCall.id),
             input,
-          })
-        }
+            clientError,
+          ),
+        )
+      } else {
+        needsClientExecution.push({
+          toolCallId: toolCall.id,
+          toolName,
+          input,
+        })
       }
       continue
-    }
-
-    // CASE 2: Server tool with approval required
-    if (tool.needsApproval) {
-      const approvalId = `approval_${toolCall.id}`
-      const resolution = approvalResolution(approvals, toolCall.id)
-
-      if (resolution === undefined) {
-        // Need approval
-        needsApproval.push({
-          toolCallId: toolCall.id,
-          toolName,
-          input,
-          approvalId,
-        })
-        continue
-      }
-      if (!isApproved(resolution)) {
-        // User declined
-        results.push({
-          toolCallId: toolCall.id,
-          toolName,
-          result:
-            resumeState?.deniedToolResults?.get(toolCall.id) ??
-            deniedApprovalResult(resolution),
-          input,
-          state: 'output-error',
-          outcome: 'denied',
-        })
-        continue
-      }
-      // Approved: run it like any other server tool below.
-      input = editedApprovalArgs(resolution) ?? input
-    }
-
-    // CASE 3: Server tool, approved or with no approval
-    if (middlewareHooks) {
-      let decision: Awaited<ReturnType<typeof applyBeforeToolCallDecision>>
-      try {
-        decision = await applyBeforeToolCallDecision(
-          toolCall,
-          tool,
-          input,
-          toolName,
-          middlewareHooks,
-          results,
-        )
-      } catch (error) {
-        // The calls prepared so far still run, as they would one at a time.
-        failures.push(error)
-        break
-      }
-      if (!decision.proceed) continue
-      input = decision.input
     }
 
     const run = runServerTool(

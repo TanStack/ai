@@ -45,6 +45,7 @@ export type {
   AnyImageAdapter,
   TextAdapter,
   AnyTextAdapter,
+  StructuredOutputResult,
   AnySummarizeAdapter,
   SummarizeAdapter,
   AnyAudioAdapter,

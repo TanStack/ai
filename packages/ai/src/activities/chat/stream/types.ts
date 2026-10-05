@@ -64,6 +64,8 @@ export interface MessageStreamState {
   hasSeenReasoningEvents: boolean
   thinkingSteps: Map<string, string>
   thinkingStepSignatures: Map<string, string>
+  reasoningStepAliases: Map<string, string>
+  redactedThinkingSteps: Set<string>
   thinkingStepOrder: Array<string>
   currentThinkingStepId: string | null
   toolCalls: Map<string, InternalToolCallState>

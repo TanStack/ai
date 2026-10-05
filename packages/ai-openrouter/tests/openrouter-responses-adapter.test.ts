@@ -1152,6 +1152,137 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     expect(finished.metadata?.tanstack?.finishReason).toBe('tool_calls')
   })
 
+  // Strict tools reach the model with optionals widened to required +
+  // nullable, so an omitted optional comes back as `null`. Only those nulls are
+  // stripped; a genuine `.nullable()` null stays. Each row delivers the
+  // arguments through a different TOOL_CALL_END emit path.
+  const widenedArguments =
+    '{"guitar":"Martin D-28","color":null,"strings":{"gauges":["10","46"],"brand":null},"note":null,"case":null,"pickup":{"store":"Berlin","date":null}}'
+  const widenedCall = {
+    type: 'function_call',
+    id: 'item_1',
+    callId: 'call_abc',
+    name: 'recommend_guitar',
+  }
+  const widenedCallAdded = {
+    type: 'response.output_item.added',
+    sequenceNumber: 1,
+    outputIndex: 0,
+    item: { ...widenedCall, arguments: '' },
+  }
+  it.each([
+    {
+      path: 'function_call_arguments.done',
+      events: [
+        widenedCallAdded,
+        {
+          type: 'response.function_call_arguments.done',
+          sequenceNumber: 2,
+          itemId: 'item_1',
+          outputIndex: 0,
+          arguments: widenedArguments,
+        },
+      ],
+      completedOutput: [{ type: 'function_call' }],
+    },
+    {
+      path: 'output_item.done backfill',
+      events: [
+        widenedCallAdded,
+        {
+          type: 'response.output_item.done',
+          sequenceNumber: 2,
+          outputIndex: 0,
+          item: { ...widenedCall, arguments: widenedArguments },
+        },
+      ],
+      completedOutput: [],
+    },
+    {
+      path: 'response.completed backfill',
+      events: [],
+      completedOutput: [{ ...widenedCall, arguments: widenedArguments }],
+    },
+  ])(
+    'undoes strict null-widening on the $path path',
+    async ({ events, completedOutput }) => {
+      const strictTool: Tool = {
+        name: 'recommend_guitar',
+        description: 'Recommend a guitar',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            guitar: { type: 'string' },
+            color: { type: 'string' },
+            strings: {
+              type: 'object',
+              properties: {
+                gauges: { type: 'array', items: { type: 'string' } },
+                brand: { type: 'string' },
+              },
+              required: ['gauges'],
+            },
+            note: { type: ['string', 'null'] },
+            case: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+            pickup: {
+              anyOf: [
+                {
+                  type: 'object',
+                  properties: {
+                    store: { type: 'string' },
+                    date: { type: 'string' },
+                  },
+                  required: ['store'],
+                },
+                { type: 'null' },
+              ],
+            },
+          },
+          required: ['guitar', 'note', 'pickup'],
+        },
+      }
+      setupMockSdkClient([
+        {
+          type: 'response.created',
+          sequenceNumber: 0,
+          response: { model: 'm', output: [] },
+        },
+        ...events,
+        {
+          type: 'response.completed',
+          sequenceNumber: 3,
+          response: {
+            model: 'm',
+            output: completedOutput,
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          },
+        },
+      ])
+
+      const chunks: Array<AdapterYieldChunk> = []
+      for await (const c of createAdapter().chatStream({
+        logger: testLogger,
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Hello' }],
+        tools: [strictTool],
+      })) {
+        chunks.push(c)
+      }
+
+      const end = chunks.find((c) => c.type === 'TOOL_CALL_END')
+      if (end?.type !== 'TOOL_CALL_END') {
+        throw new Error('expected TOOL_CALL_END')
+      }
+      expect(end.input).toEqual({
+        guitar: 'Martin D-28',
+        strings: { gauges: ['10', '46'] },
+        note: null,
+        case: null,
+        pickup: { store: 'Berlin' },
+      })
+    },
+  )
+
   it('preserves a streamed function-call name when later items omit it', async () => {
     setupMockSdkClient([
       {

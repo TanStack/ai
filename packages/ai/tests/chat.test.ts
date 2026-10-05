@@ -1223,6 +1223,65 @@ describe('chat()', () => {
   // Approval flow
   // ==========================================================================
   describe('approval flow', () => {
+    it('keeps own JSON keys in the approval schema on the real interrupt', async () => {
+      const raw =
+        '{"type":"object","__proto__":{"description":"authored"},"constructor":"authored","properties":{}}'
+      const exported = JSON.parse(raw)
+      const approvalSchema = {
+        '~standard': {
+          version: 1 as const,
+          vendor: 'own-keys',
+          validate: (value: unknown) => ({ value }),
+          jsonSchema: { input: () => exported, output: () => exported },
+        },
+      }
+      const execute = vi.fn()
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call', 'inspect'),
+            ev.toolArgs('call', '{}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Go' }],
+          tools: [
+            {
+              ...serverTool('inspect', execute),
+              needsApproval: true,
+              inputSchema: { type: 'object', properties: {} },
+              approvalSchema,
+            },
+          ],
+        }),
+      )
+      const finished = chunks.find(
+        (value) => value.type === EventType.RUN_FINISHED,
+      )
+      if (
+        finished?.type !== EventType.RUN_FINISHED ||
+        finished.outcome?.type !== 'interrupt'
+      )
+        throw new Error('Expected an approval interrupt')
+      const payloadSchema =
+        finished.outcome.interrupts[0]?.responseSchema?.oneOf?.[0]?.properties
+          ?.payload
+      expect(Object.hasOwn(payloadSchema, '__proto__')).toBe(true)
+      expect(
+        Object.getOwnPropertyDescriptor(payloadSchema, '__proto__')?.enumerable,
+      ).toBe(true)
+      expect(Object.getPrototypeOf(payloadSchema)).toBe(Object.prototype)
+      expect(JSON.stringify(payloadSchema)).toContain(
+        '"__proto__":{"description":"authored"}',
+      )
+      expect(JSON.stringify(exported)).toBe(raw)
+      expect(execute).not.toHaveBeenCalled()
+    })
     it('applies approved argument edits and emits only a result for a resumed tool call', async () => {
       const execute = vi.fn().mockImplementation((input) => input)
       const { adapter } = createMockAdapter({
@@ -1492,19 +1551,19 @@ describe('chat()', () => {
     })
 
     it('validates an entire ephemeral batch before executing any tool', async () => {
+      const beforeTool = vi.fn()
       const firstExecute = vi.fn().mockReturnValue({ ok: true })
       const secondExecute = vi.fn().mockReturnValue({ ok: true })
       const { adapter, calls } = createMockAdapter({
         iterations: [[ev.runStarted(), ev.runFinished('stop')]],
       })
-      // A Standard Schema input so the library validates the edited args. Raw
-      // JSON Schema is intentionally not validated by the library (the app owns
-      // that), so the invalid `editedArgs` below is caught via this path.
+      // Reject the malformed decision before tool middleware or execution.
       const inputSchema = z.object({ action: z.string() })
 
       const chunks = await collectChunks(
         chat({
           adapter,
+          middleware: [{ name: 'batch-check', onBeforeToolCall: beforeTool }],
           threadId: 'thread-1',
           runId: 'continuation-run',
           parentRunId: 'interrupted-run',
@@ -1551,21 +1610,22 @@ describe('chat()', () => {
               status: 'resolved',
               payload: {
                 approved: true,
-                editedArgs: { action: 1 },
+                editedArgs: { action: 'first-edit' },
               },
             },
             {
               interruptId: 'approval_call_2',
               status: 'resolved',
               payload: {
-                approved: true,
-                editedArgs: { action: 2 },
+                approved: 'yes',
+                editedArgs: { action: 'second-edit' },
               },
             },
           ],
         }) as AsyncIterable<StreamChunk>,
       )
 
+      expect(beforeTool).not.toHaveBeenCalled()
       expect(firstExecute).not.toHaveBeenCalled()
       expect(secondExecute).not.toHaveBeenCalled()
       expect(calls).toHaveLength(0)
@@ -1576,12 +1636,8 @@ describe('chat()', () => {
             tanstack: expect.objectContaining({
               interruptErrors: expect.arrayContaining([
                 expect.objectContaining({
-                  interruptId: 'approval_call_1',
-                  code: 'invalid-edited-args',
-                }),
-                expect.objectContaining({
                   interruptId: 'approval_call_2',
-                  code: 'invalid-edited-args',
+                  code: 'invalid-payload',
                 }),
                 expect.objectContaining({
                   scope: 'batch',
@@ -5238,4 +5294,89 @@ describe('chat()', () => {
       ).toThrow('Duplicate interrupt definition id: duplicate-chat-id')
     })
   })
+})
+
+describe('approved edited input final validation', () => {
+  it.each([
+    { action: 1, executes: true },
+    { action: [], executes: false },
+  ])(
+    'checks edited input after middleware: %j',
+    async ({ action, executes }) => {
+      const editedArgs = { action }
+      const order: Array<string> = []
+      const execute = vi.fn((input: unknown) => {
+        order.push('execute')
+        return input
+      })
+      const { adapter, calls } = createMockAdapter({
+        iterations: [[ev.runStarted(), ev.runFinished('stop')]],
+      })
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          threadId: 'thread',
+          runId: 'resume',
+          parentRunId: 'old-run',
+          messages: [
+            { role: 'user', content: 'Check' },
+            {
+              role: 'assistant',
+              content: '',
+              toolCalls: [
+                {
+                  id: 'edited',
+                  type: 'function',
+                  function: {
+                    name: 'check',
+                    arguments: '{"action":"original"}',
+                  },
+                },
+              ],
+            },
+          ],
+          tools: [
+            {
+              name: 'check',
+              description: 'Check',
+              needsApproval: true,
+              inputSchema: z.object({ action: z.string() }),
+              execute,
+            },
+          ],
+          middleware: [
+            {
+              name: 'edited-input-order',
+              onBeforeToolCall(_ctx, hook) {
+                order.push('middleware')
+                expect(hook.args).toBe(editedArgs)
+              },
+            },
+          ],
+          resume: [
+            {
+              interruptId: 'approval_edited',
+              status: 'resolved',
+              payload: { approved: true, editedArgs },
+            },
+          ],
+        }),
+      )
+      expect(order).toEqual(
+        executes ? ['middleware', 'execute'] : ['middleware'],
+      )
+      expect(execute).toHaveBeenCalledTimes(executes ? 1 : 0)
+      expect(calls).toHaveLength(1)
+      expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+        false,
+      )
+      if (executes) expect(execute.mock.calls[0]?.[0]).toEqual({ action: '1' })
+      else
+        expect(
+          calls[0]?.messages.find((message) => message.role === 'tool')
+            ?.content,
+        ).toContain('Input validation failed')
+      expect(editedArgs).toEqual({ action })
+    },
+  )
 })
