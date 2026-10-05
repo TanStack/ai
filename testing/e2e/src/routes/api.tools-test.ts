@@ -65,9 +65,11 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
           : scenario === 'client-tool-input-error' ||
               scenario === 'invalid-client-tool-retry'
             ? {
-                arguments: '{"message":42,"type":"info"}',
+                // No `message`: invalid even after the input check coerces
+                // scalar types (42 would become "42" and pass).
+                arguments: '{"type":"info"}',
                 initialText: 'Showing a notification.',
-                input: { message: 42, type: 'info' },
+                input: { type: 'info' },
                 name:
                   scenario === 'invalid-client-tool-retry'
                     ? 'invalid-client-tool-retry-test'
