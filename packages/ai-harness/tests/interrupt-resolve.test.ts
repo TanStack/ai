@@ -169,6 +169,51 @@ describe.each([
     await host.close()
   })
 
+  it('does not bring the interrupt back after a restart when the turn failed after the resume ran', async () => {
+    const execute = vi.fn(async () => ({ ok: true }))
+    const deploy = toolDefinition({
+      name: 'deploy',
+      description: 'Deploy. Needs approval.',
+      needsApproval: true,
+      inputSchema: z.object({ env: z.string() }),
+    }).server(execute)
+    const { adapter } = mockAdapter([
+      () => toolCall('deploy', { env: 'prod' }),
+      fails,
+    ])
+    const harness = defineHarness({
+      name: 'test/late-failure-restart',
+      adapter,
+      tools: [deploy],
+    })
+    const persistence = persistenceFor(durable)
+    const first = createHarnessHost({ persistence })
+    const session = await first.open(harness, { threadId: 't1' })
+    const turn = await session.prompt('Deploy.')
+    const interruptId = turn.interrupts?.[0]?.id
+    if (!interruptId) throw new Error('The turn did not stop for approval.')
+    await session.resolve(
+      [{ interruptId, status: 'resolved', payload: true }],
+      { inputId: 'approve' },
+    )
+    expect(await session.settled('approve')).toMatchObject({
+      outcome: 'failed',
+    })
+    await first.close()
+
+    // A new host on the same storage, like a restart.
+    const second = createHarnessHost({ persistence })
+    const reopened = await second.open(harness, { threadId: 't1' })
+    expect(reopened.snapshot().pendingInterrupts).toEqual([])
+    expect(
+      await reopened.resolve([
+        { interruptId, status: 'resolved', payload: true },
+      ]),
+    ).toMatchObject({ status: 'rejected', reason: 'no_pending_interrupts' })
+    expect(execute).toHaveBeenCalledTimes(1)
+    await second.close()
+  })
+
   it('accepts a resolve sent on RUN_FINISHED, while the interrupted turn still ends', async () => {
     const execute = vi.fn(async () => ({ ok: true }))
     const deploy = toolDefinition({

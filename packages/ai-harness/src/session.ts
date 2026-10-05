@@ -12,6 +12,7 @@ import {
   maxIterations,
   modelMessagesToUIMessages,
   provideLogRecords,
+  readInterruptBinding,
   runAgentStream,
   validateWithStandardSchema,
 } from '@tanstack/ai'
@@ -373,6 +374,18 @@ const scopeOf = (
 })
 
 /** What the log and the inbox keep of a principal: its id and tenant. */
+/** The `metadata.tanstack` of a logged event, if it has one. */
+const tanstackOf = (event: Record<string, unknown>) =>
+  isRecord(event.metadata) && isRecord(event.metadata.tanstack)
+    ? event.metadata.tanstack
+    : undefined
+
+/** The tool call an interrupt waits on: an approval or a client tool. */
+const toolCallOf = (interrupt: Interrupt) => {
+  const binding = readInterruptBinding(interrupt)
+  return binding && 'toolCallId' in binding ? binding.toolCallId : undefined
+}
+
 const storedPrincipal = (principal: Principal | undefined) =>
   principal
     ? {
@@ -1708,6 +1721,25 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           )
             continue
           const event = record.event
+          // A later result of an interrupt's tool call: its resume ran, so it
+          // is used up, also when that turn failed after the tool.
+          if (
+            event.type === EventType.TOOL_CALL_RESULT &&
+            typeof event.toolCallId === 'string' &&
+            next !== undefined
+          ) {
+            if (!(await this.isRunResult(event, record.operationId))) continue
+            const remaining = next.interrupts.filter(
+              (interrupt) => toolCallOf(interrupt) !== event.toolCallId,
+            )
+            if (remaining.length !== next.interrupts.length) {
+              next =
+                remaining.length > 0
+                  ? { ...next, interrupts: remaining }
+                  : undefined
+            }
+            continue
+          }
           if (
             event.type !== EventType.RUN_FINISHED ||
             event.subagentRunId ||
@@ -1790,6 +1822,43 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           this.threadId,
           null,
         )
+      }
+    }
+  }
+
+  /**
+   * True when a logged tool result means its tool ran: it is not cancelled,
+   * and an error result does not come from a stopped run.
+   */
+  private async isRunResult(
+    event: Record<string, unknown>,
+    operationId: unknown,
+  ) {
+    const tanstack = tanstackOf(event)
+    if (tanstack?.toolResultOutcome === 'cancelled') return false
+    if (tanstack?.state !== 'output-error') return true
+    if (typeof operationId !== 'string') return false
+    const run = await this.persistence.stores.runs?.get(operationId)
+    return run !== null && run !== undefined && run.status !== 'aborted'
+  }
+
+  /**
+   * Mark the interrupts of `resume` answered in the interrupt store, the same
+   * way `withPersistence` commits them at a success boundary. Records that are
+   * no longer pending are left as they are.
+   */
+  private async consumeResume(resume: ReadonlyArray<RunAgentResumeItem>) {
+    const store = this.persistence.stores.interrupts
+    if (!store) return
+    for (const item of resume) {
+      const record = await store.get(item.interruptId)
+      if (record?.status !== 'pending' || record.threadId !== this.threadId) {
+        continue
+      }
+      if (item.status === 'resolved') {
+        await store.resolve(item.interruptId, item.payload)
+      } else {
+        await store.cancel(item.interruptId)
       }
     }
   }
@@ -2622,6 +2691,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     let isRootPart = false
     /** chat() refused the resume of this turn, so it ran nothing. */
     let isResumeRefused = false
+    /** The tool calls of this turn that got a result, and an error result. */
+    const resultIds = new Set<string>()
+    const errorResultIds = new Set<string>()
     let text = ''
     let interrupts: Array<Interrupt> | undefined
     let failure: string | undefined
@@ -2964,6 +3036,15 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             // the result. Streamed text does not reset them, so a call that
             // fails after some text still counts.
             if (chunk.type === EventType.TOOL_CALL_RESULT) {
+              // A cancelled call gets a result too, but its tool did not run.
+              const tanstack = chunk.metadata?.tanstack
+              if (tanstack?.toolResultOutcome !== 'cancelled') {
+                if (tanstack?.state === 'output-error') {
+                  errorResultIds.add(chunk.toolCallId)
+                } else {
+                  resultIds.add(chunk.toolCallId)
+                }
+              }
               retries = 0
               textBefore = text
             }
@@ -3143,13 +3224,42 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             ...(turn.context !== undefined ? { context: turn.context } : {}),
           }
         : undefined
+    // A resume whose tools ran is used up, even when the turn fails after
+    // them. Offering its interrupts again would run the tools a second time.
+    // A resume that failed before its tools ran stays open for a retry.
+    const resumed = turn.resume ?? []
+    const resumedFrom = (turn.answers ?? this.interrupted)?.interrupts ?? []
+    const didResumedToolsRun =
+      !isResumeRefused &&
+      resumed.length > 0 &&
+      resumed.every((item) => {
+        const interrupt = resumedFrom.find(
+          (candidate) => candidate.id === item.interruptId,
+        )
+        const toolCallId = interrupt ? toolCallOf(interrupt) : undefined
+        if (toolCallId === undefined) return false
+        // A stopped run gives the calls it did not run an error result.
+        return (
+          resultIds.has(toolCallId) ||
+          (!operation.abortController.signal.aborted &&
+            errorResultIds.has(toolCallId))
+        )
+      })
+    // On a success, withPersistence committed them already, and this skips
+    // them. A failure or a stop can also come after the tools ran.
+    if (didResumedToolsRun) {
+      await this.consumeResume(resumed).catch((error: unknown) =>
+        this.warn(operation, 'harness:interrupts', error),
+      )
+    }
     await this.refreshTurnInterrupts(
       operation,
       observedInterrupts,
-      turn.resume !== undefined &&
-        failure === undefined &&
-        !isResumeRefused &&
-        !operation.abortController.signal.aborted,
+      didResumedToolsRun ||
+        (turn.resume !== undefined &&
+          failure === undefined &&
+          !isResumeRefused &&
+          !operation.abortController.signal.aborted),
     )
     if (this.logFailure) {
       if (releaseLease) await releaseLease()

@@ -508,8 +508,12 @@ describe.each([false, true])(
     )
 
     it.each(['provider', 'save'])(
-      'keeps approval after a pre-commit %s failure',
+      'after a pre-commit %s failure, keeps the approval only when its tool did not run',
       async (kind) => {
+        // The provider fails after the approved tool ran. Without a log, the
+        // save of the started turn fails before the tool. A durable host
+        // saves through the log, and that write fails after the tool ran.
+        const toolRan = kind === 'provider' || durable
         const stores = memoryPersistence().stores
         const log = memoryLogStore()
         const persistence = durable
@@ -570,17 +574,27 @@ describe.each([false, true])(
         await expect(
           session.operation(receipt.operationId ?? ''),
         ).rejects.toThrow()
-        expect(
-          session.snapshot().pendingInterrupts.map((item) => item.id),
-        ).toEqual([approval.id])
-        expect((await stores.interrupts.get(approval.id))?.status).toBe(
-          'pending',
-        )
-        expect(
-          await stores.metadata.get('harness:interrupted', THREAD),
-        ).toMatchObject({
-          interrupts: [expect.objectContaining({ id: approval.id })],
-        })
+        expect(remove.execute).toHaveBeenCalledTimes(toolRan ? 1 : 0)
+        if (toolRan) {
+          // Offering the approval again would run the tool a second time,
+          // so it is used up.
+          expect(session.snapshot().pendingInterrupts).toEqual([])
+          expect((await stores.interrupts.get(approval.id))?.status).toBe(
+            'resolved',
+          )
+        } else {
+          expect(
+            session.snapshot().pendingInterrupts.map((item) => item.id),
+          ).toEqual([approval.id])
+          expect((await stores.interrupts.get(approval.id))?.status).toBe(
+            'pending',
+          )
+          expect(
+            await stores.metadata.get('harness:interrupted', THREAD),
+          ).toMatchObject({
+            interrupts: [expect.objectContaining({ id: approval.id })],
+          })
+        }
         logWrite.mockRestore()
         save.mockRestore()
         await host.close()
@@ -590,6 +604,15 @@ describe.each([false, true])(
           // The failed log did not settle this applied input. Recovery retries it.
           expect(await reopened.settled(receipt.inputId)).toMatchObject({
             outcome: 'completed',
+          })
+        } else if (toolRan) {
+          expect(
+            await reopened.resolve([
+              { interruptId: approval.id, status: 'resolved', payload: true },
+            ]),
+          ).toMatchObject({
+            status: 'rejected',
+            reason: 'no_pending_interrupts',
           })
         } else {
           expect(
@@ -603,6 +626,7 @@ describe.each([false, true])(
           ).resolves.toEqual({ text: 'Recovered.' })
         }
         expect(reopened.snapshot().pendingInterrupts).toEqual([])
+        expect(remove.execute).toHaveBeenCalledTimes(1)
         await next.close()
       },
     )
