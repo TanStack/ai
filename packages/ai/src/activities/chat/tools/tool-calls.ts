@@ -540,12 +540,15 @@ export interface McpInputRequest {
   toolName: string
   kind: 'form' | 'sampling'
   request: unknown
+  /** The interrupt reason. Default: `'mcp_input'`. */
+  reason?: string
 }
 
 interface McpInputRequiredThrow {
   name: 'MCPInputRequiredError'
   kind: 'form' | 'sampling'
   request: unknown
+  reason?: unknown
 }
 
 function isMcpInputRequired(value: unknown): value is McpInputRequiredThrow {
@@ -834,6 +837,7 @@ export async function* executeServerTool<TContext = unknown>(
         toolName,
         kind: error.kind,
         request: error.request,
+        ...(typeof error.reason === 'string' ? { reason: error.reason } : {}),
       })
       return
     }

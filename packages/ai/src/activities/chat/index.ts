@@ -3141,7 +3141,7 @@ class TextEngine<
       const id = `mcp_input_${pendingInput.toolCallId}`
       interrupts.push({
         id,
-        reason: 'mcp_input',
+        reason: pendingInput.reason ?? 'mcp_input',
         message: `Input required to run ${pendingInput.toolName}`,
         toolCallId: pendingInput.toolCallId,
         metadata: {
