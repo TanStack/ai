@@ -1695,6 +1695,28 @@ describe('after-turn check', () => {
     )
   })
 
+  it('records the usage of the summary call after the turn', async () => {
+    const appended: Array<unknown> = []
+    const mw = withCompaction({
+      maxTokens: 1000,
+      contextWindow: 100,
+      countTokens: 'usage',
+      durable: true,
+      strategy: summarizeOldest({
+        summarize: async () => ({
+          summary: 'the gist',
+          usage: tokenUsage(12, 3),
+        }),
+        keepRecentTokens: 50,
+      }),
+    })
+    await finishTurn(mw, durableContext(appended).ctx, 110)
+
+    expect(appended).toMatchObject([
+      { reason: 'after-turn', usage: tokenUsage(12, 3) },
+    ])
+  })
+
   it('compacts after the turn over maxTokens when auto is on', async () => {
     const appended: Array<unknown> = []
     const mw = withCompaction({
@@ -2265,6 +2287,29 @@ describe('conversationSummarizer', () => {
     }
     expect(userOf(requests[0])).toContain('[User]: fix the bug')
     expect(userOf(requests[0])).toContain('[Assistant]: done')
+  })
+
+  it('writes text parts and a tag for each other part', async () => {
+    const { fake, requests } = fakeSummaryModel()
+    await conversationSummarizer({ adapter: fake })(
+      [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', content: 'look at this' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://x/y.png' },
+            },
+          ],
+        },
+        { role: 'assistant', content: null },
+      ],
+      {},
+    )
+
+    expect(userOf(requests[0])).toContain('[User]: look at this\\n[image]')
+    expect(userOf(requests[0])).toContain('[Assistant]: ')
   })
 
   it('uses the update prompt and leaves the earlier summary out of the conversation', async () => {
