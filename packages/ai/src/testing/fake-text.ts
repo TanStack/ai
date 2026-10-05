@@ -303,8 +303,7 @@ export class FakeTextAdapter<
     const toolCalls = response.toolCalls ?? []
     for (const [index, call] of toolCalls.entries()) {
       const toolCallId =
-        call.id ??
-        `fake-call-${this.instance}-${this.state.callCount}-${index}`
+        call.id ?? `fake-call-${this.instance}-${this.state.callCount}-${index}`
       yield {
         type: EventType.TOOL_CALL_START,
         toolCallId,

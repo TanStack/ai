@@ -214,7 +214,9 @@ export function mcpConnector(options: McpConnectorOptions) {
       // client, and tools never serve another person's turn.
       const connections = new Map<string, Connection>()
       const keyOf = (principal: Principal | undefined) =>
-        principal ? JSON.stringify([principal.tenantId ?? null, principal.id]) : ''
+        principal
+          ? JSON.stringify([principal.tenantId ?? null, principal.id])
+          : ''
       const close = async (connection: Connection | undefined) => {
         await connection?.client?.close().catch(() => {})
       }

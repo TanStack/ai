@@ -81,7 +81,9 @@ for (const scenario of ['replay-parity', 'replay-parity-cleanup']) {
     if (scenario === 'replay-parity-cleanup') {
       expect(JSON.stringify(wire)).not.toContain('Failed replay text')
       expect(JSON.stringify(wire)).not.toContain('orphan-result')
-      expect(body.requests.at(-1).body.instructions).toBe('Replay system prompt.')
+      expect(body.requests.at(-1).body.instructions).toBe(
+        'Replay system prompt.',
+      )
       expect(
         body.saved.some(
           (message: { role: string }) => message.role === 'system',

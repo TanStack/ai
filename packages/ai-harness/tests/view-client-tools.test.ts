@@ -86,7 +86,11 @@ describe('session view client tools', () => {
     expect(controls.at(-1)).toEqual({
       op: 'resolve',
       resume: [
-        { interruptId: call?.id, status: 'resolved', payload: { opened: true } },
+        {
+          interruptId: call?.id,
+          status: 'resolved',
+          payload: { opened: true },
+        },
       ],
     })
     expect(calls).toHaveLength(2)

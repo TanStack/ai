@@ -506,11 +506,12 @@ const ApiOpenaiImage25ModelsRoute = ApiOpenaiImage25ModelsRouteImport.update({
   path: '/api/openai-image-2-5-models',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiOpenaiMalformedToolArgumentsRoute = ApiOpenaiMalformedToolArgumentsRouteImport.update({
-  id: '/api/openai-malformed-tool-arguments',
-  path: '/api/openai-malformed-tool-arguments',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const ApiOpenaiMalformedToolArgumentsRoute =
+  ApiOpenaiMalformedToolArgumentsRouteImport.update({
+    id: '/api/openai-malformed-tool-arguments',
+    path: '/api/openai-malformed-tool-arguments',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenaiCompletedResponseTextRoute =
   ApiOpenaiCompletedResponseTextRouteImport.update({
     id: '/api/openai-completed-response-text',

@@ -200,7 +200,6 @@ describe('mcpConnector', () => {
     expect(model.toolNames(3)).toEqual(['demo_echo'])
   })
 
-
   it('keeps colliding sender names separate in one shared thread', async () => {
     const protectedServer = await startProtectedServer()
     cleanups.push(() => protectedServer.close())
@@ -229,7 +228,9 @@ describe('mcpConnector', () => {
     const toolLists: Array<string> = []
     const fetchForSender: typeof fetch = async (input, init) => {
       const request = new Request(input, init)
-      const token = request.headers.get('authorization')?.replace(/^Bearer /, '')
+      const token = request.headers
+        .get('authorization')
+        ?.replace(/^Bearer /, '')
       const raw = request.method === 'POST' ? await request.clone().text() : ''
       const body: unknown = raw ? JSON.parse(raw) : undefined
       const method =
