@@ -326,7 +326,52 @@ describe('authoritative terminal snapshots', () => {
 })
 
 describe('terminal raw schema execution', () => {
-  it.each(['', '  ', 'null', '2', '[1,2]'])(
+  // No input or a literal null is an empty tool_use block (issue #265): the
+  // tool runs with {}.
+  it.each(['', '  ', 'null'])(
+    'runs no input or null with {} against an optional-only object schema: %j',
+    async (raw) => {
+      let received: unknown = 'not called'
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('raw-call', 'check'),
+            {
+              type: EventType.TOOL_CALL_END,
+              toolCallId: 'raw-call',
+              args: raw,
+              timestamp: 0,
+            },
+            ev.runFinished('tool_calls'),
+          ],
+          [ev.runStarted('second'), ev.runFinished()],
+        ],
+      })
+      await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Check' }],
+          tools: [
+            {
+              name: 'check',
+              description: 'Check',
+              inputSchema: {
+                type: 'object',
+                properties: { optional: { type: 'string' } },
+              },
+              execute(input: unknown) {
+                received = input
+                return 'ok'
+              },
+            },
+          ],
+        }),
+      )
+      expect(received).toEqual({})
+    },
+  )
+  it.each(['2', '[1,2]'])(
     'rejects full terminal JSON against an optional-only object schema: %s',
     async (raw) => {
       let executions = 0
@@ -539,35 +584,33 @@ describe('authored terminal validation', () => {
 })
 
 describe('schema-bearing empty dispatcher input', () => {
-  it.each(['', '  '])(
-    'rejects empty raw input before dispatch: %j',
-    async (raw) => {
-      let executions = 0
-      const call: ToolCall = {
-        id: 'empty',
-        type: 'function',
-        function: { name: 'check', arguments: raw },
-      }
-      const result = await drainGenerator(
-        executeToolCalls(
-          [call],
-          [
-            {
-              name: 'check',
-              description: 'Check',
-              inputSchema: { type: 'object', properties: {} },
-              execute() {
-                executions++
-                return 'wrong'
-              },
+  // No input from the model is an empty tool_use block (issue #265): {}.
+  it.each(['', '  '])('runs empty raw input once with {}: %j', async (raw) => {
+    let executions = 0
+    const call: ToolCall = {
+      id: 'empty',
+      type: 'function',
+      function: { name: 'check', arguments: raw },
+    }
+    const result = await drainGenerator(
+      executeToolCalls(
+        [call],
+        [
+          {
+            name: 'check',
+            description: 'Check',
+            inputSchema: { type: 'object', properties: {} },
+            execute(input: unknown) {
+              executions++
+              return input
             },
-          ],
-        ),
-      )
-      expect(executions).toBe(0)
-      expect(result.results[0]?.state).toBe('output-error')
-    },
-  )
+          },
+        ],
+      ),
+    )
+    expect(executions).toBe(1)
+    expect(result.results[0]?.result).toEqual({})
+  })
   it('dispatches a valid explicit empty object once', async () => {
     let executions = 0
     const call: ToolCall = {

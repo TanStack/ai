@@ -883,9 +883,11 @@ describe('client input at interrupt boundaries', () => {
   )
 })
 
+// A model sends no input for a tool with no required fields (an empty
+// tool_use block, issue #265). That is `{}`, so the call is dispatched.
 describe('empty schema-bearing client arguments', () => {
   it.each([false, true])(
-    'does not dispatch an empty client or approval call: approval=%s',
+    'dispatches an empty client or approval call with {}: approval=%s',
     async (needsApproval) => {
       for (const raw of ['', '  ']) {
         const { adapter } = createMockAdapter({
@@ -911,19 +913,15 @@ describe('empty schema-bearing client arguments', () => {
             tools: [client({ type: 'object', properties: {} }, needsApproval)],
           }),
         )
-        expect(descriptors(chunks)).toEqual([])
-        expect(
-          chunks.some(
-            (event) =>
-              event.type === EventType.TOOL_CALL_RESULT ||
-              event.type === EventType.RUN_ERROR,
-          ),
-        ).toBe(true)
+        expect(descriptors(chunks)).toHaveLength(1)
+        expect(chunks.some((event) => event.type === EventType.RUN_ERROR)).toBe(
+          false,
+        )
       }
     },
   )
   it.each([false, true])(
-    'rejects copied empty historical arguments before resumed client dispatch: approval=%s',
+    'dispatches copied empty historical arguments with {} and keeps them raw: approval=%s',
     async (needsApproval) => {
       for (const raw of ['', '  ']) {
         const messages: Array<ModelMessage> = [
@@ -950,7 +948,7 @@ describe('empty schema-bearing client arguments', () => {
             tools: [client({ type: 'object', properties: {} }, needsApproval)],
           }),
         )
-        expect(descriptors(chunks)).toEqual([])
+        expect(descriptors(chunks)).toHaveLength(1)
         expect(messages[0]?.toolCalls?.[0]?.function.arguments).toBe(raw)
       }
     },
