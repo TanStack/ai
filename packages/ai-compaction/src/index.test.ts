@@ -1525,6 +1525,122 @@ describe('projectCompaction', () => {
   })
 })
 
+describe('an empty summary', () => {
+  const longList = () => [
+    withId(big('user'), 'm1'),
+    withId(big('assistant'), 'm2'),
+    withId(big('user'), 'm3'),
+    withId(big('assistant'), 'm4'),
+  ]
+  const EMPTY = 'The summarizer returned an empty summary.'
+  const blank = (summary: string) =>
+    summarizeOldest({ summarize: async () => summary, keepRecentTokens: 50 })
+
+  it.each(['', '  \n\t '])(
+    'fails the threshold compaction for %j and reports the error',
+    async (summary) => {
+      const mw = withCompaction({ maxTokens: 100, strategy: blank(summary) })
+      const { ctx, events } = recordingContext('beforeModel')
+      await expect(runOnConfig(mw, longList(), ctx)).rejects.toThrow(EMPTY)
+      expect(events.at(-1)?.value).toMatchObject({
+        reason: 'threshold',
+        messagesAfter: 4,
+        error: { message: EMPTY },
+      })
+    },
+  )
+
+  it('keeps the history with continueOnError', async () => {
+    const mw = withCompaction({
+      maxTokens: 100,
+      continueOnError: true,
+      strategy: blank(''),
+    })
+    const { ctx, events } = recordingContext('beforeModel')
+    expect(await runOnConfig(mw, longList(), ctx)).toBeUndefined()
+    expect(events.at(-1)?.value).toMatchObject({ error: { message: EMPTY } })
+  })
+
+  it('keeps the history on the compactNext path', async () => {
+    const mw = withCompaction({
+      maxTokens: 100_000,
+      auto: false,
+      continueOnError: true,
+      strategy: blank(''),
+    })
+    mw.compactNext('thread-1')
+    const { ctx, events } = recordingContext('beforeModel', {
+      threadId: 'thread-1',
+    })
+    expect(await runOnConfig(mw, longList(), ctx)).toBeUndefined()
+    expect(events.at(-1)?.value).toMatchObject({
+      reason: 'forced',
+      error: { message: EMPTY },
+    })
+  })
+
+  it('fails when one call of a turn cut is empty', async () => {
+    const mw = withCompaction({
+      maxTokens: 100,
+      strategy: summarizeOldest({
+        summarize: async (_messages, input) =>
+          input.turnPrefix ? '' : 'the gist',
+        keepRecentTokens: 50,
+        cut: 'turn',
+      }),
+    })
+    const list = [
+      big('user'),
+      big('assistant'),
+      big('user'),
+      big('assistant'),
+      big('assistant'),
+    ]
+    await expect(runOnConfig(mw, list)).rejects.toThrow(EMPTY)
+  })
+
+  it('writes no record on the durable path', async () => {
+    const appended: Array<unknown> = []
+    const mw = withCompaction({
+      maxTokens: 100,
+      durable: true,
+      continueOnError: true,
+      strategy: blank(''),
+    })
+    const { ctx, events } = durableContext(appended)
+    expect(await runOnConfig(mw, longList(), ctx)).toBeUndefined()
+    expect(appended).toEqual([])
+    expect(events.at(-1)?.value).toMatchObject({ error: { message: EMPTY } })
+  })
+
+  it('writes no record after the turn and reports the error', async () => {
+    const appended: Array<unknown> = []
+    const onCompact = vi.fn()
+    const mw = withCompaction({
+      maxTokens: 100,
+      contextWindow: 100,
+      countTokens: 'usage',
+      durable: true,
+      onCompact,
+      strategy: blank(''),
+    })
+    const { ctx } = durableContext(appended)
+    const list = longList().slice(0, 3)
+    ctx.messages = list
+    await mw.onUsage?.(ctx, tokenUsage(110, 10))
+    ctx.messages = longList()
+    await mw.onFinish?.(ctx, { finishReason: 'stop', duration: 0, content: '' })
+
+    expect(appended).toEqual([])
+    expect(onCompact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'after-turn',
+        error: { message: EMPTY },
+      }),
+    )
+  })
+})
+
 describe('after-turn check', () => {
   const finish: FinishInfo = { finishReason: 'stop', duration: 0, content: '' }
   const covered = () => [

@@ -22,7 +22,34 @@ const Result = z.object({
   }),
 })
 
+const Failed = z.object({
+  ok: z.literal(false),
+  error: z.string(),
+  calls: z.number(),
+  records: z.array(z.string()),
+  lastRequest: z.unknown(),
+})
+
 test.describe('compaction: durable records in a harness session', () => {
+  test('an empty summary keeps the history, and the overflow error fails the turn', async ({
+    request,
+  }) => {
+    const response = await request.post('/api/compaction-durable-wire', {
+      data: { case: 'empty-summary-overflow' },
+    })
+    expect(response.ok()).toBe(true)
+    const json: unknown = await response.json()
+    const result = Failed.parse(json)
+
+    expect(result.error).toContain('exceeds the context window')
+    expect(result.calls).toBe(4)
+    expect(result.records).toEqual([])
+    // The retry got the whole history, not an empty summary.
+    const sent = JSON.stringify(result.lastRequest)
+    expect(sent).toContain('First response.')
+    expect(sent).not.toContain('untrusted-conversation-summary')
+  })
+
   async function run(request: APIRequestContext, testCase: string) {
     const response = await request.post('/api/compaction-durable-wire', {
       data: { case: testCase },
