@@ -290,7 +290,15 @@ describe('mcpConnector', () => {
     expect(model.toolNames(1)).toEqual(['demo_second_echo'])
     expect(model.toolNames(2)).toEqual(['demo_first_echo'])
     expect(initialized).toEqual(['first-token', 'second-token'])
-    expect(toolLists).toEqual(['first-token', 'second-token'])
+    // tools() walks tools/list two times on a spec 2025 server: a raw walk,
+    // then listTools() for the SDK's output checks. Each walk of a sender
+    // uses that sender's token.
+    expect(toolLists).toEqual([
+      'first-token',
+      'first-token',
+      'second-token',
+      'second-token',
+    ])
   })
 
   it('tells the model to ask for /connect before sign-in', async () => {
