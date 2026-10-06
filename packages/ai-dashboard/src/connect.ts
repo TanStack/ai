@@ -130,12 +130,9 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
   }
   await hello()
 
-  const attached = new Map<string, HarnessSession>()
-  const attach = async (threadId: string): Promise<HarnessSession> => {
-    const existing = attached.get(threadId)
-    if (existing) return existing
+  /** Open a thread and send its events to the dashboard. */
+  const open = async (threadId: string): Promise<HarnessSession> => {
     const session = await options.host.open(options.harness, { threadId })
-    attached.set(threadId, session)
     // Batch events so a streaming answer is a few requests, not one per token.
     let pending: Array<unknown> = []
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -162,6 +159,19 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
     })()
     return session
   }
+  // Keep the open while it runs, so a frame that comes before it ends waits
+  // for it, and a second attach does not open the thread again.
+  const attached = new Map<string, Promise<HarnessSession>>()
+  const attach = (threadId: string): Promise<HarnessSession> => {
+    const existing = attached.get(threadId)
+    if (existing) return existing
+    const opening = open(threadId)
+    attached.set(threadId, opening)
+    // A failed open leaves no entry. Its inputs are refused, and a later
+    // open tries again.
+    opening.catch(() => attached.delete(threadId))
+    return opening
+  }
   for (const threadId of options.threads ?? []) await attach(threadId)
 
   const handle = async (envelope: unknown) => {
@@ -177,7 +187,8 @@ export async function connectDashboard(options: ConnectDashboardOptions) {
         await attach(threadId)
       return
     }
-    const session = attached.get(threadId)
+    // Wait for an open that still runs. A failed open refuses the input.
+    const session = await attached.get(threadId)?.catch(() => undefined)
     if (!session) {
       if (
         frame.type === 'harness.input' &&

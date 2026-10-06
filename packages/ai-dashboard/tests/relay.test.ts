@@ -267,6 +267,53 @@ describe('dashboard relay', () => {
   )
 
   it(
+    'sends an input that arrives while the thread still opens',
+    { timeout: 20_000 },
+    async () => {
+      const dashboard = await startDashboard({ port: 0 })
+      cleanups.push(() => dashboard.close())
+      const { host, hostId, owner } = await onlineHost(dashboard, true)
+      // Hold the open of `fresh` until the host opens `marker`. The relay
+      // sends frames in order, so the host has the input for `fresh` before
+      // it opens `marker`.
+      let openMarker = () => {}
+      const markerOpened = new Promise<void>((resolve) => {
+        openMarker = resolve
+      })
+      const open = host.open.bind(host)
+      host.open = async (harness, options) => {
+        if (options.threadId === 'marker') openMarker()
+        else await markerOpened
+        return open(harness, options)
+      }
+      const session = `${dashboard.url}/api/sessions/${hostId}/fresh`
+      const until = await openEvents(
+        `${session}/events?token=${dashboard.ownerToken}`,
+      )
+
+      // Open the thread and send a prompt at once, with no wait between.
+      await fetch(`${session}/open`, { method: 'POST', headers: owner })
+      await fetch(`${session}/input`, {
+        method: 'POST',
+        headers: owner,
+        body: JSON.stringify({ input: { op: 'prompt', message: 'hi' } }),
+      })
+      await fetch(`${dashboard.url}/api/sessions/${hostId}/marker/open`, {
+        method: 'POST',
+        headers: owner,
+      })
+
+      expect(await until('harness.receipt')).toContainEqual(
+        expect.objectContaining({
+          type: 'harness.receipt',
+          status: 'accepted',
+        }),
+      )
+      expect(await until('harness.operation.finished')).toContainEqual(answered)
+    },
+  )
+
+  it(
     'refuses inputs to a thread the host does not let the dashboard start',
     { timeout: 20_000 },
     async () => {
