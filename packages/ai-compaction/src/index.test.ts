@@ -34,6 +34,7 @@ import { countFromUsage, hashMessages, memoryMetadata } from './usage-count'
 import type {
   CompactionInfo,
   CompactionMiddleware,
+  CompactionOptions,
   CompactionStrategy,
   SummarizeInput,
   Summarizer,
@@ -2511,10 +2512,132 @@ describe('conversationSummarizer', () => {
   })
 })
 
+const BACKGROUND = '@tanstack/ai-compaction:background'
+
+/** `count` messages of 40 tokens, user and assistant in turn, with ids m1, m2, ... */
+const list = (count: number) =>
+  Array.from({ length: count }, (_, index) =>
+    withId(big(index % 2 === 0 ? 'user' : 'assistant'), `m${index + 1}`),
+  )
+
+/** A summarizer that waits for `release()`. `calls` keeps the messages of each call. */
+function gatedSummary() {
+  const calls: Array<Array<ModelMessage>> = []
+  let open = (): void => undefined
+  const gate = new Promise<void>((resolve) => {
+    open = () => resolve()
+  })
+  const summarize: Summarizer = async (messages) => {
+    calls.push(messages)
+    await gate
+    return 'the gist'
+  }
+  return { summarize, calls, release: () => open() }
+}
+
+/**
+ * A beforeModel context of thread-1 in run `runId`. `store` is its metadata
+ * store, and each log append lands in `appended`.
+ */
+function runContext(
+  runId: string,
+  options: {
+    store?: MetadataStore
+    appended?: Array<unknown>
+    signal?: AbortSignal
+  } = {},
+) {
+  const recorded = usageContext([], {
+    runId,
+    ...(options.signal ? { signal: options.signal } : {}),
+    capabilities: new CapabilityRegistry(),
+  })
+  if (options.store) provideMetadata(recorded.ctx, options.store)
+  const appended = options.appended
+  if (appended) {
+    provideLogRecords(recorded.ctx, {
+      append: async (records) => {
+        appended.push(...records)
+      },
+    })
+  }
+  return recorded
+}
+
+/** maxTokens 200, atTokens 150. The summary keeps the last 40-token message. */
+const backgroundCompaction = (
+  summarize: Summarizer,
+  extra: Partial<CompactionOptions> = {},
+) =>
+  withCompaction({
+    maxTokens: 200,
+    background: { atTokens: 150 },
+    strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+    ...extra,
+  })
+
 describe('background compaction', () => {
   it('throws when atTokens is not below maxTokens', () => {
     expect(() =>
       withCompaction({ maxTokens: 200, background: { atTokens: 200 } }),
     ).toThrow('withCompaction: background.atTokens must be below maxTokens.')
+  })
+
+  it('starts the summary past atTokens, and the model call does not wait', async () => {
+    const gated = gatedSummary()
+    const mw = backgroundCompaction(gated.summarize)
+    const { ctx, events } = runContext('r1')
+    // 160 tokens: over atTokens (150), not over maxTokens (200).
+    const result = await runOnConfig(mw, list(4), ctx)
+
+    expect(result).toBeUndefined()
+    expect(events.map((event) => event.name)).toEqual([
+      COMPACTION_STARTED_EVENT,
+    ])
+    expect(events[0]?.value).toMatchObject({
+      before: 160,
+      messagesBefore: 4,
+      reason: 'background',
+    })
+    await vi.waitFor(() => expect(gated.calls).toHaveLength(1))
+
+    // A later call while it runs starts no second summary.
+    await runOnConfig(mw, list(4), runContext('r1').ctx)
+    expect(gated.calls).toHaveLength(1)
+    gated.release()
+  })
+
+  it('reports a failed summary, applies nothing, and starts again at the next call', async () => {
+    const onCompact = vi.fn()
+    const summarize = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValue(new Error('summary failed'))
+    const mw = backgroundCompaction(summarize, { onCompact })
+    const store = memoryStore()
+    const first = runContext('r1', { store })
+    await runOnConfig(mw, list(4), first.ctx)
+    await vi.waitFor(() => expect(onCompact).toHaveBeenCalledTimes(1))
+
+    expect(onCompact).toHaveBeenCalledWith({
+      before: 160,
+      after: 160,
+      messagesBefore: 4,
+      messagesAfter: 4,
+      reason: 'background',
+      error: { message: 'summary failed' },
+    })
+    expect(first.events.map((event) => event.name)).toEqual([
+      COMPACTION_STARTED_EVENT,
+      COMPACTION_ENDED_EVENT,
+    ])
+    expect(first.events[1]?.value).toMatchObject({
+      reason: 'background',
+      error: { message: 'summary failed' },
+    })
+    expect(await store.get(BACKGROUND, 'thread-1')).toBeNull()
+
+    // The next call past atTokens starts a new summary.
+    await runOnConfig(mw, list(4), runContext('r1', { store }).ctx)
+    await vi.waitFor(() => expect(summarize).toHaveBeenCalledTimes(2))
   })
 })

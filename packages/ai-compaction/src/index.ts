@@ -18,7 +18,7 @@ import {
   getLogRecords,
   getMetadata,
 } from '@tanstack/ai'
-import { compactionRecord } from './record'
+import { COMPACTION_RECORD_TYPE, compactionRecord } from './record'
 import {
   readSummary,
   splitDetails,
@@ -39,6 +39,7 @@ import type {
   ModelMessage,
   TokenUsage,
 } from '@tanstack/ai'
+import type { CompactionRecord } from './record'
 import type { SummarizeInput, Summarizer } from './summarizer'
 
 export { COMPACTION_RECORD_TYPE, projectCompaction } from './record'
@@ -189,6 +190,32 @@ function isCompactionCheckpoint(value: unknown): value is CompactionCheckpoint {
   )
 }
 
+/** The metadata namespace of a ready background summary. The key is the thread. */
+const BACKGROUND_NAMESPACE = '@tanstack/ai-compaction:background'
+
+/** A ready background summary: the record of its result, built on its snapshot. */
+interface BackgroundReady {
+  record: CompactionRecord
+  /** The hash of the snapshot before `record.from`, for a record with no `firstKeptId`. */
+  prefixHash: string
+}
+
+function isBackgroundReady(value: unknown): value is BackgroundReady {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'prefixHash' in value &&
+    typeof value.prefixHash === 'string' &&
+    'record' in value &&
+    typeof value.record === 'object' &&
+    value.record !== null &&
+    'type' in value.record &&
+    value.record.type === COMPACTION_RECORD_TYPE &&
+    'from' in value.record &&
+    typeof value.record.from === 'number'
+  )
+}
+
 function messagePreviewText(message: ModelMessage): string {
   if (typeof message.content === 'string') return message.content
   return JSON.stringify(message.content ?? '')
@@ -301,9 +328,9 @@ export interface CompactionInfo {
   /** The usage the strategy reported with `addUsage`. */
   usage?: TokenUsage
   /**
-   * Set only when the after-turn check failed: the strategy, the store, or
-   * `onCompact` threw. The run goes on. When the strategy failed, the next
-   * call's own check tries again.
+   * Set when the after-turn check failed (the strategy, the store, or
+   * `onCompact` threw), or when a background summary failed. The run goes
+   * on. When the strategy failed, a later check tries again.
    */
   error?: { message: string }
   /** `true`: a ready background summary no longer fit the messages, and was dropped. */
@@ -706,6 +733,103 @@ export function withCompaction(
   const compactedViews = new WeakMap<ChatMiddlewareContext, boolean>()
   /** The threads whose next model call compacts. */
   const forced = new Set<string>()
+  /** The running background summary of each thread. */
+  const jobs = new Map<string, Promise<void>>()
+  /** Where a ready background summary waits: the metadata store, else memory. */
+  const backgroundStore = (ctx: ChatMiddlewareContext) =>
+    getMetadata(ctx, { optional: true }) ?? memory
+
+  /**
+   * Run the strategy on `snapshot`, apart from the run: the run's signal does
+   * not stop it, and the model call does not wait for it. The result waits in
+   * the store until the first model call of a later run applies it.
+   */
+  function startBackground(
+    ctx: ChatMiddlewareContext,
+    snapshot: Array<ModelMessage>,
+    before: number,
+    reusedCheckpoint: boolean,
+  ) {
+    const startedAt = Date.now()
+    const store = backgroundStore(ctx)
+    const strategyField = checkpointStrategyKey
+      ? { strategyKey: checkpointStrategyKey }
+      : {}
+    emitCompactionStarted(ctx, {
+      before,
+      messagesBefore: snapshot.length,
+      reusedCheckpoint,
+      maxTokens: options.maxTokens,
+      ...strategyField,
+      reason: 'background',
+    })
+    const spent: { usage?: TokenUsage } = {}
+    // This event reaches the stream only while the run that started the job
+    // still runs. onCompact always gets a failure.
+    const end = (error?: { message: string }) =>
+      emitCompactionEnded(ctx, {
+        after: before,
+        messagesAfter: snapshot.length,
+        reusedCheckpoint,
+        maxTokens: options.maxTokens,
+        durationMs: Date.now() - startedAt,
+        ...strategyField,
+        reason: 'background',
+        ...(spent.usage ? { usage: spent.usage } : {}),
+        ...(error ? { error } : {}),
+      })
+    // The job starts after `jobs.set`, so a strategy that throws at once
+    // still removes its entry.
+    const done = Promise.resolve().then(async () => {
+      try {
+        const next = await strategy(snapshot, {
+          maxTokens: options.maxTokens,
+          estimate,
+          addUsage: (usage) => {
+            spent.usage = sumUsage(spent.usage, usage)
+          },
+        })
+        if (!next || next === snapshot) {
+          end()
+          return
+        }
+        const record = compactionRecord({
+          reason: 'background',
+          before: snapshot,
+          after: next,
+          tokensBefore: before,
+          tokensAfter: sum(next, estimate),
+          ...(spent.usage ? { usage: spent.usage } : {}),
+        })
+        const ready: BackgroundReady = {
+          record,
+          prefixHash: await hashMessages(snapshot.slice(0, record.from)),
+        }
+        await store.set(BACKGROUND_NAMESPACE, ctx.threadId, ready)
+      } catch (failure) {
+        const error = {
+          message: failure instanceof Error ? failure.message : String(failure),
+        }
+        end(error)
+        try {
+          options.onCompact?.({
+            before,
+            after: before,
+            messagesBefore: snapshot.length,
+            messagesAfter: snapshot.length,
+            reason: 'background',
+            ...(spent.usage ? { usage: spent.usage } : {}),
+            error,
+          })
+        } catch {
+          // An onCompact that throws must not reject the job.
+        }
+      } finally {
+        jobs.delete(ctx.threadId)
+      }
+    })
+    jobs.set(ctx.threadId, done)
+  }
 
   /**
    * After the last model call of a run on a durable host: compact when the
@@ -861,6 +985,20 @@ export function withCompaction(
             )
           : undefined
       const before = fromUsage ?? sum(workingMessages, estimate)
+      if (
+        background &&
+        !force &&
+        auto &&
+        before > background.atTokens &&
+        before <= options.maxTokens &&
+        !jobs.has(ctx.threadId) &&
+        !isBackgroundReady(
+          await backgroundStore(ctx).get(BACKGROUND_NAMESPACE, ctx.threadId),
+        )
+      ) {
+        // The model call goes on at once, with the messages as they are.
+        startBackground(ctx, [...workingMessages], before, reusedCheckpoint)
+      }
       const startedValue: CompactionStartedEventValue = {
         before,
         messagesBefore: workingMessages.length,
