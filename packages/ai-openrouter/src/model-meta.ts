@@ -333,7 +333,7 @@ const _MOONSHOTAI_KIMI_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.6609,
+        normal: 0.66,
         cached: 0.45,
       },
       output: {
@@ -555,7 +555,7 @@ const _Z_AI_GLM_FLASH_LATEST = {
     text: {
       input: {
         normal: 0.0352,
-        cached: 0.0352,
+        cached: 0.0232,
       },
       output: {
         normal: 0.5,
@@ -588,15 +588,15 @@ const _Z_AI_GLM_LATEST = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 943718,
+  max_output_tokens: 131072,
   pricing: {
     text: {
       input: {
-        normal: 0.05,
-        cached: 0.04,
+        normal: 0.03,
+        cached: 0.03,
       },
       output: {
-        normal: 5,
+        normal: 12,
       },
     },
     image: 0,
@@ -2412,15 +2412,15 @@ const DEEPSEEK_DEEPSEEK_CHAT_V3_0324 = {
     ],
   },
   context_window: 163840,
-  max_output_tokens: 147456,
+  max_output_tokens: 115200,
   pricing: {
     text: {
       input: {
-        normal: 0.25,
-        cached: 0,
+        normal: 0.29,
+        cached: 0.11,
       },
       output: {
-        normal: 1,
+        normal: 1.14,
       },
     },
     image: 0,
@@ -2665,8 +2665,8 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH = {
   pricing: {
     text: {
       input: {
-        normal: 0.0224,
-        cached: 0.0224,
+        normal: 0.03,
+        cached: 0.03,
       },
       output: {
         normal: 1.28,
@@ -2815,8 +2815,8 @@ const DEEPSEEK_DEEPSEEK_V4_PRO_0813 = {
   pricing: {
     text: {
       input: {
-        normal: 0.85,
-        cached: 0.7,
+        normal: 0.4,
+        cached: 0.36,
       },
       output: {
         normal: 5,
@@ -2852,11 +2852,11 @@ const DEEPSEEK_DEEPSEEK_V4_1_FLASH = {
   pricing: {
     text: {
       input: {
-        normal: 0.003,
-        cached: 0.003,
+        normal: 0.3,
+        cached: 0.006,
       },
       output: {
-        normal: 2.4,
+        normal: 1.2,
       },
     },
     image: 0,
@@ -4098,11 +4098,11 @@ const GOOGLE_GEMMA_4_26B_A4B_IT = {
   pricing: {
     text: {
       input: {
-        normal: 0.0675,
-        cached: 0.0375,
+        normal: 0.09,
+        cached: 0.05,
       },
       output: {
-        normal: 0.225,
+        normal: 0.3,
       },
     },
     image: 0,
@@ -4980,11 +4980,11 @@ const META_LLAMA_LLAMA_3_3_70B_INSTRUCT = {
   pricing: {
     text: {
       input: {
-        normal: 0.22,
-        cached: 0.11,
+        normal: 0.1,
+        cached: 0,
       },
       output: {
-        normal: 0.5,
+        normal: 0.32,
       },
     },
     image: 0,
@@ -6678,11 +6678,11 @@ const MOONSHOTAI_KIMI_K3 = {
   pricing: {
     text: {
       input: {
-        normal: 0.72,
-        cached: 0.7,
+        normal: 0.67,
+        cached: 0.22,
       },
       output: {
-        normal: 13,
+        normal: 14,
       },
     },
     image: 0,
@@ -7218,15 +7218,15 @@ const NVIDIA_NEMOTRON_3_5_LIGHTNING = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 131072,
+  max_output_tokens: 32768,
   pricing: {
     text: {
       input: {
-        normal: 0.0595,
-        cached: 0.02975,
+        normal: 0.06,
+        cached: 0.03,
       },
       output: {
-        normal: 0.17,
+        normal: 0.16,
       },
     },
     image: 0,
@@ -9221,11 +9221,11 @@ const OPENAI_GPT_5_6_SOL_PRO = {
   pricing: {
     text: {
       input: {
-        normal: 4,
-        cached: 5.4,
+        normal: 2,
+        cached: 2.7,
       },
       output: {
-        normal: 20,
+        normal: 10,
       },
     },
     image: 0,
@@ -12151,15 +12151,15 @@ const QWEN_QWEN3_6_27B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 81920,
+  max_output_tokens: 262140,
   pricing: {
     text: {
       input: {
         normal: 0.32,
-        cached: 0,
+        cached: 0.03,
       },
       output: {
-        normal: 3.2,
+        normal: 3.25,
       },
     },
     image: 0,
@@ -14545,15 +14545,15 @@ const Z_AI_GLM_5_2 = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 943718,
+  max_output_tokens: 131072,
   pricing: {
     text: {
       input: {
-        normal: 0.38,
-        cached: 0.26,
+        normal: 0.02,
+        cached: 0.02,
       },
       output: {
-        normal: 3.49,
+        normal: 16,
       },
     },
     image: 0,
@@ -14583,15 +14583,15 @@ const Z_AI_GLM_5_3 = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 131072,
+  max_output_tokens: 943718,
   pricing: {
     text: {
       input: {
-        normal: 1.4,
-        cached: 0.14,
+        normal: 0.05,
+        cached: 0.045,
       },
       output: {
-        normal: 4.4,
+        normal: 7,
       },
     },
     image: 0,
@@ -22249,6 +22249,7 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     MISTRALAI_MISTRAL_SABA.id,
     MISTRALAI_MISTRAL_SMALL_2603.id,
     MISTRALAI_MISTRAL_SMALL_2603_BATCH.id,
+    MISTRALAI_MISTRAL_SMALL_3_1_24B_INSTRUCT.id,
     MISTRALAI_MISTRAL_SMALL_3_2_24B_INSTRUCT.id,
     MISTRALAI_MIXTRAL_8X22B_INSTRUCT.id,
     MISTRALAI_VOXTRAL_SMALL_24B_2507.id,

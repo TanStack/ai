@@ -141,6 +141,41 @@ describe('Anthropic per-model chat modelOptions gating', () => {
     })
   })
 
+  // Thinking and effort are `chat({ reasoning })`, not provider options.
+  describe('claude-sonnet-5-5 — max_tokens, no sampling', () => {
+    it('accepts max_tokens and the base options', () => {
+      chat({
+        adapter: anthropicText('claude-sonnet-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          service_tier: 'auto',
+          stop_sequences: ['STOP'],
+          tool_choice: { type: 'auto' },
+          max_tokens: 2048,
+        },
+      })
+    })
+
+    it('rejects sampling parameters', () => {
+      chat({
+        adapter: anthropicText('claude-sonnet-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          // @ts-expect-error - 'temperature' is not available on claude-sonnet-5-5
+          temperature: 0.5,
+        },
+      })
+      chat({
+        adapter: anthropicText('claude-sonnet-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          // @ts-expect-error - 'top_k' is not available on claude-sonnet-5-5
+          top_k: 5,
+        },
+      })
+    })
+  })
+
   describe('Model name type safety', () => {
     it('rejects unknown model names at the factory', () => {
       // @ts-expect-error - 'claude-fake-9000' is not a valid Anthropic chat model
@@ -234,6 +269,21 @@ describe('Anthropic provider options shape assertions', () => {
   describe('claude-fable-5 — no sampling', () => {
     type Options = AnthropicChatModelProviderOptionsByName['claude-fable-5']
 
+    it('has max_tokens but NOT temperature/top_p/top_k', () => {
+      expectTypeOf<Options>().toHaveProperty('max_tokens')
+      expectTypeOf<Options>().not.toHaveProperty('temperature')
+      expectTypeOf<Options>().not.toHaveProperty('top_p')
+      expectTypeOf<Options>().not.toHaveProperty('top_k')
+    })
+  })
+
+  describe('claude-sonnet-5-5 — no sampling, thinking from chat({ reasoning })', () => {
+    type Options = AnthropicChatModelProviderOptionsByName['claude-sonnet-5-5']
+
+    it('has no thinking or output_config provider option', () => {
+      expectTypeOf<Options>().not.toHaveProperty('thinking')
+      expectTypeOf<Options>().not.toHaveProperty('output_config')
+    })
     it('has max_tokens but NOT temperature/top_p/top_k', () => {
       expectTypeOf<Options>().toHaveProperty('max_tokens')
       expectTypeOf<Options>().not.toHaveProperty('temperature')

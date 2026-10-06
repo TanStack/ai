@@ -136,7 +136,7 @@
           "label": "TanStack AI vs Vercel AI SDK",
           "to": "comparison/vercel-ai-sdk",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-09-29"
         }
       ],
       "tab": "get-started"
@@ -254,7 +254,7 @@
           "label": "Client Tools",
           "to": "tools/client-tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-02"
+          "updatedAt": "2026-10-02"
         },
         {
           "label": "WebMCP Tools",
@@ -520,7 +520,7 @@
           "label": "Manual MCP",
           "to": "tools/mcp-manual",
           "addedAt": "2026-06-05",
-          "updatedAt": "2026-07-17"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "MCP Type Generation",
@@ -625,7 +625,7 @@
           "label": "Advanced",
           "to": "resumable-streams/advanced",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-05"
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "WebSockets",
@@ -856,7 +856,7 @@
           "label": "Code Mode",
           "to": "code-mode/code-mode",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-11"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Showing Code Mode in the UI",
@@ -873,7 +873,7 @@
           "label": "Code Mode Isolate Drivers",
           "to": "code-mode/code-mode-isolates",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-13"
+          "updatedAt": "2026-09-29"
         },
         {
           "label": "Lazy Tools",
@@ -1346,7 +1346,7 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-04"
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Google Gemini",

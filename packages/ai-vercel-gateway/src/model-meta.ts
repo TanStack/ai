@@ -124,7 +124,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'inclusionai/ling-3.0-flash',
   'inclusionai/ling-3.0-flash-fin',
   'inclusionai/ling-3.0-flash-sante',
-  'inclusionai/ling-3.0-flash-sante-free',
   'inclusionai/ling-3.0-flash-vl',
   'inclusionai/ling-3.1-flash',
   'inclusionai/ling-3.1-flash-free',
@@ -1347,11 +1346,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'structured_outputs'
     >
   'inclusionai/ling-3.0-flash-sante': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
-    >
-  'inclusionai/ling-3.0-flash-sante-free': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
       'max_tokens' | 'max_output_tokens' | 'temperature' | 'stop'
@@ -3099,7 +3093,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'inclusionai/ling-3.0-flash': readonly ['text']
   'inclusionai/ling-3.0-flash-fin': readonly ['text']
   'inclusionai/ling-3.0-flash-sante': readonly ['text']
-  'inclusionai/ling-3.0-flash-sante-free': readonly ['text']
   'inclusionai/ling-3.0-flash-vl': readonly ['text', 'image', 'video']
   'inclusionai/ling-3.1-flash': readonly ['text']
   'inclusionai/ling-3.1-flash-free': readonly ['text']

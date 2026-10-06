@@ -1096,7 +1096,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let reasoningMessageId: string | undefined
     let reasoningItemId: string | undefined
     let reasoningEncryptedContent: string | undefined
-    let closedReasoningStepId: string | undefined
+    let closedReasoningMessageId: string | undefined
     let hasClosedReasoning = false
     // Track whether we've emitted a terminal RUN_FINISHED so the
     // end-of-stream fallback below knows to synthesise one when the upstream
@@ -1250,7 +1250,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp,
       }
       if (stepId) {
-        closedReasoningStepId = stepId
+        closedReasoningMessageId = reasoningMessageId
         yield {
           type: EventType.STEP_FINISHED,
           stepName: stepId,
@@ -1258,7 +1258,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           model: currentModel,
           timestamp,
           content: accumulatedReasoning,
-          ...(signature ? { signature } : {}),
+        }
+        // The signature belongs to the reasoning message, not the step, so
+        // an AG-UI client finds that message by `entityId`.
+        if (signature) {
+          yield {
+            type: EventType.REASONING_ENCRYPTED_VALUE,
+            subtype: 'message' as const,
+            entityId: reasoningMessageId,
+            encryptedValue: signature,
+            model: currentModel,
+            timestamp,
+          }
         }
       }
       reasoningMessageId = undefined
@@ -1971,7 +1982,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           }
           // output_text already closed the streamed reasoning item. A second
           // openReasoning() would emit an empty thinking part. Attach the
-          // completed item's id/blob to that step instead. Open only when
+          // completed item's id/blob to that reasoning message instead. Open only when
           // this turn never started reasoning (encrypted-only output).
           if (
             !reasoningMessageId &&
@@ -1981,17 +1992,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               reasoningItemId,
               reasoningEncryptedContent,
             )
-            if (closedReasoningStepId && signature) {
+            if (closedReasoningMessageId && signature) {
               yield {
-                type: EventType.STEP_FINISHED,
-                stepName: closedReasoningStepId,
-                stepId: closedReasoningStepId,
+                type: EventType.REASONING_ENCRYPTED_VALUE,
+                subtype: 'message' as const,
+                entityId: closedReasoningMessageId,
+                encryptedValue: signature,
                 model: emitModel(),
                 timestamp: Date.now(),
-                content: '',
-                signature,
               }
-            } else if (!closedReasoningStepId) {
+            } else if (!closedReasoningMessageId) {
               yield* openReasoning()
             }
           }
