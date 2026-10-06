@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ActivityTestRouteImport } from './routes/activity-test'
 import { Route as ByokRouteImport } from './routes/byok'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
 import { Route as ChatClientStreamProcessingRouteImport } from './routes/chat-client-stream-processing'
@@ -45,6 +46,7 @@ import { Route as WebMcpToolsRouteImport } from './routes/web-mcp-tools'
 import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
+import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
 import { Route as ApiAnthropicMaxTokensUsageRouteImport } from './routes/api.anthropic-max-tokens-usage'
 import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
@@ -147,6 +149,11 @@ import { Route as ApiVideoStreamRouteImport } from './routes/api.video.stream'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActivityTestRoute = ActivityTestRouteImport.update({
+  id: '/activity-test',
+  path: '/activity-test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ByokRoute = ByokRouteImport.update({
@@ -325,6 +332,11 @@ const ProviderIndexRoute = ProviderIndexRouteImport.update({
 const ProviderFeatureRoute = ProviderFeatureRouteImport.update({
   id: '/$provider/$feature',
   path: '/$provider/$feature',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiActivityTestRoute = ApiActivityTestRouteImport.update({
+  id: '/api/activity-test',
+  path: '/api/activity-test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
@@ -849,6 +861,7 @@ const ApiVideoStreamRoute = ApiVideoStreamRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
@@ -883,6 +896,7 @@ export interface FileRoutesByFullPath {
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/activity-test': typeof ApiActivityTestRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
@@ -985,6 +999,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
@@ -1019,6 +1034,7 @@ export interface FileRoutesByTo {
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/activity-test': typeof ApiActivityTestRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
@@ -1122,6 +1138,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/activity-test': typeof ActivityTestRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
@@ -1156,6 +1173,7 @@ export interface FileRoutesById {
   '/web-mcp-tools': typeof WebMcpToolsRoute
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
+  '/api/activity-test': typeof ApiActivityTestRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
@@ -1260,6 +1278,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/activity-test'
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
@@ -1294,6 +1313,7 @@ export interface FileRouteTypes {
     | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
+    | '/api/activity-test'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
@@ -1396,6 +1416,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/activity-test'
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
@@ -1430,6 +1451,7 @@ export interface FileRouteTypes {
     | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
+    | '/api/activity-test'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
@@ -1532,6 +1554,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/activity-test'
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
@@ -1566,6 +1589,7 @@ export interface FileRouteTypes {
     | '/web-mcp-tools'
     | '/websocket-adapter'
     | '/$provider/$feature'
+    | '/api/activity-test'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
@@ -1669,6 +1693,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ActivityTestRoute: typeof ActivityTestRoute
   ByokRoute: typeof ByokRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
   ChatClientStreamProcessingRoute: typeof ChatClientStreamProcessingRoute
@@ -1703,6 +1728,7 @@ export interface RootRouteChildren {
   WebMcpToolsRoute: typeof WebMcpToolsRoute
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
+  ApiActivityTestRoute: typeof ApiActivityTestRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
   ApiAnthropicMaxTokensUsageRoute: typeof ApiAnthropicMaxTokensUsageRoute
   ApiAnthropicMultiTurnStructuredWireRoute: typeof ApiAnthropicMultiTurnStructuredWireRoute
@@ -1806,6 +1832,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/activity-test': {
+      id: '/activity-test'
+      path: '/activity-test'
+      fullPath: '/activity-test'
+      preLoaderRoute: typeof ActivityTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/byok': {
@@ -2051,6 +2084,13 @@ declare module '@tanstack/react-router' {
       path: '/$provider/$feature'
       fullPath: '/$provider/$feature'
       preLoaderRoute: typeof ProviderFeatureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/activity-test': {
+      id: '/api/activity-test'
+      path: '/api/activity-test'
+      fullPath: '/api/activity-test'
+      preLoaderRoute: typeof ApiActivityTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-bug-test': {
@@ -2802,6 +2842,7 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ActivityTestRoute: ActivityTestRoute,
   ByokRoute: ByokRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
   ChatClientStreamProcessingRoute: ChatClientStreamProcessingRoute,
@@ -2836,6 +2877,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebMcpToolsRoute: WebMcpToolsRoute,
   WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
+  ApiActivityTestRoute: ApiActivityTestRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
   ApiAnthropicMaxTokensUsageRoute: ApiAnthropicMaxTokensUsageRoute,
   ApiAnthropicMultiTurnStructuredWireRoute:

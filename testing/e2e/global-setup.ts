@@ -1153,7 +1153,7 @@ function rejectVoiceRequest(res: http.ServerResponse, message: string): true {
  * The success body mirrors a captured live task (see the Phase 0 probe notes):
  * `content.video_url` plus `usage.completion_tokens`, `seed`, `resolution`,
  * `ratio`, `duration`, the lowercase `framespersecond`, and `output_format`.
- * `updated_at` matters — `getVideoUrl` anchors its 24-hour `expiresAt` to it.
+ * `updated_at` matters — `getVideo` anchors its 24-hour `expiresAt` to it.
  * The `model` is echoed back from the submitted task rather than hardcoded, so
  * the poll response can't drift from what the adapter actually asked for.
  *
