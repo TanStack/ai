@@ -325,6 +325,46 @@ interface InterruptedTurn {
   context?: unknown
 }
 
+/** One run of an agent chain, and who it runs for. */
+interface AgentRunEntry {
+  operation: OperationImpl<unknown>
+  principal?: Principal
+}
+
+/**
+ * The runs of one agent start: the first run, then one run per follow-up.
+ * They share one thread, `<threadId>:<name>:<runInputId>`, and one tree
+ * budget.
+ */
+interface AgentChain {
+  /** The input id of the first run. */
+  runInputId: string
+  /** The thread that keeps the messages of every run of the chain. */
+  thread: string
+  target: string | AnyAgent
+  agent: string
+  input: unknown
+  options: AgentStartOptions
+  /** Who started the chain. */
+  principal?: Principal
+  budget: SubagentBudget
+  /** The newest run that started. */
+  current: AgentRunEntry
+}
+
+/** What one run of a chain applies. */
+interface AgentRunStart {
+  /** The input this run applies. */
+  inputId: string
+  /** Recovery runs again a run whose host stopped. */
+  resumed?: boolean
+}
+
+/** The `agent` input of a first run, as the log keeps it. */
+type AgentInputState = InputState & {
+  input: Extract<HarnessInput, { op: 'agent' }>
+}
+
 /** Where `stores.metadata` keeps the interrupted turn of each thread. */
 const INTERRUPTED = 'harness:interrupted'
 
@@ -336,6 +376,18 @@ const USAGE = 'harness:usage'
  * tool results of its chat. Not a tool call id, so a turn never reads them.
  */
 const agentKey = (inputId: string) => `agent:${inputId}`
+
+/** The chain fields that the `agent` input of a first run keeps. */
+const chainFields = (first: AgentInputState) => ({
+  runInputId: first.inputId,
+  target: first.input.agent,
+  input: first.input.input,
+  options: {
+    wake: first.input.detached === true,
+    ...(first.input.resume ? { resume: true } : {}),
+  },
+  ...(first.principal ? { principal: first.principal } : {}),
+})
 
 /** True for an interrupted turn as `stores.metadata` gives it back. */
 function isInterruptedTurn(value: unknown): value is InterruptedTurn {
@@ -4166,73 +4218,85 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         `Agent ${name}: resume: true needs a durable host (a host with stores.log).`,
       )
     }
+    const operation = this.agentOperation(name)
+    this.markBusy()
+    // The agent runs for the sender of the turn that starts it, also after
+    // that turn ends.
+    const principal = this.sender()
+    const sender = principal ? { principal } : {}
+    const chain = this.createChain(
+      { runInputId: createInputId(), target, input, options, ...sender },
+      { operation, ...sender },
+    )
+    void this.executeAgent(operation, chain, { inputId: chain.runInputId })
+    return operation
+  }
+
+  /** A new agent run operation. `id`: a stored one, after a restart. */
+  private agentOperation(agent: string, id?: string): OperationImpl<unknown> {
     const operation = new OperationImpl<unknown>(
       'agent',
       this.feed,
       (running) => this.cancel(running.id),
-      name,
+      agent,
+      id,
     )
     this.operations.set(operation.id, operation)
-    this.markBusy()
-    // The thread can be idle once the run ends.
-    void operation.then(
-      () => this.checkIdle(),
-      () => this.checkIdle(),
-    )
-    // The agent runs for the sender of the turn that starts it, also after
-    // that turn ends.
-    void this.executeAgent(operation, target, input, options, this.sender())
     return operation
+  }
+
+  /** A new chain, with `first` as its first run. */
+  private createChain(
+    fields: Pick<
+      AgentChain,
+      'runInputId' | 'target' | 'input' | 'options' | 'principal'
+    >,
+    first: AgentRunEntry,
+  ): AgentChain {
+    const agent =
+      typeof fields.target === 'string' ? fields.target : fields.target.name
+    return {
+      ...fields,
+      agent,
+      thread: `${this.threadId}:${agent}:${fields.runInputId}`,
+      budget: this.codeBudget(),
+      current: first,
+    }
   }
 
   /**
    * Run again an agent run with `resume: true` whose host stopped. The new
-   * run has the same input id, so its attempt counts up, and it continues the
-   * agent's saved transcript.
+   * run applies the same input, so its attempt counts up, and it continues
+   * the saved transcript of its chain.
    */
-  private resumeAgent(input: InputState & { input: { op: 'agent' } }) {
-    const { agent, input: agentInput, detached } = input.input
-    const operation = new OperationImpl<unknown>(
-      'agent',
-      this.feed,
-      (running) => this.cancel(running.id),
-      agent,
-    )
-    this.operations.set(operation.id, operation)
+  private resumeAgent(first: AgentInputState) {
+    const operation = this.agentOperation(first.input.agent)
     this.markBusy()
-    // The thread can be idle once the run ends.
-    void operation.then(
-      () => this.checkIdle(),
-      () => this.checkIdle(),
-    )
+    const chain = this.createChain(chainFields(first), {
+      operation,
+      ...(first.principal ? { principal: first.principal } : {}),
+    })
     this.feed.publish(
       operation.id,
       customEvent(HARNESS_EVENTS.operationResumed, {
         operationId: operation.id,
-        ...(input.operationId ? { resumedFrom: input.operationId } : {}),
+        ...(first.operationId ? { resumedFrom: first.operationId } : {}),
       }),
     )
-    void this.executeAgent(
-      operation,
-      agent,
-      agentInput,
-      { wake: detached === true, resume: true },
-      input.principal,
-      input.inputId,
-    )
+    void this.executeAgent(operation, chain, {
+      inputId: first.inputId,
+      resumed: true,
+    })
   }
 
   /**
-   * What a resumable agent run adds to its binding on a durable host. Its
-   * `ctx.chat` calls save the transcript of its thread at each tool phase, as
-   * a turn does, and `ctx.step` keeps each step value in the session log.
+   * What a resumable agent run adds on a durable host: checkpoints of its
+   * `ctx.chat` tool phases, and `ctx.step` values in the session log, under
+   * the key of the input the run applies.
    */
-  private resumable(
-    binding: { chatMiddleware: ReadonlyArray<AnyChatMiddleware> },
-    inputId: string,
-  ) {
+  private resumable(inputId: string) {
     const { chatPersistence, writer } = this
-    if (!chatPersistence || !writer) return {}
+    if (!chatPersistence || !writer) return undefined
     const { runs } = this.persistence.stores
     const key = agentKey(inputId)
     const checkpoint = checkpointMiddleware({
@@ -4253,12 +4317,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     })
     const durableTools = this.durableTools()
     return {
-      chatMiddleware: [
-        withPersistence(chatPersistence),
-        checkpoint,
-        ...(durableTools ? [durableTools] : []),
-        ...binding.chatMiddleware,
-      ],
+      middleware: [checkpoint, ...(durableTools ? [durableTools] : [])],
       step: this.durableBinding(writer, key).step,
     }
   }
@@ -4339,18 +4398,34 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }
   }
 
+  /** One run of `chain`. The thread can be idle when it ends. */
   private async executeAgent(
     operation: OperationImpl<unknown>,
-    target: string | AnyAgent,
-    input: unknown,
-    options: AgentStartOptions,
-    principal: Principal | undefined,
-    /** The input of a stopped run that recovery runs again. */
-    resumed?: string,
+    chain: AgentChain,
+    start: AgentRunStart,
   ): Promise<void> {
-    const name = typeof target === 'string' ? target : target.name
-    const inputId = resumed ?? createInputId()
-    if (resumed === undefined) {
+    try {
+      await this.runAgentOnce(operation, chain, start)
+    } finally {
+      this.checkIdle()
+    }
+  }
+
+  /**
+   * One run of `chain`. A new first run stores its `agent` input first.
+   * Every run keeps its messages in the chain's thread, so a run again
+   * after a host stop continues them.
+   */
+  private async runAgentOnce(
+    operation: OperationImpl<unknown>,
+    chain: AgentChain,
+    start: AgentRunStart,
+  ): Promise<void> {
+    const { agent: name, target, input, options } = chain
+    const { inputId } = start
+    // This run is the chain's current run.
+    const { principal } = chain.current
+    if (!start.resumed) {
       await this.accept(
         inputId,
         {
@@ -4421,23 +4496,20 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         this.lease,
       )
       releaseLease = await this.holdLease(inputId, operation)
-      // A resumable run keeps its transcript in a thread of its own, so a
-      // run again continues it. Other runs start from the session thread.
-      const agentThread = options.resume
-        ? `${this.threadId}:${name}:${inputId}`
-        : `${this.threadId}:${name}`
-      const messages =
-        resumed !== undefined
-          ? await this.continueAgentThread(agentThread, inputId)
-          : await this.messages.loadThread(this.threadId)
+      // A first run starts from the session thread. A run again after a
+      // host stop continues the chain's thread.
+      const messages = start.resumed
+        ? await this.continueAgentThread(chain.thread, inputId)
+        : await this.messages.loadThread(this.threadId)
       subagentRunId = createSubagentId()
       const binding = this.binding(operation, [], principal)
+      const durable = options.resume ? this.resumable(inputId) : undefined
       const stream = runAgentStream(
         agent,
         {
           input: checkedInput,
           messages: messages ?? [],
-          threadId: agentThread,
+          threadId: chain.thread,
           runId: `${operation.id}:${subagentRunId}`,
           parentRunId: operation.id,
           subagentRunId,
@@ -4446,14 +4518,22 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         undefined,
         undefined,
         // ponytail: the media of a background agent is kept and published,
-        // but not written to history: its messages live in its own thread
-        // (`<threadId>:<name>`). Write it to the session thread if a UI must
-        // show it after a restart.
+        // but not written to history: its messages live in its chain's
+        // thread. Write it to the session thread if a UI must show it after
+        // a restart.
         {
           ...binding,
-          ...(options.resume ? this.resumable(binding, inputId) : {}),
+          chatMiddleware: [
+            // Every run keeps its transcript in the chain's thread.
+            ...(this.chatPersistence
+              ? [withPersistence(this.chatPersistence)]
+              : []),
+            ...(durable?.middleware ?? []),
+            ...binding.chatMiddleware,
+          ],
+          ...(durable ? { step: durable.step } : {}),
           keys: this.keysOf(principal),
-          budget: this.codeBudget(),
+          budget: chain.budget,
         },
       )
       for await (const chunk of stream) {
