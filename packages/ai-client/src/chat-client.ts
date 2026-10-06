@@ -387,9 +387,7 @@ type SubagentCard = Extract<UIMessage['parts'][number], { type: 'subagent' }>
  * (`setMessagesManually(snapshot.messages)`, `initialMessages`). The client
  * writes subagent handles into message parts, so copy each frozen message.
  */
-function thawMessages(
-  messages: ReadonlyArray<UIMessage>,
-): Array<UIMessage> {
+function thawMessages(messages: ReadonlyArray<UIMessage>): Array<UIMessage> {
   return messages.map((message) => ({
     ...message,
     parts: message.parts.map((part) =>
