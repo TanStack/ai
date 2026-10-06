@@ -1,3 +1,4 @@
+import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { snapToDurationOption } from './snap'
 import type {
   ModelInputModalitiesByName,
@@ -121,11 +122,21 @@ export interface VideoAdapter<
   getVideoStatus: (jobId: string) => Promise<VideoStatusResult>
 
   /**
-   * Get the finished video: a public URL when the provider has one, or the
-   * download stream for generation middleware to host. Call only after
-   * status is 'completed'.
+   * Get the URL to download/view the generated video.
+   * Should only be called after status is 'completed'.
+   *
+   * A provider with no public URL returns a base64 `data:` URL here, which
+   * buffers the whole video in memory. Implement `getVideo` to avoid that.
    */
-  getVideo: (jobId: string) => Promise<VideoUrlResult | VideoStreamResult>
+  getVideoUrl: (jobId: string) => Promise<VideoUrlResult>
+
+  /**
+   * Optional. Get the finished video as a public URL when the provider has
+   * one, or as the download stream when it does not. Core prefers this over
+   * `getVideoUrl`, so generation middleware can host the stream instead of
+   * buffering it.
+   */
+  getVideo?: (jobId: string) => Promise<VideoUrlResult | VideoStreamResult>
 
   /**
    * Describe the durations this adapter's model accepts. Returns a tagged
@@ -144,6 +155,36 @@ export interface VideoAdapter<
   snapDuration: (
     input: number | string,
   ) => TModelDurationByName[TModel] | undefined
+}
+
+const LARGE_VIDEO_BYTES = 10 * 1024 * 1024
+
+/**
+ * The fallback when nothing hosts a provider video stream: buffer it into a
+ * base64 `data:` URL. A result that already has a `url` passes through.
+ */
+export async function inlineVideoStream<
+  T extends {
+    url?: string
+    body?: ReadableStream<Uint8Array>
+    contentType?: string
+  },
+>(video: T): Promise<Omit<T, 'body' | 'contentType'> & { url: string }> {
+  const { body, contentType, ...rest } = video
+  if (rest.url !== undefined) return { ...rest, url: rest.url }
+  if (!body) throw new Error('Video result has no url and no body')
+  const buffer = await new Response(body).arrayBuffer()
+  if (buffer.byteLength > LARGE_VIDEO_BYTES) {
+    console.warn(
+      `[generateVideo] buffered ${(buffer.byteLength / 1024 / 1024).toFixed(1)} MiB of video into memory for a base64 data: URL. ` +
+        `Workers/serverless runtimes commonly run out of memory above ~10 MiB. ` +
+        `Add withGenerationPersistence with artifactUrl to stream it into your storage instead.`,
+    )
+  }
+  return {
+    ...rest,
+    url: `data:${contentType ?? 'video/mp4'};base64,${arrayBufferToBase64(buffer)}`,
+  }
 }
 
 /**
@@ -211,7 +252,20 @@ export abstract class BaseVideoAdapter<
 
   abstract getVideoStatus(jobId: string): Promise<VideoStatusResult>
 
-  abstract getVideo(jobId: string): Promise<VideoUrlResult | VideoStreamResult>
+  abstract getVideoUrl(jobId: string): Promise<VideoUrlResult>
+
+  /** Optional. See {@link VideoAdapter.getVideo}. */
+  getVideo?(jobId: string): Promise<VideoUrlResult | VideoStreamResult>
+
+  /**
+   * Turn a `getVideo()` result into a `getVideoUrl()` result. A stream is
+   * buffered into a base64 `data:` URL.
+   */
+  protected async toVideoUrlResult(
+    video: VideoUrlResult | VideoStreamResult,
+  ): Promise<VideoUrlResult> {
+    return await inlineVideoStream(video)
+  }
 
   /**
    * Default implementation returns `{ kind: 'none' }`. Adapters that have

@@ -132,7 +132,7 @@ describe('debug logging — non-chat activities', () => {
         model: 'mock-video-model',
       })),
       getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
-      getVideo: vi.fn(async () => ({ url: 'https://example.com/v.mp4' })),
+      getVideoUrl: vi.fn(async () => ({ url: 'https://example.com/v.mp4' })),
     }
 
     await generateVideo({

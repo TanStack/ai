@@ -219,7 +219,7 @@ file) options.
 A custom `extractArtifacts` replaces the built-in rule. If you use a video
 provider with [no public URL](../media/video-generation#videos-with-no-public-url),
 return a descriptor with `bytes: result.body` for the video. If you do not, the
-stream is not stored and the run fails.
+stream is not stored and `url` is a base64 `data:` URL.
 
 ## Choose where the bytes land
 

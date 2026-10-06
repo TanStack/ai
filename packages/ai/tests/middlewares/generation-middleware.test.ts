@@ -757,9 +757,31 @@ describe('generation middleware — wiring', () => {
     })
   })
 
-  it('getVideoJobStatus fails and cancels an unhosted provider stream', async () => {
-    const cancel = vi.fn()
-    const body = new ReadableStream<Uint8Array>({ cancel })
+  it('getVideoJobStatus inlines an unhosted provider stream as a data URL', async () => {
+    const { middleware, events } = recordingMiddleware()
+
+    const status = await getVideoJobStatus({
+      adapter: streamAdapter(new Blob(['mp4-bytes']).stream()) as any,
+      jobId: 'job-1',
+      threadId: 'video:slot',
+      middleware: [middleware],
+    })
+
+    expect(status).toEqual({
+      jobId: 'job-1',
+      status: 'completed',
+      url: `data:video/mp4;base64,${btoa('mp4-bytes')}`,
+    })
+    expect(events.error).toHaveLength(0)
+    expect(events.finish).toHaveLength(1)
+  })
+
+  it('getVideoJobStatus fails the run when the provider stream breaks', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.error(new Error('download broke'))
+      },
+    })
     const { middleware, events } = recordingMiddleware()
 
     const status = await getVideoJobStatus({
@@ -769,24 +791,42 @@ describe('generation middleware — wiring', () => {
       middleware: [middleware],
     })
 
-    // A middleware is configured, so the error says what it still needs
-    // instead of telling the caller to add one.
-    expect(status).toMatchObject({
-      status: 'failed',
-      error: expect.stringContaining('extractArtifacts'),
-    })
-    expect(cancel).toHaveBeenCalled()
+    expect(status).toMatchObject({ status: 'failed', error: 'download broke' })
     expect(events.error).toHaveLength(1)
     expect(events.finish).toHaveLength(0)
   })
 
-  it('generateVideo (streaming) emits RUN_ERROR for an unhosted provider stream', async () => {
+  it('getVideoJobStatus falls back to getVideoUrl for adapters without getVideo', async () => {
     const adapter = {
-      ...streamAdapter(new ReadableStream<Uint8Array>()),
+      kind: 'video' as const,
+      name: 'custom',
+      model: 'custom-video',
+      createVideoJob: vi.fn(),
+      getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
+      getVideoUrl: vi.fn(async () => ({
+        jobId: 'job-1',
+        url: 'https://provider.test/v.mp4',
+      })),
+    }
+
+    const status = await getVideoJobStatus({
+      adapter: adapter as any,
+      jobId: 'job-1',
+    })
+
+    expect(status).toMatchObject({
+      status: 'completed',
+      url: 'https://provider.test/v.mp4',
+    })
+  })
+
+  it('generateVideo (streaming) inlines an unhosted provider stream as a data URL', async () => {
+    const adapter = {
+      ...streamAdapter(new Blob(['mp4-bytes']).stream()),
       createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
     }
 
-    const chunks: Array<{ type: string }> = []
+    const chunks: Array<{ type: string; name?: string; value?: unknown }> = []
     for await (const chunk of generateVideo({
       adapter: adapter as any,
       prompt: 'a cat',
@@ -796,10 +836,12 @@ describe('generation middleware — wiring', () => {
       chunks.push(chunk)
     }
 
-    expect(chunks.at(-1)).toMatchObject({
-      type: 'RUN_ERROR',
-      message: expect.stringContaining('Add withGenerationPersistence'),
+    expect(chunks.find((c) => c.name === 'generation:result')?.value).toEqual({
+      jobId: 'job-1',
+      status: 'completed',
+      url: `data:video/mp4;base64,${btoa('mp4-bytes')}`,
     })
+    expect(chunks.at(-1)).toMatchObject({ type: 'RUN_FINISHED' })
   })
 
   it('generateVideo (streaming) fires finish with usage at completion', async () => {

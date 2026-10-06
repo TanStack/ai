@@ -540,7 +540,7 @@ describe('Gemini Video Adapter', () => {
     })
   })
 
-  describe('getVideo', () => {
+  describe('getVideoUrl', () => {
     const jobId = 'models/veo-3.1-generate-preview/operations/op-123'
 
     it('returns the generated video URI', async () => {
@@ -550,7 +550,7 @@ describe('Gemini Video Adapter', () => {
         stub,
       )
 
-      expect(await adapter.getVideo(jobId)).toEqual({
+      expect(await adapter.getVideoUrl(jobId)).toEqual({
         jobId,
         url: 'https://example.com/video.mp4',
       })
@@ -565,7 +565,7 @@ describe('Gemini Video Adapter', () => {
         stub,
       )
 
-      await expect(adapter.getVideo(jobId)).rejects.toThrow(/not ready/)
+      await expect(adapter.getVideoUrl(jobId)).rejects.toThrow(/not ready/)
     })
 
     it('throws with the operation error message on failure', async () => {
@@ -581,7 +581,7 @@ describe('Gemini Video Adapter', () => {
         stub,
       )
 
-      await expect(adapter.getVideo(jobId)).rejects.toThrow(/internal error/)
+      await expect(adapter.getVideoUrl(jobId)).rejects.toThrow(/internal error/)
     })
 
     it('throws with RAI reasons when every sample was filtered', async () => {
@@ -601,7 +601,7 @@ describe('Gemini Video Adapter', () => {
         stub,
       )
 
-      await expect(adapter.getVideo(jobId)).rejects.toThrow(/unsafe content/)
+      await expect(adapter.getVideoUrl(jobId)).rejects.toThrow(/unsafe content/)
     })
   })
 })
@@ -1012,14 +1012,14 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
     })
   })
 
-  describe('getVideo', () => {
+  describe('getVideoUrl', () => {
     const jobId = 'v1_omni-job-123'
 
     it('returns the inline base64 video as a data: URL with usage', async () => {
       const stub = createInteractionsClientStub()
       const adapter = new StubbedGeminiOmniVideoAdapter(stub)
 
-      expect(await adapter.getVideo(jobId)).toEqual({
+      expect(await adapter.getVideoUrl(jobId)).toEqual({
         jobId,
         url: 'data:video/mp4;base64,AAAAIGZ0eXA=',
         usage: {
@@ -1041,7 +1041,7 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       })
       const adapter = new StubbedGeminiOmniVideoAdapter(stub)
 
-      const result = await adapter.getVideo(jobId)
+      const result = await adapter.getVideoUrl(jobId)
       expect(result.usage).toEqual({
         promptTokens: 0,
         completionTokens: 57920,
@@ -1062,7 +1062,7 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       })
       const adapter = new StubbedGeminiOmniVideoAdapter(stub)
 
-      const result = await adapter.getVideo(jobId)
+      const result = await adapter.getVideoUrl(jobId)
       expect(result.url).toBe(
         'https://generativelanguage.googleapis.com/v1beta/files/xyz:download',
       )
@@ -1074,7 +1074,7 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       })
       const adapter = new StubbedGeminiOmniVideoAdapter(stub)
 
-      await expect(adapter.getVideo(jobId)).rejects.toThrow(/not ready/)
+      await expect(adapter.getVideoUrl(jobId)).rejects.toThrow(/not ready/)
     })
 
     it('throws with the terminal status on failure', async () => {
@@ -1083,7 +1083,7 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       })
       const adapter = new StubbedGeminiOmniVideoAdapter(stub)
 
-      await expect(adapter.getVideo(jobId)).rejects.toThrow(/"failed"/)
+      await expect(adapter.getVideoUrl(jobId)).rejects.toThrow(/"failed"/)
     })
 
     it('throws when a completed interaction has no video content', async () => {
@@ -1092,7 +1092,9 @@ describe('Gemini Omni Flash Video Adapter (Interactions API)', () => {
       })
       const adapter = new StubbedGeminiOmniVideoAdapter(stub)
 
-      await expect(adapter.getVideo(jobId)).rejects.toThrow(/Video not found/)
+      await expect(adapter.getVideoUrl(jobId)).rejects.toThrow(
+        /Video not found/,
+      )
     })
   })
 })

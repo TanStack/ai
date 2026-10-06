@@ -627,12 +627,15 @@ Kling, Sora 2 Pro and others through one API key; its download URLs require
 the API key, so it returns the video as bytes (see below), and surfaces the
 gateway-reported cost as `usage.cost`).
 
-**Bytes-only providers need generation persistence.** When a provider has no
-public URL for the finished video (OpenRouter, Lovable, Sora jobs without
-`url`), the adapter returns `{ body, contentType }` instead of buffering a
-base64 `data:` URL. `withGenerationPersistence` with `artifactUrl` streams
+**Bytes-only providers: use generation persistence for large videos.** When a
+provider has no public URL for the finished video (OpenRouter, Lovable, Sora
+jobs without `url`), the adapter's `getVideo()` returns
+`{ body, contentType }`. `withGenerationPersistence` with `artifactUrl` streams
 `body` into the blob store (R2, S3, filesystem) and sets `url`. Without it,
-the run fails with an error naming `withGenerationPersistence`. Providers that
+core buffers the whole video in memory and sets `url` to a base64 `data:` URL
+(fine for short clips, an out-of-memory risk on serverless above ~10 MiB).
+Calling `adapter.getVideoUrl()` directly always buffers. Custom adapters
+implement `getVideoUrl()`; `getVideo()` is optional. Providers that
 return a URL (Grok, fal, BytePlus) pass through; persistence still re-hosts
 them, which you want because those URLs expire.
 
@@ -803,9 +806,8 @@ const { jobId } = await generateVideo({
   prompt: 'A timelapse of clouds',
   duration: adapter.snapDuration(sliderSeconds),
 })
-// The finished video comes back as a stream, not a URL: pass
-// withGenerationPersistence (with artifactUrl) to getVideoJobStatus or the
-// streaming generateVideo call to host it. usage.cost is the real billed cost.
+// Completed url is a base64 data: URL unless withGenerationPersistence (with
+// artifactUrl) hosts the stream. usage.cost is the real billed cost.
 ```
 
 Client hook with job tracking:

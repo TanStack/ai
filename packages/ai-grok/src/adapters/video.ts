@@ -573,7 +573,7 @@ export class GrokVideoAdapter<
     }
   }
 
-  async getVideo(jobId: string): Promise<VideoUrlResult> {
+  async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
     let response: GrokVideoStatusResponse
     try {
       response = await this.retrieveJob(jobId)

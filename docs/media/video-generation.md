@@ -65,7 +65,7 @@ Currently supported:
 
 ## Videos with no public URL
 
-Some providers have no public URL for the finished video. The adapter then returns the video as a stream, and the browser cannot play a stream. Your server must store the video and return a URL.
+Some providers have no public URL for the finished video. The adapter then returns the video as a stream, and the browser cannot play a stream. Your server must turn the stream into a URL.
 
 This applies to these providers:
 
@@ -73,9 +73,9 @@ This applies to these providers:
 - **Lovable**: when the finished job has no URL.
 - **OpenAI Sora**: when the finished job has no URL.
 
-Without storage, the run fails. `getVideoJobStatus()` returns `status: 'failed'`, and a streamed run emits `RUN_ERROR`. The error message names `withGenerationPersistence`.
+Without storage, TanStack AI buffers the full video in memory and sets `url` to a base64 `data:` URL. This works for short clips. A large video can use all the memory of a serverless runtime, and a video above 10 MiB logs a warning.
 
-To fix this, add `withGenerationPersistence` with an `artifactUrl`. It pipes the stream into your blob store and sets `url` on the result. The server never holds the full video in memory.
+To keep memory flat, add `withGenerationPersistence` with an `artifactUrl`. It pipes the stream into your blob store and sets `url` on the result. The server never holds the full video in memory.
 
 ```typescript
 import { generateVideo, toServerSentEventsResponse } from "@tanstack/ai";
@@ -983,8 +983,9 @@ Two OpenRouter-specific behaviors to know about:
 
 - **The completed video arrives as a stream.** OpenRouter's download URLs
   require your API key in an `Authorization` header, so a browser cannot
-  load them. The adapter returns the download stream, and
-  `withGenerationPersistence` stores it and sets the URL. See
+  load them. The adapter returns the download stream. With
+  `withGenerationPersistence`, your blob store hosts it. Without it, `url`
+  is a base64 `data:` URL. See
   [Videos with no public URL](#videos-with-no-public-url).
 - **Cost is reported on completion.** The gateway reports the real billed
   cost for the job; it's surfaced as `usage.cost` on the completed result.

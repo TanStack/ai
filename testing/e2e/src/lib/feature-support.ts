@@ -456,8 +456,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // (https://github.com/CopilotKit/aimock/issues/491). The adapter's
   // submit/poll/download lifecycle is covered by unit tests
   // (packages/ai-openrouter/tests/video-adapter.test.ts). When that is
-  // fixed, bump aimock and add it here with generation persistence: the
-  // adapter returns the video as a stream, not a URL.
+  // fixed, bump aimock and add it here.
   'video-gen': new Set(['openai', 'gemini', 'byteplus', 'lovable']),
   // image-to-video (image parts in the generateVideo prompt). aimock 1.29's
   // `/v1/videos` handler parses Sora's multipart upload (the SDK switches to

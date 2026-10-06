@@ -3,13 +3,9 @@
 '@tanstack/ai-openai': minor
 '@tanstack/ai-lovable': minor
 '@tanstack/ai-openrouter': minor
-'@tanstack/ai-grok': minor
-'@tanstack/ai-fal': minor
-'@tanstack/ai-gemini': minor
-'@tanstack/ai-byteplus': minor
 '@tanstack/ai-persistence': patch
 ---
 
-Video adapters no longer buffer downloaded videos into base64 `data:` URLs. When a provider has no public URL for the finished video (OpenRouter, Lovable, Sora jobs without `url`), the adapter returns a `VideoStreamResult` (`{ body, contentType }`), and `withGenerationPersistence` streams it into your blob store and sets `url` from `artifactUrl`. Without persistence, `getVideoJobStatus()` returns `status: 'failed'` and streaming generation emits `RUN_ERROR`, both naming `withGenerationPersistence`.
+Video adapters can hand a provider's download stream to generation persistence instead of buffering it. When a provider has no public URL for the finished video (OpenRouter, Lovable, Sora jobs without `url`), the adapter's new optional `getVideo()` returns a `VideoStreamResult` (`{ body, contentType }`), and `withGenerationPersistence` streams it into your blob store and sets `url` from `artifactUrl`.
 
-Breaking for custom video adapters: `VideoAdapter.getVideoUrl()` is renamed to `getVideo()` and returns `VideoUrlResult | VideoStreamResult`. Rename the method; adapters that return `{ jobId, url }` need no other change. Direct callers must handle the `body` variant. `generateVideo()` and `getVideoJobStatus()` are unchanged.
+Nothing changes without persistence: `getVideoJobStatus()`, streaming `generateVideo()` and `adapter.getVideoUrl()` still return a base64 `data:` URL for those providers. Custom video adapters keep implementing `getVideoUrl()`; implement `getVideo()` as well to return a stream.

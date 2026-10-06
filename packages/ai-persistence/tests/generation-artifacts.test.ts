@@ -141,7 +141,7 @@ function videoAdapter(url: string, expiresAt?: Date): VideoAdapter<string> {
       jobId: 'video-job-1',
       status: 'completed' as const,
     })),
-    getVideo: vi.fn(async () => ({ jobId: 'video-job-1', url, expiresAt })),
+    getVideoUrl: vi.fn(async () => ({ jobId: 'video-job-1', url, expiresAt })),
     availableDurations: () => ({ kind: 'none' }),
     snapDuration: () => undefined,
   }
@@ -908,7 +908,7 @@ describe('withGenerationPersistence generation artifacts', () => {
     await expect(blob?.text()).resolves.toBe('streamed-bytes')
   })
 
-  it('names extractArtifacts when a custom extractor drops the video stream', async () => {
+  it('falls back to a data URL when a custom extractor drops the video stream', async () => {
     const adapter = videoAdapter('')
     adapter.getVideo = vi.fn(async () => ({
       jobId: 'video-job-1',
@@ -930,8 +930,8 @@ describe('withGenerationPersistence generation artifacts', () => {
     })
 
     expect(status).toMatchObject({
-      status: 'failed',
-      error: expect.stringContaining('extractArtifacts'),
+      status: 'completed',
+      url: `data:video/mp4;base64,${btoa('streamed-bytes')}`,
     })
   })
 

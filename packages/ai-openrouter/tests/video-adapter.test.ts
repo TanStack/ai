@@ -394,6 +394,25 @@ describe('OpenRouter Video Adapter', () => {
       expect(result.usage).toMatchObject({ cost: 0.45 })
     })
 
+    it('getVideoUrl buffers the content into a data URL and keeps usage', async () => {
+      mockGetGeneration = vi.fn().mockResolvedValueOnce(
+        createMockJobResponse({
+          status: 'completed',
+          unsignedUrls: [CONTENT_URL],
+          usage: { cost: 0.45 },
+        }),
+      )
+      mockGetVideoContent = vi
+        .fn()
+        .mockResolvedValueOnce(streamOf(new TextEncoder().encode('mp4-bytes')))
+
+      const result = await createAdapter().getVideoUrl('job-123')
+
+      expect(result.url).toBe(`data:video/mp4;base64,${btoa('mp4-bytes')}`)
+      expect(result.usage).toMatchObject({ cost: 0.45 })
+      expect(result).not.toHaveProperty('body')
+    })
+
     it('omits usage when the job reports no cost', async () => {
       mockGetGeneration = vi.fn().mockResolvedValueOnce(
         createMockJobResponse({

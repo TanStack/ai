@@ -35,6 +35,7 @@ import type {
   GenerationMiddleware,
   GenerationMiddlewareContext,
 } from '../middleware/types'
+import { inlineVideoStream } from './adapter'
 import type { VideoAdapter } from './adapter'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
@@ -54,8 +55,6 @@ import type {
 // Activity Kind
 // ===========================
 
-const UNHOSTED_VIDEO_ERROR = 'The provider returned video bytes without a URL.'
-
 /** A provider URL passes through; bytes go to middleware to be hosted. */
 function videoMedia(result: VideoUrlResult | VideoStreamResult) {
   return result.body
@@ -66,22 +65,22 @@ function videoMedia(result: VideoUrlResult | VideoStreamResult) {
       }
 }
 
-/** Fail when no middleware turned the provider stream into a URL. */
-async function requireVideoUrl(
-  result: { url?: string; body?: unknown },
-  middleware: ReadonlyArray<unknown> | undefined,
-): Promise<void> {
-  if (result.body instanceof ReadableStream && !result.body.locked) {
+/**
+ * Settle the result's `url` after middleware ran. A hosted stream already has
+ * one; an unhosted stream is buffered into a `data:` URL, so video generation
+ * works without persistence.
+ */
+async function settleVideoUrl<
+  T extends {
+    url?: string
+    body?: ReadableStream<Uint8Array>
+    contentType?: string
+  },
+>(result: T) {
+  if (result.url !== undefined && result.body && !result.body.locked) {
     await result.body.cancel().catch(() => {})
   }
-  if (result.url) return
-  // With middleware configured, "add persistence" would mislead: say what a
-  // configured middleware still needs in order to host the stream.
-  throw new Error(
-    middleware?.length
-      ? `${UNHOSTED_VIDEO_ERROR} A middleware ran but did not turn them into one. withGenerationPersistence needs stores.artifacts, stores.blobs and artifactUrl; a custom extractArtifacts must return a descriptor with bytes: result.body.`
-      : `${UNHOSTED_VIDEO_ERROR} Add withGenerationPersistence with artifactUrl to stream them into your storage.`,
-  )
+  return await inlineVideoStream(result)
 }
 
 /** The adapter kind this activity handles */
@@ -723,7 +722,8 @@ async function* runStreamingVideoGeneration<
       }
 
       if (statusResult.status === 'completed') {
-        const video = await adapter.getVideo(jobResult.jobId)
+        const video = await (adapter.getVideo?.(jobResult.jobId) ??
+          adapter.getVideoUrl(jobResult.jobId))
 
         logger.output(
           `activity=generateVideo jobId=${jobResult.jobId} status=completed`,
@@ -745,8 +745,9 @@ async function* runStreamingVideoGeneration<
           ...videoMedia(video),
           ...(video.usage ? { usage: video.usage } : {}),
         }
-        const result = await applyGenerationResultTransforms(mwCtx, rawResult)
-        await requireVideoUrl(result, middleware)
+        const result = await settleVideoUrl(
+          await applyGenerationResultTransforms(mwCtx, rawResult),
+        )
 
         // Fire finish before yielding the terminal chunks: the generation has
         // succeeded, so a consumer that stops reading after `generation:result`
@@ -992,7 +993,7 @@ export async function getVideoJobStatus<
     // surface as itself, not be relabelled "failed to get video URL" and then
     // re-reported to the very middleware that threw.
     try {
-      video = await adapter.getVideo(jobId)
+      video = await (adapter.getVideo?.(jobId) ?? adapter.getVideoUrl(jobId))
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to get video URL'
@@ -1045,8 +1046,11 @@ export async function getVideoJobStatus<
 
     const mwCtx = terminalContext()
     await runGenerationStart(middleware, mwCtx)
-    const result = await applyGenerationResultTransforms<
-      VideoJobStatusResult & { body?: ReadableStream<Uint8Array> }
+    const transformed = await applyGenerationResultTransforms<
+      VideoJobStatusResult & {
+        body?: ReadableStream<Uint8Array>
+        contentType?: string
+      }
     >(mwCtx, {
       jobId,
       status: 'completed',
@@ -1056,9 +1060,11 @@ export async function getVideoJobStatus<
       ...videoMedia(video),
       ...(video.usage ? { usage: video.usage } : {}),
     })
+    let result: VideoJobStatusResult
     try {
-      await requireVideoUrl(result, middleware)
+      result = await settleVideoUrl(transformed)
     } catch (error) {
+      // The download broke mid-stream: the job is terminal, so fail the run.
       await runGenerationError(middleware, mwCtx, {
         error,
         duration: Date.now() - startTime,
@@ -1067,7 +1073,8 @@ export async function getVideoJobStatus<
         jobId,
         status: 'failed' as const,
         progress: statusResult.progress,
-        error: error instanceof Error ? error.message : UNHOSTED_VIDEO_ERROR,
+        error:
+          error instanceof Error ? error.message : 'Failed to download video',
       }
     }
     if (video.usage) await runGenerationUsage(middleware, mwCtx, video.usage)

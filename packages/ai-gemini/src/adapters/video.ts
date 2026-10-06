@@ -235,7 +235,7 @@ function interactionUsageToTokenUsage(
  *
  * **Veo models** run as a long-running operation: `createVideoJob` starts
  * the operation via the `:predictLongRunning` endpoint, `getVideoStatus`
- * polls it, and `getVideo` extracts the generated video's URI once it
+ * polls it, and `getVideoUrl` extracts the generated video's URI once it
  * completes. Image prompt parts are routed by `metadata.role`:
  * - `'start_frame'` (or the first un-roled image) → the input image the
  *   video starts from
@@ -251,7 +251,7 @@ function interactionUsageToTokenUsage(
  * `gemini-omni-flash-preview` alias) only serves the Interactions API:
  * `createVideoJob` creates a background interaction with
  * `response_modalities: ['video']`, `getVideoStatus` polls it by id, and
- * `getVideo` returns the inline base64 MP4 as a `data:` URL (or the
+ * `getVideoUrl` returns the inline base64 MP4 as a `data:` URL (or the
  * Files API URI when the server delivers by reference). Image and video
  * prompt parts are sent as interaction content blocks, grouped as images,
  * then videos, then the text prompt (interleaving is not preserved); pass
@@ -360,7 +360,7 @@ export class GeminiVideoAdapter<
   /**
    * Gemini Omni Flash job creation via the Interactions API. Creates a
    * background interaction requesting video output; the interaction id is
-   * the job id polled by `getVideoStatus` / `getVideo`.
+   * the job id polled by `getVideoStatus` / `getVideoUrl`.
    */
   private async createInteractionsVideoJob(
     options: VideoGenerationOptions<
@@ -532,7 +532,7 @@ export class GeminiVideoAdapter<
 
     // The operation can finish "successfully" with every sample dropped by
     // Responsible-AI filters — surface that as a failure instead of letting
-    // getVideo() throw on an empty response.
+    // getVideoUrl() throw on an empty response.
     const videos = operation.response?.generatedVideos ?? []
     if (videos.length === 0) {
       const reasons = operation.response?.raiMediaFilteredReasons
@@ -551,7 +551,7 @@ export class GeminiVideoAdapter<
   /**
    * Poll an Omni background interaction. `in_progress` maps to
    * 'processing'; a `completed` interaction with no video content (e.g.
-   * filtered output) is surfaced as a failure so `getVideo` doesn't
+   * filtered output) is surfaced as a failure so `getVideoUrl` doesn't
    * throw on an empty response. `requires_action` also fails: the adapter
    * never sends tools, so it can only arise via
    * `previous_interaction_id` chaining onto a tool-bearing interaction —
@@ -593,7 +593,7 @@ export class GeminiVideoAdapter<
     }
   }
 
-  async getVideo(jobId: string): Promise<VideoUrlResult> {
+  async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
     if (isInteractionsVideoModel(this.model)) {
       return await this.getInteractionsVideoUrl(jobId)
     }

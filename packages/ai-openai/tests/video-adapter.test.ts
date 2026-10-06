@@ -252,4 +252,25 @@ describe('OpenAI Video Adapter', () => {
     expect(result.contentType).toBe('video/mp4')
     await expect(new Response(result.body).text()).resolves.toBe('mp4-bytes')
   })
+
+  it('getVideoUrl buffers the download into a data URL when the job has no url', async () => {
+    const adapter = createOpenaiVideo('sora-2', 'test-api-key')
+    ;(adapter as unknown as { client: { videos: unknown } }).client = {
+      videos: {
+        retrieve: vi
+          .fn()
+          .mockResolvedValue({ id: 'job-1', status: 'completed' }),
+        downloadContent: vi.fn().mockResolvedValue(
+          new Response('mp4-bytes', {
+            headers: { 'content-type': 'video/mp4' },
+          }),
+        ),
+      },
+    }
+
+    await expect(adapter.getVideoUrl('job-1')).resolves.toEqual({
+      jobId: 'job-1',
+      url: `data:video/mp4;base64,${btoa('mp4-bytes')}`,
+    })
+  })
 })
