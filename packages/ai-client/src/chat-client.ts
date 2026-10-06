@@ -540,6 +540,8 @@ export class ChatClient<
   private hydrationError: Error | undefined
   /** Whether a view is currently watching. See `attach` / `detach`. */
   private tailing = false
+  /** `historyGeneration` of the mount hydration GET still in flight, if any. */
+  private hydrationInFlight: number | undefined
   /** Constructor inputs `attach()` needs on every re-attach, not just the first. */
   private readonly rejoinRunId: string | null | undefined
   private readonly cachesMessages: boolean
@@ -1148,12 +1150,17 @@ export class ChatClient<
     if (!hydrate) return
     if (this.isLoading || this.abortController) return
     if (this.disposed) return
+    // A re-attach while the last GET is still out reuses that GET. React Strict
+    // Mode runs mount effects twice (attach, detach, attach), and the GET
+    // applies its result because a view is attached again when it returns.
+    if (this.hydrationInFlight === this.historyGeneration) return
     const pageSize = this.historyPageSize
     const hydrateOptions: ChatHydrateOptions | undefined =
       pageSize === undefined ? undefined : { limit: pageSize }
     void (async () => {
       let result: ChatHydrationResult
       const generation = this.historyGeneration
+      this.hydrationInFlight = generation
       try {
         result = await hydrate(this.threadId, hydrateOptions)
       } catch (cause) {
@@ -1161,6 +1168,10 @@ export class ChatClient<
         // older attempt must not touch the state of a newer one.
         if (generation === this.historyGeneration) this.failHydration(cause)
         return
+      } finally {
+        if (this.hydrationInFlight === generation) {
+          this.hydrationInFlight = undefined
+        }
       }
       if (generation !== this.historyGeneration) return
       // NO VIEW IS WATCHING ANY MORE (it unmounted while this fetch was in

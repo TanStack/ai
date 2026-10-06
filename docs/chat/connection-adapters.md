@@ -691,6 +691,10 @@ stop(); // aborts the active stream
 
 For `SubscribeConnectionAdapter`, the signal in `subscribe()` ends the entire subscription (component unmount); the signal in `send()` ends just the in-flight send.
 
+If parsing fails or you exit the chunk iterator early, the fetch adapters cancel the response body. The SSE adapter also cancels after a `[DONE]` marker. Responses that reach their normal end keep all their chunks.
+
+Custom cancellation hooks do not delay errors or early iterator returns. The adapters release the reader lock even if cancellation fails or stays pending.
+
 ## Error Handling
 
 Adapters should throw on transport errors (HTTP non-2xx, parse failures, dropped sockets). The `ChatClient` catches the throw, emits a `RUN_ERROR` chunk if none has been emitted yet, and surfaces it via `onError` / the `error` state:
