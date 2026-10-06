@@ -286,7 +286,7 @@ export function computeAnthropicBetas(
  * ponytail: a hand list, because the model sync script writes model-meta.ts.
  * Move it to a model-meta capability when that script can set one.
  */
-const ANTHROPIC_NO_FORCED_TOOL_MODELS = new Set<
+const ANTHROPIC_NO_FORCED_TOOL_MODELS: ReadonlySet<string> = new Set<
   (typeof ANTHROPIC_MODELS)[number]
 >(['claude-fable-5-1', 'claude-opus-5-5', 'claude-sonnet-5-5'])
 
