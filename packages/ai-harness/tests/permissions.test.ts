@@ -3,6 +3,7 @@ import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import {
+  PermissionDecisionCapability,
   PermissionResources,
   PermissionRules,
   decidePermission,
@@ -11,6 +12,7 @@ import {
 import { mockAdapter, text, toolCall } from './helpers'
 import type { HarnessPersistence, HarnessPlugin, HarnessSession } from '../src'
 import type {
+  PermissionDecision,
   PermissionMode,
   PermissionRule,
 } from '../src/first-party/permissions'
@@ -483,6 +485,63 @@ describe('permissions()', () => {
 
     expect(tools.ran).toEqual([])
     expect(seen).toContainEqual(rule)
+    await host.close()
+  })
+
+  it('tells other plugins the decision a call gets, for a rule, the default, and plan mode', async () => {
+    const ran: Array<string> = []
+    const tool = (name: string) =>
+      toolDefinition({ name, description: name }).server(async () => {
+        ran.push(name)
+        return `${name} done`
+      })
+    let decide:
+      | ((tool: string, mode: PermissionMode) => PermissionDecision)
+      | undefined
+    // Another plugin that asks permissions(), like codeMode() does.
+    const reader = definePlugin({
+      name: 'test/reader',
+      optionalRequires: [PermissionDecisionCapability],
+      setup: (ctx) => {
+        decide = ctx.getOptional(PermissionDecisionCapability)
+        return { tools: [tool('lookup'), tool('deploy')] }
+      },
+    })
+    const { host, session, calls } = await open(
+      memoryPersistence(),
+      [
+        permissions({
+          default: 'ask',
+          rules: [{ tool: 'lookup', decision: 'allow' }],
+        }),
+        reader,
+      ],
+      [
+        () => toolCall('lookup', {}, 'c1'),
+        () => toolCall('deploy', {}, 'c2'),
+        () => text('asked'),
+        () => toolCall('lookup', {}, 'c3'),
+        () => toolCall('deploy', {}, 'c4'),
+      ],
+    )
+
+    // The rule allows lookup, and deploy has no rule, so it asks.
+    const turn = session.prompt('look up, then deploy')
+    expect(await answer(session, { answer: 'reject' })).toContain('deploy')
+    await turn
+    expect(ran).toEqual(['lookup'])
+    expect(decide?.('lookup', 'default')).toBe('allow')
+    expect(decide?.('deploy', 'default')).toBe('ask')
+
+    // Plan mode denies what would ask.
+    await session.command('mode', 'plan')
+    await session.prompt('again, in plan mode')
+    expect(ran).toEqual(['lookup', 'lookup'])
+    expect(JSON.stringify(calls.at(-1).messages)).toContain(
+      'This tool is not allowed in plan mode.',
+    )
+    expect(decide?.('lookup', 'plan')).toBe('allow')
+    expect(decide?.('deploy', 'plan')).toBe('deny')
     await host.close()
   })
 

@@ -1,4 +1,5 @@
 import {
+  PermissionDecisionCapability,
   PermissionResources,
   PermissionRules,
   decidePermission,
@@ -14,8 +15,9 @@ export interface CodeModePluginOptions extends Omit<
 > {
   /**
    * Which tools move into code mode. Default: every server tool that does
-   * not need approval and that the permission rules allow in plan mode (so
-   * no edits, no commands, nothing that asks first). A safe tool with
+   * not need approval and that `permissions()` allows in plan mode (so no
+   * edits, no commands, nothing that asks first). Without `permissions()`,
+   * the rules of tool plugins decide. A safe tool with
    * `metadata.codeMode: true`, for example a tool of an `mcp()` server with
    * `codeMode: true`, moves even when `include` does not pick it.
    */
@@ -77,6 +79,7 @@ export function codeMode(options: CodeModePluginOptions) {
   const { include, lazy = false, ...config } = options
   return definePlugin({
     name: 'tanstack/code-mode',
+    optionalRequires: [PermissionDecisionCapability],
     setup: (ctx) => {
       const rules = ctx.collect(PermissionRules)
       const resources = ctx.collect(PermissionResources)
@@ -85,9 +88,13 @@ export function codeMode(options: CodeModePluginOptions) {
       return {
         prompts: [{ id: 'tanstack/code-mode', text: () => prompt }],
         prepareTools: ({ tools }) => {
+          // Ask permissions() when it is mounted: it knows all rules in its
+          // order and its default. Read here, so it can come after code mode.
+          const decide = ctx.getOptional(PermissionDecisionCapability)
           const safe = (tool: CodeModeTool) =>
             !tool.needsApproval &&
-            decidePermission(rules, tool.name, 'plan') === 'allow'
+            (decide?.(tool.name, 'plan') ??
+              decidePermission(rules, tool.name, 'plan')) === 'allow'
           const moves = (tool: CodeModeTool) => {
             // The permission checks run on tool calls of the model. A call
             // inside the isolate skips them, so such a tool stays a tool call.

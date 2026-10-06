@@ -427,6 +427,43 @@ describe('codeMode', () => {
     expect(names).toEqual(['docs_search', 'lookup', 'execute_typescript'])
   })
 
+  it.each(['before', 'after'])(
+    'keeps a tool with no rule as a tool call when permissions() asks by default, mounted %s code mode',
+    async (order) => {
+      const guard = permissions({
+        default: 'ask',
+        rules: [{ tool: 'lookup', decision: 'allow' }],
+      })
+      const code = codeMode({ driver: fakeDriver().driver })
+      const names = await firstToolNames({
+        tools: [markedTool('docs_search'), tools.lookup],
+        plugins: order === 'before' ? [guard, code] : [code, guard],
+      })
+      expect(names).toEqual(['docs_search', 'execute_typescript'])
+    },
+  )
+
+  it('keeps a tool that a rule of permissions() asks for, when a later plugin allows it', async () => {
+    const later = definePlugin({
+      name: 'test/later-allow',
+      setup: () => ({
+        contribute: [
+          PermissionRules.item({ tool: 'docs_search', decision: 'allow' }),
+        ],
+      }),
+    })
+    const names = await firstToolNames({
+      tools: [markedTool('docs_search'), tools.lookup],
+      plugins: [
+        permissions({ rules: [{ tool: 'docs_search', decision: 'ask' }] }),
+        later,
+        codeMode({ driver: fakeDriver().driver }),
+      ],
+    })
+    // permissions() checks its own rules last, so the call would ask.
+    expect(names).toEqual(['docs_search', 'execute_typescript'])
+  })
+
   it('keeps a tool that declares permission resources as a tool call', async () => {
     const resources = definePlugin({
       name: 'test/resources',

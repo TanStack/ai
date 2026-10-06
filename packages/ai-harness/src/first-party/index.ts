@@ -3,6 +3,7 @@
 export { modelPicker } from './model-picker'
 export {
   PERMISSION_MODES,
+  PermissionDecisionCapability,
   PermissionResources,
   PermissionRules,
   decidePermission,

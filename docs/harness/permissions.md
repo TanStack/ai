@@ -298,6 +298,32 @@ Now `{ tool: 'copy_file', resource: 'docs/**', decision: 'allow' }` copies files
 - If a tool does not say what it touches, a rule with a `resource` counts for every call. So a `deny` for one folder denies every call of the tool.
 - [Code mode](./code-mode) keeps a tool with resources as a normal tool call, so the plugin still checks each call.
 
+## Ask for a decision from your plugin
+
+Your plugin must know what `permissions()` decides for a tool before the model calls it. Read the answer with `PermissionDecisionCapability`:
+
+```ts
+import { PermissionDecisionCapability, definePlugin } from '@tanstack/ai-harness'
+
+export const planTools = definePlugin({
+  name: 'acme/plan-tools',
+  optionalRequires: [PermissionDecisionCapability],
+  setup: (ctx) => ({
+    // Give the model only the tools that permissions() allows in plan mode.
+    prepareTools: ({ tools }) => {
+      const decide = ctx.getOptional(PermissionDecisionCapability)
+      if (!decide) return tools
+      return tools.filter((tool) => decide(tool.name, 'plan') === 'allow')
+    },
+  }),
+})
+```
+
+- The answer is `'allow'`, `'ask'`, or `'deny'`. It uses all rules in their order, your `rules` last, and your `default`.
+- Read it when the plugin runs, not in `setup`. Then `permissions()` can come before or after your plugin.
+- Saved `always` answers are not part of it. They can only allow, so a check that needs `'allow'` stays strict.
+- [Code mode](./code-mode) uses this answer. With `default: 'ask'`, a tool with no rule stays a normal tool call.
+
 ## Known limits
 
 - A rule that allows a tool with no `kind` also lets it run in `plan` mode. For example, an `allow` for `webfetch` lets it fetch pages in `plan` mode. `plan` denies only edits, commands, and calls that ask.

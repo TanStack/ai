@@ -1,4 +1,4 @@
-import { getMetadata } from '@tanstack/ai'
+import { createCapability, getMetadata } from '@tanstack/ai'
 import { defineCommand } from '../commands'
 import { configOption } from '../config'
 import { createExtensionPoint } from '../extensions'
@@ -59,6 +59,16 @@ export const PERMISSION_MODES = [
   'bypass',
 ] as const
 export type PermissionMode = (typeof PERMISSION_MODES)[number]
+
+/**
+ * What `permissions()` decides for a call of `tool` in `mode`, when the call
+ * declares no `PermissionResources`. It uses all rules in their order and the
+ * `default`. Other plugins, like `codeMode()`, ask it. Saved answers are not
+ * used: they only allow more, so an answer here is never looser than a call.
+ */
+export const PermissionDecisionCapability = createCapability<
+  (tool: string, mode: PermissionMode) => PermissionDecision
+>()('tanstack/permission-decision')
 
 /** Is the user's answer a yes: `true`, `y`, or `yes`? */
 export function isYes(answer: unknown) {
@@ -392,9 +402,17 @@ export function permissions(
 ) {
   return definePlugin({
     name: 'tanstack/permissions',
+    provides: [PermissionDecisionCapability],
     setup: (ctx) => {
       const contributed = ctx.collect(PermissionRules)
       const declared = ctx.collect(PermissionResources)
+      // The rules of tool plugins, then the user's rules, so the user's win.
+      const configured = () => [...contributed, ...(options.rules ?? [])]
+      ctx.provide(PermissionDecisionCapability, (tool, current) =>
+        decidePermission(configured(), tool, current, {
+          fallback: options.default,
+        }),
+      )
       const mode = (): PermissionMode => {
         const value = ctx.config.get('mode')
         return (
@@ -470,12 +488,12 @@ export function permissions(
       ) => {
         const resources = resourcesOf(tool, input)
         const settings = { fallback: options.default, resources, root }
-        const configured = [...contributed, ...(options.rules ?? [])]
+        const rules = configured()
         // A saved answer turns an ask into an allow. It never beats a deny.
-        if (decidePermission(configured, tool, current, settings) === 'deny') {
+        if (decidePermission(rules, tool, current, settings) === 'deny') {
           return { decision: 'deny' as const, resources }
         }
-        const rules = [...configured, ...(await loadSaved(metadata))]
+        rules.push(...(await loadSaved(metadata)))
         const decision = decidePermission(rules, tool, current, settings)
         return { decision, resources }
       }
@@ -549,7 +567,7 @@ export function permissions(
           }),
         },
         prepareTools: ({ tools }) => {
-          const rules = [...contributed, ...(options.rules ?? [])]
+          const rules = configured()
           const current = mode()
           return tools.filter((tool) => !isHidden(rules, tool.name, current))
         },

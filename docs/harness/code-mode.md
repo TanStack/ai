@@ -74,6 +74,11 @@ A call inside the program does not stop for approval. So by default, a tool move
 - The permission rules allow it in plan mode. File reads move. `write_file` and `bash` stay.
 - MCP tools that the server does not mark read-only ask for approval, so they stay too.
 
+Where the permission rules come from:
+
+- With [`permissions()`](./permissions) in the plugin list, code mode asks it about each tool. The answer is the one a call gets in plan mode: your `rules` win, and a tool with no rule gets your `default`. So with `default: 'ask'`, a tool with no rule stays.
+- Without `permissions()`, code mode reads the rules that tool plugins add.
+
 Every other tool stays a normal tool call, with its approvals. To pick the tools yourself, pass `include`:
 
 ```ts group=harness-code-mode
