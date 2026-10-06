@@ -1,0 +1,125 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[harness-agents] first"
+      },
+      "response": {
+        "content": "Built it."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-agents] second",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [{ "name": "lookup", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-agents] second",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Stopped at the step limit."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-env] where am i"
+      },
+      "response": {
+        "content": "You are in a new repository."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-undo] change a.txt",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "write_file",
+            "arguments": "{\"path\":\"a.txt\",\"content\":\"two\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-undo] change a.txt",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Changed a.txt."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-format] write b.txt",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "write_file",
+            "arguments": "{\"path\":\"b.txt\",\"content\":\"quiet text\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-format] write b.txt",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Wrote b.txt."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-mcp] echo hello",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "local_echo",
+            "arguments": "{\"text\":\"hello from mcp\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-mcp] echo hello",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The server said hello from mcp."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-title] plan a trip to Rome",
+        "model": "gpt-5.4-nano"
+      },
+      "response": {
+        "content": "\"Trip to Rome\""
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-title] plan a trip to Rome",
+        "model": "gpt-5.5"
+      },
+      "response": {
+        "content": "Here is a plan for Rome."
+      }
+    }
+  ]
+}
