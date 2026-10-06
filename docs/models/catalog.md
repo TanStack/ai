@@ -80,6 +80,11 @@ if (record) {
 }
 ```
 
+For an `anthropic-messages` record, `modelReasoning(record)` also gives the thinking shape:
+
+- `adaptive`: from `compat.forceAdaptiveThinking`. It is `true` for Claude 4.6 and later, Kimi For Coding, and most Fireworks models. The other models think with a token budget.
+- `midConversationEffort`: from `compat.supportsMidConvoEffort`. See [Change the level during a conversation](../adapters/anthropic#change-the-level-during-a-conversation).
+
 Pick the adapter from the record's `api`:
 
 | `api` | Adapter |
