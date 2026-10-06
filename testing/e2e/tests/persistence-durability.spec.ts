@@ -361,4 +361,36 @@ test.describe('server persistence', () => {
       }),
     )
   })
+
+  test('restores a failed child error code from matching persisted metadata', async ({
+    request,
+  }) => {
+    const threadId = `subagent-error-code-${crypto.randomUUID()}`
+    const runId = crypto.randomUUID()
+    const seed = await request.post(
+      '/api/persistence-durability?scenario=subagent-error-code',
+      { data: { threadId, runId } },
+    )
+    expect(seed.ok()).toBe(true)
+
+    const hydration = await request.get(
+      `/api/persistence-durability?scenario=subagent-error-code&threadId=${encodeURIComponent(threadId)}`,
+    )
+    expect(hydration.ok()).toBe(true)
+    const body = (await hydration.json()) as {
+      messages: Array<{ parts: Array<Record<string, unknown>> }>
+    }
+    const parts = body.messages.flatMap((message) => message.parts)
+
+    expect(parts).toContainEqual(
+      expect.objectContaining({
+        type: 'subagent',
+        subagent: expect.objectContaining({
+          name: 'researcher',
+          status: 'error',
+          error: { message: 'Provider failed', code: 'provider_error' },
+        }),
+      }),
+    )
+  })
 })

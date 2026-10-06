@@ -56,6 +56,8 @@ import type {
  *   their stored cumulative usage.
  * - `tool-error` — runs a server tool that throws through `withPersistence`,
  *   then hydrates the failed tool call from `reconstructChat`.
+ * - `subagent-error-code` — reconstructs a failed child with matching run and
+ *   metadata messages, preserving its typed error code.
  *
  * Exempt from the aimock policy: this route never reaches an LLM provider's HTTP
  * layer, so there is nothing to mock.
@@ -155,6 +157,7 @@ const harnessOutputAdapter: AnyTextAdapter = {
 } as unknown as AnyTextAdapter
 
 const toolErrorPersistence = memoryPersistence()
+const subagentErrorCodePersistence = memoryPersistence()
 const failingTool = toolDefinition({
   name: 'check_status',
   description: 'Check the service status',
@@ -376,7 +379,8 @@ function scenarioOf(
   | 'structured-output'
   | 'harness-output'
   | 'usage'
-  | 'tool-error' {
+  | 'tool-error'
+  | 'subagent-error-code' {
   try {
     const value = new URL(request.url).searchParams.get('scenario')
     if (value === 'interrupt') return 'interrupt'
@@ -385,6 +389,7 @@ function scenarioOf(
     if (value === 'harness-output') return 'harness-output'
     if (value === 'usage') return 'usage'
     if (value === 'tool-error') return 'tool-error'
+    if (value === 'subagent-error-code') return 'subagent-error-code'
     return 'text'
   } catch {
     return 'text'
@@ -478,6 +483,62 @@ export const Route = createFileRoute('/api/persistence-durability')({
           for await (const _ of stream) void _
           return Response.json({ runId, threadId })
         }
+        if (scenario === 'subagent-error-code') {
+          const { stores } = subagentErrorCodePersistence
+          if (!stores.messages || !stores.runs) {
+            throw new Error('memory persistence has message and run stores')
+          }
+          const startedAt = Date.now()
+          const childRunId = `${runId}-child`
+          await stores.runs.createOrResume({
+            runId,
+            threadId,
+            status: 'completed',
+            startedAt,
+          })
+          await stores.messages.saveThread(threadId, [
+            {
+              id: `assistant:${runId}`,
+              role: 'assistant',
+              content: '',
+              metadata: { tanstack: { runId } },
+            },
+          ])
+          await stores.runs.createOrResume({
+            runId: childRunId,
+            threadId: `subagent:${childRunId}`,
+            parentRunId: runId,
+            subagentRunId: childRunId,
+            name: 'researcher',
+            status: 'failed',
+            startedAt,
+          })
+          await stores.runs.update(childRunId, {
+            error: { message: 'Provider failed' },
+            finishedAt: startedAt,
+          })
+          await stores.messages.saveThread(`subagent:${childRunId}`, [
+            {
+              id: `child:${childRunId}`,
+              role: 'assistant',
+              content: '',
+              metadata: {
+                tanstack: {
+                  subagent: {
+                    name: 'researcher',
+                    status: 'error',
+                    error: {
+                      message: 'Provider failed',
+                      code: 'provider_error',
+                    },
+                    placeholder: true,
+                  },
+                },
+              },
+            },
+          ])
+          return Response.json({ runId, threadId })
+        }
         if (scenario === 'usage') {
           const run = await cumulativeUsage(threadId, runId)
           return Response.json({ runId, threadId, usage: run?.usage })
@@ -513,6 +574,11 @@ export const Route = createFileRoute('/api/persistence-durability')({
         }
         if (scenarioOf(request) === 'tool-error') {
           return reconstructChat(toolErrorPersistence, request, {
+            authorize: (threadId) => threadId.length > 0,
+          })
+        }
+        if (scenarioOf(request) === 'subagent-error-code') {
+          return reconstructChat(subagentErrorCodePersistence, request, {
             authorize: (threadId) => threadId.length > 0,
           })
         }

@@ -493,4 +493,83 @@ describe('subagent run recorder', () => {
       error: { message: 'Subagent stopped', code: 'cancelled' },
     })
   })
+
+  it('retains stored error codes for failed child cards after reload', async () => {
+    const persistence = memoryPersistence()
+    const { stores } = persistence
+    if (!stores.messages || !stores.runs) {
+      throw new Error('memory persistence has message and run stores')
+    }
+    const recorder = createSubagentRunRecorder({
+      messages: stores.messages,
+      runs: stores.runs,
+      intervalMs: 0,
+    })
+
+    await recorder.start({
+      threadId: 'desk',
+      runId: 'parent-run',
+      messages: [{ id: 'user-1', role: 'user', content: 'Research this' }],
+    })
+    const failChild = async (input: {
+      runId: string
+      name: string
+      message: string
+      code: string
+    }) => {
+      await recorder.chunk({
+        threadId: 'desk',
+        runId: 'parent-run',
+        chunk: {
+          type: EventType.SUBAGENT_STARTED,
+          subagentRunId: input.runId,
+          name: input.name,
+          timestamp: t,
+        },
+      })
+      await recorder.chunk({
+        threadId: 'desk',
+        runId: 'parent-run',
+        chunk: {
+          type: EventType.SUBAGENT_ERROR,
+          subagentRunId: input.runId,
+          message: input.message,
+          code: input.code,
+          timestamp: t,
+        },
+      })
+    }
+
+    await failChild({
+      runId: 'matching-child',
+      name: 'matching',
+      message: 'Provider failed',
+      code: 'provider_error',
+    })
+    await failChild({
+      runId: 'mismatched-child',
+      name: 'mismatched',
+      message: 'Metadata error',
+      code: 'metadata_error',
+    })
+    await stores.runs.update('mismatched-child', {
+      error: { message: 'Run error wins', code: 'run_error' },
+    })
+    await recorder.finish({ threadId: 'desk', runId: 'parent-run' })
+
+    const cards = (await loadDesk(persistence)).messages
+      .flatMap((message) => message.parts)
+      .filter((part) => part.type === 'subagent')
+    const matching = cards.find((part) => part.subagent.name === 'matching')
+    const mismatched = cards.find((part) => part.subagent.name === 'mismatched')
+
+    expect(matching?.subagent.error).toEqual({
+      message: 'Provider failed',
+      code: 'provider_error',
+    })
+    expect(mismatched?.subagent.error).toEqual({
+      message: 'Run error wins',
+      code: 'run_error',
+    })
+  })
 })
