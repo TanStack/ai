@@ -14,6 +14,7 @@ import type {
   LeaseStore,
   LogStore,
   MetadataStore,
+  WorkClaimStore,
 } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
 import type { ProjectOptions, ReduceOptions } from './log'
@@ -25,6 +26,8 @@ type SharedStores = {
   artifacts?: ArtifactStore
   blobs?: BlobStore
   generationRuns?: GenerationRunStore
+  /** Claims on busy threads, for `resumePending`. */
+  workClaims?: WorkClaimStore
 }
 
 /** A durable host needs run leases, host leases, or both. */

@@ -675,6 +675,16 @@ export function acceptedKinds(
 /** The inputs that run as chat turns. They settle, and so do agent inputs. */
 const CHAT_OPS = new Set<string>(['prompt', 'steer', 'followUp', 'resolve'])
 
+/** The inputs that leave work to do: the thread is busy until they end. */
+const WORK_OPS = new Set<string>([
+  'prompt',
+  'steer',
+  'followUp',
+  'resolve',
+  'reset',
+  'agent',
+])
+
 /** Why a turn stops when its input passes its time limit. */
 const TIMEOUT_REASON = 'harness:input-timeout'
 
@@ -824,6 +834,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private readonly joining = new Set<string>()
   private readonly pendingNotes: Array<string> = []
   private activeTurn: OperationImpl<ChatTurnResult> | undefined
+  /** Renews this host's claim on the thread while the thread has work. */
+  private claimTimer: ReturnType<typeof setInterval> | undefined
+  /** The claim write of the last `markBusy`. An input waits for it. */
+  private claimWrite: Promise<void> = Promise.resolve()
+  /** Called each time the thread goes idle. See `onIdle`. */
+  private readonly idleListeners = new Set<() => void>()
   /** Who sent the input of the running turn. */
   private turnPrincipal: Principal | undefined
   /**
@@ -2579,11 +2595,122 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
+   * The thread has work: claim it in `stores.workClaims` for this host, and
+   * renew the claim while the work runs, so a sweep finds the thread after a
+   * crash. A claim that another host holds is left alone: the log still keeps
+   * one writer. A closing session claims nothing.
+   */
+  private markBusy(): void {
+    const claims = this.persistence.stores.workClaims
+    if (!claims || this.claimTimer || this.closing) return
+    const ttlMs = this.lease?.ttlMs ?? LEASE.ttlMs
+    const claim = async () => {
+      try {
+        const isHeld = await claims.claim({
+          threadId: this.threadId,
+          harness: this.harness.name,
+          ownerId: this.hostId,
+          until: Date.now() + ttlMs,
+        })
+        // Renew only a claim this host holds.
+        if (!isHeld) this.stopClaimTimer()
+      } catch (error) {
+        // The work goes on without a claim.
+        this.warnClaim(error)
+      }
+    }
+    const timer = setInterval(
+      () => void claim(),
+      this.lease?.renewMs ?? LEASE.renewMs,
+    )
+    // A claim timer must not keep a CLI or a test process alive.
+    if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+    this.claimTimer = timer
+    this.claimWrite = claim()
+  }
+
+  private stopClaimTimer(): void {
+    if (this.claimTimer) clearInterval(this.claimTimer)
+    this.claimTimer = undefined
+  }
+
+  /** Give the thread's claim back. A failed write is a warning. */
+  private async releaseClaim(): Promise<void> {
+    try {
+      await this.persistence.stores.workClaims?.release(
+        this.threadId,
+        this.hostId,
+      )
+    } catch (error) {
+      this.warnClaim(error)
+    }
+  }
+
+  /**
+   * A claim write failed. Without a claim, a sweep cannot find this work
+   * after a crash, so clients get a warning. The work goes on.
+   */
+  private warnClaim(error: unknown): void {
+    this.feed.publish(
+      'session',
+      customEvent('harness.plugin.warning', {
+        plugin: 'harness:work-claims',
+        message: error instanceof Error ? error.message : String(error),
+      }),
+    )
+  }
+
+  /** No queued or running turn, no waiting steer, and no running agent. */
+  private isIdle(): boolean {
+    return (
+      this.activeTurn === undefined &&
+      this.queue.length === 0 &&
+      this.steerQueue.length === 0 &&
+      ![...this.operations.values()].some(
+        (operation) => operation.kind === 'agent' && !operation.isSettled(),
+      )
+    )
+  }
+
+  /**
+   * When the thread is idle, give its claim back and tell the idle
+   * listeners. A thread that waits for a human (an approval, a sign-in) is
+   * idle.
+   */
+  private checkIdle(): void {
+    if (!this.isIdle()) return
+    this.stopClaimTimer()
+    // ponytail: one release write per idle thread, also when this host
+    // holds no claim (a sweep may hold one for it). Track the claim if the
+    // writes matter.
+    void this.releaseClaim()
+    for (const listener of [...this.idleListeners]) listener()
+  }
+
+  /**
+   * @internal Call `listener` each time the thread goes idle, and once soon
+   * when it is idle now. Returns a function that stops the calls. The host
+   * uses it to close a session that `resumePending` opened.
+   */
+  onIdle(listener: () => void): () => void {
+    this.idleListeners.add(listener)
+    queueMicrotask(() => this.checkIdle())
+    return () => {
+      this.idleListeners.delete(listener)
+    }
+  }
+
+  /**
    * Stop every running operation, wait for them, then dispose session plugins.
    * Safe to call twice.
    */
   close(): Promise<void> {
     this.closing ??= (async () => {
+      // A thread with work keeps its claim, so a sweep finds that work after
+      // the claim expires. An idle thread gives it back.
+      const wasIdle = this.isIdle()
+      this.stopClaimTimer()
+      if (wasIdle) await this.releaseClaim()
       for (const turn of this.queue.splice(0)) {
         await this.refreshTurnInterrupts(turn.operation)
         turn.operation.fail('cancelled', new Error('Session closed.'))
@@ -2628,6 +2755,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   private enqueueTurn(turn: QueuedTurn): void {
+    // Recovery queues turns without `accept`, so they claim here too.
+    this.markBusy()
     this.queue.push(turn)
     this.drain()
   }
@@ -2644,7 +2773,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private drain(): void {
     if (this.activeTurn || this.closing) return
     const next = this.queue.shift()
-    if (!next) return
+    if (!next) return this.checkIdle()
     this.activeTurn = next.operation
     this.activeResume = next.resume !== undefined
     this.turnPrincipal = next.principal
@@ -4044,6 +4173,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       name,
     )
     this.operations.set(operation.id, operation)
+    this.markBusy()
+    // The thread can be idle once the run ends.
+    void operation.then(
+      () => this.checkIdle(),
+      () => this.checkIdle(),
+    )
     // The agent runs for the sender of the turn that starts it, also after
     // that turn ends.
     void this.executeAgent(operation, target, input, options, this.sender())
@@ -4064,6 +4199,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       agent,
     )
     this.operations.set(operation.id, operation)
+    this.markBusy()
+    // The thread can be idle once the run ends.
+    void operation.then(
+      () => this.checkIdle(),
+      () => this.checkIdle(),
+    )
     this.feed.publish(
       operation.id,
       customEvent(HARNESS_EVENTS.operationResumed, {
@@ -4513,6 +4654,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         : 'conflict'
     }
     this.admitted.set(inputId, payload)
+    // Before the input is stored, so a crash after the write leaves a claim
+    // that a sweep finds.
+    if (WORK_OPS.has(input.op)) {
+      this.markBusy()
+      await this.claimWrite
+    }
     const at = Date.now()
     if (this.writer) {
       await this.writer.append([
