@@ -161,12 +161,9 @@ Any provider implementing the OpenAI Chat Completions API works. Common ones are
 | Cerebras | `https://api.cerebras.ai/v1` | `llama-3.3-70b` |
 | DeepInfra | `https://api.deepinfra.com/v1/openai` | `meta-llama/Llama-3.3-70B-Instruct` |
 | Perplexity | `https://api.perplexity.ai` | `sonar`, `sonar-pro` |
-| Requesty | `https://router.requesty.ai/v1` | `openai/gpt-4o-mini` |
 | Mistral | `https://api.mistral.ai/v1` | `mistral-large-latest` |
 | Nebius | `https://api.studio.nebius.ai/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | Z.AI (GLM) | `https://api.z.ai/api/paas/v4` | `glm-4.6` |
-| Upstage (Solar) | `https://api.upstage.ai/v1` | `solar-pro4`, `solar-mini` |
-| Liner | `https://platform.liner.com/api/v1` | `liner-mark-1.0` |
 | Baseten | `https://inference.baseten.co/v1` | model-dependent |
 | Hugging Face (router) | `https://router.huggingface.co/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | NVIDIA NIM | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.3-70b-instruct` |

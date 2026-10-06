@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   streamToText,
+  toHttpStream,
   toServerSentEventsStream,
   toServerSentEventsResponse,
 } from '../src/stream-to-response'
@@ -62,6 +63,68 @@ describe('streamToText', () => {
       code: 'rate_limit_exceeded',
       rawEvent,
     })
+  })
+})
+
+describe.each([
+  ['SSE', toServerSentEventsStream],
+  ['NDJSON', toHttpStream],
+] as const)('%s response backpressure', (_format, encode) => {
+  it('pauses the source while the response is not being read', async () => {
+    let produced = 0
+    let cleanedUp = false
+    async function* source(): AsyncGenerator<StreamChunk> {
+      try {
+        for (let i = 0; i < 100; i++) {
+          produced++
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
+            messageId: 'msg-1',
+            timestamp: Date.now(),
+            delta: String(i),
+          }
+        }
+      } finally {
+        cleanedUp = true
+      }
+    }
+
+    const stream = encode(source())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(produced).toBe(1)
+
+    const reader = stream.getReader()
+    await reader.read()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(produced).toBe(2)
+
+    await reader.cancel()
+    expect(cleanedUp).toBe(true)
+    expect(produced).toBe(2)
+  })
+
+  it('delivers a source error after a slow reader resumes', async () => {
+    let reachedError = false
+    async function* source(): AsyncGenerator<StreamChunk> {
+      yield {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'msg-1',
+        timestamp: Date.now(),
+        delta: 'first',
+      }
+      reachedError = true
+      throw new Error('source failed')
+    }
+
+    const reader = encode(source()).getReader()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(reachedError).toBe(false)
+
+    await reader.read()
+    const error = await reader.read()
+    expect(new TextDecoder().decode(error.value)).toContain('source failed')
+    expect(reachedError).toBe(true)
+    expect((await reader.read()).done).toBe(true)
   })
 })
 

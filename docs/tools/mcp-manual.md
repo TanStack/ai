@@ -77,6 +77,31 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
+## Server instructions
+
+A server can send instructions that tell the model how to use its tools. Put them in the system prompt so the model reads them before it calls a tool.
+
+Read them from `mcp.instructions` after connect. The value is `undefined` when the server sends none.
+
+```ts
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const mcp = await createMCPClient({
+  transport: { type: 'http', url: process.env.MCP_URL! },
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-5.5'),
+  messages: [{ role: 'user', content: 'What is the weather in Paris?' }],
+  systemPrompts: mcp.instructions ? [mcp.instructions] : [],
+  tools: await mcp.tools(),
+})
+```
+
+In a [multi-server pool](./mcp#per-server-access), each client has its own value: `pool.clients.github!.instructions`.
+
 ## Resources
 
 MCP resources are context documents (files, database records, web pages) the server exposes. Fetch them and inject them into `chat()` as content parts.

@@ -80,7 +80,7 @@ describe('60db speech', () => {
   })
 
   it('reads environment credentials and an explicit configured voice', async () => {
-    vi.stubEnv('SIXTYDB_API_KEY', 'env-key')
+    vi.stubEnv('SIXTYDB_API_KEY', ' env-key ')
     const fetch = vi
       .fn<typeof globalThis.fetch>()
       .mockImplementation(async () => json(audioRecord()))
@@ -321,6 +321,21 @@ describe('60db speech', () => {
     const { run, fetch } = setup()
     fetch.mockRejectedValue(new Error('request failed: test-api-key'))
     await expect(run()).rejects.toThrow('request failed: [redacted]')
+  })
+
+  it('normalizes padded credentials before sending and redacting them', async () => {
+    let authorization: string | null = null
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockImplementation(async (_url, request) => {
+        authorization = new Headers(request?.headers).get('authorization')
+        throw new Error(`request failed: ${authorization}`)
+      })
+    const adapter = createSixtyDBSpeech('tts', ' test-api-key ', { fetch })
+    await expect(
+      generateSpeech({ adapter, text: 'Hello', voice: 'workspace-voice' }),
+    ).rejects.toThrow('request failed: Bearer [redacted]')
+    expect(authorization).toBe('Bearer test-api-key')
   })
 
   it('cancels a request before sending it', async () => {

@@ -648,6 +648,11 @@ const CLAUDE_OPUS_5_5 = {
     AnthropicOutputConfigOptions
 >
 
+// Claude Sonnet 5.5: adaptive thinking is the default. `{type: 'disabled'}`
+// and the manual `{type: 'enabled', budget_tokens}` shape return a 400, and
+// so do non-default sampling parameters (`temperature`, `top_p`, `top_k`).
+// Its provider options therefore use the adaptive-only thinking shape and
+// `max_tokens` without the sampling knobs.
 const CLAUDE_SONNET_5_5 = {
   name: 'claude-sonnet-5-5',
   id: 'claude-sonnet-5-5',
@@ -658,11 +663,12 @@ const CLAUDE_SONNET_5_5 = {
     extended_thinking: false,
     adaptive_thinking: true,
     priority_tier: true,
+    // No 'computer_use': this model accepts only `computer_toolset_20260801`,
+    // and `computerUseTool()` sends the older versions, which return a 400.
     tools: [
       'web_search',
       'web_fetch',
       'code_execution',
-      'computer_use',
       'bash',
       'text_editor',
       'memory',
@@ -686,7 +692,8 @@ const CLAUDE_SONNET_5_5 = {
     AnthropicStopSequencesOptions &
     AnthropicAdaptiveOnlyThinkingOptions &
     AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+    AnthropicMaxTokensOptions &
+    AnthropicOutputConfigOptions
 >
 
 export const ANTHROPIC_MODELS = [
@@ -988,6 +995,8 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicToolChoiceOptions &
     AnthropicSamplingOptions &
     AnthropicOutputConfigOptions
+  // Claude Sonnet 5.5: adaptive-only thinking config, no sampling
+  // parameters — see the CLAUDE_SONNET_5_5 constant above.
   [CLAUDE_SONNET_5_5.id]: AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &
@@ -996,7 +1005,8 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicStopSequencesOptions &
     AnthropicAdaptiveOnlyThinkingOptions &
     AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+    AnthropicMaxTokensOptions &
+    AnthropicOutputConfigOptions
 }
 
 export type AnthropicChatModelToolCapabilitiesByName = {

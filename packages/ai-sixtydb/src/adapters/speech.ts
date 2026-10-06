@@ -44,7 +44,7 @@ export class SixtyDBSpeechAdapter extends BaseTTSAdapter<
       (typeof process !== 'undefined' ? process.env.SIXTYDB_API_KEY : undefined)
     if (!apiKey?.trim())
       throw new Error('Set SIXTYDB_API_KEY or pass an explicit 60db API key')
-    this.apiKey = apiKey
+    this.apiKey = apiKey.trim()
     this.voiceId = config.voiceId
     const base = new URL(config.baseURL ?? 'https://api.60db.ai')
     const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(base.hostname)
@@ -62,7 +62,7 @@ export class SixtyDBSpeechAdapter extends BaseTTSAdapter<
     }
     this.endpoint = `${base.href.replace(/\/$/, '')}/tts-synthesize`
     this.headers = new Headers(config.defaultHeaders)
-    this.headers.set('Authorization', `Bearer ${apiKey}`)
+    this.headers.set('Authorization', `Bearer ${this.apiKey}`)
     this.headers.set('Content-Type', 'application/json')
     this.fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis)
   }

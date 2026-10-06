@@ -1899,6 +1899,380 @@ describe('StreamProcessor', () => {
   })
 
   // ==========================================================================
+  // Frontend tools on a success RUN_FINISHED
+  // ==========================================================================
+  describe('frontend tools on a success RUN_FINISHED', () => {
+    const toolCall = (toolCallId: string, args = '') => [
+      ev.toolStart(toolCallId, 'ping'),
+      ev.toolArgs(toolCallId, args),
+      ev.toolEnd(toolCallId),
+    ]
+    const finished = (outcome?: Record<string, unknown>) =>
+      chunk(EventType.RUN_FINISHED, {
+        runId: 'run-1',
+        threadId: 'thread-1',
+        ...(outcome && { outcome }),
+      })
+    const run = (...chunks: Array<StreamChunk>) => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      for (const c of [ev.runStarted(), ...chunks]) processor.processChunk(c)
+      return { events, processor }
+    }
+
+    it.each([
+      ['no outcome', undefined],
+      ['a success outcome', { type: 'success' }],
+    ])('fires onToolCall for an unanswered call with %s', (_, outcome) => {
+      const { events } = run(...toolCall('tc-1'), finished(outcome))
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+      expect(events.onToolCall).toHaveBeenCalledWith({
+        toolCallId: 'tc-1',
+        toolName: 'ping',
+        input: {},
+      })
+    })
+
+    it('fires only the calls named in pendingToolCallIds', () => {
+      const { events } = run(
+        ...toolCall('tc-1', '{"n":1}'),
+        ...toolCall('tc-2', '{"n":2}'),
+        finished({ type: 'success', pendingToolCallIds: ['tc-2'] }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+      expect(events.onToolCall).toHaveBeenCalledWith({
+        toolCallId: 'tc-2',
+        toolName: 'ping',
+        input: { n: 2 },
+      })
+    })
+
+    it('ignores pendingToolCallIds of an earlier run', () => {
+      const { events, processor } = run(
+        ...toolCall('tc-1'),
+        ev.runError('boom'),
+      )
+      processor.processChunk(ev.runStarted('run-2'))
+      processor.processChunk(
+        chunk(EventType.RUN_FINISHED, {
+          runId: 'run-2',
+          threadId: 'thread-1',
+          outcome: { type: 'success', pendingToolCallIds: ['tc-1'] },
+        }),
+      )
+
+      expect(events.onToolCall).not.toHaveBeenCalled()
+    })
+
+    it('skips calls the run answered with TOOL_CALL_RESULT', () => {
+      const { events } = run(
+        ...toolCall('tc-1'),
+        ev.toolResult('tc-1', '"pong"'),
+        ...toolCall('tc-2'),
+        finished(),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+      expect(events.onToolCall.mock.calls[0]![0].toolCallId).toBe('tc-2')
+    })
+
+    it('skips provider-executed calls, which have no TOOL_CALL_RESULT', () => {
+      const { events } = run(
+        chunk(EventType.TOOL_CALL_START, {
+          toolCallId: 'srvtoolu-1',
+          toolCallName: 'web_search',
+          metadata: { providerExecuted: true },
+        }),
+        chunk(EventType.TOOL_CALL_END, { toolCallId: 'srvtoolu-1' }),
+        ev.runFinished('stop'),
+      )
+
+      expect(events.onToolCall).not.toHaveBeenCalled()
+    })
+
+    it('skips a call that waits for approval', () => {
+      const { events } = run(
+        ...toolCall('tc-1'),
+        ev.custom('approval-requested', {
+          toolCallId: 'tc-1',
+          toolName: 'ping',
+          input: {},
+          approval: { id: 'approval-1', needsApproval: true },
+        }),
+        finished(),
+      )
+
+      expect(events.onApprovalRequest).toHaveBeenCalledTimes(1)
+      expect(events.onToolCall).not.toHaveBeenCalled()
+    })
+
+    it('does not fire a call that tool-input-available already sent', () => {
+      const { events } = run(
+        ...toolCall('tc-1'),
+        ev.custom('tool-input-available', {
+          toolCallId: 'tc-1',
+          toolName: 'ping',
+          input: {},
+        }),
+        finished(),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+    })
+
+    const clientToolInterrupt = {
+      id: 'int-1',
+      reason: 'client_tool_input',
+      toolCallId: 'tc-1',
+      metadata: { kind: 'client_tool', toolName: 'ping', input: {} },
+    }
+    const genericInterrupt = {
+      id: 'int-2',
+      reason: 'confirmation',
+      metadata: { 'tanstack:interruptBinding': { kind: 'generic' } },
+    }
+
+    it.each([
+      ['a client-tool interrupt', [clientToolInterrupt], 1],
+      [
+        'a batch with a generic interrupt',
+        [clientToolInterrupt, genericInterrupt],
+        0,
+      ],
+    ])('leaves %s to the interrupt path', (_, interrupts, calls) => {
+      const { events } = run(
+        ...toolCall('tc-1'),
+        finished({ type: 'interrupt', interrupts }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(calls)
+    })
+
+    it('does not fire on a cancelled run', () => {
+      const { events } = run(
+        ...toolCall('tc-1'),
+        finished({ type: 'cancelled' }),
+      )
+
+      expect(events.onToolCall).not.toHaveBeenCalled()
+    })
+
+    it('does not fire on an intermediate tool_calls turn of chat()', () => {
+      const { events } = run(...toolCall('tc-1'), ev.runFinished('tool_calls'))
+
+      expect(events.onToolCall).not.toHaveBeenCalled()
+    })
+
+    it('fires only the calls of the run that finishes', () => {
+      const { events, processor } = run(
+        ...toolCall('tc-1'),
+        ev.runError('boom'),
+        ev.runStarted('run-2'),
+        ...toolCall('tc-2'),
+      )
+      processor.processChunk(
+        chunk(EventType.RUN_FINISHED, { runId: 'run-2', threadId: 'thread-1' }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+      expect(events.onToolCall.mock.calls[0]![0].toolCallId).toBe('tc-2')
+    })
+
+    it('finds the call after a MESSAGES_SNAPSHOT', () => {
+      const { events } = run(
+        ...toolCall('tc-1', '{"n":1}'),
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            { id: 'u-1', role: 'user', content: 'ping me' },
+            {
+              id: 'a-1',
+              role: 'assistant',
+              toolCalls: [
+                {
+                  id: 'tc-1',
+                  type: 'function',
+                  function: { name: 'ping', arguments: '{"n":1}' },
+                },
+              ],
+            },
+          ],
+        }),
+        finished({ type: 'success' }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledWith({
+        toolCallId: 'tc-1',
+        toolName: 'ping',
+        input: { n: 1 },
+      })
+    })
+
+    it('parses the arguments of a call a parts snapshot left without input', () => {
+      const { events } = run(
+        ev.toolStart('tc-1', 'ping'),
+        ev.toolArgs('tc-1', '{"n":1}'),
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'a-1',
+              role: 'assistant',
+              parts: [
+                {
+                  type: 'tool-call',
+                  id: 'tc-1',
+                  name: 'ping',
+                  arguments: '{"n":1}',
+                  state: 'input-streaming',
+                },
+              ],
+            },
+          ],
+        }),
+        finished({ type: 'success' }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledWith({
+        toolCallId: 'tc-1',
+        toolName: 'ping',
+        input: { n: 1 },
+      })
+    })
+
+    it('keeps the calls of a run that another run overlaps', () => {
+      const { events, processor } = run(
+        ...toolCall('tc-1'),
+        ev.runStarted('run-2'),
+        finished(),
+      )
+      processor.processChunk(
+        chunk(EventType.RUN_FINISHED, { runId: 'run-2', threadId: 'thread-1' }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+      expect(events.onToolCall.mock.calls[0]![0].toolCallId).toBe('tc-1')
+    })
+
+    it('runs a reused call id again in a later run', () => {
+      const legacyRun = [
+        ...toolCall('call_0'),
+        ev.custom('tool-input-available', {
+          toolCallId: 'call_0',
+          toolName: 'ping',
+          input: {},
+        }),
+        finished(),
+      ]
+      const { events, processor } = run(...legacyRun)
+      processor.clearMessages()
+      for (const c of [ev.runStarted(), ...toolCall('call_0'), finished()]) {
+        processor.processChunk(c)
+      }
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not fire again a call that an interrupt of another run sent', () => {
+      const { events, processor } = run(
+        ev.runStarted('run-2'),
+        ...toolCall('tc-1'),
+        finished({ type: 'interrupt', interrupts: [clientToolInterrupt] }),
+      )
+      processor.processChunk(
+        chunk(EventType.RUN_FINISHED, { runId: 'run-2', threadId: 'thread-1' }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+    })
+
+    it('fires a call once when the same RUN_FINISHED comes twice', () => {
+      const { events, processor } = run(...toolCall('tc-1'), finished())
+      processor.processChunk(finished())
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+    })
+
+    it('fires a call once when pendingToolCallIds names it twice', () => {
+      const { events } = run(
+        ...toolCall('tc-1'),
+        finished({ type: 'success', pendingToolCallIds: ['tc-1', 'tc-1'] }),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+    })
+
+    it('fires a call once when it starts again after a MESSAGES_SNAPSHOT', () => {
+      const { events } = run(
+        ...toolCall('tc-1'),
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'a-1',
+              role: 'assistant',
+              toolCalls: [
+                {
+                  id: 'tc-1',
+                  type: 'function',
+                  function: { name: 'ping', arguments: '{}' },
+                },
+              ],
+            },
+          ],
+        }),
+        ...toolCall('tc-1'),
+        finished(),
+      )
+
+      expect(events.onToolCall).toHaveBeenCalledTimes(1)
+    })
+
+    // A tool-call part can keep a non-terminal state after its result. The
+    // result is then in `output` or in a tool-result part.
+    it.each([
+      ['an output', 'output'],
+      ['a tool-result part', 'tool-result'],
+    ])('skips a call that has %s', (_, answer) => {
+      const { events, processor } = run(...toolCall('tc-1'))
+      processor.addToolResult('tc-1', { pong: true })
+      processor.setMessages(
+        processor.getMessages().map((msg) => ({
+          ...msg,
+          parts: msg.parts
+            .filter((p) => answer === 'tool-result' || p.type !== 'tool-result')
+            .map((p) =>
+              p.type === 'tool-call'
+                ? {
+                    ...p,
+                    state: 'input-complete' as const,
+                    output: answer === 'output' ? p.output : undefined,
+                  }
+                : p,
+            ),
+        })),
+      )
+      processor.processChunk(finished())
+
+      expect(events.onToolCall).not.toHaveBeenCalled()
+    })
+
+    it('skips a call with cut-off arguments and warns', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const { events } = run(
+        ev.toolStart('tc-1', 'ping'),
+        ev.toolArgs('tc-1', '{"msg":"hel'),
+        ev.runFinished('length'),
+      )
+
+      expect(events.onToolCall).not.toHaveBeenCalled()
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('Did not run tool call tc-1'),
+      )
+      warn.mockRestore()
+    })
+  })
+
+  // ==========================================================================
   // Approval flow
   // ==========================================================================
   describe('approval flow', () => {
@@ -5138,6 +5512,304 @@ describe('StreamProcessor', () => {
   })
 
   // ==========================================================================
+  // *_CHUNK shorthand events
+  // ==========================================================================
+  describe('*_CHUNK shorthand events', () => {
+    /** Messages without the per-instance createdAt, for comparison. */
+    const messagesOf = (...chunks: Array<StreamChunk>) => {
+      const processor = new StreamProcessor()
+      for (const c of chunks) processor.processChunk(c)
+      return processor
+        .getMessages()
+        .map(({ createdAt: _createdAt, ...message }) => message)
+    }
+    const textChunk = (fields: Record<string, unknown>) =>
+      chunk(EventType.TEXT_MESSAGE_CHUNK, fields)
+    const toolChunk = (fields: Record<string, unknown>) =>
+      chunk(EventType.TOOL_CALL_CHUNK, fields)
+    const reasoningChunk = (fields: Record<string, unknown>) =>
+      chunk(EventType.REASONING_MESSAGE_CHUNK, fields)
+
+    it('builds the same message as START / CONTENT / END (#1531 repro)', () => {
+      const metadata = { error: 'the run failed' }
+      const chunked = messagesOf(
+        ev.runStarted(),
+        textChunk({ messageId: 'msg-1', delta: 'the run failed', metadata }),
+        ev.runError('boom'),
+      )
+
+      expect(chunked).toEqual(
+        messagesOf(
+          ev.runStarted(),
+          chunk(EventType.TEXT_MESSAGE_START, {
+            messageId: 'msg-1',
+            role: 'assistant',
+            metadata,
+          }),
+          chunk(EventType.TEXT_MESSAGE_CONTENT, {
+            messageId: 'msg-1',
+            delta: 'the run failed',
+            metadata,
+          }),
+          chunk(EventType.TEXT_MESSAGE_END, { messageId: 'msg-1' }),
+          ev.runError('boom'),
+        ),
+      )
+      expect(chunked[0]).toMatchObject({
+        id: 'msg-1',
+        parts: [{ type: 'text', content: 'the run failed' }],
+        metadata,
+      })
+    })
+
+    it('continues a stream on a chunk with no id, and closes it on the next event', () => {
+      const chunked = messagesOf(
+        ev.runStarted(),
+        reasoningChunk({ messageId: 'r-1', delta: 'Let me ' }),
+        reasoningChunk({ delta: 'check.' }),
+        toolChunk({
+          toolCallId: 'tc-1',
+          toolCallName: 'lookup',
+          parentMessageId: 'msg-1',
+          delta: '{"q":',
+        }),
+        toolChunk({ delta: '"x"}' }),
+        ev.toolResult('tc-1', '"found"'),
+        textChunk({ messageId: 'msg-1', delta: 'Found ' }),
+        textChunk({ delta: 'it.' }),
+        textChunk({ metadata: { note: 'last chunk' } }),
+        ev.runFinished(),
+      )
+
+      expect(chunked).toEqual(
+        messagesOf(
+          ev.runStarted(),
+          chunk(EventType.REASONING_MESSAGE_START, {
+            messageId: 'r-1',
+            role: 'reasoning',
+          }),
+          ev.reasoningContent('Let me ', 'r-1'),
+          ev.reasoningContent('check.', 'r-1'),
+          chunk(EventType.REASONING_MESSAGE_END, { messageId: 'r-1' }),
+          chunk(EventType.TOOL_CALL_START, {
+            toolCallId: 'tc-1',
+            toolCallName: 'lookup',
+            parentMessageId: 'msg-1',
+          }),
+          ev.toolArgs('tc-1', '{"q":'),
+          ev.toolArgs('tc-1', '"x"}'),
+          ev.toolEnd('tc-1'),
+          ev.toolResult('tc-1', '"found"'),
+          ev.textStart('msg-1'),
+          ev.textContent('Found ', 'msg-1'),
+          ev.textContent('it.', 'msg-1'),
+          chunk(EventType.TEXT_MESSAGE_CONTENT, {
+            messageId: 'msg-1',
+            delta: '',
+            metadata: { note: 'last chunk' },
+          }),
+          ev.textEnd('msg-1'),
+          ev.runFinished(),
+        ),
+      )
+      expect(chunked[0]?.metadata).toEqual({ note: 'last chunk' })
+    })
+
+    it('keeps the parent message and the metadata of a tool call chunk', () => {
+      const metadata = { thoughtSignature: 'sig-1' }
+      const chunked = messagesOf(
+        ev.runStarted(),
+        toolChunk({
+          toolCallId: 'tc-1',
+          toolCallName: 'lookup',
+          parentMessageId: 'msg-1',
+          delta: '{}',
+          metadata,
+        }),
+        ev.runFinished(),
+      )
+
+      expect(chunked).toEqual(
+        messagesOf(
+          ev.runStarted(),
+          chunk(EventType.TOOL_CALL_START, {
+            toolCallId: 'tc-1',
+            toolCallName: 'lookup',
+            parentMessageId: 'msg-1',
+            metadata,
+          }),
+          ev.toolArgs('tc-1', '{}'),
+          ev.toolEnd('tc-1'),
+          ev.runFinished(),
+        ),
+      )
+      expect(chunked[0]).toMatchObject({
+        id: 'msg-1',
+        parts: [{ type: 'tool-call', id: 'tc-1', metadata }],
+      })
+    })
+
+    it('keeps a sender name and metadata that arrives on a later chunk', () => {
+      const named = messagesOf(
+        ev.runStarted(),
+        textChunk({ messageId: 'msg-1', delta: 'hi', name: 'Ada' }),
+        ev.runFinished(),
+      )
+      expect(named[0]?.name).toBe('Ada')
+
+      const tools = messagesOf(
+        ev.runStarted(),
+        toolChunk({ toolCallId: 'tc-1', toolCallName: 'lookup', delta: '{' }),
+        toolChunk({ delta: '}', metadata: { thoughtSignature: 'sig-2' } }),
+        ev.runFinished(),
+      )
+      expect(
+        tools[0]?.parts.find((part) => part.type === 'tool-call'),
+      ).toMatchObject({
+        metadata: { thoughtSignature: 'sig-2' },
+      })
+
+      const reasoning = messagesOf(
+        ev.runStarted(),
+        reasoningChunk({
+          messageId: 'r-1',
+          delta: 'think',
+          metadata: { note: 'r' },
+        }),
+        ev.runFinished(),
+      )
+      expect(reasoning[0]?.metadata).toEqual({ note: 'r' })
+    })
+
+    it.each([
+      chunk(EventType.RAW, { event: {} }),
+      chunk(EventType.ACTIVITY_SNAPSHOT, {
+        messageId: 'activity-1',
+        activityType: 'progress',
+        content: {},
+      }),
+      chunk(EventType.ACTIVITY_DELTA, {
+        messageId: 'activity-1',
+        activityType: 'progress',
+        patch: [],
+      }),
+      chunk(EventType.REASONING_ENCRYPTED_VALUE, {
+        subtype: 'message',
+        entityId: 'r-1',
+        encryptedValue: 'enc',
+      }),
+      chunk(EventType.SUBAGENT_STARTED, { subagentRunId: 'sub-1', name: 'a' }),
+      chunk(EventType.SUBAGENT_FINISHED, { subagentRunId: 'sub-1' }),
+      chunk(EventType.SUBAGENT_ERROR, { subagentRunId: 'sub-1', message: 'x' }),
+    ])('keeps the stream open across $type', (event) => {
+      // A subagent's own lifecycle event needs a subagent to belong to.
+      const subagent =
+        event.type === EventType.SUBAGENT_FINISHED ||
+        event.type === EventType.SUBAGENT_ERROR
+          ? [
+              chunk(EventType.SUBAGENT_STARTED, {
+                subagentRunId: 'sub-1',
+                name: 'a',
+              }),
+            ]
+          : []
+      expect(
+        messagesOf(
+          ev.runStarted(),
+          textChunk({ messageId: 'msg-1', delta: 'Hello, ' }),
+          ...subagent,
+          event,
+          textChunk({ delta: 'world' }),
+          ev.runFinished(),
+        ),
+      ).toEqual(
+        messagesOf(
+          ev.runStarted(),
+          ev.textStart('msg-1'),
+          ev.textContent('Hello, ', 'msg-1'),
+          ...subagent,
+          event,
+          ev.textContent('world', 'msg-1'),
+          ev.textEnd('msg-1'),
+          ev.runFinished(),
+        ),
+      )
+    })
+
+    it('closes the open tool call when a new one has no toolCallName', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const chunked = messagesOf(
+        ev.runStarted(),
+        toolChunk({
+          toolCallId: 'tc-1',
+          toolCallName: 'lookup',
+          delta: '{"a":1}',
+        }),
+        toolChunk({ toolCallId: 'tc-2', delta: '{"b":' }),
+        toolChunk({ delta: '2}' }),
+        ev.runFinished(),
+      )
+
+      expect(chunked[0]?.parts).toMatchObject([
+        { type: 'tool-call', id: 'tc-1', arguments: '{"a":1}' },
+      ])
+      expect(warn).toHaveBeenCalledTimes(2)
+      warn.mockRestore()
+    })
+
+    it('closes the open stream when it drops an id-less chunk of another kind', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const chunked = messagesOf(
+        ev.runStarted(),
+        toolChunk({
+          toolCallId: 'tc-1',
+          toolCallName: 'lookup',
+          delta: '{"a":1}',
+        }),
+        textChunk({ delta: 'orphan' }),
+        toolChunk({ delta: '{"b":2}' }),
+        ev.runFinished(),
+      )
+
+      expect(chunked[0]?.parts).toMatchObject([
+        { type: 'tool-call', id: 'tc-1', arguments: '{"a":1}' },
+      ])
+      expect(warn).toHaveBeenCalledTimes(2)
+      warn.mockRestore()
+    })
+
+    it.each([
+      'clearMessages',
+      'prepareAssistantMessage',
+      'finalizeStream',
+    ] as const)('does not continue a stream after %s()', (reset) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const processor = new StreamProcessor()
+      processor.processChunk(textChunk({ messageId: 'msg-1', delta: 'old' }))
+      processor[reset]()
+      processor.processChunk(textChunk({ delta: 'new' }))
+
+      expect(JSON.stringify(processor.getMessages())).not.toContain('new')
+      expect(warn).toHaveBeenCalledOnce()
+      warn.mockRestore()
+    })
+
+    it('drops, with a warning, an id-less chunk with nothing open and a tool call chunk with no name', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const chunked = messagesOf(
+        ev.runStarted(),
+        textChunk({ delta: 'orphan' }),
+        toolChunk({ toolCallId: 'tc-1', delta: '{}' }),
+        ev.runFinished(),
+      )
+
+      expect(chunked).toEqual([])
+      expect(warn).toHaveBeenCalledTimes(2)
+      warn.mockRestore()
+    })
+  })
+
+  // ==========================================================================
   // REASONING events
   // ==========================================================================
   describe('REASONING events', () => {
@@ -5555,6 +6227,36 @@ describe('StreamProcessor', () => {
       expect((sop as any).status).toBe('complete')
       expect((sop as any).data).toEqual({ name: 'Alice' })
       expect((sop as any).raw).toBe('{"name":"Alice"}')
+    })
+
+    it('keeps deltas in the structured-output part when reasoning streamed first under its own messageId (#1632)', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.stepStarted())
+      processor.processChunk(ev.reasoningContent('hm', 'reason-1'))
+      processor.processChunk(
+        ev.custom('structured-output.start', { messageId: 'msg-1' }),
+      )
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(ev.textContent('{"a":', 'msg-1'))
+      processor.processChunk(ev.textContent('1}', 'msg-1'))
+      processor.processChunk(ev.textEnd('msg-1'))
+      processor.processChunk(
+        ev.custom('structured-output.complete', {
+          object: { a: 1 },
+          raw: '{"a":1}',
+          messageId: 'msg-1',
+        }),
+      )
+      processor.processChunk(ev.runFinished('stop'))
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]!.parts.map((p) => p.type)).toEqual([
+        'thinking',
+        'structured-output',
+      ])
     })
 
     it('attaches a late structured-output.complete to the open assistant when the event uses a new messageId', () => {
