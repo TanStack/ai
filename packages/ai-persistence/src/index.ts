@@ -13,6 +13,7 @@ export {
   defineInboxStore,
   defineCredentialStore,
   defineLogStore,
+  defineWorkClaimStore,
   LogConflictError,
   // Run lifecycle helpers owned by @tanstack/ai, transiting through ./types so
   // this package's public surface stays a single import for backend authors.
@@ -47,6 +48,8 @@ export type {
   LeaseStore,
   TurnLease,
   TurnLeaseKey,
+  // Harness work claims (startup sweep)
+  WorkClaimStore,
   // Named product shapes (prefer these over a sparse bag)
   ChatTranscriptStores,
   ChatPersistenceStores,

@@ -30,6 +30,7 @@ import type {
   MetadataStore,
   RunRecord,
   RunStore,
+  WorkClaimStore,
 } from './types'
 
 const compareUtf8Bytes = (left: string, right: string): number => {
@@ -689,6 +690,45 @@ class MemoryCredentialStore implements CredentialStore {
   }
 }
 
+interface WorkClaim {
+  threadId: string
+  harness: string
+  ownerId: string
+  until: number
+}
+
+class MemoryWorkClaimStore implements WorkClaimStore {
+  private readonly claims = new Map<string, WorkClaim>()
+  claim(entry: WorkClaim): Promise<boolean> {
+    // Synchronous, so two claims in one process never both win.
+    const held = this.claims.get(entry.threadId)
+    const isTaken =
+      held !== undefined &&
+      held.ownerId !== entry.ownerId &&
+      held.until > Date.now()
+    if (isTaken) return Promise.resolve(false)
+    this.claims.set(entry.threadId, { ...entry })
+    return Promise.resolve(true)
+  }
+  release(threadId: string, ownerId: string): Promise<void> {
+    if (this.claims.get(threadId)?.ownerId === ownerId) {
+      this.claims.delete(threadId)
+    }
+    return Promise.resolve()
+  }
+  listExpired(options: {
+    now: number
+    limit?: number
+  }): Promise<Array<{ threadId: string; harness: string }>> {
+    const expired = [...this.claims.values()]
+      .filter((claim) => claim.until <= options.now)
+      .sort((a, b) => a.until - b.until)
+      .slice(0, options.limit ?? Number.POSITIVE_INFINITY)
+      .map(({ threadId, harness }) => ({ threadId, harness }))
+    return Promise.resolve(expired)
+  }
+}
+
 /** A JSON copy, so the log never shares an object with a caller. */
 const copyRecord = (record: LogRecord) =>
   JSON.parse(JSON.stringify(record)) as LogRecord
@@ -777,13 +817,14 @@ interface MemoryPersistenceStores {
   blobs: BlobStore
   inbox: InboxStore
   credentials: CredentialStore
+  workClaims: WorkClaimStore
 }
 
 /**
  * In-process reference backend for the full state + generation store set.
  *
  * Returns messages + activities + runs + generationRuns + interrupts +
- * metadata + artifacts + blobs + inbox + credentials. Locks are not included
+ * metadata + artifacts + blobs + inbox + credentials + workClaims. Locks are not included
  * — use `InMemoryLockStore` + `withLocks` from `@tanstack/ai` when a test or
  * single-process app needs coordination.
  */
@@ -797,6 +838,7 @@ export function memoryPersistence() {
     metadata: new MemoryMetadataStore(),
     inbox: new MemoryInboxStore(),
     credentials: new MemoryCredentialStore(),
+    workClaims: new MemoryWorkClaimStore(),
     artifacts: new MemoryArtifactStore(),
     blobs: new MemoryBlobStore(),
   }

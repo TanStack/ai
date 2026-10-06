@@ -24,6 +24,7 @@ describe('memoryPersistence', () => {
       'messages',
       'metadata',
       'runs',
+      'workClaims',
     ])
   })
 

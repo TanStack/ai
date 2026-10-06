@@ -1704,6 +1704,102 @@ export function runPersistenceConformance(
       })
     })
 
+    // Work claims are opt-in: only harness hosts read them. A backend without
+    // them skips these cases and needs no `skip` entry. Each case uses its own
+    // threads, because the suite shares one persistence.
+    describe('workClaims', () => {
+      const newThread = () => `claims-${crypto.randomUUID()}`
+      const later = () => Date.now() + 60 * 60_000
+
+      it('claims, renews, refuses a second owner, and releases by the owner only', async (ctx) => {
+        const store = persistence.stores.workClaims
+        if (!store) return ctx.skip('workClaims store not provided')
+        const threadId = newThread()
+        const claim = (ownerId: string) =>
+          store.claim({ threadId, harness: 'h', ownerId, until: later() })
+
+        expect(await claim('a')).toBe(true)
+        // The owner renews.
+        expect(await claim('a')).toBe(true)
+        // Another owner is refused while the claim is live.
+        expect(await claim('b')).toBe(false)
+        // Only the owner releases.
+        await store.release(threadId, 'b')
+        expect(await claim('b')).toBe(false)
+        await store.release(threadId, 'a')
+        expect(await claim('b')).toBe(true)
+        await store.release(threadId, 'b')
+      })
+
+      it('gives one of two concurrent claims', async (ctx) => {
+        const store = persistence.stores.workClaims
+        if (!store) return ctx.skip('workClaims store not provided')
+        const threadId = newThread()
+        const results = await Promise.all(
+          ['a', 'b'].map((ownerId) =>
+            store.claim({ threadId, harness: 'h', ownerId, until: later() }),
+          ),
+        )
+        expect(results.filter(Boolean)).toHaveLength(1)
+        await Promise.all(
+          ['a', 'b'].map((owner) => store.release(threadId, owner)),
+        )
+      })
+
+      it('lists expired claims oldest first, with a limit, and lets another owner take one over', async (ctx) => {
+        const store = persistence.stores.workClaims
+        if (!store) return ctx.skip('workClaims store not provided')
+        const now = Date.now()
+        const older = newThread()
+        const newer = newThread()
+        const live = newThread()
+        await store.claim({
+          threadId: newer,
+          harness: 'h',
+          ownerId: 'gone',
+          until: now - 1_000,
+        })
+        await store.claim({
+          threadId: older,
+          harness: 'h2',
+          ownerId: 'gone',
+          until: now - 2_000,
+        })
+        await store.claim({
+          threadId: live,
+          harness: 'h',
+          ownerId: 'alive',
+          until: later(),
+        })
+
+        const ours = (await store.listExpired({ now })).filter((entry) =>
+          [older, newer, live].includes(entry.threadId),
+        )
+        expect(ours).toEqual([
+          { threadId: older, harness: 'h2' },
+          { threadId: newer, harness: 'h' },
+        ])
+        expect(await store.listExpired({ now, limit: 1 })).toHaveLength(1)
+
+        // A sweep takes an expired claim over.
+        expect(
+          await store.claim({
+            threadId: older,
+            harness: 'h2',
+            ownerId: 'sweeper',
+            until: later(),
+          }),
+        ).toBe(true)
+        expect(
+          (await store.listExpired({ now })).map((entry) => entry.threadId),
+        ).not.toContain(older)
+
+        await store.release(older, 'sweeper')
+        await store.release(newer, 'gone')
+        await store.release(live, 'alive')
+      })
+    })
+
     // The session log is opt-in: only durable harness hosts read it. A backend
     // without it skips these cases and needs no `skip` entry. Each case uses
     // its own thread, because the suite shares one persistence.

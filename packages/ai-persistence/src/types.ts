@@ -541,6 +541,46 @@ export function defineLogStore(store: LogStore): LogStore {
   return store
 }
 
+/**
+ * Claims on threads that have pending work, for a harness host. A host
+ * claims a thread while it works on it and renews the claim. When the host
+ * stops, the claim expires, and another host's sweep finds the thread with
+ * `listExpired` and takes it over with `claim`. Optional store: only harness
+ * hosts read it.
+ */
+export interface WorkClaimStore {
+  /**
+   * Claim `threadId` for `ownerId` until `until` (epoch ms). Renews when the
+   * owner already holds it. Returns false when another owner holds a claim
+   * that has not expired. Atomic: two callers never both get true for one
+   * thread and one moment.
+   */
+  claim: (entry: {
+    threadId: string
+    harness: string
+    ownerId: string
+    until: number
+  }) => Promise<boolean>
+  /** The thread is idle: remove the claim. Only its owner can. */
+  release: (threadId: string, ownerId: string) => Promise<void>
+  /** Claims that expired before `now`: their host stopped. Oldest first. */
+  listExpired: (options: {
+    now: number
+    limit?: number
+  }) => Promise<Array<{ threadId: string; harness: string }>>
+}
+
+/**
+ * Type a {@link WorkClaimStore} implementation inline.
+ *
+ * @param store - The store implementation.
+ * @example
+ * const workClaims = defineWorkClaimStore({ claim, release, listExpired })
+ */
+export function defineWorkClaimStore(store: WorkClaimStore): WorkClaimStore {
+  return store
+}
+
 /** A secret a user or an organization saved: an API key or OAuth tokens. */
 export type Credential =
   | { type: 'api_key'; value: string }
@@ -878,6 +918,8 @@ export interface AIPersistenceStores {
   log?: LogStore
   /** Turn leases. Optional: only durable harness hosts read it. */
   leases?: LeaseStore
+  /** Claims on busy threads. Optional: only harness hosts read it. */
+  workClaims?: WorkClaimStore
 }
 
 /**
@@ -1060,6 +1102,7 @@ const storeKeys = [
   'credentials',
   'log',
   'leases',
+  'workClaims',
 ] satisfies Array<StoreKey>
 
 const storeKeySet = new Set<string>(storeKeys)
