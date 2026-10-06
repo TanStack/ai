@@ -1,7 +1,15 @@
+import { EventType } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { SharedLog, loadLogState, logMessageStore } from './log'
 import { HarnessSession } from './session'
-import type { ModelMessage, PromptCacheOptions, RunStore } from '@tanstack/ai'
+import { HARNESS_EVENTS } from './types'
+import { isRecord } from './utils'
+import type {
+  ModelMessage,
+  PromptCacheOptions,
+  RunStore,
+  StreamChunk,
+} from '@tanstack/ai'
 import type {
   AIPersistence,
   ArtifactStore,
@@ -151,6 +159,41 @@ export interface HostSessions {
   fork: (threadId: string, at: ForkPoint) => Promise<SessionIndexEntry>
 }
 
+/**
+ * An open session of the host changed its status. `running`: an operation
+ * runs. `waiting`: a question or an interrupt waits for an answer. `idle`:
+ * nothing runs or waits. `at` is the time of the change, in epoch ms.
+ */
+export interface HostStatusEvent {
+  type: 'status'
+  threadId: string
+  status: 'idle' | 'running' | 'waiting'
+  at: number
+}
+
+/**
+ * The host wrote the index entry of a thread: a new session, the end of a
+ * turn, a rename, or a fork. `entry` is the new entry.
+ */
+export interface HostSessionEvent {
+  type: 'session'
+  threadId: string
+  entry: SessionIndexEntry
+}
+
+/** The host removed the index entry of a thread. `entry` is the removed entry. */
+export interface HostSessionDeletedEvent {
+  type: 'session-deleted'
+  threadId: string
+  entry: SessionIndexEntry
+}
+
+/** What `host.events()` yields. */
+export type HostEvent =
+  | HostStatusEvent
+  | HostSessionEvent
+  | HostSessionDeletedEvent
+
 /** Runs sessions for one or more harnesses in this process. */
 export interface HarnessHost<TLogState = unknown> {
   /**
@@ -170,6 +213,20 @@ export interface HarnessHost<TLogState = unknown> {
   logState: (logId: string) => TLogState | undefined
   /** The session index: list, rename, delete, and fork sessions. */
   sessions: HostSessions
+  /**
+   * The status changes and the session index changes of this host, for a
+   * list of sessions that stays current. First the current status of each
+   * open session, then each change as it occurs. Each call reads on its own.
+   * The read stops when `signal` aborts or the loop ends.
+   *
+   * @example
+   * ```ts
+   * for await (const event of host.events({ signal })) {
+   *   if (event.type === 'status') console.log(event.threadId, event.status)
+   * }
+   * ```
+   */
+  events: (options?: { signal?: AbortSignal }) => AsyncIterable<HostEvent>
 }
 
 let warned = false
@@ -178,8 +235,12 @@ let warned = false
  * Writes to the session index. `upsert` replaces the whole entry, so a
  * change reads the entry, changes a copy, and writes it back. The changes of
  * one thread run one at a time, so no change loses the fields of another.
+ * `onChange` gets each write and each removal.
  */
-function sessionIndex(store: SessionIndexStore | undefined) {
+function sessionIndex(
+  store: SessionIndexStore | undefined,
+  onChange: (event: HostSessionEvent | HostSessionDeletedEvent) => void,
+) {
   const tails = new Map<string, Promise<void>>()
   const serial = <T>(threadId: string, task: () => Promise<T>) => {
     // The tail never rejects, so a failed change does not stop the next one.
@@ -209,12 +270,18 @@ function sessionIndex(store: SessionIndexStore | undefined) {
       serial(threadId, async () => {
         if (!store) return undefined
         const next = change(await store.get(threadId))
-        if (next) await store.upsert(next)
+        if (next) {
+          await store.upsert(next)
+          onChange({ type: 'session', threadId, entry: next })
+        }
         return next
       }),
     remove: (threadId: string) =>
       serial(threadId, async () => {
-        await store?.delete(threadId)
+        if (!store) return
+        const entry = await store.get(threadId)
+        await store.delete(threadId)
+        if (entry) onChange({ type: 'session-deleted', threadId, entry })
       }),
   }
 }
@@ -231,6 +298,38 @@ function cutTranscript(messages: ReadonlyArray<ModelMessage>, at: ForkPoint) {
     throw new Error(`The transcript has no message with id ${messageId}.`)
   }
   return messages.slice(0, isBefore ? index : index + 1)
+}
+
+/**
+ * The status rule: the status of `session` after `event`, or `undefined`
+ * when the event changes nothing. An operation that starts runs, and a
+ * question waits. When an operation ends or a question gets its answer, the
+ * session waits while a question or an interrupt still waits, runs while
+ * another operation runs, and else is idle.
+ */
+function statusAfter(session: HarnessSession, event: StreamChunk) {
+  if (event.type !== EventType.CUSTOM) return undefined
+  switch (event.name) {
+    case HARNESS_EVENTS.operationStarted:
+      return 'running'
+    case HARNESS_EVENTS.question:
+      return 'waiting'
+    case HARNESS_EVENTS.operationFinished:
+    case HARNESS_EVENTS.questionAnswered: {
+      const { pendingQuestions, pendingInterrupts, activeOperations } =
+        session.snapshot()
+      const isInterrupted =
+        isRecord(event.value) && event.value.status === 'interrupted'
+      const stillWaits =
+        isInterrupted ||
+        pendingQuestions.length > 0 ||
+        pendingInterrupts.length > 0
+      if (stillWaits) return 'waiting'
+      return activeOperations.length > 0 ? 'running' : 'idle'
+    }
+    default:
+      return undefined
+  }
 }
 
 /** How each host finds the open session of a chat turn. Not public API. */
@@ -314,7 +413,29 @@ export function createHarnessHost<TLogState = undefined>(
   }
   const logStore = persistence.stores.log
   const { metadata, sessions: sessionStore } = persistence.stores
-  const index = sessionIndex(sessionStore)
+  /** One per running `host.events()` read. */
+  const listeners = new Set<(event: HostEvent) => void>()
+  const emit = (event: HostEvent) => {
+    for (const listener of listeners) listener(event)
+  }
+  /** The latest status of each open session, by session key. */
+  const statuses = new Map<string, HostStatusEvent>()
+  const setStatus = (
+    key: string,
+    threadId: string,
+    status: HostStatusEvent['status'],
+  ) => {
+    if (statuses.get(key)?.status === status) return
+    const event: HostStatusEvent = {
+      type: 'status',
+      threadId,
+      status,
+      at: Date.now(),
+    }
+    statuses.set(key, event)
+    emit(event)
+  }
+  const index = sessionIndex(sessionStore, emit)
   // The transcript of any thread, for a fork. On a durable host, a view of
   // the log of that thread. ponytail: a thread that shares another log (a
   // `logId` that is not its thread id) is not found. Keep the log id in the
@@ -398,12 +519,24 @@ export function createHarnessHost<TLogState = undefined>(
           ...(options.lease ? { lease: options.lease } : {}),
           ...(principal ? { principal } : {}),
           ...(promptCache ? { promptCache } : {}),
-          onClose: () => sessions.delete(key),
+          onEvent: (event) => {
+            const status = statusAfter(created, event)
+            if (status) setStatus(key, threadId, status)
+          },
+          onClose: () => {
+            sessions.delete(key)
+            statuses.delete(key)
+          },
         })
         session = created.open().then(
-          () => created,
+          () => {
+            // A recovered turn can run already. Else the new session is idle.
+            if (!statuses.has(key)) setStatus(key, threadId, 'idle')
+            return created
+          },
           (error: unknown) => {
             sessions.delete(key)
+            statuses.delete(key)
             throw error
           },
         )
@@ -454,6 +587,35 @@ export function createHarnessHost<TLogState = undefined>(
         await index.update(entry.threadId, () => entry)
         return entry
       },
+    },
+    async *events({ signal } = {}) {
+      // The current statuses first. A change while the reader handles an
+      // event waits in the queue.
+      const queue: Array<HostEvent> = [...statuses.values()]
+      let wake = () => {}
+      const listener = (event: HostEvent) => {
+        queue.push(event)
+        wake()
+      }
+      const onAbort = () => wake()
+      listeners.add(listener)
+      signal?.addEventListener('abort', onAbort)
+      try {
+        while (!signal?.aborted) {
+          const next = queue.shift()
+          if (next) {
+            yield next
+            continue
+          }
+          await new Promise<void>((resolve) => {
+            wake = resolve
+          })
+        }
+      } finally {
+        // A loop that ends (break, return, throw, abort) stops listening.
+        listeners.delete(listener)
+        signal?.removeEventListener('abort', onAbort)
+      }
     },
   }
   turnFinders.set(host, async (name, operationId) => {

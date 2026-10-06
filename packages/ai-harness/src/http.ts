@@ -29,7 +29,7 @@ import type {
 } from '@tanstack/ai'
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
-import type { HarnessHost } from './host'
+import type { HarnessHost, HostEvent } from './host'
 import type { HostFrame } from './protocol'
 import type { HarnessSession } from './session'
 import type { Principal, UserInput } from './types'
@@ -89,6 +89,33 @@ const json = (body: unknown, status = 200) =>
     status,
     headers: { 'Content-Type': 'application/json' },
   })
+
+/**
+ * An SSE response: one event per frame, with `data` as JSON and `id` when
+ * the frame has one. When the client leaves, `signal` aborts.
+ */
+function sseResponse(
+  frames: (signal: AbortSignal) => AsyncIterable<{ id?: string; data: unknown }>,
+) {
+  // Not `request.signal`: some servers abort it once the body is read.
+  const reader = new AbortController()
+  const body = new ReadableStream<Uint8Array>({
+    cancel: () => reader.abort(),
+    async start(controller) {
+      try {
+        for await (const { id, data } of frames(reader.signal)) {
+          const idLine = id === undefined ? '' : `id: ${id}\n`
+          controller.enqueue(
+            encoder.encode(`${idLine}data: ${JSON.stringify(data)}\n\n`),
+          )
+        }
+      } finally {
+        if (!reader.signal.aborted) controller.close()
+      }
+    },
+  })
+  return new Response(body, { headers: SSE_HEADERS })
+}
 
 /** A handler error as JSON: a `MediaError` keeps its status, the rest is 400. */
 const failed = (error: unknown) =>
@@ -238,6 +265,10 @@ async function mediaResponse(
  *   `{ op: 'fork', threadId, through }` with a message id. Rename and fork
  *   answer with the entry, delete with 204. 403 when `canAccess` refuses
  *   the thread, 404 for a thread this principal does not own.
+ * - `GET  .../host-events`: the `host.events()` of this principal as SSE:
+ *   status changes and session index changes. First the current status of
+ *   each open session. Only the threads that `canAccess` lets in and that
+ *   this principal owns in the session index, so it needs `stores.sessions`.
  *
  * Each chat input runs as the principal that `authorize` returned for its
  * request, not as the one that opened the session first.
@@ -424,29 +455,31 @@ export function createHarnessHandler(
           request.headers.get('Last-Event-ID') ??
           url.searchParams.get('from') ??
           undefined
-        // Stops when the client cancels the response stream.
-        const reader = new AbortController()
-        const body = new ReadableStream<Uint8Array>({
-          cancel: () => reader.abort(),
-          async start(controller) {
-            try {
-              for await (const entry of session.events({
-                ...(from ? { from } : {}),
-                signal: reader.signal,
-              })) {
-                const frame: HostFrame = { type: 'harness.event', ...entry }
-                controller.enqueue(
-                  encoder.encode(
-                    `id: ${entry.cursor}\ndata: ${JSON.stringify(frame)}\n\n`,
-                  ),
-                )
-              }
-            } finally {
-              if (!reader.signal.aborted) controller.close()
-            }
-          },
+        return sseResponse(async function* (signal) {
+          const events = session.events({ ...(from ? { from } : {}), signal })
+          for await (const entry of events) {
+            const frame: HostFrame = { type: 'harness.event', ...entry }
+            yield { id: entry.cursor, data: frame }
+          }
         })
-        return new Response(body, { headers: SSE_HEADERS })
+      }
+
+      if (request.method === 'GET' && route === 'host-events') {
+        // The same rule as `POST sessions`: `canAccess`, and the owner in
+        // the index. A deleted entry comes with the event.
+        const mayWatch = async (event: HostEvent) => {
+          if (!(await canAccess(principal, event.threadId))) return false
+          const entry =
+            event.type === 'status'
+              ? await host.sessions.get(event.threadId)
+              : event.entry
+          return entry !== undefined && isOwnedBy(entry, principal)
+        }
+        return sseResponse(async function* (signal) {
+          for await (const event of host.events({ signal })) {
+            if (await mayWatch(event)) yield { data: event }
+          }
+        })
       }
 
       if (request.method === 'POST' && route === 'control') {

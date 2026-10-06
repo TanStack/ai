@@ -79,7 +79,11 @@ export type {
   HarnessHost,
   HarnessHostOptions,
   HarnessPersistence,
+  HostEvent,
+  HostSessionDeletedEvent,
+  HostSessionEvent,
   HostSessions,
+  HostStatusEvent,
   OpenSessionOptions,
 } from './host'
 export type {

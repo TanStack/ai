@@ -32,6 +32,17 @@ function read(
   })
 }
 
+/** Run `fn` as if the host were `platform`. Letter case rules depend on it. */
+function onPlatform<T>(platform: NodeJS.Platform, fn: () => T) {
+  const real = process.platform
+  Object.defineProperty(process, 'platform', { value: platform })
+  try {
+    return fn()
+  } finally {
+    Object.defineProperty(process, 'platform', { value: real })
+  }
+}
+
 function run(commands: Array<string>, rules: Array<PermissionRule>) {
   return decidePermission(rules, 'bash', 'default', {
     resources: { commands },
@@ -56,6 +67,23 @@ describe('decidePermission with resources', () => {
     expect(decide(['secrets/public/logo.png'])).toBe('allow')
     expect(decide(['src/a.ts', 'secrets/key'])).toBe('deny')
   })
+
+  it.each([
+    ['darwin', 'deny'],
+    ['win32', 'deny'],
+    ['linux', 'allow'],
+  ] as const)(
+    'on %s, a deny rule for a posix path matches another letter case: %s',
+    (platform, expected) => {
+      const rules: Array<PermissionRule> = [
+        ...readAllowed,
+        { tool: 'read_file', resource: 'secrets/**', decision: 'deny' },
+      ]
+      expect(onPlatform(platform, () => read('Secrets/key', { rules }))).toBe(
+        expected,
+      )
+    },
+  )
 
   it('fails closed when the resources of a call are not known', () => {
     const rules: Array<PermissionRule> = [
@@ -103,10 +131,13 @@ describe('decidePermission with resources', () => {
     ['..', '../secret.txt'],
     ['.. in the middle', 'src/../../secret.txt'],
     ['an absolute path', '/etc/passwd'],
-    ['another letter case on a case-sensitive system', '/work/Repo/a.ts'],
     ['a folder that only starts like the root', '/work/repo-evil/a.ts'],
   ])('asks for a path that leaves the workspace: %s', (_name, path) => {
     expect(read(path)).toBe('ask')
+  })
+
+  it('asks for another letter case of the root on a case-sensitive system', () => {
+    expect(onPlatform('linux', () => read('/work/Repo/a.ts'))).toBe('ask')
   })
 
   it.each([

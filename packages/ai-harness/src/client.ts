@@ -9,6 +9,7 @@ import type {
 } from '@tanstack/ai-persistence'
 import type { AgentInputOf } from './agents'
 import type { AnyHarness, HarnessAgentsOf } from './define'
+import type { HostEvent } from './host'
 import type { SessionDescription, SessionSnapshot } from './session'
 import type {
   BusyPolicy,
@@ -30,6 +31,12 @@ export {
   mediaPart,
 } from './media-ref'
 export type { ForkPoint, MediaKind, MediaRecord } from './types'
+export type {
+  HostEvent,
+  HostSessionDeletedEvent,
+  HostSessionEvent,
+  HostStatusEvent,
+} from './host'
 
 export interface HarnessClientOptions {
   /** The base URL of `createHarnessHandler`, for example `/api/harness`. */
@@ -104,6 +111,13 @@ export interface HarnessClient<THarness extends AnyHarness> {
     signal?: AbortSignal
     onConnection?: (state: 'open' | 'reconnecting') => void
   }) => AsyncIterable<SessionEvent>
+  /**
+   * The status changes and the session changes of all your sessions on the
+   * server (`host.events()`). First the current status of each open session.
+   * It ends when `signal` aborts or the server closes the stream. Call it
+   * again to reconnect: the current statuses come first again.
+   */
+  hostEvents: (options?: { signal?: AbortSignal }) => AsyncIterable<HostEvent>
   snapshot: () => Promise<SessionSnapshot>
   /** The saved messages of the thread. */
   transcript: () => Promise<Array<ModelMessage>>
@@ -154,6 +168,41 @@ type SessionChange =
   | { op: 'rename'; threadId: string; title: string }
   | { op: 'delete'; threadId: string }
   | ({ op: 'fork'; threadId: string } & ForkPoint)
+
+/** The `data` of each event of an SSE body, as parsed JSON. */
+async function* sseFrames(
+  body: ReadableStream<Uint8Array>,
+  signal: AbortSignal | undefined,
+) {
+  const reader = body.getReader()
+  // Some fetch shims ignore the signal once the body streams.
+  signal?.addEventListener('abort', () => void reader.cancel(), {
+    once: true,
+  })
+  const decoder = new TextDecoder()
+  let buffer = ''
+  try {
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) return
+      buffer += decoder.decode(value, { stream: true })
+      const blocks = buffer.split('\n\n')
+      buffer = blocks.pop() ?? ''
+      for (const block of blocks) {
+        const data = block
+          .split('\n')
+          .find((line) => line.startsWith('data: '))
+          ?.slice(6)
+        if (!data) continue
+        const frame: unknown = JSON.parse(data)
+        yield frame
+      }
+    }
+  } finally {
+    // A reader that stops early closes the connection, so the server stops.
+    reader.cancel().catch(() => {})
+  }
+}
 
 // The answer of `GET media-url`: a signed path, relative to the base URL.
 function isSignedPath(
@@ -301,41 +350,21 @@ export function createHarnessClient<THarness extends AnyHarness>(
           throw new Error(`Harness events failed (${response.status})`)
         }
         eventOptions.onConnection?.('open')
-        const reader = response.body.getReader()
-        // Some fetch shims ignore the signal once the body streams.
-        signal?.addEventListener('abort', () => void reader.cancel(), {
-          once: true,
-        })
-        const decoder = new TextDecoder()
-        let buffer = ''
-        while (true) {
-          const { value, done } = await reader.read()
-          if (done) break
-          buffer += decoder.decode(value, { stream: true })
-          const blocks = buffer.split('\n\n')
-          buffer = blocks.pop() ?? ''
-          for (const block of blocks) {
-            const data = block
-              .split('\n')
-              .find((line) => line.startsWith('data: '))
-              ?.slice(6)
-            if (!data) continue
-            const frame: unknown = JSON.parse(data)
-            if (
-              typeof frame === 'object' &&
-              frame !== null &&
-              'type' in frame &&
-              frame.type === 'harness.event' &&
-              'cursor' in frame &&
-              typeof frame.cursor === 'string'
-            ) {
-              cursor = frame.cursor
-              // The handler sends `{ type, cursor, operationId, event }`.
-              const { type: _type, ...entry } = frame as SessionEvent & {
-                type: string
-              }
-              yield entry
+        for await (const frame of sseFrames(response.body, signal)) {
+          if (
+            typeof frame === 'object' &&
+            frame !== null &&
+            'type' in frame &&
+            frame.type === 'harness.event' &&
+            'cursor' in frame &&
+            typeof frame.cursor === 'string'
+          ) {
+            cursor = frame.cursor
+            // The handler sends `{ type, cursor, operationId, event }`.
+            const { type: _type, ...entry } = frame as SessionEvent & {
+              type: string
             }
+            yield entry
           }
         }
       } catch (error) {
@@ -348,6 +377,27 @@ export function createHarnessClient<THarness extends AnyHarness>(
       await new Promise((resolve) =>
         setTimeout(resolve, options.reconnectDelayMs ?? 1000),
       )
+    }
+  }
+
+  async function* hostEvents({ signal }: { signal?: AbortSignal } = {}) {
+    try {
+      const response = await checked(
+        'host-events',
+        await doFetch(`${base}/host-events`, {
+          headers: headers(),
+          ...(signal ? { signal } : {}),
+        }),
+      )
+      if (!response.body)
+        throw new Error('Harness host-events failed: the answer has no body')
+      for await (const frame of sseFrames(response.body, signal)) {
+        // The handler sends `HostEvent` frames only.
+        yield frame as HostEvent
+      }
+    } catch (error) {
+      if (signal?.aborted) return
+      throw error
     }
   }
 
@@ -397,6 +447,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
     command: (name, input) => send({ op: 'command', name, input }),
     setConfig: (key, value) => send({ op: 'config', key, value }),
     events,
+    hostEvents,
     snapshot: () => read('snapshot'),
     transcript: () => read('transcript'),
     describe: () => read('describe'),

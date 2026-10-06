@@ -101,6 +101,17 @@ function isWindowsPath(path: string) {
   return /^([a-z]:[\\/]|[\\/]{2})/i.test(path)
 }
 
+/**
+ * Compare paths without letter case on macOS and Windows, whose file systems
+ * ignore case by default, and for any Windows-form path. Else `Secrets/key`
+ * would pass a deny rule for `secrets/**`.
+ */
+// ponytail: platform default, add a `caseInsensitive` option if a case-sensitive macOS volume needs it
+function foldsCase(path: string) {
+  const platform = typeof process === 'undefined' ? '' : process.platform
+  return platform === 'darwin' || platform === 'win32' || isWindowsPath(path)
+}
+
 /** `path` with `/` separators, and `.` and `..` resolved. */
 function normalizePath(path: string) {
   const slashed = path.replaceAll('\\', '/')
@@ -126,7 +137,7 @@ function isEnvFile(path: string) {
 }
 
 function pathResource(path: string, root: string | undefined) {
-  const foldCase = isWindowsPath(root ?? path)
+  const foldCase = foldsCase(root ?? path)
   const slashed = path.replaceAll('\\', '/')
   // Forms we cannot resolve without the file system ask: `C:x` (relative to
   // the current folder of drive C), a stream (`a.txt:secret`), and a name
@@ -338,7 +349,7 @@ const METADATA_NAMESPACE = 'tanstack/permissions'
 /** The root as one string for each folder: `C:\Repo` and `c:/repo/` are the same. */
 function projectId(root: string) {
   const path = normalizePath(root)
-  return isWindowsPath(root) ? path.toLowerCase() : path
+  return foldsCase(root) ? path.toLowerCase() : path
 }
 
 const PLAN_PROMPT =

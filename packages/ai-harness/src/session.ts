@@ -78,6 +78,7 @@ import type {
   LogStore,
   MessageStore,
   SessionIndexEntry,
+  SessionIndexStore,
 } from '@tanstack/ai-persistence'
 import type { AuthRequiredError, CredentialsAccess } from './auth'
 import type { EventFeed } from './feed'
@@ -145,6 +146,16 @@ export interface AgentStartOptions extends AgentRunOptions {
    * during the run.
    */
   wake?: boolean
+}
+
+/** One agent run as a child of the session thread. */
+interface AgentChild {
+  /** The run id of the child. Its index entry is `subagent:<subagentRunId>`. */
+  subagentRunId: string
+  /** The `subagent` tool call that started the run. */
+  parentToolCallId?: string
+  /** Text for an agent without `inputSchema`: one user message at the end. */
+  prompt?: string
 }
 
 type RunArgs<TAgent, TOptions> =
@@ -275,6 +286,8 @@ export interface SessionDependencies {
   lease?: LeaseOptions
   /** The `promptCache` of `host.open()`. It overrides the harness value. */
   promptCache?: PromptCacheOptions
+  /** Gets each event the session publishes, after the feed has it. */
+  onEvent: (event: StreamChunk) => void
   onClose: () => void
 }
 
@@ -607,6 +620,19 @@ const notOpenMessages: MessageStore = {
   saveThread: notOpen,
 }
 
+/** `feed`, and `onEvent` after each publish. This is how the host sees events. */
+function tapFeed(feed: EventFeed, onEvent: (event: StreamChunk) => void) {
+  return {
+    publish: (operationId, event) => {
+      feed.publish(operationId, event)
+      onEvent(event)
+    },
+    head: () => feed.head(),
+    read: (options) => feed.read(options),
+    close: () => feed.close(),
+  } satisfies EventFeed
+}
+
 /**
  * A live harness session: one conversation (`threadId`) with its plugins,
  * operations, inbox, and event stream. Open one with `host.open()`.
@@ -625,11 +651,17 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private readonly principal: Principal | undefined
   /** The session log writer of a durable host. It is also the feed. */
   private writer: LogWriter | undefined
-  private feed: EventFeed = new SessionFeed()
+  private feed: EventFeed
+  private readonly onEvent: (event: StreamChunk) => void
   /** The transcript: `stores.messages`, or a view of the log. */
   private messages: MessageStore
-  /** What `withPersistence` gets: the chat stores, with `messages`. */
-  private chatPersistence: AIPersistence<ChatTranscriptStores> | undefined
+  /**
+   * What `withPersistence` gets: the chat stores, with `messages`. With
+   * `sessions`, each child the model starts gets an index entry.
+   */
+  private chatPersistence:
+    | AIPersistence<ChatTranscriptStores & { sessions?: SessionIndexStore }>
+    | undefined
   /** The message store the chat engine saves through, on a durable host. */
   private engine: ReturnType<typeof engineMessageStore> | undefined
   /** Why the session log stopped taking writes. */
@@ -747,6 +779,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       options: this.harness.media,
     })
     this.principal = deps.principal
+    this.onEvent = deps.onEvent
+    this.feed = tapFeed(new SessionFeed(), deps.onEvent)
     this.onClose = deps.onClose
     this.hostId = deps.hostId
     this.index = deps.index
@@ -931,7 +965,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       this.writer = await this.log.open(this.threadId, (error) =>
         this.stopOnLogFailure(error),
       )
-      this.feed = this.writer
+      this.feed = tapFeed(this.writer, this.onEvent)
       const view = {
         writer: this.writer,
         store,
@@ -947,6 +981,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         ...(stores.runs ? { runs: stores.runs } : {}),
         ...(stores.interrupts ? { interrupts: stores.interrupts } : {}),
         ...(stores.metadata ? { metadata: stores.metadata } : {}),
+        ...(stores.sessions ? { sessions: stores.sessions } : {}),
       },
     }
     const { writer } = this
@@ -2632,14 +2667,33 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    * plugins, then of run plugins, then the session's media middleware. It
    * keeps the media the agents make, publishes a `harness.media` event for
    * each file, and pushes its record to `captured`. The agents read the
-   * session's provider keys as `ctx.keys`.
+   * session's provider keys as `ctx.keys`. With `agents` (the subagents of
+   * a turn), the `subagent` tool can start one of them in the background.
    */
   private binding(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
     captured: Array<MediaRecord>,
     runPlugins?: MountedPlugins,
+    agents?: ReadonlyArray<AnyAgent>,
   ) {
     const options = this.harness.media
+    // The child runs as a background agent of this session, and its end
+    // starts a new turn. Core does not pass `start` to nested children.
+    const start: SubagentBinding['start'] =
+      agents &&
+      (async (call, startOptions) => {
+        const agent = agents.find((entry) => entry.name === call.agent)
+        if (!agent) throw new Error(`Unknown agent "${call.agent}".`)
+        const subagentRunId = createSubagentId()
+        this.runAgent(agent, call.input, startOptions, {
+          subagentRunId,
+          ...(call.prompt !== undefined && { prompt: call.prompt }),
+          ...(call.parentToolCallId !== undefined && {
+            parentToolCallId: call.parentToolCallId,
+          }),
+        })
+        return { subagentRunId }
+      })
     return {
       generationMiddleware: [
         ...(this.sessionPlugins?.generationMiddleware ?? []),
@@ -2675,6 +2729,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       keys: this.keys,
       // A child uses its own threadId as the key, so only the retention goes down.
       promptCache: this.promptCache.retention,
+      ...(start && { start }),
     } satisfies SubagentBinding
   }
 
@@ -3092,7 +3147,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
                   subagents: {
                     ...bag,
                     limits: bag.limits ?? this.limits(),
-                    binding: this.binding(operation, captured, runPlugins),
+                    binding: this.binding(
+                      operation,
+                      captured,
+                      runPlugins,
+                      bag.agents,
+                    ),
                   },
                 }
               : {}),
@@ -3595,6 +3655,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     target: string | AnyAgent,
     input: unknown,
     options: AgentStartOptions,
+    child: AgentChild = { subagentRunId: createSubagentId() },
   ): OperationImpl<unknown> {
     const name = typeof target === 'string' ? target : target.name
     const operation = new OperationImpl<unknown>(
@@ -3606,7 +3667,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     this.operations.set(operation.id, operation)
     // The agent runs for the sender of the turn that starts it, also after
     // that turn ends.
-    void this.executeAgent(operation, target, input, options, this.sender())
+    void this.executeAgent(
+      operation,
+      target,
+      input,
+      options,
+      this.sender(),
+      child,
+    )
     return operation
   }
 
@@ -3656,6 +3724,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     input: unknown,
     options: AgentStartOptions,
     principal: Principal | undefined,
+    child: AgentChild,
   ): Promise<void> {
     const name = typeof target === 'string' ? target : target.name
     const inputId = createInputId()
@@ -3711,11 +3780,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       timestamp: Date.now(),
     })
     this.publishStarted(operation)
+    await this.indexAgent(operation, child, principal)
 
     let text = ''
     let result: unknown
     let failure: string | undefined
-    let subagentRunId = ''
+    const { subagentRunId, prompt } = child
     let stopRunLease = () => {}
     let releaseLease: (() => Promise<void>) | undefined
     try {
@@ -3727,13 +3797,19 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         this.lease,
       )
       releaseLease = await this.holdLease(inputId, operation)
-      const messages = await this.messages.loadThread(this.threadId)
-      subagentRunId = createSubagentId()
+      const messages = (await this.messages.loadThread(this.threadId)) ?? []
       const stream = runAgentStream(
         agent,
         {
           input: checkedInput,
-          messages: messages ?? [],
+          // A prompt is one more user message at the end, as in core.
+          messages:
+            prompt === undefined
+              ? messages
+              : [
+                  ...messages,
+                  { role: 'user', content: prompt } satisfies ModelMessage,
+                ],
           threadId: `${this.threadId}:${name}`,
           runId: `${operation.id}:${subagentRunId}`,
           parentRunId: operation.id,
@@ -3834,6 +3910,39 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     stopRunLease()
     await releaseLease?.()
     this.publishFinished(operation)
+  }
+
+  /**
+   * The index entry of an agent run: thread `subagent:<subagentRunId>`, with
+   * this thread as its parent. `upsert` replaces the whole entry, so the
+   * fields of other writers stay. A failed write does not fail the run.
+   */
+  private async indexAgent(
+    operation: OperationImpl<unknown>,
+    child: AgentChild,
+    principal: Principal | undefined,
+  ) {
+    const threadId = `subagent:${child.subagentRunId}`
+    const now = Date.now()
+    await this.index
+      .update(threadId, (entry) => ({
+        ...entry,
+        threadId,
+        parentThreadId: this.threadId,
+        ...(child.parentToolCallId !== undefined && {
+          parentToolCallId: child.parentToolCallId,
+        }),
+        createdAt: entry?.createdAt ?? now,
+        updatedAt: now,
+        ...storedPrincipal(entry?.principal ?? principal),
+      }))
+      .catch((error: unknown) =>
+        this.warn(
+          operation,
+          'harness:sessions',
+          `The session index was not updated. ${String(error)}`,
+        ),
+      )
   }
 
   /**
