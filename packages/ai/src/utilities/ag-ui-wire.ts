@@ -134,6 +134,9 @@ export function uiMessagesToWire(
             activityType: part.activityType,
             content: structuredClone(part.content),
             ...(msg.metadata != null && { metadata: msg.metadata }),
+            ...(part.subagentRunId !== undefined && {
+              subagentRunId: part.subagentRunId,
+            }),
           }
           wire.push(activity)
         }

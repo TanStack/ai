@@ -494,7 +494,7 @@ export interface ThinkingPart {
  */
 export interface ActivityPart extends Pick<
   AGUIActivityMessage,
-  'activityType' | 'content'
+  'activityType' | 'content' | 'subagentRunId'
 > {
   type: 'activity'
 }

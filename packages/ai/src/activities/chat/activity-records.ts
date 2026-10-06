@@ -27,6 +27,9 @@ export function activityRecordToUIMessage(record: ActivityRecord): UIMessage {
         type: 'activity',
         activityType: record.activityType,
         content: structuredClone(record.content),
+        ...(record.subagentRunId !== undefined && {
+          subagentRunId: record.subagentRunId,
+        }),
       },
     ],
     ...(record.metadata != null
@@ -57,8 +60,9 @@ export function interleaveActivityRecords(
 }
 
 /**
- * Collect inbound `role: 'activity'` UIMessages. `index` is the position in
- * the original inbound list so reconstruct can put them back.
+ * Collect inbound `role: 'activity'` messages: a UIMessage with an activity
+ * part, or an AG-UI `ActivityMessage`. `index` is the position in the
+ * original inbound list so reconstruct can put them back.
  */
 export function peelInboundActivities(
   messages: ReadonlyArray<{
@@ -66,18 +70,30 @@ export function peelInboundActivities(
     id?: string
     parts?: UIMessage['parts']
     metadata?: unknown
+    activityType?: unknown
+    content?: unknown
+    subagentRunId?: unknown
   }>,
 ): Array<ActivityRecord> {
   const records: Array<ActivityRecord> = []
   for (const [index, message] of messages.entries()) {
-    if (message.role !== 'activity' || !Array.isArray(message.parts)) continue
-    const part = message.parts.find(isActivityPart)
-    if (!part) continue
+    if (message.role !== 'activity') continue
+    const source = Array.isArray(message.parts)
+      ? message.parts.find(isActivityPart)
+      : message
+    if (
+      typeof source?.activityType !== 'string' ||
+      !isActivityContent(source.content)
+    ) {
+      continue
+    }
+    const subagentRunId = source.subagentRunId ?? message.subagentRunId
     records.push({
       id: message.id || generateMessageId(),
-      activityType: part.activityType,
-      content: structuredClone(part.content),
+      activityType: source.activityType,
+      content: structuredClone(source.content),
       index,
+      ...(typeof subagentRunId === 'string' && { subagentRunId }),
       ...(isActivityContent(message.metadata)
         ? { metadata: structuredClone(message.metadata) }
         : {}),
@@ -196,16 +212,21 @@ function uiMessagesToActivityRecords(
   messages: Array<UIMessage>,
   previous: Array<ActivityRecord>,
   nextIndex: number,
+  chunk: Extract<StreamChunk, { type: 'ACTIVITY_SNAPSHOT' | 'ACTIVITY_DELTA' }>,
 ): Array<ActivityRecord> {
   return messages.flatMap((message) => {
     const part = message.parts.find(isActivityPart)
     if (!part) return []
     const prev = previous.find((record) => record.id === message.id)
+    const subagentRunId =
+      prev?.subagentRunId ??
+      (message.id === chunk.messageId ? chunk.subagentRunId : undefined)
     return {
       id: message.id,
       activityType: part.activityType,
       content: structuredClone(part.content),
       index: prev?.index ?? nextIndex,
+      ...(subagentRunId !== undefined && { subagentRunId }),
       ...(message.metadata != null
         ? { metadata: structuredClone(message.metadata) }
         : {}),
@@ -225,6 +246,7 @@ export function applyActivitySnapshotToRecords(
     ),
     records,
     nextIndex,
+    chunk,
   )
 }
 
@@ -239,5 +261,6 @@ export function applyActivityDeltaToRecords(
     ),
     records,
     records.length,
+    chunk,
   )
 }

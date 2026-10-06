@@ -4,6 +4,11 @@ import {
   aguiSnapshotMessageToUIMessage,
   convertMessagesToModelMessages,
 } from '../src/activities/chat/messages'
+import {
+  applyActivitySnapshotToRecords,
+  interleaveActivityRecords,
+  peelInboundActivities,
+} from '../src/activities/chat/activity-records'
 import { uiMessagesToWire, type WireMessage } from '../src/utilities/ag-ui-wire'
 import type { ModelMessage, UIMessage } from '../src/types'
 
@@ -101,6 +106,47 @@ describe('uiMessagesToWire', () => {
 
     const restored = aguiSnapshotMessageToUIMessage(wire[1]!)
     expect(restored).toEqual(activity)
+  })
+
+  it('keeps subagentRunId from an inbound ActivityMessage and from a stream event', () => {
+    const inbound = peelInboundActivities([
+      { role: 'user' },
+      {
+        id: 'act-1',
+        role: 'activity',
+        activityType: 'SEARCH',
+        content: { query: 'x' },
+        subagentRunId: 'sub-1',
+      },
+    ])
+    expect(inbound).toEqual([
+      {
+        id: 'act-1',
+        activityType: 'SEARCH',
+        content: { query: 'x' },
+        index: 1,
+        subagentRunId: 'sub-1',
+      },
+    ])
+
+    const records = applyActivitySnapshotToRecords(
+      inbound,
+      {
+        type: 'ACTIVITY_SNAPSHOT',
+        messageId: 'act-2',
+        activityType: 'PLAN',
+        content: {},
+        subagentRunId: 'sub-2',
+      },
+      2,
+    )
+    const wire = uiMessagesToWire(interleaveActivityRecords([], records), {
+      includeActivity: true,
+    })
+    expect(wire.map((message) => message.subagentRunId)).toEqual([
+      'sub-1',
+      'sub-2',
+    ])
   })
 
   it('mirrors a system UIMessage to a string content field', () => {
