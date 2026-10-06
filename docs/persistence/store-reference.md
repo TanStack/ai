@@ -18,6 +18,7 @@ there is no separate enable list.
 | `blobs` | File bytes. Needs `artifacts`. | `withGenerationPersistence`, portable snapshots |
 | `log` | Append-only session log per thread. | Durable harness hosts, with `runs` or `leases` |
 | `leases` | Leases for harness turns, from a system that already has them. | Durable harness hosts, instead of `runs` |
+| `sessions` | One index entry per thread, for a list of sessions. | Harness hosts (`host.sessions`) |
 
 Named groupings of the chat stores (`ChatTranscriptStores`, `ChatPersistenceStores`,
 `ChatWithInterruptsStores`) are covered in [Controls](./controls).
@@ -680,6 +681,127 @@ function createMemoryLeases(): LeaseStore {
 To wire `leases` into a host, and to set `lease.renewMs` and `lease.ttlMs`, see
 [Use your own leases](../harness/durable-sessions#use-your-own-leases).
 
+## SessionIndexStore
+
+A harness host keeps one entry per thread in this store: the title, the owner, the
+time of the last change, and the token totals. The host reads it for
+`host.sessions` and for the `sessions` routes of the handler. The index holds no
+messages. The data of each thread stays in the stores that hold it.
+
+```ts
+interface SessionIndexEntry {
+  threadId: string
+  harness?: string // the `name` of the harness that runs the thread
+  title?: string
+  parentThreadId?: string // a child session, for example `subagent:<runId>`
+  parentToolCallId?: string // the tool call in the parent thread that started it
+  createdAt: number // epoch ms, the first open
+  updatedAt: number // epoch ms, the last change
+  pinned?: boolean
+  principal?: { id: string; tenantId?: string } // the owner
+  usage?: {
+    turns: number // model calls
+    promptTokens: number
+    completionTokens: number
+    totalTokens: number
+    cachedTokens: number
+    cacheWriteTokens: number
+    cost?: number // USD, when a plugin counts it
+  }
+  metadata?: Record<string, unknown>
+}
+
+interface SessionIndexListOptions {
+  limit?: number
+  cursor?: string
+  parentThreadId?: string | null
+  principal?: { id: string; tenantId?: string }
+}
+
+interface SessionIndexPage {
+  entries: Array<SessionIndexEntry>
+  cursor?: string // only when `truncated`
+  truncated?: boolean
+}
+
+interface SessionIndexStore {
+  upsert(entry: SessionIndexEntry): Promise<void>
+  get(threadId: string): Promise<SessionIndexEntry | undefined>
+  list(options?: SessionIndexListOptions): Promise<SessionIndexPage>
+  delete(threadId: string): Promise<void>
+}
+```
+
+Rules for `upsert`, `get`, and `delete`:
+
+- `upsert` replaces the whole entry for `entry.threadId`. A field that the new entry
+  does not have is gone. Do not merge. To change one field, the host reads the entry
+  and writes a changed copy, one change at a time for each thread.
+- `get` returns `undefined` for an unknown thread, not `null`.
+- `delete` removes the entry only. The messages, the log, and the other data of the
+  thread stay. For an unknown thread, `delete` does nothing.
+
+Rules for `list`:
+
+- Sort by `updatedAt`, the newest first. Entries with the same `updatedAt` go in
+  `threadId` order. `pinned` gets no special place.
+- `parentThreadId: 'x'` returns only the entries whose parent is `x`. `null` returns
+  only the entries with no parent. Without it, the parent does not filter.
+- `principal` returns only the entries of that owner id. With a `tenantId`, the
+  tenant must match too. An entry without a `principal` never matches.
+- Without `limit`, return every entry that matches. With `limit`, when more entries
+  match, return `truncated: true` and a `cursor`. The last page has no `cursor`.
+- With the `cursor` of a page, return the entries after the last entry of that page.
+  The format of the cursor is yours. An entry that changes between two pages can
+  move in the order.
+
+The reference implementation is `MemorySessionIndexStore` in
+`packages/ai-persistence/src/memory.ts`. `memoryPersistence().stores.sessions` is an
+instance of it. Its cursor is `<updatedAt>:<threadId>` of the last entry of a page.
+
+### Prove it with the conformance suite
+
+The `sessions` cases of `runPersistenceConformance` run when your persistence has
+`stores.sessions`. A persistence without it needs no `skip` entry. To check the store
+alone, skip the stores that the suite reads by default:
+
+```ts
+import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
+import { mySessionIndex } from './session-index'
+
+runPersistenceConformance(
+  'my session index',
+  () => ({ stores: { sessions: mySessionIndex() } }),
+  {
+    skip: [
+      'messages',
+      'activities',
+      'runs',
+      'interrupts',
+      'metadata',
+      'generationRuns',
+      'artifacts',
+      'blobs',
+    ],
+  },
+)
+```
+
+If your persistence already runs the suite, add `sessions` to it, and the cases run
+there. The suite checks that:
+
+- `get` returns every field of an upserted entry, and `undefined` for an unknown
+  thread.
+- A second `upsert` replaces the whole entry.
+- `list` sorts the newest first, sorts ties by `threadId`, and pages with `limit` and
+  `cursor`.
+- `list` filters by `parentThreadId` (also `null`) and by `principal`, with the
+  tenant rule.
+- `delete` removes one entry, and does nothing for an unknown thread.
+
+To see how an app lists, renames, and forks sessions with this store, read
+[List, rename, and fork sessions](../harness/sessions).
+
 ## How the records relate
 
 The thread is not a table of its own: it exists as the `thread_id` the other records
@@ -737,12 +859,13 @@ erDiagram
 
 Each store has a `define*Store` helper (`defineMessageStore`, `defineRunStore`,
 `defineInterruptStore`, `defineMetadataStore`, `defineGenerationRunStore`,
-`defineArtifactStore`, `defineBlobStore`, `defineLogStore`). They compose into
+`defineArtifactStore`, `defineBlobStore`, `defineLogStore`,
+`defineSessionIndexStore`). They compose into
 `defineAIPersistence`, which tracks exact presence: the stores you passed autocomplete
 on `persistence.stores`, and reading one you did not pass is a compile error.
 
 The keys in the table at the top are the only ones `stores` accepts, together with the
-harness keys `inbox`, `credentials`, `log`, and `leases`. Anything else throws
+harness keys `inbox`, `credentials`, `log`, `leases`, and `sessions`. Anything else throws
 `Unknown AIPersistence store key` at construction.
 
 To annotate the value instead, use a named shape:
@@ -756,4 +879,4 @@ To annotate the value instead, use a named shape:
 
 - [Build a chat adapter](./build-your-own-chat-adapter): these contracts implemented against SQLite.
 - [Build a generation adapter](./build-your-own-generation-adapter): the generation half.
-- [Build your own adapter](./build-your-own-adapter#verify-with-the-conformance-suite): check an implementation against the conformance suite.
+- [Build your own adapter](./build-your-own-adapter#prove-it-with-the-conformance-suite): check an implementation against the conformance suite.
