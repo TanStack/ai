@@ -35,7 +35,7 @@ Tools you pass to Code Mode are converted to typed function stubs that appear in
 
 ### Secure sandboxing
 
-Generated code runs in an isolated environment (V8 isolate, QuickJS WASM, native QuickJS on Bun, Cloudflare Worker, Daytona sandbox, or E2B sandbox) with no access to the host file system, network, or process. The sandbox has configurable timeouts and memory limits.
+Generated code runs in an isolated environment. V8, QuickJS WASM, native QuickJS on Bun, and a Cloudflare Worker have no access to the host file system, network, or process. A Daytona sandbox and an E2B sandbox are full Linux environments. Each sandbox has its own file system, network, and processes. The code in that sandbox cannot reach the host. Timeouts and memory limits are configurable.
 
 ## Getting Started
 
@@ -238,7 +238,7 @@ const { tool, systemPrompt } = createCodeMode({
   driver,          // IsolateDriver — required
   tools,           // Array<ServerTool | ToolDefinition> — required, at least one
   timeout,         // number — execution timeout in ms (default: 30000)
-  memoryLimit,     // number — memory limit in MB (default: 128, Node + QuickJS drivers)
+  memoryLimit,     // number. Memory limit in MB (default: 128). Node, QuickJS, and E2B drivers.
   getSnippetBindings, // () => Promise<Record<string, ToolBinding>> — optional dynamic bindings
 });
 ```
@@ -319,6 +319,8 @@ For a full comparison of drivers with all configuration options, see [Isolate Dr
 
 In brief: use the **Node driver** for server-side Node.js (fastest, V8 JIT), **QuickJS** for browsers or portable edge deployments (no native deps), **QuickJS Bun** for Bun servers (native QuickJS via `bun:ffi`), the **Cloudflare driver** when you deploy to Cloudflare Workers, and the **Daytona driver** when you want execution inside a full remote Linux sandbox.
 
+Use the **E2B driver** for an E2B sandbox.
+
 ## Custom Events
 
 Code Mode emits custom events during execution that you can observe through the TanStack AI event system. These are useful for building UIs that show execution progress, debugging, or logging.
@@ -383,4 +385,4 @@ pnpm eval -- --no-judge      # skip Anthropic-based judging
 
 - [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
 - [Code Mode with Snippets](./code-mode-with-snippets) — Add persistent, reusable snippet libraries
-- [Isolate Drivers](./code-mode-isolates) — Compare Node, QuickJS, QuickJS Bun, Cloudflare, and Daytona sandbox runtimes
+- [Isolate Drivers](./code-mode-isolates): compare Node, QuickJS, QuickJS Bun, Cloudflare, Daytona, and E2B.

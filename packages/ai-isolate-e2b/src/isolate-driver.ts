@@ -102,6 +102,42 @@ function isSandboxGone(error: unknown): boolean {
   )
 }
 
+const UNCONFIRMED_STOP =
+  'The process could not be confirmed stopped and may still be running in the sandbox.'
+
+function noteUnconfirmed<T>(result: ExecutionResult<T>): ExecutionResult<T> {
+  const logs = [...(result.logs ?? []), UNCONFIRMED_STOP]
+  if (result.success) return { ...result, logs }
+  return {
+    ...result,
+    logs,
+    error: {
+      ...result.error,
+      message: `${result.error.message} ${UNCONFIRMED_STOP}`,
+    },
+  }
+}
+
+function exitCodeOf(value: unknown): number | undefined {
+  if (typeof value !== 'object' || value === null || !('exitCode' in value)) {
+    return undefined
+  }
+  return typeof value.exitCode === 'number' ? value.exitCode : undefined
+}
+
+/** `kill` exits non-zero when the group is already gone. That is a confirmed stop. */
+function groupAlreadyGone(value: unknown): boolean {
+  const stderr =
+    typeof value === 'object' &&
+    value !== null &&
+    'stderr' in value &&
+    typeof value.stderr === 'string'
+      ? value.stderr
+      : ''
+  const message = value instanceof Error ? value.message : ''
+  return /no such process/i.test(`${stderr}\n${message}`)
+}
+
 /**
  * Code in the sandbox can reach the runner's stdout, so every message is
  * checked before the host acts on it.
@@ -144,9 +180,6 @@ class E2BIsolateContext implements IsolateContext {
   private disposed = false
   /** Stops each in-flight execution; used by `dispose`. */
   private readonly running = new Set<() => Promise<void>>()
-  /** Group kills still running after an execution returned its result. */
-  private readonly cleanups = new Set<Promise<unknown>>()
-  private cleanupUnconfirmed = false
 
   constructor(
     private readonly sandbox: E2BSandboxLike,
@@ -158,29 +191,31 @@ class E2BIsolateContext implements IsolateContext {
   /**
    * SIGKILL the process group the execution leads (`setsid`). This reaches
    * processes the code spawned, unless they moved to a group of their own
-   * (`detached`). A non-zero exit only means the group is already gone.
+   * (`detached`). A non-zero kill is unconfirmed, except when the group is
+   * already gone.
    */
   private async killGroup(handle: E2BCommandHandleLike): Promise<KillOutcome> {
     let outcome: KillOutcome = 'killed'
-    await this.sandbox.commands
-      .run(`kill -KILL -- -${handle.pid}`)
-      .catch((error: unknown) => {
-        if (isSandboxGone(error)) outcome = 'gone'
-        else if (!(error instanceof Error && error.name === 'CommandExitError'))
-          outcome = 'unconfirmed'
-      })
+    try {
+      const result = await this.sandbox.commands.run(
+        `kill -KILL -- -${handle.pid}`,
+      )
+      const code = exitCodeOf(result)
+      if (code !== undefined && code !== 0 && !groupAlreadyGone(result)) {
+        outcome = 'unconfirmed'
+      }
+    } catch (error: unknown) {
+      if (isSandboxGone(error)) outcome = 'gone'
+      else if (!groupAlreadyGone(error)) outcome = 'unconfirmed'
+    }
     // Also ends the SDK's event stream for this command.
-    await handle.kill().catch(() => undefined)
+    try {
+      await handle.kill()
+    } catch (error: unknown) {
+      if (isSandboxGone(error)) outcome = 'gone'
+      else outcome = 'unconfirmed'
+    }
     return outcome
-  }
-
-  /** Kill the group in the background; `dispose` waits for it and reports a failure. */
-  private cleanUp(handle: E2BCommandHandleLike): void {
-    const cleanup = this.killGroup(handle).then((outcome) => {
-      if (outcome === 'unconfirmed') this.cleanupUnconfirmed = true
-      this.cleanups.delete(cleanup)
-    })
-    this.cleanups.add(cleanup)
   }
 
   /** Best effort: the runner deletes its own file once it starts. */
@@ -220,11 +255,24 @@ class E2BIsolateContext implements IsolateContext {
     )
 
     let halting: Promise<void> | undefined
-    /** The host stops the run: kill the group, then report why. */
+    let commandStarted = false
+    /**
+     * Stop the run. If the process has not started, report at once so a hung
+     * `files.write` or `commands.run` cannot hold the caller. If it has
+     * started, kill first: a dead sandbox replaces the reason.
+     */
     const halt = (name: string, message: string): Promise<void> => {
       if (finished) return halting ?? Promise.resolve()
       finished = true
       halting = (async () => {
+        if (!commandStarted) {
+          resolveOutcome(failure(name, message, logs))
+          const h = await handle
+          if (h && (await this.killGroup(h)) === 'unconfirmed') {
+            logs.push(UNCONFIRMED_STOP)
+          }
+          return
+        }
         const h = await handle
         const killed = h ? await this.killGroup(h) : 'killed'
         resolveOutcome(
@@ -237,7 +285,7 @@ class E2BIsolateContext implements IsolateContext {
             : failure(
                 name,
                 killed === 'unconfirmed'
-                  ? `${message} The process could not be confirmed stopped and may still be running in the sandbox.`
+                  ? `${message} ${UNCONFIRMED_STOP}`
                   : message,
                 logs,
               ),
@@ -336,17 +384,18 @@ class E2BIsolateContext implements IsolateContext {
         `Exceeded E2B execution timeout (${this.timeoutMs}ms).`,
       )
     }, this.timeoutMs)
-    try {
-      let h: E2BCommandHandleLike
+    // Start in the background so a deadline resolves while write or run is open.
+    void (async () => {
+      let command: E2BCommandHandleLike
       try {
         await this.sandbox.files.write(file, source)
         if (finished) {
           started(undefined)
           this.removeFile(file)
-          return await outcome
+          return
         }
         const budgetSeconds = Math.ceil((deadline - Date.now()) / 1000) + 1
-        h = await this.sandbox.commands.run(
+        command = await this.sandbox.commands.run(
           // `setsid` makes the process a group leader so a kill reaches its
           // children; `timeout` bounds an orphan if this host goes away.
           `exec setsid timeout -s KILL ${budgetSeconds} node --max-old-space-size=${this.memoryLimitMb} ${file}`,
@@ -356,16 +405,17 @@ class E2BIsolateContext implements IsolateContext {
         started(undefined)
         this.removeFile(file)
         finish(this.startFailure(error, logs))
-        return await outcome
+        return
       }
-      // A halt that came during the start kills the process now.
-      started(h)
-
-      void h.wait().then(
-        () => this.exited(0, finish, outOfMemory, stderrTail, logs),
+      commandStarted = true
+      started(command)
+      if (finished) return
+      void command.wait().then(
+        (result) =>
+          this.exited(result.exitCode, finish, outOfMemory, stderrTail, logs),
         (error: unknown) => {
-          const exit = (error as { exitCode?: unknown }).exitCode
-          if (typeof exit === 'number') {
+          const exit = exitCodeOf(error)
+          if (exit !== undefined) {
             this.exited(exit, finish, outOfMemory, stderrTail, logs)
             return
           }
@@ -375,9 +425,18 @@ class E2BIsolateContext implements IsolateContext {
           )
         },
       )
+    })()
+    try {
       const result = await outcome
-      // Whatever ended the run, processes the code spawned must not outlive it.
-      if (!halting) this.cleanUp(h)
+      // A halt already owns the kill. A normal finish kills here, before return,
+      // so an unconfirmed stop is part of the result and `dispose` does not throw.
+      if (!halting) {
+        const h = await handle
+        if (h) {
+          const killed = await this.killGroup(h)
+          if (killed === 'unconfirmed') return noteUnconfirmed(result)
+        }
+      }
       return result
     } finally {
       clearTimeout(timer)
@@ -427,12 +486,6 @@ class E2BIsolateContext implements IsolateContext {
   async dispose(): Promise<void> {
     this.disposed = true
     await Promise.all([...this.running].map((stopRun) => stopRun()))
-    await Promise.all(this.cleanups)
-    if (this.cleanupUnconfirmed) {
-      throw new Error(
-        "e2b: could not confirm that a finished execution's processes were stopped; they may still be running in the sandbox.",
-      )
-    }
   }
 }
 

@@ -24,6 +24,8 @@ interface FakeOptions {
   killDelayMs?: number
   /** A group kill fails with this error instead of killing. */
   killError?: Error
+  /** Host writes this stdin line instead of the tool result. */
+  corruptStdin?: boolean
 }
 
 function named(name: string, message: string): Error {
@@ -68,13 +70,12 @@ function localSandbox(options: FakeOptions = {}) {
     return {
       pid: child.pid ?? -1,
       sendStdin: async (data) => {
-        child.stdin.write(data)
+        child.stdin.write(options.corruptStdin ? 'not-json\n' : data)
       },
       kill: async () => child.kill('SIGKILL'),
       wait: async () => {
         const exitCode = await exited
         if (options.waitError) throw options.waitError
-        if (exitCode !== 0) throw exitError(exitCode)
         return { exitCode }
       },
     }
@@ -110,7 +111,9 @@ function localSandbox(options: FakeOptions = {}) {
         // Group kill: `kill -KILL -- -<pid>` exits 1 when the group is gone.
         const child = children.get(Number(/-(\d+)$/.exec(cmd)?.[1]))
         if (!child || child.exitCode !== null || child.signalCode !== null) {
-          throw exitError(1)
+          throw Object.assign(exitError(1), {
+            stderr: 'kill: No such process',
+          })
         }
         child.kill('SIGKILL')
         return { exitCode: 0 }
@@ -268,6 +271,14 @@ describe('createE2BIsolateDriver', () => {
     expect(result.value).toBe(4)
   })
 
+  it('fails the run when a tool result line is not JSON', async () => {
+    const { result } = await run('return await external_add({ x: 1, y: 1 })', {
+      bindings: { external_add: add },
+      fake: localSandbox({ corruptStdin: true }),
+    })
+    expect(result.error?.message).toBe('Tool result was not valid JSON.')
+  })
+
   it('rejects only the tool call whose result cannot be serialized', async () => {
     const { result } = await run(
       'try { await external_big({}) } catch (e) { return e.message }',
@@ -332,9 +343,12 @@ describe('createE2BIsolateDriver', () => {
   })
 
   it('counts the file write against the timeout and does not start late', async () => {
-    const fake = localSandbox({ writeDelayMs: 400 })
+    const fake = localSandbox({ writeDelayMs: 800 })
+    const startedAt = Date.now()
     const { result } = await run('return 1', { timeout: 100, fake })
+    expect(Date.now() - startedAt).toBeLessThan(500)
     expect(result.error?.name).toBe('TimeoutError')
+    await new Promise((r) => setTimeout(r, 900))
     expect(fake.commands.some((c) => c.startsWith('exec '))).toBe(false)
   })
 
@@ -358,13 +372,15 @@ describe('createE2BIsolateDriver', () => {
     expect(called).toBe(false)
   })
 
-  it('rejects dispose when a cleanup kill cannot be confirmed', async () => {
+  it('records an unconfirmed cleanup kill on the result', async () => {
     const fake = localSandbox({ killError: new Error('socket hang up') })
     const context = await createE2BIsolateDriver({
       sandbox: fake.sandbox,
     }).createContext({ bindings: {} })
-    expect((await context.execute('return 1')).value).toBe(1)
-    await expect(context.dispose()).rejects.toThrow(/could not confirm/)
+    const result = await context.execute('return 1')
+    expect(result.value).toBe(1)
+    expect(result.logs?.join('\n')).toMatch(/may still be running/)
+    await context.dispose()
   })
 
   it('rejects a protocol message with the wrong shape', async () => {

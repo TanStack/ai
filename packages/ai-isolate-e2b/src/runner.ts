@@ -61,9 +61,22 @@ globalThis.console = { log: __log(''), info: __log('INFO: '), warn: __log('WARN:
 
 const __pending = new Map();
 let __next = 0;
+const __finish = (m) => {
+  let line;
+  try { line = '\\n' + __marker + JSON.stringify(m) + '\\n' }
+  catch (e) { line = '\\n' + __marker + JSON.stringify({ type: 'done', success: false, error: __norm(e) }) + '\\n' }
+  // Pipes are asynchronous on some platforms: exit only once the line is flushed.
+  // The host then kills the process group, including anything the code spawned.
+  __out(line, () => process.exit(0));
+};
 require('node:readline').createInterface({ input: process.stdin }).on('line', (line) => {
-  let m; try { m = JSON.parse(line) } catch { return }
-  const p = __pending.get(m.id);
+  let m;
+  try { m = JSON.parse(line) }
+  catch {
+    __finish({ type: 'done', success: false, error: { name: 'Error', message: 'Tool result was not valid JSON.' } });
+    return;
+  }
+  const p = __pending.get(m && m.id);
   if (!p) return;
   __pending.delete(m.id);
   if (m.success) p.resolve(m.value); else p.reject(new Error(m.error || 'Tool call failed'));
@@ -73,15 +86,6 @@ const __tool = (name) => (args) => new Promise((resolve, reject) => {
   __pending.set(id, { resolve, reject });
   __send({ type: 'tool', id, name, args });
 });
-
-const __finish = (m) => {
-  let line;
-  try { line = '\\n' + __marker + JSON.stringify(m) + '\\n' }
-  catch (e) { line = '\\n' + __marker + JSON.stringify({ type: 'done', success: false, error: __norm(e) }) + '\\n' }
-  // Pipes are asynchronous on some platforms: exit only once the line is flushed.
-  // The host then kills the process group, including anything the code spawned.
-  __out(line, () => process.exit(0));
-};
 const __names = ${JSON.stringify(toolNames)};
 (async () => {
   const AsyncFunction = (async () => {}).constructor;
