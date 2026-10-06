@@ -374,6 +374,7 @@ describe('sign-ins in a shared thread', () => {
       name: 'test/auth-wait-shared-http',
       adapter,
       plugins: () => [github(seen, true)],
+      expose: { commands: ['connect:github'] },
     })
     const handler = createHarnessHandler({
       host,
@@ -441,6 +442,7 @@ describe('sign-ins in a shared thread', () => {
           }),
         }),
       ],
+      expose: { commands: ['whoami'] },
     })
     const handler = createHarnessHandler({
       host,

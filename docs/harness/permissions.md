@@ -64,10 +64,39 @@ The `mode` setting decides how much runs without a question:
 Switch the mode in one of these places:
 
 - The CLI: type `/mode plan`. `/mode` alone shows the current mode.
-- A client: call `client.setConfig('mode', 'plan')`, or `view.setConfig('mode', 'plan')` in a [session view](./custom-ui).
 - Server code: call `session.setConfig('mode', 'plan')`.
+- A client: only when the harness exposes `mode`. See [Keep the mode on the server](#keep-the-mode-on-the-server).
 
 In `acceptEdits` mode, an edit outside `root` or of a `.env` file still asks.
+
+### Keep the mode on the server
+
+A client that can set `mode` can set `bypass`. Then every call runs with no question. So by default, a client cannot change the mode:
+
+- `client.setConfig('mode', 'bypass')` gets `{ status: 'rejected', reason: 'not_exposed' }`. The mode stays.
+- The `/mode` command from a client gets the same receipt.
+- The CLI and server code can still change the mode.
+
+A client can set only the config keys in `expose.config`. It can run only the commands in `expose.commands`. This harness lets a client pick the model, but not the mode:
+
+```ts group=harness-permissions
+import { modelPicker } from '@tanstack/ai-harness/plugins'
+
+export const team = defineHarness({
+  name: 'acme/team-coder',
+  adapter: openaiText('gpt-6.1-sol'),
+  plugins: () => [
+    permissions({ root }),
+    workspaceTools({ root }),
+    modelPicker({
+      choices: { sol: openaiText('gpt-6.1-sol'), pro: openaiText('gpt-6.1-sol-pro') },
+    }),
+  ],
+  expose: { config: ['model'], commands: ['model'] },
+})
+```
+
+Add `mode` to `expose.config` or `expose.commands` only for clients that you trust. Each of these clients can turn the questions off. [Choose what clients can change](./connect#choose-what-clients-can-change) lists every `expose` field.
 
 ## Write rules
 
@@ -273,13 +302,14 @@ Now `{ tool: 'copy_file', resource: 'docs/**', decision: 'allow' }` copies files
 
 - A rule that allows a tool with no `kind` also lets it run in `plan` mode. For example, an `allow` for `webfetch` lets it fetch pages in `plan` mode. `plan` denies only edits, commands, and calls that ask.
 - `serveAcp` does not show harness questions. An editor that uses [ACP](./connect#use-it-from-an-editor-acp) shows tool approvals only, so a call that asks waits.
-- A client that can send inputs to the thread can change the mode, also to `bypass`. It can also answer the questions. Control who opens a thread with `canAccess`. See [Connect clients](./connect).
+- A client that can send inputs to the thread can answer the questions, also with `always`. Control who opens a thread with `canAccess`. See [Connect clients](./connect).
 - There is no command to forget a saved `always` answer.
 
 ## What you have now
 
 - A question before each edit, command, and web fetch.
 - Modes to plan, to edit fast, or to run everything.
+- A mode that a client cannot change, unless you expose it.
 - Rules for folders, files, and commands, and saved answers for each project.
 - The same rules in every agent run.
 

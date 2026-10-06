@@ -48,8 +48,38 @@ The handler answers these paths under your route:
 - `GET run?threadId=`: the saved messages, the running turn, and the waiting approvals, for a `useChat` that loads the thread after a reload.
 - `GET run?runId=`: the turn with that run id as SSE, from its first event. A reloaded `useChat` joins a running turn with it.
 - `GET events?threadId=`: every event of the session as SSE. Each event id is a cursor, so a reconnect with `Last-Event-ID` continues where it stopped.
-- `POST control`: send `{ threadId, input }`, for example `{ op: 'prompt', message }`. You get a receipt back.
+- `POST control`: send `{ threadId, input }`, for example `{ op: 'prompt', message }`. You get a receipt back. Agents, settings, config keys, and commands need `expose`. See [Choose what clients can change](#choose-what-clients-can-change).
 - `GET snapshot?threadId=`: the status, running operations, and waiting approvals.
+
+## Choose what clients can change
+
+A client can send a prompt and answer questions. Other inputs can change how the session works, so a client can use only what the harness exposes. Nothing is exposed by default.
+
+Name what a client can use in `expose`:
+
+```ts group=harness-connect
+import { permissions, todos } from '@tanstack/ai-harness/plugins'
+
+export const team = defineHarness({
+  name: 'acme/team-assistant',
+  adapter: openaiText('gpt-6.1-sol'),
+  plugins: () => [permissions(), todos()],
+  expose: { settings: ['instructions'], commands: ['todos'] },
+})
+```
+
+| Field | What a client can do |
+| --- | --- |
+| `agents` | Run these agents, for example with `client.agents.<name>.start(input)`. |
+| `settings` | Change these [thread settings](./thread-settings) with `client.configure(settings)`. |
+| `config` | Set these plugin config keys with `client.setConfig(key, value)`. |
+| `commands` | Run these commands with `client.command(name)`, or with `/name` in a [session view](./custom-ui) on a client. |
+
+- Any other input of these kinds gets `{ status: 'rejected', reason: 'not_exposed' }`.
+- Server code that calls the session is not limited. `session.setConfig()` and `session.command()` work for every key and command.
+- `defineHarness` checks the names in `agents`. Plugins add their config keys and commands when a session opens, so it does not check those names.
+
+Do not expose the `mode` of `permissions()` to clients that you do not trust. With `bypass`, every tool call runs with no question. See [Keep the mode on the server](./permissions#keep-the-mode-on-the-server).
 
 ## Talk to it from a web app
 
@@ -209,6 +239,8 @@ serveAcp({ host, harness: assistant })
 
 Tool approvals become permission requests in the editor. Image blocks, audio blocks, and embedded files in a prompt go to the media store of the session. ACP v2 is still a draft, so this API is experimental.
 
+The editor does not show harness questions, for example the questions of `permissions()`. A tool call that asks a question waits, and the editor cannot answer it. See [Known limits](./permissions#known-limits).
+
 ## Use it as the model of another chat
 
 `harnessText` turns a harness into a text adapter. The outer chat sends a message, and the harness runs a full turn with its own tools, plugins, and agents:
@@ -231,6 +263,7 @@ If a plugin picks the model of the harness, the harness has no adapter to read i
 ## What you have now
 
 - One handler that serves standard AG-UI and the session stream.
+- Clients that can change only what you expose.
 - A `useChat` screen on the harness, with approvals, tools that run in the browser, and a reload that joins the running turn.
 - A typed web client that reconnects and resumes from a cursor.
 - A WebSocket, an ACP agent for editors, and a harness you can call from `chat()`.
