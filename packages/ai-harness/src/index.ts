@@ -81,6 +81,7 @@ export type {
   HarnessHostOptions,
   HarnessPersistence,
   OpenSessionOptions,
+  ResumePendingOptions,
 } from './host'
 
 export { HarnessSession } from './session'
