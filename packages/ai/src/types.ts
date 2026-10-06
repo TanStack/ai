@@ -696,6 +696,12 @@ export interface TanStackMessageMetadata {
    * message item's `id` and `phase` (`commentary` or `final_answer`).
    */
   responseItems?: Array<{ id: string; phase?: string }>
+  /**
+   * The provider effort of this assistant message's model call. The
+   * Anthropic adapter keeps it for a model with mid-conversation effort and
+   * sends it again before this message on the next turn.
+   */
+  reasoningEffort?: string
   /** Parent chat run that produced this assistant message. */
   runId?: string
   /**
@@ -743,6 +749,8 @@ export interface TanStackRunMetadata {
   responseId?: string
   /** The answer items of this model call. See `TanStackMessageMetadata.responseItems`. */
   responseItems?: TanStackMessageMetadata['responseItems']
+  /** The effort of this model call. See `TanStackMessageMetadata.reasoningEffort`. */
+  reasoningEffort?: string
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover

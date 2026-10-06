@@ -73,13 +73,20 @@ function withCacheControl<T extends object>(
 /**
  * The messages with a marker on the last block of the last message. Returns
  * `null` when that message is not from the user or a mid-conversation
- * `system` message, or when its last block cannot take a marker.
+ * `system` message, or when its last block cannot take a marker. A
+ * mid-conversation effort message at the end has no blocks, so the marker
+ * goes on the message before it (pi 0.87.1 marks before it adds them).
  */
 function markLastUserMessage(
   messages: Array<BetaMessageParam>,
   cacheControl: BetaCacheControlEphemeral,
 ) {
-  const last = messages.at(-1)
+  const tail = messages.at(-1)
+  const end =
+    tail !== undefined && 'output_config' in tail
+      ? messages.length - 1
+      : messages.length
+  const last = messages[end - 1]
   // A mid-conversation `system` message at the end takes the marker, as in
   // pi 0.87.1. The SDK type has no `system` role, so compare it as a string.
   const role: string | undefined = last?.role
@@ -100,7 +107,7 @@ function markLastUserMessage(
     return null
   }
   return [
-    ...messages.slice(0, -1),
+    ...messages.slice(0, end - 1),
     {
       ...last,
       content: [
@@ -108,6 +115,7 @@ function markLastUserMessage(
         withCacheControl(lastBlock, cacheControl),
       ],
     },
+    ...messages.slice(end),
   ]
 }
 

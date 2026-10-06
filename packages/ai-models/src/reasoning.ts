@@ -3,14 +3,26 @@ import type { ModelReasoning, ModelRecord, ReasoningLevel } from './types'
 /**
  * The record's reasoning data for an adapter's `reasoning` config:
  * `createAnthropicChat(record.id, key, { reasoning: modelReasoning(record) })`.
+ * An Anthropic Messages record also gives its thinking shape: `adaptive`
+ * from `compat.forceAdaptiveThinking`, and `midConversationEffort` from
+ * `compat.supportsMidConvoEffort`.
  */
 export function modelReasoning(
-  model: Pick<ModelRecord, 'reasoning' | 'reasoningMap' | 'reasoningBudget'>,
+  model: Pick<ModelRecord, 'reasoning' | 'reasoningMap' | 'reasoningBudget'> &
+    Partial<Pick<ModelRecord, 'api' | 'compat'>>,
 ): ModelReasoning {
   if (!model.reasoning) return false
+  const anthropic = model.api === 'anthropic-messages'
   return {
     ...(model.reasoningMap ? { map: model.reasoningMap } : {}),
     budget: model.reasoningBudget === true,
+    ...(anthropic && {
+      adaptive: model.compat?.forceAdaptiveThinking === true,
+    }),
+    ...(anthropic &&
+      model.compat?.supportsMidConvoEffort === true && {
+        midConversationEffort: true,
+      }),
   }
 }
 

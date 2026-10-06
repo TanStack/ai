@@ -75,18 +75,26 @@ describe('modelHints', () => {
     ).toEqual({ requiresReasoningContentOnAssistantMessages: true })
   })
 
-  it('reads temperature support and adaptive-only Claude thinking', () => {
+  it('reads temperature support', () => {
     expect(
-      modelHints(
-        {
-          id: 'claude',
-          temperature: false,
-          reasoning_options: [{ type: 'effort', values: ['low', 'high'] }],
-        },
-        messages,
-        false,
-      ),
-    ).toEqual({ supportsTemperature: false, forceAdaptiveThinking: true })
+      modelHints({ id: 'm', temperature: false }, messages, false),
+    ).toEqual({ supportsTemperature: false })
+  })
+
+  it('gives adaptive thinking to Claude 4.6 and later only (pi), with dash or dot ids', () => {
+    const effort = [{ type: 'effort', values: ['low', 'high'] }]
+    const adaptive = (id: string) =>
+      modelHints({ id, reasoning_options: effort }, messages, false)
+        .forceAdaptiveThinking === true
+    expect(adaptive('claude-opus-4-7')).toBe(true)
+    expect(adaptive('anthropic/claude-opus-4.7')).toBe(true)
+    expect(adaptive('anthropic/claude-sonnet-4.6')).toBe(true)
+    expect(adaptive('claude-fable-5-1')).toBe(true)
+    expect(adaptive('claude-opus-4-5')).toBe(false)
+    expect(adaptive('anthropic/claude-sonnet-4.5')).toBe(false)
+    expect(adaptive('claude-sonnet-4-20250514')).toBe(false)
+    // models.dev lists `effort` for it, but a gateway gives it budget thinking.
+    expect(adaptive('openai/gpt-5')).toBe(false)
   })
 
   it('follows the effort option for reasoning_effort when the row asks for it', () => {

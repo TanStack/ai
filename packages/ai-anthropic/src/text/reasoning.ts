@@ -4,11 +4,11 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import type { ModelReasoning, ReasoningRequest } from '@tanstack/ai'
 
-type AnthropicEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+export type AnthropicEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 const EFFORTS: ReadonlyArray<string> = ['low', 'medium', 'high', 'xhigh', 'max']
-const isEffort = (value: string): value is AnthropicEffort =>
-  EFFORTS.includes(value)
+export const isAnthropicEffort = (value: unknown): value is AnthropicEffort =>
+  typeof value === 'string' && EFFORTS.includes(value)
 
 /**
  * Claude 4.6 takes the effort as the top-level `effort` field. Claude 4.7 and
@@ -23,25 +23,48 @@ const TOP_LEVEL_EFFORT = new Set(['claude-opus-4-6', 'claude-sonnet-4-6'])
  */
 const ADAPTIVE_THINKING = /opus-4-[6-9]|sonnet-4-[6-9]|opus-5|sonnet-5|fable-5/
 
+/** pi's `mapThinkingLevelToEffort` for a level the map does not name. */
+const defaultEffort = (level: string): AnthropicEffort =>
+  level === 'minimal' || level === 'low'
+    ? 'low'
+    : level === 'medium'
+      ? 'medium'
+      : 'high'
+
 /** The Messages API thinking fields for one request. */
 export interface AnthropicThinkingFields {
   thinking?:
-    | { type: 'adaptive'; display: 'summarized' | 'omitted' }
+    | {
+        type: 'adaptive'
+        display: 'summarized' | 'omitted'
+        block_binding?: { prefix_mismatch_behavior: 'drop_block' }
+      }
     | { type: 'enabled'; budget_tokens: number }
     | { type: 'disabled' }
   effort?: AnthropicEffort
   output_config?: { effort: AnthropicEffort }
+  /**
+   * Mid-conversation effort: the effort of this turn. It goes into the
+   * messages, not into the request fields.
+   */
+  messageEffort?: AnthropicEffort
 }
 
 /**
  * The thinking fields for `chat({ reasoning })`:
+ * - mid-conversation effort (`reasoning.midConversationEffort`, pi's
+ *   managed effort): always adaptive thinking with `block_binding` and a
+ *   fixed `output_config.effort: 'high'`. The level's effort is
+ *   `messageEffort` (`high` without a level).
  * - `off`: thinking disabled. A model that cannot stop thinking never gets
  *   here, because the clamp moves `off` to its lowest level.
- * - a budget model without adaptive thinking, or a request with
- *   `budgetTokens`: `thinking.type: 'enabled'` with the budget (pi's table
- *   when the request sets none).
- * - otherwise adaptive thinking with the model's effort for the level.
- *   `summary` picks whether the thinking text streams back.
+ * - budget thinking (`thinking.type: 'enabled'`, pi's table when the
+ *   request sets no `budgetTokens`) when `reasoning.adaptive` is `false`, or
+ *   for a budget model that sets `budgetTokens`. Without `adaptive`, also
+ *   for a budget model without a map or outside `ADAPTIVE_THINKING`.
+ * - otherwise adaptive thinking with the model's effort for the level, or
+ *   pi's default effort when the map has none. `summary` picks whether the
+ *   thinking text streams back.
  */
 export function anthropicThinking(
   model: string,
@@ -49,13 +72,24 @@ export function anthropicThinking(
   reasoning: ModelReasoning | undefined,
 ): AnthropicThinkingFields {
   const resolved = resolveReasoning(request, reasoning)
+  if (reasoning && reasoning.midConversationEffort)
+    return {
+      thinking: {
+        type: 'adaptive',
+        display: resolved?.summary === false ? 'omitted' : 'summarized',
+        block_binding: { prefix_mismatch_behavior: 'drop_block' },
+      },
+      output_config: { effort: 'high' },
+      messageEffort: resolved ? effortOf(resolved) : 'high',
+    }
   if (!resolved || !reasoning) return {}
   if (resolved.level === 'off') return { thinking: { type: 'disabled' } }
+  const adaptive =
+    reasoning.adaptive ??
+    (!reasoning.budget ||
+      (reasoning.map !== undefined && ADAPTIVE_THINKING.test(model)))
   const budgetOnly =
-    reasoning.budget &&
-    (resolved.budgetTokens !== undefined ||
-      !reasoning.map ||
-      !ADAPTIVE_THINKING.test(model))
+    !adaptive || (reasoning.budget && resolved.budgetTokens !== undefined)
   if (budgetOnly)
     return {
       thinking: {
@@ -73,10 +107,18 @@ export function anthropicThinking(
     type: 'adaptive' as const,
     display: resolved.summary ? ('summarized' as const) : ('omitted' as const),
   }
-  const effort = resolved.value
-  if (!reasoning.map || effort === null || !isEffort(effort))
-    return { thinking }
+  const effort = effortOf(resolved)
   return TOP_LEVEL_EFFORT.has(model)
     ? { thinking, effort }
     : { thinking, output_config: { effort } }
+}
+
+/** The map's effort for the level, else pi's default effort. */
+function effortOf(resolved: {
+  level: string
+  value: string | null
+}): AnthropicEffort {
+  return isAnthropicEffort(resolved.value)
+    ? resolved.value
+    : defaultEffort(resolved.level)
 }

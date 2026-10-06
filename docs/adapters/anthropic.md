@@ -310,6 +310,35 @@ What the adapter sends for each kind of model:
 
 The thinking text streams back as thinking parts. Pass `summary: false` to keep it hidden: `reasoning: { level: "high", summary: false }`. See [Reasoning](../chat/reasoning) for the levels and how a level the model does not have moves to the nearest one.
 
+#### Change the level during a conversation
+
+A new level changes the start of the request, so Claude reads nothing from the cache. On `claude-fable-5-1`, `claude-opus-5`, and `claude-opus-5-5`, the level can go into the messages instead. Then a new level keeps the cached start.
+
+Set `midConversationEffort: true` in the `reasoning` config. `modelReasoning(record)` sets it for these models in the [model catalog](../models/catalog), also for their OpenRouter ids:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
+import { getModel, modelReasoning } from "@tanstack/ai-models";
+
+const record = getModel("anthropic", "claude-opus-5-5");
+if (record) {
+  const stream = chat({
+    adapter: anthropicText(record.id, { reasoning: modelReasoning(record) }),
+    messages: [{ role: "user", content: "Plan a database migration." }],
+    reasoning: "low",
+  });
+}
+```
+
+What the adapter sends with `midConversationEffort`:
+
+- `thinking` with `type: "adaptive"` and `block_binding`, and `output_config.effort: "high"`, on every request.
+- At the end of the messages, a `system` message with no content and `output_config.effort` set to the level of this call.
+- The same message before each earlier answer of this adapter, with the level of that answer. The answer keeps it in `metadata.tanstack.reasoningEffort`.
+- The `anthropic-beta` header with `mid-conversation-output-config-2026-07-01` and `thinking-binding-controls-2026-08-01`.
+- No `temperature`.
+
 ### Prompt Caching
 
 `chat()` caches Claude prompts by default. It adds `cache_control` markers to the system prompt, the last tool, and the last user message. To send no markers, pass `promptCache: 'none'`. For the retention, the cache key, and the cost, see [Prompt Caching](../advanced/prompt-caching).
@@ -363,6 +392,7 @@ The channels are on by default with Anthropic's own API. With a custom `baseURL`
 
 - `false`: send the full lists on every call.
 - `true`: use the channels with a custom `baseURL`, `fetch`, or `ANTHROPIC_BASE_URL`. Set it only when that endpoint sends the request and the `anthropic-beta` header to Anthropic as they are.
+- `{ systemPrompts: true }` or `{ tools: true }`: use only that channel, for an endpoint that passes only one. With `{ systemPrompts: true }`, an added prompt goes into a `system` message, and an added tool goes out in the full `tools` list.
 
 ```typescript
 import { anthropicText } from "@tanstack/ai-anthropic";
@@ -374,6 +404,11 @@ export const fullLists = anthropicText("claude-opus-5-5", {
 export const throughProxy = anthropicText("claude-opus-5-5", {
   baseURL: "https://llm-proxy.example.com",
   midConversationChannels: true,
+});
+
+export const promptsOnly = anthropicText("claude-opus-5-5", {
+  baseURL: "https://llm-gateway.example.com",
+  midConversationChannels: { systemPrompts: true },
 });
 ```
 

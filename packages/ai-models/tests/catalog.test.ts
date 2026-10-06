@@ -237,6 +237,48 @@ describe('modelReasoning', () => {
     expect(config).toEqual({
       ...(record.reasoningMap ? { map: record.reasoningMap } : {}),
       budget: record.reasoningBudget === true,
+      adaptive: false,
     })
+  })
+
+  /** The thinking shape fields of a catalog record's config. */
+  const shape = (provider: string, id: string) => {
+    const record = getModel(provider, id)
+    if (!record) throw new Error(`Expected the record ${provider}/${id}`)
+    const config = modelReasoning(record)
+    if (!config) throw new Error(`Expected ${provider}/${id} to reason`)
+    return {
+      adaptive: config.adaptive,
+      midConversationEffort: config.midConversationEffort,
+    }
+  }
+
+  it('sets adaptive from compat.forceAdaptiveThinking on the Anthropic wire', () => {
+    // Claude 4.6 and later with a dot id: adaptive.
+    expect(shape('vercel-ai-gateway', 'anthropic/claude-opus-4.7')).toEqual({
+      adaptive: true,
+      midConversationEffort: undefined,
+    })
+    // Older Claude: budget.
+    expect(shape('openrouter', 'anthropic/claude-sonnet-4.5').adaptive).toBe(
+      false,
+    )
+    // Another model on the Anthropic wire: budget.
+    expect(shape('vercel-ai-gateway', 'openai/gpt-5').adaptive).toBe(false)
+    // Another wire: no thinking shape.
+    expect(shape('openai', 'gpt-5').adaptive).toBeUndefined()
+  })
+
+  it('sets midConversationEffort from compat.supportsMidConvoEffort', () => {
+    expect(shape('anthropic', 'claude-opus-5-5')).toEqual({
+      adaptive: true,
+      midConversationEffort: true,
+    })
+    expect(
+      shape('openrouter', 'anthropic/claude-opus-5.5').midConversationEffort,
+    ).toBe(true)
+    expect(
+      shape('anthropic', 'claude-opus-4-8').midConversationEffort,
+    ).toBeUndefined()
   })
 })

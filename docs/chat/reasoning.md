@@ -103,7 +103,11 @@ const adapter = createAnthropicChat(
   process.env.AI_GATEWAY_API_KEY ?? "",
   {
     baseURL: "https://ai-gateway.vercel.sh",
-    reasoning: { map: { minimal: null, xhigh: null, max: "max" }, budget: true },
+    reasoning: {
+      map: { minimal: null, xhigh: null, max: "max" },
+      budget: true,
+      adaptive: true,
+    },
   },
 );
 
@@ -119,6 +123,8 @@ The `reasoning` config has the same shape on every adapter:
 - `false`: the model does not reason. No reasoning field goes out, and the types take no level.
 - `map`: the provider value for each level. `null` means that the model does not have the level. A level with no entry passes as its own name, except `xhigh` and `max`.
 - `budget`: `true` when the model thinks with a token budget.
+- `adaptive` (Anthropic): `true` sends adaptive thinking with the effort, and `false` sends thinking with a token budget. Without it, the adapter picks from the model id.
+- `midConversationEffort` (Anthropic): the level goes into the messages, so a new level keeps the cached start. See [Change the level during a conversation](../adapters/anthropic#change-the-level-during-a-conversation).
 
 With `reasoning` in the config, the types take every level. The adapter moves a level that the model does not have to the nearest one, as in [A level from the user](#a-level-from-the-user). The config wins over the adapter's own data, also for a model in its list.
 

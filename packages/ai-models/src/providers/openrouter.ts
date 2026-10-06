@@ -971,6 +971,7 @@ export const models: ReadonlyArray<ModelRecord> = [
       sessionAffinityFormat: 'openrouter',
       supportsDeveloperRole: true,
       cacheControlFormat: 'anthropic',
+      supportsMidConvoEffort: true,
       supportsTemperature: false,
       forceAdaptiveThinking: true,
     },
@@ -1188,6 +1189,7 @@ export const models: ReadonlyArray<ModelRecord> = [
       sessionAffinityFormat: 'openrouter',
       supportsDeveloperRole: true,
       cacheControlFormat: 'anthropic',
+      forceAdaptiveThinking: true,
     },
   },
   {
@@ -1441,6 +1443,7 @@ export const models: ReadonlyArray<ModelRecord> = [
       sessionAffinityFormat: 'openrouter',
       supportsDeveloperRole: true,
       cacheControlFormat: 'anthropic',
+      supportsMidConvoEffort: true,
       forceAdaptiveThinking: true,
     },
   },

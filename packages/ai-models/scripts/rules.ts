@@ -96,6 +96,10 @@ export function takesBudget(
   return (options ?? []).some((option) => option.type === 'budget_tokens')
 }
 
+/** Claude 4.6 and later, with dash or dot ids (`claude-opus-4-7`, `anthropic/claude-opus-4.7`). */
+const ADAPTIVE_CLAUDE =
+  /claude-(?:(?:opus|sonnet)-4[.-][6-9]|(?:opus|sonnet|fable)-[5-9])/
+
 /** The model hints models.dev has for the wire quirks. */
 export function modelHints(
   model: DevModel,
@@ -110,12 +114,11 @@ export function modelHints(
     hints.requiresReasoningContentOnAssistantMessages = true
   if (model.temperature === false) hints.supportsTemperature = false
   const options = model.reasoning_options ?? []
-  // Claude with `effort` and no token budget thinks adaptively only.
-  if (
-    wire.api === 'anthropic-messages' &&
-    effortValues(options) !== undefined &&
-    !takesBudget(options)
-  )
+  // pi's rule: Claude 4.6 and later think adaptively, on every provider.
+  // Another model on the Anthropic wire thinks with a budget unless its
+  // provider row says otherwise (models.dev lists `effort` for many models
+  // that a gateway serves with budget thinking).
+  if (wire.api === 'anthropic-messages' && ADAPTIVE_CLAUDE.test(model.id))
     hints.forceAdaptiveThinking = true
   if (effortByModel && wire.api === 'openai-completions')
     hints.supportsReasoningEffort = (effortValues(options)?.length ?? 0) > 0
