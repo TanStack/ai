@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ByokRouteImport } from './routes/byok'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
 import { Route as ChatClientStreamProcessingRouteImport } from './routes/chat-client-stream-processing'
+import { Route as ClientMountHydrateRouteImport } from './routes/client-mount-hydrate'
 import { Route as DevtoolsChatRouteImport } from './routes/devtools-chat'
 import { Route as DevtoolsGenerationHooksRouteImport } from './routes/devtools-generation-hooks'
 import { Route as DevtoolsMemoryRouteImport } from './routes/devtools-memory'
@@ -43,6 +44,7 @@ import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
+import { Route as ApiAnthropicMaxTokensUsageRouteImport } from './routes/api.anthropic-max-tokens-usage'
 import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
 import { Route as ApiAnthropicRedactedThinkingWireRouteImport } from './routes/api.anthropic-redacted-thinking-wire'
@@ -157,6 +159,11 @@ const ChatClientStreamProcessingRoute =
     path: '/chat-client-stream-processing',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ClientMountHydrateRoute = ClientMountHydrateRouteImport.update({
+  id: '/client-mount-hydrate',
+  path: '/client-mount-hydrate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DevtoolsChatRoute = DevtoolsChatRouteImport.update({
   id: '/devtools-chat',
   path: '/devtools-chat',
@@ -309,6 +316,12 @@ const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
   path: '/api/anthropic-bug-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnthropicMaxTokensUsageRoute =
+  ApiAnthropicMaxTokensUsageRouteImport.update({
+    id: '/api/anthropic-max-tokens-usage',
+    path: '/api/anthropic-max-tokens-usage',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicMultiTurnStructuredWireRoute =
   ApiAnthropicMultiTurnStructuredWireRouteImport.update({
     id: '/api/anthropic-multi-turn-structured-wire',
@@ -801,6 +814,7 @@ export interface FileRoutesByFullPath {
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
+  '/client-mount-hydrate': typeof ClientMountHydrateRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-memory': typeof DevtoolsMemoryRoute
@@ -830,6 +844,7 @@ export interface FileRoutesByFullPath {
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
@@ -929,6 +944,7 @@ export interface FileRoutesByTo {
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
+  '/client-mount-hydrate': typeof ClientMountHydrateRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-memory': typeof DevtoolsMemoryRoute
@@ -958,6 +974,7 @@ export interface FileRoutesByTo {
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
@@ -1058,6 +1075,7 @@ export interface FileRoutesById {
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/chat-client-stream-processing': typeof ChatClientStreamProcessingRoute
+  '/client-mount-hydrate': typeof ClientMountHydrateRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
   '/devtools-memory': typeof DevtoolsMemoryRoute
@@ -1087,6 +1105,7 @@ export interface FileRoutesById {
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
@@ -1188,6 +1207,7 @@ export interface FileRouteTypes {
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
+    | '/client-mount-hydrate'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-memory'
@@ -1217,6 +1237,7 @@ export interface FileRouteTypes {
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
@@ -1316,6 +1337,7 @@ export interface FileRouteTypes {
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
+    | '/client-mount-hydrate'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-memory'
@@ -1345,6 +1367,7 @@ export interface FileRouteTypes {
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
@@ -1444,6 +1467,7 @@ export interface FileRouteTypes {
     | '/byok'
     | '/chat-client-default-bridge'
     | '/chat-client-stream-processing'
+    | '/client-mount-hydrate'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
     | '/devtools-memory'
@@ -1473,6 +1497,7 @@ export interface FileRouteTypes {
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
@@ -1573,6 +1598,7 @@ export interface RootRouteChildren {
   ByokRoute: typeof ByokRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
   ChatClientStreamProcessingRoute: typeof ChatClientStreamProcessingRoute
+  ClientMountHydrateRoute: typeof ClientMountHydrateRoute
   DevtoolsChatRoute: typeof DevtoolsChatRoute
   DevtoolsGenerationHooksRoute: typeof DevtoolsGenerationHooksRoute
   DevtoolsMemoryRoute: typeof DevtoolsMemoryRoute
@@ -1602,6 +1628,7 @@ export interface RootRouteChildren {
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
+  ApiAnthropicMaxTokensUsageRoute: typeof ApiAnthropicMaxTokensUsageRoute
   ApiAnthropicMultiTurnStructuredWireRoute: typeof ApiAnthropicMultiTurnStructuredWireRoute
   ApiAnthropicOpus5CombinedWireRoute: typeof ApiAnthropicOpus5CombinedWireRoute
   ApiAnthropicRedactedThinkingWireRoute: typeof ApiAnthropicRedactedThinkingWireRoute
@@ -1720,6 +1747,13 @@ declare module '@tanstack/react-router' {
       path: '/chat-client-stream-processing'
       fullPath: '/chat-client-stream-processing'
       preLoaderRoute: typeof ChatClientStreamProcessingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/client-mount-hydrate': {
+      id: '/client-mount-hydrate'
+      path: '/client-mount-hydrate'
+      fullPath: '/client-mount-hydrate'
+      preLoaderRoute: typeof ClientMountHydrateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/devtools-chat': {
@@ -1930,6 +1964,13 @@ declare module '@tanstack/react-router' {
       path: '/api/anthropic-bug-test'
       fullPath: '/api/anthropic-bug-test'
       preLoaderRoute: typeof ApiAnthropicBugTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-max-tokens-usage': {
+      id: '/api/anthropic-max-tokens-usage'
+      path: '/api/anthropic-max-tokens-usage'
+      fullPath: '/api/anthropic-max-tokens-usage'
+      preLoaderRoute: typeof ApiAnthropicMaxTokensUsageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-multi-turn-structured-wire': {
@@ -2642,6 +2683,7 @@ const rootRouteChildren: RootRouteChildren = {
   ByokRoute: ByokRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
   ChatClientStreamProcessingRoute: ChatClientStreamProcessingRoute,
+  ClientMountHydrateRoute: ClientMountHydrateRoute,
   DevtoolsChatRoute: DevtoolsChatRoute,
   DevtoolsGenerationHooksRoute: DevtoolsGenerationHooksRoute,
   DevtoolsMemoryRoute: DevtoolsMemoryRoute,
@@ -2671,6 +2713,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
+  ApiAnthropicMaxTokensUsageRoute: ApiAnthropicMaxTokensUsageRoute,
   ApiAnthropicMultiTurnStructuredWireRoute:
     ApiAnthropicMultiTurnStructuredWireRoute,
   ApiAnthropicOpus5CombinedWireRoute: ApiAnthropicOpus5CombinedWireRoute,
