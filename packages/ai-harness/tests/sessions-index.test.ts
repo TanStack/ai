@@ -172,30 +172,35 @@ describe('host.sessions', () => {
     await session.prompt('still here')
 
     expect(await host.sessions.get('t1')).toBeUndefined()
-    expect(
-      turnsOf(await persistence.stores.messages.loadThread('t1')),
-    ).toEqual([
-      ['user', 'hi'],
-      ['assistant', 'answer'],
-      ['user', 'still here'],
-      ['assistant', 'answer'],
-    ])
+    expect(turnsOf(await persistence.stores.messages.loadThread('t1'))).toEqual(
+      [
+        ['user', 'hi'],
+        ['assistant', 'answer'],
+        ['user', 'still here'],
+        ['assistant', 'answer'],
+      ],
+    )
     await host.close()
   })
 
-  it('forks the transcript before or through a message into a new thread', async () => {
+  it('forks the transcript before or through a message into a new thread, with the settings', async () => {
     const { persistence, host, harness } = hostWith()
     const session = await host.open(harness, {
       threadId: 't1',
       principal: { id: 'u1' },
     })
+    await session.configure({ instructions: 'Be brief.' })
     await session.prompt('first')
     await session.prompt('second')
     await host.sessions.rename('t1', 'Chat')
     const [, , second] = await session.transcript()
 
-    const before = await host.sessions.fork('t1', { before: idOf(second) })
-    const through = await host.sessions.fork('t1', { through: idOf(second) })
+    const before = await host.sessions.fork(harness, 't1', {
+      before: idOf(second),
+    })
+    const through = await host.sessions.fork(harness, 't1', {
+      through: idOf(second),
+    })
 
     expect(before).toEqual({
       threadId: expect.any(String),
@@ -217,6 +222,29 @@ describe('host.sessions', () => {
       ['assistant', 'answer'],
       ['user', 'second'],
     ])
+    for (const { threadId } of [before, through]) {
+      const fork = await host.open(harness, { threadId })
+      expect(fork.settings()).toEqual({ instructions: 'Be brief.' })
+    }
+    await host.close()
+  })
+
+  it('forks before the first message into a thread with no messages, but with the settings', async () => {
+    const { persistence, host, harness } = hostWith()
+    const session = await host.open(harness, { threadId: 't1' })
+    await session.configure({ instructions: 'Be brief.' })
+    await session.prompt('first')
+    const [first] = await session.transcript()
+
+    const fork = await host.sessions.fork(harness, 't1', {
+      before: idOf(first),
+    })
+
+    expect(await persistence.stores.messages.loadThread(fork.threadId)).toEqual(
+      [],
+    )
+    const forked = await host.open(harness, { threadId: fork.threadId })
+    expect(forked.settings()).toEqual({ instructions: 'Be brief.' })
     await host.close()
   })
 
@@ -234,7 +262,9 @@ describe('host.sessions', () => {
     await session.prompt('hi')
     const [, answer] = await session.transcript()
 
-    const fork = await host.sessions.fork('d1', { through: idOf(answer) })
+    const fork = await host.sessions.fork(harness, 'd1', {
+      through: idOf(answer),
+    })
 
     const records = await log.read(fork.threadId)
     expect(records.map(({ record }) => [record.type, record.keep])).toEqual([
@@ -254,8 +284,8 @@ describe('host.sessions', () => {
     await session.prompt('hi')
 
     await expect(
-      host.sessions.fork('t1', { through: 'not-a-message' }),
-    ).rejects.toThrow('The transcript has no message with id not-a-message.')
+      host.sessions.fork(harness, 't1', { through: 'not-a-message' }),
+    ).rejects.toThrow('Thread "t1" has no message "not-a-message".')
     expect(threadIds(await host.sessions.list())).toEqual(['t1'])
     await host.close()
   })
@@ -341,18 +371,22 @@ describe('sessions over HTTP', () => {
   }
 
   it('lists, renames, forks, and deletes the sessions of the user', async () => {
-    const { host, clientOf, chat } = setup()
+    const { host, harness, clientOf, chat } = setup()
     const alice = clientOf('alice')
     const [, answer] = await chat(alice)
+    const source = await host.open(harness, { threadId: 'alice-thread' })
+    await source.configure({ instructions: 'Be brief.' })
 
     expect(threadIds(await alice.listSessions())).toEqual(['alice-thread'])
-    expect(
-      (await alice.renameSession('alice-thread', 'Greetings')).title,
-    ).toBe('Greetings')
+    expect((await alice.renameSession('alice-thread', 'Greetings')).title).toBe(
+      'Greetings',
+    )
     const fork = await alice.forkSession('alice-thread', {
       through: idOf(answer),
     })
     expect(fork.title).toBe('Greetings (fork)')
+    const forked = await host.open(harness, { threadId: fork.threadId })
+    expect(forked.settings()).toEqual({ instructions: 'Be brief.' })
     expect(threadIds(await alice.listSessions()).sort()).toEqual(
       ['alice-thread', fork.threadId].sort(),
     )

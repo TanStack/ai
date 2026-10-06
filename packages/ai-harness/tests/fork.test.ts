@@ -107,7 +107,7 @@ describe.each([
     }
   })
 
-  it('copies the whole transcript by default, and refuses an unknown message or a used thread', async () => {
+  it('copies the whole transcript by default, no messages for a null at, and refuses an unknown message or a used thread', async () => {
     const persistence = durable ? durablePersistence() : memoryPersistence()
     const { harness, host } = setup(persistence)
     const source = await host.open(harness, { threadId: SOURCE })
@@ -120,6 +120,12 @@ describe.each([
     expect(contents(await whole.transcript())).toEqual(
       contents(await source.transcript()),
     )
+    const empty = await host.fork(harness, {
+      threadId: SOURCE,
+      newThreadId: 'empty',
+      at: null,
+    })
+    expect(await empty.transcript()).toEqual([])
     await expect(
       host.fork(harness, { threadId: SOURCE, newThreadId: 'other', at: 'm-x' }),
     ).rejects.toThrow('m-x')

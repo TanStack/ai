@@ -1,15 +1,10 @@
 import { EventType } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { SharedLog, loadLogState, logMessageStore } from './log'
+import { SharedLog, loadLogState } from './log'
 import { HarnessSession } from './session'
 import { HARNESS_EVENTS } from './types'
 import { isRecord } from './utils'
-import type {
-  ModelMessage,
-  PromptCacheOptions,
-  RunStore,
-  StreamChunk,
-} from '@tanstack/ai'
+import type { PromptCacheOptions, RunStore, StreamChunk } from '@tanstack/ai'
 import type {
   AIPersistence,
   ArtifactStore,
@@ -151,12 +146,25 @@ export interface HostSessions {
    */
   delete: (threadId: string) => Promise<void>
   /**
-   * Copy the transcript of a thread into a new thread, up to a message. The
-   * new thread gets its own entry, with the title, harness, and owner of the
-   * old one. Resolves to the new entry. Throws when the message id is not in
-   * the transcript.
+   * Fork a thread into a new thread with `host.fork`, so the fork gets the
+   * settings, plugin config, and media too. `{ through: id }` copies the
+   * messages up to and including `id`. `{ before: id }` copies the messages
+   * before `id`, so a fork before the first message has no messages. The new
+   * thread gets its own entry, with the title of the old one plus ` (fork)`,
+   * the harness, and the owner of the old one. Resolves to the new entry.
+   * Throws when the message id is not in the transcript.
+   *
+   * @example
+   * ```ts
+   * const entry = await host.sessions.fork(assistant, 't-1', { before: messageId })
+   * const fork = await host.open(assistant, { threadId: entry.threadId })
+   * ```
    */
-  fork: (threadId: string, at: ForkPoint) => Promise<SessionIndexEntry>
+  fork: (
+    harness: AnyHarness,
+    threadId: string,
+    at: ForkPoint,
+  ) => Promise<SessionIndexEntry>
 }
 
 /**
@@ -200,10 +208,11 @@ export interface ForkSessionOptions {
   /** The new thread. It must have no messages yet. */
   newThreadId: string
   /**
-   * The id of the last message to copy. Default: the whole transcript. An id
-   * the thread does not have throws.
+   * The id of the last message to copy. `null` copies no messages, but still
+   * copies the settings and plugin config. Default: the whole transcript. An
+   * id the thread does not have throws.
    */
-  at?: string
+  at?: string | null
   /** Who opens the new thread, as in `open`. */
   principal?: Principal
 }
@@ -318,17 +327,6 @@ function sessionIndex(
 
 /** @internal How a session writes its index entry. */
 export type SessionIndexWriter = ReturnType<typeof sessionIndex>
-
-/** The messages of `messages` up to the message `at` names. */
-function cutTranscript(messages: ReadonlyArray<ModelMessage>, at: ForkPoint) {
-  const isBefore = 'before' in at
-  const messageId = isBefore ? at.before : at.through
-  const index = messages.findIndex((message) => message.id === messageId)
-  if (index === -1) {
-    throw new Error(`The transcript has no message with id ${messageId}.`)
-  }
-  return messages.slice(0, isBefore ? index : index + 1)
-}
 
 /**
  * The status rule: the status of `session` after `event`, or `undefined`
@@ -466,16 +464,6 @@ export function createHarnessHost<TLogState = undefined>(
     emit(event)
   }
   const index = sessionIndex(sessionStore, emit)
-  // The transcript of any thread, for a fork. On a durable host, a view of
-  // the log of that thread. ponytail: a thread that shares another log (a
-  // `logId` that is not its thread id) is not found. Keep the log id in the
-  // entry if that matters.
-  const transcripts = logStore
-    ? logMessageStore({
-        store: logStore,
-        ...(options.project ? { project: options.project } : {}),
-      })
-    : persistence.stores.messages
   const coalesceMs = options.coalesceMs ?? 100
   /** The shared log of each log id with an open session, by log id. */
   const logs = new Map<string, Promise<SharedLog<TLogState>>>()
@@ -583,8 +571,10 @@ export function createHarnessHost<TLogState = undefined>(
       const end =
         at === undefined
           ? transcript.length
-          : transcript.findIndex((message) => message.id === at) + 1
-      if (end === 0) {
+          : at === null
+            ? 0
+            : transcript.findIndex((message) => message.id === at) + 1
+      if (typeof at === 'string' && end === 0) {
         throw new Error(
           `Thread ${JSON.stringify(threadId)} has no message ${JSON.stringify(at)}.`,
         )
@@ -616,7 +606,10 @@ export function createHarnessHost<TLogState = undefined>(
     logState: (logId) => resolved.get(logId)?.state.reduced,
     sessions: {
       list: async (listOptions) =>
-        (await sessionStore?.list({ parentThreadId: null, ...listOptions })) ?? {
+        (await sessionStore?.list({
+          parentThreadId: null,
+          ...listOptions,
+        })) ?? {
           entries: [],
         },
       get: (threadId) => index.get(threadId),
@@ -626,25 +619,44 @@ export function createHarnessHost<TLogState = undefined>(
           (entry) => entry && { ...entry, title, updatedAt: Date.now() },
         ),
       delete: (threadId) => index.remove(threadId),
-      async fork(threadId, at) {
-        if (!transcripts) {
-          throw new Error('host.sessions.fork needs stores.messages or stores.log.')
+      async fork(harness, threadId, at) {
+        // `host.fork` takes the last message to copy, so `before` becomes
+        // the message just before it, or `null` before the first one.
+        let last: string | null = 'through' in at ? at.through : null
+        if ('before' in at) {
+          const opened = await host.open(harness, { threadId })
+          const transcript = await opened.transcript()
+          const position = transcript.findIndex(({ id }) => id === at.before)
+          if (position === -1) {
+            throw new Error(
+              `The transcript has no message with id ${at.before}.`,
+            )
+          }
+          if (position > 0) {
+            const previous = transcript[position - 1]?.id
+            if (!previous) {
+              throw new Error(`The message before ${at.before} has no id.`)
+            }
+            last = previous
+          }
         }
-        const kept = cutTranscript(await transcripts.loadThread(threadId), at)
         const source = await index.get(threadId)
+        const forked = await host.fork(harness, {
+          threadId,
+          newThreadId: `thread-${crypto.randomUUID()}`,
+          at: last,
+          ...(source?.principal ? { principal: source.principal } : {}),
+        })
         const now = Date.now()
         // A sibling of the old thread, not a child: no parentThreadId.
         const entry: SessionIndexEntry = {
-          threadId: `thread-${crypto.randomUUID()}`,
+          threadId: forked.threadId,
           createdAt: now,
           updatedAt: now,
-          ...(source?.harness ? { harness: source.harness } : {}),
+          harness: harness.name,
           ...(source?.title ? { title: `${source.title} (fork)` } : {}),
           ...(source?.principal ? { principal: source.principal } : {}),
         }
-        // On a durable host, this appends one transcript record to the new
-        // log.
-        await transcripts.saveThread(entry.threadId, kept)
         await index.update(entry.threadId, () => entry)
         return entry
       },

@@ -95,7 +95,9 @@ const json = (body: unknown, status = 200) =>
  * the frame has one. When the client leaves, `signal` aborts.
  */
 function sseResponse(
-  frames: (signal: AbortSignal) => AsyncIterable<{ id?: string; data: unknown }>,
+  frames: (
+    signal: AbortSignal,
+  ) => AsyncIterable<{ id?: string; data: unknown }>,
 ) {
   // Not `request.signal`: some servers abort it once the body is read.
   const reader = new AbortController()
@@ -175,7 +177,9 @@ function parseSessionOp(body: unknown) {
 function isOwnedBy(entry: SessionIndexEntry, principal: Principal) {
   const owner = entry.principal
   if (!owner || owner.id !== principal.id) return false
-  return principal.tenantId === undefined || owner.tenantId === principal.tenantId
+  return (
+    principal.tenantId === undefined || owner.tenantId === principal.tenantId
+  )
 }
 
 /** Base64url to bytes, or `undefined` for a value that is not base64url. */
@@ -566,15 +570,13 @@ export function createHarnessHandler(
         switch (op.op) {
           case 'rename': {
             const renamed = await host.sessions.rename(op.threadId, op.title)
-            return renamed
-              ? json(renamed)
-              : json({ error: 'not found' }, 404)
+            return renamed ? json(renamed) : json({ error: 'not found' }, 404)
           }
           case 'delete':
             await host.sessions.delete(op.threadId)
             return new Response(null, { status: 204 })
           case 'fork':
-            return json(await host.sessions.fork(op.threadId, op.at))
+            return json(await host.sessions.fork(harness, op.threadId, op.at))
         }
       }
 
