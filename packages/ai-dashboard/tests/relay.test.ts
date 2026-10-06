@@ -1,9 +1,11 @@
+import { createContext, runInContext } from 'node:vm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { startDashboard } from '../src'
 import { connectDashboard } from '../src/connect'
+import { DASHBOARD_HTML } from '../src/ui'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 
 let calls = 0
@@ -65,6 +67,81 @@ function adapterSaying(answer: string): AnyTextAdapter {
 const cleanups: Array<() => unknown> = []
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
+})
+
+/** Open a session's event stream. `until` reads frames up to the first one that has `marker`. */
+async function openEvents(url: string) {
+  const controller = new AbortController()
+  cleanups.push(() => controller.abort())
+  const reader = (
+    await fetch(url, { signal: controller.signal })
+  ).body!.getReader()
+  const decoder = new TextDecoder()
+  const frames: Array<string> = []
+  let buffer = ''
+  return async (marker: string): Promise<Array<unknown>> => {
+    while (!frames.some((frame) => frame.includes(marker))) {
+      const { value, done } = await reader.read()
+      if (done) throw new Error(`The stream ended before ${marker}.`)
+      const blocks = (buffer + decoder.decode(value, { stream: true })).split(
+        '\n\n',
+      )
+      buffer = blocks.pop() ?? ''
+      for (const block of blocks) {
+        const data = block.split('\n').find((line) => line.startsWith('data: '))
+        if (data) frames.push(data.slice(6))
+      }
+    }
+    return frames.map((frame) => JSON.parse(frame))
+  }
+}
+
+/** Pair a host over the API, connect it, and wait until it is online. */
+async function onlineHost(
+  dashboard: { url: string; ownerToken: string },
+  allowRemoteStart: boolean,
+) {
+  const owner = {
+    Authorization: `Bearer ${dashboard.ownerToken}`,
+    'Content-Type': 'application/json',
+  }
+  const started = await (
+    await fetch(`${dashboard.url}/api/pair/start`, { method: 'POST' })
+  ).json()
+  await fetch(`${dashboard.url}/api/pair/approve`, {
+    method: 'POST',
+    headers: owner,
+    body: JSON.stringify({ code: started.code }),
+  })
+  const { hostId, token } = await (
+    await fetch(
+      `${dashboard.url}/api/pair/status?pairingId=${started.pairingId}`,
+    )
+  ).json()
+  const host = createHarnessHost({ persistence: memoryPersistence() })
+  cleanups.push(() => host.close())
+  const connection = await connectDashboard({
+    host,
+    harness: defineHarness({
+      name: 'acme/remote',
+      adapter: adapterSaying('Hello from the host.'),
+    }),
+    url: dashboard.url,
+    token,
+    allowRemoteStart,
+  })
+  cleanups.push(() => connection.close())
+  await vi.waitFor(async () => {
+    const hosts = await (
+      await fetch(`${dashboard.url}/api/hosts`, { headers: owner })
+    ).json()
+    expect(hosts).toMatchObject([{ hostId, online: true }])
+  })
+  return { host, hostId, owner }
+}
+
+const answered = expect.objectContaining({
+  event: expect.objectContaining({ delta: 'Hello from the host.' }),
 })
 
 describe('dashboard relay', () => {
@@ -143,24 +220,177 @@ describe('dashboard relay', () => {
           { hostId, threadId: 'main', harness: 'acme/remote', status: 'idle' },
         ])
       })
-      const controller = new AbortController()
-      const events = await fetch(
+      const until = await openEvents(
         `${dashboard.url}/api/sessions/${hostId}/main/events?token=${dashboard.ownerToken}`,
-        {
-          signal: controller.signal,
-        },
       )
-      const reader = events.body!.getReader()
-      let text = ''
-      while (!text.includes('harness.operation.finished')) {
-        const { value, done } = await reader.read()
-        if (done) break
-        text += new TextDecoder().decode(value)
-      }
-      controller.abort()
-      expect(text).toContain('Hello from the host.')
+      expect(await until('harness.operation.finished')).toContainEqual(answered)
     },
   )
+
+  it(
+    'opens a thread on a host that allows remote start',
+    { timeout: 20_000 },
+    async () => {
+      const dashboard = await startDashboard({ port: 0 })
+      cleanups.push(() => dashboard.close())
+      const { host, hostId, owner } = await onlineHost(dashboard, true)
+      const session = `${dashboard.url}/api/sessions/${hostId}/fresh`
+      const until = await openEvents(
+        `${session}/events?token=${dashboard.ownerToken}`,
+      )
+
+      // The host opens the thread when the dashboard asks.
+      const stop = new AbortController()
+      cleanups.push(() => stop.abort())
+      const attached = (async () => {
+        for await (const event of host.events({ signal: stop.signal }))
+          if (event.type === 'status' && event.threadId === 'fresh') return
+      })()
+      const opened = await fetch(`${session}/open`, {
+        method: 'POST',
+        headers: owner,
+      })
+      expect(opened.status).toBe(202)
+      expect(await opened.json()).toEqual({ status: 'sent' })
+      await attached
+
+      const receipt = await (
+        await fetch(`${session}/input`, {
+          method: 'POST',
+          headers: owner,
+          body: JSON.stringify({ input: { op: 'prompt', message: 'hi' } }),
+        })
+      ).json()
+      expect(receipt.status).toBe('sent')
+      expect(await until('harness.operation.finished')).toContainEqual(answered)
+    },
+  )
+
+  it(
+    'refuses inputs to a thread the host does not let the dashboard start',
+    { timeout: 20_000 },
+    async () => {
+      const dashboard = await startDashboard({ port: 0 })
+      cleanups.push(() => dashboard.close())
+      const { hostId, owner } = await onlineHost(dashboard, false)
+      const session = `${dashboard.url}/api/sessions/${hostId}/fresh`
+      const until = await openEvents(
+        `${session}/events?token=${dashboard.ownerToken}`,
+      )
+
+      // The route only relays the request. The host ignores it and refuses
+      // the first input with the reason.
+      const opened = await fetch(`${session}/open`, {
+        method: 'POST',
+        headers: owner,
+      })
+      expect(await opened.json()).toEqual({ status: 'sent' })
+      await fetch(`${session}/input`, {
+        method: 'POST',
+        headers: owner,
+        body: JSON.stringify({ input: { op: 'prompt', message: 'hi' } }),
+      })
+      const frames = await until('remote_start_disabled')
+      expect(frames).toContainEqual(
+        expect.objectContaining({
+          type: 'harness.receipt',
+          status: 'rejected',
+          reason: 'remote_start_disabled',
+        }),
+      )
+    },
+  )
+
+  it(
+    'pairs again when the dashboard restarts on the same port',
+    { timeout: 20_000 },
+    async () => {
+      const ownerToken = 'owner-token'
+      let dashboard = await startDashboard({ port: 0, ownerToken })
+      cleanups.push(() => dashboard.close())
+      const owner = {
+        Authorization: `Bearer ${ownerToken}`,
+        'Content-Type': 'application/json',
+      }
+      const onlineHosts = async () => {
+        const hosts: unknown = await (
+          await fetch(`${dashboard.url}/api/hosts`, { headers: owner })
+        ).json()
+        return Array.isArray(hosts)
+          ? hosts.filter((host) => host.online === true)
+          : []
+      }
+
+      const host = createHarnessHost({ persistence: memoryPersistence() })
+      cleanups.push(() => host.close())
+      const tokens: Array<string> = []
+      const connection = await connectDashboard({
+        host,
+        harness: defineHarness({
+          name: 'acme/remote',
+          adapter: adapterSaying('unused'),
+        }),
+        url: dashboard.url,
+        reconnectDelayMs: 50,
+        onPairingCode: (code) => {
+          void fetch(`${dashboard.url}/api/pair/approve`, {
+            method: 'POST',
+            headers: owner,
+            body: JSON.stringify({ code }),
+          })
+        },
+        onToken: (token) => tokens.push(token),
+      })
+      cleanups.push(() => connection.close())
+      await vi.waitFor(async () => expect(await onlineHosts()).toHaveLength(1))
+
+      // The restarted dashboard has no host tokens in memory.
+      const port = new URL(dashboard.url).port
+      await dashboard.close()
+      dashboard = await startDashboard({ port: Number(port), ownerToken })
+
+      await vi.waitFor(
+        async () =>
+          expect(await onlineHosts()).toMatchObject([
+            { name: 'acme/remote', harnesses: ['acme/remote'] },
+          ]),
+        { timeout: 10_000 },
+      )
+      expect(tokens).toHaveLength(2)
+      expect(tokens[1]).not.toBe(tokens[0])
+      expect(connection.token).toBe(tokens[1])
+    },
+  )
+
+  it('reports a refused token when it cannot pair again', async () => {
+    const dashboard = await startDashboard({ port: 0, ownerToken: 'owner' })
+    cleanups.push(() => dashboard.close())
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    cleanups.push(() => host.close())
+
+    const errors: Array<Error> = []
+    const connection = await connectDashboard({
+      host,
+      harness: defineHarness({
+        name: 'acme/remote',
+        adapter: adapterSaying('unused'),
+      }),
+      url: dashboard.url,
+      token: 'a-token-from-before-the-restart',
+      onError: (error) => errors.push(error),
+    })
+    cleanups.push(() => connection.close())
+
+    expect(errors.map((error) => error.message)).toEqual([
+      'The dashboard refused this host token.',
+    ])
+    const pairings = await (
+      await fetch(`${dashboard.url}/api/pairings`, {
+        headers: { Authorization: 'Bearer owner' },
+      })
+    ).json()
+    expect(pairings).toEqual([])
+  })
 
   it(
     'queues inputs for an offline host and refuses revoked hosts',
@@ -216,4 +446,162 @@ describe('dashboard relay', () => {
       expect(refused.status).toBe(401)
     },
   )
+})
+
+/** Just enough DOM for the page script. */
+class FakeNode {
+  children: Array<FakeNode> = []
+  className = ''
+  attributes: Record<string, string> = {}
+  value = ''
+  onsubmit?: (event: { preventDefault: () => void }) => Promise<void>
+  constructor(
+    readonly tag: string,
+    readonly text = '',
+  ) {}
+  get tagName() {
+    return this.tag.toUpperCase()
+  }
+  append(...children: Array<FakeNode>) {
+    this.children.push(...children)
+  }
+  replaceChildren(...children: Array<FakeNode>) {
+    this.children = children
+  }
+  setAttribute(key: string, value: string) {
+    this.attributes[key] = value
+  }
+  contains(node: FakeNode | null): boolean {
+    return node === this || this.children.some((child) => child.contains(node))
+  }
+  find(test: (node: FakeNode) => boolean): FakeNode | undefined {
+    if (test(this)) return this
+    for (const child of this.children) {
+      const found = child.find(test)
+      if (found) return found
+    }
+    return undefined
+  }
+  get textContent(): string {
+    return this.text + this.children.map((child) => child.textContent).join('')
+  }
+}
+
+/** Run the page script against a fake DOM, a fake API, and a manual timer. */
+function loadPage(hosts: Array<Record<string, unknown>>) {
+  const script = /<script>([\s\S]*)<\/script>/.exec(DASHBOARD_HTML)?.[1] ?? ''
+  const nodes = new Map<string, FakeNode>()
+  const byId = (id: string) => {
+    const node = nodes.get(id) ?? new FakeNode('div')
+    nodes.set(id, node)
+    return node
+  }
+  const requests: Array<string> = []
+  const sources: Array<FakeEventSource> = []
+  class FakeEventSource {
+    onmessage?: (message: { data: string }) => void
+    constructor(readonly url: string) {
+      sources.push(this)
+    }
+    close() {}
+  }
+  let tick = () => {}
+  let focused: FakeNode | null = null
+  runInContext(
+    script,
+    createContext({
+      Node: FakeNode,
+      document: {
+        createElement: (tag: string) => new FakeNode(tag),
+        createTextNode: (text: string) => new FakeNode('#text', text),
+        getElementById: byId,
+        get activeElement() {
+          return focused
+        },
+      },
+      location: { hash: '' },
+      history: { replaceState: () => {} },
+      localStorage: {
+        getItem: () => 'owner',
+        setItem: () => {},
+        removeItem: () => {},
+      },
+      navigator: {},
+      setInterval: (callback: () => void) => {
+        tick = callback
+        return 0
+      },
+      fetch: async (path: string, options: { method?: string } = {}) => {
+        requests.push(`${options.method ?? 'GET'} ${path}`)
+        const body = path === '/api/hosts' ? hosts : []
+        return { status: 200, json: async () => body }
+      },
+      EventSource: FakeEventSource,
+      URLSearchParams,
+    }),
+  )
+  return {
+    side: () => byId('side'),
+    main: () => byId('main'),
+    requests,
+    sources,
+    focus: (node: FakeNode | null) => {
+      focused = node
+    },
+    tick: () => tick(),
+  }
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+describe('dashboard page', () => {
+  it('opens a thread from a host row, and keeps the form while it has focus', async () => {
+    const page = loadPage([
+      { hostId: 'host 1', name: 'laptop', harnesses: ['acme/remote'] },
+    ])
+    await settle()
+    const hostLoads = () =>
+      page.requests.filter((request) => request === 'GET /api/hosts').length
+    const row = page
+      .side()
+      .find((node) => node.textContent.startsWith('laptop'))
+    const form = row?.find((node) => node.tag === 'form')
+    const input = form?.find((node) => node.tag === 'input')
+    if (!row || !form?.onsubmit || !input) throw new Error('No open form.')
+    expect(row.className).toBe('row')
+    expect(form.textContent).toBe('Open')
+
+    // The 5 s refresh skips while the input has focus.
+    input.value = 'feature/<b>'
+    page.focus(input)
+    page.tick()
+    await settle()
+    expect(hostLoads()).toBe(1)
+    expect(page.side().contains(form)).toBe(true)
+
+    await form.onsubmit({ preventDefault: () => {} })
+    const path = '/api/sessions/host%201/feature%2F%3Cb%3E'
+    expect(page.requests).toContain(`POST ${path}/open`)
+    expect(page.sources[0]?.url).toBe(`${path}/events?token=owner`)
+    expect(page.main().children[0]?.textContent).toBe('feature/<b>')
+
+    // A host without allowRemoteStart refuses the first input.
+    page.sources[0]?.onmessage?.({
+      data: JSON.stringify({
+        type: 'harness.receipt',
+        status: 'rejected',
+        reason: 'remote_start_disabled',
+      }),
+    })
+    const error = page.main().find((node) => node.className === 'msg error')
+    expect(error?.textContent).toBe('Refused: remote_start_disabled')
+
+    // Without focus, the refresh runs again.
+    page.focus(null)
+    await settle()
+    const loads = hostLoads()
+    page.tick()
+    await settle()
+    expect(hostLoads()).toBe(loads + 1)
+  })
 })

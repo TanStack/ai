@@ -69,17 +69,33 @@ async function refresh() {
       $('button', { onclick: async () => { await api('/api/pair/approve', { method: 'POST', body: JSON.stringify({ code: pairing.code }) }); refresh() } }, 'Approve'))) : [$('p', { class: 'muted' }, 'None')]),
     $('h3', {}, 'Hosts'),
     ...(hosts.length ? hosts.map((host) => $('div', { class: 'row' },
-      $('span', { class: host.online ? 'dot on' : 'dot' }), $('span', {}, host.name + ' (' + host.harnesses.join(', ') + ')'))) : [$('p', { class: 'muted' }, 'No hosts yet')]),
+      $('span', { class: host.online ? 'dot on' : 'dot' }), $('span', {}, host.name + ' (' + host.harnesses.join(', ') + ')'), openForm(host))) : [$('p', { class: 'muted' }, 'No hosts yet')]),
     $('h3', {}, 'Sessions'),
     ...(sessions.length ? sessions.map((session) => $('button', { class: 'session ' + session.status, onclick: () => open(session) },
       session.threadId + ' | ' + (session.harness || '') + ' | ' + session.status)) : [$('p', { class: 'muted' }, 'No sessions yet')]),
   )
 }
 
+const sessionPath = (hostId, threadId) => '/api/sessions/' + encodeURIComponent(hostId) + '/' + encodeURIComponent(threadId)
+
+// Start or attach a thread on a host, then watch it. A host without
+// allowRemoteStart ignores this and refuses the first input instead.
+function openForm(host) {
+  const input = $('input', { placeholder: 'Thread id', 'aria-label': 'Thread id', autocomplete: 'off' })
+  return $('form', { class: 'row open-thread', onsubmit: async (event) => {
+    event.preventDefault(); const threadId = input.value.trim(); if (!threadId) return
+    const result = await api(sessionPath(host.hostId, threadId) + '/open', { method: 'POST' })
+    open({ hostId: host.hostId, threadId })
+    if (result.error) current.messages.push({ kind: 'error', text: result.error })
+    if (result.status === 'queued') current.messages.push({ kind: 'notice', text: 'Queued: the host is offline.' })
+    draw(); refresh().catch(() => {})
+  } }, input, $('button', {}, 'Open'))
+}
+
 function open(session) {
   current = { ...session, messages: [], interrupts: [], questions: new Map(), running: false }
   if (source) source.close()
-  const path = '/api/sessions/' + encodeURIComponent(session.hostId) + '/' + encodeURIComponent(session.threadId)
+  const path = sessionPath(session.hostId, session.threadId)
   current.path = path
   source = new EventSource(path + '/events?token=' + encodeURIComponent(token))
   source.onmessage = (message) => { apply(JSON.parse(message.data)); draw() }
@@ -87,7 +103,10 @@ function open(session) {
 }
 
 function apply(frame) {
-  if (frame.type !== 'harness.event' || !current) return
+  if (!current) return
+  // A refused input, for example to a thread the host does not let the dashboard start.
+  if (frame.type === 'harness.receipt' && frame.status === 'rejected') current.messages.push({ kind: 'error', text: 'Refused: ' + (frame.reason || 'no reason') })
+  if (frame.type !== 'harness.event') return
   const event = frame.event
   if (event.subagentRunId) { applyChild(event); return }
   if (event.type === 'TEXT_MESSAGE_CONTENT') {
@@ -175,7 +194,11 @@ function render() {
   app.replaceChildren($('aside', { id: 'side' }), $('main', { id: 'main' }))
   draw(); refresh().catch(() => {})
 }
-setInterval(() => refresh().catch(() => {}), 5000)
+// No refresh while a side panel input has focus, so a half-typed thread id survives.
+setInterval(() => {
+  const side = document.getElementById('side'), focused = document.activeElement
+  if (!(side && focused && focused.tagName === 'INPUT' && side.contains(focused))) refresh().catch(() => {})
+}, 5000)
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {})
 render()
 `
@@ -204,6 +227,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
   button.session { display: block; width: 100%; text-align: left; background: var(--panel); color: var(--text); border: 1px solid var(--line); margin-bottom: 6px; font-weight: 400; }
   button.session.waiting { border-color: #f5b041; } button.session.running { border-color: var(--accent); }
+  .open-thread { flex-basis: 100%; }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: #555; display: inline-block; } .dot.on { background: #3ecf8e; }
   .log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 200px; max-height: 65vh; }
   .msg { white-space: pre-wrap; padding: 10px 12px; border-radius: 10px; background: var(--panel); max-width: 80ch; }
