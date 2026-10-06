@@ -14,6 +14,22 @@ const weatherTool: Tool = {
   name: 'lookup_weather',
   description: 'Return the forecast for a location',
 }
+// A finished tool call. Converse gets a `toolUse` and a `toolResult` block.
+const toolHistory: Array<ModelMessage> = [
+  ...messages,
+  {
+    role: 'assistant',
+    content: null,
+    toolCalls: [
+      {
+        id: 'call_1',
+        type: 'function',
+        function: { name: 'lookup_weather', arguments: '{"location":"Paris"}' },
+      },
+    ],
+  },
+  { role: 'tool', toolCallId: 'call_1', content: 'Sunny' },
+]
 const named: ToolChoice = { type: 'tool', name: 'lookup_weather' }
 const forcedChoices: Array<{ label: string; toolChoice: ToolChoice }> = [
   { label: 'required', toolChoice: 'required' },
@@ -33,7 +49,9 @@ const noForcedToolModels = [
   'eu.anthropic.claude-mythos-5-1-v1:0',
 ]
 
-type ConverseRequest = Pick<TextOptions, 'tools' | 'toolChoice' | 'reasoning'>
+type ConverseRequest = Partial<
+  Pick<TextOptions, 'messages' | 'tools' | 'toolChoice' | 'reasoning'>
+>
 
 /**
  * Runs one Converse stream call through the installed AWS SDK and returns the
@@ -119,13 +137,32 @@ describe('Bedrock Converse toolChoice', () => {
     expect(body).toHaveProperty('toolConfig.toolChoice', { auto: {} })
   })
 
-  it('sends no tools and no toolConfig for none', async () => {
+  it('sends no tools and no toolConfig for none without tool history', async () => {
     const body = await converseBody(nova, {
       tools: [weatherTool],
       toolChoice: 'none',
     })
     expect(body).toHaveProperty('messages')
     expect(body).not.toHaveProperty('toolConfig')
+  })
+
+  // Bedrock rejects toolUse and toolResult blocks without a toolConfig.
+  it('sends the tools with auto for none after a tool call', async () => {
+    const body = await converseBody(nova, {
+      messages: toolHistory,
+      tools: [weatherTool],
+      toolChoice: 'none',
+    })
+    expect(body).toHaveProperty(
+      'messages.1.content.0.toolUse.name',
+      'lookup_weather',
+    )
+    expect(body).toHaveProperty('messages.2.content.0.toolResult.toolUseId')
+    expect(body).toHaveProperty('toolConfig.toolChoice', { auto: {} })
+    expect(body).toHaveProperty(
+      'toolConfig.tools.0.toolSpec.name',
+      'lookup_weather',
+    )
   })
 
   it('sends no toolConfig when the request has no tools', async () => {
@@ -190,6 +227,15 @@ describe('Bedrock Converse toolChoice', () => {
       toolChoice: 'none',
     })
     expect(body).not.toHaveProperty('toolConfig')
+  })
+
+  it('on a Claude model that rejects a forced tool, sends auto for none after a tool call', async () => {
+    const body = await converseBody('us.anthropic.claude-opus-5-5-v1:0', {
+      messages: toolHistory,
+      tools: [weatherTool],
+      toolChoice: 'none',
+    })
+    expect(body).toHaveProperty('toolConfig.toolChoice', { auto: {} })
   })
 })
 

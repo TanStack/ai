@@ -839,16 +839,26 @@ export class BedrockConverseTextAdapter<
     )
 
     // `chat({ toolChoice })`. Converse has no `none` choice, so `none` sends
-    // no tool config. Claude rejects a forced tool while thinking is on (only
-    // Claude gets thinking fields), and some Claude models reject it on every
-    // request. Then a forced choice falls back to auto.
+    // no tool config. But Bedrock rejects `toolUse` or `toolResult` blocks
+    // without a tool config, so with tool blocks in the history `none` sends
+    // the tools with auto (the model can still call one). Claude rejects a
+    // forced tool while thinking is on (only Claude gets thinking fields), and
+    // some Claude models reject it on every request. Then a forced choice
+    // falls back to auto.
     const canForceTool =
       additionalModelRequestFields === undefined &&
       !CLAUDE_NO_FORCED_TOOL_MODELS.some((name) => this.model.includes(name))
+    const hasToolBlocks = messages.some((message) =>
+      message.content?.some((block) => block.toolUse || block.toolResult),
+    )
     const toolChoice =
-      canForceTool || options.toolChoice === 'none'
-        ? options.toolChoice
-        : 'auto'
+      options.toolChoice === 'none'
+        ? hasToolBlocks
+          ? 'auto'
+          : 'none'
+        : canForceTool
+          ? options.toolChoice
+          : 'auto'
     const toolConfig = options.tools
       ? toToolConfig(convertTools(options.tools), toolChoice)
       : undefined
