@@ -256,7 +256,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 0.2, output: 1.2, cacheRead: 0.02, cacheWrite: 0.25 },
+    cost: {
+      input: 0.2,
+      output: 1.2,
+      cacheRead: 0.02,
+      cacheWrite: 0.25,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 0.4,
+          output: 1.8,
+          cacheRead: 0.04,
+          cacheWrite: 0.5,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -281,7 +295,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+    cost: {
+      input: 0.1,
+      output: 0.5,
+      cacheRead: 0.01,
+      cacheWrite: 0.125,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 0.2,
+          output: 0.75,
+          cacheRead: 0.02,
+          cacheWrite: 0.25,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -306,7 +334,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: null,
       max: null,
     },
-    cost: { input: 2, output: 6, cacheRead: 0.3, cacheWrite: 0 },
+    cost: {
+      input: 2,
+      output: 6,
+      cacheRead: 0.3,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 4,
+          output: 12,
+          cacheRead: 0.6,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 500000,
     maxTokens: 500000,
     compat: { sessionAffinityFormat: 'openai-nosession' },
@@ -328,7 +370,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: null,
     },
-    cost: { input: 2, output: 6, cacheRead: 0.5, cacheWrite: 0 },
+    cost: {
+      input: 2,
+      output: 6,
+      cacheRead: 0.5,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 4,
+          output: 12,
+          cacheRead: 1,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 500000,
     maxTokens: 500000,
     compat: { sessionAffinityFormat: 'openai-nosession' },
@@ -350,7 +406,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: null,
     },
-    cost: { input: 2, output: 6, cacheRead: 0.5, cacheWrite: 0 },
+    cost: {
+      input: 2,
+      output: 6,
+      cacheRead: 0.5,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 4,
+          output: 12,
+          cacheRead: 1,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 500000,
     maxTokens: 500000,
     compat: { sessionAffinityFormat: 'openai-nosession' },
@@ -632,7 +702,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       medium: null,
       high: 'high',
     },
-    cost: { input: 0.3, output: 1.2, cacheRead: 0.06, cacheWrite: 0 },
+    cost: {
+      input: 0.3,
+      output: 1.2,
+      cacheRead: 0.06,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 512000,
+          input: 0.6,
+          output: 2.4,
+          cacheRead: 0.12,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 131072,
   },
@@ -696,7 +780,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       high: 'high',
     },
     reasoningBudget: true,
-    cost: { input: 0.5, output: 3, cacheRead: 0.05, cacheWrite: 0.625 },
+    cost: {
+      input: 0.5,
+      output: 3,
+      cacheRead: 0.05,
+      cacheWrite: 0.625,
+      tiers: [
+        {
+          inputTokensAbove: 256000,
+          input: 2,
+          output: 6,
+          cacheRead: 0.2,
+          cacheWrite: 2.5,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 65536,
     compat: {
@@ -748,7 +846,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       high: 'high',
     },
     reasoningBudget: true,
-    cost: { input: 0.4, output: 1.6, cacheRead: 0.04, cacheWrite: 0.5 },
+    cost: {
+      input: 0.4,
+      output: 1.6,
+      cacheRead: 0.04,
+      cacheWrite: 0.5,
+      tiers: [
+        {
+          inputTokensAbove: 256000,
+          input: 1.2,
+          output: 4.8,
+          cacheRead: 0.12,
+          cacheWrite: 1.5,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 65536,
     compat: {

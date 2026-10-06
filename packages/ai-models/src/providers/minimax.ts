@@ -99,7 +99,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       medium: null,
       high: 'high',
     },
-    cost: { input: 0.3, output: 1.2, cacheRead: 0.06, cacheWrite: 0 },
+    cost: {
+      input: 0.3,
+      output: 1.2,
+      cacheRead: 0.06,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 512000,
+          input: 0.6,
+          output: 2.4,
+          cacheRead: 0.12,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 512000,
   },

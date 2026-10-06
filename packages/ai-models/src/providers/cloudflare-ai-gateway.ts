@@ -899,7 +899,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: null,
       max: null,
     },
-    cost: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12 },
+    cost: {
+      input: 10,
+      output: 50,
+      cacheRead: 1,
+      cacheWrite: 12,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 20,
+          output: 75,
+          cacheRead: 2,
+          cacheWrite: 25,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -926,7 +940,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+    cost: {
+      input: 0.1,
+      output: 0.5,
+      cacheRead: 0.01,
+      cacheWrite: 0.125,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 0.2,
+          output: 0.75,
+          cacheRead: 0.02,
+          cacheWrite: 0.25,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -953,7 +981,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+    cost: {
+      input: 2,
+      output: 10,
+      cacheRead: 0.2,
+      cacheWrite: 2.5,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 4,
+          output: 15,
+          cacheRead: 0.4,
+          cacheWrite: 5,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -1697,7 +1739,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: null,
       max: null,
     },
-    cost: { input: 2, output: 6, cacheRead: 0.3, cacheWrite: 0 },
+    cost: {
+      input: 2,
+      output: 6,
+      cacheRead: 0.3,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 4,
+          output: 12,
+          cacheRead: 0.6,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 500000,
     maxTokens: 500000,
     compat: {
@@ -1727,7 +1783,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: null,
       max: null,
     },
-    cost: { input: 2, output: 6, cacheRead: 0.5, cacheWrite: 0 },
+    cost: {
+      input: 2,
+      output: 6,
+      cacheRead: 0.5,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 4,
+          output: 12,
+          cacheRead: 1,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 500000,
     maxTokens: 500000,
     compat: {
@@ -1757,7 +1827,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: null,
     },
-    cost: { input: 2, output: 6, cacheRead: 0.5, cacheWrite: 0 },
+    cost: {
+      input: 2,
+      output: 6,
+      cacheRead: 0.5,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 4,
+          output: 12,
+          cacheRead: 1,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 500000,
     maxTokens: 500000,
     compat: {

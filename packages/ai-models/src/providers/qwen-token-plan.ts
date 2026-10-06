@@ -460,7 +460,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       high: 'high',
     },
     reasoningBudget: true,
-    cost: { input: 0.5, output: 3, cacheRead: 0.05, cacheWrite: 0.625 },
+    cost: {
+      input: 0.5,
+      output: 3,
+      cacheRead: 0.05,
+      cacheWrite: 0.625,
+      tiers: [
+        {
+          inputTokensAbove: 256000,
+          input: 2,
+          output: 6,
+          cacheRead: 0.2,
+          cacheWrite: 2.5,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 65536,
     compat: {
@@ -516,7 +530,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       high: 'high',
     },
     reasoningBudget: true,
-    cost: { input: 0.4, output: 1.6, cacheRead: 0.04, cacheWrite: 0.5 },
+    cost: {
+      input: 0.4,
+      output: 1.6,
+      cacheRead: 0.04,
+      cacheWrite: 0.5,
+      tiers: [
+        {
+          inputTokensAbove: 256000,
+          input: 1.2,
+          output: 4.8,
+          cacheRead: 0.12,
+          cacheWrite: 1.5,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 131072,
     compat: {

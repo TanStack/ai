@@ -161,6 +161,11 @@ export interface PromptTokensDetails {
   cachedTokens?: number
   /** Tokens written to cache */
   cacheWriteTokens?: number
+  /**
+   * The part of `cacheWriteTokens` written with a 1-hour retention
+   * (`promptCache: 'long'`). Providers price it higher than a 5-minute write.
+   */
+  cacheWrite1hTokens?: number
   /** Audio input tokens */
   audioTokens?: number
   /** Video input tokens */

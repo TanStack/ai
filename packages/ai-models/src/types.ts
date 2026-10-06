@@ -98,6 +98,21 @@ export interface ModelCostRates {
   output: number
   cacheRead: number
   cacheWrite: number
+  /**
+   * Higher prices for a call with more input, for example long context. A
+   * call uses the tier with the highest `inputTokensAbove` below its input
+   * (uncached + cache read + cache write). Same rule as pi.
+   */
+  tiers?: ReadonlyArray<ModelCostTier>
+}
+
+/** The prices of a call with more than `inputTokensAbove` input tokens. */
+export interface ModelCostTier {
+  inputTokensAbove: number
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
 }
 
 /** One model of one provider. */
@@ -143,12 +158,17 @@ export interface ProviderRecord {
   env: ReadonlyArray<ReadonlyArray<string>>
 }
 
-/** Token counts of one call. */
+/** Token counts of one call. `input` is the uncached input only. */
 export interface TokenCounts {
   input: number
   output: number
   cacheRead?: number
   cacheWrite?: number
+  /**
+   * The part of `cacheWrite` written with a 1-hour retention
+   * (`promptCache: 'long'` on Anthropic). It costs 2x the input price.
+   */
+  cacheWrite1h?: number
 }
 
 /** What a call cost, in USD. */
