@@ -230,4 +230,144 @@ test.describe('harness protocol', () => {
     expect(receipt.status).toBe('accepted')
     expect(receipt.operationId).toMatch(/^op-agent-/)
   })
+
+  test('lists, renames, and forks sessions with their settings', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const auth = headers(testId, aimockPort)
+    const json = { ...auth, 'content-type': 'application/json' }
+    const first = `sessions-a-${testId}`
+    const second = `sessions-b-${testId}`
+    const settings = { model: 'strong', instructions: 'Answer in one word.' }
+    const configured = await request.post('/api/harness-protocol/control', {
+      headers: json,
+      data: { threadId: first, input: { op: 'configure', settings } },
+    })
+    expect(await configured.json()).toMatchObject({ status: 'accepted' })
+    const run = await request.post('/api/harness-protocol/run', {
+      headers: json,
+      data: {
+        threadId: first,
+        runId: `sessions-run-${testId}`,
+        messages: [
+          { id: 'u1', role: 'user', content: '[harness-protocol] hello' },
+        ],
+        tools: [],
+        context: [],
+        state: {},
+        forwardedProps: {},
+      },
+    })
+    // The stream ends with the turn.
+    await run.text()
+    // The second thread only opens.
+    const opened = await request.get(
+      `/api/harness-protocol/snapshot?threadId=${second}`,
+      { headers: auth },
+    )
+    expect(opened.status()).toBe(200)
+
+    const sessions = (body: object) =>
+      request.post('/api/harness-protocol/sessions', {
+        headers: json,
+        data: body,
+      })
+    const title = 'Trip plan'
+    const renamed = await sessions({ op: 'rename', threadId: first, title })
+    expect(await renamed.json()).toMatchObject({ threadId: first, title })
+
+    const transcript = async (threadId: string) => {
+      const response = await request.get(
+        `/api/harness-protocol/transcript?threadId=${threadId}`,
+        { headers: auth },
+      )
+      const messages: Array<{ id?: string; role: string; content: unknown }> =
+        await response.json()
+      return messages
+    }
+    const source = await transcript(first)
+    expect(source.map((message) => message.role)).toEqual(['user', 'assistant'])
+    const at = source[0]?.id
+    if (!at) throw new Error('The prompt has no message id.')
+    const forked = await sessions({ op: 'fork', threadId: first, through: at })
+    expect(forked.status()).toBe(200)
+    const fork: { threadId: string; title?: string } = await forked.json()
+    expect(fork.title).toBe(`${title} (fork)`)
+    // The fork has the messages through the prompt, and the stored settings.
+    const copied = await transcript(fork.threadId)
+    expect(copied.map((message) => message.content)).toEqual([
+      '[harness-protocol] hello',
+    ])
+    const described = await request.get(
+      `/api/harness-protocol/describe?threadId=${fork.threadId}`,
+      { headers: auth },
+    )
+    expect((await described.json()).settings).toMatchObject(settings)
+
+    // The host is shared, so the list has the threads of other tests too.
+    const response = await request.get('/api/harness-protocol/sessions', {
+      headers: auth,
+    })
+    const listed: { entries: Array<{ threadId: string; title?: string }> } =
+      await response.json()
+    const titles = Object.fromEntries(
+      listed.entries.map((entry) => [entry.threadId, entry.title ?? null]),
+    )
+    expect(titles).toMatchObject({
+      [first]: title,
+      [second]: null,
+      [fork.threadId]: `${title} (fork)`,
+    })
+  })
+
+  test('shows running, then idle, on the host status feed', async ({
+    request,
+    baseURL,
+    testId,
+    aimockPort,
+  }) => {
+    const auth = headers(testId, aimockPort)
+    const threadId = `status-${testId}`
+    // Open the session first, so the feed starts with its status.
+    await request.get(`/api/harness-protocol/snapshot?threadId=${threadId}`, {
+      headers: auth,
+    })
+    const feed = await fetch(`${baseURL}/api/harness-protocol/host-events`, {
+      headers: auth,
+    })
+    if (!feed.body) throw new Error('The status feed has no stream.')
+    const reader = feed.body.pipeThrough(new TextDecoderStream()).getReader()
+    // The feed has every session of this user. This test reads its own.
+    const statuses: Array<string> = []
+    let buffer = ''
+    while (statuses.length < 3) {
+      const read = await reader.read()
+      if (read.done) break
+      buffer += read.value
+      const blocks = buffer.split('\n\n')
+      buffer = blocks.pop() ?? ''
+      for (const block of blocks) {
+        if (!block.startsWith('data: ')) continue
+        const event: { type: string; threadId?: string; status?: string } =
+          JSON.parse(block.slice('data: '.length))
+        const isOurs = event.type === 'status' && event.threadId === threadId
+        if (!isOurs || !event.status) continue
+        statuses.push(event.status)
+        if (statuses.length > 1) continue
+        // The first status shows that the feed reads, so start a turn now.
+        const receipt = await request.post('/api/harness-protocol/control', {
+          headers: { ...auth, 'content-type': 'application/json' },
+          data: {
+            threadId,
+            input: { op: 'prompt', message: '[harness-protocol] hello' },
+          },
+        })
+        expect(await receipt.json()).toMatchObject({ status: 'accepted' })
+      }
+    }
+    await reader.cancel()
+    expect(statuses).toEqual(['idle', 'running', 'idle'])
+  })
 })
