@@ -55,7 +55,9 @@ export function title(options: {
         const message = textOf(first).slice(0, 2000)
         const answer = await chat({
           adapter: await ctx.keys.adapter(options.adapter),
-          messages: [{ role: 'user', content: `${TITLE_PROMPT}\n\n${message}` }],
+          messages: [
+            { role: 'user', content: `${TITLE_PROMPT}\n\n${message}` },
+          ],
           stream: false,
         })
         const text = cleanTitle(answer)

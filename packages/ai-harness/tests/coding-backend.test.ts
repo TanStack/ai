@@ -86,9 +86,7 @@ describe('hostBackend', () => {
   })
 
   it('kills a background command', async () => {
-    const job = hostBackend.spawn(
-      `node -e "setTimeout(function () {}, 60000)"`,
-    )
+    const job = hostBackend.spawn(`node -e "setTimeout(function () {}, 60000)"`)
     job.kill()
     expect((await job.wait()).exitCode).not.toBe(0)
   })

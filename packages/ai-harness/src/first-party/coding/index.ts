@@ -9,8 +9,4 @@ export type { SearchProvider, WebToolsOptions } from './web'
 export { snapshots } from './snapshots'
 export type { SnapshotStep, SnapshotsOptions } from './snapshots'
 export { FormatFailed, formatter } from './formatter'
-export type {
-  Formatter,
-  FormatterOptions,
-  FormatterProject,
-} from './formatter'
+export type { Formatter, FormatterOptions, FormatterProject } from './formatter'

@@ -551,8 +551,7 @@ export function createSubagentRunRecorder(stores: {
       // after the whole stored transcript.
       const resumes = storedSubagentInfo(raw)?.status === 'suspended'
       // Only the first call gives the prompt. A later call keeps it.
-      const prompt =
-        raw.length > 0 ? marker.prompt : call && callPrompt(call)
+      const prompt = raw.length > 0 ? marker.prompt : call && callPrompt(call)
       children.set(id, {
         name: chunk.name,
         threadId: input.threadId,

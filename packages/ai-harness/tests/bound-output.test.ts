@@ -128,7 +128,10 @@ describe('boundText', () => {
       'x\n\n[Output cut. Showing the first 1 of 1 lines, 1 of 5 bytes.]',
     ],
   ])('keeps the head of text with %s', (_case, input, limits, expected) => {
-    expect(boundText(input, limits)).toEqual({ text: expected, truncated: true })
+    expect(boundText(input, limits)).toEqual({
+      text: expected,
+      truncated: true,
+    })
   })
 
   it.each([

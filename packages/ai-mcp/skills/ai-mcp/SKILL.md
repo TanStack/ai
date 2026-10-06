@@ -851,7 +851,11 @@ const agent = defineHarness({
           timeoutMs: 10_000,
           codeMode: true,
         },
-        notion: { type: 'http', url: 'https://mcp.notion.com/mcp', oauth: true },
+        notion: {
+          type: 'http',
+          url: 'https://mcp.notion.com/mcp',
+          oauth: true,
+        },
       },
     }),
   ],

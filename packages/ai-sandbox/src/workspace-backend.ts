@@ -109,8 +109,7 @@ export function sandboxWorkspaceBackend(handle: SandboxHandle) {
       return Promise.all(
         entries.map(async (entry) => {
           const isLink =
-            lstat !== undefined &&
-            (await lstat(entry.path))?.type === 'symlink'
+            lstat !== undefined && (await lstat(entry.path))?.type === 'symlink'
           const type = isLink ? ('link' as const) : entry.type
           return { name: entry.name, type }
         }),

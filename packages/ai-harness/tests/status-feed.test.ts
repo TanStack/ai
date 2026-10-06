@@ -111,7 +111,12 @@ describe('host.events', () => {
 
     await vi.waitFor(() => expect(feed.seen).toHaveLength(2))
     expect(feed.seen).toEqual([
-      { type: 'status', threadId: 'a', status: 'waiting', at: expect.any(Number) },
+      {
+        type: 'status',
+        threadId: 'a',
+        status: 'waiting',
+        at: expect.any(Number),
+      },
       { type: 'status', threadId: 'b', status: 'idle', at: expect.any(Number) },
     ])
     await feed.stop()
@@ -197,9 +202,7 @@ describe('GET host-events', () => {
     )
 
     await bob.prompt('hi')
-    await vi.waitFor(async () =>
-      expect(await bob.transcript()).toHaveLength(2),
-    )
+    await vi.waitFor(async () => expect(await bob.transcript()).toHaveLength(2))
     // Alice owns this thread, but `canAccess` refuses it.
     await host.open(harness, { threadId: 'hidden', principal: { id: 'alice' } })
     await alice.prompt('hi')

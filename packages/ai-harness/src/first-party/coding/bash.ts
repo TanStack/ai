@@ -130,8 +130,12 @@ export function bashTools(
     signal?: AbortSignal
   } = {},
 ) {
-  const { timeoutMs: defaultTimeoutMs = 120_000, note, spillDir, signal } =
-    options
+  const {
+    timeoutMs: defaultTimeoutMs = 120_000,
+    note,
+    spillDir,
+    signal,
+  } = options
   // ponytail: jobs live in memory only. A restart forgets them.
   const jobs = new Set<{ kill: () => void }>()
   let started = 0
@@ -142,10 +146,7 @@ export function bashTools(
   /** Save the full output in `dir`. Gives back the note for the model. */
   const spill = async (dir: string, output: string) => {
     const { join, resolve } = pathsOf(env.backend)
-    const path = join(
-      resolve(env.root, dir),
-      `bash-${crypto.randomUUID()}.txt`,
-    )
+    const path = join(resolve(env.root, dir), `bash-${crypto.randomUUID()}.txt`)
     try {
       await env.backend.writeFile(path, output)
       return `[Full output saved to ${env.shown(path)}.]`

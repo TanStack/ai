@@ -2,11 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  createHarnessHost,
-  defineHarness,
-  isHarnessDefinition,
-} from '../src'
+import { createHarnessHost, defineHarness, isHarnessDefinition } from '../src'
 import { mockAdapter, text, toolCall } from './helpers'
 
 const agent = (name: string) =>

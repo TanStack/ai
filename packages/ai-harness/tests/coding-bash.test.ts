@@ -7,7 +7,10 @@ import {
   splitCommand,
 } from '../src/first-party/coding/bash'
 import { decidePermission } from '../src/first-party/permissions'
-import type { ToolEnv, WorkspaceBackend } from '../src/first-party/coding/backend'
+import type {
+  ToolEnv,
+  WorkspaceBackend,
+} from '../src/first-party/coding/backend'
 import type { PermissionRule } from '../src/first-party/permissions'
 
 type ExecOptions = Parameters<WorkspaceBackend['exec']>[1]
@@ -162,9 +165,21 @@ describe('bash', () => {
 
   it.each([
     { name: 'the factory timeout without one', args: {}, expected: 30_000 },
-    { name: 'the timeout of the call', args: { timeoutMs: 5_000 }, expected: 5_000 },
-    { name: 'at most 10 minutes', args: { timeoutMs: 3_600_000 }, expected: 600_000 },
-    { name: 'the factory timeout for 0', args: { timeoutMs: 0 }, expected: 30_000 },
+    {
+      name: 'the timeout of the call',
+      args: { timeoutMs: 5_000 },
+      expected: 5_000,
+    },
+    {
+      name: 'at most 10 minutes',
+      args: { timeoutMs: 3_600_000 },
+      expected: 600_000,
+    },
+    {
+      name: 'the factory timeout for 0',
+      args: { timeoutMs: 0 },
+      expected: 30_000,
+    },
   ])('gives exec $name', async ({ args, expected }) => {
     const { env, execs } = workspace(OK)
     await bash(env, { command: 'make', ...args }, { timeoutMs: 30_000 })
@@ -210,9 +225,7 @@ describe('bash', () => {
     })
     expect(
       await bash(env, { command: 'test' }, { spillDir: '.agent/bash' }),
-    ).toBe(
-      `${LONG_RESULT}\n[The full output was not saved: Error: disk full]`,
-    )
+    ).toBe(`${LONG_RESULT}\n[The full output was not saved: Error: disk full]`)
   })
 })
 
@@ -240,7 +253,9 @@ describe('bash in the background', () => {
     expect(notes).toEqual([])
     end(2)
     await settle()
-    expect(notes).toEqual(['Background job bash-1 ended.\nexit code: 2\nbuilt\n'])
+    expect(notes).toEqual([
+      'Background job bash-1 ended.\nexit code: 2\nbuilt\n',
+    ])
   })
 
   it('kills running jobs when the signal aborts, and sends no note', async () => {

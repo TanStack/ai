@@ -54,8 +54,7 @@ async function reply(session: HarnessSession, value: unknown) {
 function toolResult(
   calls: Array<{ messages: Array<{ role: string; content: unknown }> }>,
 ) {
-  return calls[1]?.messages.find((message) => message.role === 'tool')
-    ?.content
+  return calls[1]?.messages.find((message) => message.role === 'tool')?.content
 }
 
 describe('question()', () => {

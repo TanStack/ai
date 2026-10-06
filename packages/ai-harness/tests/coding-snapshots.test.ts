@@ -150,7 +150,9 @@ describe.skipIf(!hasGit)('snapshots', () => {
     const commands = exec.mock.calls.map(([command]) => command)
     // `git --version` and `git init` once, the turn start, and one snapshot
     // after each tool step. Step starts reuse the snapshot before them.
-    expect(commands.filter((command) => /write-tree/.test(command))).toHaveLength(3)
+    expect(
+      commands.filter((command) => /write-tree/.test(command)),
+    ).toHaveLength(3)
     // The second step changed nothing, so it needs no diff.
     expect(commands.filter((command) => / diff /.test(command))).toHaveLength(1)
     expect(commands.length).toBeLessThanOrEqual(6)

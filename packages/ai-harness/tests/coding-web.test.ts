@@ -1,5 +1,13 @@
 import { createServer } from 'node:http'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 import { webTools } from '../src/first-party/coding/web'
 import type { AddressInfo } from 'node:net'
 import type {
@@ -84,7 +92,9 @@ beforeEach(() => {
 describe('webfetch formats', () => {
   const html =
     '<html><head><title>Doc</title><style>p { color: red }</style></head><body><h1>Hello</h1><p>Tom &amp; <strong>Jerry</strong> &lt;3 &#x41;&#66;</p><script>alert("x")</script></body></html>'
-  const routes = { 'https://example.com/': page(html, 'text/html; charset=utf-8') }
+  const routes = {
+    'https://example.com/': page(html, 'text/html; charset=utf-8'),
+  }
 
   it('gives back HTML as markdown when turndown is installed', async () => {
     const result = await webfetch({ url: 'https://example.com/' }, routes)

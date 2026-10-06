@@ -181,14 +181,12 @@ describe('parsePatch', () => {
     {
       name: 'an added line without +',
       text: patch('*** Add File: a.txt', '+one', 'two'),
-      error:
-        'Patch line 4: each line of an added file must start with "+".',
+      error: 'Patch line 4: each line of an added file must start with "+".',
     },
     {
       name: 'a chunk line without a prefix',
       text: patch('*** Update File: a.txt', '@@', ' one', 'two'),
-      error:
-        'Patch line 5: each chunk line must start with " ", "-", or "+".',
+      error: 'Patch line 5: each chunk line must start with " ", "-", or "+".',
     },
     {
       name: 'an update without changes',
@@ -253,7 +251,8 @@ describe('patch tool', () => {
   })
 
   it('searches from the @@ line', async () => {
-    const file = 'function a() {\n  return 1\n}\nfunction b() {\n  return 1\n}\n'
+    const file =
+      'function a() {\n  return 1\n}\nfunction b() {\n  return 1\n}\n'
     const text = patch(
       '*** Update File: a.txt',
       '@@ function b() {',
@@ -274,7 +273,15 @@ describe('patch tool', () => {
 
   it('searches each chunk after the chunk before it', async () => {
     // `x` is in the file twice, but once after the first chunk.
-    const text = patch('*** Update File: a.txt', '@@', '-a', '+A', '@@', '-x', '+X')
+    const text = patch(
+      '*** Update File: a.txt',
+      '@@',
+      '-a',
+      '+A',
+      '@@',
+      '-x',
+      '+X',
+    )
     expect(await patchFile('x\na\nx\n', text)).toBe('x\nA\nX\n')
   })
 

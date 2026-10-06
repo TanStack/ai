@@ -212,10 +212,7 @@ function requestOptionsOf(server: McpServerConfig) {
 }
 
 /** Marks the tools of a `codeMode: true` server for the `codeMode()` plugin. */
-function forCodeMode(
-  server: McpServerConfig,
-  tools: ReadonlyArray<AnyTool>,
-) {
+function forCodeMode(server: McpServerConfig, tools: ReadonlyArray<AnyTool>) {
   if (server.codeMode !== true) return tools
   return tools.map((tool) => ({
     ...tool,

@@ -663,7 +663,11 @@ describe('subagent run recorder', () => {
     await feed(recorder, 'run-1', [
       childStarted('child', { parentToolCallId: 'call_1' }),
       ...textMessage('m1', 'Old notes', { subagentRunId: 'child' }),
-      { type: EventType.SUBAGENT_FINISHED, subagentRunId: 'child', timestamp: t },
+      {
+        type: EventType.SUBAGENT_FINISHED,
+        subagentRunId: 'child',
+        timestamp: t,
+      },
     ])
 
     // run-2 continues the child. It writes, then waits for an approval. The

@@ -1,7 +1,15 @@
 import { mkdtemp, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 import { hostBackend } from '../src/first-party/coding/backend'
 import { quoteArg } from '../src/first-party/coding/search'
 import { createWorkspaceTools } from '../src/first-party/coding/workspace'
@@ -132,7 +140,8 @@ describe('list_files and grep engines', () => {
   }
   // What rg prints for `files`: not sorted, with `./`, NUL after each path.
   // A long line is cut after 2000 bytes, with a note after it.
-  const rgFiles = './src/b.ts\0./src/a.ts\0./long.txt\0./image.png\0./.github/ci.yml\0'
+  const rgFiles =
+    './src/b.ts\0./src/a.ts\0./long.txt\0./image.png\0./.github/ci.yml\0'
   const rgMatches = [
     './src/b.ts\x001:const two = 2\r',
     './.github/ci.yml\x001:two: yes',
@@ -427,10 +436,13 @@ describe('quoteArg', () => {
     { value: 'C:\\dir\\', posix: `'C:\\dir\\'`, win32: '^"C:\\dir\\\\^"' },
   ]
 
-  it.each(hostile)('quotes $value for sh and cmd.exe', ({ value, posix, win32 }) => {
-    expect(quoteArg(value, 'linux')).toBe(posix)
-    expect(quoteArg(value, 'win32')).toBe(win32)
-  })
+  it.each(hostile)(
+    'quotes $value for sh and cmd.exe',
+    ({ value, posix, win32 }) => {
+      expect(quoteArg(value, 'linux')).toBe(posix)
+      expect(quoteArg(value, 'win32')).toBe(win32)
+    },
+  )
 
   it('refuses a line break for cmd.exe', () => {
     expect(() => quoteArg('a\nb', 'win32')).toThrow('line break')

@@ -123,7 +123,9 @@ function shadowRepo(options: SnapshotsOptions) {
     restore: (tree: string) =>
       serial(async () => {
         // The index must list the files on disk, so the reset sees them.
-        await exec(`${git} add -A && ${git} read-tree --reset -u ${quote(tree)}`)
+        await exec(
+          `${git} add -A && ${git} read-tree --reset -u ${quote(tree)}`,
+        )
       }),
   }
 }

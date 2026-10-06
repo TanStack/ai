@@ -1996,7 +1996,9 @@ export function runPersistenceConformance(
         )
 
         expect(
-          threadIds(await store.list({ principal: owner, parentThreadId: null })),
+          threadIds(
+            await store.list({ principal: owner, parentThreadId: null }),
+          ),
         ).toEqual([parent])
       })
 

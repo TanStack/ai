@@ -349,7 +349,9 @@ async function applyAll(env: ToolEnv, steps: ReadonlyArray<Step>) {
             )
           }
           if (planned.has(full)) {
-            throw new Error(`Cannot move ${shown}: the patch changes it before.`)
+            throw new Error(
+              `Cannot move ${shown}: the patch changes it before.`,
+            )
           }
           // The target must be free: no file, or a file that the patch
           // removes before.
@@ -364,7 +366,9 @@ async function applyAll(env: ToolEnv, steps: ReadonlyArray<Step>) {
         }
         const known = planned.get(full)
         if (known === null) {
-          throw new Error(`Cannot update ${shown}: the patch removes it before.`)
+          throw new Error(
+            `Cannot update ${shown}: the patch removes it before.`,
+          )
         }
         const before = known ?? (await readText(backend, full))
         planned.set(to, applyChunks(before, operation.chunks, shown))

@@ -88,8 +88,14 @@ export function boundText(
     : firstPart(text, bytes, limits)
   const shown = `${countLines(kept)} of ${lines} lines, ${encoder.encode(kept).length} of ${bytes.length} bytes`
   return isTail
-    ? { text: `[Output cut. Showing the last ${shown}.]\n\n${kept}`, truncated: true }
-    : { text: `${kept}\n\n[Output cut. Showing the first ${shown}.]`, truncated: true }
+    ? {
+        text: `[Output cut. Showing the last ${shown}.]\n\n${kept}`,
+        truncated: true,
+      }
+    : {
+        text: `${kept}\n\n[Output cut. Showing the first ${shown}.]`,
+        truncated: true,
+      }
 }
 
 /**

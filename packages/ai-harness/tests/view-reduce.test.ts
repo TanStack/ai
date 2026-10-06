@@ -434,9 +434,9 @@ describe('view reducer', () => {
       { inputId: 'in-1', delivery: 'steer', message: 'later' },
     ])
     // A snapshot without the list has no waiting inputs.
-    expect(applySnapshot(moved, sessionSnapshot(), factory).waitingInputs).toEqual(
-      [],
-    )
+    expect(
+      applySnapshot(moved, sessionSnapshot(), factory).waitingInputs,
+    ).toEqual([])
   })
 
   it('reads a client tool interrupt as a client tool, not an approval', () => {

@@ -268,13 +268,14 @@ describe('HTTP handler', () => {
     expect(await snapshot()).toMatchObject({
       waitingInputs: [{ inputId: 'f-1', delivery: 'steer', message: 'later' }],
     })
-    expect(await control({ op: 'cancelInput', inputId: 'f-1' })).toMatchObject(
-      { status: 'accepted' },
-    )
+    expect(await control({ op: 'cancelInput', inputId: 'f-1' })).toMatchObject({
+      status: 'accepted',
+    })
     expect(await snapshot()).toMatchObject({ waitingInputs: [] })
-    expect(await control({ op: 'cancelInput', inputId: 'f-1' })).toMatchObject(
-      { status: 'rejected', reason: 'not_waiting' },
-    )
+    expect(await control({ op: 'cancelInput', inputId: 'f-1' })).toMatchObject({
+      status: 'rejected',
+      reason: 'not_waiting',
+    })
     release.open()
     await host.close()
   })

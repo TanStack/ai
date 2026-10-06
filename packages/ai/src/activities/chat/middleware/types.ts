@@ -477,9 +477,10 @@ export interface AfterToolCallInfo {
  *   the stream see it. The next middleware gets it as `info.result`. An error
  *   result stays an error.
  */
-export type AfterToolCallDecision =
-  | void
-  | { type: 'replaceResult'; result: unknown }
+export type AfterToolCallDecision = void | {
+  type: 'replaceResult'
+  result: unknown
+}
 
 // ===========================
 // Iteration Info

@@ -35,11 +35,7 @@ const quoted = (path: string) => `'${join(root, path)}'`
  * `shell: 'sh'`, the project is at `/workspace` with POSIX paths, like a
  * Linux sandbox. Else it is at `root` on this machine.
  */
-function project(
-  files: Record<string, string>,
-  exec: Exec = ok,
-  shell?: 'sh',
-) {
+function project(files: Record<string, string>, exec: Exec = ok, shell?: 'sh') {
   const paths = shell === 'sh' ? posix : nodePath
   const base = shell === 'sh' ? '/workspace' : root
   const store = new Map<string, Uint8Array>()
@@ -199,8 +195,9 @@ describe('formatOnWrite', () => {
 
   it('keeps POSIX paths in a sandbox, also on a Windows host', async () => {
     const { backend, runs } = project(prettier, ok, 'sh')
-    const afterWrite = formatOnWrite({ root: '/workspace', backend }, () =>
-      undefined,
+    const afterWrite = formatOnWrite(
+      { root: '/workspace', backend },
+      () => undefined,
     )
     await afterWrite('/workspace/src/a.ts')
     expect(runs).toEqual([

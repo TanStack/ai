@@ -16,7 +16,11 @@ async function openWithApi(adapter: AnyTextAdapter) {
   })
   const host = createHarnessHost({ persistence: memoryPersistence() })
   const session = await host.open(
-    defineHarness({ name: 'test/plugin-apis', adapter, plugins: () => [probe] }),
+    defineHarness({
+      name: 'test/plugin-apis',
+      adapter,
+      plugins: () => [probe],
+    }),
     { threadId: 't' },
   )
   const api = apis[0]

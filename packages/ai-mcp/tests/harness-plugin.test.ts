@@ -118,7 +118,8 @@ if (process.env[childEnv] === '1') {
       const { session, model } = await openWith({
         slow: httpServer(
           async (request) => {
-            const body = request.method === 'POST' ? await request.clone().text() : ''
+            const body =
+              request.method === 'POST' ? await request.clone().text() : ''
             // The tool list never comes, so only the timeout ends the wait.
             if (body.includes('"tools/list"')) {
               return new Promise<Response>(() => {})

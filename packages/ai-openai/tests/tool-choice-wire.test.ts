@@ -84,17 +84,19 @@ const adapters = [
     adapter: 'openaiCompatible (Chat Completions)',
     namedChoice: chatCompletionsChoice,
     send: (fetch, request) =>
-      compatible(fetch, 'chat-completions')('my-model').chatStream(
-        callOptions('my-model', request),
-      ),
+      compatible(
+        fetch,
+        'chat-completions',
+      )('my-model').chatStream(callOptions('my-model', request)),
   },
   {
     adapter: 'openaiCompatible (Responses)',
     namedChoice: responsesChoice,
     send: (fetch, request) =>
-      compatible(fetch, 'responses')('my-model').chatStream(
-        callOptions('my-model', request),
-      ),
+      compatible(
+        fetch,
+        'responses',
+      )('my-model').chatStream(callOptions('my-model', request)),
   },
 ] satisfies Array<{ adapter: string; send: Send }>
 
