@@ -116,16 +116,9 @@ export function parsePatch(text: string) {
       checkNotEmpty(current, currentLine)
       const [, kind, rest] = header
       const path = pathAt(index, rest)
-      switch (kind) {
-        case 'Add':
-          current = { type: 'add', path, content: '' }
-          break
-        case 'Delete':
-          current = { type: 'delete', path }
-          break
-        default:
-          current = { type: 'update', path, chunks: [] }
-      }
+      if (kind === 'Add') current = { type: 'add', path, content: '' }
+      else if (kind === 'Delete') current = { type: 'delete', path }
+      else current = { type: 'update', path, chunks: [] }
       operations.push(current)
       currentLine = index
       chunk = undefined

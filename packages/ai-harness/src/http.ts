@@ -543,7 +543,9 @@ export function createHarnessHandler(
           ...(parentThreadId ? { parentThreadId } : {}),
         })
         const allowed = await Promise.all(
-          page.entries.map((entry) => canAccess(principal, entry.threadId)),
+          page.entries.map(async (entry) =>
+            canAccess(principal, entry.threadId),
+          ),
         )
         return json({
           ...page,

@@ -161,7 +161,9 @@ export function formatOnWrite(
       read: (name) => readText(backend, join(root, name)).catch(() => ''),
     }
     const used = await Promise.all(
-      candidates.map((candidate) => candidate.when?.(project) ?? true),
+      candidates.map(
+        async (candidate) => (await candidate.when?.(project)) ?? true,
+      ),
     )
     return candidates.filter((_, index) => used[index])
   }

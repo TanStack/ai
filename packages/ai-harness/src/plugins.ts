@@ -605,16 +605,16 @@ export async function mountPlugins(
             extensions.set(point.name, items)
           }
           const source = items
-          const values = () => source.map((item) => item.value as T)
+          const live = () => source.map((item) => item.value as T)
           // A live view: items contributed after this call appear too. Array
           // methods like `filter` also check that an index exists, so every
           // trap reads the items, not the empty target.
           return new Proxy<Array<T>>([], {
-            get: (_target, key) => Reflect.get(values(), key),
-            has: (_target, key) => Reflect.has(values(), key),
-            ownKeys: () => Reflect.ownKeys(values()),
+            get: (_target, key) => Reflect.get(live(), key),
+            has: (_target, key) => Reflect.has(live(), key),
+            ownKeys: () => Reflect.ownKeys(live()),
             getOwnPropertyDescriptor: (_target, key) =>
-              Reflect.getOwnPropertyDescriptor(values(), key),
+              Reflect.getOwnPropertyDescriptor(live(), key),
           })
         },
         emit: (event, value) => services.emit(plugin.name, event.name, value),
