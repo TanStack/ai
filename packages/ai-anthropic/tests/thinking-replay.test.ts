@@ -269,4 +269,30 @@ describe('Anthropic replay', () => {
       { type: 'text', text: 'Hello.' },
     ])
   })
+
+  it('does not end a request in a thinking-only assistant message', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      stream([...textEvents(0, 'Hello.'), ...end('end_turn')]),
+    )
+
+    await drain(
+      chat({
+        adapter: adapter(),
+        messages: [
+          { role: 'user', content: 'Hi' },
+          {
+            role: 'assistant',
+            content: null,
+            thinking: [
+              { content: 'I think.', signature: 'sig-1' },
+              { content: '', signature: 'opaque-1', redacted: true },
+            ],
+          },
+        ],
+      }),
+    )
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.messages).toEqual([{ role: 'user', content: 'Hi' }])
+  })
 })

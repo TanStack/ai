@@ -8,6 +8,7 @@ import {
 } from '../src/generic-interrupt-continuation'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import { modelMessagesToUIMessages } from '../src/activities/chat/messages'
+import { StreamProcessor } from '../src/activities/chat/stream/processor'
 import { DISCOVERY_TOOL_NAME } from '../src/activities/chat/tools/lazy-tool-manager'
 import { EventType } from '../src/types'
 import {
@@ -5169,7 +5170,21 @@ describe('chat()', () => {
           id: 'after-model-thinking',
           responseSchema: z.object({ approved: z.boolean() }),
         })
-        const { adapter } = createMockAdapter({
+        const middleware = defineChatMiddleware({
+          onInterruptBoundary(ctx) {
+            if (ctx.phase !== 'afterModel') return
+            return {
+              interrupts: [
+                review.interrupt({
+                  key: 'after-model',
+                  reason: 'review',
+                  message: 'Review the answer',
+                }),
+              ],
+            }
+          },
+        })
+        const { adapter, calls } = createMockAdapter({
           iterations: [
             [
               ev.runStarted(),
@@ -5200,6 +5215,13 @@ describe('chat()', () => {
                 : []),
               ev.runFinished('stop'),
             ],
+            [
+              ev.runStarted(),
+              ev.textStart('msg-2'),
+              ev.textContent('Done', 'msg-2'),
+              ev.textEnd('msg-2'),
+              ev.runFinished('stop'),
+            ],
           ],
         })
 
@@ -5207,23 +5229,10 @@ describe('chat()', () => {
           chat({
             adapter,
             interrupts: [review],
-            middleware: [
-              defineChatMiddleware({
-                onInterruptBoundary(ctx) {
-                  if (ctx.phase !== 'afterModel') return
-                  return {
-                    interrupts: [
-                      review.interrupt({
-                        key: 'after-model',
-                        reason: 'review',
-                        message: 'Review the answer',
-                      }),
-                    ],
-                  }
-                },
-              }),
-            ],
+            middleware: [middleware],
             messages: [{ role: 'user', content: 'Plan it' }],
+            threadId: 'thread-thinking',
+            runId: 'run-thinking',
           }) as AsyncIterable<StreamChunk>,
         )
 
@@ -5241,12 +5250,60 @@ describe('chat()', () => {
           'opaque-1',
         ])
         expect(reasoning[1]?.id).toMatch(/^redacted_thinking-/)
+        expect(snapshot.messages.map((message) => message.role)).toEqual([
+          'user',
+          'reasoning',
+          'reasoning',
+          'assistant',
+        ])
         if (text) {
           expect(snapshot.messages.at(-1)).toMatchObject({
             role: 'assistant',
             content: text,
           })
         }
+
+        // The client loads the snapshot and sends it back when it resumes.
+        const processor = new StreamProcessor()
+        for (const chunk of chunks) processor.processChunk(chunk)
+        processor.finalizeStream()
+        const paused = expectSingleRunFinished(chunks).outcome
+        if (paused?.type !== 'interrupt' || !paused.interrupts[0]) {
+          throw new Error('Expected afterModel interrupt')
+        }
+        const continuation = genericInterruptContinuationFromDescriptor(
+          paused.interrupts[0],
+        )
+        if (!continuation) throw new Error('Expected continuation metadata')
+        await collectChunks(
+          chat({
+            adapter,
+            interrupts: [review],
+            middleware: [middleware],
+            messages: processor.getMessages(),
+            threadId: 'thread-thinking',
+            runId: 'run-thinking-resume',
+            parentRunId: 'run-thinking',
+            resume: [
+              {
+                interruptId: paused.interrupts[0].id,
+                status: 'resolved',
+                payload: { approved: true },
+                metadata: wrapGenericInterruptContinuation(continuation),
+              },
+            ],
+          }) as AsyncIterable<StreamChunk>,
+        )
+
+        const replayed: Array<ModelMessage> = calls[1]?.messages ?? []
+        const assistants = replayed.filter(
+          (message) => message.role === 'assistant',
+        )
+        expect(assistants).toHaveLength(1)
+        expect(assistants[0]?.thinking?.map((part) => part.signature)).toEqual([
+          'sig-1',
+          'opaque-1',
+        ])
       },
     )
 
