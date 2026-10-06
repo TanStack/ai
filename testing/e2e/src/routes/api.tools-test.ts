@@ -65,9 +65,11 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
           : scenario === 'client-tool-input-error' ||
               scenario === 'invalid-client-tool-retry'
             ? {
-                arguments: '{"message":42,"type":"info"}',
+                // No `message`: invalid even after the input check coerces
+                // scalar types (42 would become "42" and pass).
+                arguments: '{"type":"info"}',
                 initialText: 'Showing a notification.',
-                input: { message: 42, type: 'info' },
+                input: { type: 'info' },
                 name:
                   scenario === 'invalid-client-tool-retry'
                     ? 'invalid-client-tool-retry-test'
@@ -124,9 +126,15 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
       const runId = options.runId ?? 'runtime-context-run'
       const threadId = options.threadId ?? 'runtime-context-thread'
       const messageId = `${runId}-message`
-      const toolResultCount = options.messages.filter(
-        (message) => message.role === 'tool',
-      ).length
+      // Count only this turn's results. Replay gives an unanswered call from
+      // an earlier turn a "No result provided" result, and a new user turn
+      // must still call the tool again.
+      const lastUserIndex = options.messages
+        .map((message) => message.role)
+        .lastIndexOf('user')
+      const toolResultCount = options.messages
+        .slice(lastUserIndex + 1)
+        .filter((message) => message.role === 'tool').length
       const hasToolResult = toolResultCount > 0
       const retryClientTool =
         scenario === 'invalid-client-tool-retry' && toolResultCount === 1

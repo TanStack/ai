@@ -71,6 +71,22 @@ test.describe('harness session', () => {
     expect(body.text).toBe('The waiter stopped before it finished.')
   })
 
+  test('a resumable background agent continues on the next host, and its step runs once', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const response = await request.post('/api/harness-test', {
+      data: { scenario: 'agent-resume', testId, aimockPort },
+    })
+    expect(response.ok()).toBe(true)
+    expect(await response.json()).toEqual({
+      attempts: 2,
+      charges: 1,
+      text: 'The stepper finished.',
+    })
+  })
+
   test('routing.router sends each turn to the picked root agents or to the main model', async ({
     request,
     testId,

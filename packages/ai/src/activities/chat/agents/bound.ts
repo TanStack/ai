@@ -34,12 +34,30 @@ export interface SubagentForward {
   promptCache?: PromptCacheRetention
 }
 
+/** The steps of an agent run, as `ctx.step`. */
+export interface AgentStep {
+  /**
+   * Run `fn` for `name`, and return its value. When a host runs a stopped
+   * agent again (a harness agent started with `resume: true`), a finished
+   * step returns its stored value and `fn` does not run again. Without such a
+   * host, `fn` runs each time. The value must be JSON. Use a name that is the
+   * same on every run.
+   */
+  do: <T>(name: string, fn: () => T | Promise<T>) => Promise<T>
+}
+
 /**
  * What a host (for example a harness session) adds to every activity call an
  * agent makes through `ctx`. Apps using plain `chat({ subagents })` do not set
  * it.
  */
 export interface SubagentBinding {
+  /**
+   * The steps the agent reads as `ctx.step`. Only this agent run gets them,
+   * not the children it starts. Without them, `ctx.step.do` runs `fn` each
+   * time.
+   */
+  step?: AgentStep
   /**
    * Added before the call's own middleware on every `ctx.chat` call. A
    * child's `ctx.chat({ subagents })` passes it down to its own children.

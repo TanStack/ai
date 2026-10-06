@@ -519,7 +519,7 @@ describe('native OpenRouter replay parity', () => {
                 },
               ]
         const mock = sdk(api, events)
-        const execute = vi.fn(async () => 'never')
+        const execute = vi.fn(async (_input: unknown) => 'never')
         const chunks = await collect(
           chat({
             adapter: mock.adapter,
@@ -537,11 +537,16 @@ describe('native OpenRouter replay parity', () => {
             ],
           }),
         )
-        expect(execute).not.toHaveBeenCalled()
+        if (value === null) {
+          // A null that the schema rejects runs as {} (issue #265).
+          expect(execute.mock.calls[0]?.[0]).toEqual({})
+        } else {
+          expect(execute).not.toHaveBeenCalled()
+          expect(JSON.stringify(chunks)).toContain('Received arguments')
+        }
         expect(
           chunks.find((chunk) => chunk.type === EventType.TOOL_CALL_END),
         ).toMatchObject({ input: value })
-        expect(JSON.stringify(chunks)).toContain('Received arguments')
         expect(JSON.stringify(mock.bodies)).toContain(
           args.replaceAll('"', '\\"'),
         )
@@ -603,8 +608,13 @@ describe('native OpenRouter replay parity', () => {
             ],
           }),
         )
-        expect(JSON.stringify(chunks)).not.toContain('client_tool_call')
-        expect(JSON.stringify(chunks)).toContain('Received arguments')
+        if (value === null) {
+          // A null that the schema rejects runs as {} (issue #265).
+          expect(JSON.stringify(chunks)).toContain('client_tool_call')
+        } else {
+          expect(JSON.stringify(chunks)).not.toContain('client_tool_call')
+          expect(JSON.stringify(chunks)).toContain('Received arguments')
+        }
         const accepted = sdk(api, events)
         const validate = vi.fn((input: unknown) => ({ value: input }))
         const execute = vi.fn(async (input: unknown) => input)

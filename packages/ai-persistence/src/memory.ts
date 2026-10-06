@@ -1,7 +1,8 @@
 import { LogConflictError, defineAIPersistence } from './types'
 import { resolveBlobRange } from './blob-range'
-import type { ModelMessage } from '@tanstack/ai'
+import type { ActivityRecord, ModelMessage } from '@tanstack/ai'
 import type {
+  ActivityStore,
   ArtifactRecord,
   ArtifactStore,
   BlobBody,
@@ -60,6 +61,20 @@ class MemoryMessageStore implements MessageStore {
   }
   saveThread(threadId: string, messages: Array<ModelMessage>): Promise<void> {
     this.threads.set(threadId, messages.slice())
+    return Promise.resolve()
+  }
+}
+
+class MemoryActivityStore implements ActivityStore {
+  private readonly threads = new Map<string, Array<ActivityRecord>>()
+  loadActivities(threadId: string): Promise<Array<ActivityRecord>> {
+    return Promise.resolve(this.threads.get(threadId)?.slice() ?? [])
+  }
+  saveActivities(
+    threadId: string,
+    activities: Array<ActivityRecord>,
+  ): Promise<void> {
+    this.threads.set(threadId, activities.slice())
     return Promise.resolve()
   }
 }
@@ -820,6 +835,7 @@ export function memoryLogStore(): LogStore {
 
 interface MemoryPersistenceStores {
   messages: MessageStore
+  activities: ActivityStore
   runs: RunStore
   generationRuns: GenerationRunStore
   interrupts: InterruptStore
@@ -834,14 +850,15 @@ interface MemoryPersistenceStores {
 /**
  * In-process reference backend for the full state + generation store set.
  *
- * Returns messages + runs + generationRuns + interrupts + metadata + artifacts
- * + blobs + inbox + credentials + sessions. Locks are not included. Use `InMemoryLockStore` +
- * `withLocks` from `@tanstack/ai` when a test or single-process app needs
- * coordination.
+ * Returns messages + activities + runs + generationRuns + interrupts +
+ * metadata + artifacts + blobs + inbox + credentials + sessions. Locks are
+ * not included. Use `InMemoryLockStore` + `withLocks` from `@tanstack/ai`
+ * when a test or single-process app needs coordination.
  */
 export function memoryPersistence() {
   const stores: MemoryPersistenceStores = {
     messages: new MemoryMessageStore(),
+    activities: new MemoryActivityStore(),
     runs: new MemoryRunStore(),
     generationRuns: new MemoryGenerationRunStore(),
     interrupts: new MemoryInterruptStore(),

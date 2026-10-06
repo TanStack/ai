@@ -426,6 +426,12 @@ const stream = chat({
 
 The adapter sends the level as `reasoning.effort`, with `summary: "auto"` so the reasoning summary streams back as thinking parts. Pass `reasoning: { level: "high", summary: false }` to skip the summary. The types list only the levels the model has. See [Reasoning](../chat/reasoning).
 
+For a model that this package does not list, pass the model's reasoning data as `reasoning` in the config. See [A model the adapter does not list](../chat/reasoning#a-model-the-adapter-does-not-list).
+
+### Answers on the next request
+
+OpenAI gives each answer item an `id` and a `phase`: `commentary` for text before a tool call, and `final_answer` for the answer. The adapter keeps both in the assistant message, in `metadata.tanstack.responseItems`. When the same model gets that message again, for example on the next turn, the adapter sends each item back with its `id` and `phase`. Another model gets the plain text.
+
 ### Prompt caching
 
 `chat()` sends `prompt_cache_key` by default, set to the `threadId` that you pass. OpenAI uses the key to send requests with the same start to the same cache. With `promptCache: 'long'`, `chat()` also asks for the long retention. See [Prompt Caching](../advanced/prompt-caching).

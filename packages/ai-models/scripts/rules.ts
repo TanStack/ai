@@ -30,6 +30,13 @@ export interface DevModel {
     output?: number
     cache_read?: number
     cache_write?: number
+    tiers?: ReadonlyArray<{
+      input?: number
+      output?: number
+      cache_read?: number
+      cache_write?: number
+      tier?: { type?: string; size?: number }
+    }>
   }
   limit?: { context?: number; output?: number }
   provider?: { npm?: string; api?: string }

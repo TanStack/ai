@@ -98,6 +98,12 @@ import {
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { isCancelRequestedReason } from './cancel'
 import {
+  applyActivityDeltaToRecords,
+  applyActivitySnapshotToRecords,
+  interleaveActivityRecords,
+  peelInboundActivities,
+} from './activity-records'
+import {
   appendUiResourceToModelMessages,
   convertMessagesToModelMessages,
   generateMessageId,
@@ -132,6 +138,7 @@ import type {
   StructuredOutputResult,
 } from './adapter'
 import type {
+  ActivityRecord,
   AgentLoopStrategy,
   AnyTool,
   ChatStream,
@@ -918,6 +925,7 @@ class TextEngine<
   private readonly effectiveSignal?: AbortSignal
 
   private messages: Array<ModelMessage>
+  private activities: Array<ActivityRecord> = []
   private providerMessages: Array<ModelMessage>
   private iterationCount = 0
   /** Cumulative tool calls counted in this run (emitted + pending resume). */
@@ -1107,6 +1115,7 @@ class TextEngine<
 
     // Convert messages to ModelMessage format (handles both UIMessage and ModelMessage input)
     // This ensures consistent internal format regardless of what the client sends
+    this.activities = peelInboundActivities(config.params.messages ?? [])
     this.messages = convertMessagesToModelMessages(config.params.messages)
     this.providerMessages = this.messages
 
@@ -1202,6 +1211,7 @@ class TextEngine<
       accumulatedContent: '',
       // References
       messages: this.messages,
+      activities: this.activities,
       createId: (prefix: string) => this.createId(prefix),
       // Capability bookkeeping for this request (populated by middleware setup)
       capabilities: new CapabilityRegistry(),
@@ -2007,6 +2017,28 @@ class TextEngine<
         // No special handling needed
         break
 
+      case 'ACTIVITY_SNAPSHOT':
+        this.setActivities(
+          applyActivitySnapshotToRecords(
+            this.activities,
+            chunk as Extract<StreamChunk, { type: 'ACTIVITY_SNAPSHOT' }>,
+            interleaveActivityRecords(
+              modelMessagesToUIMessages(this.messages),
+              this.activities,
+            ).length,
+          ),
+        )
+        break
+
+      case 'ACTIVITY_DELTA':
+        this.setActivities(
+          applyActivityDeltaToRecords(
+            this.activities,
+            chunk as Extract<StreamChunk, { type: 'ACTIVITY_DELTA' }>,
+          ),
+        )
+        break
+
       default:
         // RUN_STARTED, TEXT_MESSAGE_END, STATE_SNAPSHOT, STATE_DELTA, CUSTOM
         // - no special handling needed in chat activity
@@ -2019,6 +2051,13 @@ class TextEngine<
     metadata: TanStackMessageMetadata,
   ) {
     if ('subagentRunId' in chunk && typeof chunk.subagentRunId === 'string')
+      return chunk
+    // Activity records keep their own metadata. The call metadata is for the
+    // assistant message.
+    if (
+      chunk.type === EventType.ACTIVITY_SNAPSHOT ||
+      chunk.type === EventType.ACTIVITY_DELTA
+    )
       return chunk
     const incoming = tanstackMetadata(chunk)
     if (incoming?.source !== undefined) metadata.source = incoming.source
@@ -2035,6 +2074,8 @@ class TextEngine<
       const responseId = chunk.responseId ?? incoming?.responseId
       if (model !== undefined) metadata.model = model
       if (responseId !== undefined) metadata.responseId = responseId
+      if (incoming?.responseItems !== undefined)
+        metadata.responseItems = incoming.responseItems
     }
     if (chunk.type === EventType.RUN_ERROR) {
       metadata.stopReason ??= 'error'
@@ -2048,6 +2089,11 @@ class TextEngine<
         : {}),
     })
     return { ...chunk, metadata: merged.metadata }
+  }
+
+  private setActivities(activities: Array<ActivityRecord>): void {
+    this.activities = activities
+    this.middlewareCtx.activities = this.activities
   }
 
   // ===========================
@@ -3465,9 +3511,16 @@ class TextEngine<
     return {
       type: EventType.MESSAGES_SNAPSHOT,
       timestamp: Date.now(),
-      messages: uiMessagesToWire(modelMessagesToUIMessages(withIds), {
-        includeSnapshotStructuredOutput: true,
-      }),
+      messages: uiMessagesToWire(
+        interleaveActivityRecords(
+          modelMessagesToUIMessages(withIds),
+          this.activities,
+        ),
+        {
+          includeSnapshotStructuredOutput: true,
+          includeActivity: true,
+        },
+      ),
     }
   }
 
@@ -3662,7 +3715,7 @@ class TextEngine<
       if (this.toolCallManager.hasToolCalls()) {
         this.addAssistantToolCallMessage(this.toolCallManager.getToolCalls())
       } else {
-        this.addAssistantTextMessageForInterrupt()
+        this.addTerminalAssistantMessages()
       }
     }
     const actionable = yield* this.runWhileYielding(
@@ -3682,17 +3735,6 @@ class TextEngine<
       inputRequired,
     )
     return true
-  }
-
-  private addAssistantTextMessageForInterrupt(): void {
-    if (this.accumulatedContent.length === 0) return
-    const from = this.messages.length
-    this.messages = [
-      ...this.messages,
-      { role: 'assistant', content: this.accumulatedContent },
-    ]
-    this.saveMidConversationChange(from)
-    this.middlewareCtx.messages = this.messages
   }
 
   /**
@@ -4934,6 +4976,7 @@ class TextEngine<
   private buildMiddlewareConfig(): ChatMiddlewareConfig {
     return {
       messages: this.messages,
+      activities: this.activities,
       providerMessages: this.messages,
       systemPrompts: [...this.systemPrompts],
       tools: [...this.tools],
@@ -5414,6 +5457,9 @@ class TextEngine<
   private applyMiddlewareConfig(config: ChatMiddlewareConfig): void {
     this.applyResumeToolState(config.resumeToolState)
     this.messages = config.messages
+    if (config.activities !== undefined) {
+      this.setActivities(config.activities)
+    }
     this.providerMessages =
       config.providerMessages === undefined
         ? this.messages

@@ -1,5 +1,6 @@
 import { getApiKeyFromEnv } from '@tanstack/ai-utils'
 import type { Ai, GatewayOptions } from '@cloudflare/workers-types'
+import type { ModelReasoning } from '@tanstack/ai'
 import type { ClientOptions } from 'openai'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 
@@ -48,7 +49,19 @@ export type CloudflareTextConfig = (
   | CloudflareBindingConfig
   | CloudflareTextRestConfig
 ) &
-  OpenAIBaseTextAdapterOptions
+  OpenAIBaseTextAdapterOptions &
+  CloudflareTextReasoningConfig
+
+/** The `reasoning` field of the Cloudflare text configs. */
+export interface CloudflareTextReasoningConfig {
+  /**
+   * The model's reasoning data, for example `modelReasoning(record)` from a
+   * `@tanstack/ai-models` record. It wins over the adapter's own table, for
+   * `reasoning_effort` and for the levels `chat({ reasoning })` takes.
+   * `false`: the model does not reason, so no reasoning field goes out.
+   */
+  reasoning?: ModelReasoning
+}
 
 /**
  * What the env-reading factories accept: a binding, or REST fields with any

@@ -6,6 +6,7 @@ import {
   generateSpeech,
   generateTranscription,
   generateVideo,
+  getVideoJobStatus,
 } from '@tanstack/ai'
 import { composePersistence, defineAIPersistence } from '../src/types'
 import { memoryPersistence } from '../src/memory'
@@ -871,6 +872,67 @@ describe('withGenerationPersistence generation artifacts', () => {
     const job = await persistence.stores.generationRuns.get('run-video')
     expect(job).toMatchObject({ activity: 'video', status: 'completed' })
     expect(job?.artifacts?.[0]?.artifactId).toBe(video.artifactId)
+  })
+
+  it('streams a provider video body into the blob store and serves its url', async () => {
+    const persistence = memoryPersistence()
+    const adapter = videoAdapter('')
+    adapter.getVideo = vi.fn(async () => ({
+      jobId: 'video-job-1',
+      body: new Blob(['streamed-bytes']).stream(),
+      contentType: 'video/webm',
+    }))
+
+    const status = await getVideoJobStatus({
+      adapter,
+      jobId: 'video-job-1',
+      threadId: 'thread-video-stream',
+      middleware: [
+        withGenerationPersistence(persistence, {
+          threadId: 'thread-video-stream',
+          artifactUrl: (ref) => `/artifacts/${ref.artifactId}`,
+        }),
+      ],
+    })
+
+    const video = status.artifacts![0]!
+    expect(status).toMatchObject({
+      status: 'completed',
+      url: `/artifacts/${video.artifactId}`,
+    })
+    expect(status).not.toHaveProperty('body')
+    expect(video).toMatchObject({ mimeType: 'video/webm' })
+    const blob = await persistence.stores.blobs!.get(
+      `artifacts/${video.runId}/${video.artifactId}`,
+    )
+    await expect(blob?.text()).resolves.toBe('streamed-bytes')
+  })
+
+  it('falls back to a data URL when a custom extractor drops the video stream', async () => {
+    const adapter = videoAdapter('')
+    adapter.getVideo = vi.fn(async () => ({
+      jobId: 'video-job-1',
+      body: new Blob(['streamed-bytes']).stream(),
+      contentType: 'video/mp4',
+    }))
+
+    const status = await getVideoJobStatus({
+      adapter,
+      jobId: 'video-job-1',
+      threadId: 'thread-video-custom',
+      middleware: [
+        withGenerationPersistence(memoryPersistence(), {
+          artifactUrl: (ref) => `/artifacts/${ref.artifactId}`,
+          // Replaces the built-in rule and ignores `result.body`.
+          extractArtifacts: () => [],
+        }),
+      ],
+    })
+
+    expect(status).toMatchObject({
+      status: 'completed',
+      url: `data:video/mp4;base64,${btoa('streamed-bytes')}`,
+    })
   })
 
   it('throws when no threadId is available', async () => {

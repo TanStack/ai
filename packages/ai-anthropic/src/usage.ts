@@ -25,7 +25,8 @@ export type AnthropicProviderUsageDetails = {
  * `promptTokens` is the total input: uncached + cache read + cache write.
  * Anthropic's `input_tokens` counts only the uncached part, so this function
  * adds the cache parts. The cache parts are also in `promptTokensDetails`:
- * `cachedTokens` (read) and `cacheWriteTokens` (write). `totalTokens` is
+ * `cachedTokens` (read), `cacheWriteTokens` (write), and `cacheWrite1hTokens`
+ * (the 1-hour part of the write). `totalTokens` is
  * `promptTokens + completionTokens`.
  *
  * Also handles server tool use metrics. Returns `undefined` when the provider
@@ -38,17 +39,27 @@ export function buildAnthropicUsage(
     | Anthropic_SDK.Beta.BetaMessageDeltaUsage
     | undefined
     | null,
+  start?: Anthropic_SDK.Beta.BetaUsage,
 ): TokenUsage<AnthropicProviderUsageDetails> | undefined {
   if (!usage) return undefined
 
-  const inputTokens = usage.input_tokens ?? 0
+  const inputTokens = usage.input_tokens ?? start?.input_tokens ?? 0
   // `|| 0` (rather than `?? 0`) matches the sibling builders and stays defensive
   // against a runtime-absent count without tripping no-unnecessary-condition
   // (the SDK types output_tokens as a required number).
   const outputTokens = usage.output_tokens || 0
-  // The SDK types these as `number | null`.
-  const cacheWrite = usage.cache_creation_input_tokens ?? 0
-  const cacheRead = usage.cache_read_input_tokens ?? 0
+  // The SDK types these as `number | null`. A closing message_delta can leave
+  // them out: then the message_start counts apply.
+  const cacheWrite =
+    usage.cache_creation_input_tokens ?? start?.cache_creation_input_tokens ?? 0
+  const cacheRead =
+    usage.cache_read_input_tokens ?? start?.cache_read_input_tokens ?? 0
+  // The 1-hour part of the cache write (`promptCache: 'long'`). A closing
+  // message_delta has no `cache_creation`, so a stream takes message_start's.
+  const cacheCreation =
+    ('cache_creation' in usage ? usage.cache_creation : null) ??
+    start?.cache_creation
+  const cacheWrite1h = cacheCreation?.ephemeral_1h_input_tokens ?? 0
   // `input_tokens` is only the uncached part. Add the cache parts so
   // promptTokens is the total input, the same as the other adapters.
   const promptTokens = inputTokens + cacheRead + cacheWrite
@@ -64,6 +75,7 @@ export function buildAnthropicUsage(
   // other adapter guards with the same Object.keys check).
   const promptTokensDetails = {
     ...(cacheWrite ? { cacheWriteTokens: cacheWrite } : {}),
+    ...(cacheWrite1h ? { cacheWrite1hTokens: cacheWrite1h } : {}),
     ...(cacheRead ? { cachedTokens: cacheRead } : {}),
   }
   if (Object.keys(promptTokensDetails).length > 0) {
@@ -72,7 +84,7 @@ export function buildAnthropicUsage(
 
   // Add provider-specific usage details for server tool use, again only when
   // the provider actually reported any server tool requests.
-  const serverToolUse = usage.server_tool_use
+  const serverToolUse = usage.server_tool_use ?? start?.server_tool_use
   const serverToolUseDetails = {
     ...(serverToolUse?.web_search_requests
       ? { webSearchRequests: serverToolUse.web_search_requests }

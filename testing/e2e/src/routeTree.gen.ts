@@ -9,6 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ApiAdapterConfigReasoningWireRouteImport } from './routes/api.adapter-config-reasoning-wire'
+import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
+import { Route as ActivityTestRouteImport } from './routes/activity-test'
+import { Route as ApiForeignClientToolRouteImport } from './routes/api.foreign-client-tool'
+import { Route as ApiForeignChunkEventsRouteImport } from './routes/api.foreign-chunk-events'
+import { Route as ApiAnthropicTruncatedToolInputWireRouteImport } from './routes/api.anthropic-truncated-tool-input-wire'
+import { Route as ApiAnthropicSonnet55WireRouteImport } from './routes/api.anthropic-sonnet-5-5-wire'
+import { Route as ApiAnthropicMaxTokensUsageRouteImport } from './routes/api.anthropic-max-tokens-usage'
+import { Route as ForeignClientToolRouteImport } from './routes/foreign-client-tool'
+import { Route as ForeignChunkEventsRouteImport } from './routes/foreign-chunk-events'
 import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
 import { Route as WebMcpToolsRouteImport } from './routes/web-mcp-tools'
 import { Route as WebMcpPageToolsRouteImport } from './routes/web-mcp-page-tools'
@@ -145,6 +155,134 @@ import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 
+const ApiAdapterConfigReasoningWireRoute =
+  ApiAdapterConfigReasoningWireRouteImport.update({
+    id: '/api/adapter-config-reasoning-wire',
+    path: '/api/adapter-config-reasoning-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicStructuredUsageRoute =
+  ApiAnthropicStructuredUsageRouteImport.update({
+    id: '/api/anthropic-structured-usage',
+    path: '/api/anthropic-structured-usage',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicThinkingOrderWireRoute =
+  ApiAnthropicThinkingOrderWireRouteImport.update({
+    id: '/api/anthropic-thinking-order-wire',
+    path: '/api/anthropic-thinking-order-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicTruncatedToolInputWireRoute =
+  ApiAnthropicTruncatedToolInputWireRouteImport.update({
+    id: '/api/anthropic-truncated-tool-input-wire',
+    path: '/api/anthropic-truncated-tool-input-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiArktypeToolWireRoute = ApiArktypeToolWireRouteImport.update({
+  id: '/api/arktype-tool-wire',
+  path: '/api/arktype-tool-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiActivityTestRoute = ApiActivityTestRouteImport.update({
+  id: '/api/activity-test',
+  path: '/api/activity-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActivityTestRoute = ActivityTestRouteImport.update({
+  id: '/activity-test',
+  path: '/activity-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiForeignClientToolRoute = ApiForeignClientToolRouteImport.update({
+  id: '/api/foreign-client-tool',
+  path: '/api/foreign-client-tool',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiForeignChunkEventsRoute = ApiForeignChunkEventsRouteImport.update({
+  id: '/api/foreign-chunk-events',
+  path: '/api/foreign-chunk-events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAnthropicTruncatedToolInputWireRoute =
+  ApiAnthropicTruncatedToolInputWireRouteImport.update({
+    id: '/api/anthropic-truncated-tool-input-wire',
+    path: '/api/anthropic-truncated-tool-input-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiArktypeToolWireRoute = ApiArktypeToolWireRouteImport.update({
+  id: '/api/arktype-tool-wire',
+  path: '/api/arktype-tool-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAnthropicSonnet55WireRoute =
+  ApiAnthropicSonnet55WireRouteImport.update({
+    id: '/api/anthropic-sonnet-5-5-wire',
+    path: '/api/anthropic-sonnet-5-5-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicStructuredUsageRoute =
+  ApiAnthropicStructuredUsageRouteImport.update({
+    id: '/api/anthropic-structured-usage',
+    path: '/api/anthropic-structured-usage',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicThinkingOrderWireRoute =
+  ApiAnthropicThinkingOrderWireRouteImport.update({
+    id: '/api/anthropic-thinking-order-wire',
+    path: '/api/anthropic-thinking-order-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicTruncatedToolInputWireRoute =
+  ApiAnthropicTruncatedToolInputWireRouteImport.update({
+    id: '/api/anthropic-truncated-tool-input-wire',
+    path: '/api/anthropic-truncated-tool-input-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiArktypeToolWireRoute = ApiArktypeToolWireRouteImport.update({
+  id: '/api/arktype-tool-wire',
+  path: '/api/arktype-tool-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAnthropicMaxTokensUsageRoute =
+  ApiAnthropicMaxTokensUsageRouteImport.update({
+    id: '/api/anthropic-max-tokens-usage',
+    path: '/api/anthropic-max-tokens-usage',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicMultiTurnStructuredWireRoute =
+  ApiAnthropicMultiTurnStructuredWireRouteImport.update({
+    id: '/api/anthropic-multi-turn-structured-wire',
+    path: '/api/anthropic-multi-turn-structured-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicOpus5CombinedWireRoute =
+  ApiAnthropicOpus5CombinedWireRouteImport.update({
+    id: '/api/anthropic-opus-5-combined-wire',
+    path: '/api/anthropic-opus-5-combined-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicRedactedThinkingWireRoute =
+  ApiAnthropicRedactedThinkingWireRouteImport.update({
+    id: '/api/anthropic-redacted-thinking-wire',
+    path: '/api/anthropic-redacted-thinking-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAnthropicSkillsWireRoute = ApiAnthropicSkillsWireRouteImport.update({
+  id: '/api/anthropic-skills-wire',
+  path: '/api/anthropic-skills-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForeignClientToolRoute = ForeignClientToolRouteImport.update({
+  id: '/foreign-client-tool',
+  path: '/foreign-client-tool',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForeignChunkEventsRoute = ForeignChunkEventsRouteImport.update({
+  id: '/foreign-chunk-events',
+  path: '/foreign-chunk-events',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WebsocketAdapterRoute = WebsocketAdapterRouteImport.update({
   id: '/websocket-adapter',
   path: '/websocket-adapter',
@@ -854,6 +992,16 @@ const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
+  '/api/adapter-config-reasoning-wire': typeof ApiAdapterConfigReasoningWireRoute
+  '/api/activity-test': typeof ApiActivityTestRoute
+  '/activity-test': typeof ActivityTestRoute
+  '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
+  '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
+  '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
+  '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
+  '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
+  '/foreign-client-tool': typeof ForeignClientToolRoute
+  '/foreign-chunk-events': typeof ForeignChunkEventsRoute
   '/': typeof IndexRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
@@ -991,6 +1139,16 @@ export interface FileRoutesByFullPath {
   '/api/video/stream': typeof ApiVideoStreamRoute
 }
 export interface FileRoutesByTo {
+  '/api/adapter-config-reasoning-wire': typeof ApiAdapterConfigReasoningWireRoute
+  '/api/activity-test': typeof ApiActivityTestRoute
+  '/activity-test': typeof ActivityTestRoute
+  '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
+  '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
+  '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
+  '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
+  '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
+  '/foreign-client-tool': typeof ForeignClientToolRoute
+  '/foreign-chunk-events': typeof ForeignChunkEventsRoute
   '/': typeof IndexRoute
   '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
@@ -1128,6 +1286,16 @@ export interface FileRoutesByTo {
   '/api/video/stream': typeof ApiVideoStreamRoute
 }
 export interface FileRoutesById {
+  '/api/adapter-config-reasoning-wire': typeof ApiAdapterConfigReasoningWireRoute
+  '/api/activity-test': typeof ApiActivityTestRoute
+  '/activity-test': typeof ActivityTestRoute
+  '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
+  '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
+  '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
+  '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
+  '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
+  '/foreign-client-tool': typeof ForeignClientToolRoute
+  '/foreign-chunk-events': typeof ForeignChunkEventsRoute
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/byok': typeof ByokRoute
@@ -1268,6 +1436,16 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/api/adapter-config-reasoning-wire'
+    | '/api/activity-test'
+    | '/activity-test'
+    | '/api/foreign-client-tool'
+    | '/api/foreign-chunk-events'
+    | '/api/anthropic-truncated-tool-input-wire'
+    | '/api/anthropic-sonnet-5-5-wire'
+    | '/api/anthropic-max-tokens-usage'
+    | '/foreign-client-tool'
+    | '/foreign-chunk-events'
     | '/'
     | '/byok'
     | '/chat-client-default-bridge'
@@ -1405,6 +1583,16 @@ export interface FileRouteTypes {
     | '/api/video/stream'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/api/adapter-config-reasoning-wire'
+    | '/api/activity-test'
+    | '/activity-test'
+    | '/api/foreign-client-tool'
+    | '/api/foreign-chunk-events'
+    | '/api/anthropic-truncated-tool-input-wire'
+    | '/api/anthropic-sonnet-5-5-wire'
+    | '/api/anthropic-max-tokens-usage'
+    | '/foreign-client-tool'
+    | '/foreign-chunk-events'
     | '/'
     | '/byok'
     | '/chat-client-default-bridge'
@@ -1541,6 +1729,16 @@ export interface FileRouteTypes {
     | '/api/tts/stream'
     | '/api/video/stream'
   id:
+    | '/api/adapter-config-reasoning-wire'
+    | '/api/activity-test'
+    | '/activity-test'
+    | '/api/foreign-client-tool'
+    | '/api/foreign-chunk-events'
+    | '/api/anthropic-truncated-tool-input-wire'
+    | '/api/anthropic-sonnet-5-5-wire'
+    | '/api/anthropic-max-tokens-usage'
+    | '/foreign-client-tool'
+    | '/foreign-chunk-events'
     | '__root__'
     | '/'
     | '/byok'
@@ -1680,6 +1878,16 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  ApiAdapterConfigReasoningWireRoute: typeof ApiAdapterConfigReasoningWireRoute
+  ApiActivityTestRoute: typeof ApiActivityTestRoute
+  ActivityTestRoute: typeof ActivityTestRoute
+  ApiForeignClientToolRoute: typeof ApiForeignClientToolRoute
+  ApiForeignChunkEventsRoute: typeof ApiForeignChunkEventsRoute
+  ApiAnthropicTruncatedToolInputWireRoute: typeof ApiAnthropicTruncatedToolInputWireRoute
+  ApiAnthropicSonnet55WireRoute: typeof ApiAnthropicSonnet55WireRoute
+  ApiAnthropicMaxTokensUsageRoute: typeof ApiAnthropicMaxTokensUsageRoute
+  ForeignClientToolRoute: typeof ForeignClientToolRoute
+  ForeignChunkEventsRoute: typeof ForeignChunkEventsRoute
   IndexRoute: typeof IndexRoute
   ByokRoute: typeof ByokRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
@@ -1814,6 +2022,76 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/api/adapter-config-reasoning-wire': {
+      id: '/api/adapter-config-reasoning-wire'
+      path: '/api/adapter-config-reasoning-wire'
+      fullPath: '/api/adapter-config-reasoning-wire'
+      preLoaderRoute: typeof ApiAdapterConfigReasoningWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/activity-test': {
+      id: '/api/activity-test'
+      path: '/api/activity-test'
+      fullPath: '/api/activity-test'
+      preLoaderRoute: typeof ApiActivityTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/activity-test': {
+      id: '/activity-test'
+      path: '/activity-test'
+      fullPath: '/activity-test'
+      preLoaderRoute: typeof ActivityTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/foreign-client-tool': {
+      id: '/api/foreign-client-tool'
+      path: '/api/foreign-client-tool'
+      fullPath: '/api/foreign-client-tool'
+      preLoaderRoute: typeof ApiForeignClientToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/foreign-chunk-events': {
+      id: '/api/foreign-chunk-events'
+      path: '/api/foreign-chunk-events'
+      fullPath: '/api/foreign-chunk-events'
+      preLoaderRoute: typeof ApiForeignChunkEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-truncated-tool-input-wire': {
+      id: '/api/anthropic-truncated-tool-input-wire'
+      path: '/api/anthropic-truncated-tool-input-wire'
+      fullPath: '/api/anthropic-truncated-tool-input-wire'
+      preLoaderRoute: typeof ApiAnthropicTruncatedToolInputWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-sonnet-5-5-wire': {
+      id: '/api/anthropic-sonnet-5-5-wire'
+      path: '/api/anthropic-sonnet-5-5-wire'
+      fullPath: '/api/anthropic-sonnet-5-5-wire'
+      preLoaderRoute: typeof ApiAnthropicSonnet55WireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-max-tokens-usage': {
+      id: '/api/anthropic-max-tokens-usage'
+      path: '/api/anthropic-max-tokens-usage'
+      fullPath: '/api/anthropic-max-tokens-usage'
+      preLoaderRoute: typeof ApiAnthropicMaxTokensUsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/foreign-client-tool': {
+      id: '/foreign-client-tool'
+      path: '/foreign-client-tool'
+      fullPath: '/foreign-client-tool'
+      preLoaderRoute: typeof ForeignClientToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/foreign-chunk-events': {
+      id: '/foreign-chunk-events'
+      path: '/foreign-chunk-events'
+      fullPath: '/foreign-chunk-events'
+      preLoaderRoute: typeof ForeignChunkEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/websocket-adapter': {
       id: '/websocket-adapter'
       path: '/websocket-adapter'
@@ -2821,6 +3099,17 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 )
 
 const rootRouteChildren: RootRouteChildren = {
+  ApiAdapterConfigReasoningWireRoute: ApiAdapterConfigReasoningWireRoute,
+  ApiActivityTestRoute: ApiActivityTestRoute,
+  ActivityTestRoute: ActivityTestRoute,
+  ApiForeignClientToolRoute: ApiForeignClientToolRoute,
+  ApiForeignChunkEventsRoute: ApiForeignChunkEventsRoute,
+  ApiAnthropicTruncatedToolInputWireRoute:
+    ApiAnthropicTruncatedToolInputWireRoute,
+  ApiAnthropicSonnet55WireRoute: ApiAnthropicSonnet55WireRoute,
+  ApiAnthropicMaxTokensUsageRoute: ApiAnthropicMaxTokensUsageRoute,
+  ForeignClientToolRoute: ForeignClientToolRoute,
+  ForeignChunkEventsRoute: ForeignChunkEventsRoute,
   IndexRoute: IndexRoute,
   ByokRoute: ByokRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,

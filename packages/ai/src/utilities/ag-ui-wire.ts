@@ -1,4 +1,5 @@
 import type {
+  ActivityMessage,
   AssistantMessage,
   InputContent,
   ReasoningMessage,
@@ -8,6 +9,7 @@ import type {
   UserMessage,
 } from '@ag-ui/core'
 import type {
+  ActivityPart,
   ContentPart,
   MessagePart,
   ModelMessage,
@@ -40,6 +42,7 @@ type WireToolMessage = WithMetadata<
   }
 >
 type WireReasoningMessage = WithMetadata<ReasoningMessage>
+type WireActivityMessage = WithMetadata<ActivityMessage>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -79,6 +82,7 @@ export type WireMessage =
   | WireAssistantMessage
   | WireToolMessage
   | WireReasoningMessage
+  | WireActivityMessage
 
 /**
  * Serialize TanStack `UIMessage`s and `ModelMessage`s into the AG-UI
@@ -90,11 +94,16 @@ export type WireMessage =
  * structured-output metadata for UI snapshots. An assistant message whose
  * parts leave the default block order goes out as several rows in the real
  * order (see `TanStackMessageMetadata.continues`). A tool result also ends a
- * row, and its tool row follows that row.
+ * row, and its tool row follows that row. Set `includeActivity` to emit
+ * AG-UI `ActivityMessage` rows (MESSAGES_SNAPSHOT only — default omit so
+ * RunAgentInput never carries activity).
  */
 export function uiMessagesToWire(
   messages: Array<UIMessage | ModelMessage>,
-  options?: { includeSnapshotStructuredOutput: boolean },
+  options?: {
+    includeSnapshotStructuredOutput?: boolean
+    includeActivity?: boolean
+  },
 ): Array<WireMessage> {
   const wire: Array<WireMessage> = []
   const usedWireIds = new Set<string>(
@@ -106,6 +115,7 @@ export function uiMessagesToWire(
   )
   const includeSnapshotStructuredOutput =
     options?.includeSnapshotStructuredOutput ?? false
+  const includeActivity = options?.includeActivity ?? false
 
   const assistantIds = new Set<string>()
   for (const msg of messages) {
@@ -115,6 +125,28 @@ export function uiMessagesToWire(
   }
 
   for (const msg of messages) {
+    if (msg.role === 'activity') {
+      if (includeActivity && 'parts' in msg) {
+        const part = msg.parts.find(
+          (p): p is ActivityPart => p.type === 'activity',
+        )
+        if (part) {
+          const activity: WireActivityMessage = {
+            id: msg.id,
+            role: 'activity',
+            activityType: part.activityType,
+            content: structuredClone(part.content),
+            ...(msg.metadata != null && { metadata: msg.metadata }),
+            ...(part.subagentRunId !== undefined && {
+              subagentRunId: part.subagentRunId,
+            }),
+          }
+          wire.push(activity)
+        }
+      }
+      continue
+    }
+
     if (!('parts' in msg) && msg.role === 'tool' && msg.toolCallId) {
       const id = uniqueToolWireId(
         toolWireId(msg.id, msg.toolCallId, assistantIds),
@@ -423,7 +455,7 @@ function toAnchor(
 ): WireAssistantMessage
 function toAnchor(
   msg: UIMessage,
-  role: UIMessage['role'],
+  role: 'system' | 'user' | 'assistant',
   extras: {
     content?: string | Array<InputContent>
     toolCalls?: Array<ToolCall>
@@ -569,7 +601,10 @@ function collectText(parts: ReadonlyArray<MessagePart>): string {
  */
 function subagentToWire(
   part: SubagentPart,
-  options?: { includeSnapshotStructuredOutput: boolean },
+  options?: {
+    includeSnapshotStructuredOutput?: boolean
+    includeActivity?: boolean
+  },
 ): Array<WireMessage> {
   const { subagent } = part
   const info: SubagentWireInfo = {

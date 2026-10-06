@@ -84,6 +84,22 @@ export interface ReasoningRequest {
  */
 export type ModelReasoning = false | { map?: ReasoningMap; budget: boolean }
 
+/**
+ * The reasoning capability of an adapter whose config can carry `reasoning`
+ * (a model's data, for example from a catalog record). With `reasoning` in
+ * the config, `chat({ reasoning })` takes every level, and the adapter moves
+ * a level the model does not have to the nearest one. `reasoning: false`
+ * takes none. Without it, the adapter's own data for the model applies.
+ */
+export type ConfigReasoning<
+  TConfig,
+  TTable extends ReasoningCapability,
+> = TConfig extends { reasoning: false }
+  ? never
+  : TConfig extends { reasoning: ModelReasoning }
+    ? ReasoningCapability
+    : TTable
+
 /** A level or an object, as the user passed it, into the one shape adapters read. */
 export function normalizeReasoning(
   option: ReasoningOption | undefined,

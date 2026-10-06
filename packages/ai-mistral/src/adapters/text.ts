@@ -26,13 +26,14 @@ import type {
   ModelMessage,
   AdapterYieldChunk,
   ModelReasoning,
+  ConfigReasoning,
+  ReasoningCapability,
   ReasoningRequest,
   ResolvedPromptCache,
   TextOptions,
   ToolChoice,
 } from '@tanstack/ai'
 import type {
-  MISTRAL_CHAT_MODELS,
   MistralChatModelProviderOptionsByName,
   MistralModelInputModalitiesByName,
   MistralTextAdapterModel,
@@ -94,7 +95,21 @@ function parseToolCallInput(
 /**
  * Configuration for Mistral text adapter.
  */
-export type MistralTextConfig = MistralClientConfig
+export interface MistralTextConfig extends MistralClientConfig {
+  /**
+   * The model's reasoning data, for example `modelReasoning(record)` from a
+   * `@tanstack/ai-models` record. It wins over the adapter's own table, for
+   * `reasoning_effort` and for the levels `chat({ reasoning })` takes.
+   * `false`: the model does not reason, so no reasoning field goes out.
+   */
+  reasoning?: ModelReasoning
+}
+
+/**
+ * A model id: a known Mistral model, or any other id, for example a catalog
+ * id that this package does not list yet.
+ */
+export type MistralModelId = MistralTextAdapterModel | (string & {})
 
 /**
  * Alias for TextProviderOptions for external use.
@@ -253,10 +268,11 @@ interface MistralRawChunk {
  * Tree-shakeable adapter for Mistral chat/text completion functionality.
  */
 export class MistralTextAdapter<
-  TModel extends MistralTextAdapterModel,
+  TModel extends MistralModelId,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
+  TReasoning extends ReasoningCapability = ResolveReasoning<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
@@ -265,7 +281,7 @@ export class MistralTextAdapter<
   ReadonlyArray<string>,
   unknown,
   never,
-  ResolveReasoning<TModel>
+  TReasoning
 > {
   readonly name = 'mistral' as const
   override readonly api = 'mistral-conversations' as const
@@ -273,7 +289,7 @@ export class MistralTextAdapter<
   override readonly inputModalities = MISTRAL_MODEL_INPUT_MODALITIES[this.model]
 
   private readonly client: Mistral
-  private readonly rawConfig: MistralClientConfig
+  private readonly rawConfig: MistralTextConfig
 
   constructor(config: MistralTextConfig, model: TModel) {
     super(config, model)
@@ -1119,7 +1135,7 @@ export class MistralTextAdapter<
       stream: true,
       ...mistralReasoning(
         options.reasoning,
-        MISTRAL_MODEL_REASONING[options.model],
+        this.rawConfig.reasoning ?? MISTRAL_MODEL_REASONING[options.model],
       ),
       ...(modelOptions && {
         ...(modelOptions.stop != null && { stop: modelOptions.stop }),
@@ -1401,6 +1417,20 @@ function messageToWire(msg: ChatCompletionStreamRequest['messages'][number]) {
 }
 
 /**
+ * The adapter type for a model and a config. A config with `reasoning` sets
+ * the levels `chat({ reasoning })` takes; see {@link ConfigReasoning}.
+ */
+export type MistralTextAdapterFor<
+  TModel extends MistralModelId,
+  TConfig = MistralTextConfig,
+> = MistralTextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>,
+  ConfigReasoning<TConfig, ResolveReasoning<TModel>>
+>
+
+/**
  * Creates a Mistral text adapter with explicit API key.
  *
  * @param model - The model name (e.g., 'mistral-large-latest')
@@ -1414,12 +1444,16 @@ function messageToWire(msg: ChatCompletionStreamRequest['messages'][number]) {
  * ```
  */
 export function createMistralText<
-  TModel extends (typeof MISTRAL_CHAT_MODELS)[number],
+  TModel extends MistralModelId,
+  TConfig extends Omit<MistralTextConfig, 'apiKey'> = Omit<
+    MistralTextConfig,
+    'apiKey'
+  >,
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<MistralTextConfig, 'apiKey'>,
-): MistralTextAdapter<TModel> {
+  config?: TConfig,
+): MistralTextAdapterFor<TModel, TConfig> {
   return new MistralTextAdapter({ apiKey, ...config }, model)
 }
 
@@ -1437,11 +1471,12 @@ export function createMistralText<
  * ```
  */
 export function mistralText<
-  TModel extends (typeof MISTRAL_CHAT_MODELS)[number],
->(
-  model: TModel,
-  config?: Omit<MistralTextConfig, 'apiKey'>,
-): MistralTextAdapter<TModel> {
+  TModel extends MistralModelId,
+  TConfig extends Omit<MistralTextConfig, 'apiKey'> = Omit<
+    MistralTextConfig,
+    'apiKey'
+  >,
+>(model: TModel, config?: TConfig): MistralTextAdapterFor<TModel, TConfig> {
   const apiKey = getMistralApiKeyFromEnv()
   return createMistralText(model, apiKey, config)
 }

@@ -194,6 +194,20 @@ export type HostEvent =
   | HostSessionEvent
   | HostSessionDeletedEvent
 
+export interface ForkSessionOptions {
+  /** The thread to copy. */
+  threadId: string
+  /** The new thread. It must have no messages yet. */
+  newThreadId: string
+  /**
+   * The id of the last message to copy. Default: the whole transcript. An id
+   * the thread does not have throws.
+   */
+  at?: string
+  /** Who opens the new thread, as in `open`. */
+  principal?: Principal
+}
+
 /** Runs sessions for one or more harnesses in this process. */
 export interface HarnessHost<TLogState = unknown> {
   /**
@@ -203,6 +217,22 @@ export interface HarnessHost<TLogState = unknown> {
   open: <THarness extends AnyHarness>(
     harness: THarness,
     options: OpenSessionOptions,
+  ) => Promise<HarnessSession<THarness>>
+  /**
+   * Start a new thread as a copy of another one, and return its open
+   * session. It copies the transcript up to and including the message `at`,
+   * the media that those messages use, the stored settings, and the plugin
+   * config. It does not copy plugin state, pending interrupts, queued
+   * inputs, or running work. A `newThreadId` with messages is refused.
+   *
+   * @example
+   * ```ts
+   * const fork = await host.fork(assistant, { threadId: 't-1', newThreadId: 't-2', at: messageId })
+   * ```
+   */
+  fork: <THarness extends AnyHarness>(
+    harness: THarness,
+    options: ForkSessionOptions,
   ) => Promise<HarnessSession<THarness>>
   /** Close every live session. */
   close: () => Promise<void>
@@ -543,6 +573,37 @@ export function createHarnessHost<TLogState = undefined>(
         sessions.set(key, session)
       }
       return session as Promise<HarnessSession<typeof harness>>
+    },
+    async fork(harness, { threadId, newThreadId, at, principal }) {
+      if (newThreadId === threadId) {
+        throw new Error('A fork needs a new thread: newThreadId is threadId.')
+      }
+      const source = await host.open(harness, { threadId })
+      const transcript = await source.transcript()
+      const end =
+        at === undefined
+          ? transcript.length
+          : transcript.findIndex((message) => message.id === at) + 1
+      if (end === 0) {
+        throw new Error(
+          `Thread ${JSON.stringify(threadId)} has no message ${JSON.stringify(at)}.`,
+        )
+      }
+      const isUsed = logStore
+        ? (await logStore.read(newThreadId, { limit: 1 })).length > 0
+        : ((await persistence.stores.messages?.loadThread(newThreadId))
+            ?.length ?? 0) > 0
+      if (isUsed) {
+        throw new Error(
+          `Thread ${JSON.stringify(newThreadId)} is not empty. Fork into a new thread.`,
+        )
+      }
+      const fork = await host.open(harness, {
+        threadId: newThreadId,
+        ...(principal ? { principal } : {}),
+      })
+      await fork.adoptFork(source, transcript.slice(0, end))
+      return fork
     },
     async close() {
       const live = await Promise.allSettled(sessions.values())

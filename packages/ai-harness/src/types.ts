@@ -102,7 +102,14 @@ export type HarnessInput = (
   | { op: 'steer'; message: UserInput; context?: unknown }
   | { op: 'followUp'; message: UserInput; context?: unknown }
   | { op: 'resolve'; resume: Array<RunAgentResumeItem> }
-  | { op: 'agent'; agent: string; input?: unknown; detached?: boolean }
+  | {
+      op: 'agent'
+      agent: string
+      input?: unknown
+      detached?: boolean
+      /** Run again after a host stop. See `AgentStartOptions.resume`. */
+      resume?: boolean
+    }
   | { op: 'cancel'; operationId?: string }
   | { op: 'cancelInput'; inputId: string }
   | {
@@ -113,6 +120,8 @@ export type HarnessInput = (
   | { op: 'command'; name: string; input?: unknown }
   | { op: 'answer'; questionId: string; value: unknown }
   | { op: 'config'; key: string; value: unknown }
+  | { op: 'configure'; settings: ThreadSettingsChange }
+  | { op: 'reset'; note?: string }
 ) & { inputId?: string }
 
 /**
@@ -136,6 +145,34 @@ export interface WaitingInput {
  * messages before that message. `through` keeps that message too.
  */
 export type ForkPoint = { before: string } | { through: string }
+
+/**
+ * The stored settings of one thread. They apply from the next turn, stay
+ * after a restart (with `stores.metadata`), and a fork copies them. A turn's
+ * `overrides` win over them.
+ */
+export interface ThreadSettings {
+  /** A name from `defineHarness({ models })`. */
+  model?: string
+  /** The `reasoning` of every turn, as `chat({ reasoning })` takes it. */
+  reasoning?: ReasoningOption
+  /** Text added as the last system prompt of every turn. */
+  instructions?: string
+  /** Exactly these tools (by name), or every tool but the `remove` ones. */
+  tools?: Array<string> | { remove: Array<string> }
+  /** Plugins whose tools, prompts, and middleware the turns leave out. */
+  plugins?: { remove: Array<string> }
+  /**
+   * The working folder of the thread, from the root of the workspace tools.
+   * A folder outside that root is refused when a tool uses it.
+   */
+  cwd?: string
+}
+
+/** A change to {@link ThreadSettings}: `null` clears a field, a missing field stays. */
+export type ThreadSettingsChange = {
+  [Key in keyof ThreadSettings]?: ThreadSettings[Key] | null
+}
 
 /** How an input ended. `session.settled(inputId)` resolves to it. */
 export interface InputSettlement {
@@ -270,6 +307,8 @@ export const HARNESS_EVENTS = {
   operationFinished: 'harness.operation.finished',
   operationResumed: 'harness.operation.resumed',
   configChanged: 'harness.config.changed',
+  /** `session.configure` changed the settings. The value has `settings`. */
+  settingsChanged: 'harness.settings.changed',
   /** A plugin added or removed a command with `ctx.commands`. */
   commandsChanged: 'harness.commands.changed',
   question: 'harness.question',
@@ -293,4 +332,14 @@ export const HARNESS_EVENTS = {
    * `retries`, and `error`.
    */
   turnRetry: 'harness.turn.retry',
+  /**
+   * `session.reset()` started a fresh model context. The value has
+   * `inputId` and the `note`, when there is one.
+   */
+  reset: 'harness.reset',
+  /**
+   * A model call reported its usage. The value has `model`, `sender` (when
+   * known), the `usage` of the call, and the new thread `total`.
+   */
+  usage: 'harness.usage',
 } as const

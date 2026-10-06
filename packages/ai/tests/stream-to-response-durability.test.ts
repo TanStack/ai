@@ -101,6 +101,26 @@ function fixedOffsetDurability(
 }
 
 describe('toServerSentEventsResponse with durability', () => {
+  it('keeps persisting while a connected client does not read', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=unread-connected', {
+        method: 'POST',
+      }),
+    )
+    const { stream } = fiveChunkStream()
+    // The response is held, never read and never cancelled.
+    const response = toServerSentEventsResponse(stream, {
+      durability: { adapter: durability, batch: 1 },
+    })
+    expect(response.body!.locked).toBe(false)
+
+    await vi.waitFor(async () => {
+      expect(
+        (await durability.snapshot()).map((entry) => label(entry.chunk)),
+      ).toEqual([`[${EventType.CUSTOM}]`, '1', '2', '3', '4', '5'])
+    })
+  })
+
   it('appends a fresh run and tags every event with its adapter offset', async () => {
     const durability = memoryStream(
       new Request('https://example.test/api/chat?runId=response-fresh', {
@@ -876,6 +896,85 @@ describe('resume response helpers', () => {
     expect(sse.status).toBe(400)
     expect(ndjson.status).toBe(400)
     expect(await sse.text()).toMatch(/No resume offset/)
+  })
+
+  it('logs a replay failure server-side as well as sending it to the reader', async () => {
+    const errorLog = vi.fn()
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: errorLog,
+    }
+    // A reconnect for a run this process doesn't hold (expired, or never
+    // produced here). The reader gets a RUN_ERROR; the operator needs the
+    // cause server-side too.
+    const reconnect = memoryStream(
+      new Request('https://example.test/api/chat?runId=other-worker', {
+        headers: { 'Last-Event-ID': 'memory:v1:other-worker:3' },
+      }),
+    )
+
+    const events = parseSseEvents(
+      await readBody(
+        resumeServerSentEventsResponse({
+          adapter: reconnect,
+          debug: { logger },
+        }),
+      ),
+    )
+
+    expect(events.map((event) => field(event, 'type'))).toEqual([
+      EventType.RUN_ERROR,
+    ])
+    expect(errorLog).toHaveBeenCalledWith(
+      expect.stringContaining('replaying durability stream failed'),
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: expect.stringMatching(
+            /Unknown or expired memory stream run/,
+          ),
+        }),
+      }),
+    )
+  })
+
+  it('does not log a replay that rejects because the reader went away', async () => {
+    const errorLog = vi.fn()
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: errorLog,
+    }
+    // A backend that passes the signal straight to `fetch` rejects on abort.
+    const rejectsOnAbort: StreamDurability = {
+      resumeFrom: () => 'off-1',
+      append: () => Promise.resolve([]),
+      // eslint-disable-next-line require-yield
+      read: async function* (_offset, signal) {
+        await new Promise((_resolve, reject) => {
+          signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          )
+        })
+      },
+      close: () => Promise.resolve(),
+      snapshot: () => Promise.resolve([]),
+    }
+    const abortController = new AbortController()
+
+    const body = readBody(
+      toHttpResponse((async function* () {})(), {
+        durability: { adapter: rejectsOnAbort },
+        abortController,
+        debug: { logger },
+      }),
+    )
+    abortController.abort()
+    await body
+
+    expect(errorLog).not.toHaveBeenCalled()
   })
 })
 

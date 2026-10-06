@@ -97,6 +97,7 @@ export {
 } from './activities/chat/agents/define-agent'
 export type {
   BoundActivities,
+  AgentStep,
   SubagentBinding,
   SubagentForward,
 } from './activities/chat/agents/bound'
@@ -465,6 +466,7 @@ export {
 } from './reasoning'
 export type {
   AdapterReasoning,
+  ConfigReasoning,
   ModelReasoning,
   ReasoningCapability,
   ReasoningLevel,
@@ -545,6 +547,7 @@ export {
   modelMessagesToUIMessages,
   normalizeToUIMessage,
 } from './activities/chat/messages'
+export { interleaveActivityRecords } from './activities/chat/activity-records'
 
 // Stream processing (unified for server and client)
 export {

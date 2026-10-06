@@ -36,6 +36,14 @@ interface ApiModel {
     output?: number
     cache_read?: number
     cache_write?: number
+    /** Higher prices above an input size, for example long context. */
+    tiers?: Array<{
+      input?: number
+      output?: number
+      cache_read?: number
+      cache_write?: number
+      tier?: { type?: string; size?: number }
+    }>
   }
   limit?: { context?: number; output?: number }
   provider?: { npm?: string; api?: string }
@@ -65,6 +73,13 @@ const trimModel = (model: ApiModel) => ({
     output: model.cost.output,
     cache_read: model.cost.cache_read,
     cache_write: model.cost.cache_write,
+    tiers: model.cost.tiers?.map((tier) => ({
+      input: tier.input,
+      output: tier.output,
+      cache_read: tier.cache_read,
+      cache_write: tier.cache_write,
+      tier: tier.tier && { type: tier.tier.type, size: tier.tier.size },
+    })),
   },
   limit: model.limit && {
     context: model.limit.context,

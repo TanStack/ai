@@ -50,6 +50,11 @@ export interface OutsideAccess {
   ask: (message: string) => Promise<unknown>
   /** The permission mode of the session, for example `'bypass'`. */
   mode: () => unknown
+  /**
+   * The working folder of the thread, from `root` (the `cwd` setting of
+   * `session.configure`). Relative paths start there. Read at each call.
+   */
+  cwd?: () => string | undefined
 }
 
 /** Is `full` the folder `dir`, or a path in it? `sep` is the separator. */
@@ -108,6 +113,11 @@ export function createWorkspaceTools(
   // questions that wait for an answer, by folder, so parallel calls ask once.
   const allowed: Array<string> = []
   const asking = new Map<string, Promise<boolean>>()
+  /** The working folder: `root`, or the thread's `cwd` in it. */
+  const here = () => {
+    const cwd = access?.cwd?.()
+    return cwd ? paths.resolve(root, cwd) : root
+  }
 
   /** Ask once about `folder`. A yes allows it for the session. */
   const allow = (folder: string, message: string) => {
@@ -145,7 +155,7 @@ export function createWorkspaceTools(
   // The boundary check uses real paths, so a link inside the workspace that
   // leads out of it counts as outside.
   const reach: ToolEnv['reach'] = async (path, tool, kind) => {
-    const full = paths.resolve(root, path)
+    const full = paths.resolve(here(), path)
     const real = await realPath(full)
     const folders = [await realPath(root), ...allowed]
     const isAllowed = folders.some((dir) => within(dir, real, paths.sep))
@@ -197,10 +207,10 @@ export function createWorkspaceTools(
   // What each call touches, as the tool resolves it, for the permission
   // rules with a `resource`.
   const file = (input: unknown) => [
-    paths.resolve(root, stringArg(input, 'path')),
+    paths.resolve(here(), stringArg(input, 'path')),
   ]
   const folder = (input: unknown) => [
-    paths.resolve(root, optionalString(input, 'path') ?? '.'),
+    paths.resolve(here(), optionalString(input, 'path') ?? '.'),
   ]
   const resources: Record<string, ToolResources> = {
     read_file: { paths: file },
@@ -211,7 +221,7 @@ export function createWorkspaceTools(
     patch: {
       paths: (input) =>
         patchPaths(stringArg(input, 'patch')).map((each) =>
-          paths.resolve(root, each),
+          paths.resolve(here(), each),
         ),
     },
     bash: { commands: bashResources },
@@ -263,19 +273,29 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
     name: 'tanstack/workspace-tools',
     setup: (ctx) => {
       const hooks = ctx.collect(WorkspaceHooks)
+      // The working folder is the thread's `cwd` setting, read at each call.
+      const cwd = () => ctx.session.settings().cwd
       const { tools, prompt, resources } = createWorkspaceTools(options, {
         access: {
           ask: (message) => ctx.session.ask({ message }),
           mode: () => ctx.config.get('mode'),
+          cwd,
         },
         hooks: () => hooks,
         note: (text) => ctx.session.note(text, { wake: true }),
         // Kills the background `bash` jobs when the plugin is disposed.
         signal: ctx.resources.signal,
       })
+      const paths = pathsOf(options.backend ?? hostBackend)
+      const folder = () => {
+        const dir = cwd()
+        return dir
+          ? ` The working folder of this thread is ${paths.resolve(options.root, dir)}. Relative paths start there.`
+          : ''
+      }
       return {
         tools,
-        prompts: [prompt],
+        prompts: [() => prompt + folder()],
         prepareTools: (turn) =>
           withEditStyle(turn.tools, options.editStyle ?? 'auto', turn.model),
         contribute: [

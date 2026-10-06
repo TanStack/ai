@@ -27,6 +27,7 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 | `claude-fable-5`     | 1M             | 128K       | Most capable; thinking always on (adaptive) |
 | `claude-opus-5`      | 1M             | 128K       | Opus tier; budget thinking + sampling       |
 | `claude-opus-5-fast` | 1M             | 128K       | Fast-mode Opus 5; same options as opus-5    |
+| `claude-sonnet-5-5`  | 1M             | 128K       | Sonnet tier; adaptive-only, no sampling     |
 | `claude-sonnet-5`    | 1M             | 128K       | Best balance; adaptive thinking by default  |
 | `claude-opus-4-8`    | 1M             | 128K       | Opus tier; adaptive thinking, no sampling   |
 | `claude-opus-4-7`    | 1M             | 128K       | Older Opus; adaptive thinking, no sampling  |
@@ -125,8 +126,9 @@ chat({
 - A thinking budget (`reasoning: { level, budgetTokens }`) goes only to the
   budget models. The adapter raises `max_tokens` above the budget.
 - Cannot set both `top_p` and `temperature` at the same time (throws error).
-- `claude-sonnet-5`, `claude-fable-5`, `claude-opus-4-8`, and
-  `claude-opus-4-7` do NOT accept `temperature`, `top_p`, or `top_k`
-  (typed per model). Their `reasoning` levels go out as adaptive thinking.
+- `claude-sonnet-5`, `claude-sonnet-5-5`, `claude-fable-5`, `claude-fable-5-1`,
+  `claude-opus-4-8`, and `claude-opus-4-7` do NOT accept `temperature`,
+  `top_p`, or `top_k` (typed per model). Their `reasoning` levels go out as
+  adaptive thinking.
 - System prompts support prompt caching via `cache_control` on `TextBlockParam[]`.
 - All Claude models accept `text`, `image`, and `document` (PDF) input.

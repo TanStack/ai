@@ -15,8 +15,7 @@ describe('Mistral text adapter inputModalities', () => {
   })
 
   it('is undefined for a model the metadata does not list', () => {
-    // A JS caller, or a model id newer than this package, reaches the adapter.
-    // @ts-expect-error - 'mistral-unknown-9000' is not a declared model
+    // A catalog id, or a model id newer than this package.
     const adapter = new MistralTextAdapter(config, 'mistral-unknown-9000')
 
     expect(adapter.inputModalities).toBeUndefined()

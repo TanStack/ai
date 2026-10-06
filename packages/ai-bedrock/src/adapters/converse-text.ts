@@ -31,9 +31,12 @@ import type {
   ConverseStreamOutput,
 } from '@aws-sdk/client-bedrock-runtime'
 import type {
+  ConfigReasoning,
   JSONSchema,
   Modality,
+  ModelReasoning,
   AdapterYieldChunk,
+  ReasoningCapability,
   TextOptions,
   TokenUsage,
   Tool,
@@ -69,7 +72,21 @@ const CLAUDE_NO_FORCED_TOOL_MODELS = [
 ]
 
 /** Config for the Converse adapter — same client config as the chat adapter. */
-export interface BedrockConverseConfig extends BedrockClientConfig {}
+export interface BedrockConverseConfig extends BedrockClientConfig {
+  /**
+   * The model's reasoning data, for example `modelReasoning(record)` from a
+   * `@tanstack/ai-models` record. It wins over the adapter's own table, for
+   * the Claude thinking fields in `additionalModelRequestFields` and for the
+   * levels `chat({ reasoning })` takes. `false`: no thinking fields go out.
+   */
+  reasoning?: ModelReasoning
+}
+
+/**
+ * A model id: a known Converse model, or any other id, for example a
+ * catalog id or an inference profile id that this package does not list.
+ */
+export type BedrockConverseModelId = BedrockConverseModels | (string & {})
 
 /**
  * Bedrock Converse text adapter. Wires the Converse translation modules (message
@@ -92,7 +109,7 @@ type ResolveReasoning<TModel extends string> =
     : never
 
 export class BedrockConverseTextAdapter<
-  TModel extends BedrockConverseModels,
+  TModel extends BedrockConverseModelId,
   // Constraint mirrors the chat adapter (text.ts): the base parameterises
   // `TProviderOptions extends Record<string, any>`, and our default
   // `ResolveConverseProviderOptions<TModel>` resolves to an interface lacking an
@@ -103,6 +120,7 @@ export class BedrockConverseTextAdapter<
     ResolveConverseProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
+  TReasoning extends ReasoningCapability = ResolveReasoning<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
@@ -116,7 +134,7 @@ export class BedrockConverseTextAdapter<
   // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the chat()
   // call site so users get `cachePoint` autocomplete.
   BedrockSystemPromptMetadata,
-  ResolveReasoning<TModel>
+  TReasoning
 > {
   override readonly kind = 'text' as const
   override readonly name = 'bedrock-converse' as const
@@ -817,7 +835,7 @@ export class BedrockConverseTextAdapter<
     const { additionalModelRequestFields, minMaxTokens } = converseThinking(
       this.model,
       options.reasoning,
-      BEDROCK_MODEL_REASONING[this.model],
+      this.clientConfig.reasoning ?? BEDROCK_MODEL_REASONING[this.model],
     )
 
     // `chat({ toolChoice })`. Converse has no `none` choice, so `none` sends
@@ -920,10 +938,21 @@ function extractStructuredToolInput(
 }
 
 /** Converse adapter with an explicit API key (low-level; mirrors createBedrockChat). */
-export function createBedrockConverse<TModel extends BedrockConverseModels>(
+export function createBedrockConverse<
+  TModel extends BedrockConverseModelId,
+  TConfig extends Omit<BedrockConverseConfig, 'apiKey'> = Omit<
+    BedrockConverseConfig,
+    'apiKey'
+  >,
+>(
   model: TModel,
   apiKey: string,
-  config?: Omit<BedrockConverseConfig, 'apiKey'>,
-): BedrockConverseTextAdapter<TModel> {
+  config?: TConfig,
+): BedrockConverseTextAdapter<
+  TModel,
+  ResolveConverseProviderOptions<TModel>,
+  ResolveInputModalities<TModel>,
+  ConfigReasoning<TConfig, ResolveReasoning<TModel>>
+> {
   return new BedrockConverseTextAdapter({ ...config, apiKey }, model)
 }

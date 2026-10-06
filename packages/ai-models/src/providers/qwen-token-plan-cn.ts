@@ -211,7 +211,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       high: 'high',
     },
     reasoningBudget: true,
-    cost: { input: 0.573, output: 2.58, cacheRead: 0, cacheWrite: 0 },
+    cost: {
+      input: 0.573,
+      output: 2.58,
+      cacheRead: 0,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 32000,
+          input: 0.86,
+          output: 3.154,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 202752,
     maxTokens: 16384,
     compat: {
@@ -240,7 +254,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       high: 'high',
     },
     reasoningBudget: true,
-    cost: { input: 0.825, output: 3.301, cacheRead: 0.17, cacheWrite: 0 },
+    cost: {
+      input: 0.825,
+      output: 3.301,
+      cacheRead: 0.17,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 32000,
+          input: 1.1,
+          output: 3.851,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 202752,
     maxTokens: 128000,
     compat: {
@@ -450,7 +478,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       high: 'high',
     },
     reasoningBudget: true,
-    cost: { input: 0.5, output: 3, cacheRead: 0.05, cacheWrite: 0.625 },
+    cost: {
+      input: 0.5,
+      output: 3,
+      cacheRead: 0.05,
+      cacheWrite: 0.625,
+      tiers: [
+        {
+          inputTokensAbove: 256000,
+          input: 2,
+          output: 6,
+          cacheRead: 0.2,
+          cacheWrite: 2.5,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 65536,
     compat: {
@@ -506,7 +548,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       high: 'high',
     },
     reasoningBudget: true,
-    cost: { input: 0.5, output: 3, cacheRead: 0.05, cacheWrite: 0.625 },
+    cost: {
+      input: 0.5,
+      output: 3,
+      cacheRead: 0.05,
+      cacheWrite: 0.625,
+      tiers: [
+        {
+          inputTokensAbove: 128000,
+          input: 2,
+          output: 6,
+          cacheRead: 0.2,
+          cacheWrite: 2.5,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 64000,
     compat: {

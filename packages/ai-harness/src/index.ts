@@ -82,6 +82,7 @@ export type {
 
 export { createHarnessHost } from './host'
 export type {
+  ForkSessionOptions,
   HarnessHost,
   HarnessHostOptions,
   HarnessPersistence,
@@ -110,6 +111,7 @@ export type {
   SessionInspection,
   SessionSnapshot,
 } from './session'
+export type { SessionUsage, UsageCounts } from './usage'
 
 export type {
   FinishContext,
@@ -140,6 +142,8 @@ export type {
   Principal,
   Receipt,
   SessionEvent,
+  ThreadSettings,
+  ThreadSettingsChange,
   TurnInfo,
   TurnOverrides,
   UserInput,

@@ -161,6 +161,11 @@ export interface PromptTokensDetails {
   cachedTokens?: number
   /** Tokens written to cache */
   cacheWriteTokens?: number
+  /**
+   * The part of `cacheWriteTokens` written with a 1-hour retention
+   * (`promptCache: 'long'`). Providers price it higher than a 5-minute write.
+   */
+  cacheWrite1hTokens?: number
   /** Audio input tokens */
   audioTokens?: number
   /** Video input tokens */
@@ -401,7 +406,7 @@ export interface TextMessageCreatedEvent extends BaseEventContext {
   requestId?: string
   streamId?: string
   messageId: string
-  role: 'user' | 'assistant' | 'system' | 'tool'
+  role: 'user' | 'assistant' | 'system' | 'tool' | 'activity'
   content: string
   parts?: Array<MessagePart>
   toolCalls?: Array<ToolCall>
@@ -1461,7 +1466,7 @@ export interface DevtoolsToolFixtureApplyEvent extends BaseEventContext {
   execute?: boolean
   message?: {
     id: string
-    role: 'system' | 'user' | 'assistant'
+    role: 'system' | 'user' | 'assistant' | 'activity'
     parts: Array<unknown>
     createdAt?: number | string
   }

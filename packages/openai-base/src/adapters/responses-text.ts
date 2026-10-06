@@ -66,6 +66,7 @@ import type {
   ModelReasoning,
   ProviderExecutedToolSource,
   ReasoningCapability,
+  TanStackMessageMetadata,
   TextOptions,
   AnyTool,
   NormalizedSystemPrompt,
@@ -250,6 +251,43 @@ interface StreamedFunctionCallMetadata {
 interface LegacyReasoningDeltaEvent {
   type: 'response.reasoning.delta'
   delta?: unknown
+}
+
+/**
+ * The assistant's text as Responses input. A same-model message with one
+ * saved answer item per text block replays each block with its item `id`
+ * and `phase`. Another model's message, or one whose blocks do not match its
+ * items, replays as plain text.
+ */
+function answerItems(
+  message: ModelMessage,
+  text: string,
+  foreign: boolean,
+): ResponseInput {
+  const items: TanStackMessageMetadata['responseItems'] = foreign
+    ? undefined
+    : message.metadata?.tanstack?.responseItems
+  const texts = orderedAssistantBlocks(message)?.flatMap((block) =>
+    block.type === 'text' ? [block.text] : [],
+  ) ?? [text]
+  if (!items || items.length !== texts.length)
+    return [{ type: 'message', role: 'assistant', content: text }]
+  return items.map((item, index) => ({
+    type: 'message',
+    role: 'assistant',
+    id: item.id,
+    status: 'completed',
+    content: [
+      {
+        type: 'output_text',
+        text: sanitizeUnicode(texts[index] ?? ''),
+        annotations: [],
+      },
+    ],
+    ...(item.phase === 'commentary' || item.phase === 'final_answer'
+      ? { phase: item.phase }
+      : {}),
+  }))
 }
 
 /**
@@ -1097,7 +1135,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let reasoningMessageId: string | undefined
     let reasoningItemId: string | undefined
     let reasoningEncryptedContent: string | undefined
-    let closedReasoningStepId: string | undefined
+    let closedReasoningMessageId: string | undefined
     let hasClosedReasoning = false
     // Track whether we've emitted a terminal RUN_FINISHED so the
     // end-of-stream fallback below knows to synthesise one when the upstream
@@ -1251,7 +1289,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         timestamp,
       }
       if (stepId) {
-        closedReasoningStepId = stepId
+        closedReasoningMessageId = reasoningMessageId
         yield {
           type: EventType.STEP_FINISHED,
           stepName: stepId,
@@ -1259,7 +1297,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           model: currentModel,
           timestamp,
           content: accumulatedReasoning,
-          ...(signature ? { signature } : {}),
+        }
+        // The signature belongs to the reasoning message, not the step, so
+        // an AG-UI client finds that message by `entityId`.
+        if (signature) {
+          yield {
+            type: EventType.REASONING_ENCRYPTED_VALUE,
+            subtype: 'message' as const,
+            entityId: reasoningMessageId,
+            encryptedValue: signature,
+            model: currentModel,
+            timestamp,
+          }
         }
       }
       reasoningMessageId = undefined
@@ -1972,7 +2021,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           }
           // output_text already closed the streamed reasoning item. A second
           // openReasoning() would emit an empty thinking part. Attach the
-          // completed item's id/blob to that step instead. Open only when
+          // completed item's id/blob to that reasoning message instead. Open only when
           // this turn never started reasoning (encrypted-only output).
           if (
             !reasoningMessageId &&
@@ -1982,17 +2031,16 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               reasoningItemId,
               reasoningEncryptedContent,
             )
-            if (closedReasoningStepId && signature) {
+            if (closedReasoningMessageId && signature) {
               yield {
-                type: EventType.STEP_FINISHED,
-                stepName: closedReasoningStepId,
-                stepId: closedReasoningStepId,
+                type: EventType.REASONING_ENCRYPTED_VALUE,
+                subtype: 'message' as const,
+                entityId: closedReasoningMessageId,
+                encryptedValue: signature,
                 model: emitModel(),
                 timestamp: Date.now(),
-                content: '',
-                signature,
               }
-            } else if (!closedReasoningStepId) {
+            } else if (!closedReasoningMessageId) {
               yield* openReasoning()
             }
           }
@@ -2135,9 +2183,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 ? 'content_filter'
                 : 'stop'
 
+          // Each answer item's id and phase, for a same-model replay.
+          const responseItems = responseOutput.flatMap((item) =>
+            item.type === 'message' && item.id
+              ? [{ id: item.id, ...(item.phase ? { phase: item.phase } : {}) }]
+              : [],
+          )
           yield {
             type: EventType.RUN_FINISHED,
             ...(responseId ? { responseId } : {}),
+            ...(responseItems.length > 0
+              ? { metadata: { tanstack: { responseItems } } }
+              : {}),
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: model || options.model,
@@ -2737,11 +2794,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // Add the assistant's text message if there is content
           const contentStr = this.extractTextContent(message.content)
           if (contentStr) {
-            result.push({
-              type: 'message',
-              role: 'assistant',
-              content: contentStr,
-            })
+            result.push(...answerItems(message, contentStr, Boolean(foreign)))
           }
         }
 

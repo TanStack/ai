@@ -67,6 +67,7 @@ export type {
   CloudflareGatewayOptions,
   CloudflareRestConfig,
   CloudflareTextConfig,
+  CloudflareTextReasoningConfig,
   CloudflareTextRestConfig,
 } from './utils/config'
 

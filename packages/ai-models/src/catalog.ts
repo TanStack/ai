@@ -39,7 +39,7 @@ import * as zai from './providers/zai'
 import * as zaiCodingCn from './providers/zai-coding-cn'
 
 /** The day the catalog was generated, as `YYYY-MM-DD`. */
-export const generatedAt = '2026-09-30'
+export const generatedAt = '2026-10-06'
 
 /** Every provider module, in id order. */
 export const providerModules = [

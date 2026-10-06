@@ -77,12 +77,15 @@ import type Anthropic_SDK from '@anthropic-ai/sdk'
 import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta'
 import type {
   AnyTool,
+  ConfigReasoning,
   ContentPart,
   MidConversationChannels,
   Modality,
   ModelMessage,
+  ModelReasoning,
   AdapterYieldChunk,
   NormalizedSystemPrompt,
+  ReasoningCapability,
   TextOptions,
   ToolCall,
   ToolChoice,
@@ -337,6 +340,13 @@ export interface AnthropicTextConfig extends AnthropicClientConfig {
   /** Identify a gateway separately from the direct Anthropic API. */
   provider?: string
   /**
+   * The model's reasoning data, for example `modelReasoning(record)` from a
+   * `@tanstack/ai-models` record. It wins over the adapter's own table, for
+   * the thinking fields and for the levels `chat({ reasoning })` takes.
+   * `false`: the model does not reason, so no thinking field goes out.
+   */
+  reasoning?: ModelReasoning
+  /**
    * The mid-conversation channels (the
    * `mid-conversation-tool-changes-2026-07-01` beta and mid-conversation
    * `system` messages) of the models in
@@ -358,6 +368,8 @@ export type AnthropicTextAdapterConfig =
       oauth?: boolean
       allowEmptySignature?: boolean
       provider?: string
+      /** See {@link AnthropicTextConfig.reasoning}. */
+      reasoning?: ModelReasoning
     }
 
 /**
@@ -393,6 +405,12 @@ type ResolveReasoning<TModel extends string> =
     ? AnthropicModelReasoningByName[TModel]
     : never
 
+/**
+ * A model id: a known Anthropic model, or any other id, for example a
+ * gateway or catalog id such as `anthropic/claude-sonnet-4.6`.
+ */
+export type AnthropicModelId = (typeof ANTHROPIC_MODELS)[number] | (string & {})
+
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof AnthropicChatModelToolCapabilitiesByName
     ? NonNullable<AnthropicChatModelToolCapabilitiesByName[TModel]>
@@ -427,12 +445,13 @@ function asSdkAnthropicMessagesClient(
  * Import only what you need for smaller bundle sizes.
  */
 export class AnthropicTextAdapter<
-  TModel extends (typeof ANTHROPIC_MODELS)[number],
+  TModel extends AnthropicModelId,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
     ResolveToolCapabilities<TModel>,
+  TReasoning extends ReasoningCapability = ResolveReasoning<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
@@ -444,7 +463,7 @@ export class AnthropicTextAdapter<
   // TSystemPromptMetadata — narrows `systemPrompts[i].metadata` at the
   // chat() call site so users get `cache_control` autocomplete.
   AnthropicSystemPromptMetadata,
-  ResolveReasoning<TModel>
+  TReasoning
 > {
   override readonly kind = 'text' as const
   readonly name = 'anthropic' as const
@@ -460,6 +479,8 @@ export class AnthropicTextAdapter<
     | undefined = undefined
 
   private readonly client: SdkAnthropicMessagesClient
+  /** `config.reasoning`, which wins over `ANTHROPIC_MODEL_REASONING`. */
+  private readonly modelReasoning: ModelReasoning | undefined
   private readonly oauth: boolean
   private readonly allowEmptySignature: boolean
   private readonly tokenAuthentication: boolean
@@ -471,6 +492,8 @@ export class AnthropicTextAdapter<
   constructor(config: AnthropicTextAdapterConfig, model: TModel) {
     super({}, model)
     this.provider = config.provider ?? this.name
+    this.modelReasoning =
+      config.reasoning ?? ANTHROPIC_MODEL_REASONING[this.model]
     const credentials =
       'client' in config
         ? undefined
@@ -884,11 +907,7 @@ export class AnthropicTextAdapter<
 
     // `chat({ reasoning })`, as this model's thinking fields.
     const { output_config: reasoningOutputConfig, ...thinkingFields } =
-      anthropicThinking(
-        this.model,
-        options.reasoning,
-        ANTHROPIC_MODEL_REASONING[this.model],
-      )
+      anthropicThinking(this.model, options.reasoning, this.modelReasoning)
     const thinkingBudget =
       thinkingFields.thinking?.type === 'enabled'
         ? thinkingFields.thinking.budget_tokens
@@ -1408,7 +1427,8 @@ export class AnthropicTextAdapter<
         : {}
       parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
     } catch {
-      parsedInput = sanitizeUnicode(toolCall.function.arguments)
+      // Anthropic needs an object input. Truncated or invalid JSON replays as {}.
+      parsedInput = {}
     }
 
     // Provider-executed server tools (e.g. web_search) replay as the
@@ -1478,6 +1498,22 @@ export class AnthropicTextAdapter<
       } else {
         merged.push({ ...msg })
       }
+    }
+
+    // Anthropic rejects a request that ends in a thinking-only assistant
+    // message ("The final block in an assistant message cannot be `thinking`").
+    // An interrupt can pause a turn that has thinking but no text. Drop it so
+    // the request ends in the user message and the model answers again.
+    const last = merged.at(-1)
+    if (
+      last?.role === 'assistant' &&
+      Array.isArray(last.content) &&
+      last.content.every(
+        (block) =>
+          block.type === 'thinking' || block.type === 'redacted_thinking',
+      )
+    ) {
+      merged.pop()
     }
 
     // De-duplicate tool_result blocks with the same tool_use_id.
@@ -1554,6 +1590,9 @@ export class AnthropicTextAdapter<
     let hasEmittedRunFinished = false
     // Track current content block type for proper content_block_stop handling
     let currentBlockType: string | null = null
+    // Input and cache counts from message_start, for a closing message_delta
+    // that leaves them out.
+    let messageStartUsage: Anthropic_SDK.Beta.BetaUsage | undefined
 
     try {
       for await (const event of stream) {
@@ -1578,7 +1617,9 @@ export class AnthropicTextAdapter<
           }
         }
 
-        if (event.type === 'content_block_start') {
+        if (event.type === 'message_start') {
+          messageStartUsage = event.message.usage
+        } else if (event.type === 'content_block_start') {
           currentBlockType = event.content_block.type
           if (event.content_block.type === 'tool_use') {
             currentToolIndex++
@@ -2037,6 +2078,7 @@ export class AnthropicTextAdapter<
         } else if (event.type === 'message_delta') {
           if (event.delta.stop_reason) {
             hasEmittedRunFinished = true
+            const usage = buildAnthropicUsage(event.usage, messageStartUsage)
 
             // Close reasoning events if still open
             if (reasoningMessageId && !hasClosedReasoning) {
@@ -2065,7 +2107,7 @@ export class AnthropicTextAdapter<
                   model,
                   timestamp: Date.now(),
                   finishReason: 'tool_calls',
-                  usage: buildAnthropicUsage(event.usage),
+                  usage,
                 }
                 break
               }
@@ -2098,6 +2140,7 @@ export class AnthropicTextAdapter<
                       'The response was cut off because the maximum token limit was reached.',
                     code: 'max_tokens',
                   },
+                  usage,
                 }
                 break
               }
@@ -2120,7 +2163,7 @@ export class AnthropicTextAdapter<
                   model,
                   timestamp: Date.now(),
                   finishReason: 'stop',
-                  usage: buildAnthropicUsage(event.usage),
+                  usage,
                 }
               }
             }
@@ -2154,20 +2197,35 @@ export class AnthropicTextAdapter<
 }
 
 /**
+ * The adapter type for a model and a config. A config with `reasoning` sets
+ * the levels `chat({ reasoning })` takes; see {@link ConfigReasoning}.
+ */
+export type AnthropicTextAdapterFor<
+  TModel extends AnthropicModelId,
+  TConfig = AnthropicTextConfig,
+> = AnthropicTextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>,
+  ResolveToolCapabilities<TModel>,
+  ConfigReasoning<TConfig, ResolveReasoning<TModel>>
+>
+
+/**
  * Creates an Anthropic chat adapter with explicit API key.
  * Type resolution happens here at the call site.
  */
 export function createAnthropicChat<
-  TModel extends (typeof ANTHROPIC_MODELS)[number],
+  TModel extends AnthropicModelId,
+  TConfig extends Omit<AnthropicTextConfig, 'apiKey'> = Omit<
+    AnthropicTextConfig,
+    'apiKey'
+  >,
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<AnthropicTextConfig, 'apiKey'>,
-): AnthropicTextAdapter<
-  TModel,
-  ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>
-> {
+  config?: TConfig,
+): AnthropicTextAdapterFor<TModel, TConfig> {
   return new AnthropicTextAdapter({ apiKey, ...config }, model)
 }
 
@@ -2175,9 +2233,7 @@ export function createAnthropicChat<
  * Creates an Anthropic chat adapter with an injected Messages client.
  * Type resolution happens here at the call site.
  */
-export function createAnthropicChatWithClient<
-  TModel extends (typeof ANTHROPIC_MODELS)[number],
->(
+export function createAnthropicChatWithClient<TModel extends AnthropicModelId>(
   model: TModel,
   client: AnthropicMessagesClient,
 ): AnthropicTextAdapter<
@@ -2192,13 +2248,9 @@ export function createAnthropicChatWithClient<
  * Creates an Anthropic text adapter with automatic API key detection.
  * Type resolution happens here at the call site.
  */
-export function anthropicText<TModel extends (typeof ANTHROPIC_MODELS)[number]>(
-  model: TModel,
-  config?: AnthropicTextConfig,
-): AnthropicTextAdapter<
-  TModel,
-  ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>
-> {
+export function anthropicText<
+  TModel extends AnthropicModelId,
+  TConfig extends AnthropicTextConfig = AnthropicTextConfig,
+>(model: TModel, config?: TConfig): AnthropicTextAdapterFor<TModel, TConfig> {
   return new AnthropicTextAdapter(config ?? {}, model)
 }

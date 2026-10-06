@@ -99,6 +99,8 @@ export function handleMcp(request: Request) {
 
 `createMCPServer` speaks spec `2026-07-28`.
 `createMCPServer` also speaks spec 2025. By default it keeps no spec 2025 session.
+Its tools, resources, and prompts are static. It advertises no list-change
+capability and rejects `subscriptions/listen` with JSON-RPC `-32601`.
 
 `stdioTransport` from `@tanstack/ai-mcp/stdio` connects your client to a command.
 `serveMCPStdio` from `@tanstack/ai-mcp/server/stdio` serves your server on stdin and stdout.
@@ -298,6 +300,8 @@ If the connection fails, `createMCPClient` throws `MCPConnectionError`.
 `createMCPClient` tries spec `2026-07-28` first.
 If the server does not support that spec, the client uses the 2025 initialize handshake.
 The client keeps negotiation mode `auto`.
+`client.instructions` holds the server's instructions from the handshake, or `undefined` when the server sends none.
+Put them in the system prompt: `systemPrompts: client.instructions ? [client.instructions] : []`.
 
 Two more client options:
 

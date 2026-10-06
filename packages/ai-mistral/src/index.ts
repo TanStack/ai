@@ -10,6 +10,8 @@ export {
   MistralTextAdapter,
   createMistralText,
   mistralText,
+  type MistralModelId,
+  type MistralTextAdapterFor,
   type MistralTextConfig,
   type MistralTextProviderOptions,
 } from './adapters/text'

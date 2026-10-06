@@ -158,8 +158,19 @@ describe('tool input validation', () => {
     },
   )
 
-  it('rejects null for an explicit object schema', async () => {
+  it('runs null as {} for an object schema with no required fields', async () => {
+    // A literal null is an empty tool_use block (issue #265).
     const result = await runTool(null, { type: 'object', properties: {} })
+    expect(result.results[0]?.input).toEqual({})
+    expect(result.executions).toBe(1)
+  })
+
+  it('rejects null for an object schema with required fields', async () => {
+    const result = await runTool(null, {
+      type: 'object',
+      properties: { city: { type: 'string' } },
+      required: ['city'],
+    })
     expect(result.results[0]?.state).toBe('output-error')
     expect(result.executions).toBe(0)
   })

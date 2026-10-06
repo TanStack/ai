@@ -223,6 +223,7 @@ The session uses the picks like this:
 - `undefined` keeps the harness adapter.
 - If more than one plugin returns an adapter, the last plugin wins.
 - The `overrides.adapter` of the turn wins over every pick.
+- A model that the thread stored with `session.configure` also wins over every pick. See [Store settings per thread](./thread-settings).
 - A keyed adapter gets the key of the sender. See [Connect model providers](./provider-keys).
 
 If the picker does not need the turn, it can take no parameter.

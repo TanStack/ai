@@ -166,11 +166,11 @@ export function bashTools(
   }
 
   /** Start `command` in the background. `note` tells the model when it ends. */
-  const startJob = (command: string) => {
+  const startJob = (command: string, cwd: string) => {
     if (!env.backend.spawn) {
       throw new Error('This workspace cannot run commands in the background.')
     }
-    const job = env.backend.spawn(command, { cwd: env.root, env: AGENT_ENV })
+    const job = env.backend.spawn(command, { cwd, env: AGENT_ENV })
     started += 1
     const jobId = `bash-${started}`
     jobs.add(job)
@@ -210,12 +210,16 @@ export function bashTools(
       replay: 'never',
     }).server(async (args: unknown) => {
       const command = stringArg(args, 'command')
-      if (isRecord(args) && args.background === true) return startJob(command)
+      // The shell runs in the working folder, so it must be in the workspace.
+      const cwd = await env.reach('.', 'bash', 'folder')
+      if (isRecord(args) && args.background === true) {
+        return startJob(command, cwd)
+      }
       const requested = isRecord(args) ? args.timeoutMs : undefined
       // A timeout of 0 would mean no timeout, so it gets the default.
       const isTimeout = typeof requested === 'number' && requested > 0
       const { exitCode, stdout, stderr } = await env.backend.exec(command, {
-        cwd: env.root,
+        cwd,
         env: AGENT_ENV,
         timeoutMs: isTimeout
           ? Math.min(requested, MAX_TIMEOUT_MS)

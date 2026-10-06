@@ -99,6 +99,8 @@ Claude bills the cache write. This applies to Claude on Anthropic, Bedrock, Vert
 
 The newest Claude models read from the cache for less. With `'short'`, the same start sent 2 times in 5 minutes already costs less than no cache. With `'long'`, it costs less from the third request.
 
+The usage of a call gives the 1-hour part of the cache write as `promptTokensDetails.cacheWrite1hTokens`, on Anthropic and Bedrock. To price it, see [Work out what a call cost](../models/catalog#work-out-what-a-call-cost).
+
 Two cases change the choice:
 
 - **A large prompt that you send one time.** For example, one long document per call that is never sent again. Nothing reads the cache, so the write is only extra cost. Use `'none'`.

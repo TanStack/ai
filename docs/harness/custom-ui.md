@@ -147,7 +147,7 @@ An assistant message has `parts`. Each part is one of these:
 
 A notice has a `kind`:
 
-- `info`: the session continues a turn that a crash stopped.
+- `info`: the session continues a turn that a crash stopped, or a [reset](./fork-and-reset#reset-with-a-handoff-note) started a fresh context.
 - `error`: a turn or an action failed.
 - `rejected`: the session did not accept a message.
 - `command`: the text result of a command.

@@ -36,7 +36,15 @@ const durableHost = createHarnessHost({
   },
 })
 
-function handlerFor(request: Request) {
+// Two users, so a test can share one thread between them.
+const authorize = (req: Request) => {
+  const token = req.headers.get('authorization')
+  if (token === 'Bearer e2e-token') return { id: 'e2e' }
+  if (token === 'Bearer e2e-token-bob') return { id: 'bob' }
+  return null
+}
+
+function harnessFor(request: Request) {
   const testId = request.headers.get('x-test-id') ?? 'default'
   const port = Number(request.headers.get('x-aimock-port') ?? '4010')
   const painter = defineAgent({
@@ -77,6 +85,12 @@ function handlerFor(request: Request) {
   const harness = defineHarness({
     name: 'e2e/protocol',
     adapter,
+    // Models a thread can pick with `configure`. aimock answers both, and
+    // its journal shows which model id a turn sent.
+    models: {
+      fast: createTextAdapter('openai', 'gpt-4o-mini', port, testId).adapter,
+      strong: createTextAdapter('openai', 'gpt-4.1', port, testId).adapter,
+    },
     ...(turn ? { turn } : {}),
     tools: [
       deploy.server(async ({ env }) => ({ deployed: env })),
@@ -94,7 +108,7 @@ function handlerFor(request: Request) {
         run: async (ctx) => ctx.input.text,
       }),
     ],
-    expose: { agents: ['echo'] },
+    expose: { agents: ['echo'], settings: ['model', 'instructions'] },
     plugins: () => [
       todos(),
       // The sender of the running turn, as plugins see it.
@@ -141,27 +155,58 @@ function handlerFor(request: Request) {
       }),
     ],
   })
-  return createHarnessHandler({
-    host: request.headers.get('x-harness-durable') === '1' ? durableHost : host,
+  return {
     harness,
-    // Two users, so a test can share one thread between them.
-    authorize: (req) => {
-      const token = req.headers.get('authorization')
-      if (token === 'Bearer e2e-token') return { id: 'e2e' }
-      if (token === 'Bearer e2e-token-bob') return { id: 'bob' }
-      return null
-    },
+    host: request.headers.get('x-harness-durable') === '1' ? durableHost : host,
+  }
+}
+
+function handlerFor(request: Request) {
+  const { harness, host: hostOf } = harnessFor(request)
+  return createHarnessHandler({
+    host: hostOf,
+    harness,
+    authorize,
     // Each request makes a new handler, so a fixed secret keeps a signed URL
     // working on the next request.
     mediaSecret: 'e2e-media-secret',
   })
 }
 
+/**
+ * Test only: `POST .../fork` with `{ threadId, newThreadId, at? }` forks a
+ * thread with `host.fork` and answers with the transcript of the new thread.
+ * The handler has no fork route.
+ */
+async function forkThread(request: Request) {
+  const principal = authorize(request)
+  if (!principal)
+    return Response.json({ error: 'unauthorized' }, { status: 401 })
+  const { harness, host: hostOf } = harnessFor(request)
+  const body = (await request.json()) as {
+    threadId: string
+    newThreadId: string
+    at?: string
+  }
+  try {
+    const forked = await hostOf.fork(harness, { ...body, principal })
+    return Response.json({ transcript: await forked.transcript() })
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : String(error) },
+      { status: 400 },
+    )
+  }
+}
+
 export const Route = createFileRoute('/api/harness-protocol/$')({
   server: {
     handlers: {
       GET: ({ request }) => handlerFor(request)(request),
-      POST: ({ request }) => handlerFor(request)(request),
+      POST: ({ request }) =>
+        new URL(request.url).pathname.endsWith('/fork')
+          ? forkThread(request)
+          : handlerFor(request)(request),
     },
   },
 })

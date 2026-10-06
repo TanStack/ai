@@ -7,6 +7,8 @@ export {
   GeminiTextAdapter,
   createGeminiChat,
   geminiText,
+  type GeminiModelId,
+  type GeminiTextAdapterFor,
   type GeminiTextConfig,
   type GeminiTextProviderOptions,
 } from './adapters/text'

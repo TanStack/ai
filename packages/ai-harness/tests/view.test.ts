@@ -176,7 +176,7 @@ describe('createSessionView', () => {
     await host.close()
   })
 
-  it('reserves approval actions during a running resolve and restores them after failure', async () => {
+  it('reserves approval actions during a running resolve, and does not restore them after the tool ran', async () => {
     const hold = gate()
     const { host, session, view, calls } = await openView([
       () => toolCall('remove', {}, 'slow-approval'),
@@ -185,13 +185,11 @@ describe('createSessionView', () => {
           await hold.opened
           throw new Error('provider failed before commit')
         })(),
-      () => text('Retried approval.'),
     ])
     const errors: Array<string> = []
     view.on('error', (message) => errors.push(message))
     await view.send('remove')
     await vi.waitFor(() => expect(view.store.get().approvals).toHaveLength(1))
-    const id = view.store.get().approvals[0]?.id
     const resolve = vi.spyOn(session, 'resolve')
     view.approveAll()
     await vi.waitFor(() => expect(calls).toHaveLength(2))
@@ -201,16 +199,12 @@ describe('createSessionView', () => {
     expect(resolve).toHaveBeenCalledTimes(1)
     hold.open()
     await vi.waitFor(() => expect(errors.length).toBeGreaterThan(0))
-    await vi.waitFor(() =>
-      expect(view.store.get().approvals.map((item) => item.id)).toEqual([id]),
-    )
+    // The approved tool ran before the failure, so the approval is used up.
+    // Offering it again would run the tool a second time.
+    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(view.store.get().approvals).toEqual([])
     view.approveAll()
-    await vi.waitFor(() =>
-      expect(JSON.stringify(view.store.get().messages)).toContain(
-        'Retried approval.',
-      ),
-    )
-    expect(resolve).toHaveBeenCalledTimes(2)
+    expect(resolve).toHaveBeenCalledTimes(1)
     view.dispose()
     await host.close()
   })

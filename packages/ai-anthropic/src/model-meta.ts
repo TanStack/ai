@@ -623,6 +623,11 @@ const CLAUDE_OPUS_5_5 = {
     AnthropicSamplingOptions
 >
 
+// Claude Sonnet 5.5: adaptive thinking is the default. `{type: 'disabled'}`
+// and the manual `{type: 'enabled', budget_tokens}` shape return a 400, and
+// so do non-default sampling parameters (`temperature`, `top_p`, `top_k`).
+// Its provider options therefore take `max_tokens` without the sampling
+// knobs. Set thinking with `chat({ reasoning })`.
 const CLAUDE_SONNET_5_5 = {
   name: 'claude-sonnet-5-5',
   id: 'claude-sonnet-5-5',
@@ -633,11 +638,12 @@ const CLAUDE_SONNET_5_5 = {
     extended_thinking: false,
     adaptive_thinking: true,
     priority_tier: true,
+    // No 'computer_use': this model accepts only `computer_toolset_20260801`,
+    // and `computerUseTool()` sends the older versions, which return a 400.
     tools: [
       'web_search',
       'web_fetch',
       'code_execution',
-      'computer_use',
       'bash',
       'text_editor',
       'memory',
@@ -660,7 +666,7 @@ const CLAUDE_SONNET_5_5 = {
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
     AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+    AnthropicMaxTokensOptions
 >
 
 export const ANTHROPIC_MODELS = [
@@ -957,6 +963,8 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicStopSequencesOptions &
     AnthropicToolChoiceOptions &
     AnthropicSamplingOptions
+  // Claude Sonnet 5.5: no sampling parameters. See the CLAUDE_SONNET_5_5
+  // constant above.
   [CLAUDE_SONNET_5_5.id]: AnthropicCacheControlOptions &
     AnthropicContainerOptions &
     AnthropicContextManagementOptions &
@@ -964,7 +972,7 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicServiceTierOptions &
     AnthropicStopSequencesOptions &
     AnthropicToolChoiceOptions &
-    AnthropicSamplingOptions
+    AnthropicMaxTokensOptions
 }
 
 export type AnthropicChatModelToolCapabilitiesByName = {

@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { z } from 'zod'
-import { createAnthropicChatWithClient } from '../src'
-import type { ReasoningRequest, Tool } from '@tanstack/ai'
+import { AnthropicTextAdapter, createAnthropicChatWithClient } from '../src'
+import type { ModelReasoning, ReasoningRequest, Tool } from '@tanstack/ai'
 import type { AnthropicChatModel } from '../src/model-meta'
 
 const logger = resolveDebugOption(false)
@@ -159,5 +159,80 @@ describe('Anthropic chat({ reasoning }) request shape', () => {
       effort: 'high',
       format: { type: 'json_schema' },
     })
+  })
+})
+
+describe('Anthropic reasoning from the config', () => {
+  /** Run one call with `reasoning` in the config. Returns the request body. */
+  async function sendWith(
+    model: string,
+    reasoning: ModelReasoning,
+    request: ReasoningRequest,
+  ) {
+    const create = vi.fn().mockResolvedValue(textStream('ok'))
+    const adapter = new AnthropicTextAdapter(
+      { client: { beta: { messages: { create } } }, reasoning },
+      model,
+    )
+    for await (const _chunk of adapter.chatStream({
+      logger,
+      model,
+      messages: [{ role: 'user', content: 'hi' }],
+      reasoning: request,
+    })) {
+      // Drain the stream.
+    }
+    const [body] = create.mock.calls[0] ?? []
+    return body as Record<string, any>
+  }
+
+  const effortMap = {
+    off: null,
+    minimal: null,
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  }
+
+  it('sends budget thinking for a model id that the table does not have', async () => {
+    // Like the catalog record of a gateway id with a token budget.
+    const body = await sendWith(
+      'anthropic/claude-sonnet-4.6',
+      { budget: true },
+      on('medium'),
+    )
+    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 8192 })
+  })
+
+  it('sends adaptive thinking with the effort from the config map', async () => {
+    const body = await sendWith(
+      'anthropic.claude-fable-5',
+      { map: effortMap, budget: false },
+      on('xhigh'),
+    )
+    expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' })
+    expect(body.output_config).toEqual({ effort: 'xhigh' })
+  })
+
+  it('sends no thinking field for reasoning: false, also on a known model', async () => {
+    const body = await sendWith('claude-opus-5-5', false, on('high'))
+    expect(body).not.toHaveProperty('thinking')
+    expect(body).not.toHaveProperty('effort')
+    expect(body).not.toHaveProperty('output_config')
+  })
+
+  it('clamps the level with the config, not with the table', async () => {
+    // The table gives claude-opus-4-5 low, medium, and high with a budget.
+    // This config has only high and max, and no budget.
+    const config: ModelReasoning = {
+      map: { minimal: null, low: null, medium: null, high: 'high', max: 'max' },
+      budget: false,
+    }
+    const max = await sendWith('claude-opus-4-5', config, on('max'))
+    expect(max.output_config).toEqual({ effort: 'max' })
+    const low = await sendWith('claude-opus-4-5', config, on('low'))
+    expect(low.output_config).toEqual({ effort: 'high' })
   })
 })

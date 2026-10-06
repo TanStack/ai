@@ -52,7 +52,8 @@ function workspace(
     root,
     hooks: () => [],
     lock: (_path, fn) => fn(),
-    reach: async (path) => path,
+    // Like the real one: a path in the workspace, from the root.
+    reach: async (path) => resolve(root, path),
     shown: (full) => full,
   }
   return { env, execs, files }

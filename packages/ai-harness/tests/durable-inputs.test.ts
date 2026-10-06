@@ -751,7 +751,7 @@ describe('settled() without a log', () => {
 })
 
 describe('durable approval recovery', () => {
-  it('keeps approval after a resume time limit and allows a later retry', async () => {
+  it('uses up the approval when a resume hits the time limit after its tool ran', async () => {
     const stores = memoryPersistence().stores
     const persistence = {
       stores: {
@@ -770,7 +770,6 @@ describe('durable approval recovery', () => {
     const main = mockAdapter([
       () => toolCall('remove', {}, 'timeout-approval'),
       untilAborted(),
-      () => text('Recovered.'),
     ])
     const config = defineHarness({
       name: 'approval-timeout',
@@ -793,20 +792,21 @@ describe('durable approval recovery', () => {
       outcome: 'failed',
       error: { code: 'timeout' },
     })
-    expect(session.snapshot().pendingInterrupts.map((item) => item.id)).toEqual(
-      [approval.id],
-    )
-    expect((await stores.interrupts.get(approval.id))?.status).toBe('pending')
+    // The approved tool ran before the time limit. Offering the approval
+    // again would run it a second time, so it is used up.
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect((await stores.interrupts.get(approval.id))?.status).toBe('resolved')
     await host.close()
     const next = createHarnessHost({ persistence })
     const reopened = await next.open(config, { threadId: THREAD })
-    const retry = await reopened.resolve([
-      { interruptId: approval.id, status: 'resolved', payload: true },
-    ])
-    await expect(reopened.operation(retry.operationId ?? '')).resolves.toEqual({
-      text: 'Recovered.',
-    })
     expect(reopened.snapshot().pendingInterrupts).toEqual([])
+    expect(
+      await reopened.resolve([
+        { interruptId: approval.id, status: 'resolved', payload: true },
+      ]),
+    ).toMatchObject({ status: 'rejected', reason: 'no_pending_interrupts' })
+    expect(execute).toHaveBeenCalledTimes(1)
     await next.close()
   })
 

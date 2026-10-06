@@ -47,6 +47,8 @@ const INPUT_OPS = new Set([
   'command',
   'answer',
   'config',
+  'configure',
+  'reset',
 ])
 
 /** Check the shape of a client input. Throws with a short reason. */
@@ -89,6 +91,17 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   const isDelivery = value.delivery === 'steer' || value.delivery === 'queue'
   if (value.op === 'setDelivery' && !isDelivery) {
     throw new Error("Invalid input: setDelivery needs 'steer' or 'queue'.")
+  }
+  // The session checks each field, and answers a bad one with a receipt.
+  if (value.op === 'configure' && !isRecord(value.settings)) {
+    throw new Error('Invalid input: configure needs a settings object.')
+  }
+  if (
+    value.op === 'reset' &&
+    value.note !== undefined &&
+    typeof value.note !== 'string'
+  ) {
+    throw new Error('Invalid input: the note of reset must be a string.')
   }
   if (value.inputId !== undefined && typeof value.inputId !== 'string') {
     throw new Error('Invalid input: inputId must be a string.')
@@ -189,6 +202,23 @@ export async function applyInput(
       return session.answer(input.questionId, input.value)
     case 'config':
       return session.setConfig(input.key, input.value)
+    case 'configure': {
+      // A client changes only the settings the harness exposes.
+      const exposed: ReadonlyArray<string> = harness.expose?.settings ?? []
+      const isExposed = Object.keys(input.settings).every((key) =>
+        exposed.includes(key),
+      )
+      if (!isExposed) {
+        return {
+          inputId: input.inputId ?? '',
+          status: 'rejected',
+          reason: 'not_exposed',
+        }
+      }
+      return session.configure(input.settings, id)
+    }
+    case 'reset':
+      return session.reset(input.note, id)
     case 'agent': {
       const exposed = (harness.expose?.agents ?? []).includes(input.agent)
       if (!exposed) {

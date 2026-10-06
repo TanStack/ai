@@ -11,6 +11,7 @@
 import { beforeAll, describe, expectTypeOf, it } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { anthropicText } from '../src'
+import type { ModelReasoning } from '@tanstack/ai'
 import type { AnthropicChatModelProviderOptionsByName } from '../src'
 
 // Set a dummy API key so adapter construction does not throw at runtime.
@@ -141,10 +142,85 @@ describe('Anthropic per-model chat modelOptions gating', () => {
     })
   })
 
+  // Thinking and effort are `chat({ reasoning })`, not provider options.
+  describe('claude-sonnet-5-5 — max_tokens, no sampling', () => {
+    it('accepts max_tokens and the base options', () => {
+      chat({
+        adapter: anthropicText('claude-sonnet-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          service_tier: 'auto',
+          stop_sequences: ['STOP'],
+          tool_choice: { type: 'auto' },
+          max_tokens: 2048,
+        },
+      })
+    })
+
+    it('rejects sampling parameters', () => {
+      chat({
+        adapter: anthropicText('claude-sonnet-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          // @ts-expect-error - 'temperature' is not available on claude-sonnet-5-5
+          temperature: 0.5,
+        },
+      })
+      chat({
+        adapter: anthropicText('claude-sonnet-5-5'),
+        messages: [{ role: 'user', content: 'hi' }],
+        modelOptions: {
+          // @ts-expect-error - 'top_k' is not available on claude-sonnet-5-5
+          top_k: 5,
+        },
+      })
+    })
+  })
+
   describe('Model name type safety', () => {
-    it('rejects unknown model names at the factory', () => {
-      // @ts-expect-error - 'claude-fake-9000' is not a valid Anthropic chat model
-      anthropicText('claude-fake-9000')
+    it('accepts any model id, such as a gateway or catalog id', () => {
+      anthropicText('anthropic/claude-sonnet-4.6')
+      const id: string = 'MiniMax-M2.5'
+      anthropicText(id)
+    })
+  })
+})
+
+describe('Anthropic chat reasoning from the config', () => {
+  const messages = [{ role: 'user' as const, content: 'hi' }]
+
+  it('a config with reasoning takes every level, for any model id', () => {
+    chat({
+      adapter: anthropicText('anthropic/claude-sonnet-4.6', {
+        reasoning: { budget: true },
+      }),
+      messages,
+      reasoning: { level: 'max', budgetTokens: 4000 },
+    })
+    // The table gives claude-opus-4-5 only low, medium, and high.
+    const reasoning: ModelReasoning = { map: { xhigh: 'xhigh' }, budget: false }
+    chat({
+      adapter: anthropicText('claude-opus-4-5', { reasoning }),
+      messages,
+      reasoning: 'xhigh',
+    })
+  })
+
+  it('an id with no table and no config takes no reasoning', () => {
+    chat({
+      adapter: anthropicText('anthropic/claude-sonnet-4.6'),
+      messages,
+      // @ts-expect-error - no reasoning data for this id
+      reasoning: 'high',
+    })
+  })
+
+  it('reasoning: false takes no reasoning, also on a known model', () => {
+    chat({
+      adapter: anthropicText('claude-opus-5-5', { reasoning: false }),
+      messages,
+      // @ts-expect-error - the config says the model does not reason
+      reasoning: 'high',
     })
   })
 })
@@ -234,6 +310,21 @@ describe('Anthropic provider options shape assertions', () => {
   describe('claude-fable-5 — no sampling', () => {
     type Options = AnthropicChatModelProviderOptionsByName['claude-fable-5']
 
+    it('has max_tokens but NOT temperature/top_p/top_k', () => {
+      expectTypeOf<Options>().toHaveProperty('max_tokens')
+      expectTypeOf<Options>().not.toHaveProperty('temperature')
+      expectTypeOf<Options>().not.toHaveProperty('top_p')
+      expectTypeOf<Options>().not.toHaveProperty('top_k')
+    })
+  })
+
+  describe('claude-sonnet-5-5 — no sampling, thinking from chat({ reasoning })', () => {
+    type Options = AnthropicChatModelProviderOptionsByName['claude-sonnet-5-5']
+
+    it('has no thinking or output_config provider option', () => {
+      expectTypeOf<Options>().not.toHaveProperty('thinking')
+      expectTypeOf<Options>().not.toHaveProperty('output_config')
+    })
     it('has max_tokens but NOT temperature/top_p/top_k', () => {
       expectTypeOf<Options>().toHaveProperty('max_tokens')
       expectTypeOf<Options>().not.toHaveProperty('temperature')

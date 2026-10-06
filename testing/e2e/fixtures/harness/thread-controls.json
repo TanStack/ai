@@ -1,0 +1,34 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[harness-usage] hello" },
+      "response": { "content": "Counted." }
+    },
+    {
+      "match": { "userMessage": "[harness-settings] hi" },
+      "response": { "content": "Strong." }
+    },
+    {
+      "match": { "userMessage": "[harness-reset] first" },
+      "response": { "content": "First answer." }
+    },
+    {
+      "match": { "userMessage": "[harness-reset] second" },
+      "response": { "content": "Second answer." }
+    },
+    {
+      "match": { "userMessage": "[harness-fork] one" },
+      "response": { "content": "One." }
+    },
+    {
+      "match": { "userMessage": "[harness-fork] two" },
+      "response": { "content": "Two." }
+    },
+    {
+      "match": {
+        "userMessage": "Background agent stepper finished: [stepper finished] charged once"
+      },
+      "response": { "content": "The stepper finished." }
+    }
+  ]
+}

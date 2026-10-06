@@ -8,6 +8,7 @@ import {
 } from '../src/generic-interrupt-continuation'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import { modelMessagesToUIMessages } from '../src/activities/chat/messages'
+import { StreamProcessor } from '../src/activities/chat/stream/processor'
 import { DISCOVERY_TOOL_NAME } from '../src/activities/chat/tools/lazy-tool-manager'
 import { EventType } from '../src/types'
 import {
@@ -5215,6 +5216,153 @@ describe('chat()', () => {
       })
     })
 
+    it.each([
+      ['with text', 'Plan'],
+      ['thinking only', ''],
+    ])(
+      'keeps thinking in the afterModel snapshot of a turn without tool calls (%s)',
+      async (_label, text) => {
+        const review = defineInterrupt({
+          id: 'after-model-thinking',
+          responseSchema: z.object({ approved: z.boolean() }),
+        })
+        const middleware = defineChatMiddleware({
+          onInterruptBoundary(ctx) {
+            if (ctx.phase !== 'afterModel') return
+            return {
+              interrupts: [
+                review.interrupt({
+                  key: 'after-model',
+                  reason: 'review',
+                  message: 'Review the answer',
+                }),
+              ],
+            }
+          },
+        })
+        const { adapter, calls } = createMockAdapter({
+          iterations: [
+            [
+              ev.runStarted(),
+              ev.stepStarted('step-signed'),
+              {
+                type: EventType.REASONING_MESSAGE_CONTENT,
+                messageId: 'step-signed',
+                delta: 'I think.',
+                timestamp: Date.now(),
+              },
+              {
+                type: EventType.REASONING_ENCRYPTED_VALUE,
+                subtype: 'message',
+                entityId: 'step-signed',
+                encryptedValue: 'sig-1',
+                timestamp: Date.now(),
+              },
+              ev.stepStarted('redacted_thinking-1'),
+              {
+                type: EventType.REASONING_ENCRYPTED_VALUE,
+                subtype: 'message',
+                entityId: 'redacted_thinking-1',
+                encryptedValue: 'opaque-1',
+                timestamp: Date.now(),
+              },
+              ...(text
+                ? [ev.textStart(), ev.textContent(text), ev.textEnd()]
+                : []),
+              ev.runFinished('stop'),
+            ],
+            [
+              ev.runStarted(),
+              ev.textStart('msg-2'),
+              ev.textContent('Done', 'msg-2'),
+              ev.textEnd('msg-2'),
+              ev.runFinished('stop'),
+            ],
+          ],
+        })
+
+        const chunks = await collectChunks(
+          chat({
+            adapter,
+            interrupts: [review],
+            middleware: [middleware],
+            messages: [{ role: 'user', content: 'Plan it' }],
+            threadId: 'thread-thinking',
+            runId: 'run-thinking',
+          }) as AsyncIterable<StreamChunk>,
+        )
+
+        const snapshot = chunks.find(
+          (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT,
+        )
+        if (!snapshot || snapshot.type !== EventType.MESSAGES_SNAPSHOT) {
+          throw new Error('Expected messages snapshot')
+        }
+        const reasoning = snapshot.messages.filter(
+          (message) => message.role === 'reasoning',
+        )
+        expect(reasoning.map((message) => message.encryptedValue)).toEqual([
+          'sig-1',
+          'opaque-1',
+        ])
+        expect(reasoning[1]?.id).toMatch(/^redacted_thinking-/)
+        expect(snapshot.messages.map((message) => message.role)).toEqual([
+          'user',
+          'reasoning',
+          'reasoning',
+          'assistant',
+        ])
+        if (text) {
+          expect(snapshot.messages.at(-1)).toMatchObject({
+            role: 'assistant',
+            content: text,
+          })
+        }
+
+        // The client loads the snapshot and sends it back when it resumes.
+        const processor = new StreamProcessor()
+        for (const chunk of chunks) processor.processChunk(chunk)
+        processor.finalizeStream()
+        const paused = expectSingleRunFinished(chunks).outcome
+        if (paused?.type !== 'interrupt' || !paused.interrupts[0]) {
+          throw new Error('Expected afterModel interrupt')
+        }
+        const continuation = genericInterruptContinuationFromDescriptor(
+          paused.interrupts[0],
+        )
+        if (!continuation) throw new Error('Expected continuation metadata')
+        await collectChunks(
+          chat({
+            adapter,
+            interrupts: [review],
+            middleware: [middleware],
+            messages: processor.getMessages(),
+            threadId: 'thread-thinking',
+            runId: 'run-thinking-resume',
+            parentRunId: 'run-thinking',
+            resume: [
+              {
+                interruptId: paused.interrupts[0].id,
+                status: 'resolved',
+                payload: { approved: true },
+                metadata: wrapGenericInterruptContinuation(continuation),
+              },
+            ],
+          }) as AsyncIterable<StreamChunk>,
+        )
+
+        const replayed: Array<ModelMessage> = calls[1]?.messages ?? []
+        const assistants = replayed.filter(
+          (message) => message.role === 'assistant',
+        )
+        expect(assistants).toHaveLength(1)
+        expect(assistants[0]?.thinking?.map((part) => part.signature)).toEqual([
+          'sig-1',
+          'opaque-1',
+        ])
+      },
+    )
+
     it('keeps tool approvals in the afterTools generic batch', async () => {
       const review = defineInterrupt({
         id: 'after-tools-with-approval',
@@ -5292,6 +5440,90 @@ describe('chat()', () => {
           },
         ]),
       ).toThrow('Duplicate interrupt definition id: duplicate-chat-id')
+    })
+  })
+
+  describe('AG-UI activity sidecar', () => {
+    it('peels inbound activity before adapter messages', async () => {
+      const { adapter, calls } = createMockAdapter({
+        iterations: [[ev.runStarted(), ev.textContent('ok'), ev.runFinished()]],
+      })
+
+      await collectChunks(
+        chat({
+          adapter,
+          messages: [
+            { role: 'user', content: 'hi' },
+            {
+              id: 'act-1',
+              role: 'activity',
+              parts: [
+                {
+                  type: 'activity',
+                  activityType: 'SEARCH',
+                  content: { q: 'x' },
+                },
+              ],
+            },
+            { role: 'assistant', content: 'prior' },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const adapterMessages = calls[0]!.messages as Array<{ role: string }>
+      expect(adapterMessages.map((message) => message.role)).toEqual([
+        'user',
+        'assistant',
+      ])
+    })
+
+    it('emits patched activity on interrupt MESSAGES_SNAPSHOT', async () => {
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.activitySnapshot('act-1', 'SEARCH', { q: 'x' }),
+            ev.activityDelta('act-1', 'SEARCH', [
+              { op: 'add', path: '/done', value: true },
+            ]),
+            ev.textStart('stream-assistant'),
+            {
+              ...ev.toolStart('call_1', 'clientSearch'),
+              parentMessageId: 'stream-assistant',
+            },
+            ev.toolArgs('call_1', '{"query":"test"}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ id: 'user-1', role: 'user', content: 'Search' }],
+          tools: [clientTool('clientSearch')],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const snapshot = chunks.find(
+        (value) => value.type === EventType.MESSAGES_SNAPSHOT,
+      )
+      expect(snapshot).toMatchObject({
+        messages: [
+          { id: 'user-1', role: 'user', content: 'Search' },
+          {
+            id: 'act-1',
+            role: 'activity',
+            activityType: 'SEARCH',
+            content: { q: 'x', done: true },
+          },
+          { id: 'stream-assistant', role: 'assistant' },
+        ],
+      })
+      const adapterMessages = calls[0]!.messages as Array<{ role: string }>
+      expect(
+        adapterMessages.every((message) => message.role !== 'activity'),
+      ).toBe(true)
     })
   })
 })

@@ -53,6 +53,36 @@ function safeJsonParse(value: string): unknown {
   }
 }
 
+/**
+ * Parse tool call arguments. A model can send no input for a tool with no
+ * required fields (an empty tool_use block, issue #265): that is `{}`.
+ */
+function parseToolArguments(raw: string): unknown {
+  const text = raw.trim()
+  return text === '' ? {} : JSON.parse(text)
+}
+
+/**
+ * The final check of a tool input. A literal `null` from the model is also an
+ * empty tool_use block (issue #265): when the schema rejects `null`, the input
+ * is `{}`. Other values must fit the schema as they are.
+ */
+async function checkToolInput(
+  tool: Pick<Tool, 'inputSchema' | 'name'>,
+  input: unknown,
+) {
+  try {
+    return await validateToolInput(tool.inputSchema, input, tool.name)
+  } catch (error) {
+    if (input !== null) throw error
+    try {
+      return await validateToolInput(tool.inputSchema, {}, tool.name)
+    } catch {
+      throw error
+    }
+  }
+}
+
 /** Marks the synthetic tool that runs a subagent. */
 export const SUBAGENT_TOOL = Symbol.for('tanstack.ai.subagentTool')
 
@@ -410,17 +440,14 @@ export class ToolCallManager<
           // Keep the parsed value so the schema can check its type.
           let args: unknown
           try {
-            const argsString =
-              toolCall.function.arguments.trim() ||
-              (tool.inputSchema === undefined ? '{}' : '')
-            args = JSON.parse(argsString)
+            args = parseToolArguments(toolCall.function.arguments)
           } catch (parseError) {
             throw new Error(
               `Failed to parse tool arguments as JSON: ${toolCall.function.arguments}`,
             )
           }
 
-          args = await validateToolInput(tool.inputSchema, args, tool.name)
+          args = await checkToolInput(tool, args)
 
           // Execute the tool
           const executionContext = {
@@ -1104,24 +1131,20 @@ export async function* executeToolCalls<TContext = unknown>(
 
     // Parse arguments
     let input: unknown = {}
-    const argsStr =
-      toolCall.function.arguments.trim() ||
-      (tool.inputSchema === undefined ? '{}' : '')
-    if (argsStr || tool.inputSchema !== undefined) {
-      try {
-        input = JSON.parse(argsStr)
-      } catch {
-        results.push({
-          toolCallId: toolCall.id,
-          toolName,
-          result: {
-            error: `Failed to parse tool arguments as JSON: ${argsStr}`,
-          },
-          input,
-          state: 'output-error',
-        })
-        continue
-      }
+    const argsStr = toolCall.function.arguments.trim()
+    try {
+      input = parseToolArguments(argsStr)
+    } catch {
+      results.push({
+        toolCallId: toolCall.id,
+        toolName,
+        result: {
+          error: `Failed to parse tool arguments as JSON: ${argsStr}`,
+        },
+        input,
+        state: 'output-error',
+      })
+      continue
     }
 
     const resolution = tool.needsApproval
@@ -1169,7 +1192,7 @@ export async function* executeToolCalls<TContext = unknown>(
       input = decision.input
     }
     try {
-      input = await validateToolInput(tool.inputSchema, input, tool.name)
+      input = await checkToolInput(tool, input)
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Validation failed'

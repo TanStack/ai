@@ -497,7 +497,29 @@
           "input": 0.03,
           "output": 0.13,
           "cache_read": 0.003,
-          "cache_write": 0.0375
+          "cache_write": 0.0375,
+          "tiers": [
+            {
+              "input": 0.1,
+              "output": 0.4,
+              "cache_read": 0.01,
+              "cache_write": 0.125,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 0.2,
+              "output": 0.8,
+              "cache_read": 0.02,
+              "cache_write": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -552,7 +574,25 @@
         },
         "cost": {
           "input": 1.5,
-          "output": 7.5
+          "output": 7.5,
+          "tiers": [
+            {
+              "input": 2.7,
+              "output": 13.5,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 4.5,
+              "output": 22.5,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -596,7 +636,25 @@
         },
         "cost": {
           "input": 0.45,
-          "output": 2.25
+          "output": 2.25,
+          "tiers": [
+            {
+              "input": 0.75,
+              "output": 3.75,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 1.2,
+              "output": 6,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -1303,7 +1361,19 @@
           "input": 0.5,
           "output": 3,
           "cache_read": 0.05,
-          "cache_write": 0.625
+          "cache_write": 0.625,
+          "tiers": [
+            {
+              "input": 2,
+              "output": 6,
+              "cache_read": 0.2,
+              "cache_write": 2.5,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -1360,7 +1430,19 @@
           "input": 0.4,
           "output": 1.6,
           "cache_read": 0.04,
-          "cache_write": 0.5
+          "cache_write": 0.5,
+          "tiers": [
+            {
+              "input": 1.2,
+              "output": 4.8,
+              "cache_read": 0.12,
+              "cache_write": 1.5,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -1444,7 +1526,25 @@
         },
         "cost": {
           "input": 0.029,
-          "output": 0.287
+          "output": 0.287,
+          "tiers": [
+            {
+              "input": 0.115,
+              "output": 1.147,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            },
+            {
+              "input": 0.172,
+              "output": 1.72,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -1858,7 +1958,25 @@
         },
         "cost": {
           "input": 0.115,
-          "output": 0.688
+          "output": 0.688,
+          "tiers": [
+            {
+              "input": 0.287,
+              "output": 1.72,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            },
+            {
+              "input": 0.573,
+              "output": 3.44,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -1906,7 +2024,17 @@
         },
         "cost": {
           "input": 0.573,
-          "output": 2.58
+          "output": 2.58,
+          "tiers": [
+            {
+              "input": 0.86,
+              "output": 3.154,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 202752,
@@ -2060,7 +2188,29 @@
           "input": 0.02962,
           "output": 0.1185,
           "cache_read": 0.002962,
-          "cache_write": 0.03703
+          "cache_write": 0.03703,
+          "tiers": [
+            {
+              "input": 0.08887,
+              "output": 0.35549,
+              "cache_read": 0.008887,
+              "cache_write": 0.11109,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 0.17774,
+              "output": 0.71098,
+              "cache_read": 0.017774,
+              "cache_write": 0.22218,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -2121,7 +2271,25 @@
         },
         "cost": {
           "input": 0.359,
-          "output": 1.434
+          "output": 1.434,
+          "tiers": [
+            {
+              "input": 0.574,
+              "output": 2.294,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 1.004,
+              "output": 4.014,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -2194,7 +2362,25 @@
         },
         "cost": {
           "input": 0.861,
-          "output": 3.441
+          "output": 3.441,
+          "tiers": [
+            {
+              "input": 1.291,
+              "output": 5.161,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 2.151,
+              "output": 8.602,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -2276,7 +2462,25 @@
         },
         "cost": {
           "input": 0.216,
-          "output": 0.861
+          "output": 0.861,
+          "tiers": [
+            {
+              "input": 0.323,
+              "output": 1.291,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 0.538,
+              "output": 2.151,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -2695,7 +2899,33 @@
         },
         "cost": {
           "input": 0.574,
-          "output": 2.296
+          "output": 2.296,
+          "tiers": [
+            {
+              "input": 0.861,
+              "output": 3.444,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 1.435,
+              "output": 5.74,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            },
+            {
+              "input": 2.87,
+              "output": 28.7,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -2916,7 +3146,17 @@
         },
         "cost": {
           "input": 0.172,
-          "output": 1.032
+          "output": 1.032,
+          "tiers": [
+            {
+              "input": 0.43,
+              "output": 2.58,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -3017,7 +3257,17 @@
         "cost": {
           "input": 0.825,
           "output": 3.301,
-          "cache_read": 0.17
+          "cache_read": 0.17,
+          "tiers": [
+            {
+              "input": 1.1,
+              "output": 3.851,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 202752,
@@ -3171,7 +3421,19 @@
           "input": 0.5,
           "output": 3,
           "cache_read": 0.05,
-          "cache_write": 0.625
+          "cache_write": 0.625,
+          "tiers": [
+            {
+              "input": 2,
+              "output": 6,
+              "cache_read": 0.2,
+              "cache_write": 2.5,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -3257,7 +3519,19 @@
           "input": 0.5,
           "output": 3,
           "cache_read": 0.05,
-          "cache_write": 0.625
+          "cache_write": 0.625,
+          "tiers": [
+            {
+              "input": 2,
+              "output": 6,
+              "cache_read": 0.2,
+              "cache_write": 2.5,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -3670,7 +3944,19 @@
           "input": 10,
           "output": 50,
           "cache_read": 1,
-          "cache_write": 12.5
+          "cache_write": 12.5,
+          "tiers": [
+            {
+              "input": 20,
+              "output": 75,
+              "cache_read": 2,
+              "cache_write": 25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -3979,7 +4265,19 @@
           "input": 0.22,
           "output": 1.32,
           "cache_read": 0.022,
-          "cache_write": 0.275
+          "cache_write": 0.275,
+          "tiers": [
+            {
+              "input": 0.44,
+              "output": 1.98,
+              "cache_read": 0.044,
+              "cache_write": 0.55,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -4115,7 +4413,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -4552,7 +4862,19 @@
           "input": 2.2,
           "output": 13.2,
           "cache_read": 0.22,
-          "cache_write": 2.75
+          "cache_write": 2.75,
+          "tiers": [
+            {
+              "input": 4.4,
+              "output": 19.8,
+              "cache_read": 0.44,
+              "cache_write": 5.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -4741,7 +5063,19 @@
           "input": 0.22,
           "output": 1.32,
           "cache_read": 0.022,
-          "cache_write": 0.275
+          "cache_write": 0.275,
+          "tiers": [
+            {
+              "input": 0.44,
+              "output": 1.98,
+              "cache_read": 0.044,
+              "cache_write": 0.55,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -4877,7 +5211,19 @@
           "input": 11,
           "output": 55,
           "cache_read": 1.1,
-          "cache_write": 13.75
+          "cache_write": 13.75,
+          "tiers": [
+            {
+              "input": 22,
+              "output": 82.5,
+              "cache_read": 2.2,
+              "cache_write": 27.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -4904,7 +5250,19 @@
           "input": 2.2,
           "output": 13.2,
           "cache_read": 0.22,
-          "cache_write": 2.75
+          "cache_write": 2.75,
+          "tiers": [
+            {
+              "input": 4.4,
+              "output": 19.8,
+              "cache_read": 0.44,
+              "cache_write": 5.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -5319,7 +5677,19 @@
           "input": 0.22,
           "output": 1.32,
           "cache_read": 0.022,
-          "cache_write": 0.275
+          "cache_write": 0.275,
+          "tiers": [
+            {
+              "input": 0.44,
+              "output": 1.98,
+              "cache_read": 0.044,
+              "cache_write": 0.55,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -5692,7 +6062,19 @@
           "input": 4.4,
           "output": 22,
           "cache_read": 0.44,
-          "cache_write": 5.5
+          "cache_write": 5.5,
+          "tiers": [
+            {
+              "input": 8.8,
+              "output": 33,
+              "cache_read": 0.88,
+              "cache_write": 11,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -6024,7 +6406,19 @@
           "input": 0.11,
           "output": 0.55,
           "cache_read": 0.011,
-          "cache_write": 0.1375
+          "cache_write": 0.1375,
+          "tiers": [
+            {
+              "input": 0.22,
+              "output": 0.825,
+              "cache_read": 0.022,
+              "cache_write": 0.275,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -6051,7 +6445,19 @@
           "input": 4,
           "output": 20,
           "cache_read": 0.4,
-          "cache_write": 5
+          "cache_write": 5,
+          "tiers": [
+            {
+              "input": 8,
+              "output": 30,
+              "cache_read": 0.8,
+              "cache_write": 10,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -6415,7 +6821,19 @@
           "input": 0.2,
           "output": 1.2,
           "cache_read": 0.02,
-          "cache_write": 0.25
+          "cache_write": 0.25,
+          "tiers": [
+            {
+              "input": 0.4,
+              "output": 1.8,
+              "cache_read": 0.04,
+              "cache_write": 0.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -6641,7 +7059,19 @@
           "input": 2.2,
           "output": 11,
           "cache_read": 0.22,
-          "cache_write": 2.75
+          "cache_write": 2.75,
+          "tiers": [
+            {
+              "input": 4.4,
+              "output": 16.5,
+              "cache_read": 0.44,
+              "cache_write": 5.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -6743,7 +7173,19 @@
           "input": 2.2,
           "output": 11,
           "cache_read": 0.22,
-          "cache_write": 2.75
+          "cache_write": 2.75,
+          "tiers": [
+            {
+              "input": 4.4,
+              "output": 16.5,
+              "cache_read": 0.44,
+              "cache_write": 5.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -6947,7 +7389,19 @@
           "input": 0.1,
           "output": 0.5,
           "cache_read": 0.01,
-          "cache_write": 0.125
+          "cache_write": 0.125,
+          "tiers": [
+            {
+              "input": 0.2,
+              "output": 0.75,
+              "cache_read": 0.02,
+              "cache_write": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -7258,7 +7712,19 @@
           "input": 0.11,
           "output": 0.55,
           "cache_read": 0.011,
-          "cache_write": 0.1375
+          "cache_write": 0.1375,
+          "tiers": [
+            {
+              "input": 0.22,
+              "output": 0.825,
+              "cache_read": 0.022,
+              "cache_write": 0.275,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -7531,7 +7997,19 @@
           "input": 2,
           "output": 12,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -7558,7 +8036,19 @@
           "input": 11,
           "output": 55,
           "cache_read": 1.1,
-          "cache_write": 13.75
+          "cache_write": 13.75,
+          "tiers": [
+            {
+              "input": 22,
+              "output": 82.5,
+              "cache_read": 2.2,
+              "cache_write": 27.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -7756,7 +8246,19 @@
           "input": 2.2,
           "output": 13.2,
           "cache_read": 0.22,
-          "cache_write": 2.75
+          "cache_write": 2.75,
+          "tiers": [
+            {
+              "input": 4.4,
+              "output": 19.8,
+              "cache_read": 0.44,
+              "cache_write": 5.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -7861,7 +8363,19 @@
           "input": 4.4,
           "output": 22,
           "cache_read": 0.44,
-          "cache_write": 5.5
+          "cache_write": 5.5,
+          "tiers": [
+            {
+              "input": 8.8,
+              "output": 33,
+              "cache_read": 0.88,
+              "cache_write": 11,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -8738,7 +9252,18 @@
         "cost": {
           "input": 2.5,
           "output": 15,
-          "cache_read": 0.25
+          "cache_read": 0.25,
+          "tiers": [
+            {
+              "input": 5,
+              "output": 22.5,
+              "cache_read": 0.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -8812,7 +9337,17 @@
         },
         "cost": {
           "input": 30,
-          "output": 180
+          "output": 180,
+          "tiers": [
+            {
+              "input": 60,
+              "output": 270,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -9660,7 +10195,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.1,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.2,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -9752,7 +10299,19 @@
           "input": 10,
           "output": 50,
           "cache_read": 1,
-          "cache_write": 12.5
+          "cache_write": 12.5,
+          "tiers": [
+            {
+              "input": 20,
+              "output": 75,
+              "cache_read": 2,
+              "cache_write": 25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -10072,7 +10631,19 @@
           "input": 0.2,
           "output": 1.2,
           "cache_read": 0.02,
-          "cache_write": 0.25
+          "cache_write": 0.25,
+          "tiers": [
+            {
+              "input": 0.4,
+              "output": 1.8,
+              "cache_read": 0.04,
+              "cache_write": 0.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -10150,7 +10721,19 @@
           "input": 5,
           "output": 25,
           "cache_read": 0.5,
-          "cache_write": 6.25
+          "cache_write": 6.25,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 37.5,
+              "cache_read": 1,
+              "cache_write": 12.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -10198,7 +10781,18 @@
         "cost": {
           "input": 5,
           "output": 30,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 45,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -10321,7 +10915,19 @@
           "input": 5,
           "output": 25,
           "cache_read": 0.5,
-          "cache_write": 6.25
+          "cache_write": 6.25,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 37.5,
+              "cache_read": 1,
+              "cache_write": 12.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -10429,7 +11035,19 @@
           "input": 0.1,
           "output": 0.5,
           "cache_read": 0.01,
-          "cache_write": 0.125
+          "cache_write": 0.125,
+          "tiers": [
+            {
+              "input": 0.2,
+              "output": 0.75,
+              "cache_read": 0.02,
+              "cache_write": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -10624,7 +11242,19 @@
           "input": 2,
           "output": 12,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -10847,7 +11477,19 @@
           "input": 4,
           "output": 20,
           "cache_read": 0.5,
-          "cache_write": 6.25
+          "cache_write": 6.25,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 45,
+              "cache_read": 1,
+              "cache_write": 12.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -10916,7 +11558,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -12286,7 +12940,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -12359,7 +13024,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.3
+          "cache_read": 0.3,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 0.6,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -12405,7 +13081,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -12737,7 +13424,19 @@
           "input": 10,
           "output": 50,
           "cache_read": 1,
-          "cache_write": 12
+          "cache_write": 12,
+          "tiers": [
+            {
+              "input": 20,
+              "output": 75,
+              "cache_read": 2,
+              "cache_write": 25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -12952,7 +13651,19 @@
           "input": 0.1,
           "output": 0.5,
           "cache_read": 0.01,
-          "cache_write": 0.125
+          "cache_write": 0.125,
+          "tiers": [
+            {
+              "input": 0.2,
+              "output": 0.75,
+              "cache_read": 0.02,
+              "cache_write": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -13100,7 +13811,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -15090,7 +15813,18 @@
         "cost": {
           "input": 2,
           "output": 12,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -15109,7 +15843,17 @@
         },
         "cost": {
           "input": 1.25,
-          "output": 10
+          "output": 10,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 15,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 128000,
@@ -15161,7 +15905,18 @@
         "cost": {
           "input": 1.25,
           "output": 10,
-          "cache_read": 0.125
+          "cache_read": 0.125,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 15,
+              "cache_read": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -15280,7 +16035,18 @@
         "cost": {
           "input": 2,
           "output": 12,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 131072,
@@ -15301,7 +16067,18 @@
         "cost": {
           "input": 2,
           "output": 12,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 131072,
@@ -15384,7 +16161,18 @@
         "cost": {
           "input": 2,
           "output": 12,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -15615,7 +16403,19 @@
           "input": 5,
           "output": 25,
           "cache_read": 0.5,
-          "cache_write": 6.25
+          "cache_write": 6.25,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 37.5,
+              "cache_read": 1,
+              "cache_write": 12.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -15743,7 +16543,19 @@
           "input": 5,
           "output": 25,
           "cache_read": 0.5,
-          "cache_write": 6.25
+          "cache_write": 6.25,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 37.5,
+              "cache_read": 1,
+              "cache_write": 12.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -15950,7 +16762,19 @@
           "input": 3,
           "output": 15,
           "cache_read": 0.3,
-          "cache_write": 3.75
+          "cache_write": 3.75,
+          "tiers": [
+            {
+              "input": 6,
+              "output": 22.5,
+              "cache_read": 0.6,
+              "cache_write": 7.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -16061,7 +16885,18 @@
         "cost": {
           "input": 2,
           "output": 12,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -16153,7 +16988,19 @@
           "input": 5,
           "output": 25,
           "cache_read": 0.5,
-          "cache_write": 6.25
+          "cache_write": 6.25,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 37.5,
+              "cache_read": 1,
+              "cache_write": 12.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -16209,7 +17056,18 @@
         "cost": {
           "input": 1.25,
           "output": 10,
-          "cache_read": 0.125
+          "cache_read": 0.125,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 15,
+              "cache_read": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -16341,7 +17199,18 @@
         "cost": {
           "input": 2,
           "output": 12,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -16674,7 +17543,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 2000000,
@@ -16698,7 +17578,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 2000000,
@@ -16749,7 +17640,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 200000,
@@ -16800,7 +17702,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 524288,
@@ -17103,7 +18016,19 @@
           "input": 5,
           "output": 25,
           "cache_read": 0.5,
-          "cache_write": 6.25
+          "cache_write": 6.25,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 37.5,
+              "cache_read": 1,
+              "cache_write": 12.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -17161,7 +18086,19 @@
           "input": 5,
           "output": 25,
           "cache_read": 0.5,
-          "cache_write": 6.25
+          "cache_write": 6.25,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 37.5,
+              "cache_read": 1,
+              "cache_write": 12.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -17301,7 +18238,19 @@
           "input": 3,
           "output": 15,
           "cache_read": 0.3,
-          "cache_write": 3.75
+          "cache_write": 3.75,
+          "tiers": [
+            {
+              "input": 6,
+              "output": 22.5,
+              "cache_read": 0.6,
+              "cache_write": 7.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -17414,7 +18363,19 @@
           "input": 5,
           "output": 25,
           "cache_read": 0.5,
-          "cache_write": 6.25
+          "cache_write": 6.25,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 37.5,
+              "cache_read": 1,
+              "cache_write": 12.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -20440,7 +21401,18 @@
         "cost": {
           "input": 0.14,
           "output": 0.28,
-          "cache_read": 0.0028
+          "cache_read": 0.0028,
+          "tiers": [
+            {
+              "input": 0.8,
+              "output": 4,
+              "cache_read": 0.16,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -20465,7 +21437,17 @@
         },
         "cost": {
           "input": 30,
-          "output": 180
+          "output": 180,
+          "tiers": [
+            {
+              "input": 60,
+              "output": 270,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -20935,7 +21917,18 @@
         "cost": {
           "input": 1,
           "output": 2,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2,
+              "output": 4,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 256000,
@@ -22474,7 +23467,18 @@
         "cost": {
           "input": 2,
           "output": 12,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -22551,7 +23555,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 2000000,
@@ -22892,7 +23907,18 @@
         "cost": {
           "input": 1.25,
           "output": 10,
-          "cache_read": 0.125
+          "cache_read": 0.125,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 15,
+              "cache_read": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -23086,7 +24112,18 @@
         "cost": {
           "input": 0.435,
           "output": 0.87,
-          "cache_read": 0.0036
+          "cache_read": 0.0036,
+          "tiers": [
+            {
+              "input": 2,
+              "output": 6,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -23542,7 +24579,18 @@
         "cost": {
           "input": 5,
           "output": 30,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 45,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -23953,7 +25001,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -24011,7 +25070,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 2000000,
@@ -24063,7 +25133,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 2000000,
@@ -24616,7 +25697,19 @@
           "input": 0.5,
           "output": 3,
           "cache_read": 0.05,
-          "cache_write": 0.625
+          "cache_write": 0.625,
+          "tiers": [
+            {
+              "input": 2,
+              "output": 6,
+              "cache_read": 0.2,
+              "cache_write": 2.5,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -24661,7 +25754,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 2000000,
@@ -25545,7 +26649,18 @@
         "cost": {
           "input": 0.3,
           "output": 1.2,
-          "cache_read": 0.06
+          "cache_read": 0.06,
+          "tiers": [
+            {
+              "input": 0.6,
+              "output": 2.4,
+              "cache_read": 0.12,
+              "tier": {
+                "type": "context",
+                "size": 512000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -25702,7 +26817,18 @@
         "cost": {
           "input": 0.3,
           "output": 1.2,
-          "cache_read": 0.06
+          "cache_read": 0.06,
+          "tiers": [
+            {
+              "input": 0.6,
+              "output": 2.4,
+              "cache_read": 0.12,
+              "tier": {
+                "type": "context",
+                "size": 512000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -29666,7 +30792,18 @@
         "cost": {
           "input": 2.5,
           "output": 15,
-          "cache_read": 0.25
+          "cache_read": 0.25,
+          "tiers": [
+            {
+              "input": 5,
+              "output": 22.5,
+              "cache_read": 0.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -29690,7 +30827,17 @@
         },
         "cost": {
           "input": 30,
-          "output": 180
+          "output": 180,
+          "tiers": [
+            {
+              "input": 60,
+              "output": 270,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -29734,7 +30881,17 @@
         },
         "cost": {
           "input": 30,
-          "output": 180
+          "output": 180,
+          "tiers": [
+            {
+              "input": 60,
+              "output": 270,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -30095,7 +31252,19 @@
           "input": 4,
           "output": 20,
           "cache_read": 0.4,
-          "cache_write": 5
+          "cache_write": 5,
+          "tiers": [
+            {
+              "input": 8,
+              "output": 30,
+              "cache_read": 0.8,
+              "cache_write": 10,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -30223,7 +31392,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.1,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.2,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -30287,7 +31468,19 @@
           "input": 10,
           "output": 50,
           "cache_read": 1,
-          "cache_write": 12.5
+          "cache_write": 12.5,
+          "tiers": [
+            {
+              "input": 20,
+              "output": 75,
+              "cache_read": 2,
+              "cache_write": 25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -30398,7 +31591,19 @@
           "input": 4,
           "output": 20,
           "cache_read": 0.4,
-          "cache_write": 5
+          "cache_write": 5,
+          "tiers": [
+            {
+              "input": 8,
+              "output": 30,
+              "cache_read": 0.8,
+              "cache_write": 10,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -30450,7 +31655,19 @@
           "input": 0.2,
           "output": 1.2,
           "cache_read": 0.02,
-          "cache_write": 0.25
+          "cache_write": 0.25,
+          "tiers": [
+            {
+              "input": 0.4,
+              "output": 1.8,
+              "cache_read": 0.04,
+              "cache_write": 0.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -30501,7 +31718,18 @@
         "cost": {
           "input": 5,
           "output": 30,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 45,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -30584,7 +31812,19 @@
           "input": 0.1,
           "output": 0.5,
           "cache_read": 0.01,
-          "cache_write": 0.125
+          "cache_write": 0.125,
+          "tiers": [
+            {
+              "input": 0.2,
+              "output": 0.75,
+              "cache_read": 0.02,
+              "cache_write": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -30660,7 +31900,19 @@
           "input": 2,
           "output": 12,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -30784,7 +32036,19 @@
           "input": 4,
           "output": 20,
           "cache_read": 0.4,
-          "cache_write": 5
+          "cache_write": 5,
+          "tiers": [
+            {
+              "input": 8,
+              "output": 30,
+              "cache_read": 0.8,
+              "cache_write": 10,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -30811,7 +32075,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -30896,7 +32172,18 @@
         "cost": {
           "input": 2.5,
           "output": 15,
-          "cache_read": 0.25
+          "cache_read": 0.25,
+          "tiers": [
+            {
+              "input": 5,
+              "output": 22.5,
+              "cache_read": 0.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -31173,7 +32460,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -31862,7 +33160,19 @@
           "input": 3,
           "output": 15,
           "cache_read": 0.3,
-          "cache_write": 3.75
+          "cache_write": 3.75,
+          "tiers": [
+            {
+              "input": 6,
+              "output": 22.5,
+              "cache_read": 0.6,
+              "cache_write": 7.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -32056,7 +33366,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.1,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.2,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -32145,7 +33467,19 @@
           "input": 10,
           "output": 50,
           "cache_read": 1,
-          "cache_write": 12.5
+          "cache_write": 12.5,
+          "tiers": [
+            {
+              "input": 20,
+              "output": 75,
+              "cache_read": 2,
+              "cache_write": 25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -32174,7 +33508,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.3
+          "cache_read": 0.3,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 0.6,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -32595,7 +33940,18 @@
         "cost": {
           "input": 2,
           "output": 12,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -32649,7 +34005,19 @@
           "input": 3,
           "output": 15,
           "cache_read": 0.3,
-          "cache_write": 3.75
+          "cache_write": 3.75,
+          "tiers": [
+            {
+              "input": 6,
+              "output": 22.5,
+              "cache_read": 0.6,
+              "cache_write": 7.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -32787,7 +34155,19 @@
           "input": 0.2,
           "output": 1.2,
           "cache_read": 0.02,
-          "cache_write": 0.25
+          "cache_write": 0.25,
+          "tiers": [
+            {
+              "input": 0.4,
+              "output": 1.8,
+              "cache_read": 0.04,
+              "cache_write": 0.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -32984,7 +34364,18 @@
         "cost": {
           "input": 5,
           "output": 30,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 45,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -33421,7 +34812,19 @@
           "input": 0.1,
           "output": 0.5,
           "cache_read": 0.01,
-          "cache_write": 0.125
+          "cache_write": 0.125,
+          "tiers": [
+            {
+              "input": 0.2,
+              "output": 0.75,
+              "cache_read": 0.02,
+              "cache_write": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -33603,7 +35006,19 @@
           "input": 2.5,
           "output": 15,
           "cache_read": 0.25,
-          "cache_write": 3.125
+          "cache_write": 3.125,
+          "tiers": [
+            {
+              "input": 5,
+              "output": 22.5,
+              "cache_read": 0.5,
+              "cache_write": 6.25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -33794,7 +35209,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -33823,7 +35249,18 @@
         "cost": {
           "input": 2,
           "output": 12,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -33876,7 +35313,19 @@
           "input": 4,
           "output": 20,
           "cache_read": 0.4,
-          "cache_write": 5
+          "cache_write": 5,
+          "tiers": [
+            {
+              "input": 8,
+              "output": 30,
+              "cache_read": 0.8,
+              "cache_write": 10,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -33995,7 +35444,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -34110,7 +35571,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -34372,7 +35844,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.3
+          "cache_read": 0.3,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 0.6,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -34500,7 +35983,18 @@
         "cost": {
           "input": 0.3,
           "output": 1.2,
-          "cache_read": 0.06
+          "cache_read": 0.06,
+          "tiers": [
+            {
+              "input": 0.6,
+              "output": 2.4,
+              "cache_read": 0.12,
+              "tier": {
+                "type": "context",
+                "size": 512000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -34529,7 +36023,19 @@
           "input": 0.2,
           "output": 1.2,
           "cache_read": 0.02,
-          "cache_write": 0.25
+          "cache_write": 0.25,
+          "tiers": [
+            {
+              "input": 0.4,
+              "output": 1.8,
+              "cache_read": 0.04,
+              "cache_write": 0.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -34679,7 +36185,19 @@
           "input": 0.1,
           "output": 0.5,
           "cache_read": 0.01,
-          "cache_write": 0.125
+          "cache_write": 0.125,
+          "tiers": [
+            {
+              "input": 0.2,
+              "output": 0.75,
+              "cache_read": 0.02,
+              "cache_write": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -34740,7 +36258,19 @@
           "input": 0.5,
           "output": 3,
           "cache_read": 0.05,
-          "cache_write": 0.625
+          "cache_write": 0.625,
+          "tiers": [
+            {
+              "input": 2,
+              "output": 6,
+              "cache_read": 0.2,
+              "cache_write": 2.5,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -34873,7 +36403,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -34906,7 +36447,19 @@
           "input": 0.4,
           "output": 1.6,
           "cache_read": 0.04,
-          "cache_write": 0.5
+          "cache_write": 0.5,
+          "tiers": [
+            {
+              "input": 1.2,
+              "output": 4.8,
+              "cache_read": 0.12,
+              "cache_write": 1.5,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -35064,7 +36617,17 @@
         },
         "cost": {
           "input": 0.075,
-          "output": 0.3
+          "output": 0.3,
+          "tiers": [
+            {
+              "input": 0.1,
+              "output": 0.8,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -35091,7 +36654,17 @@
         },
         "cost": {
           "input": 0.25,
-          "output": 2
+          "output": 2,
+          "tiers": [
+            {
+              "input": 0.5,
+              "output": 4,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -35142,7 +36715,17 @@
         },
         "cost": {
           "input": 0.1,
-          "output": 0.4
+          "output": 0.4,
+          "tiers": [
+            {
+              "input": 0.2,
+              "output": 0.8,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -35170,7 +36753,17 @@
         },
         "cost": {
           "input": 0.5,
-          "output": 3
+          "output": 3,
+          "tiers": [
+            {
+              "input": 1,
+              "output": 6,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -35194,7 +36787,17 @@
         },
         "cost": {
           "input": 0.25,
-          "output": 2
+          "output": 2,
+          "tiers": [
+            {
+              "input": 0.5,
+              "output": 4,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -35430,7 +37033,19 @@
           "input": 5,
           "output": 25,
           "cache_read": 0.5,
-          "cache_write": 6.25
+          "cache_write": 6.25,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 37.5,
+              "cache_read": 1,
+              "cache_write": 12.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -35460,7 +37075,19 @@
           "input": 5,
           "output": 25,
           "cache_read": 0.5,
-          "cache_write": 6.25
+          "cache_write": 6.25,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 37.5,
+              "cache_read": 1,
+              "cache_write": 12.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -35626,7 +37253,19 @@
           "input": 3,
           "output": 15,
           "cache_read": 0.3,
-          "cache_write": 3.75
+          "cache_write": 3.75,
+          "tiers": [
+            {
+              "input": 6,
+              "output": 22.5,
+              "cache_read": 0.6,
+              "cache_write": 7.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -35679,7 +37318,19 @@
           "input": 3,
           "output": 15,
           "cache_read": 0.3,
-          "cache_write": 3.75
+          "cache_write": 3.75,
+          "tiers": [
+            {
+              "input": 6,
+              "output": 22.5,
+              "cache_read": 0.6,
+              "cache_write": 7.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 200000,
@@ -35738,7 +37389,19 @@
           "input": 3,
           "output": 15,
           "cache_read": 0.3,
-          "cache_write": 3.75
+          "cache_write": 3.75,
+          "tiers": [
+            {
+              "input": 6,
+              "output": 22.5,
+              "cache_read": 0.6,
+              "cache_write": 7.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -36685,7 +38348,18 @@
           "input": 2,
           "output": 12,
           "cache_read": 0.2,
-          "cache_write": 0.375
+          "cache_write": 0.375,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -37809,7 +39483,19 @@
           "input": 2,
           "output": 12,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -37835,7 +39521,19 @@
           "input": 0.1,
           "output": 0.5,
           "cache_read": 0.01,
-          "cache_write": 0.125
+          "cache_write": 0.125,
+          "tiers": [
+            {
+              "input": 0.2,
+              "output": 0.75,
+              "cache_read": 0.02,
+              "cache_write": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -37861,7 +39559,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.1,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.2,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -37887,7 +39597,19 @@
           "input": 10,
           "output": 50,
           "cache_read": 1,
-          "cache_write": 12.5
+          "cache_write": 12.5,
+          "tiers": [
+            {
+              "input": 20,
+              "output": 75,
+              "cache_read": 2,
+              "cache_write": 25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -38034,7 +39756,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 2000000,
@@ -38059,7 +39792,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -38085,7 +39829,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -38111,7 +39866,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.3
+          "cache_read": 0.3,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 0.6,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -38132,7 +39898,18 @@
         "cost": {
           "input": 1,
           "output": 2,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2,
+              "output": 4,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 256000,
@@ -38157,7 +39934,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 2000000,
@@ -38182,7 +39970,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -38486,7 +40285,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -38880,7 +40690,18 @@
           "input": 2,
           "output": 12,
           "cache_read": 0.2,
-          "cache_write": 0.375
+          "cache_write": 0.375,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -38954,7 +40775,18 @@
           "input": 1.25,
           "output": 10,
           "cache_read": 0.125,
-          "cache_write": 0.375
+          "cache_write": 0.375,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 15,
+              "cache_read": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -39087,7 +40919,18 @@
           "input": 2,
           "output": 12,
           "cache_read": 0.2,
-          "cache_write": 0.375
+          "cache_write": 0.375,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -39220,7 +41063,18 @@
           "input": 1.25,
           "output": 10,
           "cache_read": 0.125,
-          "cache_write": 0.375
+          "cache_write": 0.375,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 15,
+              "cache_read": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -39792,7 +41646,18 @@
         "cost": {
           "input": 5,
           "output": 30,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 45,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -39817,7 +41682,18 @@
         "cost": {
           "input": 5,
           "output": 30,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 45,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -41425,7 +43301,19 @@
           "input": 0.26,
           "output": 0.78,
           "cache_read": 0.052,
-          "cache_write": 0.325
+          "cache_write": 0.325,
+          "tiers": [
+            {
+              "input": 0.78,
+              "output": 2.34,
+              "cache_read": 0.156,
+              "cache_write": 0.975,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -41454,7 +43342,29 @@
           "input": 0.03,
           "output": 0.13,
           "cache_read": 0.006,
-          "cache_write": 0.038
+          "cache_write": 0.038,
+          "tiers": [
+            {
+              "input": 0.1,
+              "output": 0.4,
+              "cache_read": 0.02,
+              "cache_write": 0.125,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 0.2,
+              "output": 0.8,
+              "cache_read": 0.04,
+              "cache_write": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -41475,7 +43385,29 @@
           "input": 0.78,
           "output": 3.9,
           "cache_read": 0.156,
-          "cache_write": 0.975
+          "cache_write": 0.975,
+          "tiers": [
+            {
+              "input": 1.56,
+              "output": 7.8,
+              "cache_read": 0.312,
+              "cache_write": 1.95,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 1.95,
+              "output": 9.75,
+              "cache_read": 0.39,
+              "cache_write": 2.4375,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -41626,7 +43558,17 @@
         },
         "cost": {
           "input": 0.26,
-          "output": 0.78
+          "output": 0.78,
+          "tiers": [
+            {
+              "input": 0.78,
+              "output": 2.34,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -41714,7 +43656,18 @@
         "cost": {
           "input": 0.1875,
           "output": 1.125,
-          "cache_write": 0.234375
+          "cache_write": 0.234375,
+          "tiers": [
+            {
+              "input": 0.75,
+              "output": 3,
+              "cache_write": 0.9375,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -41735,7 +43688,29 @@
           "input": 0.195,
           "output": 0.975,
           "cache_read": 0.039,
-          "cache_write": 0.24375
+          "cache_write": 0.24375,
+          "tiers": [
+            {
+              "input": 0.325,
+              "output": 1.625,
+              "cache_read": 0.065,
+              "cache_write": 0.40625,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 0.52,
+              "output": 2.6,
+              "cache_read": 0.104,
+              "cache_write": 0.65,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -41800,7 +43775,25 @@
         },
         "cost": {
           "input": 0.78,
-          "output": 3.9
+          "output": 3.9,
+          "tiers": [
+            {
+              "input": 1.56,
+              "output": 7.8,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 1.95,
+              "output": 9.75,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -41820,7 +43813,29 @@
           "input": 0.65,
           "output": 3.25,
           "cache_read": 0.13,
-          "cache_write": 0.8125
+          "cache_write": 0.8125,
+          "tiers": [
+            {
+              "input": 1.17,
+              "output": 5.85,
+              "cache_read": 0.234,
+              "cache_write": 1.4625,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 1.95,
+              "output": 9.75,
+              "cache_read": 0.39,
+              "cache_write": 2.4375,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -41895,7 +43910,18 @@
         "cost": {
           "input": 0.3,
           "output": 1.8,
-          "cache_write": 0.375
+          "cache_write": 0.375,
+          "tiers": [
+            {
+              "input": 0.375,
+              "output": 2.25,
+              "cache_write": 0.46875,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -41972,7 +43998,18 @@
         "cost": {
           "input": 1.027,
           "output": 6.162,
-          "cache_write": 1.28375
+          "cache_write": 1.28375,
+          "tiers": [
+            {
+              "input": 1.58,
+              "output": 9.48,
+              "cache_write": 1.975,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -42159,7 +44196,17 @@
         },
         "cost": {
           "input": 0.26,
-          "output": 1.56
+          "output": 1.56,
+          "tiers": [
+            {
+              "input": 0.325,
+              "output": 1.95,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -42244,7 +44291,18 @@
         "cost": {
           "input": 0.325,
           "output": 1.95,
-          "cache_write": 0.40625
+          "cache_write": 0.40625,
+          "tiers": [
+            {
+              "input": 1.3,
+              "output": 3.9,
+              "cache_write": 1.625,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -42312,7 +44370,19 @@
           "input": 0.32,
           "output": 1.28,
           "cache_read": 0.064,
-          "cache_write": 0.4
+          "cache_write": 0.4,
+          "tiers": [
+            {
+              "input": 0.96,
+              "output": 3.84,
+              "cache_read": 0.192,
+              "cache_write": 1.2,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -42429,7 +44499,18 @@
         "cost": {
           "input": 2.5,
           "output": 15,
-          "cache_read": 0.25
+          "cache_read": 0.25,
+          "tiers": [
+            {
+              "input": 5,
+              "output": 22.5,
+              "cache_read": 0.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -42479,7 +44560,17 @@
         },
         "cost": {
           "input": 30,
-          "output": 180
+          "output": 180,
+          "tiers": [
+            {
+              "input": 60,
+              "output": 270,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -42543,7 +44634,19 @@
           "input": 10,
           "output": 50,
           "cache_read": 1,
-          "cache_write": 12.5
+          "cache_write": 12.5,
+          "tiers": [
+            {
+              "input": 20,
+              "output": 75,
+              "cache_read": 2,
+              "cache_write": 25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -42567,7 +44670,17 @@
         },
         "cost": {
           "input": 30,
-          "output": 180
+          "output": 180,
+          "tiers": [
+            {
+              "input": 60,
+              "output": 270,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -42767,7 +44880,19 @@
           "input": 4,
           "output": 20,
           "cache_read": 0.4,
-          "cache_write": 5
+          "cache_write": 5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -43054,7 +45179,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.1,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.2,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -43101,7 +45238,19 @@
           "input": 10,
           "output": 50,
           "cache_read": 1,
-          "cache_write": 12.5
+          "cache_write": 12.5,
+          "tiers": [
+            {
+              "input": 20,
+              "output": 75,
+              "cache_read": 2,
+              "cache_write": 25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -43128,7 +45277,19 @@
           "input": 0.2,
           "output": 1.2,
           "cache_read": 0.02,
-          "cache_write": 0.25
+          "cache_write": 0.25,
+          "tiers": [
+            {
+              "input": 0.4,
+              "output": 1.8,
+              "cache_read": 0.04,
+              "cache_write": 0.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -43359,7 +45520,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -43431,7 +45604,19 @@
           "input": 0.2,
           "output": 1.2,
           "cache_read": 0.02,
-          "cache_write": 0.25
+          "cache_write": 0.25,
+          "tiers": [
+            {
+              "input": 0.4,
+              "output": 1.8,
+              "cache_read": 0.04,
+              "cache_write": 0.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -43509,7 +45694,18 @@
         "cost": {
           "input": 5,
           "output": 30,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 45,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -43614,7 +45810,19 @@
           "input": 2,
           "output": 12,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -43641,7 +45849,19 @@
           "input": 0.1,
           "output": 0.5,
           "cache_read": 0.01,
-          "cache_write": 0.125
+          "cache_write": 0.125,
+          "tiers": [
+            {
+              "input": 0.2,
+              "output": 0.75,
+              "cache_read": 0.02,
+              "cache_write": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -43668,7 +45888,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.1,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.2,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -43719,7 +45951,19 @@
           "input": 0.1,
           "output": 0.5,
           "cache_read": 0.01,
-          "cache_write": 0.125
+          "cache_write": 0.125,
+          "tiers": [
+            {
+              "input": 0.2,
+              "output": 0.75,
+              "cache_read": 0.02,
+              "cache_write": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -43745,7 +45989,19 @@
           "input": 2,
           "output": 12,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -43896,7 +46152,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -43923,7 +46191,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -45508,7 +47788,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 2000000,
@@ -45545,7 +47836,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 2000000,
@@ -45570,7 +47872,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 200001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -45602,7 +47915,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 2000000,
@@ -45692,7 +48016,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -45733,7 +48068,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.3
+          "cache_read": 0.3,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 0.6,
+              "tier": {
+                "type": "context",
+                "size": 200001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -45786,7 +48132,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 2000000,
@@ -45804,7 +48161,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.4
+          "cache_read": 0.4,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 2000000,
@@ -45829,7 +48197,18 @@
         "cost": {
           "input": 1,
           "output": 2,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2,
+              "output": 4,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 256000,
@@ -45872,7 +48251,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 2000000,
@@ -45897,7 +48287,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 200001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -46463,7 +48864,19 @@
           "input": 3,
           "output": 15,
           "cache_read": 0.3,
-          "cache_write": 3.75
+          "cache_write": 3.75,
+          "tiers": [
+            {
+              "input": 6,
+              "output": 22.5,
+              "cache_read": 0.6,
+              "cache_write": 7.5,
+              "tier": {
+                "type": "context",
+                "size": 200001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -46524,7 +48937,19 @@
           "input": 3,
           "output": 15,
           "cache_read": 0.3,
-          "cache_write": 3.75
+          "cache_write": 3.75,
+          "tiers": [
+            {
+              "input": 6,
+              "output": 22.5,
+              "cache_read": 0.6,
+              "cache_write": 7.5,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -48093,7 +50518,27 @@
         "cost": {
           "input": 1.5,
           "output": 7.5,
-          "cache_read": 0.3
+          "cache_read": 0.3,
+          "tiers": [
+            {
+              "input": 2.7,
+              "output": 13.5,
+              "cache_read": 0.54,
+              "tier": {
+                "type": "context",
+                "size": 32001
+              }
+            },
+            {
+              "input": 4.5,
+              "output": 22.5,
+              "cache_read": 0.9,
+              "tier": {
+                "type": "context",
+                "size": 128001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -48132,7 +50577,19 @@
           "input": 0.4,
           "output": 2.4,
           "cache_read": 0.04,
-          "cache_write": 0.5
+          "cache_write": 0.5,
+          "tiers": [
+            {
+              "input": 0.5,
+              "output": 3,
+              "cache_read": 0.05,
+              "cache_write": 0.625,
+              "tier": {
+                "type": "context",
+                "size": 256001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -48163,7 +50620,19 @@
           "input": 1.3,
           "output": 7.8,
           "cache_read": 0.13,
-          "cache_write": 1.625
+          "cache_write": 1.625,
+          "tiers": [
+            {
+              "input": 2,
+              "output": 12,
+              "cache_read": 0.2,
+              "cache_write": 2.5,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 240000,
@@ -48251,7 +50720,29 @@
           "input": 0.03,
           "output": 0.13,
           "cache_read": 0.006,
-          "cache_write": 0.038
+          "cache_write": 0.038,
+          "tiers": [
+            {
+              "input": 0.1,
+              "output": 0.4,
+              "cache_read": 0.02,
+              "cache_write": 0.125,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 0.2,
+              "output": 0.8,
+              "cache_read": 0.04,
+              "cache_write": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 991000,
@@ -48271,7 +50762,27 @@
         "cost": {
           "input": 1.2,
           "output": 6,
-          "cache_read": 0.24
+          "cache_read": 0.24,
+          "tiers": [
+            {
+              "input": 2.4,
+              "output": 12,
+              "cache_read": 0.48,
+              "tier": {
+                "type": "context",
+                "size": 32001
+              }
+            },
+            {
+              "input": 3,
+              "output": 15,
+              "cache_read": 0.6,
+              "tier": {
+                "type": "context",
+                "size": 128001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -48386,7 +50897,27 @@
         "cost": {
           "input": 1.2,
           "output": 6,
-          "cache_read": 0.24
+          "cache_read": 0.24,
+          "tiers": [
+            {
+              "input": 2.4,
+              "output": 12,
+              "cache_read": 0.48,
+              "tier": {
+                "type": "context",
+                "size": 32001
+              }
+            },
+            {
+              "input": 3,
+              "output": 15,
+              "cache_read": 0.6,
+              "tier": {
+                "type": "context",
+                "size": 128001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -48459,7 +50990,27 @@
         "cost": {
           "input": 1.2,
           "output": 6,
-          "cache_read": 0.24
+          "cache_read": 0.24,
+          "tiers": [
+            {
+              "input": 2.4,
+              "output": 12,
+              "cache_read": 0.48,
+              "tier": {
+                "type": "context",
+                "size": 32001
+              }
+            },
+            {
+              "input": 3,
+              "output": 15,
+              "cache_read": 0.6,
+              "tier": {
+                "type": "context",
+                "size": 128001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 256000,
@@ -48478,7 +51029,36 @@
         "cost": {
           "input": 1,
           "output": 5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 1.8,
+              "output": 9,
+              "cache_read": 0.36,
+              "tier": {
+                "type": "context",
+                "size": 32001
+              }
+            },
+            {
+              "input": 3,
+              "output": 15,
+              "cache_read": 0.6,
+              "tier": {
+                "type": "context",
+                "size": 128001
+              }
+            },
+            {
+              "input": 6,
+              "output": 60,
+              "cache_read": 1.2,
+              "tier": {
+                "type": "context",
+                "size": 256001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -48717,7 +51297,19 @@
           "input": 0.5,
           "output": 3,
           "cache_read": 0.05,
-          "cache_write": 0.625
+          "cache_write": 0.625,
+          "tiers": [
+            {
+              "input": 2,
+              "output": 6,
+              "cache_read": 0.2,
+              "cache_write": 2.5,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -48757,7 +51349,19 @@
           "input": 0.4,
           "output": 1.6,
           "cache_read": 0.08,
-          "cache_write": 0.5
+          "cache_write": 0.5,
+          "tiers": [
+            {
+              "input": 1.2,
+              "output": 4.8,
+              "cache_read": 0.24,
+              "cache_write": 1.5,
+              "tier": {
+                "type": "context",
+                "size": 256000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -49008,7 +51612,18 @@
         "cost": {
           "input": 0.25,
           "output": 2,
-          "cache_read": 0.05
+          "cache_read": 0.05,
+          "tiers": [
+            {
+              "input": 0.5,
+              "output": 4,
+              "cache_read": 0.05,
+              "tier": {
+                "type": "context",
+                "size": 128001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 256000,
@@ -49180,7 +51795,18 @@
         "cost": {
           "input": 0.25,
           "output": 2,
-          "cache_read": 0.05
+          "cache_read": 0.05,
+          "tiers": [
+            {
+              "input": 0.5,
+              "output": 4,
+              "cache_read": 0.05,
+              "tier": {
+                "type": "context",
+                "size": 128001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 256000,
@@ -49485,7 +52111,18 @@
         "cost": {
           "input": 2,
           "output": 12,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -49900,7 +52537,18 @@
         "cost": {
           "input": 1.25,
           "output": 10,
-          "cache_read": 0.125
+          "cache_read": 0.125,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 15,
+              "cache_read": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1048576,
@@ -49980,7 +52628,18 @@
         "cost": {
           "input": 5,
           "output": 30,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 45,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 272001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -50029,7 +52688,18 @@
         "cost": {
           "input": 5,
           "output": 30,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 45,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 272001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -51494,7 +54164,18 @@
         "cost": {
           "input": 2.5,
           "output": 15,
-          "cache_read": 0.25
+          "cache_read": 0.25,
+          "tiers": [
+            {
+              "input": 5,
+              "output": 22.5,
+              "cache_read": 0.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -51519,7 +54200,17 @@
         },
         "cost": {
           "input": 30,
-          "output": 180
+          "output": 180,
+          "tiers": [
+            {
+              "input": 60,
+              "output": 270,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -51632,7 +54323,17 @@
         },
         "cost": {
           "input": 30,
-          "output": 180
+          "output": 180,
+          "tiers": [
+            {
+              "input": 60,
+              "output": 270,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -51797,7 +54498,19 @@
           "input": 4,
           "output": 20,
           "cache_read": 0.2,
-          "cache_write": 5
+          "cache_write": 5,
+          "tiers": [
+            {
+              "input": 8,
+              "output": 30,
+              "cache_read": 0.4,
+              "cache_write": 10,
+              "tier": {
+                "type": "context",
+                "size": 272001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -51922,7 +54635,19 @@
           "input": 0.4,
           "output": 2.4,
           "cache_read": 0.04,
-          "cache_write": 0.5
+          "cache_write": 0.5,
+          "tiers": [
+            {
+              "input": 0.8,
+              "output": 3.6,
+              "cache_read": 0.08,
+              "cache_write": 1,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -51949,7 +54674,19 @@
           "input": 20,
           "output": 100,
           "cache_read": 2,
-          "cache_write": 25
+          "cache_write": 25,
+          "tiers": [
+            {
+              "input": 40,
+              "output": 150,
+              "cache_read": 4,
+              "cache_write": 50,
+              "tier": {
+                "type": "context",
+                "size": 272001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -52185,7 +54922,19 @@
           "input": 8,
           "output": 40,
           "cache_read": 0.8,
-          "cache_write": 10
+          "cache_write": 10,
+          "tiers": [
+            {
+              "input": 16,
+              "output": 60,
+              "cache_read": 1.6,
+              "cache_write": 20,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -52263,7 +55012,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.1,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.2,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -52329,7 +55090,19 @@
           "input": 10,
           "output": 50,
           "cache_read": 1,
-          "cache_write": 12.5
+          "cache_write": 12.5,
+          "tiers": [
+            {
+              "input": 20,
+              "output": 75,
+              "cache_read": 2,
+              "cache_write": 25,
+              "tier": {
+                "type": "context",
+                "size": 272001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -52530,7 +55303,19 @@
           "input": 4,
           "output": 24,
           "cache_read": 0.4,
-          "cache_write": 5
+          "cache_write": 5,
+          "tiers": [
+            {
+              "input": 8,
+              "output": 36,
+              "cache_read": 0.8,
+              "cache_write": 10,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -52603,7 +55388,19 @@
           "input": 0.2,
           "output": 1.2,
           "cache_read": 0.02,
-          "cache_write": 0.25
+          "cache_write": 0.25,
+          "tiers": [
+            {
+              "input": 0.4,
+              "output": 1.8,
+              "cache_read": 0.04,
+              "cache_write": 0.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -52681,7 +55478,18 @@
         "cost": {
           "input": 5,
           "output": 30,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 10,
+              "output": 45,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -52708,7 +55516,19 @@
           "input": 4,
           "output": 20,
           "cache_read": 0.4,
-          "cache_write": 5
+          "cache_write": 5,
+          "tiers": [
+            {
+              "input": 8,
+              "output": 30,
+              "cache_read": 0.8,
+              "cache_write": 10,
+              "tier": {
+                "type": "context",
+                "size": 272001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -52749,7 +55569,19 @@
           "input": 0.2,
           "output": 1,
           "cache_read": 0.02,
-          "cache_write": 0.25
+          "cache_write": 0.25,
+          "tiers": [
+            {
+              "input": 0.4,
+              "output": 1.5,
+              "cache_read": 0.04,
+              "cache_write": 0.5,
+              "tier": {
+                "type": "context",
+                "size": 272001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -52841,7 +55673,19 @@
           "input": 0.1,
           "output": 0.5,
           "cache_read": 0.01,
-          "cache_write": 0.125
+          "cache_write": 0.125,
+          "tiers": [
+            {
+              "input": 0.2,
+              "output": 0.75,
+              "cache_read": 0.02,
+              "cache_write": 0.25,
+              "tier": {
+                "type": "context",
+                "size": 272001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -52933,7 +55777,19 @@
           "input": 2,
           "output": 12,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -53020,7 +55876,19 @@
           "input": 4,
           "output": 20,
           "cache_read": 0.4,
-          "cache_write": 5
+          "cache_write": 5,
+          "tiers": [
+            {
+              "input": 8,
+              "output": 30,
+              "cache_read": 0.8,
+              "cache_write": 10,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -53082,7 +55950,19 @@
           "input": 2,
           "output": 10,
           "cache_read": 0.2,
-          "cache_write": 2.5
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.4,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272001
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1050000,
@@ -53460,7 +56340,27 @@
         "cost": {
           "input": 0.11875,
           "output": 1.18747,
-          "cache_read": 0.02375
+          "cache_read": 0.02375,
+          "tiers": [
+            {
+              "input": 0.17812,
+              "output": 2.37494,
+              "cache_read": 0.02375,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 0.35624,
+              "output": 3.56241,
+              "cache_read": 0.02375,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 256000,
@@ -53497,7 +56397,27 @@
         "cost": {
           "input": 0.47499,
           "output": 2.37494,
-          "cache_read": 0.095
+          "cache_read": 0.095,
+          "tiers": [
+            {
+              "input": 0.71248,
+              "output": 3.56241,
+              "cache_read": 0.1425,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 1.42496,
+              "output": 7.12482,
+              "cache_read": 0.28499,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 256000,
@@ -53534,7 +56454,27 @@
         "cost": {
           "input": 0.08906,
           "output": 0.53436,
-          "cache_read": 0.01781
+          "cache_read": 0.01781,
+          "tiers": [
+            {
+              "input": 0.13359,
+              "output": 0.80154,
+              "cache_read": 0.02672,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 0.26718,
+              "output": 1.60308,
+              "cache_read": 0.05344,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 256000,
@@ -53599,7 +56539,27 @@
         "cost": {
           "input": 0.11875,
           "output": 1.18747,
-          "cache_read": 0.02375
+          "cache_read": 0.02375,
+          "tiers": [
+            {
+              "input": 0.17812,
+              "output": 2.37494,
+              "cache_read": 0.02375,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 0.35624,
+              "output": 3.56241,
+              "cache_read": 0.02375,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 256000,
@@ -53636,7 +56596,27 @@
         "cost": {
           "input": 0.02969,
           "output": 0.29687,
-          "cache_read": 0.00594
+          "cache_read": 0.00594,
+          "tiers": [
+            {
+              "input": 0.05937,
+              "output": 0.59374,
+              "cache_read": 0.01187,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 0.11875,
+              "output": 1.18747,
+              "cache_read": 0.02375,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 256000,
@@ -53673,7 +56653,27 @@
         "cost": {
           "input": 0.47499,
           "output": 2.37494,
-          "cache_read": 0.095
+          "cache_read": 0.095,
+          "tiers": [
+            {
+              "input": 0.71248,
+              "output": 3.56241,
+              "cache_read": 0.1425,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 1.42496,
+              "output": 7.12482,
+              "cache_read": 0.28499,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 262144,
@@ -53779,7 +56779,27 @@
         "cost": {
           "input": 0.11875,
           "output": 1.18747,
-          "cache_read": 0.02375
+          "cache_read": 0.02375,
+          "tiers": [
+            {
+              "input": 0.17812,
+              "output": 2.37494,
+              "cache_read": 0.02375,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 0.35624,
+              "output": 3.56241,
+              "cache_read": 0.02375,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 256000,
@@ -53844,7 +56864,27 @@
         "cost": {
           "input": 0.02227,
           "output": 0.22265,
-          "cache_read": 0.00445
+          "cache_read": 0.00445,
+          "tiers": [
+            {
+              "input": 0.04453,
+              "output": 0.4453,
+              "cache_read": 0.00445,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            },
+            {
+              "input": 0.08906,
+              "output": 0.8906,
+              "cache_read": 0.00445,
+              "tier": {
+                "type": "context",
+                "size": 128000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 256000,
@@ -53876,7 +56916,18 @@
         "cost": {
           "input": 0.11875,
           "output": 0.29687,
-          "cache_read": 0.02375
+          "cache_read": 0.02375,
+          "tiers": [
+            {
+              "input": 0.17812,
+              "output": 0.8906,
+              "cache_read": 0.02375,
+              "tier": {
+                "type": "context",
+                "size": 32000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 256000,
@@ -53974,7 +57025,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -54028,7 +57090,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -54048,7 +57121,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -54088,7 +57172,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.3
+          "cache_read": 0.3,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 0.6,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
@@ -54108,7 +57203,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -54143,7 +57249,18 @@
         "cost": {
           "input": 1,
           "output": 2,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2,
+              "output": 4,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 256000,
@@ -54168,7 +57285,18 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "tiers": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cache_read": 0.4,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 1000000,
@@ -54193,7 +57321,18 @@
         "cost": {
           "input": 2,
           "output": 6,
-          "cache_read": 0.5
+          "cache_read": 0.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 12,
+              "cache_read": 1,
+              "tier": {
+                "type": "context",
+                "size": 200000
+              }
+            }
+          ]
         },
         "limit": {
           "context": 500000,
