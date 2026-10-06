@@ -23,7 +23,10 @@ export interface PermissionRule {
   kind?: 'read' | 'edit' | 'execute'
 }
 
-/** Tool plugins add their rules here. `permissions()` reads them. */
+/**
+ * Tool plugins add their rules here. `permissions()` reads them, and adds its
+ * own `rules` too, so other readers like `codeMode()` see them.
+ */
 export const PermissionRules = createExtensionPoint<PermissionRule>(
   'tanstack/permission-rules',
 )
@@ -439,7 +442,10 @@ export function permissions(
         return resources
       }
       /** The rules an `always` answer saves: one allow for each resource. */
-      const rulesToSave = (tool: string, resources: CallResources | undefined) => {
+      const rulesToSave = (
+        tool: string,
+        resources: CallResources | undefined,
+      ) => {
         if (resources === undefined) {
           return [{ tool, decision: 'allow' as const }]
         }
@@ -547,6 +553,11 @@ export function permissions(
           const current = mode()
           return tools.filter((tool) => !isHidden(rules, tool.name, current))
         },
+        // Other readers, like codeMode(), must see the user's rules too. The
+        // checks above add them again at the end, so they still win there.
+        contribute: (options.rules ?? []).map((rule) =>
+          PermissionRules.item(rule),
+        ),
         // The lead turn and every agent run check the same rules. Each run
         // gets only one of the two lists, so a call is checked once.
         middleware: [check],

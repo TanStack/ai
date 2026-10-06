@@ -8,7 +8,7 @@ import {
   defineHarness,
   definePlugin,
 } from '@tanstack/ai-harness'
-import { PermissionResources } from '@tanstack/ai-harness/plugins'
+import { PermissionResources, permissions } from '@tanstack/ai-harness/plugins'
 import { codeMode } from '../src/harness'
 import type { AnyTextAdapter, AnyTool, StreamChunk } from '@tanstack/ai'
 import type { HarnessPlugin } from '@tanstack/ai-harness'
@@ -404,6 +404,27 @@ describe('codeMode', () => {
       'docs_write',
       'execute_typescript',
     ])
+  })
+
+  it('keeps a tool that a rule of permissions() asks for as a tool call', async () => {
+    const names = await firstToolNames({
+      tools: [
+        markedTool('docs_search'),
+        markedTool('notes_search'),
+        tools.lookup,
+      ],
+      plugins: [
+        permissions({
+          rules: [
+            { tool: 'docs_*', decision: 'ask' },
+            { tool: 'lookup', decision: 'ask' },
+          ],
+        }),
+        codeMode({ driver: fakeDriver().driver }),
+      ],
+    })
+    // A call inside the isolate skips the question, so both tools stay.
+    expect(names).toEqual(['docs_search', 'lookup', 'execute_typescript'])
   })
 
   it('keeps a tool that declares permission resources as a tool call', async () => {

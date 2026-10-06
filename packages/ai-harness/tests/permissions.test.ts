@@ -26,10 +26,15 @@ function read(
   path: string,
   options: { root?: string; rules?: Array<PermissionRule> } = {},
 ) {
-  return decidePermission(options.rules ?? readAllowed, 'read_file', 'default', {
-    resources: { paths: [path] },
-    root: options.root ?? ROOT,
-  })
+  return decidePermission(
+    options.rules ?? readAllowed,
+    'read_file',
+    'default',
+    {
+      resources: { paths: [path] },
+      root: options.root ?? ROOT,
+    },
+  )
 }
 
 /** Run `fn` as if the host were `platform`. Letter case rules depend on it. */
@@ -248,7 +253,11 @@ function fakeTools() {
           decision: 'allow',
           kind: 'read',
         }),
-        PermissionRules.item({ tool: 'bash', decision: 'ask', kind: 'execute' }),
+        PermissionRules.item({
+          tool: 'bash',
+          decision: 'ask',
+          kind: 'execute',
+        }),
         PermissionResources.item({
           read_file: { paths: (input) => [field(input, 'path')] },
           bash: { commands: (input) => field(input, 'command').split(' && ') },
@@ -268,7 +277,11 @@ async function open(
   const { adapter, calls } = mockAdapter([...replies, () => text('done')])
   const host = createHarnessHost({ persistence })
   const session = await host.open(
-    defineHarness({ name: 'test/permissions', adapter, plugins: () => plugins }),
+    defineHarness({
+      name: 'test/permissions',
+      adapter,
+      plugins: () => plugins,
+    }),
     { threadId },
   )
   return { host, session, calls }
@@ -437,6 +450,39 @@ describe('permissions()', () => {
     expect(JSON.stringify(calls[1].messages)).toContain(
       'Cannot check the permissions of this call: No path.',
     )
+    await host.close()
+  })
+
+  it('shares its rules with other plugins, and they still beat the rules of tool plugins', async () => {
+    const tools = fakeTools()
+    let seen: Array<PermissionRule> = []
+    // Another plugin that reads the rules, like codeMode() does.
+    const reader = definePlugin({
+      name: 'test/reader',
+      setup: (ctx) => {
+        const rules = ctx.collect(PermissionRules)
+        return {
+          prepareTools: ({ tools: list }) => {
+            seen = [...rules]
+            return list
+          },
+        }
+      },
+    })
+    const rule: PermissionRule = { tool: 'read_file', decision: 'ask' }
+    const { host, session } = await open(
+      memoryPersistence(),
+      // The tool plugin comes after permissions(), and it allows read_file.
+      [permissions({ root: ROOT, rules: [rule] }), tools.plugin, reader],
+      [() => toolCall('read_file', { path: 'src/a.ts' }, 'c1')],
+    )
+
+    const turn = session.prompt('read a file')
+    expect(await answer(session, { answer: 'reject' })).toContain('src/a.ts')
+    await turn
+
+    expect(tools.ran).toEqual([])
+    expect(seen).toContainEqual(rule)
     await host.close()
   })
 
