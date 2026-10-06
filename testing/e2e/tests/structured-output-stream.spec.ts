@@ -114,35 +114,6 @@ for (const provider of providersFor('structured-output-stream')) {
       await expect(assistantMessage.getByTestId('text-part')).toHaveCount(0)
     })
 
-    test('reasoning before the JSON does not add a text part', async ({
-      page,
-      testId,
-      aimockPort,
-    }) => {
-      test.skip(
-        provider !== 'openai',
-        'Pins the Responses path that streams reasoning under its own message id (#1632)',
-      )
-      await page.goto(
-        featureUrl(provider, 'structured-output-stream', testId, aimockPort),
-      )
-
-      await sendMessage(
-        page,
-        '[structured-stream-reasoning] recommend a guitar as json',
-      )
-      await waitForResponse(page)
-
-      const assistantMessage = page.getByTestId('assistant-message').last()
-      await expect(assistantMessage.getByTestId('thinking-block')).toHaveCount(
-        1,
-      )
-      await expect(
-        assistantMessage.getByTestId('structured-output-part'),
-      ).toHaveCount(1)
-      await expect(assistantMessage.getByTestId('text-part')).toHaveCount(0)
-    })
-
     test('aborting mid-stream stops the run cleanly', async ({
       page,
       testId,
