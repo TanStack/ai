@@ -112,6 +112,10 @@ describe('decidePermission with resources', () => {
     ['a backtick', 'echo `rm x`'],
     ['process substitution', 'diff <(rm x) y'],
     ['a heredoc', 'cat <<EOF\nrm x\nEOF'],
+    // The splitter keeps these in one part. They must still ask.
+    ['a lone & (background, or a separator in cmd.exe)', 'ls & rm -rf x'],
+    ['a carriage return', 'ls\rrm -rf x'],
+    ['an output redirect', 'ls > ~/.bashrc'],
   ])('asks for %s even when * is allowed', (_name, part) => {
     expect(
       run([part], [{ tool: 'bash', resource: '*', decision: 'allow' }]),

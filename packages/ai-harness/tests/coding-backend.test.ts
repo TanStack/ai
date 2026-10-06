@@ -40,6 +40,17 @@ describe('hostBackend', () => {
     expect(await hostBackend.stat(join(dir, 'missing'))).toBeUndefined()
   })
 
+  it('removes a file, and refuses a folder', async () => {
+    const file = join(dir, 'a', 'b.txt')
+    await hostBackend.writeFile(file, 'hi')
+    await expect(hostBackend.remove(join(dir, 'a'))).rejects.toThrow()
+    await hostBackend.remove(file)
+    expect(await hostBackend.stat(file)).toBeUndefined()
+    expect(await hostBackend.stat(join(dir, 'a'))).toMatchObject({
+      type: 'dir',
+    })
+  })
+
   it('runs a command with added env, and resolves with its exit code', async () => {
     expect(
       await hostBackend.exec(
@@ -47,6 +58,23 @@ describe('hostBackend', () => {
         { cwd: dir, env: { HARNESS_VALUE: 'set' } },
       ),
     ).toEqual({ exitCode: 2, stdout: 'set\n', stderr: '' })
+  })
+
+  // The command sleeps for one second. On Windows, `exec` waits for it even
+  // after the timeout kills the shell, so keep it short. It runs outside
+  // `dir`: on Windows, a running command keeps its folder from removal.
+  const sleep = `node -e "setTimeout(function () {}, 1000)"`
+
+  it('gives exit code 124 when the timeout kills a command', async () => {
+    const result = await hostBackend.exec(sleep, { timeoutMs: 100 })
+    expect(result.exitCode).toBe(124)
+  })
+
+  it('gives exit code 1 when the signal stops a command', async () => {
+    const controller = new AbortController()
+    const running = hostBackend.exec(sleep, { signal: controller.signal })
+    controller.abort()
+    expect((await running).exitCode).toBe(1)
   })
 
   it('starts a background command, then gives its exit code and output', async () => {

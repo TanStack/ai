@@ -6,6 +6,7 @@ import type {
   AnyTextAdapter,
   KeyedAdapter,
   ModelMessage,
+  UsageInfo,
 } from '@tanstack/ai'
 
 const SUMMARY_PROMPT =
@@ -91,6 +92,48 @@ interface UsageTotals {
    * the model's context the conversation fills now.
    */
   contextTokens: number
+  /** The cost in USD of the priced model calls. Only with the `model` option. */
+  cost?: number
+  /** The model calls that the `model` option had no prices for. */
+  unpricedCalls?: number
+}
+
+/** Prices in USD per 1M tokens: the `cost` of an `@tanstack/ai-models` record. */
+interface ModelPrices {
+  input: number
+  output: number
+  cacheRead?: number
+  cacheWrite?: number
+}
+
+/** The usage of an index entry before the host adds the tokens of a turn. */
+const NO_TOKENS = {
+  turns: 0,
+  promptTokens: 0,
+  completionTokens: 0,
+  totalTokens: 0,
+  cachedTokens: 0,
+  cacheWriteTokens: 0,
+}
+
+/**
+ * The cost in USD of one model call.
+ * ponytail: the formula of `modelCost` in `@tanstack/ai-models`, copied, so
+ * ai-harness does not depend on ai-models.
+ */
+function callCost(prices: ModelPrices, usage: UsageInfo) {
+  const cached = usage.promptTokensDetails?.cachedTokens ?? 0
+  const written = usage.promptTokensDetails?.cacheWriteTokens ?? 0
+  // `promptTokens` counts the cache parts too, and each part has its own price.
+  const uncached = usage.promptTokens - cached - written
+  const part = (price: number | undefined, tokens: number) =>
+    ((price ?? 0) / 1_000_000) * tokens
+  return (
+    part(prices.input, uncached) +
+    part(prices.output, usage.completionTokens) +
+    part(prices.cacheRead, cached) +
+    part(prices.cacheWrite, written)
+  )
 }
 
 /**
@@ -99,8 +142,26 @@ interface UsageTotals {
  * totals, with the input tokens read from and written to the prompt cache.
  * The plugin state also has `contextTokens`, the size of the lead
  * model's context at its latest call, for a UI.
+ *
+ * With `model`, the plugin also prices each model call. `model` gets the
+ * model id of the call and returns its prices in USD per 1M tokens, or
+ * `undefined` when it does not know the model. `/usage` then shows the
+ * cost, and the plugin writes it to `usage.cost` of the session index
+ * entry. A call with no prices adds no cost, and `/usage` says how many
+ * calls it could not price.
+ *
+ * @example
+ * ```ts
+ * import { getModel } from '@tanstack/ai-models'
+ *
+ * plugins: () => [usage({ model: (id) => getModel('anthropic', id) })]
+ * ```
  */
-export function usage() {
+export function usage(
+  options: {
+    model?: (modelId: string) => { cost: ModelPrices } | undefined
+  } = {},
+) {
   return definePlugin({
     name: 'tanstack/usage',
     setup: (ctx) => {
@@ -119,13 +180,40 @@ export function usage() {
         const cache = hasCache
           ? ` (${totals.cachedTokens} cache read, ${totals.cacheWriteTokens} cache write)`
           : ''
-        return `${totals.turns} model calls, ${totals.promptTokens} input tokens${cache}, ${totals.completionTokens} output tokens, ${totals.totalTokens} total.`
+        const tokens = `${totals.turns} model calls, ${totals.promptTokens} input tokens${cache}, ${totals.completionTokens} output tokens, ${totals.totalTokens} total.`
+        if (!options.model) return tokens
+        const unpriced = totals.unpricedCalls ?? 0
+        const note =
+          unpriced > 0
+            ? ` (cost unknown for ${unpriced} ${unpriced === 1 ? 'call' : 'calls'})`
+            : ''
+        return `${tokens} Cost: $${(totals.cost ?? 0).toFixed(4)}${note}.`
+      }
+      // The host adds the tokens of each turn to the index entry. This
+      // plugin writes only `cost`, and keeps the tokens of the entry.
+      const saveCost = async (cost: number) => {
+        const entry = await ctx.session.entry()
+        if (!entry) return
+        // Before the first turn ends, the entry has no usage.
+        const tokens = entry.usage ?? NO_TOKENS
+        // ponytail: read, then write. A host write or another agent's write
+        // between the two can be lost until the next priced call writes the
+        // total again. Upgrade: a change function in updateEntry.
+        await ctx.session.updateEntry({ usage: { ...tokens, cost } })
       }
       const counter = (lead: boolean) =>
         ({
           name: 'tanstack/usage',
-          onUsage: async (_run, info) => {
-            await state.update((totals) => ({
+          onUsage: async (run, info) => {
+            const prices = options.model?.(run.model)?.cost
+            const cost = prices ? callCost(prices, info) : undefined
+            const isUnpriced = options.model !== undefined && cost === undefined
+            const { cost: total } = await state.update((totals) => ({
+              ...totals,
+              ...(cost !== undefined ? { cost: (totals.cost ?? 0) + cost } : {}),
+              ...(isUnpriced
+                ? { unpricedCalls: (totals.unpricedCalls ?? 0) + 1 }
+                : {}),
               turns: totals.turns + 1,
               promptTokens: totals.promptTokens + (info.promptTokens ?? 0),
               completionTokens:
@@ -141,6 +229,10 @@ export function usage() {
                 ? (info.promptTokens ?? totals.contextTokens)
                 : totals.contextTokens,
             }))
+            if (cost === undefined || total === undefined) return
+            // The index is only a list of sessions: a failed write does not
+            // fail the turn. The next priced call writes the total again.
+            await saveCost(total).catch(() => {})
           },
         }) satisfies AnyChatMiddleware
       return {

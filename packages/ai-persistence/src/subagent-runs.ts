@@ -594,7 +594,8 @@ export function createSubagentRunRecorder(stores: {
   }
 
   // One index entry per child. `upsert` replaces the whole entry, so keep the
-  // fields that other writers set, like a title.
+  // fields that other writers set, like a title. The child has the owner of
+  // its parent thread, so a list filtered by owner shows it.
   async function indexChild(
     sessions: SessionIndexStore,
     subagentRunId: string,
@@ -602,6 +603,7 @@ export function createSubagentRunRecorder(stores: {
   ) {
     const childThreadId = childStoreId(subagentRunId)
     const current = await sessions.get(childThreadId)
+    const parent = await sessions.get(note.parentThreadId)
     const now = Date.now()
     await sessions.upsert({
       ...current,
@@ -610,6 +612,7 @@ export function createSubagentRunRecorder(stores: {
       ...(note.parentToolCallId !== undefined && {
         parentToolCallId: note.parentToolCallId,
       }),
+      ...(parent?.principal !== undefined && { principal: parent.principal }),
       createdAt: current?.createdAt ?? now,
       updatedAt: now,
     })

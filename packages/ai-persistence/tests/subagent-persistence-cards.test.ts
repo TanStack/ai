@@ -617,6 +617,35 @@ describe('subagent run recorder', () => {
     ).toBeUndefined()
   })
 
+  it('gives each child the owner of its parent thread', async () => {
+    const { stores } = memoryPersistence()
+    await stores.sessions.upsert({
+      threadId: 'desk',
+      principal: { id: 'alice' },
+      createdAt: t,
+      updatedAt: t,
+    })
+    const recorder = createSubagentRunRecorder({
+      messages: stores.messages,
+      sessions: stores.sessions,
+      intervalMs: 0,
+    })
+    await feed(recorder, 'run-1', [
+      childStarted('outer', { parentToolCallId: 'call_1' }),
+      childStarted('inner', {
+        parentSubagentRunId: 'outer',
+        parentToolCallId: 'call_n',
+      }),
+    ])
+
+    const owners = await Promise.all(
+      ['subagent:outer', 'subagent:inner'].map(
+        async (threadId) => (await stores.sessions.get(threadId))?.principal,
+      ),
+    )
+    expect(owners).toEqual([{ id: 'alice' }, { id: 'alice' }])
+  })
+
   it('loads a waiting continued child without the messages of the call it waits in', async () => {
     const { stores } = memoryPersistence()
     const recorder = createSubagentRunRecorder({

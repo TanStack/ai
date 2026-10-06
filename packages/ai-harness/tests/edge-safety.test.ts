@@ -23,6 +23,7 @@ const ALLOWED = [
   'build.ts',
   'worker.ts',
   'first-party/files.ts',
+  'first-party/bound-output.ts',
   'first-party/coding/',
 ]
 

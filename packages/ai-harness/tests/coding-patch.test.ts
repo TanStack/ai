@@ -27,9 +27,10 @@ function patch(...lines: Array<string>) {
 
 /**
  * The patch tool on files in memory that start as `files`. `written` lists
- * the files that the `afterWrite` hook saw, in order.
+ * the files that the `afterWrite` hook saw, in order. With `canRemove:
+ * false`, the backend has no `remove`.
  */
-function workspace(files: Record<string, string>) {
+function workspace(files: Record<string, string>, { canRemove = true } = {}) {
   const store = new Map<string, Uint8Array>()
   for (const [path, text] of Object.entries(files)) {
     store.set(join(root, path), encoder.encode(text))
@@ -43,7 +44,15 @@ function workspace(files: Record<string, string>) {
     writeFile: async (path, data) => {
       store.set(path, typeof data === 'string' ? encoder.encode(data) : data)
     },
-    stat: async () => undefined,
+    remove: canRemove
+      ? async (path) => {
+          if (!store.delete(path)) throw new Error(`No file ${path}`)
+        }
+      : undefined,
+    stat: async (path) => {
+      const data = store.get(path)
+      return data && { type: 'file', size: data.length, mtimeMs: 0 }
+    },
     readdir: async () => [],
     exec: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
   }
@@ -394,6 +403,55 @@ describe('patch tool', () => {
     expect(files.written).toEqual(['a.txt', 'b.txt'])
   })
 
+  it('deletes a file, and runs no hook for it', async () => {
+    const files = workspace({ 'a.txt': 'a\n', 'b.txt': 'b\n' })
+    const result = await files.run(
+      patch('*** Add File: c.txt', '+c', '*** Delete File: a.txt'),
+    )
+    expect(result).toBe('Applied the patch:\nadded c.txt\ndeleted a.txt')
+    expect(files.files()).toEqual({ 'b.txt': 'b\n', 'c.txt': 'c\n' })
+    expect(files.written).toEqual(['c.txt'])
+  })
+
+  it('moves a file, and applies its chunks', async () => {
+    const files = workspace({ 'a.txt': 'one\ntwo\n' })
+    const result = await files.run(
+      patch(
+        '*** Update File: a.txt',
+        '*** Move to: src/b.txt',
+        '@@',
+        ' one',
+        '-two',
+        '+2',
+      ),
+    )
+    expect(result).toBe('Applied the patch:\nmoved a.txt to src/b.txt')
+    expect(files.files()).toEqual({ 'src/b.txt': 'one\n2\n' })
+    expect(files.written).toEqual(['src/b.txt'])
+  })
+
+  it.each([
+    {
+      name: 'a delete of a missing file',
+      lines: ['*** Delete File: missing.txt'],
+      error: 'Cannot delete missing.txt: no such file.',
+    },
+    {
+      name: 'a move onto a file that is there',
+      lines: ['*** Update File: a.txt', '*** Move to: b.txt'],
+      error: 'Cannot move a.txt to b.txt: b.txt already exists.',
+    },
+  ])('refuses $name, and changes nothing', async ({ lines, error }) => {
+    const before = { 'a.txt': 'a\n', 'b.txt': 'b\n', 'd.txt': 'd\n' }
+    const files = workspace(before)
+    await expect(
+      files.run(
+        patch('*** Add File: c.txt', '+c', '*** Delete File: d.txt', ...lines),
+      ),
+    ).rejects.toThrow(error)
+    expect(files.files()).toEqual(before)
+  })
+
   it.each([
     {
       name: 'a delete',
@@ -405,11 +463,14 @@ describe('patch tool', () => {
       lines: ['*** Update File: a.txt', '*** Move to: b.txt'],
       error: 'Cannot move a.txt: the workspace cannot remove files.',
     },
-  ])('refuses $name, and changes nothing', async ({ lines, error }) => {
-    const files = workspace({ 'a.txt': 'a\n' })
-    await expect(
-      files.run(patch('*** Add File: c.txt', '+c', ...lines)),
-    ).rejects.toThrow(error)
-    expect(files.files()).toEqual({ 'a.txt': 'a\n' })
-  })
+  ])(
+    'refuses $name when the backend cannot remove files, and changes nothing',
+    async ({ lines, error }) => {
+      const files = workspace({ 'a.txt': 'a\n' }, { canRemove: false })
+      await expect(
+        files.run(patch('*** Add File: c.txt', '+c', ...lines)),
+      ).rejects.toThrow(error)
+      expect(files.files()).toEqual({ 'a.txt': 'a\n' })
+    },
+  )
 })
