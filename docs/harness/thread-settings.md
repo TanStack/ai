@@ -122,7 +122,7 @@ For `reasoning`, the `overrides` of the prompt win, then the stored setting, the
 `workspaceTools` work in the `cwd` of the thread. Relative paths start there, and `bash` runs there:
 
 ```ts group=harness-thread-settings
-import { workspaceTools } from '@tanstack/ai-harness/plugins'
+import { workspaceTools } from '@tanstack/ai-harness/plugins/coding'
 
 export const coder = defineHarness({
   name: 'acme/coder',
