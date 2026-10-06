@@ -5855,6 +5855,36 @@ describe('StreamProcessor', () => {
       expect((sop as any).raw).toBe('{"name":"Alice"}')
     })
 
+    it('keeps deltas in the structured-output part when reasoning streamed first under its own messageId (#1632)', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.stepStarted())
+      processor.processChunk(ev.reasoningContent('hm', 'reason-1'))
+      processor.processChunk(
+        ev.custom('structured-output.start', { messageId: 'msg-1' }),
+      )
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(ev.textContent('{"a":', 'msg-1'))
+      processor.processChunk(ev.textContent('1}', 'msg-1'))
+      processor.processChunk(ev.textEnd('msg-1'))
+      processor.processChunk(
+        ev.custom('structured-output.complete', {
+          object: { a: 1 },
+          raw: '{"a":1}',
+          messageId: 'msg-1',
+        }),
+      )
+      processor.processChunk(ev.runFinished('stop'))
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]!.parts.map((p) => p.type)).toEqual([
+        'thinking',
+        'structured-output',
+      ])
+    })
+
     it('attaches a late structured-output.complete to the open assistant when the event uses a new messageId', () => {
       const processor = new StreamProcessor()
       const report = {
