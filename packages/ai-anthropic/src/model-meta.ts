@@ -648,7 +648,56 @@ const CLAUDE_OPUS_5_5 = {
     AnthropicOutputConfigOptions
 >
 
+// Claude Sonnet 5.5: adaptive thinking is the default. `{type: 'disabled'}`
+// and the manual `{type: 'enabled', budget_tokens}` shape return a 400, and
+// so do non-default sampling parameters (`temperature`, `top_p`, `top_k`).
+// Its provider options therefore use the adaptive-only thinking shape and
+// `max_tokens` without the sampling knobs.
+const CLAUDE_SONNET_5_5 = {
+  name: 'claude-sonnet-5-5',
+  id: 'claude-sonnet-5-5',
+  context_window: 1_000_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image', 'document'],
+    extended_thinking: false,
+    adaptive_thinking: true,
+    priority_tier: true,
+    // No 'computer_use': this model accepts only `computer_toolset_20260801`,
+    // and `computerUseTool()` sends the older versions, which return a 400.
+    tools: [
+      'web_search',
+      'web_fetch',
+      'code_execution',
+      'bash',
+      'text_editor',
+      'memory',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.2,
+    },
+    output: {
+      normal: 10,
+    },
+  },
+} as const satisfies ModelMeta<
+  AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicAdaptiveOnlyThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions &
+    AnthropicOutputConfigOptions
+>
+
 export const ANTHROPIC_MODELS = [
+  CLAUDE_SONNET_5_5.id,
   CLAUDE_OPUS_5_5.id,
   CLAUDE_FABLE_5_1.id,
   CLAUDE_OPUS_5.id,
@@ -728,6 +777,7 @@ const ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
   [CLAUDE_OPUS_5_FAST.id]: CLAUDE_OPUS_5_FAST.max_output_tokens,
   [CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.max_output_tokens,
   [CLAUDE_OPUS_5_5.id]: CLAUDE_OPUS_5_5.max_output_tokens,
+  [CLAUDE_SONNET_5_5.id]: CLAUDE_SONNET_5_5.max_output_tokens,
 }
 
 /**
@@ -776,6 +826,7 @@ export function getAnthropicDefaultMaxTokens(
  * in `structuredOutput`.
  */
 export const ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
+  CLAUDE_SONNET_5_5.id,
   CLAUDE_OPUS_4_5.id,
   CLAUDE_OPUS_4_6.id,
   CLAUDE_OPUS_4_7.id,
@@ -944,6 +995,18 @@ export type AnthropicChatModelProviderOptionsByName = {
     AnthropicToolChoiceOptions &
     AnthropicSamplingOptions &
     AnthropicOutputConfigOptions
+  // Claude Sonnet 5.5: adaptive-only thinking config, no sampling
+  // parameters — see the CLAUDE_SONNET_5_5 constant above.
+  [CLAUDE_SONNET_5_5.id]: AnthropicCacheControlOptions &
+    AnthropicContainerOptions &
+    AnthropicContextManagementOptions &
+    AnthropicMCPOptions &
+    AnthropicServiceTierOptions &
+    AnthropicStopSequencesOptions &
+    AnthropicAdaptiveOnlyThinkingOptions &
+    AnthropicToolChoiceOptions &
+    AnthropicMaxTokensOptions &
+    AnthropicOutputConfigOptions
 }
 
 export type AnthropicChatModelToolCapabilitiesByName = {
@@ -961,6 +1024,7 @@ export type AnthropicChatModelToolCapabilitiesByName = {
   [CLAUDE_OPUS_5_FAST.id]: typeof CLAUDE_OPUS_5_FAST.supports.tools
   [CLAUDE_FABLE_5_1.id]: typeof CLAUDE_FABLE_5_1.supports.tools
   [CLAUDE_OPUS_5_5.id]: typeof CLAUDE_OPUS_5_5.supports.tools
+  [CLAUDE_SONNET_5_5.id]: typeof CLAUDE_SONNET_5_5.supports.tools
 }
 
 /**
@@ -989,4 +1053,5 @@ export type AnthropicModelInputModalitiesByName = {
   [CLAUDE_OPUS_5_FAST.id]: typeof CLAUDE_OPUS_5_FAST.supports.input
   [CLAUDE_FABLE_5_1.id]: typeof CLAUDE_FABLE_5_1.supports.input
   [CLAUDE_OPUS_5_5.id]: typeof CLAUDE_OPUS_5_5.supports.input
+  [CLAUDE_SONNET_5_5.id]: typeof CLAUDE_SONNET_5_5.supports.input
 }

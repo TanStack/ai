@@ -93,7 +93,7 @@ export function handleMcp(request: Request) {
 ```
 
 `createMCPServer` speaks spec `2026-07-28`.
-`createMCPServer` also speaks spec 2025 sessions.
+`createMCPServer` also speaks spec 2025. By default it keeps no spec 2025 session.
 
 `stdioTransport` from `@tanstack/ai-mcp/stdio` connects your client to a command.
 `serveMCPStdio` from `@tanstack/ai-mcp/server/stdio` serves your server on stdin and stdout.
@@ -125,6 +125,8 @@ serveMCPStdio(server)
 
 You can also pass `resources` and `prompts`.
 Build them with `resourceDefinition` and `promptDefinition` from `@tanstack/ai-mcp/server`.
+A resource `read(uri, variables, ctx)` gets the requested URI, the template variables, and `ctx.context` (the `handle` context plus `authInfo`).
+A template resource can take `list(ctx)`, which returns `{ resources }` for `resources/list`.
 
 A tool reads its hooks on `ctx.context`.
 Give `.server()` the type `MCPToolContext` from `@tanstack/ai-mcp/server`.
@@ -136,7 +138,7 @@ Put work that must run once after `requestInput` returns.
 On spec 2026, a tool asks one question per call. A second `requestInput` throws an Error.
 If the user declines or cancels, `requestInput` throws an Error, and the call ends with a tool error.
 In an `execution: 'task'` tool, `ctx.context.requestInput` throws an error.
-On spec 2025, `requestInput` waits on the open session.
+On spec 2025 with `sessions: 'memory'`, `requestInput` waits on the open session. Without a session, it throws.
 The same tool call then continues.
 
 ```typescript
@@ -206,7 +208,7 @@ const server = createMCPServer({
 When a middleware already verified the caller, pass the result to `server.handle`.
 `server.fetch(request)` stays a plain Fetch handler. `server.handle` takes options.
 `options.authInfo` is the SDK `AuthInfo`. The server skips its `auth` gate for that request.
-`options.context` reaches every tool call of that request on `ctx.context`.
+`options.context` reaches every tool call, resource read, and resource list of that request on `ctx.context`.
 Type the values with `MCPToolContext<{ db: Db }>`.
 `authInfo`, `requestInput`, and `sample` win over a same-named value in `context`.
 
@@ -230,15 +232,21 @@ Set `metadata.title` and `metadata.annotations` on the tool definition.
 The host gets them as the MCP tool title and annotations.
 Use the MCP names: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`.
 A host skips its confirmation for a tool with `readOnlyHint: true`.
+Set `metadata._meta` to send the MCP tool `_meta`, for example `{ ui: { resourceUri: 'ui://view' } }` for an MCP Apps view.
+Pass `onerror` to `createMCPServer` to log transport and protocol errors from the SDK. `serveMCPStdio` also sends its transport errors there.
 
 A tool with no `outputSchema` can return an MCP `CallToolResult`.
 The server sends it as is: its content blocks, its `structuredContent`, and its `isError`.
 
-### Turn spec 2025 sessions off
+### Spec 2025 on a host with many instances
 
-Set `sessions: 'reject'` on a host with many instances, such as Cloudflare Workers.
-The server opens no session. A spec 2025 request gets the SDK rejection.
-The default is `'memory'`: sessions live in the process for 30 idle minutes.
+The default is `sessions: 'stateless'`. It works on a host with many instances, such as Cloudflare Workers.
+A new server answers each spec 2025 request, and no session is kept.
+In that mode, `ctx.context.requestInput` throws for a spec 2025 client.
+`ctx.context.sample` calls the `sample` option, or throws when it is not set.
+Set `sessions: 'reject'` to serve spec 2026 only. A spec 2025 request then gets the SDK rejection.
+Set `sessions: 'memory'` to keep spec 2025 sessions in the process for 30 idle minutes. Route them with sticky sessions on the `mcp-session-id` header.
+`serveMCPStdio` uses `'memory'` when `sessions` is not set.
 
 ### Call a `createMCPServer` server with its types
 
@@ -262,7 +270,8 @@ await remote.callTool('get_weather', { city: 'Paris' })
 ```
 
 `createMCPClient({ server })` is a different client.
-It calls the tool functions in the same process and returns the tool output.
+It calls the tool functions in the same process and returns the tool output, parsed with the `outputSchema`.
+`readResource(uri, context)` puts `context` on the resource `ctx.context`. Without it, `ctx.context` is `{}`.
 It opens no connection, and the server `auth` option does not run.
 It has no `tools()`, so do not pass it to `chat()`.
 Use it only when the app and the server run in one process.
@@ -284,6 +293,8 @@ If the connection fails, `createMCPClient` throws `MCPConnectionError`.
 `createMCPClient` tries spec `2026-07-28` first.
 If the server does not support that spec, the client uses the 2025 initialize handshake.
 The client keeps negotiation mode `auto`.
+`client.instructions` holds the server's instructions from the handshake, or `undefined` when the server sends none.
+Put them in the system prompt: `systemPrompts: client.instructions ? [client.instructions] : []`.
 
 ### Transports
 

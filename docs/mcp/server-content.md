@@ -72,7 +72,58 @@ If the resource has no `uri` and no `uriTemplate`, `resourceDefinition` throws `
 
 If you pass `uri` and `uriTemplate`, the server uses `uri`.
 
-`read` takes no arguments. `read` returns `{ text }` for a text document. For a binary document, `read` returns `{ blob }` with a base64 string.
+`read` returns `{ text }` for a text document. For a binary document, `read` returns `{ blob }` with a base64 string.
+
+## Serve One Resource per Item
+
+A template such as `myapp://items/{itemId}/summary` serves many documents. The read must know which item the host asked for, and which user asks. A host also needs a list of the items that exist.
+
+1. Read `itemId` from the `variables` argument of `read`.
+2. Read the user from `ctx.context`.
+3. Add `list` to return the concrete resources for `resources/list`.
+
+```ts
+import { createMCPServer, resourceDefinition } from '@tanstack/ai-mcp/server'
+
+const summaries = new Map([
+  ['1', 'First item'],
+  ['2', 'Second item'],
+])
+
+const summary = resourceDefinition({
+  name: 'item-summary',
+  mimeType: 'text/plain',
+  uriTemplate: 'myapp://items/{itemId}/summary',
+  list: async () => ({
+    resources: [...summaries.keys()].map((id) => ({
+      uri: `myapp://items/${id}/summary`,
+      name: `Item ${id}`,
+    })),
+  }),
+}).read(async (uri, variables, ctx) => {
+  const itemId = String(variables.itemId)
+  const userId = String(ctx.context.userId)
+  return { text: `${summaries.get(itemId) ?? 'Unknown'} (for ${userId})` }
+})
+
+const server = createMCPServer({
+  name: 'items',
+  version: '1.0.0',
+  resources: [summary],
+})
+
+export function handleMcp(request: Request, userId: string) {
+  return server.handle(request, { context: { userId } })
+}
+```
+
+`read` gets three arguments:
+
+- `uri`: the URI the host asked for, as a `URL`.
+- `variables`: the values from the template. A resource with `uri` gets `{}`.
+- `ctx.context`: the values from `handle(request, { context })`, plus the verified token as `authInfo`. A tool gets the same values, plus `requestInput` and `sample`.
+
+`list` gets the same `ctx`. It returns `{ resources }`, with a `uri` and a `name` for each resource. Only a resource with `uriTemplate` can have `list`.
 
 ## Prompts
 

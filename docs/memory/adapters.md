@@ -21,6 +21,7 @@ an example of each.
 
 - [Common options](#common-options), shared by `inMemory()` and `redis()`
 - Adapters: [`inMemory()`](#inmemory), [`redis()`](#redis), [`hindsight()`](#hindsight), [`mem0()`](#mem0), [`honcho()`](#honcho)
+- [Third-party adapters](#third-party-adapters), published outside TanStack AI
 
 ## Common options
 
@@ -217,6 +218,19 @@ const memory = honcho({
 
 Honcho session key is `{tenantId|_}__{threadId}`; peers are `{tenantId}__{user}` when
 `tenantId` is set, otherwise the bare user id.
+
+## Third-party adapters
+
+These adapters are published and maintained outside TanStack AI. They implement the same
+`recall`/`save` contract, so they drop into `memoryMiddleware` like the ones above.
+
+| Adapter | Package | Backend | Recall |
+| --- | --- | --- | --- |
+| [`upstashMemory()`](../community-adapters/upstash#memory) | `@upstash/agentkit-tanstack-ai/memory` | Upstash Redis (HTTP client) | BM25 full-text query in Redis Search |
+
+`upstashMemory()` passes `runMemoryAdapterContract` from `@tanstack/ai-memory/testkit`.
+Unlike `redis()`, it ranks in Redis instead of loading records to rank client-side, and
+it honors `namespace` as well as `tenantId`, `userId`, and `threadId`.
 
 ## Where to go next
 

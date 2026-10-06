@@ -1194,62 +1194,73 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
     })
   })
 
-  describe('drain-path tool args error handling', () => {
-    it('logs malformed JSON tool args via the logger when the stream ends without finish_reason', async () => {
-      // Simulates a truncated stream: tool call starts and accumulates
-      // malformed JSON, but no finish_reason chunk ever arrives. The drain
-      // block must still surface the parse failure rather than swallowing it.
-      const streamChunks = [
-        {
-          id: 'chatcmpl-drain',
-          model: 'test-model',
-          choices: [
-            {
-              delta: {
-                tool_calls: [
-                  {
-                    index: 0,
-                    id: 'call_drain',
-                    type: 'function',
-                    function: {
-                      name: 'lookup_weather',
-                      arguments: '{"location":', // truncated — invalid JSON
+  describe('malformed tool arguments', () => {
+    it.each([true, false])(
+      'preserves malformed arguments for tool-error handling (finish_reason=%s)',
+      async (withFinishReason) => {
+        const streamChunks = [
+          {
+            id: 'chatcmpl-drain',
+            model: 'test-model',
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'call_drain',
+                      type: 'function',
+                      function: {
+                        name: 'lookup_weather',
+                        arguments: '{"location":', // truncated — invalid JSON
+                      },
                     },
-                  },
-                ],
+                  ],
+                },
+                finish_reason: withFinishReason ? 'tool_calls' : null,
               },
-              finish_reason: null,
-            },
-          ],
-        },
-      ]
+            ],
+          },
+        ]
 
-      setupMockSdkClient(streamChunks)
-      const errorsSpy = vi.spyOn(testLogger, 'errors')
-      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+        setupMockSdkClient(streamChunks)
+        const errorsSpy = vi.spyOn(testLogger, 'errors')
+        const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+        const chunks: Array<AdapterYieldChunk> = []
 
-      try {
-        for await (const _ of adapter.chatStream({
-          logger: testLogger,
-          model: 'test-model',
-          messages: [{ role: 'user', content: 'Weather?' }],
-          tools: [weatherTool],
-        })) {
-          // consume
+        try {
+          for await (const chunk of adapter.chatStream({
+            logger: testLogger,
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'Weather?' }],
+            tools: [weatherTool],
+          })) {
+            chunks.push(chunk)
+          }
+
+          const toolEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
+          expect(toolEnd).toBeDefined()
+          expect(toolEnd?.input).toBeUndefined()
+          expect(
+            chunks.find((chunk) => chunk.type === 'TOOL_CALL_ARGS'),
+          ).toMatchObject({
+            toolCallId: 'call_drain',
+            delta: '{"location":',
+          })
+
+          const parseError = errorsSpy.mock.calls.find((c) =>
+            String(c[0]).includes('tool-args JSON parse failed'),
+          )
+          expect(parseError).toBeDefined()
+          const ctx = parseError![1] as Record<string, unknown>
+          expect(ctx['toolCallId']).toBe('call_drain')
+          expect(ctx['toolName']).toBe('lookup_weather')
+          expect(ctx['rawArguments']).toBe('{"location":')
+        } finally {
+          errorsSpy.mockRestore()
         }
-
-        const drainCall = errorsSpy.mock.calls.find((c) =>
-          String(c[0]).includes('(drain)'),
-        )
-        expect(drainCall).toBeDefined()
-        const ctx = drainCall![1] as Record<string, unknown>
-        expect(ctx['toolCallId']).toBe('call_drain')
-        expect(ctx['toolName']).toBe('lookup_weather')
-        expect(ctx['rawArguments']).toBe('{"location":')
-      } finally {
-        errorsSpy.mockRestore()
-      }
-    })
+      },
+    )
   })
 
   describe('subclassing', () => {

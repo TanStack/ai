@@ -345,8 +345,11 @@ const REJOIN_CONNECT_DEADLINE_MS = 2000
 const REJOIN_REBUILD_TRIGGERS = new Set<string>([
   'TEXT_MESSAGE_START',
   'TEXT_MESSAGE_CONTENT',
+  'TEXT_MESSAGE_CHUNK',
   'REASONING_MESSAGE_CONTENT',
+  'REASONING_MESSAGE_CHUNK',
   'TOOL_CALL_START',
+  'TOOL_CALL_CHUNK',
   'MESSAGES_SNAPSHOT',
   // Drop the hydrated card before this chunk creates it again. A subagent
   // turn may have no parent text, so the text triggers arrive too late.
@@ -509,6 +512,7 @@ export class ChatClient<
   private readonly postStreamActions: Array<() => Promise<void>> = []
   // Track pending client tool executions to await them before stream finalization
   private readonly pendingToolExecutions: Map<string, Promise<void>> = new Map()
+  private handingOverPendingToolCalls = false
   private activeClientTools: Map<string, AnyClientTool> | null = null
   private activeContext: TContext | undefined = undefined
   // Flag to deduplicate continuation checks during action draining
@@ -540,6 +544,8 @@ export class ChatClient<
   private hydrationError: Error | undefined
   /** Whether a view is currently watching. See `attach` / `detach`. */
   private tailing = false
+  /** `historyGeneration` of the mount hydration GET still in flight, if any. */
+  private hydrationInFlight: number | undefined
   /** Constructor inputs `attach()` needs on every re-attach, not just the first. */
   private readonly rejoinRunId: string | null | undefined
   private readonly cachesMessages: boolean
@@ -872,6 +878,17 @@ export class ChatClient<
             this.activeClientTools ?? this.clientToolsRef.current
           const clientTool = clientTools.get(args.toolName)
           const executeFunc = clientTool?.execute
+          // A success RUN_FINISHED hands over calls that no approval step
+          // covered. A tool that needs approval does not run from there.
+          if (
+            this.handingOverPendingToolCalls &&
+            clientTool?.needsApproval === true
+          ) {
+            console.warn(
+              `[ChatClient] Did not run tool call ${args.toolCallId}: ${args.toolName} needs approval, and the server did not ask for it`,
+            )
+            return
+          }
           if (executeFunc) {
             const continuationGeneration = this.continuationGeneration
             // Capture the run context at execution-start so a tool whose
@@ -1148,12 +1165,17 @@ export class ChatClient<
     if (!hydrate) return
     if (this.isLoading || this.abortController) return
     if (this.disposed) return
+    // A re-attach while the last GET is still out reuses that GET. React Strict
+    // Mode runs mount effects twice (attach, detach, attach), and the GET
+    // applies its result because a view is attached again when it returns.
+    if (this.hydrationInFlight === this.historyGeneration) return
     const pageSize = this.historyPageSize
     const hydrateOptions: ChatHydrateOptions | undefined =
       pageSize === undefined ? undefined : { limit: pageSize }
     void (async () => {
       let result: ChatHydrationResult
       const generation = this.historyGeneration
+      this.hydrationInFlight = generation
       try {
         result = await hydrate(this.threadId, hydrateOptions)
       } catch (cause) {
@@ -1161,6 +1183,10 @@ export class ChatClient<
         // older attempt must not touch the state of a newer one.
         if (generation === this.historyGeneration) this.failHydration(cause)
         return
+      } finally {
+        if (this.hydrationInFlight === generation) {
+          this.hydrationInFlight = undefined
+        }
       }
       if (generation !== this.historyGeneration) return
       // NO VIEW IS WATCHING ANY MORE (it unmounted while this fetch was in
@@ -2124,7 +2150,13 @@ export class ChatClient<
       this.resolveJoinedRun(chunk)
       return
     }
-    this.processor.processChunk(chunk)
+    this.handingOverPendingToolCalls =
+      chunk.type === 'RUN_FINISHED' && chunk.outcome?.type !== 'interrupt'
+    try {
+      this.processor.processChunk(chunk)
+    } finally {
+      this.handingOverPendingToolCalls = false
+    }
     this.syncSubagentHandles()
     this.updateRunLifecycle(chunk)
     this.observeInterruptState(chunk)

@@ -1,5 +1,24 @@
 # @tanstack/ai-code-mode
 
+## 0.4.20
+
+### Patch Changes
+
+- [#1600](https://github.com/TanStack/ai/pull/1600) [`b8bab43`](https://github.com/TanStack/ai/commit/b8bab43b98ac91e201dc1dae8a3811b348d34504) - Keep `enum` and `const` values and property descriptions in the generated
+  Code Mode type stubs. A typed schema such as `{ type: 'string', enum: ['a', 'b'] }`
+  now renders as `'a' | 'b'` instead of `string`, and property `description`s are
+  emitted as JSDoc, as the `includeDescriptions` option of `generateTypeStubs`
+  already documented.
+- Updated dependencies [[`4c57d04`](https://github.com/TanStack/ai/commit/4c57d04f0f5dd98e176386f3208b68daf9e7d929)]:
+  - @tanstack/ai@0.64.1
+
+## 0.4.19
+
+### Patch Changes
+
+- Updated dependencies [[`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb), [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824), [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9), [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49)]:
+  - @tanstack/ai@0.64.0
+
 ## 0.4.18
 
 ### Patch Changes

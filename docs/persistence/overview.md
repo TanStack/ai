@@ -59,7 +59,8 @@ added later needs another run.
 
 `withPersistence` writes the transcript, run status and any pending approvals into
 your own store. `persistence` here is your adapter;
-[build one](./build-your-own-adapter) in about 40 lines, or start with
+[build one](./build-your-own-adapter) in about 40 lines, use a
+[third-party adapter](./build-your-own-adapter#third-party-adapters), or start with
 `memoryPersistence()` for local dev.
 
 ```ts

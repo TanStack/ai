@@ -92,6 +92,8 @@ function startFlakyStreamServer() {
   const server = createMCPServer({
     name: 'weather',
     version: '1.0.0',
+    // The wrapper below hides the server from serveMCPStdio, so set it here.
+    sessions: 'memory',
     tools: [echoTool()],
   })
   let opens = 0

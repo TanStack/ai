@@ -445,7 +445,7 @@ export interface ListVoicesActivityOptions<
  * import { elevenlabsSpeech } from '@tanstack/ai-elevenlabs'
  *
  * const { voices } = await listVoices({
- *   adapter: elevenlabsSpeech('eleven_v3'),
+ *   adapter: elevenlabsSpeech('eleven_v4'),
  *   origins: ['generated', 'cloned'],
  * })
  * ```

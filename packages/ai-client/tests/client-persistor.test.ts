@@ -357,6 +357,26 @@ describe('ChatPersistor', () => {
       expect(persistor.shouldIgnoreChunk(messagesSnapshot())).toBe(true)
     })
 
+    it.each([
+      { type: 'TEXT_MESSAGE_CHUNK', messageId: 'late-msg', delta: 'hi' },
+      { type: 'TOOL_CALL_CHUNK', toolCallId: 'tc-late', toolCallName: 'x' },
+    ])('ignores a runless $type belonging to a cleared run', (fields) => {
+      const { persistor } = createPersistor(createMockPersistence())
+      persistor.snapshotClear({
+        messages: [],
+        activeRunIds: new Set(['run-1']),
+        currentRunId: null,
+      })
+      persistor.shouldIgnoreChunk(runStarted('run-1'))
+
+      expect(
+        persistor.shouldIgnoreChunk({
+          ...fields,
+          timestamp: Date.now(),
+        } as StreamChunk),
+      ).toBe(true)
+    })
+
     it('ignores tool chunks by cleared parentMessageId and remembers the toolCallId', () => {
       const { persistor } = createPersistor(createMockPersistence())
       persistor.snapshotClear({

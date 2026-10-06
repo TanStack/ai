@@ -19,13 +19,12 @@ describe('useChat — fetcher transport', () => {
     await result.current.sendMessage('hi')
 
     await waitFor(() => {
-      expect(result.current.messages).toHaveLength(2)
+      const assistant = result.current.messages[1]
+      const textPart = assistant?.parts.find((p) => p.type === 'text')
+      expect(textPart && 'content' in textPart && textPart.content).toBe(
+        'Hello world',
+      )
     })
-    const assistant = result.current.messages[1]!
-    const textPart = assistant.parts.find((p) => p.type === 'text')
-    expect(textPart && 'content' in textPart && textPart.content).toBe(
-      'Hello world',
-    )
   })
 
   it('parses an SSE Response returned by the fetcher', async () => {
@@ -61,11 +60,10 @@ describe('useChat — fetcher transport', () => {
     await result.current.sendMessage('hi')
 
     await waitFor(() => {
-      expect(result.current.messages).toHaveLength(2)
+      const assistant = result.current.messages[1]
+      const textPart = assistant?.parts.find((p) => p.type === 'text')
+      expect(textPart && 'content' in textPart && textPart.content).toBe('Hi')
     })
-    const assistant = result.current.messages[1]!
-    const textPart = assistant.parts.find((p) => p.type === 'text')
-    expect(textPart && 'content' in textPart && textPart.content).toBe('Hi')
   })
 
   it('surfaces fetcher errors as the hook error state', async () => {

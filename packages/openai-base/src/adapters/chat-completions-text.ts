@@ -1023,12 +1023,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               // upstream never sent both id and name.
               if (!toolCall.started) continue
 
-              // Parse arguments for TOOL_CALL_END. Surface parse failures via
-              // the logger so a model emitting malformed JSON for tool args
-              // is debuggable instead of silently invoking the tool with {}.
-              // Non-object JSON (e.g. a bare string or number) is also coerced
-              // to {} so downstream tool execution doesn't receive a primitive
-              // input, mirroring the Responses adapter's guard.
+              // Leave malformed arguments for the core's tool-error handling.
+              // An undefined input preserves the accumulated argument string.
+              // Non-object JSON still normalizes to {}.
               let parsedInput: unknown = {}
               if (toolCall.arguments) {
                 try {
@@ -1051,7 +1048,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
                       rawArguments: toolCall.arguments,
                     },
                   )
-                  parsedInput = {}
+                  parsedInput = undefined
                 }
               }
 
@@ -1112,10 +1109,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
                 parsed && typeof parsed === 'object' ? parsed : {},
               )
             } catch (parseError) {
-              // Mirror the finish_reason path's logger call — a truncated
-              // stream emitting malformed tool-call JSON would otherwise
-              // silently invoke the tool with `{}`, the exact failure the
-              // finish_reason logger was added to prevent.
+              // Preserve malformed arguments for the core, as on finish_reason.
               options.logger.errors(
                 `${this.name}.processStreamChunks tool-args JSON parse failed (drain)`,
                 {
@@ -1129,7 +1123,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
                   rawArguments: toolCall.arguments,
                 },
               )
-              parsedInput = {}
+              parsedInput = undefined
             }
           }
           yield {

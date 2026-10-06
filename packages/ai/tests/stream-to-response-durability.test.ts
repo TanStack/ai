@@ -278,6 +278,94 @@ describe('toServerSentEventsResponse with durability', () => {
     expect(batchSizes.reduce((sum, size) => sum + size, 0)).toBe(6)
   })
 
+  /**
+   * Ms until 'a' reaches the reader while the model is still busy after it, or
+   * `Infinity` when 'a' is still held after 1s. 'a' sits in a batch of 32 that
+   * only 1 chunk filled, so only the batch wait can send it before the run ends.
+   */
+  async function msUntilFirstText(
+    runId: string,
+    options: { batchWaitMs?: number } = {},
+  ): Promise<number> {
+    let releaseModel = (): void => undefined
+    const modelThinking = new Promise<void>((resolve) => {
+      releaseModel = resolve
+    })
+    const stream: AsyncIterable<StreamChunk> = {
+      async *[Symbol.asyncIterator]() {
+        yield ev.textContent('a')
+        await modelThinking
+        yield ev.textContent('b')
+        yield ev.runFinished('stop')
+      },
+    }
+    const startedAt = Date.now()
+    const response = toServerSentEventsResponse(stream, {
+      durability: {
+        adapter: memoryStream(
+          new Request(`https://example.test/api/chat?runId=${runId}`, {
+            method: 'POST',
+          }),
+        ),
+        ...options,
+      },
+    })
+    if (!response.body) throw new Error('Expected a response body')
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let body = ''
+    const readUntilA = async (): Promise<number> => {
+      while (!body.includes('"delta":"a"')) {
+        const result = await reader.read()
+        if (result.done) throw new Error('Stream ended before "a"')
+        body += decoder.decode(result.value)
+      }
+      return Date.now() - startedAt
+    }
+
+    const elapsed = await Promise.race([
+      readUntilA(),
+      new Promise<number>((resolve) =>
+        setTimeout(() => resolve(Infinity), 1000),
+      ),
+    ])
+    releaseModel()
+    for (;;) {
+      const result = await reader.read()
+      if (result.done) break
+    }
+    return elapsed
+  }
+
+  it('delivers a buffered chunk while the producer waits for the next one', async () => {
+    expect(await msUntilFirstText('live-while-idle')).toBeLessThan(1000)
+  })
+
+  it('holds a buffered chunk for batchWaitMs', async () => {
+    const elapsed = await msUntilFirstText('live-wait-300', {
+      batchWaitMs: 300,
+    })
+
+    expect(elapsed).toBeGreaterThanOrEqual(250)
+    expect(elapsed).toBeLessThan(1000)
+  })
+
+  it('rejects an invalid batchWaitMs', () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=response-bad-wait', {
+        method: 'POST',
+      }),
+    )
+    const { stream } = fiveChunkStream()
+    for (const batchWaitMs of [-1, NaN, Infinity, 2_147_483_648]) {
+      expect(() =>
+        toServerSentEventsResponse(stream, {
+          durability: { adapter: durability, batchWaitMs },
+        }),
+      ).toThrow(/Invalid durability batchWaitMs/)
+    }
+  })
+
   it('rejects a non-positive-integer batch size', () => {
     const durability = memoryStream(
       new Request('https://example.test/api/chat?runId=response-bad-batch', {
@@ -534,6 +622,49 @@ function runFinished(): AdapterYieldChunk {
 }
 
 describe('durability producer robustness', () => {
+  it('ends with RUN_ERROR when a timed flush fails while the model is still busy', async () => {
+    const log = memoryStream(
+      new Request('https://example.test/api/chat?runId=timed-flush-fails', {
+        method: 'POST',
+      }),
+    )
+    let appends = 0
+    const durability: StreamDurability<string> = {
+      ...log,
+      // Append 1 is the run-accepted marker. Append 2 is the timed flush of
+      // 'a', made while the model has not sent its next chunk.
+      append: (chunks) => {
+        appends += 1
+        return appends === 2
+          ? Promise.reject(new Error('log write failed'))
+          : log.append(chunks)
+      },
+    }
+    const stream: AsyncIterable<StreamChunk> = {
+      async *[Symbol.asyncIterator]() {
+        yield ev.textContent('a')
+        // The model never sends another chunk.
+        await new Promise(() => undefined)
+      },
+    }
+
+    const outcome = await Promise.race([
+      readBody(
+        toServerSentEventsResponse(stream, {
+          durability: { adapter: durability },
+        }),
+      ),
+      new Promise<'hung'>((resolve) => setTimeout(() => resolve('hung'), 1000)),
+    ])
+    if (outcome === 'hung') throw new Error('The response never ended')
+
+    const events = parseSseEvents(outcome)
+    expect(field(events.at(-1)!, 'type')).toBe(EventType.RUN_ERROR)
+    const logged: Array<StreamChunk> = []
+    for await (const { chunk } of log.read('-1')) logged.push(chunk)
+    expect(logged.at(-1)?.type).toBe(EventType.RUN_ERROR)
+  })
+
   it('flushes buffered chunks to the durable log before the terminal on abort', async () => {
     const durability = memoryStream(
       new Request('https://example.test/api/chat?runId=h1-abort', {
@@ -765,6 +896,85 @@ describe('resume response helpers', () => {
     expect(sse.status).toBe(400)
     expect(ndjson.status).toBe(400)
     expect(await sse.text()).toMatch(/No resume offset/)
+  })
+
+  it('logs a replay failure server-side as well as sending it to the reader', async () => {
+    const errorLog = vi.fn()
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: errorLog,
+    }
+    // A reconnect for a run this process doesn't hold (expired, or never
+    // produced here). The reader gets a RUN_ERROR; the operator needs the
+    // cause server-side too.
+    const reconnect = memoryStream(
+      new Request('https://example.test/api/chat?runId=other-worker', {
+        headers: { 'Last-Event-ID': 'memory:v1:other-worker:3' },
+      }),
+    )
+
+    const events = parseSseEvents(
+      await readBody(
+        resumeServerSentEventsResponse({
+          adapter: reconnect,
+          debug: { logger },
+        }),
+      ),
+    )
+
+    expect(events.map((event) => field(event, 'type'))).toEqual([
+      EventType.RUN_ERROR,
+    ])
+    expect(errorLog).toHaveBeenCalledWith(
+      expect.stringContaining('replaying durability stream failed'),
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: expect.stringMatching(
+            /Unknown or expired memory stream run/,
+          ),
+        }),
+      }),
+    )
+  })
+
+  it('does not log a replay that rejects because the reader went away', async () => {
+    const errorLog = vi.fn()
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: errorLog,
+    }
+    // A backend that passes the signal straight to `fetch` rejects on abort.
+    const rejectsOnAbort: StreamDurability = {
+      resumeFrom: () => 'off-1',
+      append: () => Promise.resolve([]),
+      // eslint-disable-next-line require-yield
+      read: async function* (_offset, signal) {
+        await new Promise((_resolve, reject) => {
+          signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          )
+        })
+      },
+      close: () => Promise.resolve(),
+      snapshot: () => Promise.resolve([]),
+    }
+    const abortController = new AbortController()
+
+    const body = readBody(
+      toHttpResponse((async function* () {})(), {
+        durability: { adapter: rejectsOnAbort },
+        abortController,
+        debug: { logger },
+      }),
+    )
+    abortController.abort()
+    await body
+
+    expect(errorLog).not.toHaveBeenCalled()
   })
 })
 
