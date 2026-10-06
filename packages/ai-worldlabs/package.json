@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-worldlabs",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "World Labs adapter for TanStack AI world generation (Marble).",
   "author": "Tanner Linsley",
   "license": "MIT",
