@@ -634,8 +634,9 @@ jobs without `url`), the adapter's `getVideo()` returns
 `body` into the blob store (R2, S3, filesystem) and sets `url`. Without it,
 core buffers the whole video in memory and sets `url` to a base64 `data:` URL
 (fine for short clips, an out-of-memory risk on serverless above ~10 MiB).
-Calling `adapter.getVideoUrl()` directly always buffers. Custom adapters
-implement `getVideoUrl()`; `getVideo()` is optional. Providers that
+Custom adapters implement `getVideo()`. `adapter.getVideoUrl()` is deprecated:
+it is `getVideo()` with the stream always buffered, and adapters that only
+implement it still work. Providers that
 return a URL (Grok, fal, BytePlus) pass through; persistence still re-hosts
 them, which you want because those URLs expire.
 

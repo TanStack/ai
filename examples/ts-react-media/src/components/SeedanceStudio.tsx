@@ -1074,7 +1074,7 @@ export default function SeedanceStudio({
           />
           {/* No `return_last_frame` control: its PNG comes back on the task as
               `content.last_frame_url`, which neither the adapter's
-              `getVideoUrl` nor core's `VideoUrlResult` carries, so the studio
+              `getVideo` nor core's `VideoUrlResult` carries, so the studio
               could offer the toggle but never show you the frame. */}
           {entry.extras.generateAudio && (
             <Toggle

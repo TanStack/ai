@@ -122,21 +122,20 @@ export interface VideoAdapter<
   getVideoStatus: (jobId: string) => Promise<VideoStatusResult>
 
   /**
-   * Get the URL to download/view the generated video.
-   * Should only be called after status is 'completed'.
+   * Get the finished video: a public URL when the provider has one, or the
+   * download stream for generation middleware to host. Call only after
+   * status is 'completed'.
    *
-   * A provider with no public URL returns a base64 `data:` URL here, which
-   * buffers the whole video in memory. Implement `getVideo` to avoid that.
-   */
-  getVideoUrl: (jobId: string) => Promise<VideoUrlResult>
-
-  /**
-   * Optional. Get the finished video as a public URL when the provider has
-   * one, or as the download stream when it does not. Core prefers this over
-   * `getVideoUrl`, so generation middleware can host the stream instead of
-   * buffering it.
+   * Optional only so adapters written against `getVideoUrl` keep working.
+   * New adapters implement this.
    */
   getVideo?: (jobId: string) => Promise<VideoUrlResult | VideoStreamResult>
+
+  /**
+   * @deprecated Use `getVideo`. This is `getVideo` with a provider stream
+   * buffered into a base64 `data:` URL, which holds the whole video in memory.
+   */
+  getVideoUrl: (jobId: string) => Promise<VideoUrlResult>
 
   /**
    * Describe the durations this adapter's model accepts. Returns a tagged
@@ -252,19 +251,18 @@ export abstract class BaseVideoAdapter<
 
   abstract getVideoStatus(jobId: string): Promise<VideoStatusResult>
 
-  abstract getVideoUrl(jobId: string): Promise<VideoUrlResult>
-
-  /** Optional. See {@link VideoAdapter.getVideo}. */
+  /** Implement this. See {@link VideoAdapter.getVideo}. */
   getVideo?(jobId: string): Promise<VideoUrlResult | VideoStreamResult>
 
   /**
-   * Turn a `getVideo()` result into a `getVideoUrl()` result. A stream is
-   * buffered into a base64 `data:` URL.
+   * @deprecated Implement and call `getVideo`. This is `getVideo` with a
+   * provider stream buffered into a base64 `data:` URL.
    */
-  protected async toVideoUrlResult(
-    video: VideoUrlResult | VideoStreamResult,
-  ): Promise<VideoUrlResult> {
-    return await inlineVideoStream(video)
+  async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
+    if (!this.getVideo) {
+      throw new Error(`${this.name}: video adapter must implement getVideo()`)
+    }
+    return await inlineVideoStream(await this.getVideo(jobId))
   }
 
   /**

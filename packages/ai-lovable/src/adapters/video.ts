@@ -174,11 +174,6 @@ export class LovableVideoAdapter<
     }
   }
 
-  /** Buffers the whole video into a `data:` URL when the provider has no URL. */
-  async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
-    return await this.toVideoUrlResult(await this.getVideo(jobId))
-  }
-
   override async getVideo(
     jobId: string,
   ): Promise<VideoUrlResult | VideoStreamResult> {
