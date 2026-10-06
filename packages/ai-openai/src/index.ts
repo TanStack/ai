@@ -7,6 +7,8 @@ export {
   OpenAITextAdapter,
   createOpenaiChat,
   openaiText,
+  type OpenAIModelId,
+  type OpenAITextAdapterFor,
   type OpenAITextConfig,
   type OpenAITextProviderOptions,
 } from './adapters/text'

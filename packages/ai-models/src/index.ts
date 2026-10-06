@@ -2,13 +2,18 @@ import { generatedAt, providerModules } from './catalog'
 import type { ModelRecord, ProviderRecord } from './types'
 
 export { generatedAt }
-export { clampReasoningLevel, supportedReasoningLevels } from './reasoning'
+export {
+  clampReasoningLevel,
+  modelReasoning,
+  supportedReasoningLevels,
+} from './reasoning'
 export { modelCost } from './cost'
 export type {
   Cost,
   InputModality,
   ModelCompat,
   ModelCostRates,
+  ModelReasoning,
   ModelRecord,
   ProviderRecord,
   ReasoningLevel,

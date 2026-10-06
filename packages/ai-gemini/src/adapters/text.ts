@@ -50,10 +50,13 @@ import type {
   VideoMetadata,
 } from '@google/genai'
 import type {
+  ConfigReasoning,
   ContentPart,
   Modality,
   ModelMessage,
+  ModelReasoning,
   MessageSource,
+  ReasoningCapability,
   ToolCall,
   AdapterYieldChunk,
   ProviderExecutedToolSource,
@@ -331,7 +334,21 @@ function buildInteractionsInput(
 /**
  * Configuration for Gemini text adapter
  */
-export interface GeminiTextConfig extends GeminiClientConfig {}
+export interface GeminiTextConfig extends GeminiClientConfig {
+  /**
+   * The model's reasoning data, for example `modelReasoning(record)` from a
+   * `@tanstack/ai-models` record. It wins over the adapter's own table, for
+   * `thinkingConfig` and for the levels `chat({ reasoning })` takes.
+   * `false`: the model does not reason, so no thinking config goes out.
+   */
+  reasoning?: ModelReasoning
+}
+
+/**
+ * A model id: a known Gemini model, or any other id, for example a Vertex or
+ * catalog id that this package does not list yet.
+ */
+export type GeminiModelId = (typeof GEMINI_MODELS)[number] | (string & {})
 
 /**
  * Gemini-specific provider options for text/chat
@@ -386,12 +403,13 @@ type ResolveToolCapabilities<TModel extends string> =
  * Import only what you need for smaller bundle sizes.
  */
 export class GeminiTextAdapter<
-  TModel extends (typeof GEMINI_MODELS)[number],
+  TModel extends GeminiModelId,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
     ResolveToolCapabilities<TModel>,
+  TReasoning extends ReasoningCapability = ResolveReasoning<TModel>,
 > extends BaseTextAdapter<
   TModel,
   TProviderOptions,
@@ -400,7 +418,7 @@ export class GeminiTextAdapter<
   TToolCapabilities,
   GeminiToolCallMetadata,
   never,
-  ResolveReasoning<TModel>
+  TReasoning
 > {
   override readonly kind = 'text' as const
   readonly name = 'gemini' as const
@@ -411,9 +429,13 @@ export class GeminiTextAdapter<
   override readonly inputModalities = GEMINI_MODEL_INPUT_MODALITIES[this.model]
 
   private readonly client: GoogleGenAI
+  /** `config.reasoning`, which wins over `GEMINI_MODEL_REASONING`. */
+  private readonly configReasoning: ModelReasoning | undefined
 
   constructor(config: GeminiTextConfig, model: TModel) {
     super({}, model)
+    const { reasoning, ...clientConfig } = config
+    this.configReasoning = reasoning
     this.provider =
       config.vertexai === true || config.enterprise === true
         ? 'google-vertex'
@@ -422,7 +444,7 @@ export class GeminiTextAdapter<
       this.provider === 'google-vertex'
         ? 'google-vertex'
         : 'google-generative-ai'
-    this.client = createGeminiClient(config)
+    this.client = createGeminiClient(clientConfig)
   }
 
   async *chatStream(
@@ -1522,7 +1544,7 @@ export class GeminiTextAdapter<
     const mappedThinkingConfig = geminiThinkingConfig(
       options.model,
       options.reasoning,
-      GEMINI_MODEL_REASONING[options.model],
+      this.configReasoning ?? GEMINI_MODEL_REASONING[options.model],
     )
 
     const normalizedPrompts = normalizeSystemPrompts(options.systemPrompts)
@@ -1615,19 +1637,35 @@ function structuredStreamError(
 }
 
 /**
- * Creates a Gemini text adapter with explicit API key.
- * Type resolution happens here at the call site.
+ * The adapter type for a model and a config. A config with `reasoning` sets
+ * the levels `chat({ reasoning })` takes; see {@link ConfigReasoning}.
  */
-export function createGeminiChat<TModel extends (typeof GEMINI_MODELS)[number]>(
-  model: TModel,
-  apiKey: string,
-  config?: Omit<GeminiTextConfig, 'apiKey'>,
-): GeminiTextAdapter<
+export type GeminiTextAdapterFor<
+  TModel extends GeminiModelId,
+  TConfig = GeminiTextConfig,
+> = GeminiTextAdapter<
   TModel,
   ResolveProviderOptions<TModel>,
   ResolveInputModalities<TModel>,
-  ResolveToolCapabilities<TModel>
-> {
+  ResolveToolCapabilities<TModel>,
+  ConfigReasoning<TConfig, ResolveReasoning<TModel>>
+>
+
+/**
+ * Creates a Gemini text adapter with explicit API key.
+ * Type resolution happens here at the call site.
+ */
+export function createGeminiChat<
+  TModel extends GeminiModelId,
+  TConfig extends Omit<GeminiTextConfig, 'apiKey'> = Omit<
+    GeminiTextConfig,
+    'apiKey'
+  >,
+>(
+  model: TModel,
+  apiKey: string,
+  config?: TConfig,
+): GeminiTextAdapterFor<TModel, TConfig> {
   return new GeminiTextAdapter({ apiKey, ...config }, model)
 }
 
@@ -1635,15 +1673,13 @@ export function createGeminiChat<TModel extends (typeof GEMINI_MODELS)[number]>(
  * Creates a Gemini text adapter with automatic API key detection.
  * Type resolution happens here at the call site.
  */
-export function geminiText<TModel extends (typeof GEMINI_MODELS)[number]>(
-  model: TModel,
-  config?: Omit<GeminiTextConfig, 'apiKey'>,
-): GeminiTextAdapter<
-  TModel,
-  ResolveProviderOptions<TModel>,
-  ResolveInputModalities<TModel>,
-  ResolveToolCapabilities<TModel>
-> {
+export function geminiText<
+  TModel extends GeminiModelId,
+  TConfig extends Omit<GeminiTextConfig, 'apiKey'> = Omit<
+    GeminiTextConfig,
+    'apiKey'
+  >,
+>(model: TModel, config?: TConfig): GeminiTextAdapterFor<TModel, TConfig> {
   const apiKey = getGeminiApiKeyFromEnv()
   return createGeminiChat(model, apiKey, config)
 }

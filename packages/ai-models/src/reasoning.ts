@@ -1,4 +1,18 @@
-import type { ModelRecord, ReasoningLevel } from './types'
+import type { ModelReasoning, ModelRecord, ReasoningLevel } from './types'
+
+/**
+ * The record's reasoning data for an adapter's `reasoning` config:
+ * `createAnthropicChat(record.id, key, { reasoning: modelReasoning(record) })`.
+ */
+export function modelReasoning(
+  model: Pick<ModelRecord, 'reasoning' | 'reasoningMap' | 'reasoningBudget'>,
+): ModelReasoning {
+  if (!model.reasoning) return false
+  return {
+    ...(model.reasoningMap ? { map: model.reasoningMap } : {}),
+    budget: model.reasoningBudget === true,
+  }
+}
 
 // ponytail: the same rules as `supportedReasoningLevels` and
 // `clampReasoningLevel` in `@tanstack/ai` (pi's rules). They are copied so

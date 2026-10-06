@@ -18,6 +18,13 @@ export type ReasoningLevel =
  */
 export type ReasoningMap = Partial<Record<ReasoningLevel, string | null>>
 
+/**
+ * A model's reasoning data, in the shape of the `reasoning` config of the
+ * `@tanstack/ai` adapters (`ModelReasoning` there). `false`: the model does
+ * not reason. Otherwise its level map and whether it takes a token budget.
+ */
+export type ModelReasoning = false | { map?: ReasoningMap; budget: boolean }
+
 /** The wire protocol of a model. It picks the adapter. */
 export type WireApi =
   | 'anthropic-messages'

@@ -38,17 +38,21 @@ export function buildAnthropicUsage(
     | Anthropic_SDK.Beta.BetaMessageDeltaUsage
     | undefined
     | null,
+  start?: Anthropic_SDK.Beta.BetaUsage,
 ): TokenUsage<AnthropicProviderUsageDetails> | undefined {
   if (!usage) return undefined
 
-  const inputTokens = usage.input_tokens ?? 0
+  const inputTokens = usage.input_tokens ?? start?.input_tokens ?? 0
   // `|| 0` (rather than `?? 0`) matches the sibling builders and stays defensive
   // against a runtime-absent count without tripping no-unnecessary-condition
   // (the SDK types output_tokens as a required number).
   const outputTokens = usage.output_tokens || 0
-  // The SDK types these as `number | null`.
-  const cacheWrite = usage.cache_creation_input_tokens ?? 0
-  const cacheRead = usage.cache_read_input_tokens ?? 0
+  // The SDK types these as `number | null`. A closing message_delta can leave
+  // them out: then the message_start counts apply.
+  const cacheWrite =
+    usage.cache_creation_input_tokens ?? start?.cache_creation_input_tokens ?? 0
+  const cacheRead =
+    usage.cache_read_input_tokens ?? start?.cache_read_input_tokens ?? 0
   // `input_tokens` is only the uncached part. Add the cache parts so
   // promptTokens is the total input, the same as the other adapters.
   const promptTokens = inputTokens + cacheRead + cacheWrite
@@ -72,7 +76,7 @@ export function buildAnthropicUsage(
 
   // Add provider-specific usage details for server tool use, again only when
   // the provider actually reported any server tool requests.
-  const serverToolUse = usage.server_tool_use
+  const serverToolUse = usage.server_tool_use ?? start?.server_tool_use
   const serverToolUseDetails = {
     ...(serverToolUse?.web_search_requests
       ? { webSearchRequests: serverToolUse.web_search_requests }

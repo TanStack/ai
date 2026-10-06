@@ -345,8 +345,11 @@ const REJOIN_CONNECT_DEADLINE_MS = 2000
 const REJOIN_REBUILD_TRIGGERS = new Set<string>([
   'TEXT_MESSAGE_START',
   'TEXT_MESSAGE_CONTENT',
+  'TEXT_MESSAGE_CHUNK',
   'REASONING_MESSAGE_CONTENT',
+  'REASONING_MESSAGE_CHUNK',
   'TOOL_CALL_START',
+  'TOOL_CALL_CHUNK',
   'MESSAGES_SNAPSHOT',
   // Drop the hydrated card before this chunk creates it again. A subagent
   // turn may have no parent text, so the text triggers arrive too late.
@@ -509,6 +512,7 @@ export class ChatClient<
   private readonly postStreamActions: Array<() => Promise<void>> = []
   // Track pending client tool executions to await them before stream finalization
   private readonly pendingToolExecutions: Map<string, Promise<void>> = new Map()
+  private handingOverPendingToolCalls = false
   private activeClientTools: Map<string, AnyClientTool> | null = null
   private activeContext: TContext | undefined = undefined
   // Flag to deduplicate continuation checks during action draining
@@ -874,6 +878,17 @@ export class ChatClient<
             this.activeClientTools ?? this.clientToolsRef.current
           const clientTool = clientTools.get(args.toolName)
           const executeFunc = clientTool?.execute
+          // A success RUN_FINISHED hands over calls that no approval step
+          // covered. A tool that needs approval does not run from there.
+          if (
+            this.handingOverPendingToolCalls &&
+            clientTool?.needsApproval === true
+          ) {
+            console.warn(
+              `[ChatClient] Did not run tool call ${args.toolCallId}: ${args.toolName} needs approval, and the server did not ask for it`,
+            )
+            return
+          }
           if (executeFunc) {
             const continuationGeneration = this.continuationGeneration
             // Capture the run context at execution-start so a tool whose
@@ -2135,7 +2150,13 @@ export class ChatClient<
       this.resolveJoinedRun(chunk)
       return
     }
-    this.processor.processChunk(chunk)
+    this.handingOverPendingToolCalls =
+      chunk.type === 'RUN_FINISHED' && chunk.outcome?.type !== 'interrupt'
+    try {
+      this.processor.processChunk(chunk)
+    } finally {
+      this.handingOverPendingToolCalls = false
+    }
     this.syncSubagentHandles()
     this.updateRunLifecycle(chunk)
     this.observeInterruptState(chunk)

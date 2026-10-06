@@ -10,6 +10,7 @@
 import { beforeAll, describe, expectTypeOf, it } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { geminiText } from '../src'
+import type { ModelReasoning } from '@tanstack/ai'
 import type { GeminiChatModelProviderOptionsByName } from '../src'
 
 // Set a dummy API key so adapter construction does not throw at runtime.
@@ -136,18 +137,10 @@ describe('Gemini per-model chat modelOptions gating', () => {
   })
 
   describe('Model name type safety', () => {
-    it('rejects unknown model names at the factory', () => {
-      // @ts-expect-error - 'gemini-fake-9000' is not a valid Gemini chat model
-      geminiText('gemini-fake-9000')
-    })
-
-    it('rejects retired model ids at the factory', () => {
-      // @ts-expect-error - 'gemini-3-pro-preview' was retired by Google
-      geminiText('gemini-3-pro-preview')
-      // @ts-expect-error - 'gemini-2.0-flash' was retired by Google
-      geminiText('gemini-2.0-flash')
-      // @ts-expect-error - 'gemini-2.0-flash-lite' was retired by Google
-      geminiText('gemini-2.0-flash-lite')
+    it('accepts any model id, such as a Vertex or catalog id', () => {
+      geminiText('gemini-3.5-pro-preview')
+      const id: string = 'gemini-fake-9000'
+      geminiText(id)
     })
   })
 })
@@ -203,6 +196,37 @@ describe('Gemini provider options shape assertions', () => {
     })
     it('has cachedContent', () => {
       expectTypeOf<Options>().toHaveProperty('cachedContent')
+    })
+  })
+})
+
+describe('Gemini chat reasoning from the config', () => {
+  const messages = [{ role: 'user' as const, content: 'hi' }]
+
+  it('a config with reasoning takes every level, for any model id', () => {
+    const reasoning: ModelReasoning = { budget: true }
+    chat({
+      adapter: geminiText('gemini-3.5-pro-preview', { reasoning }),
+      messages,
+      reasoning: { level: 'high', budgetTokens: 4000 },
+    })
+  })
+
+  it('an id with no table and no config takes no reasoning', () => {
+    chat({
+      adapter: geminiText('gemini-3.5-pro-preview'),
+      messages,
+      // @ts-expect-error - no reasoning data for this id
+      reasoning: 'high',
+    })
+  })
+
+  it('reasoning: false takes no reasoning', () => {
+    chat({
+      adapter: geminiText('gemini-3-flash-preview', { reasoning: false }),
+      messages,
+      // @ts-expect-error - the config says the model does not reason
+      reasoning: 'high',
     })
   })
 })

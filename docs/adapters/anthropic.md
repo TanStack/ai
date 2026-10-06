@@ -282,6 +282,8 @@ const stream = chat({
 
 Anthropic's Messages API _requires_ `max_tokens` on every request, so the adapter always sends a value. When you don't set `modelOptions.max_tokens`, it defaults to the selected model's full output ceiling (`max_output_tokens` from the model metadata — e.g. 64K for Sonnet, 128K for Opus), falling back to a safe constant for unrecognized models. `max_tokens` is a ceiling, not a reservation — billing is on tokens actually generated — so this default costs nothing extra and avoids the silent mid-response truncation (`stop_reason: "max_tokens"`) that a low default would cause. Set `max_tokens` explicitly only when you want to _cap_ output below the model ceiling. If a response is truncated while using the default cap, the adapter logs a warning (visible with [debug logging](../advanced/debug-logging) enabled).
 
+A streamed response that stops at `max_tokens` ends in a `RUN_ERROR` with `code: 'max_tokens'`. Anthropic bills the tokens of that call, so this `RUN_ERROR` carries the `usage` of the call. The `onUsage` middleware hook fires only for `RUN_FINISHED`. To count these tokens too, read `usage` from the `RUN_ERROR` chunk, in the stream or in an `onChunk` middleware.
+
 One exception: structured output (`chat({ outputSchema })`) on models that use the non-streaming finalization path clamps this default to ~21K tokens. The Anthropic SDK rejects a non-streaming request whose `max_tokens` could exceed its 10-minute timeout, so the full ceiling can't be used there. Streaming chat is unaffected. To raise the structured-output ceiling toward a model's true max, stream the response.
 
 ### Thinking
@@ -304,7 +306,7 @@ What the adapter sends for each kind of model:
 - **Claude 4.7 and later, Sonnet 5, Fable 5**: adaptive thinking, with the level as `output_config.effort`.
 - **Claude Opus 4.6 and Sonnet 4.6**: adaptive thinking, with the level as `effort`.
 - **Haiku 4.5, Sonnet 4.5, Opus 4.5, Opus 4.1**: thinking with a token budget. Set it with `reasoning: { level: "high", budgetTokens: 8000 }`. The adapter raises `max_tokens` when it is below the budget.
-- **`off`**: thinking disabled. `claude-fable-5` always thinks, so its types do not take `off`.
+- **`off`**: thinking disabled. `claude-fable-5` and `claude-sonnet-5-5` always think, so their types do not take `off`.
 
 The thinking text streams back as thinking parts. Pass `summary: false` to keep it hidden: `reasoning: { level: "high", summary: false }`. See [Reasoning](../chat/reasoning) for the levels and how a level the model does not have moves to the nearest one.
 
@@ -586,7 +588,7 @@ const stream = chat({
 });
 ```
 
-**Supported models:** Claude Sonnet 3.5 and above. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+**Supported models:** Claude Sonnet 3.5 and above, with two exceptions. `claude-opus-5-fast` takes no provider tools. Claude Opus 5.5 and Claude Sonnet 5.5 accept only the `computer_toolset_20260801` toolset, which the adapter does not offer yet. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `bashTool`
 

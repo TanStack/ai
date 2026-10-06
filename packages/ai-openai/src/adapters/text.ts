@@ -13,7 +13,6 @@ import {
 import { responsesPromptCacheFields } from '../prompt-cache'
 import type {
   OPENAI_CHAT_MODELS,
-  OpenAIChatModel,
   OpenAIChatModelProviderOptionsByName,
   OpenAIChatModelToolCapabilitiesByName,
   OpenAIModelInputModalitiesByName,
@@ -24,8 +23,11 @@ import type {
 } from 'openai/resources/responses/responses'
 import type {
   AnyTool,
+  ConfigReasoning,
   MidConversationChannels,
   Modality,
+  ModelReasoning,
+  ReasoningCapability,
   TextOptions,
 } from '@tanstack/ai'
 import type { OpenAIModelReasoningByName } from '../model-reasoning'
@@ -52,7 +54,20 @@ export interface OpenAITextConfig
    * `false` turns them off, so every request is built as before.
    */
   midConversationChannels?: boolean
+  /**
+   * The model's reasoning data, for example `modelReasoning(record)` from a
+   * `@tanstack/ai-models` record. It wins over the adapter's own table, for
+   * `reasoning.effort` and for the levels `chat({ reasoning })` takes.
+   * `false`: the model does not reason, so no reasoning field goes out.
+   */
+  reasoning?: ModelReasoning
 }
+
+/**
+ * A model id: a known OpenAI model, or any other id, for example a catalog
+ * id that this package does not list yet.
+ */
+export type OpenAIModelId = (typeof OPENAI_CHAT_MODELS)[number] | (string & {})
 
 /**
  * Alias for TextProviderOptions
@@ -112,19 +127,20 @@ type ResolveToolCapabilities<TModel extends string> =
  * apply provider option validation.
  */
 export class OpenAITextAdapter<
-  TModel extends OpenAIChatModel,
+  TModel extends OpenAIModelId,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =
     ResolveToolCapabilities<TModel>,
+  TReasoning extends ReasoningCapability = ResolveReasoning<TModel>,
 > extends OpenAIBaseResponsesTextAdapter<
   TModel,
   TProviderOptions,
   TInputModalities,
   OpenAIMessageMetadataByModality,
   TToolCapabilities,
-  ResolveReasoning<TModel>
+  TReasoning
 > {
   override readonly kind = 'text' as const
   override readonly name = 'openai' as const
@@ -139,8 +155,12 @@ export class OpenAITextAdapter<
     | MidConversationChannels
     | undefined = undefined
 
+  /** `config.reasoning`, which wins over `OPENAI_MODEL_REASONING`. */
+  private readonly configReasoning: ModelReasoning | undefined
+
   constructor(config: OpenAITextConfig, model: TModel) {
     super(model, 'openai', new OpenAI(config), config)
+    this.configReasoning = config.reasoning
     // On by default only on OpenAI's own API: a proxy or a gateway (a
     // `baseURL`, a `fetch`, or the SDK's OPENAI_BASE_URL env var) may not
     // pass the changes. The option wins.
@@ -156,7 +176,7 @@ export class OpenAITextAdapter<
   }
 
   protected override modelReasoning(model: string) {
-    return OPENAI_MODEL_REASONING[model]
+    return this.configReasoning ?? OPENAI_MODEL_REASONING[model]
   }
 
   /** OpenAI's full tool converter (file_search, web_search, etc.). */
@@ -257,6 +277,21 @@ export class OpenAITextAdapter<
 }
 
 /**
+ * The adapter type for a model and a config. A config with `reasoning` sets
+ * the levels `chat({ reasoning })` takes; see {@link ConfigReasoning}.
+ */
+export type OpenAITextAdapterFor<
+  TModel extends OpenAIModelId,
+  TConfig = OpenAITextConfig,
+> = OpenAITextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>,
+  ResolveToolCapabilities<TModel>,
+  ConfigReasoning<TConfig, ResolveReasoning<TModel>>
+>
+
+/**
  * Creates an OpenAI chat adapter with explicit API key.
  * Type resolution happens here at the call site.
  *
@@ -272,12 +307,16 @@ export class OpenAITextAdapter<
  * ```
  */
 export function createOpenaiChat<
-  TModel extends (typeof OPENAI_CHAT_MODELS)[number],
+  TModel extends OpenAIModelId,
+  TConfig extends Omit<OpenAITextConfig, 'apiKey'> = Omit<
+    OpenAITextConfig,
+    'apiKey'
+  >,
 >(
   model: TModel,
   apiKey: string,
-  config?: Omit<OpenAITextConfig, 'apiKey'>,
-): OpenAITextAdapter<TModel> {
+  config?: TConfig,
+): OpenAITextAdapterFor<TModel, TConfig> {
   return new OpenAITextAdapter({ apiKey, ...config }, model)
 }
 
@@ -305,10 +344,13 @@ export function createOpenaiChat<
  * });
  * ```
  */
-export function openaiText<TModel extends (typeof OPENAI_CHAT_MODELS)[number]>(
-  model: TModel,
-  config?: Omit<OpenAITextConfig, 'apiKey'>,
-): OpenAITextAdapter<TModel> {
+export function openaiText<
+  TModel extends OpenAIModelId,
+  TConfig extends Omit<OpenAITextConfig, 'apiKey'> = Omit<
+    OpenAITextConfig,
+    'apiKey'
+  >,
+>(model: TModel, config?: TConfig): OpenAITextAdapterFor<TModel, TConfig> {
   const apiKey = getOpenAIApiKeyFromEnv()
   return createOpenaiChat(model, apiKey, config)
 }

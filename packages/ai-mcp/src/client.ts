@@ -68,6 +68,14 @@ export interface MCPClient<
 > {
   readonly capabilities: TServer['capabilities']
   /**
+   * The server's instructions from the connect handshake: how to use its
+   * tools, meant for the model's system prompt. `undefined` when the server
+   * sends none.
+   *
+   * Optional so an existing hand-rolled `MCPClient` keeps compiling.
+   */
+  readonly instructions?: string
+  /**
    * Auto-discovery: every server tool as a ServerTool. With a generated
    * descriptor, tool names are typed as the descriptor's name literals;
    * args/results stay untyped — use the `tools(defs)` overload for typed args.
@@ -159,6 +167,7 @@ class MCPClientImpl<
   TServer extends ServerDescriptor,
 > implements MCPClient<TServer> {
   capabilities: TServer['capabilities'] = {}
+  instructions: string | undefined
   readonly #client: Client
   #closed = false
   #toolDefinitions?: Map<string, McpToolDef>
@@ -242,6 +251,7 @@ class MCPClientImpl<
       )
       await this.#client.connect(transport)
       this.capabilities = this.#client.getServerCapabilities() ?? {}
+      this.instructions = this.#client.getInstructions()
       // A failed listen only means that tool changes are not pushed.
       // The connection still works, so the error does not fail connect.
       await this.#listenForToolListChanges().catch(() => undefined)

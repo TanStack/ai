@@ -328,7 +328,8 @@ export function resumeWebSocketStream<TOffset extends string = string>(
     {
       abortController,
       ...(options.batch === undefined ? {} : { batch: options.batch }),
-      logger,
+      // No `logger`: a resume only replays, and the catch below already logs a
+      // replay failure (and a failed `socket.send`) once.
     },
   )
   void (async () => {

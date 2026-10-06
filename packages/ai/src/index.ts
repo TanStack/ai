@@ -457,6 +457,7 @@ export {
 } from './reasoning'
 export type {
   AdapterReasoning,
+  ConfigReasoning,
   ModelReasoning,
   ReasoningCapability,
   ReasoningLevel,
