@@ -1,4 +1,8 @@
-import { isTerminalRunStatus, modelMessagesToUIMessages } from '@tanstack/ai'
+import {
+  interleaveActivityRecords,
+  isTerminalRunStatus,
+  modelMessagesToUIMessages,
+} from '@tanstack/ai'
 import type {
   ModelMessage,
   RunRecord,
@@ -167,15 +171,43 @@ export async function reconstructChat(
   const active = threadId
     ? await persistence.stores.runs?.findActiveRun(threadId)
     : null
-  const stored =
+  const storedActivities =
     threadId === ''
       ? []
-      : pageSize === undefined
+      : ((await persistence.stores.activities?.loadActivities(threadId)) ?? [])
+  // An activity `index` counts from the start of the full UI transcript, so a
+  // thread with activity loads in full and pages after the interleave.
+  // ponytail: full load per page for those threads; page activities by index
+  // in the store if long threads make this slow.
+  let pageAfterInterleave = storedActivities.length > 0
+  const loadPage = async (limit: number) =>
+    await messageStore.loadThread(threadId, {
+      limit,
+      ...(before === undefined ? {} : { before }),
+    })
+  let stored =
+    threadId === ''
+      ? []
+      : pageSize === undefined || pageAfterInterleave
         ? await messageStore.loadThread(threadId)
-        : await messageStore.loadThread(threadId, {
-            limit: pageSize + 1,
-            ...(before === undefined ? {} : { before }),
-          })
+        : await loadPage(pageSize + 1)
+  const fullUi = () =>
+    interleaveActivityRecords(
+      modelMessagesToUIMessages(threadMessages(stored)),
+      storedActivities,
+    )
+  // A cursor the store minted before the thread had activity is not a UI
+  // message id. Page that request through the store, or "load older" gets the
+  // same cursor back with an empty page forever.
+  if (
+    pageAfterInterleave &&
+    pageSize !== undefined &&
+    before !== undefined &&
+    !fullUi().some((message) => message.id === before)
+  ) {
+    pageAfterInterleave = false
+    stored = await loadPage(pageSize + 1)
+  }
   // Pending interrupts for the thread, so a reload re-prompts the approval from
   // the server. Each stored `payload` is the full interrupt descriptor the
   // client hydrates; they share the run they paused.
@@ -185,18 +217,18 @@ export async function reconstructChat(
   const firstPending = pending[0]
   const isPaging = pageSize !== undefined && threadId !== ''
   const transcript = !isPaging
-    ? {
-        messages: modelMessagesToUIMessages(threadMessages(stored)),
-      }
-    : Array.isArray(stored)
-      ? await windowFromArray({
-          stored,
-          messageStore,
-          threadId,
-          pageSize,
-          before,
-        })
-      : windowFromMessagePage(stored, pageSize)
+    ? { messages: fullUi() }
+    : pageAfterInterleave
+      ? uiWindowBefore(fullUi(), pageSize, before)
+      : Array.isArray(stored)
+        ? await windowFromArray({
+            stored,
+            messageStore,
+            threadId,
+            pageSize,
+            before,
+          })
+        : windowFromMessagePage(stored, pageSize)
   const messages = await attachSubagentCards(
     transcript.messages,
     persistence.stores.runs,
@@ -535,7 +567,17 @@ async function windowFromArray(input: {
   // Array adapters own no cursor. Apply `before` to the full transcript so an
   // adapter that ignored the hint cannot return the same newest page forever.
   const full = threadMessages(await messageStore.loadThread(threadId))
-  const older = uiBeforeCursor(modelMessagesToUIMessages(full), before)
+  return uiWindowBefore(modelMessagesToUIMessages(full), pageSize, before)
+}
+
+/** Newest window of a full UI transcript, older than `before` when set. */
+function uiWindowBefore(
+  messages: Array<UIMessage>,
+  pageSize: number,
+  before: string | undefined,
+) {
+  if (before === undefined) return newestUiWindow(messages, pageSize)
+  const older = uiBeforeCursor(messages, before)
   if (older === undefined) {
     return { messages: [], page: truncatedPage(before) }
   }

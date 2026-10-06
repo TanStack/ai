@@ -101,6 +101,26 @@ function fixedOffsetDurability(
 }
 
 describe('toServerSentEventsResponse with durability', () => {
+  it('keeps persisting while a connected client does not read', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=unread-connected', {
+        method: 'POST',
+      }),
+    )
+    const { stream } = fiveChunkStream()
+    // The response is held, never read and never cancelled.
+    const response = toServerSentEventsResponse(stream, {
+      durability: { adapter: durability, batch: 1 },
+    })
+    expect(response.body!.locked).toBe(false)
+
+    await vi.waitFor(async () => {
+      expect(
+        (await durability.snapshot()).map((entry) => label(entry.chunk)),
+      ).toEqual([`[${EventType.CUSTOM}]`, '1', '2', '3', '4', '5'])
+    })
+  })
+
   it('appends a fresh run and tags every event with its adapter offset', async () => {
     const durability = memoryStream(
       new Request('https://example.test/api/chat?runId=response-fresh', {

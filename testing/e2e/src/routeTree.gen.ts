@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ApiActivityTestRouteImport } from './routes/api.activity-test'
+import { Route as ActivityTestRouteImport } from './routes/activity-test'
 import { Route as ApiForeignClientToolRouteImport } from './routes/api.foreign-client-tool'
 import { Route as ApiForeignChunkEventsRouteImport } from './routes/api.foreign-chunk-events'
 import { Route as ApiAnthropicTruncatedToolInputWireRouteImport } from './routes/api.anthropic-truncated-tool-input-wire'
@@ -152,6 +154,16 @@ import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 
+const ApiActivityTestRoute = ApiActivityTestRouteImport.update({
+  id: '/api/activity-test',
+  path: '/api/activity-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActivityTestRoute = ActivityTestRouteImport.update({
+  id: '/activity-test',
+  path: '/activity-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiForeignClientToolRoute = ApiForeignClientToolRouteImport.update({
   id: '/api/foreign-client-tool',
   path: '/api/foreign-client-tool',
@@ -950,6 +962,8 @@ const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
+  '/api/activity-test': typeof ApiActivityTestRoute
+  '/activity-test': typeof ActivityTestRoute
   '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
@@ -1094,6 +1108,8 @@ export interface FileRoutesByFullPath {
   '/api/video/stream': typeof ApiVideoStreamRoute
 }
 export interface FileRoutesByTo {
+  '/api/activity-test': typeof ApiActivityTestRoute
+  '/activity-test': typeof ActivityTestRoute
   '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
@@ -1238,6 +1254,8 @@ export interface FileRoutesByTo {
   '/api/video/stream': typeof ApiVideoStreamRoute
 }
 export interface FileRoutesById {
+  '/api/activity-test': typeof ApiActivityTestRoute
+  '/activity-test': typeof ActivityTestRoute
   '/api/foreign-client-tool': typeof ApiForeignClientToolRoute
   '/api/foreign-chunk-events': typeof ApiForeignChunkEventsRoute
   '/api/anthropic-truncated-tool-input-wire': typeof ApiAnthropicTruncatedToolInputWireRoute
@@ -1385,6 +1403,8 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/api/activity-test'
+    | '/activity-test'
     | '/api/foreign-client-tool'
     | '/api/foreign-chunk-events'
     | '/api/anthropic-truncated-tool-input-wire'
@@ -1529,6 +1549,8 @@ export interface FileRouteTypes {
     | '/api/video/stream'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/api/activity-test'
+    | '/activity-test'
     | '/api/foreign-client-tool'
     | '/api/foreign-chunk-events'
     | '/api/anthropic-truncated-tool-input-wire'
@@ -1672,6 +1694,8 @@ export interface FileRouteTypes {
     | '/api/tts/stream'
     | '/api/video/stream'
   id:
+    | '/api/activity-test'
+    | '/activity-test'
     | '/api/foreign-client-tool'
     | '/api/foreign-chunk-events'
     | '/api/anthropic-truncated-tool-input-wire'
@@ -1818,6 +1842,8 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  ApiActivityTestRoute: typeof ApiActivityTestRoute
+  ActivityTestRoute: typeof ActivityTestRoute
   ApiForeignClientToolRoute: typeof ApiForeignClientToolRoute
   ApiForeignChunkEventsRoute: typeof ApiForeignChunkEventsRoute
   ApiAnthropicTruncatedToolInputWireRoute: typeof ApiAnthropicTruncatedToolInputWireRoute
@@ -1959,6 +1985,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/api/activity-test': {
+      id: '/api/activity-test'
+      path: '/api/activity-test'
+      fullPath: '/api/activity-test'
+      preLoaderRoute: typeof ApiActivityTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/activity-test': {
+      id: '/activity-test'
+      path: '/activity-test'
+      fullPath: '/activity-test'
+      preLoaderRoute: typeof ActivityTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/foreign-client-tool': {
       id: '/api/foreign-client-tool'
       path: '/api/foreign-client-tool'
@@ -3015,6 +3055,8 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 )
 
 const rootRouteChildren: RootRouteChildren = {
+  ApiActivityTestRoute: ApiActivityTestRoute,
+  ActivityTestRoute: ActivityTestRoute,
   ApiForeignClientToolRoute: ApiForeignClientToolRoute,
   ApiForeignChunkEventsRoute: ApiForeignChunkEventsRoute,
   ApiAnthropicTruncatedToolInputWireRoute:
