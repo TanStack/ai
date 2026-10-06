@@ -787,6 +787,44 @@ describe('resume response helpers', () => {
       }),
     )
   })
+
+  it('does not log a replay that rejects because the reader went away', async () => {
+    const errorLog = vi.fn()
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: errorLog,
+    }
+    // A backend that passes the signal straight to `fetch` rejects on abort.
+    const rejectsOnAbort: StreamDurability = {
+      resumeFrom: () => 'off-1',
+      append: () => Promise.resolve([]),
+      // eslint-disable-next-line require-yield
+      read: async function* (_offset, signal) {
+        await new Promise((_resolve, reject) => {
+          signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          )
+        })
+      },
+      close: () => Promise.resolve(),
+      snapshot: () => Promise.resolve([]),
+    }
+    const abortController = new AbortController()
+
+    const body = readBody(
+      toHttpResponse((async function* () {})(), {
+        durability: { adapter: rejectsOnAbort },
+        abortController,
+        debug: { logger },
+      }),
+    )
+    abortController.abort()
+    await body
+
+    expect(errorLog).not.toHaveBeenCalled()
+  })
 })
 
 /**

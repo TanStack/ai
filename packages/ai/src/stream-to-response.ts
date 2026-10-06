@@ -680,8 +680,10 @@ export function durableStreamSource<TOffset extends string>(
       // The HTTP transports send this to the reader as a RUN_ERROR, but a
       // replay has no producer to log it (`chat()` logs its own failures), so
       // an expired run or a failed backend read would leave no server-side
-      // trace. The WebSocket resume logs the same failure.
-      logger?.errors('replaying durability stream failed', { error })
+      // trace. An aborted read is expected teardown, not a failure.
+      if (!isAborted(abortController.signal)) {
+        logger?.errors('replaying durability stream failed', { error })
+      }
       throw error
     }
   }
