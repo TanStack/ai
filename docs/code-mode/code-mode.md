@@ -317,6 +317,37 @@ Code Mode emits custom events during execution that you can observe through the 
 
 To display these events in your React app, see [Showing Code Mode in the UI](./client-integration).
 
+## Stop tool calls when the run stops
+
+When a user stops a chat run, a tool call that the sandbox started keeps going unless the tool listens for the abort. Each `external_*` call gets the `abortSignal` of the chat run in its second argument. Pass it to the slow work:
+
+```typescript
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
+
+const searchDocs = toolDefinition({
+  name: "searchDocs",
+  description: "Search the docs",
+  inputSchema: z.object({ query: z.string() }),
+}).server(async ({ query }, ctx) => {
+  const res = await fetch(
+    `https://search.example/v1?q=${encodeURIComponent(query)}`,
+    { signal: ctx?.abortSignal },
+  );
+  return res.json();
+});
+```
+
+MCP tools from `@tanstack/ai-mcp` already stop their request when the run aborts.
+
+A tool that runs inside Code Mode gets these fields:
+
+- `abortSignal`: the signal of the chat run. If the run is already aborted, the call does not start.
+- `context`: the runtime `context` that you gave to `chat()`.
+- `emitCustomEvent`: sends a custom event to the stream. A tool that a `snippet_*` function calls does not send events.
+
+The tool does not get `toolCallId` or `inputResponse`. These fields belong to the `execute_typescript` call.
+
 ## Model Compatibility
 
 Code Mode asks the model to write valid TypeScript that calls your tools through the sandbox bridge. Not every model handles this equally — many small or older models mishandle the `external_*` calling conventions even when the system prompt is explicit. We track a single multi-step benchmark (joining three tables, filtering customers who bought from every product category, aggregating spend per category) against a gold reference. The full harness lives at `packages/ai-code-mode/models-eval/`.

@@ -345,8 +345,11 @@ const REJOIN_CONNECT_DEADLINE_MS = 2000
 const REJOIN_REBUILD_TRIGGERS = new Set<string>([
   'TEXT_MESSAGE_START',
   'TEXT_MESSAGE_CONTENT',
+  'TEXT_MESSAGE_CHUNK',
   'REASONING_MESSAGE_CONTENT',
+  'REASONING_MESSAGE_CHUNK',
   'TOOL_CALL_START',
+  'TOOL_CALL_CHUNK',
   'MESSAGES_SNAPSHOT',
   // Drop the hydrated card before this chunk creates it again. A subagent
   // turn may have no parent text, so the text triggers arrive too late.
