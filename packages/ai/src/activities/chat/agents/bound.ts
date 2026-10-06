@@ -66,6 +66,21 @@ export interface SubagentBinding {
    * uses it when the call gives no `promptCache`.
    */
   promptCache?: PromptCacheRetention
+  /**
+   * Starts a child without waiting for it and returns its id at once. The
+   * single `subagent` tool calls it for `background: true`. With
+   * `wake: true`, the host starts a new parent turn when the child ends. A
+   * harness session sets it. It does not pass down to nested children.
+   */
+  start?: (
+    call: {
+      agent: string
+      input?: unknown
+      prompt?: string
+      parentToolCallId?: string
+    },
+    options: { wake: true },
+  ) => Promise<{ subagentRunId: string }>
 }
 
 /**

@@ -3,17 +3,20 @@
 export { modelPicker } from './model-picker'
 export {
   PERMISSION_MODES,
+  PermissionResources,
   PermissionRules,
   decidePermission,
+  isUnsplittableCommand,
   permissions,
 } from './permissions'
 export type {
+  CallResources,
   PermissionDecision,
   PermissionMode,
   PermissionRule,
+  ToolResources,
 } from './permissions'
-export { globToRegExp, workspaceTools } from './workspace'
-export type { WorkspaceToolsOptions } from './workspace'
+export { globToRegExp } from './glob'
 export { formatTodos, todos } from './todos'
 export type { Todo } from './todos'
 export { fileCommands, projectInstructions } from './files'

@@ -9,6 +9,7 @@ import {
   compactForModel,
   convertSchemaToJsonSchema,
   createSubagentId,
+  fromSpecTokenUsage,
   maxIterations,
   modelMessagesToUIMessages,
   provideLogRecords,
@@ -52,6 +53,7 @@ import type {
   ProviderKeys,
   ResolvedPromptCache,
   RunAgentResumeItem,
+  RunFinishedEvent,
   RunRecord,
   SchemaInput,
   Scope,
@@ -75,10 +77,16 @@ import type {
   LogRecord,
   LogStore,
   MessageStore,
+  SessionIndexEntry,
 } from '@tanstack/ai-persistence'
 import type { AuthRequiredError, CredentialsAccess } from './auth'
 import type { EventFeed } from './feed'
-import type { InputState, LogWriter, ProjectOptions } from './log'
+import type {
+  HarnessRecord,
+  InputState,
+  LogWriter,
+  ProjectOptions,
+} from './log'
 import type { DurableBind } from './durable-tool'
 import type { LeaseOptions } from './resume'
 import type { MediaStore } from './media'
@@ -92,7 +100,7 @@ import type {
 } from './agents'
 import type { AnyHarness, HarnessAgentsOf } from './define'
 import type { RecoverDecision, TurnAdditions } from './turn'
-import type { HarnessPersistence } from './host'
+import type { HarnessPersistence, SessionIndexWriter } from './host'
 import type {
   AgentGroup,
   HarnessPlugin,
@@ -116,6 +124,7 @@ import type {
   TurnInfo,
   TurnOverrides,
   UserInput,
+  WaitingInput,
 } from './types'
 
 /** Options for running an agent from code. */
@@ -183,6 +192,12 @@ export interface SessionSnapshot {
     startedCursor?: Cursor
   }>
   queuedTurns: number
+  /**
+   * The inputs that wait, in the order they run: `session.inputs()`. A
+   * session always sets it. A snapshot built by hand (a test fixture) can
+   * leave it out.
+   */
+  waitingInputs?: Array<WaitingInput>
   pendingInterrupts: Array<Interrupt>
   /** Questions a command or a plugin asked, waiting for `session.answer`. */
   pendingQuestions: Array<{
@@ -243,6 +258,8 @@ export interface SessionDependencies {
   principal?: Principal
   /** Identifies this host on run leases. */
   hostId: string
+  /** Writes the session index entry of the thread. */
+  index: SessionIndexWriter
   /** The session log of a durable host. */
   log?: {
     store: LogStore
@@ -281,6 +298,21 @@ interface QueuedTurn {
    * already, so only plugins and the router read it.
    */
   sentMessage?: UserInput
+}
+
+/**
+ * A message for the running turn. A steer that the turn never reached (no
+ * further model call) runs as the next turn instead.
+ */
+interface WaitingSteer {
+  inputId: string
+  message: UserInput
+  operation?: OperationImpl<ChatTurnResult>
+  /** Used only when the steer runs as its own turn. A join ignores them. */
+  overrides?: TurnOverrides
+  principal?: Principal
+  /** Used only when the steer runs as its own turn, as `overrides`. */
+  context?: unknown
 }
 
 /** The interrupts the last turn stopped for, and how a resolve continues it. */
@@ -414,6 +446,50 @@ function turnContext(harness: unknown, input: unknown) {
   return harness !== undefined ? harness : input
 }
 
+type EntryUsage = NonNullable<SessionIndexEntry['usage']>
+
+/**
+ * The usage of one finished run, as session index totals. `undefined` when
+ * the run has no usage. A child run counts nothing: the run of its parent
+ * has the child's usage too.
+ */
+function entryUsageOf(chunk: RunFinishedEvent) {
+  if ('subagentRunId' in chunk && chunk.subagentRunId) return undefined
+  const { usage } = chunk
+  const tokens =
+    usage === undefined || Array.isArray(usage)
+      ? fromSpecTokenUsage(usage, chunk.metadata?.tanstack?.usage)
+      : usage
+  if (!tokens) return undefined
+  const counted: EntryUsage = {
+    // `usage[]` has one item per model call, the calls of children too.
+    turns: Array.isArray(usage) ? usage.length : 1,
+    promptTokens: tokens.promptTokens,
+    completionTokens: tokens.completionTokens,
+    totalTokens: tokens.totalTokens,
+    cachedTokens: tokens.promptTokensDetails?.cachedTokens ?? 0,
+    cacheWriteTokens: tokens.promptTokensDetails?.cacheWriteTokens ?? 0,
+    ...(tokens.cost !== undefined ? { cost: tokens.cost } : {}),
+  }
+  return counted
+}
+
+/** `total` plus `next`. A cost is kept when either one has a cost. */
+function addEntryUsage(total: EntryUsage | undefined, next: EntryUsage) {
+  if (!total) return next
+  const hasCost = total.cost !== undefined || next.cost !== undefined
+  const sum: EntryUsage = {
+    turns: total.turns + next.turns,
+    promptTokens: total.promptTokens + next.promptTokens,
+    completionTokens: total.completionTokens + next.completionTokens,
+    totalTokens: total.totalTokens + next.totalTokens,
+    cachedTokens: total.cachedTokens + next.cachedTokens,
+    cacheWriteTokens: total.cacheWriteTokens + next.cacheWriteTokens,
+    ...(hasCost ? { cost: (total.cost ?? 0) + (next.cost ?? 0) } : {}),
+  }
+  return sum
+}
+
 /** A short transcript note about how an agent ended, for the next turn. */
 function referenceNote(
   agent: string,
@@ -447,6 +523,9 @@ export function acceptedKinds(
 
 /** The inputs that run as chat turns. They settle, and so do agent inputs. */
 const CHAT_OPS = new Set<string>(['prompt', 'steer', 'followUp', 'resolve'])
+
+/** The inputs that change a waiting input. */
+const CONTROL_OPS = new Set<string>(['cancelInput', 'setDelivery'])
 
 /** Why a turn stops when its input passes its time limit. */
 const TIMEOUT_REASON = 'harness:input-timeout'
@@ -574,20 +653,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   private readonly agentRegistry = new AgentRegistry()
   private readonly operations = new Map<string, OperationImpl<unknown>>()
   private readonly queue: Array<QueuedTurn> = []
-  /**
-   * Messages for the running turn. A steer that the turn never reached (no
-   * further model call) runs as the next turn instead.
-   */
-  private readonly steerQueue: Array<{
-    inputId: string
-    message: UserInput
-    operation?: OperationImpl<ChatTurnResult>
-    /** Used only when the steer runs as its own turn. A join ignores them. */
-    overrides?: TurnOverrides
-    principal?: Principal
-    /** Used only when the steer runs as its own turn, as `overrides`. */
-    context?: unknown
-  }> = []
+  private readonly steerQueue: Array<WaitingSteer> = []
   /**
    * Waiting steers with an abort request. An id lands here before the abort
    * append, so a join that runs during that append skips the steer.
@@ -614,6 +680,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   /** Gives each durable tool call its steps in the log. One per session. */
   private bindTool: DurableBind | undefined
   private readonly hostId: string
+  private readonly index: SessionIndexWriter
   private readonly lease: LeaseOptions | undefined
   private readonly listeners = new Map<string, Set<(value: unknown) => void>>()
   private readonly configValues = new Map<string, unknown>()
@@ -682,6 +749,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     this.principal = deps.principal
     this.onClose = deps.onClose
     this.hostId = deps.hostId
+    this.index = deps.index
     this.lease = deps.lease
     this.log = deps.log
     // A durable host gets its log view in `open()`.
@@ -817,6 +885,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       await this.loadConfig()
       await this.loadPluginState()
       await this.loadInterrupted()
+      // Before recovery: a turn that recovery runs updates this entry.
+      await this.openEntry()
       if (this.writer) {
         await this.recoverFromLog(this.writer)
         return
@@ -829,6 +899,23 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       this.feed.close()
       throw error
     }
+  }
+
+  /**
+   * Write the index entry of this thread on open: a new entry the first
+   * time, else a new `updatedAt`. The owner is who opened the thread first,
+   * so an open by another user does not change it.
+   */
+  private async openEntry() {
+    const now = Date.now()
+    await this.index.update(this.threadId, (entry) => ({
+      threadId: this.threadId,
+      createdAt: now,
+      ...entry,
+      harness: entry?.harness ?? this.harness.name,
+      updatedAt: now,
+      ...storedPrincipal(entry?.principal ?? this.principal),
+    }))
   }
 
   /**
@@ -1184,15 +1271,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     const isTaken =
       runId !== undefined &&
       (this.operations.has(runId) || (await this.isRunTaken(runId)))
-    if (isTaken) {
-      this.reject(inputId, 'conflict')
-      return { inputId, status: 'rejected', reason: 'conflict' }
-    }
+    if (isTaken) return this.reject(inputId, 'conflict')
     const answers = this.interrupted
-    if (!answers) {
-      this.reject(inputId, 'no_pending_interrupts')
-      return { inputId, status: 'rejected', reason: 'no_pending_interrupts' }
-    }
+    if (!answers) return this.reject(inputId, 'no_pending_interrupts')
     // A client answers on RUN_FINISHED, while the interrupted turn still
     // ends. The resolve runs right after it.
     const isEnding = this.activeTurn?.id === answers.runId
@@ -1200,8 +1281,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       (this.activeTurn && !isEnding) ||
       this.queue.some((turn) => turn.answers?.runId === answers.runId)
     ) {
-      this.reject(inputId, 'busy')
-      return { inputId, status: 'rejected', reason: 'busy' }
+      return this.reject(inputId, 'busy')
     }
     // A cancelled sign-in fails its tool when the turn runs it again.
     for (const entry of resume) {
@@ -1239,16 +1319,14 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       ? this.operations.get(operationId)
       : this.activeTurn
     if (!target || target.isSettled()) {
-      this.reject(inputId, 'not_running')
-      return { inputId, status: 'rejected', reason: 'not_running' }
+      return this.reject(inputId, 'not_running')
     }
     const waitingSteer = this.steerQueue.find(
       (steer) => steer.operation === target,
     )
     // A join took it, so it ends with the running turn, as a joined steer.
     if (waitingSteer && this.joining.has(waitingSteer.inputId)) {
-      this.reject(inputId, 'not_running')
-      return { inputId, status: 'rejected', reason: 'not_running' }
+      return this.reject(inputId, 'not_running')
     }
     // It never joins now, and settles when the running turn ends.
     if (waitingSteer) this.abortedSteers.add(waitingSteer.inputId)
@@ -1280,6 +1358,116 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }
     await this.markApplied(inputId, target.id)
     return { inputId, status: 'accepted', operationId: target.id }
+  }
+
+  /**
+   * The inputs that wait, in the order they run: first the steers for the
+   * running turn, then the queued turns. Change one with `cancelInput` or
+   * `setDelivery`.
+   *
+   * @example
+   * ```ts
+   * for (const input of session.inputs()) {
+   *   if (input.delivery === 'queue') await session.cancelInput(input.inputId)
+   * }
+   * ```
+   */
+  inputs() {
+    const waiting: Array<WaitingInput> = []
+    // A steer with an abort request never runs. It settles with the turn.
+    for (const steer of this.steerQueue) {
+      if (this.isAbortRequested(steer.inputId)) continue
+      waiting.push({
+        inputId: steer.inputId,
+        delivery: 'steer',
+        message: steer.message,
+      })
+    }
+    // A resolve and a turn that recovery runs again have no new message.
+    for (const turn of this.queue) {
+      if (turn.inputId === undefined || turn.message === undefined) continue
+      waiting.push({
+        inputId: turn.inputId,
+        delivery: 'queue',
+        message: turn.message,
+      })
+    }
+    return waiting
+  }
+
+  /**
+   * Cancel an input that waits, so it never runs, also after a restart. It
+   * settles `aborted`. An input that started, or that joins the running
+   * turn now, is refused with `not_waiting`: stop it with
+   * `cancel(operationId)`.
+   *
+   * @example
+   * ```ts
+   * await session.followUp('Then write the tests.', { inputId: 'tests' })
+   * await session.cancelInput('tests')
+   * ```
+   */
+  async cancelInput(target: string): Promise<Receipt> {
+    const inputId = createInputId()
+    await this.accept(inputId, { op: 'cancelInput', inputId: target })
+    const taken = this.takeWaiting(target)
+    if (!taken) return this.reject(inputId, 'not_waiting')
+    await this.applyControl(inputId, {
+      type: 'harness.input.abort',
+      inputId: target,
+    })
+    // Without a log, the inbox entry must not stay pending: a restart runs
+    // pending entries.
+    if (!this.writer) await this.inbox.markRejected(target, 'cancelled')
+    const { operation } = taken
+    await this.settle({
+      inputId: target,
+      outcome: 'aborted',
+      ...(operation ? { operationId: operation.id } : {}),
+    })
+    if (operation) {
+      operation.fail('cancelled', new Error('Cancelled before it started.'))
+      this.publishFinished(operation)
+    }
+    return { inputId, status: 'accepted' }
+  }
+
+  /**
+   * Move an input that waits. `'steer'` joins it to the running turn at the
+   * next model call. `'queue'` runs it as its own turn, after the queued
+   * turns. An input that started, or that joins the running turn now, is
+   * refused with `not_waiting`. On a durable host the log keeps the
+   * delivery, and a restart honors it. Without a log, it is kept in memory.
+   *
+   * @example
+   * ```ts
+   * await session.followUp('Use tabs, not spaces.', { inputId: 'style' })
+   * await session.setDelivery('style', 'steer')
+   * ```
+   */
+  async setDelivery(
+    target: string,
+    delivery: WaitingInput['delivery'],
+  ): Promise<Receipt> {
+    const inputId = createInputId()
+    await this.accept(inputId, { op: 'setDelivery', inputId: target, delivery })
+    const current = this.inputs().find((input) => input.inputId === target)
+    if (current?.delivery !== delivery) {
+      const taken = this.takeWaiting(target)
+      if (!taken) return this.reject(inputId, 'not_waiting')
+      if (delivery === 'steer') this.steerQueue.push(taken)
+      else this.enqueueTurn(this.steerTurn(taken))
+    }
+    await this.applyControl(inputId, {
+      type: 'harness.input.delivery',
+      inputId: target,
+      delivery,
+    })
+    this.feed.publish(
+      'session',
+      customEvent(HARNESS_EVENTS.inputDelivery, { inputId: target, delivery }),
+    )
+    return { inputId, status: 'accepted' }
   }
 
   /**
@@ -1351,6 +1539,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       })),
       // A steer that waits to join the running turn waits too.
       queuedTurns: this.queue.length + this.steerQueue.length,
+      waitingInputs: this.inputs(),
       pendingInterrupts:
         this.activeResume && !this.activeTurn?.isSettled()
           ? []
@@ -1440,17 +1629,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     const inputId = createInputId()
     await this.accept(inputId, { op: 'config', key, value })
     const entry = this.sessionPlugins?.config.get(key)
-    if (!entry) {
-      this.reject(inputId, 'unknown_config')
-      return { inputId, status: 'rejected', reason: 'unknown_config' }
-    }
+    if (!entry) return this.reject(inputId, 'unknown_config')
     let checked: unknown
     try {
       checked = checkConfigValue(key, entry.option, value)
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
-      this.reject(inputId, reason)
-      return { inputId, status: 'rejected', reason }
+      return this.reject(inputId, reason)
     }
     this.configValues.set(key, checked)
     await this.persistence.stores.metadata?.set(
@@ -1533,17 +1718,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       value: isSecret ? '[secret]' : value,
     })
     const question = this.questions.get(questionId)
-    if (!question) {
-      this.reject(inputId, 'unknown_question')
-      return { inputId, status: 'rejected', reason: 'unknown_question' }
-    }
+    if (!question) return this.reject(inputId, 'unknown_question')
     let checked: unknown = value
     if (question.schema !== undefined) {
       const result = await validateWithStandardSchema(question.schema, value)
       if (!result.success) {
         const reason = `Invalid answer: ${result.issues.map((issue) => issue.message).join(', ')}`
-        this.reject(inputId, reason)
-        return { inputId, status: 'rejected', reason }
+        return this.reject(inputId, reason)
       }
       checked = result.data
     }
@@ -1913,9 +2094,27 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       // A plugin turn always waits its turn. It cannot see a busy rejection.
       prompt: (text) =>
         this.prompt(text, { busy: 'queue', principal: sender() }),
+      note: async (text, options) => {
+        await this.addNote(text)
+        if (options?.wake) await this.followUp(text, { principal: sender() })
+      },
       transcript: () => this.transcript(),
       replaceTranscript: (messages) =>
         this.messages.saveThread(this.threadId, messages),
+      entry: () => this.index.get(this.threadId),
+      // Only these fields: a plugin cannot change the owner or the parent.
+      updateEntry: ({ title, metadata, usage }) =>
+        this.index.update(
+          this.threadId,
+          (entry) =>
+            entry && {
+              ...entry,
+              ...(title !== undefined ? { title } : {}),
+              ...(metadata !== undefined ? { metadata } : {}),
+              ...(usage !== undefined ? { usage } : {}),
+              updatedAt: Date.now(),
+            },
+        ),
       // The public type narrows the answer from the schema.
       ask: ((question: Question<SchemaInput | undefined>) =>
         this.ask(question)) as PluginSessionApi['ask'],
@@ -2166,13 +2365,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
    */
   private async prepareTools(
     preparers: MountedPlugins['preparers'],
-    tools: Array<AnyTool>,
+    turn: { tools: Array<AnyTool>; model: string },
     operation: OperationImpl<ChatTurnResult>,
   ): Promise<Array<AnyTool>> {
-    let prepared = tools
+    let prepared = turn.tools
     for (const { prepare, owner } of preparers) {
       try {
-        prepared = [...(await prepare(prepared))]
+        prepared = [...(await prepare({ tools: prepared, model: turn.model }))]
       } catch (error) {
         this.warn(operation, owner, error)
       }
@@ -2257,7 +2456,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     const canJoin = this.harness.turn?.canJoin
     const turnPrincipal = this.sender()
     let count = 0
-    for (const steer of this.steerQueue) {
+    const checked = [...this.steerQueue]
+    for (const steer of checked) {
       if (!this.joining.has(steer.inputId)) {
         if (this.isAbortRequested(steer.inputId)) break
         const candidate = {
@@ -2273,12 +2473,15 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       }
       count += 1
     }
-    // A cancel can land while canJoin runs. No await from here to the claim.
+    // A cancel or a move can land while canJoin runs. A moved steer shifts
+    // the list, so only steers still at their checked place join. No await
+    // from here to the claim.
     const steers = this.steerQueue.slice(0, count)
     const late = steers.findIndex(
-      (steer) =>
-        !this.joining.has(steer.inputId) &&
-        this.isAbortRequested(steer.inputId),
+      (steer, index) =>
+        steer !== checked[index] ||
+        (!this.joining.has(steer.inputId) &&
+          this.isAbortRequested(steer.inputId)),
     )
     const taken = late >= 0 ? steers.slice(0, late) : steers
     for (const steer of taken) this.joining.add(steer.inputId)
@@ -2625,6 +2828,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     let text = ''
     let interrupts: Array<Interrupt> | undefined
     let failure: string | undefined
+    /** What the model calls of this turn spent, for the session index. */
+    let turnUsage: EntryUsage | undefined
     const captured: Array<MediaRecord> = []
     // What plugins and the router see of this turn. A turn that recovery
     // runs again gets the message its input sent.
@@ -2702,6 +2907,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         .map((pick) => pick(info))
         .filter((adapter) => adapter !== undefined)
         .at(-1)
+      // A keyed adapter is built for this turn with the user's key. A
+      // missing key publishes `auth_required` and fails the turn. It is
+      // built before `prepareTools`, which gets its model id.
+      const model = overrides?.adapter ?? picked ?? this.harness.adapter
+      if (!model) throw new Error(NO_MODEL)
+      const adapter: AnyTextAdapter = await this.keys.adapter(model)
       const resolvePrompt = (prompt: string | (() => string)) =>
         typeof prompt === 'function' ? prompt() : prompt
       const turnTools = overrides?.tools ?? []
@@ -2719,7 +2930,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       // Before the chat() options below: prompts may describe these tools.
       const prepared = await this.prepareTools(
         [...(session?.preparers ?? []), ...(runPlugins?.preparers ?? [])],
-        [...staticTools, ...discovered],
+        { tools: [...staticTools, ...discovered], model: adapter.model },
         operation,
       )
       // A durable host gives each durableTool call its steps in the log. The
@@ -2742,11 +2953,6 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
         retention: turnCache?.retention ?? this.promptCache.retention,
         key: turnCache?.key ?? this.promptCache.key,
       }
-      // A keyed adapter is built for this turn with the user's key. A
-      // missing key publishes `auth_required` and fails the turn.
-      const model = overrides?.adapter ?? picked ?? this.harness.adapter
-      if (!model) throw new Error(NO_MODEL)
-      const adapter: AnyTextAdapter = await this.keys.adapter(model)
       let message =
         turn.message !== undefined
           ? await this.userMessage(turn.message)
@@ -2894,6 +3100,9 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
             // reads, searches, and calls tools needs more before it can answer.
             agentLoopStrategy:
               this.harness.agentLoopStrategy ?? maxIterations(50),
+            ...(this.harness.toolExecution !== undefined
+              ? { toolExecution: this.harness.toolExecution }
+              : {}),
             ...(this.harness.modelOptions !== undefined
               ? { modelOptions: this.harness.modelOptions }
               : {}),
@@ -2914,6 +3123,10 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           routedFrom = undefined
           for await (const chunk of stream) {
             cards?.processChunk(chunk)
+            if (chunk.type === EventType.RUN_FINISHED) {
+              const counted = entryUsageOf(chunk)
+              if (counted) turnUsage = addEntryUsage(turnUsage, counted)
+            }
             // chat() refused the resume before it ran anything.
             if (
               chunk.type === EventType.RUN_ERROR &&
@@ -3100,6 +3313,28 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       )
     }
 
+    // The index entry gets the time of the turn and what it spent, before the
+    // turn ends. A deleted entry stays deleted. A failed write does not fail
+    // the turn.
+    const spent = turnUsage
+    await this.index
+      .update(
+        this.threadId,
+        (entry) =>
+          entry && {
+            ...entry,
+            updatedAt: Date.now(),
+            ...(spent ? { usage: addEntryUsage(entry.usage, spent) } : {}),
+          },
+      )
+      .catch((error: unknown) =>
+        this.warn(
+          operation,
+          'harness:sessions',
+          `The session index was not updated. ${String(error)}`,
+        ),
+      )
+
     const { inputId } = turn
     // The turn and every input that joined it settle in one append. The
     // settlement lands before the operation ends, so a caller that sees the
@@ -3217,22 +3452,68 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     }
     // A resolve that answers the turn that just ended runs first.
     const at = this.queue[0]?.answers ? 1 : 0
-    this.queue.splice(
-      at,
-      0,
-      ...rest.map((steer) => {
-        const next = steer.operation ?? this.createTurnOperation()
-        this.bindTurn(steer.inputId, next)
-        return {
-          operation: next,
-          message: steer.message,
-          inputId: steer.inputId,
-          overrides: steer.overrides,
-          principal: steer.principal,
-          context: steer.context,
-        }
-      }),
+    this.queue.splice(at, 0, ...rest.map((steer) => this.steerTurn(steer)))
+  }
+
+  /** A waiting steer as its own turn, with its own operation. */
+  private steerTurn(steer: WaitingSteer) {
+    const operation = steer.operation ?? this.createTurnOperation()
+    this.bindTurn(steer.inputId, operation)
+    const turn: QueuedTurn = { ...steer, operation }
+    return turn
+  }
+
+  /**
+   * Take a waiting input out of the steers or the queue, so it does not run
+   * from there. `undefined` when it does not wait: it started, a join holds
+   * it, it has an abort request, or the id is not known.
+   */
+  private takeWaiting(inputId: string) {
+    const steer = this.steerQueue.find(
+      (item) =>
+        item.inputId === inputId &&
+        !this.joining.has(inputId) &&
+        !this.isAbortRequested(inputId),
     )
+    // This shifts the later steers. `claimJoins` sees that and skips them.
+    if (steer) {
+      this.steerQueue.splice(this.steerQueue.indexOf(steer), 1)
+      return steer
+    }
+    const turn = this.queue.find((item) => item.inputId === inputId)
+    const message = turn?.message
+    if (!turn || message === undefined) return undefined
+    this.queue.splice(this.queue.indexOf(turn), 1)
+    const taken: WaitingSteer = {
+      inputId,
+      message,
+      operation: turn.operation,
+      overrides: turn.overrides,
+      principal: turn.principal,
+      context: turn.context,
+    }
+    return taken
+  }
+
+  /**
+   * Mark a `cancelInput` or `setDelivery` input applied. On a durable host,
+   * `change` lands in the same append, so a crash never keeps one without
+   * the other.
+   */
+  private async applyControl(inputId: string, change: HarnessRecord) {
+    if (!this.writer) {
+      await this.inbox.markApplied(inputId, 'session')
+      return
+    }
+    await this.writer.append([
+      change,
+      {
+        type: 'harness.input.applied',
+        inputId,
+        operationId: 'session',
+        attempt: 1,
+      },
+    ])
   }
 
   /**
@@ -3569,8 +3850,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   ): Promise<void> {
     const note = referenceNote(name, result, ended)
     if ((options.attach ?? 'reference') === 'reference') {
-      this.pendingNotes.push(note)
-      if (!this.activeTurn) await this.flushNotes()
+      await this.addNote(note)
     }
     if (options.wake) {
       void this.followUp(`Background agent ${name} ${ended}: ${note}`, {
@@ -3628,7 +3908,16 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     )
   }
 
-  /** Write queued agent notes to the transcript while no turn is writing it. */
+  /**
+   * Add an assistant note to the transcript: at once when no turn runs, else
+   * before the next turn starts.
+   */
+  private async addNote(note: string) {
+    this.pendingNotes.push(note)
+    if (!this.activeTurn) await this.flushNotes()
+  }
+
+  /** Write queued notes to the transcript while no turn is writing it. */
   private async flushNotes(): Promise<void> {
     const messages = this.messages
     if (this.pendingNotes.length === 0) return
@@ -3745,7 +4034,8 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     )
   }
 
-  private reject(inputId: string, reason: string): void {
+  /** Refuse an input. Returns its rejected receipt. */
+  private reject(inputId: string, reason: string) {
     if (this.writer) {
       void this.writer
         .append([{ type: 'harness.input.rejected', inputId, reason }])
@@ -3753,11 +4043,13 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     } else {
       void this.inbox.markRejected(inputId, reason)
     }
-    this.receipts.set(inputId, { inputId, status: 'rejected', reason })
+    const receipt: Receipt = { inputId, status: 'rejected', reason }
+    this.receipts.set(inputId, receipt)
     this.feed.publish(
       'session',
       customEvent(HARNESS_EVENTS.inputRejected, { inputId, reason }),
     )
+    return receipt
   }
 
   /**
@@ -4047,22 +4339,59 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
+   * A `cancelInput` or `setDelivery` whose own record is in the log, but not
+   * its change: a crash cut it. Apply it now, before any input runs. When
+   * its input does not wait any more, reject it with `not_waiting`. Other
+   * ops are not changed.
+   */
+  private async recoverControl(writer: LogWriter, logged: InputState) {
+    const { input } = logged
+    if (input.op !== 'cancelInput' && input.op !== 'setDelivery') return
+    const target = writer.state.inputs.get(input.inputId)
+    const isWaiting =
+      target?.status === 'pending' && 'message' in target.input
+    if (!isWaiting) {
+      this.reject(logged.inputId, 'not_waiting')
+      return
+    }
+    await this.applyControl(
+      logged.inputId,
+      input.op === 'cancelInput'
+        ? { type: 'harness.input.abort', inputId: input.inputId }
+        : {
+            type: 'harness.input.delivery',
+            inputId: input.inputId,
+            delivery: input.delivery,
+          },
+    )
+  }
+
+  /**
    * Recover a durable session from its log, input by input, in admission
    * order. A chat turn whose host stopped (its run lease expired) settles
    * `aborted` when an abort was asked, settles `failed` when no attempt or no
    * time is left, settles `completed` when the log already has its final
    * answer, and else runs again as the next attempt. An agent run whose host
    * stopped settles `failed` and does not run again: it has no checkpoints.
-   * An input that never ran runs now. Other inputs are rejected with
-   * `expired_on_restart`.
+   * An input that never ran runs now. One that a `setDelivery` sent to
+   * `steer` joins the turn that runs, when one does. A `cancelInput` or
+   * `setDelivery` that a crash cut before it was applied applies first.
+   * Other inputs are rejected with `expired_on_restart`.
    */
   private async recoverFromLog(writer: LogWriter): Promise<void> {
     const runs = this.persistence.stores.runs
     const maxAttempts = this.harness.durability?.maxAttempts ?? 10
+    const logged = [...writer.state.inputs.values()]
+    for (const input of logged) {
+      if (input.status === 'pending') await this.recoverControl(writer, input)
+    }
+    // Read again: the pass above changed the inputs it applied to.
     const inputs = [...writer.state.inputs.values()]
     for (const input of inputs) {
       const isChat = CHAT_OPS.has(input.input.op)
       if (input.status === 'pending') {
+        // The pass above handled it.
+        if (CONTROL_OPS.has(input.input.op)) continue
         if (!(isChat && 'message' in input.input)) {
           this.reject(input.inputId, 'expired_on_restart')
           continue
@@ -4083,15 +4412,18 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           })
           continue
         }
-        const operation = this.createTurnOperation()
-        this.bindTurn(input.inputId, operation)
-        this.enqueueTurn({
-          operation,
-          message: input.input.message,
+        const steer: WaitingSteer = {
           inputId: input.inputId,
+          message: input.input.message,
           principal: input.principal,
           context: input.input.context,
-        })
+        }
+        // Else it runs as its own turn, as `steer()` does when no turn runs.
+        if (input.delivery === 'steer' && this.activeTurn) {
+          this.steerQueue.push(steer)
+          continue
+        }
+        this.enqueueTurn(this.steerTurn(steer))
         continue
       }
       const isAgent = input.input.op === 'agent'

@@ -1,4 +1,5 @@
 import type { InferSchemaType, ModelMessage, SchemaInput } from '@tanstack/ai'
+import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { CredentialsAccess } from './auth'
 import type { SessionSnapshot } from './session'
 import type { ChatTurnResult, Operation, Principal, Receipt } from './types'
@@ -35,10 +36,37 @@ export interface PluginSessionApi {
    * turn waits in the queue. Cancel the returned turn to drop it before it starts.
    */
   prompt: (text: string) => Operation<ChatTurnResult>
+  /**
+   * Add `text` to the transcript as an assistant note, not as a user prompt.
+   * When no turn runs, the note is written at once. Else it is written before
+   * the next turn starts. With `wake: true`, a new turn that sends `text` is
+   * also queued, so the model can act on the note. Resolves when the note is
+   * written or queued and the wake turn is queued, not when that turn ends.
+   */
+  note: (text: string, options?: { wake?: boolean }) => Promise<void>
   /** The saved transcript. */
   transcript: () => Promise<Array<ModelMessage>>
   /** Replace the saved transcript (for example after a summary). */
   replaceTranscript: (messages: Array<ModelMessage>) => Promise<void>
+  /**
+   * The session index entry of this thread. `undefined` when the host has
+   * no `stores.sessions`, or the thread has no entry.
+   */
+  entry: () => Promise<SessionIndexEntry | undefined>
+  /**
+   * Change the session index entry of this thread. Each field you pass
+   * replaces the stored one. Resolves to the changed entry. Without
+   * `stores.sessions`, or for a thread with no entry, it writes nothing and
+   * resolves to `undefined`.
+   *
+   * @example
+   * ```ts
+   * await ctx.session.updateEntry({ title: 'Fix the login bug' })
+   * ```
+   */
+  updateEntry: (
+    patch: Partial<Pick<SessionIndexEntry, 'title' | 'metadata' | 'usage'>>,
+  ) => Promise<SessionIndexEntry | undefined>
   /**
    * Ask the user and wait for the answer. Hosts show it (the CLI prompts,
    * ACP shows an elicitation). Rejects when the session closes.

@@ -25,8 +25,8 @@ import {
   projectInstructions,
   todos,
   usage,
-  workspaceTools,
 } from '@tanstack/ai-harness/plugins'
+import { workspaceTools } from '@tanstack/ai-harness/plugins/coding'
 import { runCli } from '@tanstack/ai-harness-cli'
 import { openaiText } from '@tanstack/ai-openai'
 

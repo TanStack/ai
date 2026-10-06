@@ -505,6 +505,119 @@ export function defineLogStore(store: LogStore): LogStore {
   return store
 }
 
+/**
+ * One entry of the session index: what a list of sessions shows for one
+ * thread. The index holds no messages. The thread data stays in the stores
+ * that hold it.
+ *
+ * @property createdAt - Epoch ms when the thread was first opened.
+ * @property updatedAt - Epoch ms of the last change. {@link SessionIndexStore.list}
+ *   sorts by it.
+ */
+export interface SessionIndexEntry {
+  threadId: string
+  /** The `name` of the harness that runs the thread. */
+  harness?: string
+  title?: string
+  /**
+   * The thread that started this one. A subagent child has the thread id
+   * `subagent:<runId>` and the thread of its parent here.
+   */
+  parentThreadId?: string
+  /** The tool call in the parent thread that started this thread. */
+  parentToolCallId?: string
+  createdAt: number
+  updatedAt: number
+  pinned?: boolean
+  /** Who owns the thread, from the host's `authorize`. */
+  principal?: { id: string; tenantId?: string }
+  /**
+   * Token totals of the thread. The names match the totals of the harness
+   * `usage()` plugin.
+   */
+  usage?: {
+    /** Model calls. */
+    turns: number
+    promptTokens: number
+    completionTokens: number
+    totalTokens: number
+    /** Input tokens the provider read from its prompt cache. */
+    cachedTokens: number
+    /** Input tokens the provider wrote to its prompt cache. */
+    cacheWriteTokens: number
+    /** Cost in USD, when a plugin counts it. */
+    cost?: number
+  }
+  metadata?: Record<string, unknown>
+}
+
+/** Options for {@link SessionIndexStore.list}. */
+export interface SessionIndexListOptions {
+  /** The most entries in one page. Without it, the page has all entries. */
+  limit?: number
+  /** The `cursor` of the previous page. */
+  cursor?: string
+  /**
+   * Only the entries whose `parentThreadId` is this thread. `null`: only the
+   * entries with no parent (the top-level sessions).
+   */
+  parentThreadId?: string | null
+  /**
+   * Only the entries owned by this principal id. With `tenantId`, the
+   * tenant must match too. An entry without a principal never matches.
+   */
+  principal?: { id: string; tenantId?: string }
+}
+
+/**
+ * One page of a {@link SessionIndexStore.list} scan.
+ *
+ * @property cursor - The token for the next page. Only when `truncated`.
+ * @property truncated - `true` when more entries match after this page.
+ */
+export interface SessionIndexPage {
+  entries: Array<SessionIndexEntry>
+  cursor?: string
+  truncated?: boolean
+}
+
+/** Durable index of harness sessions, one entry per thread. */
+export interface SessionIndexStore {
+  /**
+   * Write the entry for `entry.threadId`.
+   *
+   * INVARIANT (full replace): a second upsert for the same thread replaces
+   * the whole entry. A field that the new entry does not have is gone. To
+   * change one field, `get` the entry and upsert a changed copy.
+   */
+  upsert: (entry: SessionIndexEntry) => Promise<void>
+  /** The entry for `threadId`, or `undefined`. */
+  get: (threadId: string) => Promise<SessionIndexEntry | undefined>
+  /**
+   * The entries that match the filters, newest `updatedAt` first. Entries with
+   * the same `updatedAt` are in `threadId` order. Pinned entries get no
+   * special place.
+   *
+   * CURSOR SEMANTICS: when `limit` is given and more entries match, the page
+   * is `truncated: true` with a `cursor`. Pass that `cursor` back to get the
+   * entries that follow the last entry of the page. An entry that changes
+   * between two pages can move in the order.
+   */
+  list: (options?: SessionIndexListOptions) => Promise<SessionIndexPage>
+  /**
+   * Remove the index entry for `threadId`. A no-op for an unknown id.
+   *
+   * This removes the entry only. The messages, the log, and the other data of
+   * the thread stay. The stores that hold that data remove it.
+   */
+  delete: (threadId: string) => Promise<void>
+}
+
+/** Type a {@link SessionIndexStore} implementation inline. */
+export function defineSessionIndexStore(store: SessionIndexStore) {
+  return store
+}
+
 /** A secret a user or an organization saved: an API key or OAuth tokens. */
 export type Credential =
   | { type: 'api_key'; value: string }
@@ -841,6 +954,8 @@ export interface AIPersistenceStores {
   log?: LogStore
   /** Turn leases. Optional: only durable harness hosts read it. */
   leases?: LeaseStore
+  /** The session index. Optional: only harness hosts read it. */
+  sessions?: SessionIndexStore
 }
 
 /**
@@ -1020,6 +1135,7 @@ const storeKeys = [
   'credentials',
   'log',
   'leases',
+  'sessions',
 ] satisfies Array<StoreKey>
 
 const storeKeySet = new Set<string>(storeKeys)

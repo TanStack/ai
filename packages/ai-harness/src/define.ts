@@ -130,6 +130,13 @@ export interface HarnessConfig<
   middleware?: ReadonlyArray<AnyChatMiddleware>
   /** When a turn stops calling the model. Defaults to `maxIterations(50)`. */
   agentLoopStrategy?: AgentLoopStrategy
+  /**
+   * How the server tools of one model call run, the same as
+   * `chat({ toolExecution })`. `'parallel'` starts them together.
+   * `'sequential'` runs them one at a time, in call order. Default
+   * `'parallel'`.
+   */
+  toolExecution?: 'parallel' | 'sequential'
   modelOptions?: TAdapter['~types']['providerOptions']
   /**
    * Automatic prompt caching for every session, the same as

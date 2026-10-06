@@ -20,12 +20,14 @@ import {
   parseControlFrame,
   parseHarnessInput,
 } from './protocol'
+import { isRecord } from './utils'
 import type {
   ModelMessage,
   StreamChunk,
   UIMessage,
   WebSocketLike,
 } from '@tanstack/ai'
+import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
 import type { HarnessHost } from './host'
 import type { HostFrame } from './protocol'
@@ -114,6 +116,41 @@ function lastUserInput(messages: Array<UIMessage | ModelMessage>) {
   return input
 }
 
+/** A `POST sessions` body, or `undefined` when it is not a valid one. */
+function parseSessionOp(body: unknown) {
+  if (!isRecord(body)) return undefined
+  const { op, threadId, title, before, through } = body
+  if (typeof threadId !== 'string') return undefined
+  switch (op) {
+    case 'rename':
+      return typeof title === 'string'
+        ? { op: 'rename' as const, threadId, title }
+        : undefined
+    case 'delete':
+      return { op: 'delete' as const, threadId }
+    case 'fork':
+      // Exactly one of `before` and `through`.
+      if (typeof before === 'string' && through === undefined)
+        return { op: 'fork' as const, threadId, at: { before } }
+      if (typeof through === 'string' && before === undefined)
+        return { op: 'fork' as const, threadId, at: { through } }
+      return undefined
+    default:
+      return undefined
+  }
+}
+
+/**
+ * The entry belongs to `principal`: the same id, and the same tenant when
+ * the principal has one. The same rule as the `principal` filter of the
+ * index `list`, so a user changes only the sessions the user can list.
+ */
+function isOwnedBy(entry: SessionIndexEntry, principal: Principal) {
+  const owner = entry.principal
+  if (!owner || owner.id !== principal.id) return false
+  return principal.tenantId === undefined || owner.tenantId === principal.tenantId
+}
+
 /** Base64url to bytes, or `undefined` for a value that is not base64url. */
 function fromBase64url(value: string) {
   try {
@@ -192,6 +229,15 @@ async function mediaResponse(
  * - `GET  .../media?threadId=&id=[&exp=&sig=]`: the bytes, with `Range`
  *   support. A signed request needs no `authorize`, and a bad or expired
  *   signature is 403.
+ * - `GET  .../sessions?limit=&cursor=&parentThreadId=`: one page of the
+ *   session index, newest first. Only the sessions of this principal that
+ *   `canAccess` lets in. Default: top-level sessions only.
+ * - `POST .../sessions`: change a session of this principal. The body is
+ *   `{ op: 'rename', threadId, title }`, `{ op: 'delete', threadId }` (it
+ *   removes the index entry only), or `{ op: 'fork', threadId, before }` or
+ *   `{ op: 'fork', threadId, through }` with a message id. Rename and fork
+ *   answer with the entry, delete with 204. 403 when `canAccess` refuses
+ *   the thread, 404 for a thread this principal does not own.
  *
  * Each chat input runs as the principal that `authorize` returned for its
  * request, not as the one that opened the session first.
@@ -444,6 +490,57 @@ export function createHarnessHandler(
         const session = await openFor(principal, threadId)
         if (!session) return json({ error: 'forbidden' }, 403)
         return json(session.snapshot())
+      }
+
+      if (request.method === 'GET' && route === 'sessions') {
+        const limit = url.searchParams.get('limit')
+        const cursor = url.searchParams.get('cursor')
+        const parentThreadId = url.searchParams.get('parentThreadId')
+        const isBadLimit =
+          limit !== null &&
+          !(Number.isInteger(Number(limit)) && Number(limit) > 0)
+        if (isBadLimit)
+          return json({ error: 'limit must be a positive integer' }, 400)
+        // The store keeps only this principal's entries. `canAccess` can
+        // still refuse some of them.
+        const page = await host.sessions.list({
+          principal,
+          ...(limit ? { limit: Number(limit) } : {}),
+          ...(cursor ? { cursor } : {}),
+          ...(parentThreadId ? { parentThreadId } : {}),
+        })
+        const allowed = await Promise.all(
+          page.entries.map((entry) => canAccess(principal, entry.threadId)),
+        )
+        return json({
+          ...page,
+          entries: page.entries.filter((_entry, index) => allowed[index]),
+        })
+      }
+
+      if (request.method === 'POST' && route === 'sessions') {
+        const op = parseSessionOp(await request.json())
+        if (!op) return json({ error: 'not a valid sessions op' }, 400)
+        if (!(await canAccess(principal, op.threadId)))
+          return json({ error: 'forbidden' }, 403)
+        // The session of another user answers as a missing one, so its
+        // thread id tells the caller nothing.
+        const entry = await host.sessions.get(op.threadId)
+        if (!entry || !isOwnedBy(entry, principal))
+          return json({ error: 'not found' }, 404)
+        switch (op.op) {
+          case 'rename': {
+            const renamed = await host.sessions.rename(op.threadId, op.title)
+            return renamed
+              ? json(renamed)
+              : json({ error: 'not found' }, 404)
+          }
+          case 'delete':
+            await host.sessions.delete(op.threadId)
+            return new Response(null, { status: 204 })
+          case 'fork':
+            return json(await host.sessions.fork(op.threadId, op.at))
+        }
       }
 
       if (request.method === 'POST' && route === 'media') {

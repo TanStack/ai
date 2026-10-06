@@ -79,7 +79,7 @@ export function codeMode(options: CodeModePluginOptions) {
       let prompt = ''
       return {
         prompts: [{ id: 'tanstack/code-mode', text: () => prompt }],
-        prepareTools: (tools) => {
+        prepareTools: ({ tools }) => {
           // Two tools that map to the same identifier: the first one moves.
           const byIdentifier = new Map<string, CodeModeTool>()
           for (const tool of tools.filter(isServerTool)) {

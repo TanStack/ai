@@ -11,8 +11,8 @@ import {
   projectInstructions,
   todos,
   usage,
-  workspaceTools,
 } from '@tanstack/ai-harness/plugins'
+import { workspaceTools } from '@tanstack/ai-harness/plugins/coding'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { createCloudflareText } from '@tanstack/ai-cloudflare'
 import { cloudflareByok } from '@tanstack/ai-cloudflare/byok'

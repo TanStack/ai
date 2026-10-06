@@ -1188,6 +1188,19 @@ export interface ResolvedPromptCache {
 }
 
 /**
+ * How the model uses the tools of a call.
+ * - `'auto'`: the model decides.
+ * - `'none'`: the model calls no tool.
+ * - `'required'`: the model must call a tool.
+ * - `{ type: 'tool', name }`: the model must call that tool.
+ */
+export type ToolChoice =
+  | 'auto'
+  | 'none'
+  | 'required'
+  | { type: 'tool'; name: string }
+
+/**
  * Options passed into the SDK and further piped to the AI provider.
  */
 export interface TextOptions<
@@ -1321,6 +1334,11 @@ export interface TextOptions<
    * absent, the adapter adds no automatic cache fields.
    */
   promptCache?: ResolvedPromptCache
+  /**
+   * How the model uses the tools of this request. `chat()` sets it only when
+   * the request has tools. A provider value in `modelOptions` wins over it.
+   */
+  toolChoice?: ToolChoice
   /**
    * The tools and system prompts that changed between model calls. The
    * engine sets it only when `adapter.midConversationChannels` has a channel

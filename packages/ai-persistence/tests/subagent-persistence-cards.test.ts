@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { EventType, chat, defineAgent, uiMessagesToWire } from '@tanstack/ai'
 import type {
   AnyTextAdapter,
+  ChatMiddleware,
+  DefinedAgent,
   ModelMessage,
   StreamChunk,
   SubagentPart,
@@ -150,6 +152,151 @@ async function collect(stream: AsyncIterable<StreamChunk>) {
   const chunks: Array<StreamChunk> = []
   for await (const chunk of stream) chunks.push(chunk)
   return chunks
+}
+
+/** One text message, start to end. */
+function textMessage(
+  messageId: string,
+  text: string,
+  ids: { subagentRunId?: string } = {},
+) {
+  return [
+    {
+      type: EventType.TEXT_MESSAGE_START,
+      messageId,
+      role: 'assistant',
+      ...ids,
+      timestamp: t,
+    },
+    {
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId,
+      delta: text,
+      ...ids,
+      timestamp: t,
+    },
+    { type: EventType.TEXT_MESSAGE_END, messageId, ...ids, timestamp: t },
+  ] satisfies Array<StreamChunk>
+}
+
+/** A child start, as the parent stream carries it. */
+function childStarted(
+  subagentRunId: string,
+  links: { parentToolCallId?: string; parentSubagentRunId?: string },
+) {
+  return {
+    type: EventType.SUBAGENT_STARTED,
+    subagentRunId,
+    name: 'writer',
+    ...links,
+    timestamp: t,
+  } satisfies StreamChunk
+}
+
+/** Feed one parent run's chunks on thread `desk` to a recorder. */
+async function feed(
+  recorder: ReturnType<typeof createSubagentRunRecorder>,
+  runId: string,
+  chunks: ReadonlyArray<StreamChunk>,
+) {
+  for (const chunk of chunks) {
+    await recorder.chunk({ threadId: 'desk', runId, chunk })
+  }
+}
+
+/** A child that writes one note per call and keeps the messages it saw. */
+function noteTaker() {
+  const seen: Array<ReadonlyArray<UIMessage | ModelMessage>> = []
+  const agent = defineAgent({
+    name: 'writer',
+    description: 'Writes notes',
+    run: async function* (ctx) {
+      seen.push(ctx.messages)
+      yield* textMessage(`note-${seen.length}`, `Note ${seen.length}`)
+    },
+  })
+  return { agent, seen }
+}
+
+/** A parent model that calls the `subagent` tool once, then stops. */
+function callingSubagent(toolCallId: string, args: object) {
+  return scriptedAdapter([
+    [
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId,
+        toolCallName: 'subagent',
+        timestamp: t,
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        delta: JSON.stringify(args),
+        timestamp: t,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        runId: 'model',
+        threadId: 'desk',
+        finishReason: 'tool_calls',
+        timestamp: t,
+      },
+    ],
+    [
+      {
+        type: EventType.RUN_FINISHED,
+        runId: 'model',
+        threadId: 'desk',
+        finishReason: 'stop',
+        timestamp: t,
+      },
+    ],
+  ])
+}
+
+/** One parent turn with the single `subagent` tool. The thread is `desk`. */
+function subagentTurn(
+  middleware: ChatMiddleware,
+  agent: DefinedAgent,
+  turn: { runId: string; toolCallId: string; args: object; threadId?: string },
+) {
+  return collect(
+    chat({
+      adapter: callingSubagent(turn.toolCallId, turn.args),
+      threadId: turn.threadId ?? 'desk',
+      runId: turn.runId,
+      messages: [{ id: `u-${turn.runId}`, role: 'user', content: 'Notes' }],
+      middleware: [middleware],
+      subagents: { agents: [agent], tool: 'single' },
+    }),
+  )
+}
+
+/** The id of the first child a run started. */
+function startedId(chunks: ReadonlyArray<StreamChunk>) {
+  const started = chunks.find(
+    (chunk) => chunk.type === EventType.SUBAGENT_STARTED,
+  )
+  if (started?.type !== EventType.SUBAGENT_STARTED) {
+    throw new Error('no child started')
+  }
+  return started.subagentRunId
+}
+
+/** The parsed result of one tool call. */
+function toolResult(chunks: ReadonlyArray<StreamChunk>, toolCallId: string) {
+  const result = chunks.find(
+    (chunk) =>
+      chunk.type === EventType.TOOL_CALL_RESULT &&
+      chunk.toolCallId === toolCallId,
+  )
+  if (
+    result?.type !== EventType.TOOL_CALL_RESULT ||
+    typeof result.content !== 'string'
+  ) {
+    throw new Error(`no text result for ${toolCallId}`)
+  }
+  return JSON.parse(result.content)
 }
 
 describe('persisted subagent cards', () => {
@@ -438,6 +585,221 @@ describe('subagent run recorder', () => {
     expect(first).not.toContain('second thread notes')
     expect(second).toContain('second thread notes')
     expect(second).not.toContain('first thread notes')
+  })
+
+  it('gives a nested child to the child that started it', async () => {
+    const { stores } = memoryPersistence()
+    const recorder = createSubagentRunRecorder({
+      messages: stores.messages,
+      sessions: stores.sessions,
+      intervalMs: 0,
+    })
+    await feed(recorder, 'run-1', [
+      childStarted('outer', { parentToolCallId: 'call_1' }),
+      childStarted('inner', {
+        parentSubagentRunId: 'outer',
+        parentToolCallId: 'call_n',
+      }),
+      ...textMessage('m1', 'Inner notes', { subagentRunId: 'inner' }),
+    ])
+
+    expect(await stores.sessions.get('subagent:inner')).toMatchObject({
+      parentThreadId: 'subagent:outer',
+      parentToolCallId: 'call_n',
+    })
+    // The outer child's chat can continue it. The top thread cannot.
+    const fromOuter = { threadId: 'desk:writer', subagentRunId: 'outer' }
+    expect((await recorder.loadChild('inner', fromOuter))?.messages).toEqual([
+      expect.objectContaining({ role: 'assistant', content: 'Inner notes' }),
+    ])
+    expect(
+      await recorder.loadChild('inner', { threadId: 'desk' }),
+    ).toBeUndefined()
+  })
+
+  it('loads a waiting continued child without the messages of the call it waits in', async () => {
+    const { stores } = memoryPersistence()
+    const recorder = createSubagentRunRecorder({
+      messages: stores.messages,
+      runs: stores.runs,
+      intervalMs: 0,
+    })
+    const waiting = {
+      type: EventType.SUBAGENT_FINISHED,
+      subagentRunId: 'child',
+      outcome: { type: 'suspended', interruptIds: ['approval'] },
+      timestamp: t,
+    } satisfies StreamChunk
+    const old = [{ role: 'assistant', content: 'Old notes' }]
+    await feed(recorder, 'run-1', [
+      childStarted('child', { parentToolCallId: 'call_1' }),
+      ...textMessage('m1', 'Old notes', { subagentRunId: 'child' }),
+      { type: EventType.SUBAGENT_FINISHED, subagentRunId: 'child', timestamp: t },
+    ])
+
+    // run-2 continues the child. It writes, then waits for an approval. The
+    // resume brings those newer messages itself.
+    await feed(recorder, 'run-2', [
+      childStarted('child', { parentToolCallId: 'call_2' }),
+      ...textMessage('m2', 'Delete a?', { subagentRunId: 'child' }),
+      waiting,
+    ])
+    const desk = { threadId: 'desk' }
+    expect((await recorder.loadChild('child', desk))?.messages).toMatchObject(
+      old,
+    )
+
+    // run-3 resumes that call, and the child waits again.
+    await feed(recorder, 'run-3', [
+      childStarted('child', { parentToolCallId: 'call_2' }),
+      ...textMessage('m3', 'Delete b?', { subagentRunId: 'child' }),
+      waiting,
+    ])
+    expect((await recorder.loadChild('child', desk))?.messages).toMatchObject(
+      old,
+    )
+  })
+
+  it('starts a loaded child with the task of its first call', async () => {
+    const { stores } = memoryPersistence()
+    const recorder = createSubagentRunRecorder({
+      messages: stores.messages,
+      intervalMs: 0,
+    })
+    await feed(recorder, 'run-1', [
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: 'call_1',
+        toolCallName: 'subagent',
+        timestamp: t,
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: 'call_1',
+        delta: '{"agent":"writer","input":{"topic":"tides"}}',
+        timestamp: t,
+      },
+      childStarted('child', { parentToolCallId: 'call_1' }),
+      ...textMessage('m1', 'Tide notes', { subagentRunId: 'child' }),
+    ])
+
+    expect(
+      (await recorder.loadChild('child', { threadId: 'desk' }))?.messages,
+    ).toMatchObject([
+      { role: 'user', content: '{"topic":"tides"}' },
+      { role: 'assistant', content: 'Tide notes' },
+    ])
+  })
+
+  it('loads nothing for an unknown child', async () => {
+    const { stores } = memoryPersistence()
+    const recorder = createSubagentRunRecorder({ messages: stores.messages })
+
+    expect(
+      await recorder.loadChild('missing', { threadId: 'desk' }),
+    ).toBeUndefined()
+  })
+})
+
+describe('single subagent tool with persistence', () => {
+  it('writes one index entry per child and keeps fields others wrote', async () => {
+    const persistence = memoryPersistence()
+    const middleware = withPersistence(persistence)
+    const sessions = persistence.stores.sessions
+    const { agent } = noteTaker()
+    const first = await subagentTurn(middleware, agent, {
+      runId: 'run-1',
+      toolCallId: 'call_1',
+      args: { agent: 'writer', prompt: 'Take notes' },
+    })
+    const threadId = `subagent:${startedId(first)}`
+    const entry = await sessions.get(threadId)
+    expect(entry).toEqual({
+      threadId,
+      parentThreadId: 'desk',
+      parentToolCallId: 'call_1',
+      createdAt: expect.any(Number),
+      updatedAt: expect.any(Number),
+    })
+    if (!entry) throw new Error('no index entry')
+
+    // Another writer names the session. A continue keeps the name.
+    await sessions.upsert({ ...entry, title: 'Tide notes' })
+    await subagentTurn(middleware, agent, {
+      runId: 'run-2',
+      toolCallId: 'call_2',
+      args: { agent: 'writer', sessionId: startedId(first), prompt: 'More' },
+    })
+    expect(await sessions.get(threadId)).toEqual({
+      threadId,
+      title: 'Tide notes',
+      parentThreadId: 'desk',
+      parentToolCallId: 'call_2',
+      createdAt: entry.createdAt,
+      updatedAt: expect.any(Number),
+    })
+  })
+
+  const setups: Array<[string, () => ChatMiddleware]> = [
+    ['with', () => withPersistence(memoryPersistence())],
+    [
+      'without',
+      () => {
+        const { messages, runs, interrupts, metadata } =
+          memoryPersistence().stores
+        return withPersistence({
+          stores: { messages, runs, interrupts, metadata },
+        })
+      },
+    ],
+  ]
+  it.each(setups)(
+    'continues a stored child by sessionId %s a sessions store',
+    async (_label, persist) => {
+      const middleware = persist()
+      const { agent, seen } = noteTaker()
+      const first = await subagentTurn(middleware, agent, {
+        runId: 'run-1',
+        toolCallId: 'call_1',
+        args: { agent: 'writer', prompt: 'Take notes' },
+      })
+      const second = await subagentTurn(middleware, agent, {
+        runId: 'run-2',
+        toolCallId: 'call_2',
+        args: { agent: 'writer', sessionId: startedId(first), prompt: 'More' },
+      })
+
+      expect(startedId(second)).toBe(startedId(first))
+      // The child starts from its first task and its stored transcript, then
+      // the new prompt. The first message is a user message.
+      expect(seen[1]).toMatchObject([
+        { role: 'user', content: 'Take notes' },
+        { role: 'assistant', content: 'Note 1' },
+        { role: 'user', content: 'More' },
+      ])
+    },
+  )
+
+  it('does not continue a child of another thread', async () => {
+    const middleware = withPersistence(memoryPersistence())
+    const { agent, seen } = noteTaker()
+    const first = await subagentTurn(middleware, agent, {
+      runId: 'run-1',
+      toolCallId: 'call_1',
+      args: { agent: 'writer', prompt: 'Take notes' },
+    })
+    const id = startedId(first)
+    const other = await subagentTurn(middleware, agent, {
+      threadId: 'other',
+      runId: 'run-2',
+      toolCallId: 'call_2',
+      args: { agent: 'writer', sessionId: id, prompt: 'Show me' },
+    })
+
+    expect(toolResult(other, 'call_2')).toEqual({
+      error: `Unknown sessionId "${id}".`,
+    })
+    expect(seen).toHaveLength(1)
   })
 })
 

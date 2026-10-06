@@ -14,8 +14,8 @@ import {
   projectInstructions,
   todos,
   usage,
-  workspaceTools,
 } from '../src/first-party'
+import { workspaceTools } from '../src/first-party/coding'
 import { messageTexts, mockAdapter, text, toolCall } from './helpers'
 import type { HarnessPlugin } from '../src'
 import type { AnyTextAdapter } from '@tanstack/ai'
@@ -81,7 +81,7 @@ describe('workspace tools with permissions', () => {
     )
     const [question] = session.snapshot().pendingQuestions
     expect(question?.message).toContain('write_file')
-    await session.answer(question!.questionId, 'y')
+    await session.answer(question!.questionId, { answer: 'once' })
     await turn
 
     expect(await readFile(join(root, 'out.txt'), 'utf8')).toBe('written')

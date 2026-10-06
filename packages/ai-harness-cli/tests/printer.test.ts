@@ -13,6 +13,7 @@ const base: SessionViewState = {
   signIns: [],
   agents: [],
   queuedTurns: 0,
+  waitingInputs: [],
   commands: [],
   config: [],
   tools: [],

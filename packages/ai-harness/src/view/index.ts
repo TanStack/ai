@@ -48,7 +48,7 @@ export {
   mediaOfMessage,
   mediaPart,
 } from '../media-ref'
-export type { MediaKind, MediaRecord } from '../types'
+export type { MediaKind, MediaRecord, WaitingInput } from '../types'
 export type {
   AgentPart,
   Approval,

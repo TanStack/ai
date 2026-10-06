@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { memoryPersistence } from '../src/memory'
 import { withGenerationPersistence, withPersistence } from '../src/middleware'
 import { reconstructChat } from '../src/reconstruct'
 import { defineAIPersistence } from '../src/types'
@@ -106,5 +107,11 @@ describe('persistence store dependency validation', () => {
     }
 
     expect(() => defineAIPersistence({ stores: { leases } })).not.toThrow()
+  })
+
+  it('accepts a session index store', () => {
+    const { sessions } = memoryPersistence().stores
+
+    expect(() => defineAIPersistence({ stores: { sessions } })).not.toThrow()
   })
 })

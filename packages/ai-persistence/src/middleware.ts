@@ -3,7 +3,9 @@ import {
   fromSpecTokenUsage,
   getDetachableRun,
   InterruptResumeValidationError,
+  LoadChildCapability,
   MetadataCapability,
+  provideLoadChild,
   provideMetadata,
   readInterruptBinding,
   validateInterruptResumeBatch,
@@ -1916,6 +1918,7 @@ interface PersistencePlan {
   wantsInterrupts: boolean
   wantsArtifactPersistence: boolean
   runs: AIPersistence['stores']['runs']
+  sessions: AIPersistence['stores']['sessions']
 }
 
 function resolvePersistencePlan(persistence: AIPersistence): PersistencePlan {
@@ -1925,6 +1928,7 @@ function resolvePersistencePlan(persistence: AIPersistence): PersistencePlan {
       persistence.stores.artifacts !== undefined &&
       persistence.stores.blobs !== undefined,
     runs: persistence.stores.runs,
+    sessions: persistence.stores.sessions,
   }
 }
 
@@ -2250,7 +2254,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
   const snapshotStreaming = options.snapshotStreaming ?? false
   const snapshotIntervalMs = options.snapshotIntervalMs ?? 1000
   const plan = resolvePersistencePlan(persistence)
-  const { wantsInterrupts, runs } = plan
+  const { wantsInterrupts, runs, sessions } = plan
   const messageStore = persistence.stores.messages
   if (!messageStore) {
     // validateChatPersistenceStores already throws; this narrows for TypeScript.
@@ -2260,6 +2264,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
   const provides = [
     PersistenceCapability,
     PersistenceCompletionCapability,
+    LoadChildCapability,
     ...(persistence.stores.metadata ? [MetadataCapability] : []),
     ...(wantsInterrupts ? [InterruptsCapability] : []),
   ]
@@ -2271,6 +2276,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
     ...(wantsInterrupts && persistence.stores.interrupts
       ? { interrupts: persistence.stores.interrupts }
       : {}),
+    ...(sessions ? { sessions } : {}),
   })
 
   async function updateStreamingRows(
@@ -2311,6 +2317,16 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       if (persistence.stores.metadata) {
         provideMetadata(ctx, persistence.stores.metadata)
       }
+      // The `subagent` tool reads stored children through this, to continue
+      // one by `sessionId`. Only the children of this chat can load.
+      provideLoadChild(ctx, (subagentRunId) =>
+        subagentRuns.loadChild(subagentRunId, {
+          threadId: ctx.threadId,
+          ...(ctx.subagentRunId !== undefined && {
+            subagentRunId: ctx.subagentRunId,
+          }),
+        }),
+      )
 
       let resolveCompletion: () => void = () => undefined
       let rejectCompletion: (error: unknown) => void = () => undefined
@@ -2462,6 +2478,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       await subagentRuns.chunk({
         threadId: ctx.threadId,
         runId: ctx.runId,
+        ...(ctx.subagentRunId !== undefined && {
+          subagentRunId: ctx.subagentRunId,
+        }),
         chunk,
       })
       const current = runState.get(ctx)

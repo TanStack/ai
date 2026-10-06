@@ -29,6 +29,9 @@ import type {
   MetadataStore,
   RunRecord,
   RunStore,
+  SessionIndexEntry,
+  SessionIndexListOptions,
+  SessionIndexStore,
 } from './types'
 
 const compareUtf8Bytes = (left: string, right: string): number => {
@@ -674,6 +677,70 @@ class MemoryCredentialStore implements CredentialStore {
   }
 }
 
+// Newest `updatedAt` first, then `threadId` order. The cursor uses it too.
+const bySessionOrder = (
+  a: Pick<SessionIndexEntry, 'updatedAt' | 'threadId'>,
+  b: Pick<SessionIndexEntry, 'updatedAt' | 'threadId'>,
+) => b.updatedAt - a.updatedAt || compareUtf8Bytes(a.threadId, b.threadId)
+
+// The cursor is `<updatedAt>:<threadId>` of the last entry of a page.
+function parseSessionCursor(cursor: string) {
+  const split = cursor.indexOf(':')
+  const updatedAt = Number(cursor.slice(0, split))
+  if (split <= 0 || !Number.isFinite(updatedAt)) {
+    throw new Error(`Invalid session index cursor: ${cursor}`)
+  }
+  return { updatedAt, threadId: cursor.slice(split + 1) }
+}
+
+class MemorySessionIndexStore implements SessionIndexStore {
+  private readonly entries = new Map<string, SessionIndexEntry>()
+  upsert(entry: SessionIndexEntry) {
+    // Copies in and out, so a caller never changes a stored entry.
+    this.entries.set(entry.threadId, structuredClone(entry))
+    return Promise.resolve()
+  }
+  get(threadId: string) {
+    const entry = this.entries.get(threadId)
+    return Promise.resolve(entry && structuredClone(entry))
+  }
+  list(options: SessionIndexListOptions = {}) {
+    const { limit, cursor, parentThreadId, principal } = options
+    const after = cursor === undefined ? undefined : parseSessionCursor(cursor)
+    const matching = [...this.entries.values()]
+      .filter((entry) => {
+        // `null` asks for the entries with no parent.
+        const isChild =
+          parentThreadId === undefined ||
+          (entry.parentThreadId ?? null) === parentThreadId
+        const isSameTenant =
+          principal?.tenantId === undefined ||
+          entry.principal?.tenantId === principal.tenantId
+        const isOwned =
+          principal === undefined ||
+          (entry.principal?.id === principal.id && isSameTenant)
+        const isAfterCursor =
+          after === undefined || bySessionOrder(after, entry) < 0
+        return isChild && isOwned && isAfterCursor
+      })
+      .sort(bySessionOrder)
+    const page = limit === undefined ? matching : matching.slice(0, limit)
+    const last = page.at(-1)
+    const hasMore =
+      limit !== undefined && matching.length > limit && last !== undefined
+    return Promise.resolve({
+      entries: page.map((entry) => structuredClone(entry)),
+      ...(hasMore
+        ? { cursor: `${last.updatedAt}:${last.threadId}`, truncated: true }
+        : {}),
+    })
+  }
+  delete(threadId: string) {
+    this.entries.delete(threadId)
+    return Promise.resolve()
+  }
+}
+
 /** A JSON copy, so the log never shares an object with a caller. */
 const copyRecord = (record: LogRecord) =>
   JSON.parse(JSON.stringify(record)) as LogRecord
@@ -761,13 +828,14 @@ interface MemoryPersistenceStores {
   blobs: BlobStore
   inbox: InboxStore
   credentials: CredentialStore
+  sessions: SessionIndexStore
 }
 
 /**
  * In-process reference backend for the full state + generation store set.
  *
  * Returns messages + runs + generationRuns + interrupts + metadata + artifacts
- * + blobs + inbox + credentials. Locks are not included — use `InMemoryLockStore` +
+ * + blobs + inbox + credentials + sessions. Locks are not included. Use `InMemoryLockStore` +
  * `withLocks` from `@tanstack/ai` when a test or single-process app needs
  * coordination.
  */
@@ -780,6 +848,7 @@ export function memoryPersistence() {
     metadata: new MemoryMetadataStore(),
     inbox: new MemoryInboxStore(),
     credentials: new MemoryCredentialStore(),
+    sessions: new MemorySessionIndexStore(),
     artifacts: new MemoryArtifactStore(),
     blobs: new MemoryBlobStore(),
   }

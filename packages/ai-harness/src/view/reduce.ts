@@ -58,6 +58,7 @@ export function emptyState(): SessionViewState {
     signIns: [],
     agents: [],
     queuedTurns: 0,
+    waitingInputs: [],
     commands: [],
     config: [],
     tools: [],
@@ -568,10 +569,10 @@ function signInOf(interrupt: Interrupt): SignIn | undefined {
 }
 
 /**
- * Take status, approvals, client tools, questions, and background agents
- * from a snapshot. Plugin state is taken only for the first snapshot. Later
- * changes come as `STATE_SNAPSHOT` events. Returns `state` when nothing
- * changes.
+ * Take status, approvals, client tools, questions, background agents, and
+ * waiting inputs from a snapshot. Plugin state is taken only for the first
+ * snapshot. Later changes come as `STATE_SNAPSHOT` events. Returns `state`
+ * when nothing changes.
  */
 export function applySnapshot(
   state: SessionViewState,
@@ -634,6 +635,16 @@ export function applySnapshot(
           },
       ),
   )
+  const waitingInputs = keep(
+    state.waitingInputs,
+    (snapshot.waitingInputs ?? []).map(
+      (input) =>
+        state.waitingInputs.find(
+          (item) =>
+            item.inputId === input.inputId && item.delivery === input.delivery,
+        ) ?? input,
+    ),
+  )
   const waiting = new Set(
     approvals.flatMap((item) => (item.toolCallId ? [item.toolCallId] : [])),
   )
@@ -643,6 +654,7 @@ export function applySnapshot(
     snapshot.threadId === state.threadId &&
     snapshot.status === state.status &&
     snapshot.queuedTurns === state.queuedTurns &&
+    waitingInputs === state.waitingInputs &&
     approvals === state.approvals &&
     clientTools === state.clientTools &&
     signIns === state.signIns &&
@@ -656,6 +668,7 @@ export function applySnapshot(
     threadId: snapshot.threadId,
     status: snapshot.status,
     queuedTurns: snapshot.queuedTurns,
+    waitingInputs,
     approvals,
     clientTools,
     signIns,

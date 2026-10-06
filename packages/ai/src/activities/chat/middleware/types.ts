@@ -15,6 +15,7 @@ import type {
   TokenUsage,
   Tool,
   ToolCall,
+  ToolChoice,
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
 import type { ToolApprovalResolution } from '../../../interrupts'
@@ -347,6 +348,12 @@ export interface ChatMiddlewareConfig {
    * middleware changes it.
    */
   promptCache?: ResolvedPromptCache | undefined
+  /**
+   * How the model uses the tools of the next model call. A returned value
+   * applies to that call only. The next call starts again from the `chat()`
+   * option. A call with no tools sends no tool choice.
+   */
+  toolChoice?: ToolChoice | undefined
 }
 
 /**
@@ -379,16 +386,17 @@ export type ChatResumeGenericResolution =
 /**
  * Config passed to onStructuredOutputConfig.
  *
- * Mirrors ChatMiddlewareConfig minus `tools` (the final structured-output call
- * is a single typed-response request, not an agentic loop — tools cannot be
- * forwarded to it), plus the `outputSchema` being sent to the provider.
+ * Mirrors ChatMiddlewareConfig minus `tools` and `toolChoice` (the final
+ * structured-output call is a single typed-response request, not an agentic
+ * loop — tools cannot be forwarded to it), plus the `outputSchema` being sent
+ * to the provider.
  * Middleware may transform the schema (e.g., inject $defs, strip
  * vendor-incompatible keywords) by returning a partial that includes
  * `outputSchema`.
  */
 export interface StructuredOutputMiddlewareConfig extends Omit<
   ChatMiddlewareConfig,
-  'tools'
+  'tools' | 'toolChoice'
 > {
   /** JSON Schema being sent to the provider for structured output. */
   outputSchema: JSONSchema
@@ -449,6 +457,17 @@ export interface AfterToolCallInfo {
   result?: unknown
   error?: unknown
 }
+
+/**
+ * Decision returned from onAfterToolCall.
+ * - undefined/void: keep the current result
+ * - { type: 'replaceResult', result }: use this result instead. The model and
+ *   the stream see it. The next middleware gets it as `info.result`. An error
+ *   result stays an error.
+ */
+export type AfterToolCallDecision =
+  | void
+  | { type: 'replaceResult'; result: unknown }
 
 // ===========================
 // Iteration Info
@@ -796,11 +815,14 @@ export interface ChatMiddleware<
 
   /**
    * Called after a tool execution completes (success or failure).
+   * Return `{ type: 'replaceResult', result }` to change the result that the
+   * model and the stream see. Middleware run in order. Each one sees the
+   * result of the one before it.
    */
   onAfterToolCall?: (
     ctx: ChatMiddlewareContext<TContext>,
     info: AfterToolCallInfo,
-  ) => void | Promise<void>
+  ) => AfterToolCallDecision | Promise<AfterToolCallDecision>
 
   /**
    * Called after all tool calls in an iteration have been processed.

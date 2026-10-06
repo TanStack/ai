@@ -1,7 +1,7 @@
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { SharedLog, loadLogState } from './log'
+import { SharedLog, loadLogState, logMessageStore } from './log'
 import { HarnessSession } from './session'
-import type { PromptCacheOptions, RunStore } from '@tanstack/ai'
+import type { ModelMessage, PromptCacheOptions, RunStore } from '@tanstack/ai'
 import type {
   AIPersistence,
   ArtifactStore,
@@ -14,17 +14,23 @@ import type {
   LeaseStore,
   LogStore,
   MetadataStore,
+  SessionIndexEntry,
+  SessionIndexListOptions,
+  SessionIndexPage,
+  SessionIndexStore,
 } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
 import type { ProjectOptions, ReduceOptions } from './log'
 import type { LeaseOptions } from './resume'
-import type { Principal } from './types'
+import type { ForkPoint, Principal } from './types'
 
 type SharedStores = {
   credentials?: CredentialStore
   artifacts?: ArtifactStore
   blobs?: BlobStore
   generationRuns?: GenerationRunStore
+  /** The session index that `host.sessions` reads. */
+  sessions?: SessionIndexStore
 }
 
 /** A durable host needs run leases, host leases, or both. */
@@ -43,6 +49,8 @@ type DurableLeases =
  *   `messages` and no `inbox`.
  *
  * Without `artifacts`, `blobs`, and `generationRuns`, media is kept in memory.
+ * With `sessions`, the host keeps one index entry per thread (see
+ * `host.sessions`).
  */
 export type HarnessPersistence =
   | AIPersistence<
@@ -106,6 +114,43 @@ export interface OpenSessionOptions {
   promptCache?: PromptCacheOptions
 }
 
+/**
+ * The session index of a host: one entry per thread, for a list of
+ * sessions. The host writes the entry when a session opens and after each
+ * turn. Without `stores.sessions`, `list` is empty, `get` is `undefined`,
+ * and `rename` and `delete` write nothing.
+ */
+export interface HostSessions {
+  /**
+   * Entries, newest `updatedAt` first. Default: only top-level sessions
+   * (`parentThreadId: null`). Pass a thread id to get its child sessions.
+   * Pass `principal` to get only the sessions of that user.
+   */
+  list: (options?: SessionIndexListOptions) => Promise<SessionIndexPage>
+  /** The entry of a thread, or `undefined`. */
+  get: (threadId: string) => Promise<SessionIndexEntry | undefined>
+  /**
+   * Set the title of a thread. Resolves to the changed entry, or to
+   * `undefined` for a thread that has no entry.
+   */
+  rename: (
+    threadId: string,
+    title: string,
+  ) => Promise<SessionIndexEntry | undefined>
+  /**
+   * Remove the index entry of a thread. Only the entry: the transcript, the
+   * log, and the other data of the thread stay in their stores.
+   */
+  delete: (threadId: string) => Promise<void>
+  /**
+   * Copy the transcript of a thread into a new thread, up to a message. The
+   * new thread gets its own entry, with the title, harness, and owner of the
+   * old one. Resolves to the new entry. Throws when the message id is not in
+   * the transcript.
+   */
+  fork: (threadId: string, at: ForkPoint) => Promise<SessionIndexEntry>
+}
+
 /** Runs sessions for one or more harnesses in this process. */
 export interface HarnessHost<TLogState = unknown> {
   /**
@@ -123,9 +168,70 @@ export interface HarnessHost<TLogState = unknown> {
    * `undefined`.
    */
   logState: (logId: string) => TLogState | undefined
+  /** The session index: list, rename, delete, and fork sessions. */
+  sessions: HostSessions
 }
 
 let warned = false
+
+/**
+ * Writes to the session index. `upsert` replaces the whole entry, so a
+ * change reads the entry, changes a copy, and writes it back. The changes of
+ * one thread run one at a time, so no change loses the fields of another.
+ */
+function sessionIndex(store: SessionIndexStore | undefined) {
+  const tails = new Map<string, Promise<void>>()
+  const serial = <T>(threadId: string, task: () => Promise<T>) => {
+    // The tail never rejects, so a failed change does not stop the next one.
+    const run = (tails.get(threadId) ?? Promise.resolve()).then(task)
+    const tail = run.then(
+      () => {},
+      () => {},
+    )
+    tails.set(threadId, tail)
+    void tail.then(() => {
+      if (tails.get(threadId) === tail) tails.delete(threadId)
+    })
+    return run
+  }
+  return {
+    get: async (threadId: string) => store?.get(threadId),
+    /**
+     * Write `change(entry)` for the thread. `change` gets `undefined` when
+     * the thread has no entry, and returns `undefined` to write nothing.
+     */
+    update: (
+      threadId: string,
+      change: (
+        entry: SessionIndexEntry | undefined,
+      ) => SessionIndexEntry | undefined,
+    ) =>
+      serial(threadId, async () => {
+        if (!store) return undefined
+        const next = change(await store.get(threadId))
+        if (next) await store.upsert(next)
+        return next
+      }),
+    remove: (threadId: string) =>
+      serial(threadId, async () => {
+        await store?.delete(threadId)
+      }),
+  }
+}
+
+/** @internal How a session writes its index entry. */
+export type SessionIndexWriter = ReturnType<typeof sessionIndex>
+
+/** The messages of `messages` up to the message `at` names. */
+function cutTranscript(messages: ReadonlyArray<ModelMessage>, at: ForkPoint) {
+  const isBefore = 'before' in at
+  const messageId = isBefore ? at.before : at.through
+  const index = messages.findIndex((message) => message.id === messageId)
+  if (index === -1) {
+    throw new Error(`The transcript has no message with id ${messageId}.`)
+  }
+  return messages.slice(0, isBefore ? index : index + 1)
+}
 
 /** How each host finds the open session of a chat turn. Not public API. */
 const turnFinders = new WeakMap<
@@ -207,7 +313,18 @@ export function createHarnessHost<TLogState = undefined>(
     },
   }
   const logStore = persistence.stores.log
-  const { metadata } = persistence.stores
+  const { metadata, sessions: sessionStore } = persistence.stores
+  const index = sessionIndex(sessionStore)
+  // The transcript of any thread, for a fork. On a durable host, a view of
+  // the log of that thread. ponytail: a thread that shares another log (a
+  // `logId` that is not its thread id) is not found. Keep the log id in the
+  // entry if that matters.
+  const transcripts = logStore
+    ? logMessageStore({
+        store: logStore,
+        ...(options.project ? { project: options.project } : {}),
+      })
+    : persistence.stores.messages
   const coalesceMs = options.coalesceMs ?? 100
   /** The shared log of each log id with an open session, by log id. */
   const logs = new Map<string, Promise<SharedLog<TLogState>>>()
@@ -262,6 +379,7 @@ export function createHarnessHost<TLogState = undefined>(
           credentials,
           media,
           hostId,
+          index,
           ...(logStore
             ? {
                 log: {
@@ -302,6 +420,41 @@ export function createHarnessHost<TLogState = undefined>(
       )
     },
     logState: (logId) => resolved.get(logId)?.state.reduced,
+    sessions: {
+      list: async (listOptions) =>
+        (await sessionStore?.list({ parentThreadId: null, ...listOptions })) ?? {
+          entries: [],
+        },
+      get: (threadId) => index.get(threadId),
+      rename: (threadId, title) =>
+        index.update(
+          threadId,
+          (entry) => entry && { ...entry, title, updatedAt: Date.now() },
+        ),
+      delete: (threadId) => index.remove(threadId),
+      async fork(threadId, at) {
+        if (!transcripts) {
+          throw new Error('host.sessions.fork needs stores.messages or stores.log.')
+        }
+        const kept = cutTranscript(await transcripts.loadThread(threadId), at)
+        const source = await index.get(threadId)
+        const now = Date.now()
+        // A sibling of the old thread, not a child: no parentThreadId.
+        const entry: SessionIndexEntry = {
+          threadId: `thread-${crypto.randomUUID()}`,
+          createdAt: now,
+          updatedAt: now,
+          ...(source?.harness ? { harness: source.harness } : {}),
+          ...(source?.title ? { title: `${source.title} (fork)` } : {}),
+          ...(source?.principal ? { principal: source.principal } : {}),
+        }
+        // On a durable host, this appends one transcript record to the new
+        // log.
+        await transcripts.saveThread(entry.threadId, kept)
+        await index.update(entry.threadId, () => entry)
+        return entry
+      },
+    },
   }
   turnFinders.set(host, async (name, operationId) => {
     for (const [key, opening] of sessions) {

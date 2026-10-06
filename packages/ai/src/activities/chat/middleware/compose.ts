@@ -3,6 +3,7 @@ import type { AgentLoopState, StreamChunk } from '../../../types'
 import type { InternalLogger } from '../../../logger/internal-logger'
 import type {
   AbortInfo,
+  AfterToolCallDecision,
   AfterToolCallInfo,
   BeforeToolCallDecision,
   ChatMiddleware,
@@ -524,16 +525,24 @@ export class MiddlewareRunner<
 
   /**
    * Run onAfterToolCall on all middleware in order.
+   * A `replaceResult` decision changes `info.result` for the next middleware.
+   * Returns the last replacement, or undefined when no middleware replaced it.
    */
   async runOnAfterToolCall(
     ctx: ChatMiddlewareContext<TContext>,
     info: AfterToolCallInfo,
-  ): Promise<void> {
+  ): Promise<AfterToolCallDecision> {
+    let current = info
+    let replacement: AfterToolCallDecision = undefined
     for (const mw of this.middlewares) {
       if (mw.onAfterToolCall) {
         const skip = shouldSkipInstrumentation(mw)
         const start = Date.now()
-        await mw.onAfterToolCall(ctx, info)
+        const decision = await mw.onAfterToolCall(ctx, current)
+        if (decision) {
+          current = { ...current, result: decision.result }
+          replacement = decision
+        }
         if (!skip) {
           this.logger.middleware(
             `hook=onAfterToolCall middleware=${mw.name ?? 'unnamed'}`,
@@ -545,11 +554,12 @@ export class MiddlewareRunner<
             hookName: 'onAfterToolCall',
             iteration: ctx.iteration,
             duration: Date.now() - start,
-            hasTransform: false,
+            hasTransform: Boolean(decision),
           })
         }
       }
     }
+    return replacement
   }
 
   /**

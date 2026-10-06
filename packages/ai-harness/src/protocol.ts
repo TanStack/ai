@@ -42,6 +42,8 @@ const INPUT_OPS = new Set([
   'resolve',
   'agent',
   'cancel',
+  'cancelInput',
+  'setDelivery',
   'command',
   'answer',
   'config',
@@ -79,6 +81,14 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   }
   if (value.op === 'config' && typeof value.key !== 'string') {
     throw new Error('Invalid input: config needs a key.')
+  }
+  const namesInput = value.op === 'cancelInput' || value.op === 'setDelivery'
+  if (namesInput && typeof value.inputId !== 'string') {
+    throw new Error(`Invalid input: ${value.op} needs an inputId.`)
+  }
+  const isDelivery = value.delivery === 'steer' || value.delivery === 'queue'
+  if (value.op === 'setDelivery' && !isDelivery) {
+    throw new Error("Invalid input: setDelivery needs 'steer' or 'queue'.")
   }
   if (value.inputId !== undefined && typeof value.inputId !== 'string') {
     throw new Error('Invalid input: inputId must be a string.')
@@ -155,6 +165,10 @@ export async function applyInput(
       return session.resolve(input.resume, id)
     case 'cancel':
       return session.cancel(input.operationId)
+    case 'cancelInput':
+      return session.cancelInput(input.inputId)
+    case 'setDelivery':
+      return session.setDelivery(input.inputId, input.delivery)
     case 'command': {
       const operation = session.command(
         input.name,

@@ -92,11 +92,13 @@ export interface PluginContributions {
    * Change the tool list of a turn: every tool the model gets, after
    * `discoverTools`. Return the new list. Runs before prompts resolve, so a
    * prompt `text()` can describe the tools this returned. Code mode uses it to
-   * move tools behind `execute_typescript`.
+   * move tools behind `execute_typescript`. `model` is the model id of the
+   * turn's adapter, so the list can differ for each model.
    */
-  prepareTools?: (
-    tools: ReadonlyArray<AnyTool>,
-  ) => ReadonlyArray<AnyTool> | Promise<ReadonlyArray<AnyTool>>
+  prepareTools?: (turn: {
+    tools: ReadonlyArray<AnyTool>
+    model: string
+  }) => ReadonlyArray<AnyTool> | Promise<ReadonlyArray<AnyTool>>
 }
 
 /** Plugin state that survives restarts, stored in the metadata store. */
@@ -408,8 +410,11 @@ const NO_SERVICES: PluginServices = {
     principal: undefined,
     snapshot: unavailable('ctx.session'),
     prompt: unavailable('ctx.session'),
+    note: unavailable('ctx.session'),
     transcript: unavailable('ctx.session'),
     replaceTranscript: unavailable('ctx.session'),
+    entry: unavailable('ctx.session'),
+    updateEntry: unavailable('ctx.session'),
     ask: unavailable('ctx.session'),
     authRequired: unavailable('ctx.session'),
     setConfig: unavailable('ctx.session'),

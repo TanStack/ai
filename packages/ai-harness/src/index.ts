@@ -79,8 +79,15 @@ export type {
   HarnessHost,
   HarnessHostOptions,
   HarnessPersistence,
+  HostSessions,
   OpenSessionOptions,
 } from './host'
+export type {
+  SessionIndexEntry,
+  SessionIndexListOptions,
+  SessionIndexPage,
+  SessionIndexStore,
+} from '@tanstack/ai-persistence'
 
 export { HarnessSession } from './session'
 export type {
@@ -112,6 +119,7 @@ export type {
   BusyPolicy,
   ChatTurnResult,
   Cursor,
+  ForkPoint,
   HarnessInput,
   InputSettlement,
   MediaKind,
@@ -125,6 +133,7 @@ export type {
   TurnInfo,
   TurnOverrides,
   UserInput,
+  WaitingInput,
 } from './types'
 
 export {
