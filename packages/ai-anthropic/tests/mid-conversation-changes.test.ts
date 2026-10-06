@@ -209,6 +209,25 @@ describe('Anthropic mid-conversation channels', () => {
     ).toEqual(both)
   })
 
+  it('turns on only the channels an object names', () => {
+    expect(
+      createAnthropicChat('claude-opus-5-5', 'test-key', {
+        baseURL: 'https://gateway.example.com',
+        midConversationChannels: { systemPrompts: true },
+      }).midConversationChannels,
+    ).toEqual({ tools: false, systemPrompts: true })
+    expect(
+      createAnthropicChat('claude-opus-5-5', 'test-key', {
+        midConversationChannels: { tools: true },
+      }).midConversationChannels,
+    ).toEqual({ tools: true, systemPrompts: false })
+    expect(
+      createAnthropicChat('claude-sonnet-5-5', 'test-key', {
+        midConversationChannels: { systemPrompts: true },
+      }).midConversationChannels,
+    ).toBeUndefined()
+  })
+
   it('is off with midConversationChannels: false, and outside the map even with true', () => {
     expect(
       createAnthropicChat('claude-opus-5-5', 'test-key', {
@@ -280,6 +299,33 @@ describe('Anthropic mid-conversation request', () => {
         },
       ],
     })
+  })
+
+  it('with { systemPrompts: true } on a custom baseURL: the prompt in place, the tools as the full list', async () => {
+    const body = await send(
+      'claude-opus-5-5',
+      {
+        messages: toolTurn,
+        tools: [lookup, fetchPage],
+        systemPrompts: ['Be brief.', 'Cite sources.'],
+        midConversationChanges: endChange,
+      },
+      {
+        baseURL: 'https://gateway.example.com',
+        midConversationChannels: { systemPrompts: true },
+      },
+    )
+
+    expect(body.system).toEqual([{ type: 'text', text: 'Be brief.' }])
+    expect(roles(body)).toEqual(['user', 'assistant', 'user', 'system'])
+    expect(body.messages[3]).toEqual({
+      role: 'system',
+      content: [{ type: 'text', text: 'Cite sources.' }],
+    })
+    expect(body.tools).toEqual(
+      convertToolsToProviderFormat([lookup, fetchPage]),
+    )
+    expect(body.betas ?? []).not.toContain(BETA)
   })
 
   it('puts an added prompt in a system message before the next assistant message', async () => {

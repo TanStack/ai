@@ -2052,6 +2052,8 @@ class TextEngine<
       if (responseId !== undefined) metadata.responseId = responseId
       if (incoming?.responseItems !== undefined)
         metadata.responseItems = incoming.responseItems
+      if (incoming?.reasoningEffort !== undefined)
+        metadata.reasoningEffort = incoming.reasoningEffort
     }
     if (chunk.type === EventType.RUN_ERROR) {
       metadata.stopReason ??= 'error'

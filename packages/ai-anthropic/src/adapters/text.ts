@@ -25,7 +25,8 @@ import {
   ANTHROPIC_DEFERRED_TOOL_PLACEHOLDER_NAME,
   applyAnthropicPromptCache,
 } from '../prompt-cache'
-import { anthropicThinking } from '../text/reasoning'
+import { anthropicThinking, isAnthropicEffort } from '../text/reasoning'
+import type { AnthropicEffort } from '../text/reasoning'
 import { ANTHROPIC_MODEL_REASONING } from '../model-reasoning'
 import type { AnthropicModelReasoningByName } from '../model-reasoning'
 import { buildAnthropicUsage } from '../usage'
@@ -203,7 +204,10 @@ export function messagesHaveFileSource(messages: Array<ModelMessage>): boolean {
  * - `skills-2025-10-02` when that tool carries skills,
  * - `context-management-2025-06-27` when `context_management` is set,
  * - `files-api-2025-04-14` when a message references an uploaded file handle,
- * - `mid-conversation-tool-changes-2026-07-01` in mid-conversation tool mode.
+ * - `mid-conversation-tool-changes-2026-07-01` in mid-conversation tool mode,
+ * - `mid-conversation-output-config-2026-07-01` and
+ *   `thinking-binding-controls-2026-08-01` with mid-conversation effort
+ *   (`thinking.block_binding`).
  * Returns `undefined` when none apply (so the call site omits `betas`).
  */
 export function computeAnthropicBetas(
@@ -213,6 +217,7 @@ export function computeAnthropicBetas(
         thinking?: {
           type?: 'enabled' | 'disabled' | 'adaptive'
           budget_tokens?: number
+          block_binding?: unknown
         }
         context_management?: unknown | null
         mcp_servers?: ReadonlyArray<unknown>
@@ -233,6 +238,10 @@ export function computeAnthropicBetas(
     typeof modelOptions.thinking.budget_tokens === 'number' &&
     modelOptions.thinking.budget_tokens > 0
   if (useInterleavedThinking) betas.add('interleaved-thinking-2025-05-14')
+  if (modelOptions?.thinking?.block_binding) {
+    betas.add('mid-conversation-output-config-2026-07-01')
+    betas.add('thinking-binding-controls-2026-08-01')
+  }
 
   // Context editing requires the beta header; the body field alone is not
   // enough (issue #1074). `null` is a typed "unset" — do not enable the beta.
@@ -304,6 +313,13 @@ interface AnthropicMidConversationSystemMessage {
   >
 }
 
+/** pi's effort message: a `system` message with no content that sets the effort. */
+function effortMessage(effort: AnthropicEffort): BetaMessageParam {
+  const message = { role: 'system', content: [], output_config: { effort } }
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- SDK 0.97.1 types no `system` message in `messages`; the models with mid-conversation effort accept one (pi 0.87.1).
+  return message as unknown as BetaMessageParam
+}
+
 /**
  * Configuration for Anthropic text adapter
  */
@@ -329,9 +345,12 @@ export interface AnthropicTextConfig extends AnthropicClientConfig {
    * only for Anthropic's own API: a `baseURL`, a `fetch`, an injected
    * `client`, or the SDK's `ANTHROPIC_BASE_URL` env var turns the default off. `true` turns them on anyway, for a
    * gateway that passes the changes. `false` turns them off, so every
-   * request is built as before.
+   * request is built as before. An object turns on only the channels it
+   * names, for a gateway that passes one of them:
+   * `{ systemPrompts: true }` sends a system prompt change in place and a
+   * tool change as the full tool list.
    */
-  midConversationChannels?: boolean
+  midConversationChannels?: boolean | Partial<MidConversationChannels>
 }
 
 export type AnthropicTextAdapterConfig =
@@ -339,7 +358,7 @@ export type AnthropicTextAdapterConfig =
   | {
       client: AnthropicMessagesClient
       /** See {@link AnthropicTextConfig.midConversationChannels}. */
-      midConversationChannels?: boolean
+      midConversationChannels?: AnthropicTextConfig['midConversationChannels']
       oauth?: boolean
       allowEmptySignature?: boolean
       provider?: string
@@ -512,9 +531,16 @@ export class AnthropicTextAdapter<
       'client' in config ||
       Boolean(config.baseURL || config.fetch) ||
       envBaseURL
-    if (config.midConversationChannels ?? !customEndpoint) {
-      this.midConversationChannels =
-        ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS[model]
+    const table = ANTHROPIC_MODEL_MID_CONVERSATION_CHANNELS[model]
+    const option = config.midConversationChannels
+    if (typeof option === 'object') {
+      if (table)
+        this.midConversationChannels = {
+          tools: table.tools && option.tools === true,
+          systemPrompts: table.systemPrompts && option.systemPrompts === true,
+        }
+    } else if (option ?? !customEndpoint) {
+      this.midConversationChannels = table
     }
   }
 
@@ -818,9 +844,16 @@ export class AnthropicTextAdapter<
       }),
     }
     const mid = this.midConversationRequest(options)
+    // `chat({ reasoning })`, as this model's thinking fields.
+    const {
+      output_config: reasoningOutputConfig,
+      messageEffort,
+      ...thinkingFields
+    } = anthropicThinking(this.model, options.reasoning, this.modelReasoning)
     const formattedMessages = this.formatMessages(
       options.messages,
       mid?.systemMessages,
+      messageEffort,
     )
     const tools = options.tools
       ? (mid?.tools ?? convertToolsToProviderFormat(options.tools))
@@ -880,9 +913,8 @@ export class AnthropicTextAdapter<
       }
     }
 
-    // `chat({ reasoning })`, as this model's thinking fields.
-    const { output_config: reasoningOutputConfig, ...thinkingFields } =
-      anthropicThinking(this.model, options.reasoning, this.modelReasoning)
+    // pi sends no `temperature` with mid-conversation effort.
+    if (messageEffort !== undefined) delete validProviderOptions.temperature
     const thinkingBudget =
       thinkingFields.thinking?.type === 'enabled'
         ? thinkingFields.thinking.budget_tokens
@@ -1194,6 +1226,12 @@ export class AnthropicTextAdapter<
     messages: Array<ModelMessage>,
     /** Mid-conversation `system` messages by message index (`before`). */
     systemMessages?: ReadonlyMap<number, BetaMessageParam>,
+    /**
+     * Mid-conversation effort: this turn's effort. Each earlier assistant
+     * message of this provider gets its own effort message before it, and
+     * this one goes at the end (pi's `insertThinkingLevelMessages`).
+     */
+    messageEffort?: AnthropicEffort,
   ): InternalTextProviderOptions['messages'] {
     const formattedMessages: InternalTextProviderOptions['messages'] = []
     // A system message waits for the next assistant message (or the end),
@@ -1206,6 +1244,8 @@ export class AnthropicTextAdapter<
       if (systemMessage) pendingSystemMessages.push(systemMessage)
       if (role === 'assistant') {
         formattedMessages.push(...pendingSystemMessages.splice(0))
+        const stored = messageEffort && this.storedEffort(message)
+        if (stored) formattedMessages.push(effortMessage(stored))
       }
 
       if (role === 'tool' && message.toolCallId) {
@@ -1336,7 +1376,19 @@ export class AnthropicTextAdapter<
     // Post-process: Anthropic requires strictly alternating user/assistant roles.
     // Tool results are sent as role:'user' messages, which can create consecutive
     // user messages when followed by a new user message. Merge them.
-    return this.mergeConsecutiveSameRoleMessages(formattedMessages)
+    const merged = this.mergeConsecutiveSameRoleMessages(formattedMessages)
+    return messageEffort ? [...merged, effortMessage(messageEffort)] : merged
+  }
+
+  /** The effort an assistant message of this provider was made with. */
+  private storedEffort(message: ModelMessage): AnthropicEffort | undefined {
+    const tanstack = message.metadata?.tanstack
+    const effort = tanstack?.reasoningEffort
+    return tanstack?.source?.provider === this.provider &&
+      tanstack.source.api === this.api &&
+      isAnthropicEffort(effort)
+      ? effort
+      : undefined
   }
 
   private appendThinkingBlocks(
@@ -1435,7 +1487,13 @@ export class AnthropicTextAdapter<
       }
 
       const prev = merged[merged.length - 1]
-      if (prev && prev.role === msg.role) {
+      // An effort message stays a message of its own.
+      if (
+        prev &&
+        prev.role === msg.role &&
+        !('output_config' in prev) &&
+        !('output_config' in msg)
+      ) {
         // Normalize both contents to arrays and concatenate
         const prevBlocks = Array.isArray(prev.content)
           ? prev.content
@@ -1503,6 +1561,15 @@ export class AnthropicTextAdapter<
       api: this.api,
       model: options.model,
     }
+    // Mid-conversation effort: the message keeps its effort for the next turn.
+    const { messageEffort } = anthropicThinking(
+      this.model,
+      options.reasoning,
+      this.modelReasoning,
+    )
+    const effortMetadata = messageEffort
+      ? { metadata: { tanstack: { reasoningEffort: messageEffort } } }
+      : {}
     let accumulatedContent = ''
     let accumulatedThinking = ''
     let accumulatedSignature = ''
@@ -2021,6 +2088,7 @@ export class AnthropicTextAdapter<
             yield {
               type: EventType.RUN_FINISHED,
               ...(responseId !== undefined && { responseId }),
+              ...effortMetadata,
               runId,
               threadId,
               model,
@@ -2055,6 +2123,7 @@ export class AnthropicTextAdapter<
                 yield {
                   type: EventType.RUN_FINISHED,
                   ...(responseId !== undefined && { responseId }),
+                  ...effortMetadata,
                   runId,
                   threadId,
                   model,
@@ -2111,6 +2180,7 @@ export class AnthropicTextAdapter<
                 yield {
                   type: EventType.RUN_FINISHED,
                   ...(responseId !== undefined && { responseId }),
+                  ...effortMetadata,
                   runId,
                   threadId,
                   model,
