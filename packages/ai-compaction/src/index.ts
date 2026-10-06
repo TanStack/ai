@@ -18,7 +18,11 @@ import {
   getLogRecords,
   getMetadata,
 } from '@tanstack/ai'
-import { COMPACTION_RECORD_TYPE, compactionRecord } from './record'
+import {
+  COMPACTION_RECORD_TYPE,
+  compactionRecord,
+  projectCompaction,
+} from './record'
 import {
   readSummary,
   splitDetails,
@@ -192,6 +196,9 @@ function isCompactionCheckpoint(value: unknown): value is CompactionCheckpoint {
 
 /** The metadata namespace of a ready background summary. The key is the thread. */
 const BACKGROUND_NAMESPACE = '@tanstack/ai-compaction:background'
+
+/** The memory namespace of the run of the last call of each thread. */
+const RUN_NAMESPACE = '@tanstack/ai-compaction:run'
 
 /** A ready background summary: the record of its result, built on its snapshot. */
 interface BackgroundReady {
@@ -984,20 +991,186 @@ export function withCompaction(
               reusedCheckpoint,
             )
           : undefined
-      const before = fromUsage ?? sum(workingMessages, estimate)
-      if (
-        background &&
-        !force &&
-        auto &&
-        before > background.atTokens &&
-        before <= options.maxTokens &&
-        !jobs.has(ctx.threadId) &&
-        !isBackgroundReady(
-          await backgroundStore(ctx).get(BACKGROUND_NAMESPACE, ctx.threadId),
+      let before = fromUsage ?? sum(workingMessages, estimate)
+
+      /**
+       * Give the model `next` in place of `from`, and keep it: the record on
+       * a durable host, else the checkpoint. Returns the count of `next`.
+       */
+      const commit = async (
+        from: Array<ModelMessage>,
+        next: Array<ModelMessage>,
+        tokensBefore: number,
+        why: CompactionReason,
+        usage: TokenUsage | undefined,
+      ) => {
+        const info: CompactionInfo = {
+          before: tokensBefore,
+          after: sum(next, estimate),
+          messagesBefore: from.length,
+          messagesAfter: next.length,
+          reason: why,
+          ...(usage ? { usage } : {}),
+        }
+        options.onCompact?.(info)
+        emitCompactionState(
+          ctx,
+          compactionStateValue({
+            before: info.before,
+            after: info.after,
+            messagesBefore: info.messagesBefore,
+            messagesAfter: info.messagesAfter,
+            reusedCheckpoint,
+            maxTokens: options.maxTokens,
+            strategyKey: checkpointStrategyKey,
+            beforeMessages: from,
+            afterMessages: next,
+            estimate,
+          }),
         )
-      ) {
-        // The model call goes on at once, with the messages as they are.
-        startBackground(ctx, [...workingMessages], before, reusedCheckpoint)
+        emitCompactionEnded(ctx, {
+          after: info.after,
+          messagesAfter: info.messagesAfter,
+          reusedCheckpoint,
+          maxTokens: options.maxTokens,
+          durationMs: Date.now() - startedAt,
+          ...(checkpointStrategyKey
+            ? { strategyKey: checkpointStrategyKey }
+            : {}),
+          reason: why,
+          ...(usage ? { usage } : {}),
+        })
+
+        if (countUsage) {
+          // The saved usage counted the list before this compaction.
+          await store?.delete(USAGE_NAMESPACE, ctx.threadId)
+        }
+
+        if (logRecords) {
+          // The model gets `next` now. The record makes the log fold the same.
+          if (!ctx.signal?.aborted) {
+            await logRecords.append([
+              compactionRecord({
+                reason: why,
+                before: from,
+                after: next,
+                tokensBefore,
+                tokensAfter: info.after,
+                ...(usage ? { usage } : {}),
+              }),
+            ])
+          }
+        } else if (metadata && inputMessages === messages) {
+          const checkpoint: CompactionCheckpoint = {
+            schemaVersion: 1,
+            sourceMessageCount: messages.length,
+            sourceHash: await hashMessages(messages),
+            strategyKey: checkpointKey,
+            compactedMessages: next,
+          }
+          if (!ctx.signal?.aborted) {
+            await metadata.set(CHECKPOINT_NAMESPACE, ctx.threadId, checkpoint)
+          }
+        }
+
+        compactedViews.set(ctx, true)
+        return info.after
+      }
+
+      /**
+       * Apply the ready background summary of the thread, or drop it when it
+       * no longer fits: a newer compaction cut past its kept message, or,
+       * without a kept id, the messages before the cut changed. Returns the
+       * new list, or `undefined`.
+       */
+      const applyReady = async () => {
+        const readyStore = backgroundStore(ctx)
+        const ready = await readyStore.get(BACKGROUND_NAMESPACE, ctx.threadId)
+        if (!isBackgroundReady(ready)) return undefined
+        await readyStore.delete(BACKGROUND_NAMESPACE, ctx.threadId)
+        const { record, prefixHash } = ready
+        // Without a kept id, the messages before the cut must be the ones
+        // that the summary read.
+        const fits =
+          record.firstKeptId !== undefined ||
+          (record.from <= workingMessages.length &&
+            (await hashMessages(workingMessages.slice(0, record.from))) ===
+              prefixHash)
+        const next = fits
+          ? projectCompaction({ messages: workingMessages, record })
+          : undefined
+        if (next) {
+          await commit(
+            workingMessages,
+            next,
+            before,
+            'background',
+            record.usage,
+          )
+          return next
+        }
+        const usageField = record.usage ? { usage: record.usage } : {}
+        options.onCompact?.({
+          before,
+          after: before,
+          messagesBefore: workingMessages.length,
+          messagesAfter: workingMessages.length,
+          reason: 'background',
+          stale: true,
+          ...usageField,
+        })
+        emitCompactionEnded(ctx, {
+          after: before,
+          messagesAfter: workingMessages.length,
+          reusedCheckpoint,
+          maxTokens: options.maxTokens,
+          durationMs: Date.now() - startedAt,
+          ...(checkpointStrategyKey
+            ? { strategyKey: checkpointStrategyKey }
+            : {}),
+          reason: 'background',
+          stale: true,
+          ...usageField,
+        })
+        return undefined
+      }
+
+      // Set when a background summary was applied at this call.
+      let applied = false
+      if (background) {
+        // ponytail: the run of the last call of each thread, in the memory
+        // store (its newest 1000 threads). A forgotten thread counts as a
+        // first call.
+        const firstCall =
+          (await memory.get(RUN_NAMESPACE, ctx.threadId)) !== ctx.runId
+        if (firstCall) {
+          await memory.set(RUN_NAMESPACE, ctx.threadId, ctx.runId)
+          // A ready summary applies only at the first model call of a run.
+          const next = await applyReady()
+          if (next) {
+            workingMessages = next
+            before = sum(next, estimate)
+            applied = true
+          }
+        }
+        if (
+          !force &&
+          auto &&
+          before > background.atTokens &&
+          before <= options.maxTokens &&
+          !jobs.has(ctx.threadId) &&
+          // A first call took the ready summary already.
+          (firstCall ||
+            !isBackgroundReady(
+              await backgroundStore(ctx).get(
+                BACKGROUND_NAMESPACE,
+                ctx.threadId,
+              ),
+            ))
+        ) {
+          // The model call goes on at once, with the messages as they are.
+          startBackground(ctx, [...workingMessages], before, reusedCheckpoint)
+        }
       }
       const startedValue: CompactionStartedEventValue = {
         before,
@@ -1011,6 +1184,8 @@ export function withCompaction(
       }
 
       if (!force && (!auto || before <= options.maxTokens)) {
+        // A background summary was applied above, and its events went out.
+        if (applied) return { providerMessages: workingMessages }
         if (reusedCheckpoint) {
           emitCompactionStarted(ctx, startedValue)
           const stateValue = compactionStateValue({
@@ -1095,76 +1270,7 @@ export function withCompaction(
         return
       }
 
-      const info: CompactionInfo = {
-        before,
-        after: sum(next, estimate),
-        messagesBefore: workingMessages.length,
-        messagesAfter: next.length,
-        reason,
-        ...(spent.usage ? { usage: spent.usage } : {}),
-      }
-      options.onCompact?.(info)
-      emitCompactionState(
-        ctx,
-        compactionStateValue({
-          before: info.before,
-          after: info.after,
-          messagesBefore: info.messagesBefore,
-          messagesAfter: info.messagesAfter,
-          reusedCheckpoint,
-          maxTokens: options.maxTokens,
-          strategyKey: checkpointStrategyKey,
-          beforeMessages: workingMessages,
-          afterMessages: next,
-          estimate,
-        }),
-      )
-      emitCompactionEnded(ctx, {
-        after: info.after,
-        messagesAfter: info.messagesAfter,
-        reusedCheckpoint,
-        maxTokens: options.maxTokens,
-        durationMs: Date.now() - startedAt,
-        ...(checkpointStrategyKey
-          ? { strategyKey: checkpointStrategyKey }
-          : {}),
-        reason,
-        ...(spent.usage ? { usage: spent.usage } : {}),
-      })
-
-      if (countUsage) {
-        // The saved usage counted the list before this compaction.
-        await store?.delete(USAGE_NAMESPACE, ctx.threadId)
-      }
-
-      if (logRecords) {
-        // The model gets `next` now. The record makes the log fold the same.
-        if (!ctx.signal?.aborted) {
-          await logRecords.append([
-            compactionRecord({
-              reason,
-              before: workingMessages,
-              after: next,
-              tokensBefore: before,
-              tokensAfter: info.after,
-              ...(spent.usage ? { usage: spent.usage } : {}),
-            }),
-          ])
-        }
-      } else if (metadata && inputMessages === messages) {
-        const checkpoint: CompactionCheckpoint = {
-          schemaVersion: 1,
-          sourceMessageCount: messages.length,
-          sourceHash: await hashMessages(messages),
-          strategyKey: checkpointKey,
-          compactedMessages: next,
-        }
-        if (!ctx.signal?.aborted) {
-          await metadata.set(CHECKPOINT_NAMESPACE, ctx.threadId, checkpoint)
-        }
-      }
-
-      compactedViews.set(ctx, true)
+      await commit(workingMessages, next, before, reason, spent.usage)
       return { providerMessages: next }
     },
     onUsage: countUsage

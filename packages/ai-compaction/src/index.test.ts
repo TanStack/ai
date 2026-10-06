@@ -2520,6 +2520,9 @@ const list = (count: number) =>
     withId(big(index % 2 === 0 ? 'user' : 'assistant'), `m${index + 1}`),
   )
 
+/** One message of one token, with id `id`. */
+const small = (id: string) => withId(text('user', 'ok'), id)
+
 /** A summarizer that waits for `release()`. `calls` keeps the messages of each call. */
 function gatedSummary() {
   const calls: Array<Array<ModelMessage>> = []
@@ -2639,5 +2642,188 @@ describe('background compaction', () => {
     // The next call past atTokens starts a new summary.
     await runOnConfig(mw, list(4), runContext('r1', { store }).ctx)
     await vi.waitFor(() => expect(summarize).toHaveBeenCalledTimes(2))
+  })
+  it('applies a ready summary at the first model call of the next run, not later in the same run', async () => {
+    const gated = gatedSummary()
+    const store = memoryStore()
+    const mw = backgroundCompaction(gated.summarize)
+    await runOnConfig(mw, list(4), runContext('r1', { store }).ctx)
+    gated.release()
+    await vi.waitFor(async () =>
+      expect(await store.get(BACKGROUND, 'thread-1')).not.toBeNull(),
+    )
+
+    // A later call of the same run does not apply it, and starts no new one.
+    const grown = [...list(4), small('m5')]
+    expect(
+      await runOnConfig(mw, grown, runContext('r1', { store }).ctx),
+    ).toBeUndefined()
+
+    // The first call of the next run applies it.
+    const { ctx, events } = runContext('r2', { store })
+    const result = await runOnConfig(mw, grown, ctx)
+    expect(result?.providerMessages).toEqual([
+      summaryOf('the gist'),
+      grown[3],
+      grown[4],
+    ])
+    expect(events.map((event) => event.name)).toEqual([
+      COMPACTION_STATE_EVENT,
+      COMPACTION_ENDED_EVENT,
+    ])
+    expect(events[1]?.value).toMatchObject({
+      reason: 'background',
+      messagesAfter: 3,
+    })
+    expect(await store.get(BACKGROUND, 'thread-1')).toBeNull()
+    expect(gated.calls).toHaveLength(1)
+  })
+
+  it('drops a ready summary whose kept message is gone, and reports it', async () => {
+    const onCompact = vi.fn()
+    const store = memoryStore()
+    const mw = backgroundCompaction(async () => 'the gist', { onCompact })
+    await runOnConfig(mw, list(4), runContext('r1', { store }).ctx)
+    await vi.waitFor(async () =>
+      expect(await store.get(BACKGROUND, 'thread-1')).not.toBeNull(),
+    )
+
+    // A newer compaction cut past m4.
+    const newer = [summaryOf('newer'), small('m9')]
+    const { ctx, events } = runContext('r2', { store })
+    expect(await runOnConfig(mw, newer, ctx)).toBeUndefined()
+    expect(events.map((event) => event.name)).toEqual([COMPACTION_ENDED_EVENT])
+    expect(events[0]?.value).toMatchObject({
+      reason: 'background',
+      stale: true,
+    })
+    expect(onCompact).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'background', stale: true }),
+    )
+    expect(await store.get(BACKGROUND, 'thread-1')).toBeNull()
+  })
+
+  it('applies a ready summary from the metadata store after a restart', async () => {
+    const store = memoryStore()
+    await runOnConfig(
+      backgroundCompaction(async () => 'the gist'),
+      list(4),
+      runContext('r1', { store }).ctx,
+    )
+    await vi.waitFor(async () =>
+      expect(await store.get(BACKGROUND, 'thread-1')).not.toBeNull(),
+    )
+
+    // A new middleware instance on the same store.
+    const grown = [...list(4), small('m5')]
+    const result = await runOnConfig(
+      backgroundCompaction(async () => 'the gist'),
+      grown,
+      runContext('r2', { store }).ctx,
+    )
+    expect(result?.providerMessages).toEqual([
+      summaryOf('the gist'),
+      grown[3],
+      grown[4],
+    ])
+  })
+
+  it('without ids, applies only when the messages before the cut are the same', async () => {
+    const plain = [big('user'), big('assistant'), big('user'), big('assistant')]
+    const store = memoryStore()
+    const mw = backgroundCompaction(async () => 'the gist')
+    await runOnConfig(mw, plain, runContext('r1', { store }).ctx)
+    await vi.waitFor(async () =>
+      expect(await store.get(BACKGROUND, 'thread-1')).not.toBeNull(),
+    )
+    const grown = [...plain, text('user', 'ok')]
+    const result = await runOnConfig(mw, grown, runContext('r2', { store }).ctx)
+    expect(result?.providerMessages).toEqual([
+      summaryOf('the gist'),
+      plain[3],
+      grown[4],
+    ])
+
+    // A changed message before the cut makes the summary stale.
+    const otherStore = memoryStore()
+    const other = backgroundCompaction(async () => 'the gist')
+    await runOnConfig(other, plain, runContext('r1', { store: otherStore }).ctx)
+    await vi.waitFor(async () =>
+      expect(await otherStore.get(BACKGROUND, 'thread-1')).not.toBeNull(),
+    )
+    const edited = [
+      text('user', 'y'.repeat(160)),
+      ...plain.slice(1),
+      text('user', 'ok'),
+    ]
+    const { ctx, events } = runContext('r2', { store: otherStore })
+    expect(await runOnConfig(other, edited, ctx)).toBeUndefined()
+    expect(events[0]?.value).toMatchObject({
+      reason: 'background',
+      stale: true,
+    })
+  })
+
+  it('writes a background record on a durable host', async () => {
+    const appended: Array<unknown> = []
+    const store = memoryStore()
+    const mw = backgroundCompaction(async () => 'the gist', { durable: true })
+    await runOnConfig(mw, list(4), runContext('r1', { store, appended }).ctx)
+    await vi.waitFor(async () =>
+      expect(await store.get(BACKGROUND, 'thread-1')).not.toBeNull(),
+    )
+    expect(appended).toEqual([])
+
+    const grown = [...list(4), small('m5')]
+    const result = await runOnConfig(
+      mw,
+      grown,
+      runContext('r2', { store, appended }).ctx,
+    )
+    expect(result?.providerMessages).toEqual([
+      summaryOf('the gist'),
+      grown[3],
+      grown[4],
+    ])
+    expect(appended).toEqual([
+      {
+        type: COMPACTION_RECORD_TYPE,
+        reason: 'background',
+        tokensBefore: 161,
+        tokensAfter: expect.any(Number),
+        head: [summaryOf('the gist')],
+        from: 3,
+        firstKeptId: 'm4',
+      },
+    ])
+  })
+
+  it('applies the summary at the next run when the run that started it was aborted', async () => {
+    const gated = gatedSummary()
+    const store = memoryStore()
+    const mw = backgroundCompaction(gated.summarize)
+    const controller = new AbortController()
+    await runOnConfig(
+      mw,
+      list(4),
+      runContext('r1', { store, signal: controller.signal }).ctx,
+    )
+    await vi.waitFor(() => expect(gated.calls).toHaveLength(1))
+
+    // The run that started the summary stops before the summary is ready.
+    controller.abort(new Error('stop'))
+    gated.release()
+    await vi.waitFor(async () =>
+      expect(await store.get(BACKGROUND, 'thread-1')).not.toBeNull(),
+    )
+
+    const grown = [...list(4), small('m5')]
+    const result = await runOnConfig(mw, grown, runContext('r2', { store }).ctx)
+    expect(result?.providerMessages).toEqual([
+      summaryOf('the gist'),
+      grown[3],
+      grown[4],
+    ])
+    expect(gated.calls).toHaveLength(1)
   })
 })
