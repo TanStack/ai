@@ -3916,7 +3916,7 @@ importers:
     devDependencies:
       '@google/genai':
         specifier: ^2.10.0
-        version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(zod@4.6.5))
+        version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(zod@4.3.6))
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
@@ -21266,7 +21266,7 @@ snapshots:
   '@blaxel/core@0.3.11(@hey-api/openapi-ts@0.99.0(magicast@0.5.2)(typescript@7.0.2))':
     dependencies:
       '@hey-api/client-fetch': 0.10.2(@hey-api/openapi-ts@0.99.0(magicast@0.5.2)(typescript@7.0.2))
-      '@modelcontextprotocol/sdk': 1.29.0(zod@4.6.5)
+      '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
       archiver: 7.0.1
       axios: 1.18.1(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
       dockerfile-ast: 0.7.1
@@ -21277,7 +21277,7 @@ snapshots:
       uuid: 11.1.1
       ws: 8.21.0
       yaml: 2.9.0
-      zod: 4.6.5
+      zod: 4.3.6
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - '@hey-api/openapi-ts'
@@ -22992,8 +22992,8 @@ snapshots:
   '@mistralai/mistralai@2.2.0':
     dependencies:
       ws: 8.21.0
-      zod: 4.6.5
-      zod-to-json-schema: 3.25.2(zod@4.6.5)
+      zod: 4.3.6
+      zod-to-json-schema: 3.25.2(zod@4.3.6)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -23006,11 +23006,11 @@ snapshots:
       eventsource-parser: 3.1.1
       jose: 6.2.12
       pkce-challenge: 5.0.1
-      zod: 4.6.5
+      zod: 4.3.6
 
   '@modelcontextprotocol/core@2.1.0':
     dependencies:
-      zod: 4.6.5
+      zod: 4.3.6
 
   '@modelcontextprotocol/ext-apps@1.7.4(@modelcontextprotocol/sdk@1.29.0(supports-color@7.2.0)(zod@4.2.1))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@3.25.76)':
     dependencies:
@@ -23112,7 +23112,7 @@ snapshots:
   '@modelcontextprotocol/server@2.1.0':
     dependencies:
       '@modelcontextprotocol/core': 2.1.0
-      zod: 4.6.5
+      zod: 4.3.6
 
   '@msgpack/msgpack@3.1.3': {}
 
@@ -23372,7 +23372,7 @@ snapshots:
 
   '@openrouter/sdk@0.13.20':
     dependencies:
-      zod: 4.6.5
+      zod: 4.3.6
 
   '@opentelemetry/api-logs@0.217.0':
     dependencies:
@@ -28604,7 +28604,7 @@ snapshots:
       tar-stream: 3.1.7
       undici: 7.28.0
       xdg-app-paths: 5.1.0
-      zod: 4.6.5
+      zod: 4.3.6
     transitivePeerDependencies:
       - bare-abort-controller
       - react-native-b4a
