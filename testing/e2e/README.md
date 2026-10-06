@@ -24,6 +24,7 @@ Each test iterates over supported providers using `providersFor('feature')`:
 | structured-output        | 7         | `tests/structured-output.spec.ts`        |
 | structured-output-stream | 4         | `tests/structured-output-stream.spec.ts` |
 | tool-calling             | 7         | `tests/tool-calling.spec.ts`             |
+| tool-choice              | 1         | `tests/tool-choice.spec.ts`              |
 | parallel-tool-calls      | 6         | `tests/parallel-tool-calls.spec.ts`      |
 | tool-approval            | 6         | `tests/tool-approval.spec.ts`            |
 | text-tool-text           | 6         | `tests/text-tool-text.spec.ts`           |
@@ -42,17 +43,22 @@ Each test iterates over supported providers using `providersFor('feature')`:
 | audio-gen                | 1         | `tests/audio-gen.spec.ts`                |
 | video-understanding      | 1         | `tests/video-understanding.spec.ts`      |
 
+`tool-choice` runs openai through `/api/chat`, and reads `tool_choice` from the aimock journal. aimock drops `tool_choice` from Anthropic requests, so the Anthropic cases use `/api/tool-choice-wire`. That route captures the request body.
+
 ### Tools-test page
 
 Deterministic scenarios covering tool execution flows:
 
-| Spec file                                         | Tests | What it covers                                           |
-| ------------------------------------------------- | ----- | -------------------------------------------------------- |
-| `tests/tools-test/chat-flow.spec.ts`              | 5     | Text-only, server tool, client tool, tool call structure |
-| `tests/tools-test/approval-flow.spec.ts`          | 6     | Approve, deny, sequential, parallel, mixed flows         |
-| `tests/tools-test/client-tool.spec.ts`            | 5     | Single, sequential, parallel, triple, server+client      |
-| `tests/tools-test/race-conditions.spec.ts`        | 8     | No blocking, no deadlocks, timing, mixed flows           |
-| `tests/tools-test/server-client-sequence.spec.ts` | 5     | Server→client, parallel server, ordering                 |
+| Spec file                                         | Tests | What it covers                                                                                            |
+| ------------------------------------------------- | ----- | --------------------------------------------------------------------------------------------------------- |
+| `tests/tools-test/chat-flow.spec.ts`              | 5     | Text-only, server tool, client tool, tool call structure                                                  |
+| `tests/tools-test/approval-flow.spec.ts`          | 6     | Approve, deny, sequential, parallel, mixed flows                                                          |
+| `tests/tools-test/client-tool.spec.ts`            | 5     | Single, sequential, parallel, triple, server+client                                                       |
+| `tests/tools-test/race-conditions.spec.ts`        | 8     | No blocking, no deadlocks, timing, mixed flows                                                            |
+| `tests/tools-test/server-client-sequence.spec.ts` | 5     | Server→client, parallel server, ordering                                                                  |
+| `tests/tools-test/coding-tools.spec.ts`           | 5     | `workspaceTools()` in a temp folder: `read_file`, the `edit_file` fallback match, `patch`, `grep`, `bash` |
+
+`coding-tools.spec.ts` does not use the page. It sends each `coding-*` scenario to `/api/tools-test` with a temp folder as `root`. The route runs one harness turn with `workspaceTools()` in that folder. The spec checks the `TOOL_CALL_RESULT` chunks and the files after the turn.
 
 ### Interrupt playground
 
@@ -81,15 +87,15 @@ Notes:
 
 ### Advanced feature tests
 
-| Spec file                      | What it covers                                            |
-| ------------------------------ | --------------------------------------------------------- |
-| `tests/abort.spec.ts`          | Stop button cancels in-flight generation                  |
-| `tests/lazy-tools.spec.ts`     | `__lazy__tool__discovery__` discovers and uses lazy tools |
-| `tests/custom-events.spec.ts`  | Server tool `emitCustomEvent` received by client          |
-| `tests/middleware.spec.ts`     | `onChunk` transform, `onBeforeToolCall` skip              |
-| `tests/error-handling.spec.ts` | Server RUN_ERROR, aimock error fixture                    |
-| `tests/tool-error.spec.ts`     | Tool throws error, agentic loop continues                 |
-| `tests/activity.spec.ts`       | AG-UI activity snapshot, send filter, reconstruct hydrate |
+| Spec file                      | What it covers                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------- |
+| `tests/abort.spec.ts`          | Stop button cancels in-flight generation                                        |
+| `tests/lazy-tools.spec.ts`     | `__lazy__tool__discovery__` discovers and uses lazy tools                       |
+| `tests/custom-events.spec.ts`  | Server tool `emitCustomEvent` received by client                                |
+| `tests/middleware.spec.ts`     | `onChunk` transform, `onBeforeToolCall` skip, `onAfterToolCall` `replaceResult` |
+| `tests/error-handling.spec.ts` | Server RUN_ERROR, aimock error fixture                                          |
+| `tests/tool-error.spec.ts`     | Tool throws error, agentic loop continues                                       |
+| `tests/activity.spec.ts`       | AG-UI activity snapshot, send filter, reconstruct hydrate                       |
 
 ### Durable / detachable run tests
 
@@ -130,7 +136,7 @@ E2E coverage is mandatory for every feature, bug fix, or behavior change (see th
 | New provider adapter                    | Add provider to `feature-support.ts` + `test-matrix.ts`. Existing feature tests auto-run.                                                                                                                  |
 | New feature (e.g., new generation type) | Add feature to types, feature config, support matrix. Create fixture + spec file.                                                                                                                          |
 | Bug fix in chat/streaming               | Add a test case to `chat.spec.ts` or `tools-test/` that reproduces the bug.                                                                                                                                |
-| Tool system change                      | Add scenario to `tools-test-scenarios.ts` + test in `tools-test/` specs.                                                                                                                                   |
+| Tool system change                      | Add scenario to `src/lib/tools-test-tools.ts` + test in `tools-test/` specs.                                                                                                                               |
 | Middleware change                       | Add test to `middleware.spec.ts` with appropriate scenario.                                                                                                                                                |
 | Client-side change (useChat, etc.)      | Add test covering the observable behavior change.                                                                                                                                                          |
 | joinRun + client-tool continuation      | Add a spec that reloads mid-run, tails with `joinRun`, and asserts the client-tool result POSTs after replay (see `tests/join-run-client-tool.spec.ts`).                                                   |
@@ -206,7 +212,7 @@ Clean up the fixture:
 }
 ```
 
-Existing prefixes: `[chat]`, `[oneshot]`, `[reasoning]`, `[multiturn-1]`, `[multiturn-2]`, `[toolcall]`, `[parallel]`, `[approval]`, `[approval-deny]`, `[text-tool-text]`, `[structured]`, `[structured-stream]`, `[structured-stream-abort]`, `[agentic]`, `[mmimage]`, `[mmstruct]`, `[summarize]`, `[imagegen]`, `[tts]`, `[transcription]`, `[abort-test]`, `[error-test]`.
+Existing prefixes: `[chat]`, `[oneshot]`, `[reasoning]`, `[multiturn-1]`, `[multiturn-2]`, `[toolcall]`, `[parallel]`, `[approval]`, `[approval-deny]`, `[text-tool-text]`, `[structured]`, `[structured-stream]`, `[structured-stream-abort]`, `[agentic]`, `[mmimage]`, `[mmstruct]`, `[summarize]`, `[imagegen]`, `[tts]`, `[transcription]`, `[abort-test]`, `[error-test]`, `[coding-read]`, `[coding-edit]`, `[coding-patch]`, `[coding-grep]`, `[coding-bash]`, `[harness-agent]`, `[harness-agents]`, `[harness-always]`, `[harness-chatclient]`, `[harness-context]`, `[harness-durable]`, `[harness-env]`, `[harness-fast-resolve]`, `[harness-fork]`, `[harness-format]`, `[harness-limits]`, `[harness-mcp]`, `[harness-media]`, `[harness-media-image]`, `[harness-plan-subagent]`, `[harness-plan-writer]`, `[harness-protocol]`, `[harness-queue]`, `[harness-queue-moved]`, `[harness-reject]`, `[harness-rejoin]`, `[harness-reset]`, `[harness-restart-resolve]`, `[harness-routing]`, `[harness-routing-fix]`, `[harness-routing:pricer]`, `[harness-routing:researcher]`, `[harness-routing:seo]`, `[harness-routing:writer]`, `[harness-runid]`, `[harness-sender]`, `[harness-settings]`, `[harness-title]`, `[harness-tool-order]`, `[harness-turns]`, `[harness-undo]`, `[harness-usage]`.
 
 ## 4. Writing a Test
 
