@@ -44,6 +44,7 @@ import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ProviderFeatureRouteImport } from './routes/$provider/$feature'
 import { Route as ApiAnthropicBugTestRouteImport } from './routes/api.anthropic-bug-test'
+import { Route as ApiAnthropicMaxTokensUsageRouteImport } from './routes/api.anthropic-max-tokens-usage'
 import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
 import { Route as ApiAnthropicRedactedThinkingWireRouteImport } from './routes/api.anthropic-redacted-thinking-wire'
@@ -315,6 +316,12 @@ const ApiAnthropicBugTestRoute = ApiAnthropicBugTestRouteImport.update({
   path: '/api/anthropic-bug-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAnthropicMaxTokensUsageRoute =
+  ApiAnthropicMaxTokensUsageRouteImport.update({
+    id: '/api/anthropic-max-tokens-usage',
+    path: '/api/anthropic-max-tokens-usage',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAnthropicMultiTurnStructuredWireRoute =
   ApiAnthropicMultiTurnStructuredWireRouteImport.update({
     id: '/api/anthropic-multi-turn-structured-wire',
@@ -837,6 +844,7 @@ export interface FileRoutesByFullPath {
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
@@ -966,6 +974,7 @@ export interface FileRoutesByTo {
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
@@ -1096,6 +1105,7 @@ export interface FileRoutesById {
   '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
+  '/api/anthropic-max-tokens-usage': typeof ApiAnthropicMaxTokensUsageRoute
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
@@ -1227,6 +1237,7 @@ export interface FileRouteTypes {
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
@@ -1356,6 +1367,7 @@ export interface FileRouteTypes {
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
@@ -1485,6 +1497,7 @@ export interface FileRouteTypes {
     | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
+    | '/api/anthropic-max-tokens-usage'
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
@@ -1615,6 +1628,7 @@ export interface RootRouteChildren {
   WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
+  ApiAnthropicMaxTokensUsageRoute: typeof ApiAnthropicMaxTokensUsageRoute
   ApiAnthropicMultiTurnStructuredWireRoute: typeof ApiAnthropicMultiTurnStructuredWireRoute
   ApiAnthropicOpus5CombinedWireRoute: typeof ApiAnthropicOpus5CombinedWireRoute
   ApiAnthropicRedactedThinkingWireRoute: typeof ApiAnthropicRedactedThinkingWireRoute
@@ -1950,6 +1964,13 @@ declare module '@tanstack/react-router' {
       path: '/api/anthropic-bug-test'
       fullPath: '/api/anthropic-bug-test'
       preLoaderRoute: typeof ApiAnthropicBugTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-max-tokens-usage': {
+      id: '/api/anthropic-max-tokens-usage'
+      path: '/api/anthropic-max-tokens-usage'
+      fullPath: '/api/anthropic-max-tokens-usage'
+      preLoaderRoute: typeof ApiAnthropicMaxTokensUsageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-multi-turn-structured-wire': {
@@ -2692,6 +2713,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
+  ApiAnthropicMaxTokensUsageRoute: ApiAnthropicMaxTokensUsageRoute,
   ApiAnthropicMultiTurnStructuredWireRoute:
     ApiAnthropicMultiTurnStructuredWireRoute,
   ApiAnthropicOpus5CombinedWireRoute: ApiAnthropicOpus5CombinedWireRoute,
