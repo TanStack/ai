@@ -9,7 +9,6 @@ import {
   compactForModel,
   convertSchemaToJsonSchema,
   createSubagentId,
-  fromSpecTokenUsage,
   maxIterations,
   modelMessagesToUIMessages,
   provideLogRecords,
@@ -55,7 +54,6 @@ import type {
   ProviderKeys,
   ResolvedPromptCache,
   RunAgentResumeItem,
-  RunFinishedEvent,
   RunRecord,
   SchemaInput,
   Scope,
@@ -79,7 +77,6 @@ import type {
   LogRecord,
   LogStore,
   MessageStore,
-  SessionIndexEntry,
   SessionIndexStore,
 } from '@tanstack/ai-persistence'
 import type { AuthRequiredError, CredentialsAccess } from './auth'
@@ -501,50 +498,6 @@ function turnContext(harness: unknown, input: unknown) {
     return { ...input, ...harness }
   }
   return harness !== undefined ? harness : input
-}
-
-type EntryUsage = NonNullable<SessionIndexEntry['usage']>
-
-/**
- * The usage of one finished run, as session index totals. `undefined` when
- * the run has no usage. A child run counts nothing: the run of its parent
- * has the child's usage too.
- */
-function entryUsageOf(chunk: RunFinishedEvent) {
-  if ('subagentRunId' in chunk && chunk.subagentRunId) return undefined
-  const { usage } = chunk
-  const tokens =
-    usage === undefined || Array.isArray(usage)
-      ? fromSpecTokenUsage(usage, chunk.metadata?.tanstack?.usage)
-      : usage
-  if (!tokens) return undefined
-  const counted: EntryUsage = {
-    // `usage[]` has one item per model call, the calls of children too.
-    turns: Array.isArray(usage) ? usage.length : 1,
-    promptTokens: tokens.promptTokens,
-    completionTokens: tokens.completionTokens,
-    totalTokens: tokens.totalTokens,
-    cachedTokens: tokens.promptTokensDetails?.cachedTokens ?? 0,
-    cacheWriteTokens: tokens.promptTokensDetails?.cacheWriteTokens ?? 0,
-    ...(tokens.cost !== undefined ? { cost: tokens.cost } : {}),
-  }
-  return counted
-}
-
-/** `total` plus `next`. A cost is kept when either one has a cost. */
-function addEntryUsage(total: EntryUsage | undefined, next: EntryUsage) {
-  if (!total) return next
-  const hasCost = total.cost !== undefined || next.cost !== undefined
-  const sum: EntryUsage = {
-    turns: total.turns + next.turns,
-    promptTokens: total.promptTokens + next.promptTokens,
-    completionTokens: total.completionTokens + next.completionTokens,
-    totalTokens: total.totalTokens + next.totalTokens,
-    cachedTokens: total.cachedTokens + next.cachedTokens,
-    cacheWriteTokens: total.cacheWriteTokens + next.cacheWriteTokens,
-    ...(hasCost ? { cost: (total.cost ?? 0) + (next.cost ?? 0) } : {}),
-  }
-  return sum
 }
 
 /** Where `stores.metadata` keeps the stored settings of each thread. */
@@ -3527,8 +3480,6 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     let text = ''
     let interrupts: Array<Interrupt> | undefined
     let failure: string | undefined
-    /** What the model calls of this turn spent, for the session index. */
-    let turnUsage: EntryUsage | undefined
     const captured: Array<MediaRecord> = []
     // What plugins and the router see of this turn. A turn that recovery
     // runs again gets the message its input sent.
@@ -3862,10 +3813,6 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           routedFrom = undefined
           for await (const chunk of stream) {
             cards?.processChunk(chunk)
-            if (chunk.type === EventType.RUN_FINISHED) {
-              const counted = entryUsageOf(chunk)
-              if (counted) turnUsage = addEntryUsage(turnUsage, counted)
-            }
             // chat() refused the resume before it ran anything.
             if (
               chunk.type === EventType.RUN_ERROR &&
@@ -4061,10 +4008,12 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
       )
     }
 
-    // The index entry gets the time of the turn and what it spent, before the
-    // turn ends. A deleted entry stays deleted. A failed write does not fail
-    // the turn.
-    const spent = turnUsage
+    // The index entry gets the time of the turn and the token totals of the
+    // session, before the turn ends. chat() waits for the usage counts before
+    // its stream ends, so the totals have every call of this turn. The totals
+    // replace the stored ones. The cost stays: a usage plugin writes it. A
+    // deleted entry stays deleted. A failed write does not fail the turn.
+    const { total } = this.usage()
     await this.index
       .update(
         this.threadId,
@@ -4072,7 +4021,19 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
           entry && {
             ...entry,
             updatedAt: Date.now(),
-            ...(spent ? { usage: addEntryUsage(entry.usage, spent) } : {}),
+            ...(total.calls > 0
+              ? {
+                  usage: {
+                    ...entry.usage,
+                    turns: total.calls,
+                    promptTokens: total.promptTokens,
+                    completionTokens: total.completionTokens,
+                    totalTokens: total.totalTokens,
+                    cachedTokens: total.cachedTokens,
+                    cacheWriteTokens: total.cacheWriteTokens,
+                  },
+                }
+              : {}),
           },
       )
       .catch((error: unknown) =>
@@ -5342,8 +5303,7 @@ export class HarnessSession<THarness extends AnyHarness = AnyHarness> {
     const { input } = logged
     if (input.op !== 'cancelInput' && input.op !== 'setDelivery') return
     const target = writer.state.inputs.get(input.inputId)
-    const isWaiting =
-      target?.status === 'pending' && 'message' in target.input
+    const isWaiting = target?.status === 'pending' && 'message' in target.input
     if (!isWaiting) {
       this.reject(logged.inputId, 'not_waiting')
       return

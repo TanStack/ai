@@ -568,11 +568,11 @@ export interface SessionIndexEntry {
   /** Who owns the thread, from the host's `authorize`. */
   principal?: { id: string; tenantId?: string }
   /**
-   * Token totals of the thread. The names match the totals of the harness
-   * `usage()` plugin.
+   * Token totals of the thread. The harness writes the counts from its core
+   * usage (`session.usage().total`) at the end of each turn.
    */
   usage?: {
-    /** Model calls. */
+    /** Model calls: `calls` in the harness usage. */
     turns: number
     promptTokens: number
     completionTokens: number
@@ -581,7 +581,7 @@ export interface SessionIndexEntry {
     cachedTokens: number
     /** Input tokens the provider wrote to its prompt cache. */
     cacheWriteTokens: number
-    /** Cost in USD, when a plugin counts it. */
+    /** Cost in USD, when a usage plugin writes it. */
     cost?: number
   }
   metadata?: Record<string, unknown>

@@ -1,13 +1,14 @@
 import { chat } from '@tanstack/ai'
 import { defineCommand } from '../commands'
 import { definePlugin } from '../plugins'
+import { emptyUsage } from '../usage'
 import type {
   AnyChatMiddleware,
   AnyTextAdapter,
   KeyedAdapter,
   ModelMessage,
-  UsageInfo,
 } from '@tanstack/ai'
+import type { SessionUsage, UsageCounts } from '../usage'
 
 const SUMMARY_PROMPT =
   'Summarize the conversation so far for yourself. Keep decisions, open tasks, file names, and facts you still need. Leave out small talk.'
@@ -78,26 +79,6 @@ export function compact(options: {
   })
 }
 
-interface UsageTotals {
-  turns: number
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-  /** Input tokens the provider read from its prompt cache. */
-  cachedTokens: number
-  /** Input tokens the provider wrote to its prompt cache. */
-  cacheWriteTokens: number
-  /**
-   * The input tokens of the latest model call of the lead turn: how much of
-   * the model's context the conversation fills now.
-   */
-  contextTokens: number
-  /** The cost in USD of the priced model calls. Only with the `model` option. */
-  cost?: number
-  /** The model calls that the `model` option had no prices for. */
-  unpricedCalls?: number
-}
-
 /** Prices in USD per 1M tokens: the `cost` of an `@tanstack/ai-models` record. */
 interface ModelPrices {
   input: number
@@ -106,7 +87,7 @@ interface ModelPrices {
   cacheWrite?: number
 }
 
-/** The usage of an index entry before the host adds the tokens of a turn. */
+/** The usage of an index entry before the host writes the tokens of a turn. */
 const NO_TOKENS = {
   turns: 0,
   promptTokens: 0,
@@ -117,38 +98,49 @@ const NO_TOKENS = {
 }
 
 /**
- * The cost in USD of one model call.
+ * The cost in USD of some model calls of one model.
  * ponytail: the formula of `modelCost` in `@tanstack/ai-models`, copied, so
  * ai-harness does not depend on ai-models.
  */
-function callCost(prices: ModelPrices, usage: UsageInfo) {
-  const cached = usage.promptTokensDetails?.cachedTokens ?? 0
-  const written = usage.promptTokensDetails?.cacheWriteTokens ?? 0
+function priceOf(prices: ModelPrices, counts: UsageCounts) {
+  const { cachedTokens, cacheWriteTokens } = counts
   // `promptTokens` counts the cache parts too, and each part has its own price.
-  const uncached = usage.promptTokens - cached - written
+  const uncached = counts.promptTokens - cachedTokens - cacheWriteTokens
   const part = (price: number | undefined, tokens: number) =>
     ((price ?? 0) / 1_000_000) * tokens
   return (
     part(prices.input, uncached) +
-    part(prices.output, usage.completionTokens) +
-    part(prices.cacheRead, cached) +
-    part(prices.cacheWrite, written)
+    part(prices.output, counts.completionTokens) +
+    part(prices.cacheRead, cachedTokens) +
+    part(prices.cacheWrite, cacheWriteTokens)
   )
 }
 
+/** One `/usage` line: the calls and tokens of `counts`. */
+function usageLine(counts: UsageCounts) {
+  // Only a provider that reports its prompt cache has these counts.
+  const hasCache = counts.cachedTokens > 0 || counts.cacheWriteTokens > 0
+  const cache = hasCache
+    ? ` (${counts.cachedTokens} cache read, ${counts.cacheWriteTokens} cache write)`
+    : ''
+  return `${counts.calls} model calls, ${counts.promptTokens} input tokens${cache}, ${counts.completionTokens} output tokens, ${counts.totalTokens} total.`
+}
+
 /**
- * Count tokens across the session: the lead turn and every agent run
- * (subagents, background agents, and their children). `/usage` shows the
- * totals, with the input tokens read from and written to the prompt cache.
- * The plugin state also has `contextTokens`, the size of the lead
- * model's context at its latest call, for a UI.
+ * Show the token usage of the session (`session.usage()`): the lead turn and
+ * every agent run (subagents, background agents, and their children).
+ * `/usage` shows the totals, with the input tokens read from and written to
+ * the prompt cache, and a line for each model when there is more than one.
+ * The plugin state, for a UI, has a copy of `session.usage().total` and
+ * `contextTokens`, the size of the lead model's context at its latest call.
  *
- * With `model`, the plugin also prices each model call. `model` gets the
- * model id of the call and returns its prices in USD per 1M tokens, or
- * `undefined` when it does not know the model. `/usage` then shows the
- * cost, and the plugin writes it to `usage.cost` of the session index
- * entry. A call with no prices adds no cost, and `/usage` says how many
- * calls it could not price.
+ * A model call that has a cost from its provider keeps that cost. With
+ * `model`, the plugin also prices the calls that have no provider cost.
+ * `model` gets the model id and returns its prices in USD per 1M tokens, or
+ * `undefined` when it does not know the model. `/usage` shows the cost when
+ * a call has one, and says how many calls it could not price. When a call
+ * has a cost, the plugin writes the cost to `usage.cost` of the session
+ * index entry.
  *
  * @example
  * ```ts
@@ -165,85 +157,112 @@ export function usage(
   return definePlugin({
     name: 'tanstack/usage',
     setup: (ctx) => {
-      const state = ctx.state<UsageTotals>({
-        turns: 0,
-        promptTokens: 0,
-        completionTokens: 0,
-        totalTokens: 0,
-        cachedTokens: 0,
-        cacheWriteTokens: 0,
-        contextTokens: 0,
-      })
-      const show = (totals: UsageTotals) => {
-        // Only a provider that reports its prompt cache has these counts.
-        const hasCache = totals.cachedTokens > 0 || totals.cacheWriteTokens > 0
-        const cache = hasCache
-          ? ` (${totals.cachedTokens} cache read, ${totals.cacheWriteTokens} cache write)`
-          : ''
-        const tokens = `${totals.turns} model calls, ${totals.promptTokens} input tokens${cache}, ${totals.completionTokens} output tokens, ${totals.totalTokens} total.`
-        if (!options.model) return tokens
-        const unpriced = totals.unpricedCalls ?? 0
+      /**
+       * A copy of the session totals, and `contextTokens`: the input tokens
+       * of the latest model call of the lead turn, so how much of the
+       * model's context the conversation fills now.
+       */
+      const state = ctx.state({ ...emptyUsage().total, contextTokens: 0 })
+      // The cost of the model calls of one model, else `undefined`.
+      const costOf = (model: string, counts: UsageCounts) => {
+        if (counts.cost !== undefined) return counts.cost
+        // The key is `provider/model`. The lookup gets the model id only.
+        const prices = options.model?.(model.slice(model.indexOf('/') + 1))
+        return prices && priceOf(prices.cost, counts)
+      }
+      /**
+       * The cost of the session, and how many calls have no cost. `cost` is
+       * `undefined` when no call has one.
+       * ponytail: core sums by model. When a model has a provider cost, its
+       * calls with no provider cost add nothing. Upgrade: core keeps, by
+       * model, the counts of the calls with no provider cost.
+       */
+      const sessionCost = (totals: SessionUsage) => {
+        let cost: number | undefined
+        let unpriced = 0
+        for (const [model, counts] of Object.entries(totals.byModel)) {
+          const modelCost = costOf(model, counts)
+          if (modelCost === undefined) unpriced += counts.calls
+          else cost = (cost ?? 0) + modelCost
+        }
+        return { cost, unpriced }
+      }
+      const show = () => {
+        const totals = ctx.session.snapshot().usage
+        const { cost, unpriced } = sessionCost(totals)
         const note =
           unpriced > 0
             ? ` (cost unknown for ${unpriced} ${unpriced === 1 ? 'call' : 'calls'})`
             : ''
-        return `${tokens} Cost: $${(totals.cost ?? 0).toFixed(4)}${note}.`
+        const isPriced = options.model !== undefined || cost !== undefined
+        const priced = isPriced
+          ? ` Cost: $${(cost ?? 0).toFixed(4)}${note}.`
+          : ''
+        const lines = [`${usageLine(totals.total)}${priced}`]
+        const models = Object.entries(totals.byModel)
+        // One model has the same counts as the total.
+        if (models.length > 1) {
+          for (const [model, counts] of models) {
+            lines.push(`${model}: ${usageLine(counts)}`)
+          }
+        }
+        return lines.join('\n')
       }
-      // The host adds the tokens of each turn to the index entry. This
-      // plugin writes only `cost`, and keeps the tokens of the entry.
-      const saveCost = async (cost: number) => {
+      // The host writes the token totals to the index entry at the end of
+      // each turn. This plugin writes only `cost`, and keeps the tokens of
+      // the entry.
+      // ponytail: a host with a log counts a call when its log write lands,
+      // which can be after the run ends. Then the entry and the state get
+      // that call at the end of the next run or call. Upgrade: the host
+      // writes the cost at turn end.
+      const saveCost = async () => {
+        const { cost } = sessionCost(ctx.session.snapshot().usage)
+        if (cost === undefined) return
         const entry = await ctx.session.entry()
         if (!entry) return
         // Before the first turn ends, the entry has no usage.
         const tokens = entry.usage ?? NO_TOKENS
         // ponytail: read, then write. A host write or another agent's write
-        // between the two can be lost until the next priced call writes the
-        // total again. Upgrade: a change function in updateEntry.
+        // between the two can be lost until the next run writes the total
+        // again. Upgrade: a change function in updateEntry.
         await ctx.session.updateEntry({ usage: { ...tokens, cost } })
       }
-      const counter = (lead: boolean) =>
-        ({
-          name: 'tanstack/usage',
-          onUsage: async (run, info) => {
-            const prices = options.model?.(run.model)?.cost
-            const cost = prices ? callCost(prices, info) : undefined
-            const isUnpriced = options.model !== undefined && cost === undefined
-            const { cost: total } = await state.update((totals) => ({
-              ...totals,
-              ...(cost !== undefined ? { cost: (totals.cost ?? 0) + cost } : {}),
-              ...(isUnpriced
-                ? { unpricedCalls: (totals.unpricedCalls ?? 0) + 1 }
-                : {}),
-              turns: totals.turns + 1,
-              promptTokens: totals.promptTokens + (info.promptTokens ?? 0),
-              completionTokens:
-                totals.completionTokens + (info.completionTokens ?? 0),
-              totalTokens: totals.totalTokens + (info.totalTokens ?? 0),
-              cachedTokens:
-                totals.cachedTokens +
-                (info.promptTokensDetails?.cachedTokens ?? 0),
-              cacheWriteTokens:
-                totals.cacheWriteTokens +
-                (info.promptTokensDetails?.cacheWriteTokens ?? 0),
-              contextTokens: lead
-                ? (info.promptTokens ?? totals.contextTokens)
-                : totals.contextTokens,
-            }))
-            if (cost === undefined || total === undefined) return
-            // The index is only a list of sessions: a failed write does not
-            // fail the turn. The next priced call writes the total again.
-            await saveCost(total).catch(() => {})
-          },
-        }) satisfies AnyChatMiddleware
+      // Copy the session totals to the state. Only a call of the lead turn
+      // sets the context size.
+      const mirror = (contextTokens?: number) =>
+        state.update((current) => ({
+          ...ctx.session.snapshot().usage.total,
+          contextTokens: contextTokens ?? current.contextTokens,
+        }))
+      // At the end of each run, the state gets the totals and the index entry
+      // gets the cost so far. The index is only a list of sessions, and the
+      // state only a copy: a failed write does not fail the run. The next run
+      // writes them again.
+      const save = async () => {
+        await Promise.all([mirror(), saveCost()]).catch(() => {})
+      }
+      const atRunEnd = {
+        name: 'tanstack/usage',
+        onFinish: save,
+        onAbort: save,
+        onError: save,
+      } satisfies AnyChatMiddleware
       return {
-        // The same totals for the lead turn and every agent run. Only the
-        // lead turn sets the context size.
-        middleware: [counter(true)],
-        agentMiddleware: [counter(false)],
+        middleware: [
+          {
+            ...atRunEnd,
+            onUsage: async (_run, info) => {
+              await mirror(info.promptTokens)
+            },
+          } satisfies AnyChatMiddleware,
+        ],
+        // An agent's middleware runs before the host counts its call, so its
+        // run copies the totals only at its end.
+        agentMiddleware: [atRunEnd],
         commands: {
           usage: defineCommand({
             description: 'Show token usage for this session',
-            run: async () => show(await state.get()),
+            run: show,
           }),
         },
       }
