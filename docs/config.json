@@ -183,7 +183,8 @@
         {
           "label": "Reasoning",
           "to": "chat/reasoning",
-          "addedAt": "2026-09-30"
+          "addedAt": "2026-09-30",
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Message Queue",
@@ -337,7 +338,7 @@
           "label": "Prompt Caching",
           "to": "advanced/prompt-caching",
           "addedAt": "2026-10-02",
-          "updatedAt": "2026-10-02"
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Mid-Conversation Changes",
@@ -1312,7 +1313,8 @@
         {
           "label": "Model Catalog",
           "to": "models/catalog",
-          "addedAt": "2026-09-30"
+          "addedAt": "2026-09-30",
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Typed Pre-Configured Options",
@@ -1341,7 +1343,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-04"
+          "updatedAt": "2026-10-06"
         },
         {
           "label": "Anthropic",
