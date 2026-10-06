@@ -88,6 +88,53 @@ const levels = model ? supportedReasoningLevels(model) : [];
 // ["low", "medium", "high", "xhigh", "max"]
 ```
 
+## A model the adapter does not list
+
+An adapter knows the levels of the models in its own list. A gateway id, a new model, or an id from a catalog is not in that list. For such a model, the adapter sends no reasoning field, and the types take no `reasoning` option.
+
+Give the adapter the model's reasoning data in its config. The factory takes any model id:
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
+
+const adapter = createAnthropicChat(
+  "anthropic/claude-sonnet-4.6",
+  process.env.AI_GATEWAY_API_KEY ?? "",
+  {
+    baseURL: "https://ai-gateway.vercel.sh",
+    reasoning: { map: { minimal: null, xhigh: null, max: "max" }, budget: true },
+  },
+);
+
+const stream = chat({
+  adapter,
+  messages: [{ role: "user", content: "Plan a database migration." }],
+  reasoning: "high",
+});
+```
+
+The `reasoning` config has the same shape on every adapter:
+
+- `false`: the model does not reason. No reasoning field goes out, and the types take no level.
+- `map`: the provider value for each level. `null` means that the model does not have the level. A level with no entry passes as its own name, except `xhigh` and `max`.
+- `budget`: `true` when the model thinks with a token budget.
+
+With `reasoning` in the config, the types take every level. The adapter moves a level that the model does not have to the nearest one, as in [A level from the user](#a-level-from-the-user). The config wins over the adapter's own data, also for a model in its list.
+
+These factories take the `reasoning` config:
+
+| Package | Factories |
+| --- | --- |
+| `@tanstack/ai-anthropic` | `anthropicText`, `createAnthropicChat`, `anthropicVertexText` |
+| `@tanstack/ai-openai` | `openaiText`, `createOpenaiChat`, `azureOpenaiText` |
+| `@tanstack/ai-gemini` | `geminiText`, `createGeminiChat`, also with `vertexai: true` |
+| `@tanstack/ai-bedrock` | `createBedrockConverse` |
+| `@tanstack/ai-mistral` | `mistralText`, `createMistralText` |
+| `@tanstack/ai-cloudflare` | `cloudflareText`, `createCloudflareText` |
+
+To build the config from a catalog record, see [Build an adapter from a record](../models/catalog#build-an-adapter-from-a-record).
+
 ## Change the level in middleware
 
 Middleware can set the level for a call, for example to lower it on a retry:

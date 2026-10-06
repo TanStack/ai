@@ -11,6 +11,7 @@ import type { ProviderRow, Wire } from './providers'
 import type { DevModel } from './rules'
 import type {
   ModelCompat,
+  ModelCostRates,
   ModelRecord,
   ProviderRecord,
   WireApi,
@@ -45,6 +46,27 @@ const mergeCompat = (
   return Object.keys(merged).length > 0 ? merged : undefined
 }
 
+/**
+ * The models.dev context tiers, in pi's shape. A tier price that models.dev
+ * leaves out is 0, as in pi's catalog.
+ */
+function costTiers(model: DevModel): ModelCostRates['tiers'] {
+  const tiers = (model.cost?.tiers ?? []).flatMap((tier) =>
+    tier.tier?.type === 'context' && tier.tier.size !== undefined
+      ? [
+          {
+            inputTokensAbove: tier.tier.size,
+            input: tier.input ?? 0,
+            output: tier.output ?? 0,
+            cacheRead: tier.cache_read ?? 0,
+            cacheWrite: tier.cache_write ?? 0,
+          },
+        ]
+      : [],
+  )
+  return tiers.length > 0 ? tiers : undefined
+}
+
 /** Turn one models.dev model into a catalog record for `row`. */
 export function toRecord(
   row: ProviderRow,
@@ -75,12 +97,13 @@ export function toRecord(
     reasoning,
     reasoningMap: map,
     reasoningBudget: budget || undefined,
-    cost: {
+    cost: compact({
       input: model.cost?.input ?? 0,
       output: model.cost?.output ?? 0,
       cacheRead: model.cost?.cache_read ?? 0,
       cacheWrite: model.cost?.cache_write ?? 0,
-    },
+      tiers: costTiers(model),
+    }),
     contextWindow: model.limit?.context ?? 0,
     maxTokens: model.limit?.output ?? 0,
     headers: row.headers,
@@ -108,6 +131,7 @@ export function buildModels(
     for (const [sourceId, model] of Object.entries(
       inputs.dev[source]?.models ?? {},
     )) {
+      if (row.exclude?.(sourceId)) continue
       const id = row.modelId?.(sourceId) ?? sourceId
       if (records.has(id) || !allowed(id) || !makesText(model)) continue
       records.set(id, toRecord(row, id, model, sourceId))

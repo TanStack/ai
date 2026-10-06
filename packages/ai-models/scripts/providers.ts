@@ -32,6 +32,8 @@ export interface ProviderRow {
   wire?: (model: SourceModel) => Wire
   /** The model id the catalog uses, from the models.dev id. Default: the same. */
   modelId?: (sourceId: string) => string
+  /** `true`: leave this models.dev model out, for example one on a wire no adapter here takes. */
+  exclude?: (sourceId: string) => boolean
   /** Quirks of every model of this provider. */
   compat?: ModelCompat
   /** Quirks of some models of this provider, by model id. */
@@ -286,6 +288,9 @@ export const PROVIDERS: ReadonlyArray<ProviderRow> = [
     sources: ['google-vertex'],
     baseUrl: 'https://{location}-aiplatform.googleapis.com',
     api: 'google-vertex',
+    // Claude on Vertex speaks the Anthropic Messages wire, which the Gemini
+    // adapter cannot call. pi lists no Claude models on Vertex either.
+    exclude: (id) => id.startsWith('claude-'),
     // An API key, or Application Default Credentials with a project and a location.
     env: [
       ['GOOGLE_CLOUD_API_KEY'],

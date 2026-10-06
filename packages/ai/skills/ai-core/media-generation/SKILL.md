@@ -623,9 +623,43 @@ polls for status, and streams updates to the client. Adapters: `openaiVideo`
 (Sora), `geminiVideo` (Veo / Omni Flash), `grokVideo`, `byteplusVideo`
 (Seedance), `falVideo` (Kling, MiniMax, Hunyuan, …), and `openRouterVideo`
 (OpenRouter's dedicated `POST /api/v1/videos` gateway — Seedance, Veo, Wan,
-Kling, Sora 2 Pro and others through one API key; `getVideoJobStatus()`
-returns the video as a `data:` URL since OpenRouter's download URLs require
-the API key, and surfaces the gateway-reported cost as `usage.cost`).
+Kling, Sora 2 Pro and others through one API key; its download URLs require
+the API key, so it returns the video as bytes (see below), and surfaces the
+gateway-reported cost as `usage.cost`).
+
+**Bytes-only providers: use generation persistence for large videos.** When a
+provider has no public URL for the finished video (OpenRouter, Lovable, Sora
+jobs without `url`), the adapter's `getVideo()` returns
+`{ body, contentType }`. `withGenerationPersistence` with `artifactUrl` streams
+`body` into the blob store (R2, S3, filesystem) and sets `url`. Without it,
+core buffers the whole video in memory and sets `url` to a base64 `data:` URL
+(fine for short clips, an out-of-memory risk on serverless above ~10 MiB).
+Custom adapters implement `getVideo()`. `adapter.getVideoUrl()` is deprecated:
+it is `getVideo()` with the stream always buffered, and adapters that only
+implement it still work. Providers that
+return a URL (Grok, fal, BytePlus) pass through; persistence still re-hosts
+them, which you want because those URLs expire.
+
+```typescript
+import { getVideoJobStatus } from '@tanstack/ai'
+import { openRouterVideo } from '@tanstack/ai-openrouter'
+import { withGenerationPersistence } from '@tanstack/ai-persistence'
+// Your AIPersistence with generationRuns, artifacts, and blobs stores.
+import { persistence } from './persistence'
+
+export async function pollVideo(jobId: string, threadId: string) {
+  return getVideoJobStatus({
+    adapter: openRouterVideo('google/veo-3.1'),
+    jobId,
+    threadId,
+    middleware: [
+      withGenerationPersistence(persistence, {
+        artifactUrl: (ref) => `/api/artifacts/${ref.artifactId}`,
+      }),
+    ],
+  })
+}
+```
 
 ```typescript
 import {
@@ -773,7 +807,8 @@ const { jobId } = await generateVideo({
   prompt: 'A timelapse of clouds',
   duration: adapter.snapDuration(sliderSeconds),
 })
-// Completed url is a data: URL; usage.cost carries the real billed cost.
+// Completed url is a base64 data: URL unless withGenerationPersistence (with
+// artifactUrl) hosts the stream. usage.cost is the real billed cost.
 ```
 
 Client hook with job tracking:

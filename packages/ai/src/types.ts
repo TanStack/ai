@@ -21,6 +21,7 @@ import type {
 } from '@tanstack/ai-event-client'
 import type {
   ActivityDeltaEvent as AGUIActivityDeltaEvent,
+  ActivityMessage as AGUIActivityMessage,
   ActivitySnapshotEvent as AGUIActivitySnapshotEvent,
   AudioPart as AGUIAudioPart,
   BaseEvent as AGUIBaseEvent,
@@ -555,6 +556,26 @@ export interface ThinkingPart {
 }
 
 /**
+ * Frontend-only AG-UI activity. Never converted into ModelMessage input.
+ * Mirrors {@link https://docs.ag-ui.com/concepts/messages | ActivityMessage}:
+ * `activityType` selects a renderer; `content` is the structured payload.
+ */
+export interface ActivityPart extends Pick<
+  AGUIActivityMessage,
+  'activityType' | 'content' | 'subagentRunId'
+> {
+  type: 'activity'
+}
+
+/**
+ * Durable sidecar row for frontend-only AG-UI activity. Never a ModelMessage.
+ * `index` is the insert position in the reconstructed UI transcript.
+ */
+export interface ActivityRecord extends Omit<AGUIActivityMessage, 'role'> {
+  index: number
+}
+
+/**
  * Recursive `Partial` — every nested field becomes optional. Used as the
  * `partial` type on a streaming structured-output part since the progressive
  * JSON parse hands back objects whose fields are only filled in as bytes
@@ -647,6 +668,7 @@ export type MessagePart<TData = unknown> =
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart
+  | ActivityPart
   | StructuredOutputPart<TData>
   | UIResourcePart
   | SubagentPart
@@ -668,6 +690,12 @@ export interface TanStackMessageMetadata {
   source?: MessageSource
   stopReason?: 'error' | 'aborted'
   responseId?: string
+  /**
+   * The provider's answer items of this assistant message, in order, for a
+   * same-model replay. The OpenAI Responses adapter keeps each output
+   * message item's `id` and `phase` (`commentary` or `final_answer`).
+   */
+  responseItems?: Array<{ id: string; phase?: string }>
   /** Parent chat run that produced this assistant message. */
   runId?: string
   /**
@@ -713,6 +741,8 @@ export interface TanStackRunMetadata {
   source?: MessageSource
   model?: string
   responseId?: string
+  /** The answer items of this model call. See `TanStackMessageMetadata.responseItems`. */
+  responseItems?: TanStackMessageMetadata['responseItems']
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover
@@ -735,7 +765,7 @@ export interface TanStackRunMetadata {
  */
 export interface UIMessage<TData = unknown> {
   id: string
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'activity'
   parts: Array<MessagePart<TData>>
   createdAt?: Date
   /** Optional AG-UI sender name. Converters preserve it across wire and persist. */
@@ -1902,11 +1932,31 @@ export interface ReasoningEndEvent extends AGUIReasoningEndEvent {}
  */
 export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValueEvent {}
 
-/** AG-UI 1.0 ActivitySnapshotEvent shape. */
-export interface ActivitySnapshotEvent extends AGUIActivitySnapshotEvent {}
+/**
+ * Full activity state for an `ActivityMessage`.
+ *
+ * @ag-ui/core provides: `messageId`, `activityType`, `content`, `replace?`,
+ * `metadata?`, `subagentRunId?`. When `replace` is omitted it means `true`.
+ */
+export interface ActivitySnapshotEvent extends Omit<
+  AGUIActivitySnapshotEvent,
+  'type'
+> {
+  type: 'ACTIVITY_SNAPSHOT'
+}
 
-/** AG-UI 1.0 ActivityDeltaEvent shape. */
-export interface ActivityDeltaEvent extends AGUIActivityDeltaEvent {}
+/**
+ * RFC 6902 JSON Patch against an existing activity's `content`.
+ *
+ * @ag-ui/core provides: `messageId`, `activityType`, `patch`, `metadata?`,
+ * `subagentRunId?`
+ */
+export interface ActivityDeltaEvent extends Omit<
+  AGUIActivityDeltaEvent,
+  'type'
+> {
+  type: 'ACTIVITY_DELTA'
+}
 
 /** AG-UI 1.0 RawEvent shape. */
 export interface RawEvent extends AGUIRawEvent {}
@@ -2520,6 +2570,25 @@ export interface VideoUrlResult {
   usage?: TokenUsage
   /** Persisted artifact references for generated assets, when available */
   artifacts?: Array<PersistedArtifactRef>
+  body?: never
+}
+
+/**
+ * Video bytes from a provider that has no public URL for the finished video.
+ * Core passes `body` to generation middleware, which streams it into storage
+ * and sets `url`. Use `withGenerationPersistence` with `artifactUrl`.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface VideoStreamResult {
+  /** Job identifier */
+  jobId: string
+  /** The video bytes. Read once, with backpressure. Never buffer it whole. */
+  body: ReadableStream<Uint8Array>
+  /** MIME type of `body`, e.g. `video/mp4`. */
+  contentType: string
+  usage?: TokenUsage
+  url?: never
 }
 
 // ============================================================================

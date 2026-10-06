@@ -13,6 +13,7 @@ export type {
   InputModality,
   ModelCompat,
   ModelCostRates,
+  ModelCostTier,
   ModelReasoning,
   ModelRecord,
   ProviderRecord,

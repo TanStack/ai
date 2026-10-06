@@ -183,7 +183,7 @@ import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
 import { chatOnlyPersistence } from './chat-only'
 
 runPersistenceConformance('chat-only adapter', () => chatOnlyPersistence(), {
-  skip: ['generationRuns', 'artifacts', 'blobs'],
+  skip: ['activities', 'generationRuns', 'artifacts', 'blobs'],
   skipMethods: ['runs.listByThread'],
 })
 ```

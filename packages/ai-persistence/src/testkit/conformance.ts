@@ -7,10 +7,11 @@
  * store the persistence exposes and is the authoritative compatibility gate for
  * the store interfaces in `../types.ts`.
  *
- * Covers all seven stores: the four chat state stores (`messages`, `runs`,
- * `interrupts`, `metadata`) and the three generation stores (`generationRuns`,
- * `artifacts`, `blobs`). Locks are not part of this suite — they are a separate
- * coordination concern (`LockStore` + `withLocks`), not a store.
+ * Covers all eight stores: the five chat state stores (`messages`,
+ * `activities`, `runs`, `interrupts`, `metadata`) and the three generation
+ * stores (`generationRuns`, `artifacts`, `blobs`). Locks are not part of this
+ * suite — they are a separate coordination concern (`LockStore` + `withLocks`),
+ * not a store.
  *
  * SKIPPING (declare or fail): a backend that deliberately omits a store must
  * declare it in `options.skip`, and one that omits an OPTIONAL store method
@@ -18,8 +19,9 @@
  * fails the suite loudly, and anything declared absent is reported by vitest as
  * a SKIPPED case, never as a pass. Silent gaps are not allowed: a case that did
  * not run must never be indistinguishable from one that did. A chat-only
- * adapter therefore passes `skip: ['generationRuns', 'artifacts', 'blobs']`,
- * and a generation-only one skips the four state stores. `listByParentRun` is
+ * adapter with no activity store therefore passes
+ * `skip: ['activities', 'generationRuns', 'artifacts', 'blobs']`, and a
+ * generation-only one skips the five state stores. `listByParentRun` is
  * the exception. Subagent support is opt-in, its cases skip on their own, and
  * a `'runs.listByParentRun'` entry is accepted but has no effect.
  *
@@ -322,6 +324,49 @@ export function runPersistenceConformance(
 
         await store.saveThread('thread-metadata', withMetadata)
         expect(await store.loadThread('thread-metadata')).toEqual(withMetadata)
+      })
+    })
+
+    describe('activities', () => {
+      it('round-trips a thread and returns [] for unknown threads', async (ctx) => {
+        const store = resolveStore('activities')
+        if (!store) return ctx.skip('store not provided')
+
+        expect(await store.loadActivities('thread-unknown')).toEqual([])
+
+        await store.saveActivities('thread-act', [
+          {
+            id: 'act-1',
+            activityType: 'SEARCH',
+            content: { query: 'tanstack' },
+            index: 1,
+          },
+        ])
+        expect(await store.loadActivities('thread-act')).toEqual([
+          {
+            id: 'act-1',
+            activityType: 'SEARCH',
+            content: { query: 'tanstack' },
+            index: 1,
+          },
+        ])
+
+        await store.saveActivities('thread-act', [
+          {
+            id: 'act-2',
+            activityType: 'PLAN',
+            content: { steps: [] },
+            index: 0,
+          },
+        ])
+        expect(await store.loadActivities('thread-act')).toEqual([
+          {
+            id: 'act-2',
+            activityType: 'PLAN',
+            content: { steps: [] },
+            index: 0,
+          },
+        ])
       })
     })
 

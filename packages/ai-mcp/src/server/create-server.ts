@@ -361,6 +361,25 @@ export function createMCPServer<
       // The SDK passes authInfo through to the factory and to each handler.
       const requestOptions = authInfo === undefined ? undefined : { authInfo }
       if (legacy) return stateless(request, requestOptions)
+      if (
+        request.method === 'POST' &&
+        request.headers.get('mcp-method') === 'subscriptions/listen'
+      ) {
+        const body: unknown = await request
+          .clone()
+          .json()
+          .catch(() => undefined)
+        if (isRecord(body) && body.method === 'subscriptions/listen') {
+          return Response.json({
+            jsonrpc: '2.0',
+            id:
+              typeof body.id === 'string' || typeof body.id === 'number'
+                ? body.id
+                : null,
+            error: { code: -32601, message: 'Method not found' },
+          })
+        }
+      }
       return modern.fetch(request, requestOptions)
     },
   }
@@ -467,10 +486,14 @@ function buildMcpServer(input: {
 
 // Tasks exist on spec 2025-11-25 only. Spec 2026-07-28 has no tasks yet.
 function serverOptions(era: ProtocolYear, hasTaskTool: boolean) {
-  if (!hasTaskTool || era !== '2025') return undefined
   return {
     capabilities: {
-      tasks: { requests: { tools: { call: {} } } },
+      tools: { listChanged: false },
+      resources: { listChanged: false },
+      prompts: { listChanged: false },
+      ...(hasTaskTool && era === '2025'
+        ? { tasks: { requests: { tools: { call: {} } } } }
+        : {}),
     },
   }
 }

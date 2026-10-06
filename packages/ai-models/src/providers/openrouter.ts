@@ -257,7 +257,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: null,
       max: null,
     },
-    cost: { input: 2, output: 12, cacheRead: 0.2, cacheWrite: 0.375 },
+    cost: {
+      input: 2,
+      output: 12,
+      cacheRead: 0.2,
+      cacheWrite: 0.375,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 4,
+          output: 18,
+          cacheRead: 0.4,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1048576,
     maxTokens: 65536,
     compat: {
@@ -313,7 +327,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 },
+    cost: {
+      input: 10,
+      output: 50,
+      cacheRead: 1,
+      cacheWrite: 12.5,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 20,
+          output: 75,
+          cacheRead: 2,
+          cacheWrite: 25,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -342,7 +370,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+    cost: {
+      input: 0.1,
+      output: 0.5,
+      cacheRead: 0.01,
+      cacheWrite: 0.125,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 0.2,
+          output: 0.75,
+          cacheRead: 0.02,
+          cacheWrite: 0.25,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -400,7 +442,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
+    cost: {
+      input: 2,
+      output: 10,
+      cacheRead: 0.1,
+      cacheWrite: 2.5,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 4,
+          output: 15,
+          cacheRead: 0.2,
+          cacheWrite: 5,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -429,7 +485,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 2, output: 12, cacheRead: 0.2, cacheWrite: 2.5 },
+    cost: {
+      input: 2,
+      output: 12,
+      cacheRead: 0.2,
+      cacheWrite: 2.5,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 4,
+          output: 18,
+          cacheRead: 0.4,
+          cacheWrite: 5,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -458,7 +528,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: null,
     },
-    cost: { input: 2, output: 6, cacheRead: 0.5, cacheWrite: 0 },
+    cost: {
+      input: 2,
+      output: 6,
+      cacheRead: 0.5,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 4,
+          output: 12,
+          cacheRead: 1,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 500000,
     maxTokens: 450000,
     compat: {
@@ -1080,7 +1164,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       max: 'max',
     },
     reasoningBudget: true,
-    cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+    cost: {
+      input: 5,
+      output: 25,
+      cacheRead: 0.5,
+      cacheWrite: 6.25,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 10,
+          output: 37.5,
+          cacheRead: 1,
+          cacheWrite: 12.5,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 128000,
     compat: {
@@ -1138,7 +1236,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+    cost: {
+      input: 5,
+      output: 25,
+      cacheRead: 0.5,
+      cacheWrite: 6.25,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 10,
+          output: 37.5,
+          cacheRead: 1,
+          cacheWrite: 12.5,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 128000,
     compat: {
@@ -1377,7 +1489,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       medium: null,
       high: 'high',
     },
-    cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+    cost: {
+      input: 3,
+      output: 15,
+      cacheRead: 0.3,
+      cacheWrite: 3.75,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 6,
+          output: 22.5,
+          cacheRead: 0.6,
+          cacheWrite: 7.5,
+        },
+      ],
+    },
     contextWindow: 200000,
     maxTokens: 64000,
     compat: {
@@ -1404,7 +1530,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       medium: null,
       high: 'high',
     },
-    cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+    cost: {
+      input: 3,
+      output: 15,
+      cacheRead: 0.3,
+      cacheWrite: 3.75,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 6,
+          output: 22.5,
+          cacheRead: 0.6,
+          cacheWrite: 7.5,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 64000,
     compat: {
@@ -1453,7 +1593,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: null,
       max: 'max',
     },
-    cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+    cost: {
+      input: 3,
+      output: 15,
+      cacheRead: 0.3,
+      cacheWrite: 3.75,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 6,
+          output: 22.5,
+          cacheRead: 0.6,
+          cacheWrite: 7.5,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 128000,
     compat: {
@@ -1617,6 +1771,25 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
   },
   {
+    id: 'apodex/apodex-1.1-mini:free',
+    provider: 'openrouter',
+    name: 'Apodex: Apodex 1.1 Mini (free)',
+    api: 'openai-completions',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    input: ['text'],
+    reasoning: true,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 262144,
+    maxTokens: 235929,
+    compat: {
+      thinkingFormat: 'openrouter',
+      supportsStrictMode: true,
+      sendSessionAffinityHeaders: true,
+      sessionAffinityFormat: 'openrouter',
+      supportsDeveloperRole: false,
+    },
+  },
+  {
     id: 'arcee-ai/trinity-large-thinking',
     provider: 'openrouter',
     name: 'Trinity Large Thinking',
@@ -1696,7 +1869,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       medium: null,
       high: 'high',
     },
-    cost: { input: 0.25, output: 2, cacheRead: 0, cacheWrite: 0 },
+    cost: {
+      input: 0.25,
+      output: 2,
+      cacheRead: 0,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 128000,
+          input: 0.5,
+          output: 4,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 262144,
     maxTokens: 32768,
     compat: {
@@ -1722,7 +1909,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       medium: null,
       high: 'high',
     },
-    cost: { input: 0.075, output: 0.3, cacheRead: 0, cacheWrite: 0 },
+    cost: {
+      input: 0.075,
+      output: 0.3,
+      cacheRead: 0,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 128000,
+          input: 0.1,
+          output: 0.8,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 262144,
     maxTokens: 32768,
     compat: {
@@ -1776,7 +1977,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: null,
       max: null,
     },
-    cost: { input: 0.5, output: 3, cacheRead: 0, cacheWrite: 0 },
+    cost: {
+      input: 0.5,
+      output: 3,
+      cacheRead: 0,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 128000,
+          input: 1,
+          output: 6,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 262144,
     maxTokens: 131072,
     compat: {
@@ -1804,7 +2019,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: null,
       max: null,
     },
-    cost: { input: 0.25, output: 2, cacheRead: 0, cacheWrite: 0 },
+    cost: {
+      input: 0.25,
+      output: 2,
+      cacheRead: 0,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 128000,
+          input: 0.5,
+          output: 4,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 262144,
     maxTokens: 131072,
     compat: {
@@ -1832,7 +2061,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: null,
       max: null,
     },
-    cost: { input: 0.1, output: 0.4, cacheRead: 0, cacheWrite: 0 },
+    cost: {
+      input: 0.1,
+      output: 0.4,
+      cacheRead: 0,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 128000,
+          input: 0.2,
+          output: 0.8,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 262144,
     maxTokens: 131072,
     compat: {
@@ -2559,7 +2802,21 @@ export const models: ReadonlyArray<ModelRecord> = [
     input: ['text', 'image', 'audio', 'video', 'document'],
     reasoning: true,
     reasoningBudget: true,
-    cost: { input: 1.25, output: 10, cacheRead: 0.125, cacheWrite: 0.375 },
+    cost: {
+      input: 1.25,
+      output: 10,
+      cacheRead: 0.125,
+      cacheWrite: 0.375,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 2.5,
+          output: 15,
+          cacheRead: 0.25,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1048576,
     maxTokens: 65536,
     compat: {
@@ -2579,7 +2836,21 @@ export const models: ReadonlyArray<ModelRecord> = [
     input: ['text', 'image', 'audio', 'document'],
     reasoning: true,
     reasoningBudget: true,
-    cost: { input: 1.25, output: 10, cacheRead: 0.125, cacheWrite: 0.375 },
+    cost: {
+      input: 1.25,
+      output: 10,
+      cacheRead: 0.125,
+      cacheWrite: 0.375,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 2.5,
+          output: 15,
+          cacheRead: 0.25,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1048576,
     maxTokens: 65536,
     compat: {
@@ -2888,7 +3159,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: null,
       max: null,
     },
-    cost: { input: 2, output: 12, cacheRead: 0.2, cacheWrite: 0.375 },
+    cost: {
+      input: 2,
+      output: 12,
+      cacheRead: 0.2,
+      cacheWrite: 0.375,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 4,
+          output: 18,
+          cacheRead: 0.4,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1048576,
     maxTokens: 65536,
     compat: {
@@ -2916,7 +3201,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: null,
       max: null,
     },
-    cost: { input: 2, output: 12, cacheRead: 0.2, cacheWrite: 0.375 },
+    cost: {
+      input: 2,
+      output: 12,
+      cacheRead: 0.2,
+      cacheWrite: 0.375,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 4,
+          output: 18,
+          cacheRead: 0.4,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1048576,
     maxTokens: 65536,
     compat: {
@@ -3755,6 +4054,25 @@ export const models: ReadonlyArray<ModelRecord> = [
       supportsDeveloperRole: false,
     },
     borrowedFrom: 'nano-gpt/inclusionai/ling-3.0-flash-vl',
+  },
+  {
+    id: 'inclusionai/ling-3.1-flash',
+    provider: 'openrouter',
+    name: 'inclusionAI: Ling 3.1 Flash',
+    api: 'openai-completions',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    input: ['text'],
+    reasoning: true,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 262144,
+    maxTokens: 32768,
+    compat: {
+      thinkingFormat: 'openrouter',
+      supportsStrictMode: true,
+      sendSessionAffinityHeaders: true,
+      sessionAffinityFormat: 'openrouter',
+      supportsDeveloperRole: false,
+    },
   },
   {
     id: 'inference-net/schematron-v2-small',
@@ -6630,7 +6948,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: null,
     },
-    cost: { input: 2.5, output: 15, cacheRead: 0.25, cacheWrite: 0 },
+    cost: {
+      input: 2.5,
+      output: 15,
+      cacheRead: 0.25,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 5,
+          output: 22.5,
+          cacheRead: 0.5,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -6804,7 +7136,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: null,
     },
-    cost: { input: 30, output: 180, cacheRead: 0, cacheWrite: 0 },
+    cost: {
+      input: 30,
+      output: 180,
+      cacheRead: 0,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 60,
+          output: 270,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -6891,7 +7237,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: null,
     },
-    cost: { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 0 },
+    cost: {
+      input: 5,
+      output: 30,
+      cacheRead: 0.5,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 10,
+          output: 45,
+          cacheRead: 1,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -6920,7 +7280,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: null,
     },
-    cost: { input: 30, output: 180, cacheRead: 0, cacheWrite: 0 },
+    cost: {
+      input: 30,
+      output: 180,
+      cacheRead: 0,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 60,
+          output: 270,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -7007,7 +7381,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 0.2, output: 1.2, cacheRead: 0.02, cacheWrite: 0.25 },
+    cost: {
+      input: 0.2,
+      output: 1.2,
+      cacheRead: 0.02,
+      cacheWrite: 0.25,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 0.4,
+          output: 1.8,
+          cacheRead: 0.04,
+          cacheWrite: 0.5,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -7036,7 +7424,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 0.2, output: 1.2, cacheRead: 0.02, cacheWrite: 0.25 },
+    cost: {
+      input: 0.2,
+      output: 1.2,
+      cacheRead: 0.02,
+      cacheWrite: 0.25,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 0.4,
+          output: 1.8,
+          cacheRead: 0.04,
+          cacheWrite: 0.5,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -7123,7 +7525,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+    cost: {
+      input: 2,
+      output: 10,
+      cacheRead: 0.2,
+      cacheWrite: 2.5,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 4,
+          output: 15,
+          cacheRead: 0.4,
+          cacheWrite: 5,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -7152,7 +7568,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 4, output: 20, cacheRead: 0.4, cacheWrite: 5 },
+    cost: {
+      input: 4,
+      output: 20,
+      cacheRead: 0.4,
+      cacheWrite: 5,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 4,
+          output: 15,
+          cacheRead: 0.4,
+          cacheWrite: 5,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -7239,7 +7669,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 2, output: 12, cacheRead: 0.2, cacheWrite: 2.5 },
+    cost: {
+      input: 2,
+      output: 12,
+      cacheRead: 0.2,
+      cacheWrite: 2.5,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 4,
+          output: 18,
+          cacheRead: 0.4,
+          cacheWrite: 5,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -7268,7 +7712,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 2, output: 12, cacheRead: 0.2, cacheWrite: 2.5 },
+    cost: {
+      input: 2,
+      output: 12,
+      cacheRead: 0.2,
+      cacheWrite: 2.5,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 4,
+          output: 18,
+          cacheRead: 0.4,
+          cacheWrite: 5,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -7355,7 +7813,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 },
+    cost: {
+      input: 10,
+      output: 50,
+      cacheRead: 1,
+      cacheWrite: 12.5,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 20,
+          output: 75,
+          cacheRead: 2,
+          cacheWrite: 25,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -7384,7 +7856,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 },
+    cost: {
+      input: 10,
+      output: 50,
+      cacheRead: 1,
+      cacheWrite: 12.5,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 20,
+          output: 75,
+          cacheRead: 2,
+          cacheWrite: 25,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -7471,7 +7957,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+    cost: {
+      input: 0.1,
+      output: 0.5,
+      cacheRead: 0.01,
+      cacheWrite: 0.125,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 0.2,
+          output: 0.75,
+          cacheRead: 0.02,
+          cacheWrite: 0.25,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -7500,7 +8000,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+    cost: {
+      input: 0.1,
+      output: 0.5,
+      cacheRead: 0.01,
+      cacheWrite: 0.125,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 0.2,
+          output: 0.75,
+          cacheRead: 0.02,
+          cacheWrite: 0.25,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -7587,7 +8101,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+    cost: {
+      input: 2,
+      output: 10,
+      cacheRead: 0.2,
+      cacheWrite: 2.5,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 4,
+          output: 15,
+          cacheRead: 0.4,
+          cacheWrite: 5,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -7616,7 +8144,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+    cost: {
+      input: 2,
+      output: 10,
+      cacheRead: 0.2,
+      cacheWrite: 2.5,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 4,
+          output: 15,
+          cacheRead: 0.4,
+          cacheWrite: 5,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -7703,7 +8245,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
+    cost: {
+      input: 2,
+      output: 10,
+      cacheRead: 0.1,
+      cacheWrite: 2.5,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 4,
+          output: 15,
+          cacheRead: 0.2,
+          cacheWrite: 5,
+        },
+      ],
+    },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -7732,65 +8288,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
-    contextWindow: 1050000,
-    maxTokens: 128000,
-    compat: {
-      thinkingFormat: 'openrouter',
-      supportsStrictMode: true,
-      sendSessionAffinityHeaders: true,
-      sessionAffinityFormat: 'openrouter',
-      supportsDeveloperRole: true,
-      supportsTemperature: false,
+    cost: {
+      input: 2,
+      output: 10,
+      cacheRead: 0.1,
+      cacheWrite: 2.5,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 4,
+          output: 15,
+          cacheRead: 0.2,
+          cacheWrite: 5,
+        },
+      ],
     },
-  },
-  {
-    id: 'openai/gpt-6.1-sol-pro:batch',
-    provider: 'openrouter',
-    name: 'OpenAI: GPT-6.1 Sol Pro (batch)',
-    api: 'openai-completions',
-    baseUrl: 'https://openrouter.ai/api/v1',
-    input: ['text', 'image', 'document'],
-    reasoning: true,
-    reasoningMap: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    cost: { input: 1, output: 5, cacheRead: 0.05, cacheWrite: 1.25 },
-    contextWindow: 1050000,
-    maxTokens: 128000,
-    compat: {
-      thinkingFormat: 'openrouter',
-      supportsStrictMode: true,
-      sendSessionAffinityHeaders: true,
-      sessionAffinityFormat: 'openrouter',
-      supportsDeveloperRole: true,
-      supportsTemperature: false,
-    },
-  },
-  {
-    id: 'openai/gpt-6.1-sol:batch',
-    provider: 'openrouter',
-    name: 'OpenAI: GPT-6.1 Sol (batch)',
-    api: 'openai-completions',
-    baseUrl: 'https://openrouter.ai/api/v1',
-    input: ['text', 'image', 'document'],
-    reasoning: true,
-    reasoningMap: {
-      off: null,
-      minimal: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
-    cost: { input: 1, output: 5, cacheRead: 0.05, cacheWrite: 1.25 },
     contextWindow: 1050000,
     maxTokens: 128000,
     compat: {
@@ -8750,7 +9262,21 @@ export const models: ReadonlyArray<ModelRecord> = [
     baseUrl: 'https://openrouter.ai/api/v1',
     input: ['text'],
     reasoning: false,
-    cost: { input: 0.26, output: 0.78, cacheRead: 0.052, cacheWrite: 0.325 },
+    cost: {
+      input: 0.26,
+      output: 0.78,
+      cacheRead: 0.052,
+      cacheWrite: 0.325,
+      tiers: [
+        {
+          inputTokensAbove: 256000,
+          input: 0.78,
+          output: 2.34,
+          cacheRead: 0.156,
+          cacheWrite: 0.975,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 32768,
     compat: {
@@ -8769,7 +9295,21 @@ export const models: ReadonlyArray<ModelRecord> = [
     baseUrl: 'https://openrouter.ai/api/v1',
     input: ['text'],
     reasoning: false,
-    cost: { input: 0.26, output: 0.78, cacheRead: 0, cacheWrite: 0 },
+    cost: {
+      input: 0.26,
+      output: 0.78,
+      cacheRead: 0,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 256000,
+          input: 0.78,
+          output: 2.34,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 32768,
     compat: {
@@ -9056,6 +9596,22 @@ export const models: ReadonlyArray<ModelRecord> = [
       output: 0.975,
       cacheRead: 0.039,
       cacheWrite: 0.24375,
+      tiers: [
+        {
+          inputTokensAbove: 32000,
+          input: 0.325,
+          output: 1.625,
+          cacheRead: 0.065,
+          cacheWrite: 0.40625,
+        },
+        {
+          inputTokensAbove: 128000,
+          input: 0.52,
+          output: 2.6,
+          cacheRead: 0.104,
+          cacheWrite: 0.65,
+        },
+      ],
     },
     contextWindow: 1000000,
     maxTokens: 65536,
@@ -9094,7 +9650,28 @@ export const models: ReadonlyArray<ModelRecord> = [
     baseUrl: 'https://openrouter.ai/api/v1',
     input: ['text'],
     reasoning: false,
-    cost: { input: 0.65, output: 3.25, cacheRead: 0.13, cacheWrite: 0.8125 },
+    cost: {
+      input: 0.65,
+      output: 3.25,
+      cacheRead: 0.13,
+      cacheWrite: 0.8125,
+      tiers: [
+        {
+          inputTokensAbove: 32000,
+          input: 1.17,
+          output: 5.85,
+          cacheRead: 0.234,
+          cacheWrite: 1.4625,
+        },
+        {
+          inputTokensAbove: 128000,
+          input: 1.95,
+          output: 9.75,
+          cacheRead: 0.39,
+          cacheWrite: 2.4375,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 65536,
     compat: {
@@ -9113,7 +9690,28 @@ export const models: ReadonlyArray<ModelRecord> = [
     baseUrl: 'https://openrouter.ai/api/v1',
     input: ['text'],
     reasoning: false,
-    cost: { input: 0.78, output: 3.9, cacheRead: 0.156, cacheWrite: 0.975 },
+    cost: {
+      input: 0.78,
+      output: 3.9,
+      cacheRead: 0.156,
+      cacheWrite: 0.975,
+      tiers: [
+        {
+          inputTokensAbove: 32000,
+          input: 1.56,
+          output: 7.8,
+          cacheRead: 0.312,
+          cacheWrite: 1.95,
+        },
+        {
+          inputTokensAbove: 128000,
+          input: 1.95,
+          output: 9.75,
+          cacheRead: 0.39,
+          cacheWrite: 2.4375,
+        },
+      ],
+    },
     contextWindow: 262144,
     maxTokens: 65536,
     compat: {
@@ -9139,7 +9737,28 @@ export const models: ReadonlyArray<ModelRecord> = [
       medium: null,
       high: 'high',
     },
-    cost: { input: 0.78, output: 3.9, cacheRead: 0, cacheWrite: 0 },
+    cost: {
+      input: 0.78,
+      output: 3.9,
+      cacheRead: 0,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 32000,
+          input: 1.56,
+          output: 7.8,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+        {
+          inputTokensAbove: 128000,
+          input: 1.95,
+          output: 9.75,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 262144,
     maxTokens: 65536,
     compat: {
@@ -9492,7 +10111,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       medium: null,
       high: 'high',
     },
-    cost: { input: 0.26, output: 1.56, cacheRead: 0, cacheWrite: 0 },
+    cost: {
+      input: 0.26,
+      output: 1.56,
+      cacheRead: 0,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 256000,
+          input: 0.325,
+          output: 1.95,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 65536,
     compat: {
@@ -9518,7 +10151,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       medium: null,
       high: 'high',
     },
-    cost: { input: 0.3, output: 1.8, cacheRead: 0, cacheWrite: 0.375 },
+    cost: {
+      input: 0.3,
+      output: 1.8,
+      cacheRead: 0,
+      cacheWrite: 0.375,
+      tiers: [
+        {
+          inputTokensAbove: 256000,
+          input: 0.375,
+          output: 2.25,
+          cacheRead: 0,
+          cacheWrite: 0.46875,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 65536,
     compat: {
@@ -9596,7 +10243,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       medium: null,
       high: 'high',
     },
-    cost: { input: 0.1875, output: 1.125, cacheRead: 0, cacheWrite: 0.234375 },
+    cost: {
+      input: 0.1875,
+      output: 1.125,
+      cacheRead: 0,
+      cacheWrite: 0.234375,
+      tiers: [
+        {
+          inputTokensAbove: 256000,
+          input: 0.75,
+          output: 3,
+          cacheRead: 0,
+          cacheWrite: 0.9375,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 65536,
     compat: {
@@ -9622,7 +10283,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       medium: null,
       high: 'high',
     },
-    cost: { input: 1.027, output: 6.162, cacheRead: 0, cacheWrite: 1.28375 },
+    cost: {
+      input: 1.027,
+      output: 6.162,
+      cacheRead: 0,
+      cacheWrite: 1.28375,
+      tiers: [
+        {
+          inputTokensAbove: 128000,
+          input: 1.58,
+          output: 9.48,
+          cacheRead: 0,
+          cacheWrite: 1.975,
+        },
+      ],
+    },
     contextWindow: 262144,
     maxTokens: 65536,
     compat: {
@@ -9648,7 +10323,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       medium: null,
       high: 'high',
     },
-    cost: { input: 0.325, output: 1.95, cacheRead: 0, cacheWrite: 0.40625 },
+    cost: {
+      input: 0.325,
+      output: 1.95,
+      cacheRead: 0,
+      cacheWrite: 0.40625,
+      tiers: [
+        {
+          inputTokensAbove: 256000,
+          input: 1.3,
+          output: 3.9,
+          cacheRead: 0,
+          cacheWrite: 1.625,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 65536,
     compat: {
@@ -9675,7 +10364,28 @@ export const models: ReadonlyArray<ModelRecord> = [
       high: 'high',
     },
     reasoningBudget: true,
-    cost: { input: 0.03, output: 0.13, cacheRead: 0.006, cacheWrite: 0.038 },
+    cost: {
+      input: 0.03,
+      output: 0.13,
+      cacheRead: 0.006,
+      cacheWrite: 0.038,
+      tiers: [
+        {
+          inputTokensAbove: 32000,
+          input: 0.1,
+          output: 0.4,
+          cacheRead: 0.02,
+          cacheWrite: 0.125,
+        },
+        {
+          inputTokensAbove: 256000,
+          input: 0.2,
+          output: 0.8,
+          cacheRead: 0.04,
+          cacheWrite: 0.25,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 65536,
     compat: {
@@ -9732,7 +10442,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       medium: null,
       high: 'high',
     },
-    cost: { input: 0.32, output: 1.28, cacheRead: 0.064, cacheWrite: 0.4 },
+    cost: {
+      input: 0.32,
+      output: 1.28,
+      cacheRead: 0.064,
+      cacheWrite: 0.4,
+      tiers: [
+        {
+          inputTokensAbove: 256000,
+          input: 0.96,
+          output: 3.84,
+          cacheRead: 0.192,
+          cacheWrite: 1.2,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 131072,
     compat: {
@@ -10060,7 +10784,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 0 },
+    cost: {
+      input: 5,
+      output: 30,
+      cacheRead: 0.5,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 10,
+          output: 45,
+          cacheRead: 1,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 128000,
     compat: {
@@ -10089,7 +10827,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: 'max',
     },
-    cost: { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 0 },
+    cost: {
+      input: 5,
+      output: 30,
+      cacheRead: 0.5,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 272000,
+          input: 10,
+          output: 45,
+          cacheRead: 1,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 128000,
     compat: {
@@ -10618,6 +11370,25 @@ export const models: ReadonlyArray<ModelRecord> = [
     },
   },
   {
+    id: 'unbiased/pareto-26.10-preview',
+    provider: 'openrouter',
+    name: 'Pareto 26.10 Preview',
+    api: 'openai-completions',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    input: ['text', 'image'],
+    reasoning: false,
+    cost: { input: 0.8, output: 3.2, cacheRead: 0.03, cacheWrite: 0 },
+    contextWindow: 1048576,
+    maxTokens: 131072,
+    compat: {
+      thinkingFormat: 'openrouter',
+      supportsStrictMode: true,
+      sendSessionAffinityHeaders: true,
+      sessionAffinityFormat: 'openrouter',
+      supportsDeveloperRole: false,
+    },
+  },
+  {
     id: 'undi95/remm-slerp-l2-13b',
     provider: 'openrouter',
     name: 'ReMM SLERP 13B',
@@ -10754,7 +11525,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       medium: null,
       high: 'high',
     },
-    cost: { input: 1.25, output: 2.5, cacheRead: 0.2, cacheWrite: 0 },
+    cost: {
+      input: 1.25,
+      output: 2.5,
+      cacheRead: 0.2,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 2.5,
+          output: 5,
+          cacheRead: 0.4,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 2000000,
     maxTokens: 1800000,
     compat: {
@@ -10782,7 +11567,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: null,
     },
-    cost: { input: 1.25, output: 2.5, cacheRead: 0.2, cacheWrite: 0 },
+    cost: {
+      input: 1.25,
+      output: 2.5,
+      cacheRead: 0.2,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 2.5,
+          output: 5,
+          cacheRead: 0.4,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 2000000,
     maxTokens: 1800000,
     compat: {
@@ -10810,7 +11609,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: null,
       max: null,
     },
-    cost: { input: 1.25, output: 2.5, cacheRead: 0.2, cacheWrite: 0 },
+    cost: {
+      input: 1.25,
+      output: 2.5,
+      cacheRead: 0.2,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 2.5,
+          output: 5,
+          cacheRead: 0.4,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 1000000,
     maxTokens: 900000,
     compat: {
@@ -10866,7 +11679,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: null,
       max: null,
     },
-    cost: { input: 2, output: 6, cacheRead: 0.3, cacheWrite: 0 },
+    cost: {
+      input: 2,
+      output: 6,
+      cacheRead: 0.3,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 4,
+          output: 12,
+          cacheRead: 0.6,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 500000,
     maxTokens: 450000,
     compat: {
@@ -10894,7 +11721,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: null,
     },
-    cost: { input: 2, output: 6, cacheRead: 0.5, cacheWrite: 0 },
+    cost: {
+      input: 2,
+      output: 6,
+      cacheRead: 0.5,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 4,
+          output: 12,
+          cacheRead: 1,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 500000,
     maxTokens: 450000,
     compat: {
@@ -10922,7 +11763,21 @@ export const models: ReadonlyArray<ModelRecord> = [
       xhigh: 'xhigh',
       max: null,
     },
-    cost: { input: 2, output: 6, cacheRead: 0.5, cacheWrite: 0 },
+    cost: {
+      input: 2,
+      output: 6,
+      cacheRead: 0.5,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 4,
+          output: 12,
+          cacheRead: 1,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 500000,
     maxTokens: 450000,
     compat: {
@@ -10941,7 +11796,21 @@ export const models: ReadonlyArray<ModelRecord> = [
     baseUrl: 'https://openrouter.ai/api/v1',
     input: ['text', 'image', 'document'],
     reasoning: true,
-    cost: { input: 1, output: 2, cacheRead: 0.2, cacheWrite: 0 },
+    cost: {
+      input: 1,
+      output: 2,
+      cacheRead: 0.2,
+      cacheWrite: 0,
+      tiers: [
+        {
+          inputTokensAbove: 200000,
+          input: 2,
+          output: 4,
+          cacheRead: 0.4,
+          cacheWrite: 0,
+        },
+      ],
+    },
     contextWindow: 256000,
     maxTokens: 230400,
     compat: {

@@ -3,6 +3,7 @@ export {
   composePersistence,
   defineAIPersistence,
   defineMessageStore,
+  defineActivityStore,
   defineRunStore,
   defineInterruptStore,
   defineMetadataStore,
@@ -18,6 +19,8 @@ export {
   isTerminalRunStatus,
 } from './types'
 export type {
+  ActivityRecord,
+  ActivityStore,
   MessageStore,
   MessagePage,
   RunStatus,

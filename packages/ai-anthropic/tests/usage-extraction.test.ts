@@ -336,6 +336,54 @@ describe('Anthropic usage extraction', () => {
     },
   )
 
+  it('reports the 1-hour part of the cache write from message_start', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createMockStream([
+        {
+          type: 'message_start',
+          message: {
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [],
+            model: 'claude-opus-4-1',
+            usage: {
+              input_tokens: 10,
+              output_tokens: 1,
+              cache_creation_input_tokens: 300,
+              cache_read_input_tokens: 0,
+              cache_creation: {
+                ephemeral_1h_input_tokens: 200,
+                ephemeral_5m_input_tokens: 100,
+              },
+            },
+          },
+        },
+        {
+          type: 'message_delta',
+          delta: { stop_reason: 'end_turn' },
+          usage: { output_tokens: 5 },
+        },
+        { type: 'message_stop' },
+      ]),
+    )
+
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const chunk of createAdapter().chatStream({
+      model: 'claude-opus-4-1',
+      messages: [{ role: 'user', content: 'Hello' }],
+      logger: createSilentLogger(),
+    })) {
+      chunks.push(chunk)
+    }
+
+    const done = chunks.find((c) => c.type === 'RUN_FINISHED')
+    expect(tokenUsageOf(done)?.promptTokensDetails).toEqual({
+      cacheWriteTokens: 300,
+      cacheWrite1hTokens: 200,
+    })
+  })
+
   it('takes the message_delta counts over message_start when both are present', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(
       createMockStream([

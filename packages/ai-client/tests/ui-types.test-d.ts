@@ -43,6 +43,10 @@ type TextSelected = ChatUISelectedPartOf<typeof chatOptions, 'text'>
 expectTypeOf<TextSelected['part']['type']>().toEqualTypeOf<'text'>()
 expectTypeOf<TextSelected['part']['content']>().toEqualTypeOf<string>()
 
+type ActivitySelected = ChatUISelectedPartOf<typeof chatOptions, 'activity'>
+expectTypeOf<ActivitySelected['part']['type']>().toEqualTypeOf<'activity'>()
+expectTypeOf<ActivitySelected['part']['activityType']>().toEqualTypeOf<string>()
+
 // A useChat message part exposes the tool result outcome (#1386).
 type ToolResult = Extract<UIMessage['parts'][number], { type: 'tool-result' }>
 expectTypeOf<ToolResult['outcome']>().toEqualTypeOf<

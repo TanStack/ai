@@ -6,6 +6,11 @@ import {
   modelMessagesToUIMessages,
 } from '../src/activities/chat/messages'
 import { StreamProcessor } from '../src/activities/chat/stream/processor'
+import {
+  applyActivitySnapshotToRecords,
+  interleaveActivityRecords,
+  peelInboundActivities,
+} from '../src/activities/chat/activity-records'
 import { uiMessagesToWire, type WireMessage } from '../src/utilities/ag-ui-wire'
 import { tanstackMetadata } from '../src/utilities/merge-metadata'
 import { EventType } from '../src/types'
@@ -23,10 +28,9 @@ const systemWithoutContent: WireMessage = { id: 'system', role: 'system' }
 const userWithoutContent: WireMessage = { id: 'user', role: 'user' }
 const activityMessage: WireMessage = {
   id: 'activity',
-  // @ts-expect-error uiMessagesToWire never emits activity messages
   role: 'activity',
   activityType: 'status',
-  content: '',
+  content: { ok: true },
 }
 void systemWithoutContent
 void userWithoutContent
@@ -64,6 +68,95 @@ describe('uiMessagesToWire', () => {
     const messages: MessagesSnapshotEvent['messages'] = uiMessagesToWire(input)
 
     expect(messages).toHaveLength(2)
+  })
+
+  it('omits activity UIMessages from agent wire input', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'u1',
+        role: 'user',
+        parts: [{ type: 'text', content: 'hi' }],
+      },
+      {
+        id: 'act-1',
+        role: 'activity',
+        parts: [
+          { type: 'activity', activityType: 'SEARCH', content: { query: 'x' } },
+        ],
+      },
+    ])
+    expect(wire).toHaveLength(1)
+    expect(wire[0]).toMatchObject({ id: 'u1', role: 'user', content: 'hi' })
+  })
+
+  it('emits AG-UI ActivityMessage when includeActivity is true', () => {
+    const activity: UIMessage = {
+      id: 'act-1',
+      role: 'activity',
+      parts: [
+        { type: 'activity', activityType: 'SEARCH', content: { query: 'x' } },
+      ],
+      metadata: { source: 'agent' },
+    }
+    const wire = uiMessagesToWire(
+      [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+        activity,
+      ],
+      { includeActivity: true },
+    )
+    expect(wire).toHaveLength(2)
+    expect(wire[1]).toEqual({
+      id: 'act-1',
+      role: 'activity',
+      activityType: 'SEARCH',
+      content: { query: 'x' },
+      metadata: { source: 'agent' },
+    })
+
+    const restored = aguiSnapshotMessageToUIMessage(wire[1]!)
+    expect(restored).toEqual(activity)
+  })
+
+  it('keeps subagentRunId from an inbound ActivityMessage and from a stream event', () => {
+    const inbound = peelInboundActivities([
+      { role: 'user' },
+      {
+        id: 'act-1',
+        role: 'activity',
+        activityType: 'SEARCH',
+        content: { query: 'x' },
+        subagentRunId: 'sub-1',
+      },
+    ])
+    expect(inbound).toEqual([
+      {
+        id: 'act-1',
+        activityType: 'SEARCH',
+        content: { query: 'x' },
+        index: 1,
+        subagentRunId: 'sub-1',
+      },
+    ])
+
+    const records = applyActivitySnapshotToRecords(
+      inbound,
+      {
+        type: 'ACTIVITY_SNAPSHOT',
+        messageId: 'act-2',
+        activityType: 'PLAN',
+        content: {},
+        subagentRunId: 'sub-2',
+      },
+      2,
+    )
+    const wire = uiMessagesToWire(interleaveActivityRecords([], records), {
+      includeActivity: true,
+    })
+    expect(wire.map((message) => message.subagentRunId)).toEqual([
+      'sub-1',
+      'sub-2',
+    ])
   })
 
   it('mirrors a system UIMessage to a string content field', () => {
