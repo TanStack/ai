@@ -133,6 +133,7 @@ export function uiMessagesToWire(
             role: 'activity',
             activityType: part.activityType,
             content: structuredClone(part.content),
+            ...(msg.metadata != null && { metadata: msg.metadata }),
           }
           wire.push(activity)
         }

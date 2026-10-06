@@ -1,6 +1,8 @@
 ---
 '@tanstack/ai-client': minor
 '@tanstack/ai': patch
+'@tanstack/ai-event-client': patch
+'@tanstack/ai-devtools-core': patch
 ---
 
 Expose AG-UI activity messages on the chat client UIMessage path without sending them to the model.

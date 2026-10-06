@@ -1636,6 +1636,68 @@ describe('withPersistence (state-only)', () => {
     ])
   })
 
+  describe('stored activity on a later run', () => {
+    const user = { id: 'u1', role: 'user', content: 'hi' } as const
+    const assistant = { id: 'a1', role: 'assistant', content: 'hello' } as const
+    const next = { id: 'u2', role: 'user', content: 'again' } as const
+    const stored = {
+      id: 'act-1',
+      activityType: 'SEARCH',
+      content: { q: 'x' },
+      index: 1,
+    }
+
+    async function seeded() {
+      const persistence = memoryPersistence()
+      await persistence.stores.messages!.saveThread('t1', [user, assistant])
+      await persistence.stores.activities.saveActivities('t1', [stored])
+      return persistence
+    }
+
+    it('keeps it when a pending-turn snapshot runs before the load', async () => {
+      const persistence = await seeded()
+      await runPersistedChat(persistence, [user, assistant, next])
+      expect(await persistence.stores.activities.loadActivities('t1')).toEqual([
+        stored,
+      ])
+    })
+
+    it('merges an inbound row instead of replacing the stored rows', async () => {
+      const persistence = await seeded()
+      const { adapter } = mockAdapter([
+        [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+      ])
+      await collect(
+        chat({
+          adapter,
+          messages: [
+            user,
+            assistant,
+            next,
+            {
+              id: 'act-2',
+              role: 'activity',
+              parts: [{ type: 'activity', activityType: 'PLAN', content: {} }],
+            },
+          ],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const records = await persistence.stores.activities.loadActivities('t1')
+      expect(records.map((record) => record.id)).toEqual(['act-1', 'act-2'])
+    })
+
+    it('drops the rows of a turn that a reload replaces', async () => {
+      const persistence = await seeded()
+      await runPersistedChat(persistence, [user])
+      expect(await persistence.stores.activities.loadActivities('t1')).toEqual(
+        [],
+      )
+    })
+  })
+
   describe('when the activity store fails', () => {
     function failingActivityPersistence() {
       const memory = memoryPersistence()

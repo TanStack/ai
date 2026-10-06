@@ -1519,6 +1519,9 @@ export class StreamProcessor {
     if (
       this.messages.some((m) => m.id === messageId && m.role === 'activity')
     ) {
+      console.warn(
+        `TEXT_MESSAGE_START: Dropped text for '${messageId}', the id of an activity message`,
+      )
       return
     }
 
@@ -2112,6 +2115,9 @@ export class StreamProcessor {
         (m) => m.id === chunk.messageId && m.role === 'activity',
       )
     ) {
+      console.warn(
+        `TEXT_MESSAGE_CONTENT: Dropped text for '${chunk.messageId}', the id of an activity message`,
+      )
       return
     }
     const { messageId, state } = this.ensureAssistantMessage(chunk.messageId)

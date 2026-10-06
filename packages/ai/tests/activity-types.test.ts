@@ -1,5 +1,9 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import type {
+  ActivityDeltaEvent as AGUIActivityDeltaEvent,
+  ActivitySnapshotEvent as AGUIActivitySnapshotEvent,
+} from '@ag-ui/core'
+import type {
   ActivityDeltaEvent,
   ActivityPart,
   ActivitySnapshotEvent,
@@ -24,6 +28,15 @@ describe('AG-UI activity type surface', () => {
     expectTypeOf<Delta['activityType']>().toEqualTypeOf<string>()
     expectTypeOf<Delta['patch']>().toMatchTypeOf<
       Array<{ op: string; path: string }>
+    >()
+  })
+
+  it('activity events add nothing to and drop nothing from @ag-ui/core', () => {
+    expectTypeOf<Omit<ActivitySnapshotEvent, 'type'>>().toEqualTypeOf<
+      Omit<AGUIActivitySnapshotEvent, 'type'>
+    >()
+    expectTypeOf<Omit<ActivityDeltaEvent, 'type'>>().toEqualTypeOf<
+      Omit<AGUIActivityDeltaEvent, 'type'>
     >()
   })
 

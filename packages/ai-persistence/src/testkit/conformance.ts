@@ -19,8 +19,9 @@
  * fails the suite loudly, and anything declared absent is reported by vitest as
  * a SKIPPED case, never as a pass. Silent gaps are not allowed: a case that did
  * not run must never be indistinguishable from one that did. A chat-only
- * adapter therefore passes `skip: ['generationRuns', 'artifacts', 'blobs']`,
- * and a generation-only one skips the four state stores. `listByParentRun` is
+ * adapter with no activity store therefore passes
+ * `skip: ['activities', 'generationRuns', 'artifacts', 'blobs']`, and a
+ * generation-only one skips the five state stores. `listByParentRun` is
  * the exception. Subagent support is opt-in, its cases skip on their own, and
  * a `'runs.listByParentRun'` entry is accepted but has no effect.
  *

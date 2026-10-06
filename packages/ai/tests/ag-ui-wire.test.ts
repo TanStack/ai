@@ -81,6 +81,7 @@ describe('uiMessagesToWire', () => {
       parts: [
         { type: 'activity', activityType: 'SEARCH', content: { query: 'x' } },
       ],
+      metadata: { source: 'agent' },
     }
     const wire = uiMessagesToWire(
       [
@@ -95,6 +96,7 @@ describe('uiMessagesToWire', () => {
       role: 'activity',
       activityType: 'SEARCH',
       content: { query: 'x' },
+      metadata: { source: 'agent' },
     })
 
     const restored = aguiSnapshotMessageToUIMessage(wire[1]!)

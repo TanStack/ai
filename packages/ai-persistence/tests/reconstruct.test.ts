@@ -541,6 +541,35 @@ describe('reconstructChat paging', () => {
     expect(parsed.page).toEqual({ truncated: true, cursor: '2' })
   })
 
+  it('pages through the store when the cursor predates the first activity', async () => {
+    const persistence = memoryPersistence()
+    const inner = persistence.stores.messages
+    await inner.saveThread('t1', [{ id: '3', role: 'user', content: 'three' }])
+    await persistence.stores.activities.saveActivities('t1', [
+      { id: 'act-1', activityType: 'PLAN', content: {}, index: 1 },
+    ])
+    persistence.stores.messages = defineMessageStore({
+      loadThread(threadId, options) {
+        if (options?.limit === undefined) {
+          return inner.loadThread(threadId)
+        }
+        return Promise.resolve({
+          messages: [{ id: '1', role: 'user', content: 'one' }],
+          truncated: false as const,
+        })
+      },
+      saveThread(threadId, messages) {
+        return inner.saveThread(threadId, messages)
+      },
+    } as MessageStore)
+    const parsed = await hydrate(
+      persistence,
+      chatUrl('threadId=t1&limit=2&before=adapter-cursor'),
+    )
+    expect(idsOf(parsed)).toEqual(['1'])
+    expect(parsed.page).toEqual({ truncated: false })
+  })
+
   it('treats a truncated MessagePage without a usable cursor as complete', async () => {
     const persistence = memoryPersistence()
     const inner = persistence.stores.messages

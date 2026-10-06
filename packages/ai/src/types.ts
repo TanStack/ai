@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/ai-event-client'
 import type {
   ActivityDeltaEvent as AGUIActivityDeltaEvent,
+  ActivityMessage as AGUIActivityMessage,
   ActivitySnapshotEvent as AGUIActivitySnapshotEvent,
   AudioPart as AGUIAudioPart,
   BaseEvent as AGUIBaseEvent,
@@ -491,23 +492,19 @@ export interface ThinkingPart {
  * Mirrors {@link https://docs.ag-ui.com/concepts/messages | ActivityMessage}:
  * `activityType` selects a renderer; `content` is the structured payload.
  */
-export interface ActivityPart {
+export interface ActivityPart extends Pick<
+  AGUIActivityMessage,
+  'activityType' | 'content'
+> {
   type: 'activity'
-  activityType: string
-  content: Record<string, any>
 }
 
 /**
  * Durable sidecar row for frontend-only AG-UI activity. Never a ModelMessage.
  * `index` is the insert position in the reconstructed UI transcript.
  */
-export interface ActivityRecord {
-  id: string
-  activityType: string
-  content: Record<string, unknown>
+export interface ActivityRecord extends Omit<AGUIActivityMessage, 'role'> {
   index: number
-  /** The activity message's `metadata`, kept so a reload restores it. */
-  metadata?: Record<string, unknown>
 }
 
 /**
@@ -1785,33 +1782,27 @@ export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValu
 /**
  * Full activity state for an `ActivityMessage`.
  *
- * @ag-ui/core provides: `messageId`, `activityType`, `content`, `replace`
- *
- * Same `Pick` (not `extends`) rationale as {@link ToolCallStartEvent}.
- * `replace` is optional on the wire and defaults to `true`.
+ * @ag-ui/core provides: `messageId`, `activityType`, `content`, `replace?`,
+ * `metadata?`, `subagentRunId?`. When `replace` is omitted it means `true`.
  */
-export interface ActivitySnapshotEvent extends Pick<
+export interface ActivitySnapshotEvent extends Omit<
   AGUIActivitySnapshotEvent,
-  'messageId' | 'activityType' | 'content' | 'timestamp' | 'rawEvent'
+  'type'
 > {
   type: 'ACTIVITY_SNAPSHOT'
-  replace?: boolean
-  metadata?: Record<string, any>
 }
 
 /**
  * RFC 6902 JSON Patch against an existing activity's `content`.
  *
- * @ag-ui/core provides: `messageId`, `activityType`, `patch`
- *
- * Same `Pick` (not `extends`) rationale as {@link ToolCallStartEvent}.
+ * @ag-ui/core provides: `messageId`, `activityType`, `patch`, `metadata?`,
+ * `subagentRunId?`
  */
-export interface ActivityDeltaEvent extends Pick<
+export interface ActivityDeltaEvent extends Omit<
   AGUIActivityDeltaEvent,
-  'messageId' | 'activityType' | 'patch' | 'timestamp' | 'rawEvent'
+  'type'
 > {
   type: 'ACTIVITY_DELTA'
-  metadata?: Record<string, any>
 }
 
 /** AG-UI 1.0 RawEvent shape. */

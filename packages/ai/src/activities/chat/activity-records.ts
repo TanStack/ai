@@ -95,7 +95,13 @@ export function applyActivitySnapshotToUIMessages(
   const existingIndex = messages.findIndex((m) => m.id === messageId)
   const existing = existingIndex >= 0 ? messages[existingIndex] : undefined
 
-  if (existing && (!replace || existing.role !== 'activity')) return messages
+  if (existing && existing.role !== 'activity') {
+    console.warn(
+      `ACTIVITY_SNAPSHOT: Message '${messageId}' is not an activity message`,
+    )
+    return messages
+  }
+  if (existing && !replace) return messages
 
   const metadata = mergeMetadata(
     existing?.role === 'activity' ? existing.metadata : undefined,
@@ -130,7 +136,10 @@ export function applyActivityDeltaToUIMessages(
 ): Array<UIMessage> {
   const { messageId, activityType, patch } = chunk
   const existingIndex = messages.findIndex((m) => m.id === messageId)
-  if (existingIndex === -1) return messages
+  if (existingIndex === -1) {
+    console.warn(`ACTIVITY_DELTA: No activity message '${messageId}'`)
+    return messages
+  }
 
   const existing = messages[existingIndex]
   if (existing == null || existing.role !== 'activity') {
@@ -188,21 +197,20 @@ function uiMessagesToActivityRecords(
   previous: Array<ActivityRecord>,
   nextIndex: number,
 ): Array<ActivityRecord> {
-  return messages
-    .filter((message) => message.role === 'activity')
-    .map((message) => {
-      const part = message.parts.find(isActivityPart)
-      const prev = previous.find((record) => record.id === message.id)
-      return {
-        id: message.id,
-        activityType: part?.activityType ?? '',
-        content: structuredClone(part?.content ?? {}),
-        index: prev?.index ?? nextIndex,
-        ...(message.metadata != null
-          ? { metadata: structuredClone(message.metadata) }
-          : {}),
-      }
-    })
+  return messages.flatMap((message) => {
+    const part = message.parts.find(isActivityPart)
+    if (!part) return []
+    const prev = previous.find((record) => record.id === message.id)
+    return {
+      id: message.id,
+      activityType: part.activityType,
+      content: structuredClone(part.content),
+      index: prev?.index ?? nextIndex,
+      ...(message.metadata != null
+        ? { metadata: structuredClone(message.metadata) }
+        : {}),
+    }
+  })
 }
 
 export function applyActivitySnapshotToRecords(

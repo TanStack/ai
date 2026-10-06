@@ -6111,7 +6111,7 @@ describe('StreamProcessor', () => {
       })
     })
 
-    it('delta on a missing id is a silent no-op', () => {
+    it('delta on a missing id warns and no-ops', () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
       try {
         const processor = new StreamProcessor()
@@ -6121,7 +6121,7 @@ describe('StreamProcessor', () => {
           ]),
         )
         expect(processor.getMessages()).toHaveLength(0)
-        expect(warn).not.toHaveBeenCalled()
+        expect(warn).toHaveBeenCalledOnce()
       } finally {
         warn.mockRestore()
       }

@@ -179,16 +179,35 @@ export async function reconstructChat(
   // thread with activity loads in full and pages after the interleave.
   // ponytail: full load per page for those threads; page activities by index
   // in the store if long threads make this slow.
-  const pageAfterInterleave = storedActivities.length > 0
-  const stored =
+  let pageAfterInterleave = storedActivities.length > 0
+  const loadPage = async (limit: number) =>
+    await messageStore.loadThread(threadId, {
+      limit,
+      ...(before === undefined ? {} : { before }),
+    })
+  let stored =
     threadId === ''
       ? []
       : pageSize === undefined || pageAfterInterleave
         ? await messageStore.loadThread(threadId)
-        : await messageStore.loadThread(threadId, {
-            limit: pageSize + 1,
-            ...(before === undefined ? {} : { before }),
-          })
+        : await loadPage(pageSize + 1)
+  const fullUi = () =>
+    interleaveActivityRecords(
+      modelMessagesToUIMessages(threadMessages(stored)),
+      storedActivities,
+    )
+  // A cursor the store minted before the thread had activity is not a UI
+  // message id. Page that request through the store, or "load older" gets the
+  // same cursor back with an empty page forever.
+  if (
+    pageAfterInterleave &&
+    pageSize !== undefined &&
+    before !== undefined &&
+    !fullUi().some((message) => message.id === before)
+  ) {
+    pageAfterInterleave = false
+    stored = await loadPage(pageSize + 1)
+  }
   // Pending interrupts for the thread, so a reload re-prompts the approval from
   // the server. Each stored `payload` is the full interrupt descriptor the
   // client hydrates; they share the run they paused.
@@ -197,11 +216,6 @@ export async function reconstructChat(
     : []
   const firstPending = pending[0]
   const isPaging = pageSize !== undefined && threadId !== ''
-  const fullUi = () =>
-    interleaveActivityRecords(
-      modelMessagesToUIMessages(threadMessages(stored)),
-      storedActivities,
-    )
   const transcript = !isPaging
     ? { messages: fullUi() }
     : pageAfterInterleave

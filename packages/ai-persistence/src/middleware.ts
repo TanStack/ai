@@ -4,6 +4,7 @@ import {
   getDetachableRun,
   InterruptResumeValidationError,
   MetadataCapability,
+  modelMessagesToUIMessages,
   provideMetadata,
   readInterruptBinding,
   validateInterruptResumeBatch,
@@ -29,7 +30,7 @@ import {
   providePersistence,
   providePersistenceCompletion,
 } from './capabilities'
-import { mergeStoredMessages } from './merge-stored'
+import { mergeStoredMessages, storedCutoff } from './merge-stored'
 import { createSubagentRunRecorder } from './subagent-runs'
 import {
   validateChatPersistenceStores,
@@ -37,6 +38,7 @@ import {
 } from './types'
 import type {
   AbortInfo,
+  ActivityRecord,
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
@@ -307,6 +309,24 @@ interface RunStateEntry {
 }
 
 const runState = new WeakMap<object, RunStateEntry>()
+/**
+ * Stored activity rows that sit before the reload cutoff. A reload drops the
+ * old assistant turn, so its activity rows go too.
+ */
+function keptActivities(
+  records: Array<ActivityRecord>,
+  stored: Array<ModelMessage>,
+  cutoff: number,
+): Array<ActivityRecord> {
+  if (cutoff >= stored.length) return records
+  const keptUi = modelMessagesToUIMessages(stored.slice(0, cutoff)).length
+  // `index` counts the earlier activity rows too, so subtract them.
+  // ponytail: assumes one row per index, which is what chat() writes.
+  return [...records]
+    .sort((a, b) => a.index - b.index)
+    .filter((record, earlier) => record.index - earlier < keptUi)
+}
+
 /** `metadata.tanstack.run.id` of a stored message, when set. */
 function runTagOf(message: ModelMessage): string | undefined {
   const tanstack: unknown = message.metadata?.tanstack
@@ -2029,13 +2049,16 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
   // Best-effort: the activity store is an optional sidecar, so a failed save
   // must never fail the run or block the message, run, and interrupt writes.
   async function persistActivities(ctx: ChatMiddlewareContext): Promise<void> {
-    if (!activityStore) return
+    // A hand-built context can have no `activities`. `saveActivities` replaces
+    // the thread's rows, so saving `[]` for it would wipe the store.
+    if (!activityStore || ctx.activities === undefined) return
     try {
-      await activityStore.saveActivities(ctx.threadId, [
-        ...(ctx.activities ?? []),
-      ])
-    } catch {
-      // ponytail: dropped silently, add a logger hook if users need to see it.
+      await activityStore.saveActivities(ctx.threadId, [...ctx.activities])
+    } catch (error) {
+      console.warn(
+        `[ai-persistence] saveActivities failed for thread '${ctx.threadId}'`,
+        error,
+      )
     }
   }
 
@@ -2110,7 +2133,19 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           // incoming list must not drop stored extras.
           const list = mergeStoredMessages(stored, ctx.messages)
           await messageStore.saveThread(ctx.threadId, list)
-          await persistActivities(ctx)
+          // This save can cut a reloaded turn before onConfig sees it, so cut
+          // that turn's activity rows here too.
+          const cutoff = storedCutoff(stored, ctx.messages)
+          if (activityStore && cutoff < stored.length) {
+            await activityStore.saveActivities(
+              ctx.threadId,
+              keptActivities(
+                await activityStore.loadActivities(ctx.threadId),
+                stored,
+                cutoff,
+              ),
+            )
+          }
         },
       })
     },
@@ -2179,12 +2214,22 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         )
         patch.messages = mergeStoredMessages(stored, config.messages)
         if (activityStore) {
-          const storedActivities = await activityStore.loadActivities(
-            ctx.threadId,
+          // Not best-effort like the save: a failed load followed by a save
+          // would wipe the stored rows, so a load error fails the run.
+          const byId = new Map(
+            keptActivities(
+              await activityStore.loadActivities(ctx.threadId),
+              stored,
+              storedCutoff(stored, config.messages),
+            ).map((record) => [record.id, record]),
           )
-          patch.activities = ctx.activities?.length
-            ? [...ctx.activities]
-            : storedActivities
+          // Same merge as the messages: an inbound row replaces the stored row
+          // with its id and keeps the stored position.
+          for (const record of ctx.activities ?? []) {
+            const index = byId.get(record.id)?.index ?? record.index
+            byId.set(record.id, { ...record, index })
+          }
+          patch.activities = [...byId.values()]
         }
       }
 
