@@ -86,7 +86,7 @@ export const MODEL_OVERRIDES: Readonly<
       reasoningMap: only('none', 'high', 'max'),
     },
   },
-  // models.dev lists no reasoning for it at Vercel. Google, OpenRouter, and
-  // pi 0.87.1 list it.
+  // models.dev lists no reasoning for it at Vercel. Vercel's own model list
+  // tags it `reasoning`, and Google, OpenRouter, and pi 0.87.1 list it.
   'vercel-ai-gateway': { 'google/gemma-4-31b-it': { reasoning: true } },
 }

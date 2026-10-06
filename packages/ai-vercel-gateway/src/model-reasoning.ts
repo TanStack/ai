@@ -250,6 +250,10 @@ export type VercelGatewayModelReasoningByName = {
     levels: 'off' | 'minimal' | 'low' | 'medium' | 'high'
     budget: false
   }
+  'google/gemma-4-31b-it': {
+    levels: 'off' | 'minimal' | 'low' | 'medium' | 'high'
+    budget: false
+  }
   'inception/mercury-2': { levels: 'low' | 'medium' | 'high'; budget: false }
   'inception/mercury-2.5': {
     levels: 'off' | 'low' | 'medium' | 'high'
@@ -1385,7 +1389,7 @@ export const VERCEL_GATEWAY_MODEL_REASONING: Readonly<
     budget: false,
   },
   'google/gemma-4-26b-a4b-it': { budget: false },
-  'google/gemma-4-31b-it': false,
+  'google/gemma-4-31b-it': { budget: false },
   'inception/mercury-2': {
     map: {
       off: null,
