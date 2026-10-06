@@ -37,6 +37,22 @@ OPENAI_API_KEY=... pnpm --filter harness-cli-example start
 
 ---
 
+### Batman CLI
+
+A Batman-themed copy of the harness CLI. Same stack, yellow header, bat splash, and a separate save folder.
+
+**Path:** `examples/harness-cli-batman`
+
+**Getting Started:**
+
+```bash
+pnpm --filter harness-cli-batman start
+```
+
+📖 [Full Documentation](harness-cli-batman/README.md)
+
+---
+
 ### Basic Chat
 
 A slim TanStack Start chat. One provider (OpenRouter). You paste your own key.
