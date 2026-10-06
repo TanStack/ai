@@ -10,6 +10,7 @@ import {
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAnthropicChatWithClient } from '@tanstack/ai-anthropic'
+import { permissions } from '@tanstack/ai-harness/plugins'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import type { ModelMessage, UIMessage } from '@tanstack/ai'
@@ -358,6 +359,111 @@ async function agentResume(
     // The first host sees the writes of the second host, and stops.
     await stopped.close().catch(() => {})
   }
+}
+
+/**
+ * The lead calls `writer` in plan mode, and the writer's model calls
+ * `write_file`. `permissions()` checks the child run too, so it denies the
+ * edit. Returns how many times the tool ran, the tool results the writer
+ * got, and the text of the turn.
+ */
+async function planSubagent(
+  host: HarnessHost,
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+) {
+  let writes = 0
+  const results: Array<unknown> = []
+  // ponytail: a fake write_file, so a failing test changes no files.
+  const writeFile = toolDefinition({
+    name: 'write_file',
+    description: 'Write a file',
+    inputSchema: z.object({ path: z.string() }),
+  }).server(async () => {
+    writes += 1
+    return { written: true }
+  })
+  const writer = defineAgent({
+    name: 'writer',
+    description: 'Writes files',
+    run: (ctx) =>
+      ctx.chat({
+        adapter: openai(),
+        messages: [
+          { role: 'user', content: '[harness-plan-writer] write x.txt' },
+        ],
+        tools: [writeFile],
+        middleware: [
+          {
+            name: 'e2e/tool-results',
+            onAfterToolCall: (_ctx, info) => {
+              results.push(info.result)
+            },
+          },
+        ],
+        stream: false,
+      }),
+  })
+  const session = await host.open(
+    defineHarness({
+      name: 'e2e/harness-plan',
+      adapter: openai(),
+      subagents: { agents: [writer] },
+      plugins: () => [
+        permissions({
+          rules: [{ tool: 'write_file', decision: 'ask', kind: 'edit' }],
+        }),
+      ],
+    }),
+    { threadId: 'e2e-plan' },
+  )
+  await session.command('mode', 'plan')
+  const turn = await session.prompt('[harness-plan-subagent] write x.txt')
+  return { writes, results, text: turn.text }
+}
+
+/**
+ * One model call asks for the server tools `first` and `second`. `first`
+ * waits until `second` starts, for at most one second. With `'parallel'`,
+ * `second` starts and ends in that wait. With `'sequential'`, it starts
+ * after `first` ends. Returns the start and end order, and the turn text.
+ */
+async function toolOrder(
+  host: HarnessHost,
+  openai: () => ReturnType<typeof createTextAdapter>['adapter'],
+  toolExecution: 'parallel' | 'sequential',
+) {
+  const log: Array<string> = []
+  let secondStarted = () => {}
+  const started = new Promise<void>((resolve) => {
+    secondStarted = resolve
+  })
+  const step = (name: 'first' | 'second') =>
+    toolDefinition({
+      name,
+      description: `The ${name} step`,
+      inputSchema: z.object({}),
+    }).server(async () => {
+      log.push(`start:${name}`)
+      if (name === 'second') secondStarted()
+      else
+        await Promise.race([
+          started,
+          new Promise((resolve) => setTimeout(resolve, 1_000)),
+        ])
+      log.push(`end:${name}`)
+      return { done: name }
+    })
+  const session = await host.open(
+    defineHarness({
+      name: `e2e/harness-tools-${toolExecution}`,
+      adapter: openai(),
+      tools: [step('first'), step('second')],
+      toolExecution,
+    }),
+    { threadId: `e2e-tools-${toolExecution}` },
+  )
+  const turn = await session.prompt(`[harness-tool-order] ${toolExecution}`)
+  return { log, text: turn.text }
 }
 
 /**
@@ -811,6 +917,23 @@ export const Route = createFileRoute('/api/harness-test')({
           }
           if (body.scenario === 'routing') {
             return Response.json(await routingTurns(host, openai))
+          }
+          if (body.scenario === 'plan-subagent') {
+            return Response.json(await planSubagent(host, openai))
+          }
+          if (
+            body.scenario === 'tools-sequential' ||
+            body.scenario === 'tools-parallel'
+          ) {
+            return Response.json(
+              await toolOrder(
+                host,
+                openai,
+                body.scenario === 'tools-sequential'
+                  ? 'sequential'
+                  : 'parallel',
+              ),
+            )
           }
           if (body.scenario === 'agent') {
             const result = await session.agents.pricer.run({

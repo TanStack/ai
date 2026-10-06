@@ -205,6 +205,94 @@
       "response": {
         "content": "The second call hit the limit."
       }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-plan-subagent] write x.txt",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "writer",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-plan-subagent] write x.txt",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The writer could not write in plan mode."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-plan-writer] write x.txt",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "write_file",
+            "arguments": "{\"path\":\"x.txt\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-plan-writer] write x.txt",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Plan mode blocked the write."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-tool-order] sequential",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          { "name": "first", "arguments": "{}" },
+          { "name": "second", "arguments": "{}" }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-tool-order] sequential",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Both steps ran."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-tool-order] parallel",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          { "name": "first", "arguments": "{}" },
+          { "name": "second", "arguments": "{}" }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[harness-tool-order] parallel",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Both steps ran."
+      }
     }
   ]
 }
