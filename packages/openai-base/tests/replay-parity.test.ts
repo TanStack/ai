@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import OpenAI from 'openai'
 import { chat, EventType } from '@tanstack/ai'
-import type { AdapterYieldChunk, ModelMessage } from '@tanstack/ai'
+import type {
+  AdapterYieldChunk,
+  ChatMiddleware,
+  ModelMessage,
+} from '@tanstack/ai'
 import {
   resolveDebugOption,
   hashToolCallId,
@@ -1751,4 +1755,95 @@ describe('OpenAI replay parity', () => {
       ).toMatchObject({ responseId: 'response-1', model: 'resolved-model' })
     },
   )
+})
+
+describe('Responses answer items on replay', () => {
+  /** Turn 1 with one answer item. Returns the saved transcript. */
+  async function firstTurn() {
+    const answer = {
+      type: 'message',
+      id: 'msg_answer',
+      role: 'assistant',
+      status: 'completed',
+      phase: 'final_answer',
+      content: [{ type: 'output_text', text: 'Hi there', annotations: [] }],
+    }
+    const mock = sdk(
+      [
+        {
+          ...responseCompleted,
+          response: { ...responseCompleted.response, output: [answer] },
+        },
+      ],
+      true,
+    )
+    let saved: Array<ModelMessage> = []
+    const keep: ChatMiddleware = {
+      name: 'keep-transcript',
+      onFinish(ctx) {
+        saved = [...ctx.messages]
+      },
+    }
+    await collect(
+      chat({
+        adapter: new Responses(mock.client),
+        messages: [{ role: 'user', content: 'Hi' }],
+        middleware: [keep],
+      }),
+    )
+    return saved
+  }
+
+  /** Turn 2 on `messages`. Returns the assistant items of its request input. */
+  async function secondTurnInput(messages: Array<ModelMessage>) {
+    const mock = sdk([responseCompleted], true)
+    await collect(
+      chat({
+        adapter: new Responses(mock.client),
+        messages: [...messages, { role: 'user', content: 'Again' }],
+      }),
+    )
+    const body = mock.bodies[0] as { input: Array<Record<string, unknown>> }
+    return body.input.filter((item) => item.role === 'assistant')
+  }
+
+  it('sends the id and phase of the first answer on a same-model request', async () => {
+    const saved = await firstTurn()
+    expect(saved.at(-1)?.metadata?.tanstack?.responseItems).toEqual([
+      { id: 'msg_answer', phase: 'final_answer' },
+    ])
+    expect(await secondTurnInput(saved)).toEqual([
+      {
+        type: 'message',
+        role: 'assistant',
+        id: 'msg_answer',
+        status: 'completed',
+        phase: 'final_answer',
+        content: [{ type: 'output_text', text: 'Hi there', annotations: [] }],
+      },
+    ])
+  })
+
+  it('leaves them out for another model', async () => {
+    const saved = (await firstTurn()).map((message) =>
+      message.role === 'assistant'
+        ? {
+            ...message,
+            metadata: {
+              tanstack: {
+                ...message.metadata?.tanstack,
+                source: {
+                  provider: 'openai',
+                  api: 'openai-responses',
+                  model: 'gpt-4.1',
+                },
+              },
+            },
+          }
+        : message,
+    )
+    expect(await secondTurnInput(saved)).toEqual([
+      { type: 'message', role: 'assistant', content: 'Hi there' },
+    ])
+  })
 })

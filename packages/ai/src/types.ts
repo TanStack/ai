@@ -690,6 +690,12 @@ export interface TanStackMessageMetadata {
   source?: MessageSource
   stopReason?: 'error' | 'aborted'
   responseId?: string
+  /**
+   * The provider's answer items of this assistant message, in order, for a
+   * same-model replay. The OpenAI Responses adapter keeps each output
+   * message item's `id` and `phase` (`commentary` or `final_answer`).
+   */
+  responseItems?: Array<{ id: string; phase?: string }>
   /** Parent chat run that produced this assistant message. */
   runId?: string
   /**
@@ -735,6 +741,8 @@ export interface TanStackRunMetadata {
   source?: MessageSource
   model?: string
   responseId?: string
+  /** The answer items of this model call. See `TanStackMessageMetadata.responseItems`. */
+  responseItems?: TanStackMessageMetadata['responseItems']
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
   usage?: TokenUsageLeftover

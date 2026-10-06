@@ -2050,6 +2050,8 @@ class TextEngine<
       const responseId = chunk.responseId ?? incoming?.responseId
       if (model !== undefined) metadata.model = model
       if (responseId !== undefined) metadata.responseId = responseId
+      if (incoming?.responseItems !== undefined)
+        metadata.responseItems = incoming.responseItems
     }
     if (chunk.type === EventType.RUN_ERROR) {
       metadata.stopReason ??= 'error'
