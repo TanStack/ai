@@ -1,5 +1,21 @@
 # @tanstack/ai-octane
 
+## 0.6.5
+
+### Patch Changes
+
+- Updated dependencies [[`4c57d04`](https://github.com/TanStack/ai/commit/4c57d04f0f5dd98e176386f3208b68daf9e7d929), [`e436250`](https://github.com/TanStack/ai/commit/e4362509fd7becad7175ce895178cd3b107fcd4b), [`4c57d04`](https://github.com/TanStack/ai/commit/4c57d04f0f5dd98e176386f3208b68daf9e7d929)]:
+  - @tanstack/ai-client@0.36.2
+  - @tanstack/ai@0.64.1
+
+## 0.6.4
+
+### Patch Changes
+
+- Updated dependencies [[`3a09cf0`](https://github.com/TanStack/ai/commit/3a09cf04431a45810051ea5df6bb3935af421ddb), [`ee726f5`](https://github.com/TanStack/ai/commit/ee726f537dbb036d5edb756b92739afaa7573824), [`a5fce7f`](https://github.com/TanStack/ai/commit/a5fce7f95b8b9c6eb57697aa1e3f587bf27483b9), [`94116ad`](https://github.com/TanStack/ai/commit/94116ad137015b6f62fe62b4c06a335dbde36a49)]:
+  - @tanstack/ai@0.64.0
+  - @tanstack/ai-client@0.36.1
+
 ## 0.6.3
 
 ### Patch Changes

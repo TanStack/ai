@@ -670,6 +670,30 @@
     ]
   },
   {
+    "id": "heygen/heygen-video-1",
+    "canonical_slug": "heygen/heygen-video-1-20260930",
+    "hugging_face_id": null,
+    "name": "HeyGen: HeyGen Video",
+    "created": 1790798684,
+    "description": "HeyGen Video is a general-purpose video generation model from HeyGen. It renders short clips with synthesized audio (dialogue, ambience, and sound effects) in a single call, working from a text...",
+    "supported_resolutions": ["480p", "768p"],
+    "supported_aspect_ratios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "supported_sizes": null,
+    "supported_durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "supported_frame_images": ["first_frame"],
+    "upscale_factor": null,
+    "creativity": null,
+    "generate_audio": false,
+    "seed": true,
+    "pricing_skus": {
+      "duration_seconds_480p": "0.02",
+      "duration_seconds_768p": "0.03",
+      "reference_duration_seconds_480p": "0.04",
+      "reference_duration_seconds_768p": "0.06"
+    },
+    "allowed_passthrough_parameters": []
+  },
+  {
     "id": "kwaivgi/kling-v3.0-pro",
     "canonical_slug": "kwaivgi/kling-v3.0-pro-20260429",
     "hugging_face_id": null,

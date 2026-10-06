@@ -1,5 +1,14 @@
 # @tanstack/ai-sandbox-boxd
 
+## 0.2.1
+
+### Patch Changes
+
+- [#1607](https://github.com/TanStack/ai/pull/1607) [`7216c7b`](https://github.com/TanStack/ai/commit/7216c7b5813074eafad52028b3d6d7fec1f7d08c) - Delete newly created machines when create or snapshot restore is aborted during readiness or workspace setup.
+
+- Updated dependencies []:
+  - @tanstack/ai-sandbox@0.5.18
+
 ## 0.2.0
 
 ### Minor Changes

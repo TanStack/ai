@@ -58,7 +58,7 @@ If the user declines or cancels, `requestInput` throws an Error. The tool call t
 
 ## Spec 2025 and spec 2026
 
-On spec 2025, `requestInput` waits on the open session. The same tool call then continues with the answer.
+On spec 2025, `requestInput` needs `sessions: 'memory'`. It waits on the open session, and the same tool call then continues with the answer. Without a session, it throws. See [MCP Server Sessions](./server-sessions).
 
 On spec 2026, the handler returns `input_required`. Then the client runs the tool again with the answer. On spec 2026, the code before `requestInput` runs on each call, so it can run more than once.
 

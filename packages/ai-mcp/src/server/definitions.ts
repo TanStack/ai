@@ -1,3 +1,29 @@
+import type {
+  AuthInfo,
+  ListResourcesResult,
+  Variables,
+} from '@modelcontextprotocol/server'
+
+/**
+ * What a resource `read` and `list` receive. `context` holds the values
+ * from `handle(request, { context })` and the verified `authInfo`.
+ */
+export type MCPResourceContext = {
+  context: Record<string, unknown> & { authInfo?: AuthInfo }
+}
+
+/** Lists the concrete resources of a template for `resources/list`. */
+export type MCPResourceList = (
+  ctx: MCPResourceContext,
+) => ListResourcesResult | Promise<ListResourcesResult>
+
+/** Reads one resource. `variables` is `{}` for a resource with `uri`. */
+export type MCPResourceRead<TContents = unknown> = (
+  uri: URL,
+  variables: Variables,
+  ctx: MCPResourceContext,
+) => TContents | Promise<TContents>
+
 type PromptMessage = {
   role: string
   content: string
@@ -10,11 +36,16 @@ type PromptArgsSchema<TArgs> = {
 /**
  * Builds a resource definition for the MCP server.
  *
- * `config` takes `name`, `mimeType`, and `uri` or `uriTemplate`.
+ * `config` takes `name`, `mimeType`, and one of `uri` or `uriTemplate`.
  * If `uri` and `uriTemplate` are both missing, this function throws a TypeError.
+ * Only a template can take `list(ctx)`. It returns the concrete resources
+ * for `resources/list`.
  * Call `.read` with a function that returns the resource contents.
+ * It gets the requested `uri`, the template `variables`, and `ctx`.
+ * `ctx.context` holds the values from `handle(request, { context })` and
+ * the verified `authInfo`. A tool gets the same values on its `ctx.context`.
  *
- * @param config - The resource `name`, `mimeType`, and `uri` or `uriTemplate`.
+ * @param config - The resource `name`, `mimeType`, `uri` or `uriTemplate`, and `list`.
  * @throws {TypeError} When `uri` and `uriTemplate` are both missing.
  *
  * @example
@@ -24,15 +55,30 @@ type PromptArgsSchema<TArgs> = {
  *   name: 'readme',
  *   mimeType: 'text/markdown',
  * }).read(async () => ({ text: '# Hello' }))
+ *
+ * const summary = resourceDefinition({
+ *   uriTemplate: 'myapp://items/{itemId}/summary',
+ *   name: 'item-summary',
+ *   mimeType: 'text/plain',
+ * }).read(async (_uri, { itemId }) => ({ text: `Summary of ${String(itemId)}` }))
  * ```
  */
 export function resourceDefinition<
-  const TConfig extends {
-    name: string
-    mimeType: string
-    uri?: string
-    uriTemplate?: string
-  },
+  const TConfig extends
+    | {
+        name: string
+        mimeType: string
+        uri: string
+        uriTemplate?: never
+        list?: never
+      }
+    | {
+        name: string
+        mimeType: string
+        uriTemplate: string
+        uri?: never
+        list?: MCPResourceList
+      },
 >(config: TConfig) {
   const hasUri = config.uri !== undefined
   const hasUriTemplate = config.uriTemplate !== undefined
@@ -44,7 +90,7 @@ export function resourceDefinition<
 
   return {
     ...config,
-    read<TContents>(readContents: () => TContents | Promise<TContents>) {
+    read<TContents>(readContents: MCPResourceRead<TContents>) {
       return {
         ...config,
         read: readContents,

@@ -1,15 +1,17 @@
 import OpenAI from 'openai'
 import { resolveMediaPrompt } from '@tanstack/ai'
-import { BaseVideoAdapter } from '@tanstack/ai/adapters'
+import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
 import { imagePartToFile } from '../image/image-input-to-file'
 import {
+  getOpenAIVideoDurationOptions,
   toApiSeconds,
   validateVideoSeconds,
   validateVideoSize,
 } from '../video/video-provider-options'
+import type { DurationOptions } from '@tanstack/ai/adapters'
 import type {
   VideoGenerationOptions,
   VideoJobResult,
@@ -19,10 +21,12 @@ import type {
 import type OpenAI_SDK from 'openai'
 import type { OpenAIVideoModel } from '../model-meta'
 import type {
+  OpenAIVideoModelDurationByName,
   OpenAIVideoModelInputModalitiesByName,
   OpenAIVideoModelProviderOptionsByName,
   OpenAIVideoModelSizeByName,
   OpenAIVideoProviderOptions,
+  OpenAIVideoSeconds,
 } from '../video/video-provider-options'
 import type { OpenAIClientConfig } from '../utils/client'
 
@@ -81,7 +85,8 @@ export class OpenAIVideoAdapter<
   OpenAIVideoProviderOptions,
   OpenAIVideoModelProviderOptionsByName,
   OpenAIVideoModelSizeByName,
-  OpenAIVideoModelInputModalitiesByName
+  OpenAIVideoModelInputModalitiesByName,
+  OpenAIVideoModelDurationByName
 > {
   readonly name = 'openai' as const
 
@@ -99,7 +104,11 @@ export class OpenAIVideoAdapter<
   }
 
   async createVideoJob(
-    options: VideoGenerationOptions<OpenAIVideoProviderOptions>,
+    options: VideoGenerationOptions<
+      OpenAIVideoProviderOptions,
+      OpenAIVideoModelSizeByName[TModel],
+      OpenAIVideoModelDurationByName[TModel]
+    >,
   ): Promise<VideoJobResult> {
     const { model, size, duration, modelOptions } = options
 
@@ -146,8 +155,6 @@ export class OpenAIVideoAdapter<
       request.size = resolvedSize
     }
     if (seconds !== undefined) {
-      // `toApiSeconds` returns `OpenAIVideoSeconds | undefined`; we already
-      // guarded the input, but the signature still includes `undefined`.
       const apiSeconds = toApiSeconds(seconds)
       if (apiSeconds !== undefined) {
         request.seconds = apiSeconds
@@ -344,6 +351,23 @@ export class OpenAIVideoAdapter<
       }
       throw error
     }
+  }
+
+  override availableDurations(): DurationOptions<OpenAIVideoSeconds> {
+    return getOpenAIVideoDurationOptions(this.model)
+  }
+
+  /**
+   * Returns the API string (`'4' | '8' | '12'`). Ties keep the earlier
+   * option, so `6` and `"6s"` snap to `'4'`.
+   */
+  override snapDuration(
+    input: number | string,
+  ): OpenAIVideoSeconds | undefined {
+    return snapToDurationOption(
+      input,
+      getOpenAIVideoDurationOptions(this.model),
+    )
   }
 
   protected mapStatus(

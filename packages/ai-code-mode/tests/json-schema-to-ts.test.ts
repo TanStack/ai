@@ -99,6 +99,50 @@ describe('jsonSchemaToTypeScript', () => {
     expect(result.name).toBe('"red" | "green" | "blue"')
   })
 
+  it('keeps enums and consts on typed schemas', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        aggregation: { type: 'string', enum: ['sum', 'none'] },
+        mode: { type: 'string', const: 'auto' },
+        scope: { type: 'string', enum: ['all', 'one'], const: 'one' },
+      },
+    }
+    const result = jsonSchemaToTypeScript(schema, 'Measure')
+    expect(result.declaration).toContain('aggregation?: "sum" | "none";')
+    expect(result.declaration).toContain('mode?: "auto";')
+    expect(result.declaration).toContain('scope?: "one";')
+  })
+
+  it('keeps an enum or const on an object schema as a literal type', () => {
+    const properties = { id: { type: 'string' } }
+    const withEnum = jsonSchemaToTypeScript(
+      { type: 'object', properties, enum: [{ id: 'a' }] },
+      'Choice',
+    )
+    expect(withEnum).toEqual({ name: '{"id":"a"}', declaration: '' })
+    const withConst = jsonSchemaToTypeScript(
+      { type: 'object', properties, const: { id: 'b' } },
+      'Choice',
+    )
+    expect(withConst).toEqual({ name: '{"id":"b"}', declaration: '' })
+  })
+
+  it('emits property descriptions as JSDoc unless disabled', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        unit: { type: 'string', description: 'ISO currency or %, e.g. */EUR' },
+      },
+    }
+    expect(jsonSchemaToTypeScript(schema, 'Measure').declaration).toBe(
+      'interface Measure {\n  /** ISO currency or %, e.g. *\\/EUR */\n  unit?: string;\n}',
+    )
+    expect(
+      jsonSchemaToTypeScript(schema, 'Measure', false).declaration,
+    ).not.toContain('/**')
+  })
+
   it('handles anyOf as union', () => {
     const schema = {
       anyOf: [{ type: 'string' }, { type: 'number' }],
@@ -156,7 +200,14 @@ describe('generateTypeStubs', () => {
       external_fetch: {
         name: 'external_fetch',
         description: 'Fetch data from API',
-        inputSchema: { type: 'object', properties: {} },
+        inputSchema: {
+          type: 'object',
+          properties: { url: { type: 'string', description: 'Target URL' } },
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { body: { type: 'string', description: 'Raw body' } },
+        },
         execute: async () => ({}),
       },
     }
