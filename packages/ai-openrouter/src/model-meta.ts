@@ -156,11 +156,11 @@ const _DEEPSEEK_DEEPSEEK_FLASH_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.02,
-        cached: 0.01,
+        normal: 0.003,
+        cached: 0.003,
       },
       output: {
-        normal: 0.6,
+        normal: 2.4,
       },
     },
     image: 0,
@@ -189,12 +189,12 @@ const _DEEPSEEK_DEEPSEEK_PRO_LATEST = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 943718,
+  max_output_tokens: 393216,
   pricing: {
     text: {
       input: {
-        normal: 0.12,
-        cached: 0.1,
+        normal: 0.1901,
+        cached: 0.19,
       },
       output: {
         normal: 4.2,
@@ -231,8 +231,8 @@ const _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.0188,
-        cached: 0.0188,
+        normal: 0.0152,
+        cached: 0.0152,
       },
       output: {
         normal: 1.28,
@@ -332,7 +332,7 @@ const _MOONSHOTAI_KIMI_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.9895,
+        normal: 0.6609,
         cached: 0.45,
       },
       output: {
@@ -553,8 +553,8 @@ const _Z_AI_GLM_FLASH_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.035,
-        cached: 0.035,
+        normal: 0.0352,
+        cached: 0.0352,
       },
       output: {
         normal: 0.5,
@@ -587,15 +587,15 @@ const _Z_AI_GLM_LATEST = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 131072,
+  max_output_tokens: 943718,
   pricing: {
     text: {
       input: {
-        normal: 0.12,
-        cached: 0.08,
+        normal: 0.05,
+        cached: 0.04,
       },
       output: {
-        normal: 4,
+        normal: 5,
       },
     },
     image: 0,
@@ -2411,15 +2411,15 @@ const DEEPSEEK_DEEPSEEK_CHAT_V3_0324 = {
     ],
   },
   context_window: 163840,
-  max_output_tokens: 115200,
+  max_output_tokens: 147456,
   pricing: {
     text: {
       input: {
-        normal: 0.29,
-        cached: 0.11,
+        normal: 0.25,
+        cached: 0,
       },
       output: {
-        normal: 1.14,
+        normal: 1,
       },
     },
     image: 0,
@@ -2660,15 +2660,15 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 384000,
+  max_output_tokens: 943718,
   pricing: {
     text: {
       input: {
-        normal: 0.028,
-        cached: 0.0056,
+        normal: 0.0224,
+        cached: 0.0224,
       },
       output: {
-        normal: 0.056,
+        normal: 1.28,
       },
     },
     image: 0,
@@ -2702,8 +2702,8 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH_0731 = {
   pricing: {
     text: {
       input: {
-        normal: 0.0188,
-        cached: 0.0188,
+        normal: 0.0152,
+        cached: 0.0152,
       },
       output: {
         normal: 1.28,
@@ -2810,15 +2810,15 @@ const DEEPSEEK_DEEPSEEK_V4_PRO_0813 = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 393216,
+  max_output_tokens: 943718,
   pricing: {
     text: {
       input: {
-        normal: 0.66,
-        cached: 0.022,
+        normal: 0.85,
+        cached: 0.7,
       },
       output: {
-        normal: 1.98,
+        normal: 5,
       },
     },
     image: 0,
@@ -2851,11 +2851,11 @@ const DEEPSEEK_DEEPSEEK_V4_1_FLASH = {
   pricing: {
     text: {
       input: {
-        normal: 0.3,
-        cached: 0.006,
+        normal: 0.003,
+        cached: 0.003,
       },
       output: {
-        normal: 1.2,
+        normal: 2.4,
       },
     },
     image: 0,
@@ -4979,11 +4979,11 @@ const META_LLAMA_LLAMA_3_3_70B_INSTRUCT = {
   pricing: {
     text: {
       input: {
-        normal: 0.1,
-        cached: 0,
+        normal: 0.22,
+        cached: 0.11,
       },
       output: {
-        normal: 0.32,
+        normal: 0.5,
       },
     },
     image: 0,
@@ -6677,11 +6677,11 @@ const MOONSHOTAI_KIMI_K3 = {
   pricing: {
     text: {
       input: {
-        normal: 2.7,
-        cached: 0.27,
+        normal: 0.72,
+        cached: 0.7,
       },
       output: {
-        normal: 13.5,
+        normal: 13,
       },
     },
     image: 0,
@@ -12479,11 +12479,11 @@ const QWEN_QWEN3_8_27B = {
   pricing: {
     text: {
       input: {
-        normal: 0.42,
-        cached: 0.085,
+        normal: 0.425,
+        cached: 0.61625,
       },
       output: {
-        normal: 3,
+        normal: 2.55,
       },
     },
     image: 0,
@@ -14548,11 +14548,11 @@ const Z_AI_GLM_5_2 = {
   pricing: {
     text: {
       input: {
-        normal: 0.41,
+        normal: 0.38,
         cached: 0.26,
       },
       output: {
-        normal: 3.99,
+        normal: 3.49,
       },
     },
     image: 0,

@@ -1,5 +1,14 @@
 # @tanstack/openai-base
 
+## 0.12.3
+
+### Patch Changes
+
+- [#1602](https://github.com/TanStack/ai/pull/1602) [`6d8e648`](https://github.com/TanStack/ai/commit/6d8e6485f92c98a6f2200471e2aff21ab50be013) - Preserve malformed Chat Completions tool arguments so they return a tool error without executing the tool with an empty object.
+
+- Updated dependencies [[`4c57d04`](https://github.com/TanStack/ai/commit/4c57d04f0f5dd98e176386f3208b68daf9e7d929)]:
+  - @tanstack/ai@0.64.1
+
 ## 0.12.2
 
 ### Patch Changes

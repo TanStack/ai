@@ -1015,6 +1015,22 @@ export class AnthropicTextAdapter<
       }
     }
 
+    // Anthropic rejects a request that ends in a thinking-only assistant
+    // message ("The final block in an assistant message cannot be `thinking`").
+    // An interrupt can pause a turn that has thinking but no text. Drop it so
+    // the request ends in the user message and the model answers again.
+    const last = merged.at(-1)
+    if (
+      last?.role === 'assistant' &&
+      Array.isArray(last.content) &&
+      last.content.every(
+        (block) =>
+          block.type === 'thinking' || block.type === 'redacted_thinking',
+      )
+    ) {
+      merged.pop()
+    }
+
     // De-duplicate tool_result blocks with the same tool_use_id.
     // This can happen when the core layer generates tool results from both
     // the tool-result part and the tool-call part's output field.
@@ -1077,6 +1093,9 @@ export class AnthropicTextAdapter<
     let hasEmittedRunFinished = false
     // Track current content block type for proper content_block_stop handling
     let currentBlockType: string | null = null
+    // Input and cache counts from message_start, for a closing message_delta
+    // that leaves them out.
+    let messageStartUsage: Anthropic_SDK.Beta.BetaUsage | undefined
 
     try {
       for await (const event of stream) {
@@ -1096,7 +1115,9 @@ export class AnthropicTextAdapter<
           }
         }
 
-        if (event.type === 'content_block_start') {
+        if (event.type === 'message_start') {
+          messageStartUsage = event.message.usage
+        } else if (event.type === 'content_block_start') {
           currentBlockType = event.content_block.type
           if (event.content_block.type === 'tool_use') {
             currentToolIndex++
@@ -1531,6 +1552,7 @@ export class AnthropicTextAdapter<
         } else if (event.type === 'message_delta') {
           if (event.delta.stop_reason) {
             hasEmittedRunFinished = true
+            const usage = buildAnthropicUsage(event.usage, messageStartUsage)
 
             // Close reasoning events if still open
             if (reasoningMessageId && !hasClosedReasoning) {
@@ -1558,7 +1580,7 @@ export class AnthropicTextAdapter<
                   model,
                   timestamp: Date.now(),
                   finishReason: 'tool_calls',
-                  usage: buildAnthropicUsage(event.usage),
+                  usage,
                 }
                 break
               }
@@ -1591,6 +1613,7 @@ export class AnthropicTextAdapter<
                       'The response was cut off because the maximum token limit was reached.',
                     code: 'max_tokens',
                   },
+                  usage,
                 }
                 break
               }
@@ -1612,7 +1635,7 @@ export class AnthropicTextAdapter<
                   model,
                   timestamp: Date.now(),
                   finishReason: 'stop',
-                  usage: buildAnthropicUsage(event.usage),
+                  usage,
                 }
               }
             }
