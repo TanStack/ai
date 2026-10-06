@@ -223,6 +223,24 @@ function isBackgroundReady(value: unknown): value is BackgroundReady {
   )
 }
 
+/** Wait for `job`. Throw the signal's reason when it aborts first. */
+function abortable(job: Promise<void>, signal: AbortSignal | undefined) {
+  if (!signal) return job
+  return new Promise<void>((resolve, reject) => {
+    const stop = () => reject(signal.reason)
+    if (signal.aborted) {
+      stop()
+      return
+    }
+    signal.addEventListener('abort', stop, { once: true })
+    // A job never rejects: it reports its own failure.
+    void job.then(() => {
+      signal.removeEventListener('abort', stop)
+      resolve()
+    })
+  })
+}
+
 function messagePreviewText(message: ModelMessage): string {
   if (typeof message.content === 'string') return message.content
   return JSON.stringify(message.content ?? '')
@@ -1143,9 +1161,18 @@ export function withCompaction(
         // first call.
         const firstCall =
           (await memory.get(RUN_NAMESPACE, ctx.threadId)) !== ctx.runId
-        if (firstCall) {
-          await memory.set(RUN_NAMESPACE, ctx.threadId, ctx.runId)
-          // A ready summary applies only at the first model call of a run.
+        if (firstCall) await memory.set(RUN_NAMESPACE, ctx.threadId, ctx.runId)
+        // Over maxTokens while a summary runs: wait for it and apply it, so
+        // the summary runs once, not twice. The run's signal stops the wait.
+        const running =
+          !force && auto && before > options.maxTokens
+            ? jobs.get(ctx.threadId)
+            : undefined
+        if (running) await abortable(running, ctx.signal)
+        // A ready summary applies at the first model call of a run, and
+        // after the wait. Never in the middle of a run otherwise.
+        const checked = firstCall || running !== undefined
+        if (checked) {
           const next = await applyReady()
           if (next) {
             workingMessages = next
@@ -1159,8 +1186,8 @@ export function withCompaction(
           before > background.atTokens &&
           before <= options.maxTokens &&
           !jobs.has(ctx.threadId) &&
-          // A first call took the ready summary already.
-          (firstCall ||
+          // A checked call took the ready summary already.
+          (checked ||
             !isBackgroundReady(
               await backgroundStore(ctx).get(
                 BACKGROUND_NAMESPACE,

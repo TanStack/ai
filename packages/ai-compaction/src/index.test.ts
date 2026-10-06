@@ -2826,4 +2826,67 @@ describe('background compaction', () => {
     ])
     expect(gated.calls).toHaveLength(1)
   })
+
+  it('waits for a running summary over maxTokens, applies it, and summarizes once', async () => {
+    const gated = gatedSummary()
+    const mw = backgroundCompaction(gated.summarize)
+    await runOnConfig(mw, list(4), runContext('r1').ctx)
+    await vi.waitFor(() => expect(gated.calls).toHaveLength(1))
+
+    // 201 tokens: over maxTokens (200), in the same run.
+    const longer = [...list(5), small('m6')]
+    const { ctx, events } = runContext('r1')
+    let settled = false
+    const pending = Promise.resolve(runOnConfig(mw, longer, ctx)).then(
+      (result) => {
+        settled = true
+        return result
+      },
+    )
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(settled).toBe(false)
+    expect(gated.calls).toHaveLength(1)
+
+    gated.release()
+    const result = await pending
+    expect(result?.providerMessages).toEqual([
+      summaryOf('the gist'),
+      longer[3],
+      longer[4],
+      longer[5],
+    ])
+    expect(gated.calls).toHaveLength(1)
+    expect(events.at(-1)?.value).toMatchObject({
+      reason: 'background',
+      messagesAfter: 4,
+    })
+  })
+
+  it('stops waiting when the run is cancelled, and the summary still lands', async () => {
+    const gated = gatedSummary()
+    const store = memoryStore()
+    const mw = backgroundCompaction(gated.summarize)
+    await runOnConfig(mw, list(4), runContext('r1', { store }).ctx)
+    await vi.waitFor(() => expect(gated.calls).toHaveLength(1))
+
+    const controller = new AbortController()
+    const pending = runOnConfig(
+      mw,
+      [...list(5), small('m6')],
+      runContext('r1', { store, signal: controller.signal }).ctx,
+    )
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    // It waits for the running summary, and starts no second one.
+    expect(gated.calls).toHaveLength(1)
+
+    controller.abort(new Error('stop'))
+    await expect(pending).rejects.toThrow('stop')
+
+    gated.release()
+    await vi.waitFor(async () =>
+      expect(await store.get(BACKGROUND, 'thread-1')).toMatchObject({
+        record: { reason: 'background', firstKeptId: 'm4' },
+      }),
+    )
+  })
 })
