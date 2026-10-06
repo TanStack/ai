@@ -158,7 +158,6 @@ place. Nothing else to wire, and a second device follows the identical path.
 
 To make the `POST` resumable too, hand the same adapter to the response:
 `toServerSentEventsResponse(stream, { durability: { adapter: memoryStream(request) } })`.
-If the client disconnects, the run keeps writing chunks to the durability log. A later `GET` can replay those chunks. The response no longer queues bytes for the disconnected client.
 
 ## Generation and sandboxes use the same idea
 

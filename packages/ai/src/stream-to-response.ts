@@ -181,8 +181,10 @@ function toEncodedStream(
         try {
           while (!isAborted(cancellation.signal)) {
             // Keep at most the stream's high-water mark queued for a slow
-            // reader. A detached durable run still drains into its log.
+            // reader. A fresh durable run never waits: its log is the real
+            // destination, so a stalled viewer must not stall the run.
             while (
+              !detachOnCancel &&
               !cancelled &&
               !isAborted(cancellation.signal) &&
               (controller.desiredSize ?? 0) <= 0

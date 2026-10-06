@@ -101,18 +101,18 @@ function fixedOffsetDurability(
 }
 
 describe('toServerSentEventsResponse with durability', () => {
-  it('keeps persisting after cancellation before the first read', async () => {
+  it('keeps persisting while a connected client does not read', async () => {
     const durability = memoryStream(
-      new Request('https://example.test/api/chat?runId=unread-detached', {
+      new Request('https://example.test/api/chat?runId=unread-connected', {
         method: 'POST',
       }),
     )
     const { stream } = fiveChunkStream()
+    // The response is held, never read and never cancelled.
     const response = toServerSentEventsResponse(stream, {
       durability: { adapter: durability, batch: 1 },
     })
-
-    await response.body!.cancel()
+    expect(response.body!.locked).toBe(false)
 
     await vi.waitFor(async () => {
       expect(
