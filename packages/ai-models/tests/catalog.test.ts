@@ -3,6 +3,7 @@ import {
   clampReasoningLevel as coreClamp,
   supportedReasoningLevels as coreSupported,
 } from '@tanstack/ai'
+import type { ModelReasoning as CoreModelReasoning } from '@tanstack/ai'
 import {
   clampReasoningLevel,
   generatedAt,
@@ -10,6 +11,7 @@ import {
   getModels,
   getProviders,
   modelCost,
+  modelReasoning,
   supportedReasoningLevels,
 } from '../src'
 import * as deepseek from '../src/providers/deepseek'
@@ -119,5 +121,34 @@ describe('reasoning helpers match @tanstack/ai', () => {
   it('supports only off on a model that does not reason', () => {
     expect(supportedReasoningLevels({ reasoning: false })).toEqual(['off'])
     expect(clampReasoningLevel({ reasoning: false }, 'max')).toBe('off')
+  })
+})
+
+describe('modelReasoning', () => {
+  const map: ReasoningMap = { off: null, xhigh: 'xhigh' }
+
+  it('gives false for a model that does not reason', () => {
+    expect(modelReasoning({ reasoning: false, reasoningMap: map })).toBe(false)
+  })
+
+  it('gives the level map and the budget flag', () => {
+    expect(
+      modelReasoning({
+        reasoning: true,
+        reasoningMap: map,
+        reasoningBudget: true,
+      }),
+    ).toEqual({ map, budget: true })
+    expect(modelReasoning({ reasoning: true })).toEqual({ budget: false })
+  })
+
+  it('fits the reasoning config of the adapters', () => {
+    const record = getModel('anthropic', 'claude-sonnet-4-5-20250929')
+    if (!record) throw new Error('Expected the catalog record')
+    const config: CoreModelReasoning = modelReasoning(record)
+    expect(config).toEqual({
+      ...(record.reasoningMap ? { map: record.reasoningMap } : {}),
+      budget: record.reasoningBudget === true,
+    })
   })
 })

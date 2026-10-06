@@ -1,7 +1,15 @@
 import { AzureOpenAI } from 'openai'
 import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
 import { convertToolsToProviderFormat } from '../tools'
-import type { AnyTool, TextOptions } from '@tanstack/ai'
+import type {
+  AnyTool,
+  ConfigReasoning,
+  DefaultMessageMetadataByModality,
+  Modality,
+  ModelReasoning,
+  ReasoningCapability,
+  TextOptions,
+} from '@tanstack/ai'
 import type { OpenAIBaseTextAdapterOptions } from '@tanstack/openai-base'
 import type { Tool as ResponsesTool } from 'openai/resources/responses/responses'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
@@ -14,6 +22,12 @@ export interface AzureOpenAITextConfig
   apiVersion?: string
   deploymentName?: string
   deploymentNameMap?: Readonly<Record<string, string>>
+  /**
+   * The model's reasoning data, for example `modelReasoning(record)` from a
+   * `@tanstack/ai-models` record. With it, `chat({ reasoning })` sends
+   * `reasoning.effort`. Without it, no reasoning field goes out.
+   */
+  reasoning?: ModelReasoning
 }
 
 function normalizeAzureBaseURL(baseURL: string): string {
@@ -34,12 +48,19 @@ function normalizeAzureBaseURL(baseURL: string): string {
   return url.toString().replace(/\/+$/, '')
 }
 
-export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
+export class AzureOpenAITextAdapter<
+  TReasoning extends ReasoningCapability = never,
+> extends OpenAIBaseResponsesTextAdapter<
   string,
-  { [K in keyof ExternalTextProviderOptions]: ExternalTextProviderOptions[K] }
+  { [K in keyof ExternalTextProviderOptions]: ExternalTextProviderOptions[K] },
+  ReadonlyArray<Modality>,
+  DefaultMessageMetadataByModality,
+  ReadonlyArray<string>,
+  TReasoning
 > {
   override readonly api = 'azure-openai-responses'
   private readonly deploymentName: string
+  private readonly configReasoning: ModelReasoning | undefined
 
   constructor(config: AzureOpenAITextConfig, model: string) {
     const {
@@ -49,6 +70,7 @@ export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
       apiVersion,
       deploymentName,
       deploymentNameMap,
+      reasoning,
       ...clientOptions
     } = config
     const env: Record<string, string | undefined> =
@@ -72,6 +94,7 @@ export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
       apiVersion: apiVersion || env.AZURE_OPENAI_API_VERSION || 'v1',
     })
     super(model, 'azure-openai-responses', client, config)
+    this.configReasoning = reasoning
     const envMap = new Map<string, string>()
     for (const entry of (env.AZURE_OPENAI_DEPLOYMENT_NAME_MAP ?? '').split(
       ',',
@@ -91,6 +114,10 @@ export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
       model
   }
 
+  protected override modelReasoning(_model: string) {
+    return this.configReasoning
+  }
+
   protected override convertTools(tools: Array<AnyTool>): Array<ResponsesTool> {
     return convertToolsToProviderFormat(tools)
   }
@@ -102,9 +129,11 @@ export class AzureOpenAITextAdapter extends OpenAIBaseResponsesTextAdapter<
   }
 }
 
-export function azureOpenaiText(
+export function azureOpenaiText<
+  TConfig extends AzureOpenAITextConfig = AzureOpenAITextConfig,
+>(
   model: string,
-  config: AzureOpenAITextConfig = {},
-): AzureOpenAITextAdapter {
-  return new AzureOpenAITextAdapter(config, model)
+  config?: TConfig,
+): AzureOpenAITextAdapter<ConfigReasoning<TConfig, never>> {
+  return new AzureOpenAITextAdapter(config ?? {}, model)
 }

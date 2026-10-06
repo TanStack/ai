@@ -11,6 +11,7 @@
 import { beforeAll, describe, expectTypeOf, it } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { anthropicText } from '../src'
+import type { ModelReasoning } from '@tanstack/ai'
 import type { AnthropicChatModelProviderOptionsByName } from '../src'
 
 // Set a dummy API key so adapter construction does not throw at runtime.
@@ -177,9 +178,49 @@ describe('Anthropic per-model chat modelOptions gating', () => {
   })
 
   describe('Model name type safety', () => {
-    it('rejects unknown model names at the factory', () => {
-      // @ts-expect-error - 'claude-fake-9000' is not a valid Anthropic chat model
-      anthropicText('claude-fake-9000')
+    it('accepts any model id, such as a gateway or catalog id', () => {
+      anthropicText('anthropic/claude-sonnet-4.6')
+      const id: string = 'MiniMax-M2.5'
+      anthropicText(id)
+    })
+  })
+})
+
+describe('Anthropic chat reasoning from the config', () => {
+  const messages = [{ role: 'user' as const, content: 'hi' }]
+
+  it('a config with reasoning takes every level, for any model id', () => {
+    chat({
+      adapter: anthropicText('anthropic/claude-sonnet-4.6', {
+        reasoning: { budget: true },
+      }),
+      messages,
+      reasoning: { level: 'max', budgetTokens: 4000 },
+    })
+    // The table gives claude-opus-4-5 only low, medium, and high.
+    const reasoning: ModelReasoning = { map: { xhigh: 'xhigh' }, budget: false }
+    chat({
+      adapter: anthropicText('claude-opus-4-5', { reasoning }),
+      messages,
+      reasoning: 'xhigh',
+    })
+  })
+
+  it('an id with no table and no config takes no reasoning', () => {
+    chat({
+      adapter: anthropicText('anthropic/claude-sonnet-4.6'),
+      messages,
+      // @ts-expect-error - no reasoning data for this id
+      reasoning: 'high',
+    })
+  })
+
+  it('reasoning: false takes no reasoning, also on a known model', () => {
+    chat({
+      adapter: anthropicText('claude-opus-5-5', { reasoning: false }),
+      messages,
+      // @ts-expect-error - the config says the model does not reason
+      reasoning: 'high',
     })
   })
 })

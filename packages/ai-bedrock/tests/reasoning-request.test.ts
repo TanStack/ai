@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest'
+import { chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { BedrockTextAdapter } from '../src/adapters/text'
 import { BedrockResponsesTextAdapter } from '../src/adapters/responses-text'
-import { BedrockConverseTextAdapter } from '../src/adapters/converse-text'
-import type { ReasoningRequest, TextOptions } from '@tanstack/ai'
-import type { BedrockConverseModels } from '../src/model-meta'
+import {
+  BedrockConverseTextAdapter,
+  createBedrockConverse,
+} from '../src/adapters/converse-text'
+import type {
+  ModelReasoning,
+  ReasoningRequest,
+  TextOptions,
+} from '@tanstack/ai'
+import type { BedrockConverseModelId } from '../src/adapters/converse-text'
 import type { BedrockConverseProviderOptions } from '../src/converse/provider-options'
 
 const logger = resolveDebugOption(false)
@@ -35,7 +43,7 @@ class ResponsesProbe extends BedrockResponsesTextAdapter<'openai.gpt-oss-120b-1:
 }
 
 class ConverseProbe<
-  TModel extends BedrockConverseModels,
+  TModel extends BedrockConverseModelId,
 > extends BedrockConverseTextAdapter<TModel, BedrockConverseProviderOptions> {
   request(
     reasoning: ReasoningRequest | undefined,
@@ -105,5 +113,74 @@ describe('Bedrock chat({ reasoning }) request shape', () => {
     expect(gptOss.request(on('high'))).not.toHaveProperty(
       'additionalModelRequestFields',
     )
+  })
+})
+
+describe('Bedrock Converse reasoning from the config', () => {
+  const effortMap: ModelReasoning = {
+    map: { off: null, minimal: null, xhigh: 'xhigh', max: 'max' },
+    budget: false,
+  }
+  const probe = (model: string, reasoning: ModelReasoning) =>
+    new ConverseProbe({ ...config, reasoning }, model)
+
+  it('sends adaptive thinking for a Claude id that the table does not have', () => {
+    expect(
+      probe('anthropic.claude-fable-5', effortMap).request(on('xhigh'))
+        .additionalModelRequestFields,
+    ).toEqual({
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'xhigh' },
+    })
+  })
+
+  it('sends budget thinking for a budget record', () => {
+    const input = probe('global.anthropic.claude-sonnet-4-6', {
+      budget: true,
+    }).request(on('medium'))
+    expect(input.additionalModelRequestFields).toEqual({
+      thinking: { type: 'enabled', budget_tokens: 8192 },
+      anthropic_beta: ['interleaved-thinking-2025-05-14'],
+    })
+  })
+
+  it('sends no thinking for reasoning: false, also on a known model', () => {
+    expect(
+      probe('us.anthropic.claude-haiku-4-5-20251001-v1:0', false).request(
+        on('high'),
+      ),
+    ).not.toHaveProperty('additionalModelRequestFields')
+  })
+
+  it('clamps the level with the config, not with the table', () => {
+    // This config has no minimal, so minimal moves up to low.
+    expect(
+      probe('anthropic.claude-fable-5', effortMap).request(on('minimal'))
+        .additionalModelRequestFields,
+    ).toEqual({
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'low' },
+    })
+  })
+})
+
+describe('Bedrock Converse chat reasoning types', () => {
+  const messages = [{ role: 'user' as const, content: 'hi' }]
+
+  it('takes any model id, and every level with a reasoning config', () => {
+    const id: string = 'anthropic.claude-fable-5'
+    const reasoning: ModelReasoning = { budget: true }
+    // Type-level only: chat() is never iterated, so no request goes out.
+    chat({
+      adapter: createBedrockConverse(id, 'k', { reasoning }),
+      messages,
+      reasoning: { level: 'max', budgetTokens: 4000 },
+    })
+    chat({
+      adapter: createBedrockConverse(id, 'k'),
+      messages,
+      // @ts-expect-error - no reasoning data for this id
+      reasoning: 'high',
+    })
   })
 })

@@ -16,13 +16,17 @@ import type {
 import type {
   CloudflareConfigInput,
   CloudflareTextConfig,
+  CloudflareTextReasoningConfig,
   CloudflareTextRestConfig,
 } from '../utils/config'
 import type { CloudflareTextModel } from '../utils/models'
 import type {
+  ConfigReasoning,
   DefaultMessageMetadataByModality,
   Modality,
   ModelMessage,
+  ModelReasoning,
+  ReasoningCapability,
   TextOptions,
 } from '@tanstack/ai'
 import type { CloudflareModelReasoningByName } from '../model-reasoning'
@@ -65,6 +69,7 @@ function createClient(config: CloudflareTextConfig): OpenAI {
     accountId: _accountId,
     binding: _binding,
     gateway,
+    reasoning: _reasoning,
     ...clientOptions
   } = config
   return new OpenAI({
@@ -90,19 +95,23 @@ function createClient(config: CloudflareTextConfig): OpenAI {
 export class CloudflareTextAdapter<
   TModel extends CloudflareTextModel,
   TProviderOptions extends Record<string, any> = CloudflareTextProviderOptions,
+  TReasoning extends ReasoningCapability = ResolveReasoning<TModel>,
 > extends OpenAIBaseChatCompletionsTextAdapter<
   TModel,
   TProviderOptions,
   ReadonlyArray<Modality>,
   DefaultMessageMetadataByModality,
   ReadonlyArray<string>,
-  ResolveReasoning<TModel>
+  TReasoning
 > {
   override readonly kind = 'text' as const
   override readonly name = 'cloudflare' as const
+  /** `config.reasoning`, which wins over `CLOUDFLARE_MODEL_REASONING`. */
+  private readonly configReasoning: ModelReasoning | undefined
 
   constructor(config: CloudflareTextConfig, model: TModel) {
     super(model, 'cloudflare', createClient(config), config)
+    this.configReasoning = config.reasoning
   }
 
   /**
@@ -113,7 +122,7 @@ export class CloudflareTextAdapter<
     const request = super.mapOptionsToRequest(options)
     const resolved = resolveReasoning(
       options.reasoning,
-      CLOUDFLARE_MODEL_REASONING[options.model],
+      this.configReasoning ?? CLOUDFLARE_MODEL_REASONING[options.model],
     )
     if (resolved) {
       Object.assign(request, {
@@ -170,10 +179,17 @@ export class CloudflareTextAdapter<
  * const adapter = createCloudflareText('@cf/zai-org/glm-5.3-flash', { accountId, apiKey })
  * ```
  */
-export function createCloudflareText<TModel extends CloudflareTextModel>(
+export function createCloudflareText<
+  TModel extends CloudflareTextModel,
+  TConfig extends CloudflareTextConfig = CloudflareTextConfig,
+>(
   model: TModel,
-  config: CloudflareTextConfig,
-): CloudflareTextAdapter<TModel> {
+  config: TConfig,
+): CloudflareTextAdapter<
+  TModel,
+  CloudflareTextProviderOptions,
+  ConfigReasoning<TConfig, ResolveReasoning<TModel>>
+> {
   return new CloudflareTextAdapter(config, model)
 }
 
@@ -181,9 +197,18 @@ export function createCloudflareText<TModel extends CloudflareTextModel>(
  * Creates a Cloudflare text adapter, reading `CLOUDFLARE_ACCOUNT_ID` and
  * `CLOUDFLARE_API_TOKEN` from the environment unless a binding is passed.
  */
-export function cloudflareText<TModel extends CloudflareTextModel>(
+export function cloudflareText<
+  TModel extends CloudflareTextModel,
+  TConfig extends CloudflareConfigInput<CloudflareTextRestConfig> &
+    CloudflareTextReasoningConfig =
+    CloudflareConfigInput<CloudflareTextRestConfig>,
+>(
   model: TModel,
-  config?: CloudflareConfigInput<CloudflareTextRestConfig>,
-): CloudflareTextAdapter<TModel> {
+  config?: TConfig,
+): CloudflareTextAdapter<
+  TModel,
+  CloudflareTextProviderOptions,
+  ConfigReasoning<TConfig, ResolveReasoning<TModel>>
+> {
   return new CloudflareTextAdapter(resolveConfigFromEnv(config), model)
 }

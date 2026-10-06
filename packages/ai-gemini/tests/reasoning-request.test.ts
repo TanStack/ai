@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { GeminiTextAdapter } from '../src/adapters/text'
 import { GeminiTextInteractionsAdapter } from '../src/experimental/text-interactions/adapter'
-import type { ReasoningRequest } from '@tanstack/ai'
-import type { GeminiModels } from '../src/model-meta'
+import type { ModelReasoning, ReasoningRequest } from '@tanstack/ai'
+import type { GeminiTextConfig } from '../src/adapters/text'
 
 const mocks = vi.hoisted(() => ({
   generateContentStream: vi.fn(),
@@ -27,11 +27,12 @@ async function* noChunks() {}
 
 /** Run one call and return the `thinkingConfig` it sent. */
 async function thinkingConfig(
-  model: GeminiModels,
+  model: string,
   reasoning: ReasoningRequest | undefined,
+  config: GeminiTextConfig = { apiKey: 'test' },
 ) {
   mocks.generateContentStream.mockResolvedValue(noChunks())
-  const adapter = new GeminiTextAdapter({ apiKey: 'test' }, model)
+  const adapter = new GeminiTextAdapter(config, model)
   for await (const _chunk of adapter.chatStream({
     logger,
     model,
@@ -95,6 +96,65 @@ describe('Gemini chat({ reasoning }) request shape', () => {
     expect(await thinkingConfig('gemini-2.5-flash', on('off'))).toEqual({
       thinkingBudget: 0,
     })
+  })
+})
+
+describe('Gemini reasoning from the config', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const levels: ModelReasoning = {
+    map: { off: null, minimal: null, xhigh: null },
+    budget: false,
+  }
+
+  it('sends thinkingLevel for a model id that the table does not have', async () => {
+    expect(
+      await thinkingConfig('gemini-3.5-pro-preview', on('high'), {
+        apiKey: 'test',
+        reasoning: levels,
+      }),
+    ).toEqual({ includeThoughts: true, thinkingLevel: 'HIGH' })
+  })
+
+  it('works the same in Vertex mode', async () => {
+    expect(
+      await thinkingConfig('gemini-3.5-pro-preview', on('low'), {
+        vertexai: true,
+        project: 'p',
+        location: 'global',
+        reasoning: levels,
+      }),
+    ).toEqual({ includeThoughts: true, thinkingLevel: 'LOW' })
+  })
+
+  it('sends a thinking budget for a budget model from the config', async () => {
+    expect(
+      await thinkingConfig('gemini-2.5-flash-preview-09-2025', on('low'), {
+        apiKey: 'test',
+        reasoning: { budget: true },
+      }),
+    ).toEqual({ includeThoughts: true, thinkingBudget: 2048 })
+  })
+
+  it('sends no thinkingConfig for reasoning: false, also on a known model', async () => {
+    expect(
+      await thinkingConfig('gemini-3-flash-preview', on('high'), {
+        apiKey: 'test',
+        reasoning: false,
+      }),
+    ).toBeUndefined()
+  })
+
+  it('clamps the level with the config, not with the table', async () => {
+    // The table gives gemini-3-flash-preview minimal. This config has none.
+    expect(
+      await thinkingConfig('gemini-3-flash-preview', on('minimal'), {
+        apiKey: 'test',
+        reasoning: levels,
+      }),
+    ).toEqual({ includeThoughts: true, thinkingLevel: 'LOW' })
   })
 })
 

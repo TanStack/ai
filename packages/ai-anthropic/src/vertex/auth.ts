@@ -1,4 +1,5 @@
 import type { AnthropicVertex } from '@anthropic-ai/vertex-sdk'
+import type { ModelReasoning } from '@tanstack/ai'
 
 export class AnthropicVertexAuthError extends Error {
   constructor(message: string) {
@@ -21,6 +22,8 @@ export type AnthropicVertexConfig = Omit<
 > & {
   project?: string
   location?: string
+  /** See `AnthropicTextConfig.reasoning`. It does not go to the Vertex SDK. */
+  reasoning?: ModelReasoning
 }
 
 function nonEmpty(value: string | undefined): string | undefined {
@@ -40,7 +43,7 @@ function readEnv(name: string): string | undefined {
 export function resolveAnthropicVertexOptions(
   config: AnthropicVertexConfig = {},
 ): VertexSdkOptions {
-  const { project, location, ...rest } = config
+  const { project, location, reasoning: _reasoning, ...rest } = config
   const projectId =
     nonEmpty(project) ??
     readEnv('GOOGLE_CLOUD_PROJECT') ??
