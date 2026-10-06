@@ -338,13 +338,13 @@ const searchDocs = toolDefinition({
 });
 ```
 
-MCP tools from `@tanstack/ai-mcp` already pass `abortSignal` to the MCP server.
+MCP tools from `@tanstack/ai-mcp` already stop their request when the run aborts.
 
 A tool that runs inside Code Mode gets these fields:
 
 - `abortSignal`: the signal of the chat run. If the run is already aborted, the call does not start.
 - `context`: the runtime `context` that you gave to `chat()`.
-- `emitCustomEvent`: sends a custom event to the stream.
+- `emitCustomEvent`: sends a custom event to the stream. A tool that a `snippet_*` function calls does not send events.
 
 The tool does not get `toolCallId` or `inputResponse`. These fields belong to the `execute_typescript` call.
 

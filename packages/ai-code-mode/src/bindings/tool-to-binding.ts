@@ -99,8 +99,8 @@ export function toolToBinding(
  * Create event-aware bindings that emit custom events for each external function call.
  * Wraps each binding's execute function to emit events before and after execution.
  *
- * Each call gets the parent tool's `abortSignal` and runtime `context`, so an
- * aborted run cancels in-flight calls. `toolCallId` and `inputResponse` are not
+ * Each call gets the parent tool's `abortSignal` and runtime `context`, so a tool
+ * can cancel in-flight work when the run aborts. `toolCallId` and `inputResponse` are not
  * passed: they belong to the parent tool call, not to this nested call.
  *
  * @param bindings - Original tool bindings
