@@ -2510,3 +2510,11 @@ describe('conversationSummarizer', () => {
     expect(requestSignal?.aborted).toBe(true)
   })
 })
+
+describe('background compaction', () => {
+  it('throws when atTokens is not below maxTokens', () => {
+    expect(() =>
+      withCompaction({ maxTokens: 200, background: { atTokens: 200 } }),
+    ).toThrow('withCompaction: background.atTokens must be below maxTokens.')
+  })
+})

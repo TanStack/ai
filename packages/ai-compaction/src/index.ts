@@ -69,7 +69,11 @@ export interface CompactionMessagePreview {
 }
 
 /** Why a compaction ran. */
-export type CompactionReason = 'threshold' | 'forced' | 'after-turn'
+export type CompactionReason =
+  | 'threshold'
+  | 'forced'
+  | 'after-turn'
+  | 'background'
 
 /** Payload of {@link COMPACTION_STARTED_EVENT}. */
 export interface CompactionStartedEventValue {
@@ -109,6 +113,8 @@ export interface CompactionEndedEventValue {
   usage?: TokenUsage
   /** Set when the strategy threw. */
   error?: { message: string }
+  /** `true`: a ready background summary no longer fit the messages, and was dropped. */
+  stale?: boolean
 }
 
 function emitCompactionStarted(
@@ -300,6 +306,8 @@ export interface CompactionInfo {
    * call's own check tries again.
    */
   error?: { message: string }
+  /** `true`: a ready background summary no longer fit the messages, and was dropped. */
+  stale?: boolean
 }
 
 export interface CompactionOptions {
@@ -352,6 +360,16 @@ export interface CompactionOptions {
    * Default `false`: the run fails. The after-turn check never fails the run.
    */
   continueOnError?: boolean
+  /**
+   * Prepare the summary before the list is over `maxTokens`. When the count
+   * at a model call is over `atTokens` and not over `maxTokens`, the strategy
+   * runs on a copy of the messages, and the call does not wait for it. The
+   * result applies at the first model call of the next run. A call over
+   * `maxTokens` while it runs waits for it. A ready result waits in the
+   * metadata store, or in memory without one. `atTokens` must be below
+   * `maxTokens`. Default: off.
+   */
+  background?: { atTokens: number }
 }
 
 /** What {@link withCompaction} returns: a chat middleware with `compactNext`. */
@@ -657,6 +675,12 @@ export function composeStrategies(
 export function withCompaction(
   options: CompactionOptions,
 ): CompactionMiddleware {
+  const background = options.background
+  if (background && background.atTokens >= options.maxTokens) {
+    throw new Error(
+      'withCompaction: background.atTokens must be below maxTokens.',
+    )
+  }
   const estimate = options.estimateTokens ?? estimateMessageTokens
   const strategy = options.strategy ?? evictOldest()
   const strategyKey =
