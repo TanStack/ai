@@ -29,7 +29,7 @@ import type {
 import { envProviderKeys } from '../../../byok/env-keys'
 import { createBoundActivities } from './bound'
 import { SubagentBudget } from './limits'
-import type { AgentStep, SubagentBinding } from './bound'
+import type { AgentStarter, AgentStep, SubagentBinding } from './bound'
 import type { SubagentLimits } from './limits'
 import type {
   DefinedAgent,
@@ -538,12 +538,22 @@ function runContext(
     },
     keys: binding?.keys ?? envProviderKeys,
     step: binding?.step ?? runEachTime,
+    agents: binding?.agents ?? noAgents,
     ...createBoundActivities(agentName, input, abortController, binding),
   } satisfies SubagentRunContext
 }
 
 /** The steps of an agent run that no host can run again: `fn` runs each time. */
 const runEachTime: AgentStep = { do: async (_name, fn) => fn() }
+
+/** `ctx.agents` of a run that no host binds: a start throws. */
+const noAgents: AgentStarter = {
+  start: () => {
+    throw new Error(
+      'ctx.agents.start needs a host that runs agents in the background, such as a harness session.',
+    )
+  },
+}
 
 export async function* spawnAgentStream(
   agent: DefinedAgent,

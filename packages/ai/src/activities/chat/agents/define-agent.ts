@@ -10,7 +10,12 @@ import type {
   UIMessage,
 } from '../../../types'
 import type { AnyClientTool } from '../tools/tool-definition'
-import type { AgentStep, BoundActivities, SubagentForward } from './bound'
+import type {
+  AgentStarter,
+  AgentStep,
+  BoundActivities,
+  SubagentForward,
+} from './bound'
 import type { ProviderKeys } from '../../../byok/keyed'
 
 /**
@@ -62,6 +67,9 @@ export interface SubagentRunInput<
  *   names the env var.
  * - `step.do(name, fn)` keeps a side effect from running twice when a host
  *   runs the agent again after a crash. See {@link AgentStep}.
+ * - `agents.start(agent, input, options)` starts an agent in the
+ *   background, when a host (a harness session) runs this agent. Without
+ *   such a host it throws.
  */
 export type SubagentRunContext<TInput extends SchemaInput | undefined = any> =
   SubagentRunInput<TInput> &
@@ -69,6 +77,7 @@ export type SubagentRunContext<TInput extends SchemaInput | undefined = any> =
       forward: SubagentForward
       keys: ProviderKeys
       step: AgentStep
+      agents: AgentStarter
     }
 
 /**
